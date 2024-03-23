@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using CustomLayouts;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 
@@ -37,10 +38,11 @@ public partial class WarmupPage : ContentPage
             {
                 foreach (ConversationChunk item in e.NewItems)
                 {
-                    if (item.Author == ConversationParticipant.Me)
-                    {
+                    // if (item.Author == ConversationParticipant.Me)
+                    // {
                         MessageCollectionView.ScrollTo(0);
-                    }
+                        
+                    // }
                 }
             }
         }

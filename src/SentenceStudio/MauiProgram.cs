@@ -48,6 +48,7 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton<TeacherService>();
 		builder.Services.AddSingleton<VocabularyService>();
+		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();

@@ -22,8 +22,7 @@
                       ColumnSpacing="0"
                       Rotation="180"
                       x:DataType="model:ConversationChunk"
-                      ColumnDefinitions="50,*"
-                      >
+                      ColumnDefinitions="50,*">
                     <Image Grid.Column="0"
                         WidthRequest="40"
                         HeightRequest="40"
@@ -47,7 +46,8 @@
                            CornerRadius="20"
                            HasShadow="False">
                         <Label Margin="10,5"
-                               Text="{Binding Text}" />
+                            Text="{Binding Text}"
+                            TextColor="{StaticResource LightOnDarkBackground}" />
                     </Frame>
                 </Grid>
             </DataTemplate>
@@ -66,7 +66,8 @@
                            CornerRadius="20"
                            HasShadow="False">
                         <Label Margin="10,5"
-                               Text="{Binding Text}" />
+                               Text="{Binding Text}" 
+                               TextColor="{StaticResource LightOnDarkBackground}"/>
                     </Frame>
                 </Grid>
             </DataTemplate>
@@ -175,9 +176,7 @@
             
             <c:ModeSelector x:Name="ModeSelector"
                     Grid.Column="2" Grid.Row="1"
-                    HorizontalOptions="Center" VerticalOptions="Center"/>
-
-            
+                    HorizontalOptions="Center" VerticalOptions="Center"/>            
 
             <!-- Grid Lines -->
             <BoxView Grid.ColumnSpan="7"
@@ -186,17 +185,6 @@
                 />
         </Grid>
 
-        <!-- Busy Indicator -->
-        <AbsoluteLayout
-            x:Name="LoadingOverlay"
-                IsVisible="{Binding IsBusy}" 
-                BackgroundColor="#80000000"
-                Grid.RowSpan="2">
-                <Label Text="Thinking..."
-                       FontSize="64"
-                       AbsoluteLayout.LayoutFlags="PositionProportional"
-                       AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
-                       TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
-        </AbsoluteLayout>
+        
     </Grid>
 </ContentPage>

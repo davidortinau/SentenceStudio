@@ -3,9 +3,15 @@ namespace SentenceStudio.Models;
 public class ConversationParticipant
 {
     public static readonly ConversationParticipant Me = new ConversationParticipant(
-        "Xam",
-        "Xappy",
-        "https://pbs.twimg.com/profile_images/1118743728003452928/oMJdZl-C_400x400.png",
+        "David",
+        "Ortinau",
+        "https://avatars.githubusercontent.com/u/41873?v=4",
+        "Hi!");
+
+    public static readonly ConversationParticipant Bot = new ConversationParticipant(
+        "김철수",
+        "",
+        "https://randomuser.me/api/portraits/men/37.jpg",
         "안녕하세요!");
 
     public ConversationParticipant(string firstName, string lastName, string avatarUrl, string spamSentence)
