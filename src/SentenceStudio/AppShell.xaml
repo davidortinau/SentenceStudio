@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="SentenceStudio.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:SentenceStudio"
+    xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson;assembly=SentenceStudio"
+    xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
+    
+    Title="SentenceStudio">
+
+    
+
+    <ShellContent
+        Title="Dashboard"
+        ContentTemplate="{DataTemplate dashboard:DashboardPage}"
+        Route="dashboard" />
+
+        <ShellContent
+        Title="Writer"
+        ContentTemplate="{DataTemplate lesson:WritingPage}"
+        Route="writing" />
+
+    <ShellContent
+        Title="New Lesson"
+        ContentTemplate="{DataTemplate lesson:LessonStartPage}"
+        Route="newLesson" />
+</Shell>

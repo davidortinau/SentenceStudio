@@ -1,0 +1,200 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" 
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson" 
+             xmlns:l="clr-namespace:CustomLayouts"
+             xmlns:s="clr-namespace:SentenceStudio.Services"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:model="clr-namespace:SentenceStudio.Models"
+             x:Class="SentenceStudio.Pages.Lesson.WritingPage"
+             Title="Write Now"
+             x:DataType="lesson:WritingPageModel"
+             HideSoftInputOnTapped="True"
+             Shell.NavBarIsVisible="true">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,80">
+        
+        <ScrollView Grid.Row="1">
+            <Grid RowDefinitions="30,*,Auto">
+
+                <!-- Lesson Content -->
+                <Grid Grid.Row="1" 
+                    ColumnDefinitions="{OnIdiom Phone='*', Default='6*,3*'}" 
+                    Margin="30">
+
+                    <VerticalStackLayout Spacing="{StaticResource InnerSpacing}"
+                        BindableLayout.ItemsSource="{Binding Sentences}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Label Text="{Binding .}"/>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    
+                    <!-- Feedback -->
+                    <Border Grid.Column="{OnIdiom Phone=0, Default=1}" IsVisible="{Binding HasFeedback}">
+                        <ScrollView>
+                            <VerticalStackLayout>
+                                <Label Text="Feedback" 
+                                    Style="{StaticResource LargeTitle}" />
+                                    <Label Text="{Binding CurrentSentence}"/>
+                                    <Label Text="{Binding GradeResponse.Accuracy, StringFormat='Accuracy: {0}'}" />
+                                    <Label Text="{Binding GradeResponse.AccuracyExplanation, StringFormat='Explanation: {0}'}" />
+                                    <Label Text="{Binding GradeResponse.Fluency, StringFormat='Fluency: {0}'}" />
+                                    <Label Text="{Binding GradeResponse.FluencyExplanation, StringFormat='Explanation: {0}'}" />
+                                    <Label Text="{Binding GradeResponse.GrammarNotes.RecommendedTranslation, StringFormat='Recommended: {0}'}" />
+                                    <Label Text="{Binding GradeResponse.GrammarNotes.Explanation, StringFormat='Notes: {0}'}" />
+                            </VerticalStackLayout>
+                        </ScrollView>
+                    </Border>
+                </Grid>
+
+                <!-- Input -->
+                <Grid ColumnDefinitions="*, Auto, Auto, Auto"
+                      RowDefinitions="{OnIdiom *, Phone='*,*'}"
+                      x:Name="InputUI"
+                      Grid.Row="2"
+                      RowSpacing="{OnIdiom 0, Phone=5}"
+                      Padding="{OnIdiom 30, Phone='15, 0'}"
+                      ColumnSpacing="{OnIdiom 15, Phone=5}">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Keyboard">
+                                <VisualState.Setters>
+                                    <Setter
+                                        TargetName="UserInputField"
+                                        Property="Border.IsVisible"
+                                        Value="True" />
+                                    
+                                </VisualState.Setters>
+                            </VisualState>
+
+                            <VisualState x:Name="Mic">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Pink" />
+                                </VisualState.Setters>
+                            </VisualState>
+
+                
+                        </VisualStateGroup>
+                    </VisualStateManager.VisualStateGroups>
+
+                    <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                            FieldLabel="Translation"
+                                 Grid.Row="0"
+                                 Grid.Column="0"
+                                 >
+                        <Entry Placeholder="그건 한국어로 어떻게 말해요?"
+                               Text="{Binding UserInput}"
+                               x:Name="UserInputField"
+                               FontSize="32" 
+                               ReturnType="Go"
+                               toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                               ReturnCommand="{Binding GradeMeCommand}"
+                               />
+                    </c:FormField>
+
+                    
+                
+                </Grid>
+
+                <!-- HUD with progress -->
+                <Grid Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource InnerSpacing}}">
+                    <Label Text="{Binding Progress}"
+                        HorizontalOptions="End"
+                        VerticalOptions="Start"
+                        />
+                </Grid>
+            
+            </Grid>
+        </ScrollView>
+
+        <!-- Navigation -->
+        <Grid Grid.Row="2"
+            RowDefinitions="1,*"
+            ColumnDefinitions="60,1,*,1,60,1,60">
+            
+            <Button Grid.Column="0"
+                    Grid.Row="1"
+                Text="GO"
+                TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                Background="Transparent"
+                Command="{Binding GradeMeCommand}"
+            />
+
+            <c:ModeSelector x:Name="ModeSelector"
+                    Grid.Column="2" Grid.Row="1"
+                    HorizontalOptions="Center" VerticalOptions="Center"/>
+
+            <Button Grid.Column="4" Grid.Row="1"
+                ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
+                Background="Transparent"
+                Command="{Binding PreviousCommand}"
+            />
+                
+            <Button Grid.Column="6" Grid.Row="1"
+                ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"
+                Background="Transparent"
+                Command="{Binding NextCommand}"
+            />
+
+            <!-- Grid Lines -->
+            <BoxView Grid.ColumnSpan="7"
+                Color="Black"
+                HeightRequest="1"
+                />
+            <BoxView Grid.Column="1"
+                        Grid.Row="1"
+                Color="Black"
+                WidthRequest="1"
+                />
+            <BoxView Grid.Column="3"
+                        Grid.Row="1"
+                Color="Black"
+                WidthRequest="1"/>
+            <BoxView Grid.Column="5"
+                        Grid.Row="1"
+                Color="Black"
+                WidthRequest="1"/>
+        </Grid>
+
+        <HorizontalStackLayout
+            Spacing="{StaticResource InterSpacing}" 
+            Padding="{StaticResource InnerSpacing}"
+            BindableLayout.ItemsSource="{Binding VocabBlocks}">
+            <BindableLayout.ItemTemplate>
+                <DataTemplate x:DataType="model:Term">
+                    <Button Text="{Binding TargetLanguageTerm}"
+                        Background="{StaticResource Gray200}"
+                        TextColor="{StaticResource Gray900}"
+                        FontSize="32" 
+                        Padding="4"
+                        VerticalOptions="Start"
+                            Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
+                            CommandParameter="{Binding TargetLanguageTerm}"
+                    />
+
+                </DataTemplate>
+            </BindableLayout.ItemTemplate> 
+        </HorizontalStackLayout>
+
+        <!-- Busy Indicator -->
+        <AbsoluteLayout
+            x:Name="LoadingOverlay"
+                IsVisible="{Binding IsBusy}" 
+                BackgroundColor="#80000000"
+                Grid.RowSpan="2">
+                <Label Text="Thinking..."
+                       FontSize="64"
+                       AbsoluteLayout.LayoutFlags="PositionProportional"
+                       AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                       TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+        </AbsoluteLayout>
+    </Grid>
+</ContentPage>

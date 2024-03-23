@@ -1,0 +1,112 @@
+﻿using CommunityToolkit.Maui;
+using Microsoft.Extensions.Logging;
+using SentenceStudio.Pages.Dashboard;
+using SentenceStudio.Pages.Lesson;
+using DotNet.Meteor.HotReload.Plugin;
+using SentenceStudio.Services;
+using SentenceStudio.Pages.Vocabulary;
+using Microsoft.Maui.Platform;
+using MauiIcons.SegoeFluent;
+using Microsoft.Maui.Handlers;
+using System.Diagnostics;
+using SentenceStudio.Pages.Controls;
+using Microsoft.Extensions.Configuration;
+using Shiny;
+
+namespace SentenceStudio;
+
+public static class MauiProgram
+{
+	public static MauiApp CreateMauiApp()
+	{
+		var builder = MauiApp.CreateBuilder();
+		builder
+			.UseMauiApp<App>()
+			.UseShiny()
+			.UseMauiCommunityToolkit()
+			.UseSegoeFluentMauiIcons()
+			.ConfigureFonts(fonts =>
+			{
+				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
+				fonts.AddFont("Segoe-Ui-Regular.ttf", "SegoeRegular");
+				fonts.AddFont("Segoe-Ui-Semibold.ttf", "SegoeSemibold");
+				fonts.AddFont("Segoe-Ui-Semilight.ttf", "SegoeSemilight");
+				// fonts.AddFont("Segoe-Fluent-Icons.ttf", "SegoeFluentIcons");
+			})
+			.ConfigureMauiHandlers(handlers =>
+			{
+				ModifyEntry();
+				//ModifyPicker();
+			})
+			.ConfigureFilePicker(100)
+			;
+
+#if DEBUG
+		builder.Logging.AddDebug();
+		builder.EnableHotReload();
+#endif
+
+		builder.Services.AddSingleton<TeacherService>();
+		builder.Services.AddSingleton<VocabularyService>();
+		builder.Services.AddSingleton<AiService>();
+		builder.Services.AddTransient<FeedbackPanel>();
+		builder.Services.AddTransient<FeedbackPanelModel>();
+		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
+		builder.Services.AddTransientWithShellRoute<LessonPage, LessonPageModel>("lesson");		
+		builder.Services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
+		builder.Services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
+		builder.Services.AddTransientWithShellRoute<LessonStartPage, LessonStartPageModel>("playLesson");
+		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
+		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
+
+		// var a = Assembly.GetExecutingAssembly();
+		// using var stream = a.GetManifestResourceStream("SentenceStudio.appsettings.json");
+
+	// 	var config = new ConfigurationBuilder()
+    // .AddJsonPlatformBundle() // NOTE: you can change the name of appsettings.json to something else and pass as an argument here
+    // .Build();
+
+	builder.Configuration.AddJsonPlatformBundle();
+
+		// var config = new ConfigurationBuilder()
+		// 			.AddJsonStream(stream)
+		// 			.Build();
+
+
+		// builder.Configuration.AddConfiguration(config);
+
+		// builder.Services.AddSingleton<IConfiguration>(
+		// 	config			
+		// );
+
+		builder.Services.AddFilePicker();
+		
+		return builder.Build();
+	}
+
+    private static void ModifyPicker()
+    {
+		#if MACCATALYST
+        Microsoft.Maui.Handlers.PickerHandler.Mapper.ReplaceMapping<Picker, IPickerHandler>(nameof(Picker.Title), (handler, view) =>
+		{
+			// do nothing
+			Debug.WriteLine("Do nothing");
+			
+		});
+		#endif
+    }
+
+    public static void ModifyEntry()
+    {
+        Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoMoreBorders", (handler, view) =>
+        {
+#if ANDROID
+            handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
+#elif IOS || MACCATALYST
+            handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
+#elif WINDOWS
+            handler.PlatformView.FontWeight = Microsoft.UI.Text.FontWeights.Thin;
+#endif
+        });
+    }
+}

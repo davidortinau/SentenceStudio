@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:layouts="clr-namespace:CustomLayouts;assembly=SentenceStudio"
+             xmlns:controls="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
+             xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard"
+             xmlns:models="clr-namespace:SentenceStudio.Models"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             x:DataType="dashboard:DashboardPageModel"
+             x:Class="SentenceStudio.Pages.Dashboard.DashboardPage">
+
+    <ScrollView>
+        <VerticalStackLayout
+            Padding="{StaticResource InnerSpacing}"
+            Spacing="{StaticResource InnerSpacing}">
+
+            <Label Text="Vocabulary List" 
+                Style="{StaticResource Title1}"
+                HorizontalOptions="Start"/>
+            <layouts:HorizontalWrapLayout 
+                Spacing="{StaticResource InterSpacing}"
+                BindableLayout.ItemsSource="{Binding VocabLists }"
+                >
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border StrokeShape="Rectangle" StrokeThickness="1" x:DataType="models:VocabularyList">
+                            <Grid WidthRequest="300" HeightRequest="120">
+                                <Label Text="{Binding Name}" 
+                                       VerticalOptions="Center" HorizontalOptions="Center">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Name}" />
+                                            <Span Text='{Binding Terms.Count, StringFormat=" ({0}) "}'/>
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                    </Label>
+
+                                    <Button ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
+                                            Background="Transparent"
+                                            HorizontalOptions="End"
+                                            VerticalOptions="End"
+                                            Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}}"
+                                            CommandParameter="{Binding ID}"/>
+                                            <Button ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
+                                            Background="Transparent"
+                                            HorizontalOptions="Start"
+                                            VerticalOptions="End"
+                                            Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}}"
+                                            CommandParameter="{Binding ID}"/>
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer 
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}, Path=ViewListCommand}"
+                                        CommandParameter="{Binding ID}"
+                                        />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                    
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+                
+                
+            </layouts:HorizontalWrapLayout>
+
+            <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                <!--<VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal">
+                                    <VisualState.Setters>
+                                        <Setter Property="Background"
+                                                Value="{StaticResource Primary}" />
+                                        <Setter TargetName="BoxLabel"
+                                                Property="Label.TextColor"
+                                                Value="{StaticResource DarkOnLightBackground}"/>
+                                    </VisualState.Setters>
+                                    </VisualState>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Property="Background"
+                                                Value="{StaticResource DarkBackground}" />
+                                        <Setter TargetName="BoxLabel"
+                                                Property="Label.TextColor"
+                                                Value="{StaticResource LightOnDarkBackground}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>-->
+                <Grid WidthRequest="300" HeightRequest="120">
+
+                    <Label Text="Add"
+                           x:Name="BoxLabel"
+                           VerticalOptions="Center" HorizontalOptions="Center">
+
+                        </Label>
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding AddVocabularyCommand}" />
+                    </Grid.GestureRecognizers>
+                    
+                </Grid>
+                    
+            </Border>
+
+            <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                <Grid WidthRequest="300" HeightRequest="120">
+
+                    <Label Text="Warmup"
+                           VerticalOptions="Center" HorizontalOptions="Center">
+
+                        </Label>
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding WarmupCommand}" />
+                    </Grid.GestureRecognizers>
+                    
+                </Grid>
+                    
+            </Border>
+            
+            <!--<Button Text="Play" 
+                Command="{Binding PlayCommand}" 
+                HorizontalOptions="Start"
+                WidthRequest="300"
+                />-->
+
+                
+
+            
+        
+            
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

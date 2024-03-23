@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vocabulary="clr-namespace:SentenceStudio.Pages.Vocabulary"
+             xmlns:models="clr-namespace:SentenceStudio.Models"
+             x:DataType="vocabulary:EditVocabularyPageModel"
+             x:Class="SentenceStudio.Pages.Vocabulary.EditVocabularyPage"
+             Title="{Binding VocabListName}">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Save" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding SaveVocabCommand}" />
+        <ToolbarItem Text="Delete" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding DeleteCommand}" />
+    </ContentPage.ToolbarItems>
+                
+    <CollectionView ItemsSource="{Binding Terms}">
+        <CollectionView.Header>
+            <VerticalStackLayout 
+                Spacing="{StaticResource InterSpacing}" 
+                Padding="24">
+                <VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
+                    <Label Text="List Name" 
+                            HorizontalOptions="Start" />
+                    <Border Style="{StaticResource InputWrapper}">
+                        <Entry Text="{Binding VocabListName, Mode=TwoWay}" />
+                    </Border>
+                </VerticalStackLayout>
+            
+                <VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
+                    <Label Text="Vocabulary" 
+                        HorizontalOptions="Start" />
+                    <Grid ColumnDefinitions="*,*"
+                            Padding="{StaticResource InnerSpacing}"
+                            ColumnSpacing="{StaticResource InnerSpacing}">
+                        <Label Text="Term"/>
+                        <Label Text="Translation" Grid.Column="1"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </VerticalStackLayout>                        
+        </CollectionView.Header>
+
+        <CollectionView.ItemTemplate>
+            <DataTemplate>
+                <Grid 
+                    Padding="{StaticResource InnerSpacing}"
+                    x:DataType="models:Term"
+                    ColumnDefinitions="*,*" ColumnSpacing="{StaticResource InnerSpacing}">
+                    <Border Style="{StaticResource InputWrapper}">
+                        <Entry Text="{Binding TargetLanguageTerm}"/>
+                    </Border>
+                    <Border Style="{StaticResource InputWrapper}" Grid.Column="1">
+                        <Entry Text="{Binding NativeLanguageTerm}"/>
+                    </Border>
+                </Grid>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>       
+    
+</ContentPage>

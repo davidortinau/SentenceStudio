@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
+             xmlns:models="clr-namespace:SentenceStudio.Models"
+             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson;assembly=SentenceStudio"
+             x:DataType="lesson:LessonStartPageModel"
+             x:Class="SentenceStudio.Pages.Lesson.LessonStartPage"
+             Title="Lesson"
+             Shell.NavBarIsVisible="true">
+    
+    <VerticalStackLayout
+        Padding="{StaticResource InnerSpacing}"
+        Spacing="{StaticResource InnerSpacing}">
+
+        <Label Text="Let's Learn!" 
+                    Style="{StaticResource Title1}"
+                    HorizontalOptions="Start"/>
+        <Label Text="Choose from the following options, and let's get started!" 
+                    HorizontalOptions="Start"/>
+
+        <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                    FieldLabel="Vocabulary">
+            <Picker x:Name="VocabPicker" 
+                    ItemsSource="{Binding VocabLists}"
+                    ItemDisplayBinding="{Binding Name}"                    
+                    SelectedItem="{Binding VocabList, Mode=TwoWay}" />
+        </c:FormField>      
+
+        <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                    FieldLabel="Mode">
+            <Picker x:Name="ModePicker" 
+                    ItemsSource="{Binding PlayModes}"
+                    ItemDisplayBinding="{Binding .}"
+                    SelectedItem="{Binding SelectedPlayMode, Mode=TwoWay}" />
+        </c:FormField>  
+
+        <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                    FieldLabel="Level">
+            <HorizontalStackLayout RadioButtonGroup.SelectedValue="{Binding Level}">
+                <RadioButton Content="Level 1" Value="1" />
+                <RadioButton Content="Level 2" Value="2" />
+                <RadioButton Content="Level 3" Value="3" />
+            </HorizontalStackLayout>
+        </c:FormField>                    
+
+        <Button 
+            HorizontalOptions="{OnIdiom Desktop=Start, Default=Fill}"
+            WidthRequest="{OnIdiom Desktop=300, Default=-1}"
+            Text="Start Lesson" 
+            Command="{Binding StartLessonCommand}" />    
+
+    </VerticalStackLayout>
+</ContentPage>

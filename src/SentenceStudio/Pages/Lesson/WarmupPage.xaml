@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" 
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson" 
+             xmlns:l="clr-namespace:CustomLayouts"
+             xmlns:s="clr-namespace:SentenceStudio.Services"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:model="clr-namespace:SentenceStudio.Models"
+             x:Class="SentenceStudio.Pages.Lesson.WarmupPage"
+             Title="Warmup"
+             x:DataType="lesson:WarmupPageModel"
+             HideSoftInputOnTapped="True"
+             Shell.NavBarIsVisible="true">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+
+        <DataTemplate x:Key="MessageFromOthers">
+                <Grid Padding="10"
+                      ColumnSpacing="0"
+                      Rotation="180"
+                      x:DataType="model:ConversationChunk"
+                      ColumnDefinitions="50,*"
+                      >
+                    <Image Grid.Column="0"
+                        WidthRequest="40"
+                        HeightRequest="40"
+                        HorizontalOptions="End"
+                        VerticalOptions="Start"
+                        Aspect="AspectFill"
+                        Source="{Binding Author.AvatarUrl}">
+                        <Image.Clip>
+                            <EllipseGeometry
+                                    Center="20,20"
+                                    RadiusX="20"
+                                    RadiusY="20"/>
+                        </Image.Clip>
+                    </Image>
+
+                    <Frame Grid.Column="1"
+                           Margin="5,0,20,0"
+                           Padding="5"
+                           HorizontalOptions="Start"
+                           BackgroundColor="{StaticResource Primary}"
+                           CornerRadius="20"
+                           HasShadow="False">
+                        <Label Margin="10,5"
+                               Text="{Binding Text}" />
+                    </Frame>
+                </Grid>
+            </DataTemplate>
+
+            <DataTemplate x:Key="MessageFromMe">
+                <!-- For some reason, if I use a ContentView here the size is not auto computed -->
+                <Grid Padding="10"
+                      ColumnSpacing="0"
+                      Rotation="180"
+                      x:DataType="model:ConversationChunk">
+                    <Frame Margin="20,0,10,0"
+                           Padding="5"
+                           BackgroundColor="{StaticResource Secondary}"
+                           HorizontalOptions="End"
+                           VerticalOptions="Fill"
+                           CornerRadius="20"
+                           HasShadow="False">
+                        <Label Margin="10,5"
+                               Text="{Binding Text}" />
+                    </Frame>
+                </Grid>
+            </DataTemplate>
+
+            <DataTemplate x:Key="PaddingMessageTop">
+                <!-- Trick to overcome the lack of collection padding -->
+                <ContentView HeightRequest="130" />
+            </DataTemplate>
+
+            <DataTemplate x:Key="PaddingMessageBottom">
+                <!-- Trick to overcome the lack of collection padding -->
+                <ContentView HeightRequest="70" />
+            </DataTemplate>
+
+            <lesson:MessageTemplateSelector x:Key="MessageTemplateSelector"
+                                             MessageFromMe="{StaticResource MessageFromMe}"
+                                             MessageFromOthers="{StaticResource MessageFromOthers}"
+                                             TopPaddingMessage="{StaticResource PaddingMessageTop}"
+                                             BottomPaddingMessage="{StaticResource PaddingMessageBottom}"/>
+
+        <!-- <toolkit:DataTemplateSelector 
+            x:Key="ChatMessageTemplateSelector"
+            MatchType="{x:Type model:ChatMessage}">
+            <toolkit:DataTemplateSelector.Case>
+                <toolkit:DataTemplateCase Value="User">
+                    <StaticResource Key="MessageFromMe" />
+                </toolkit:DataTemplateCase>
+                <toolkit:DataTemplateCase Value="Bot">
+                    <StaticResource Key="MessageFromOthers" />
+                </toolkit:DataTemplateCase>
+            </toolkit:DataTemplateSelector.Case>
+        </toolkit:DataTemplateSelector> -->
+
+
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,80">
+        
+        <ScrollView Grid.Row="1">
+            <Grid RowDefinitions="30,*,Auto">
+
+                <!-- Lesson Content -->
+                <CollectionView Grid.Row="1"
+                            x:Name="MessageCollectionView"
+                            ItemsSource="{Binding Chunks}"
+                            Rotation="180"
+                            ItemTemplate="{StaticResource MessageTemplateSelector}"/>
+
+                <!-- Input -->
+                <Grid ColumnDefinitions="*, Auto, Auto, Auto"
+                      RowDefinitions="{OnIdiom *, Phone='*,*'}"
+                      x:Name="InputUI"
+                      Grid.Row="2"
+                      RowSpacing="{OnIdiom 0, Phone=5}"
+                      Padding="{OnIdiom 30, Phone='15, 0'}"
+                      ColumnSpacing="{OnIdiom 15, Phone=5}">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Keyboard">
+                                <VisualState.Setters>
+                                    <Setter
+                                        TargetName="UserInputField"
+                                        Property="Border.IsVisible"
+                                        Value="True" />
+                                    
+                                </VisualState.Setters>
+                            </VisualState>
+
+                            <VisualState x:Name="Mic">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Pink" />
+                                </VisualState.Setters>
+                            </VisualState>
+
+                
+                        </VisualStateGroup>
+                    </VisualStateManager.VisualStateGroups>
+
+                    <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                            FieldLabel="Translation"
+                                 Grid.Row="0"
+                                 Grid.Column="0"
+                                 >
+                        <Entry Placeholder="그건 한국어로 어떻게 말해요?"
+                               Text="{Binding UserInput}"
+                               x:Name="UserInputField"
+                               FontSize="32" 
+                               ReturnType="Go"
+                               toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                               ReturnCommand="{Binding SendMessageCommand}"
+                               />
+                    </c:FormField>
+
+                    
+                
+                </Grid>
+
+                
+            </Grid>
+        </ScrollView>
+
+        <!-- Navigation -->
+        <Grid Grid.Row="2"
+            RowDefinitions="1,*"
+            ColumnDefinitions="60,1,*,1,60,1,60">
+            
+            <c:ModeSelector x:Name="ModeSelector"
+                    Grid.Column="2" Grid.Row="1"
+                    HorizontalOptions="Center" VerticalOptions="Center"/>
+
+            
+
+            <!-- Grid Lines -->
+            <BoxView Grid.ColumnSpan="7"
+                Color="Black"
+                HeightRequest="1"
+                />
+        </Grid>
+
+        <!-- Busy Indicator -->
+        <AbsoluteLayout
+            x:Name="LoadingOverlay"
+                IsVisible="{Binding IsBusy}" 
+                BackgroundColor="#80000000"
+                Grid.RowSpan="2">
+                <Label Text="Thinking..."
+                       FontSize="64"
+                       AbsoluteLayout.LayoutFlags="PositionProportional"
+                       AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                       TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+        </AbsoluteLayout>
+    </Grid>
+</ContentPage>

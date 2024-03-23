@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Border xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+        xmlns:layouts="clr-namespace:CustomLayouts;assembly=SentenceStudio"
+        xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+        x:Class="SentenceStudio.Pages.Controls.ModeSelector"
+        Padding="8"
+        StrokeThickness="1"
+        Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray500}}"
+        StrokeShape="RoundRectangle 8">
+    <Border.Resources> 
+        <ControlTemplate x:Key="RadioModeTemplate">                
+            <Border Padding="8" 
+                    HorizontalOptions="Start" 
+                    StrokeThickness="0"                            
+                    StrokeShape="RoundRectangle 8">
+                    <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CheckedStates">
+                            <VisualState x:Name="Checked">
+                                <VisualState.Setters>
+                                    <Setter
+                                        Property="Background"
+                                        Value="{AppThemeBinding Dark={StaticResource Gray200}, Light={StaticResource Gray400}}"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Unchecked">
+                                <VisualState.Setters>
+                                    <Setter
+                                        Property="Background"
+                                        Value="Transparent"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+                
+                <ContentPresenter/>
+            </Border>
+        </ControlTemplate>             
+        <Style TargetType="RadioButton">
+            <Setter Property="ControlTemplate" Value="{StaticResource RadioModeTemplate}"/>
+        </Style>
+    </Border.Resources>
+
+    <HorizontalStackLayout 
+        Spacing="4"
+        RadioButtonGroup.SelectedValue="{Binding SelectedMode}"
+        RadioButtonGroup.GroupName="InputMode">
+        <RadioButton Value="Blocks">
+            <RadioButton.Content>
+                <Image Aspect="Center"
+                       Source="{mi:SegoeFluent Icon=Checkbox, IconSize=18}" />
+            </RadioButton.Content>
+        </RadioButton>
+        <RadioButton Value="Keyboard">
+            <RadioButton.Content>
+                <Image Aspect="Center"
+                       Source="{mi:SegoeFluent Icon=KeyboardClassic, IconSize=18}" />
+            </RadioButton.Content>
+        </RadioButton>
+        <RadioButton Value="Mic">
+            <RadioButton.Content>
+                <Image Aspect="Center"
+                       Source="{mi:SegoeFluent Icon=Microphone, IconSize=18}" />
+            </RadioButton.Content>
+        </RadioButton>
+    </HorizontalStackLayout>   
+
+</Border>
