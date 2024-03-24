@@ -1,20 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:resx="clr-namespace:SentenceStudio.Resources.Strings"
              xmlns:layouts="clr-namespace:CustomLayouts;assembly=SentenceStudio"
              xmlns:controls="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
              xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard"
              xmlns:models="clr-namespace:SentenceStudio.Models"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:DataType="dashboard:DashboardPageModel"
-             x:Class="SentenceStudio.Pages.Dashboard.DashboardPage">
+             x:Class="SentenceStudio.Pages.Dashboard.DashboardPage"
+             Title="{x:Static resx:AppResources.TitleDashboard}">
 
     <ScrollView>
         <VerticalStackLayout
             Padding="{StaticResource InnerSpacing}"
             Spacing="{StaticResource InnerSpacing}">
 
-            <Label Text="Vocabulary List" 
+            <Label Text="{x:Static resx:AppResources.VocabularyList}" 
                 Style="{StaticResource Title1}"
                 HorizontalOptions="Start"/>
             <layouts:HorizontalWrapLayout 
@@ -63,31 +65,10 @@
             </layouts:HorizontalWrapLayout>
 
             <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
-                <!--<VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="CommonStates">
-                                <VisualState x:Name="Normal">
-                                    <VisualState.Setters>
-                                        <Setter Property="Background"
-                                                Value="{StaticResource Primary}" />
-                                        <Setter TargetName="BoxLabel"
-                                                Property="Label.TextColor"
-                                                Value="{StaticResource DarkOnLightBackground}"/>
-                                    </VisualState.Setters>
-                                    </VisualState>
-                                <VisualState x:Name="PointerOver">
-                                    <VisualState.Setters>
-                                        <Setter Property="Background"
-                                                Value="{StaticResource DarkBackground}" />
-                                        <Setter TargetName="BoxLabel"
-                                                Property="Label.TextColor"
-                                                Value="{StaticResource LightOnDarkBackground}"/>
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
-                        </VisualStateManager.VisualStateGroups>-->
-                <Grid WidthRequest="300" HeightRequest="120">
+                
+                <Grid WidthRequest="300" HeightRequest="60">
 
-                    <Label Text="Add"
+                    <Label Text="{x:Static resx:AppResources.Add}"
                            x:Name="BoxLabel"
                            VerticalOptions="Center" HorizontalOptions="Center">
 
@@ -100,10 +81,13 @@
                     
             </Border>
 
+            <Label Text="활동들" 
+                Style="{StaticResource Title1}"
+                HorizontalOptions="Start"/>
             <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                 <Grid WidthRequest="300" HeightRequest="120">
 
-                    <Label Text="Warmup"
+                    <Label Text="워밍업해요!"
                            VerticalOptions="Center" HorizontalOptions="Center">
 
                         </Label>

@@ -40,7 +40,8 @@ public partial class WarmupPage : ContentPage
                 {
                     // if (item.Author == ConversationParticipant.Me)
                     // {
-                        MessageCollectionView.ScrollTo(0);
+                        int lastItemIndex = _model.Chunks.Count - 1;
+                        MessageCollectionView.ScrollTo(lastItemIndex);
                         
                     // }
                 }

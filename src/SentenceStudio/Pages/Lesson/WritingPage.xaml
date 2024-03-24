@@ -9,7 +9,7 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:model="clr-namespace:SentenceStudio.Models"
              x:Class="SentenceStudio.Pages.Lesson.WritingPage"
-             Title="Write Now"
+             Title="필기해 봅시다!"
              x:DataType="lesson:WritingPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
@@ -86,14 +86,15 @@
                     </VisualStateManager.VisualStateGroups>
 
                     <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                            FieldLabel="Translation"
+                            FieldLabel="무엇을 말하고 싶나요?"
                                  Grid.Row="0"
                                  Grid.Column="0"
+                                 Grid.ColumnSpan="4"
                                  >
                         <Entry Placeholder="그건 한국어로 어떻게 말해요?"
                                Text="{Binding UserInput}"
                                x:Name="UserInputField"
-                               FontSize="32" 
+                               FontSize="{OnIdiom 32, Phone=16}" 
                                ReturnType="Go"
                                toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
                                ReturnCommand="{Binding GradeMeCommand}"
@@ -165,15 +166,15 @@
         </Grid>
 
         <HorizontalStackLayout
-            Spacing="{StaticResource InterSpacing}" 
-            Padding="{StaticResource InnerSpacing}"
+            Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
+            Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
             BindableLayout.ItemsSource="{Binding VocabBlocks}">
             <BindableLayout.ItemTemplate>
                 <DataTemplate x:DataType="model:Term">
                     <Button Text="{Binding TargetLanguageTerm}"
                         Background="{StaticResource Gray200}"
                         TextColor="{StaticResource Gray900}"
-                        FontSize="32" 
+                        FontSize="{OnIdiom 32, Phone=16}" 
                         Padding="4"
                         VerticalOptions="Start"
                             Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"

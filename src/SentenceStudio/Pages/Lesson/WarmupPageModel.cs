@@ -55,7 +55,8 @@ public partial class WarmupPageModel : ObservableObject
         // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
         var response = await _conversationService.ContinueConveration(Chunks.ToList());
         var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot, response);
-        Chunks.Insert(0, chunk);
+        // Chunks.Insert(0, chunk);
+        Chunks.Add(chunk);
 
         IsBusy = false;
             
@@ -67,7 +68,8 @@ public partial class WarmupPageModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(UserInput))
         {
             var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Me, UserInput);
-            Chunks.Insert(0, chunk);
+            // Chunks.Insert(0, chunk);
+            Chunks.Add(chunk);
             
             UserInput = string.Empty;
 

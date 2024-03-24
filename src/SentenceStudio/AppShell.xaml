@@ -6,23 +6,20 @@
     xmlns:local="clr-namespace:SentenceStudio"
     xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson;assembly=SentenceStudio"
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
-    
-    Title="SentenceStudio">
-
-    
+    Title="작가의 스튜디오">
 
     <ShellContent
-        Title="Dashboard"
+        Title="홈"
         ContentTemplate="{DataTemplate dashboard:DashboardPage}"
         Route="dashboard" />
 
         <ShellContent
-        Title="Writer"
+        Title="쓰기 연습하기"
         ContentTemplate="{DataTemplate lesson:WritingPage}"
         Route="writing" />
 
     <ShellContent
-        Title="New Lesson"
+        Title="새로운 레슨 시작하기"
         ContentTemplate="{DataTemplate lesson:LessonStartPage}"
         Route="newLesson" />
 </Shell>
