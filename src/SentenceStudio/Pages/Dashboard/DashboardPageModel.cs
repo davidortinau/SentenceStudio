@@ -9,6 +9,8 @@ namespace SentenceStudio.Pages.Dashboard;
 [QueryProperty(nameof(ShouldRefresh), "refresh")]
 public partial class DashboardPageModel : ObservableObject
 {
+    public LocalizationManager Localize => LocalizationManager.Instance;
+
     [ObservableProperty]
     private List<VocabularyList> _vocabLists;
 

@@ -60,26 +60,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 
-		// var a = Assembly.GetExecutingAssembly();
-		// using var stream = a.GetManifestResourceStream("SentenceStudio.appsettings.json");
-
-	// 	var config = new ConfigurationBuilder()
-    // .AddJsonPlatformBundle() // NOTE: you can change the name of appsettings.json to something else and pass as an argument here
-    // .Build();
-
-	builder.Configuration.AddJsonPlatformBundle();
-
-		// var config = new ConfigurationBuilder()
-		// 			.AddJsonStream(stream)
-		// 			.Build();
-
-
-		// builder.Configuration.AddConfiguration(config);
-
-		// builder.Services.AddSingleton<IConfiguration>(
-		// 	config			
-		// );
-
+		builder.Configuration.AddJsonPlatformBundle();
 		builder.Services.AddFilePicker();
 		
 		return builder.Build();

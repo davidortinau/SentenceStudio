@@ -22,13 +22,15 @@ namespace SentenceStudio.Services
 
         public async Task<string> StartConversation()
         {
-            string prompt = "Let's have a conversation in Korean. You will start by saying hello and asking my name. Then wait for my reply.";
+            string prompt = "";
+            prompt += "You will play the role of 김철수 (Kim Cheolsu), a 25-year-old drama writer from Seoul. You are a native Korean speaker, unmarried. Make up the rest of your backstory as needed to answer my questions. ";
+            prompt += "Let's have a conversation in Korean. You start by saying hello and asking my name. Then wait for my reply.";
             // prompt += "I will respond with my name and ask you a question. ";
             // prompt += "You will answer the question and ask me a question. ";
             // prompt += "We will continue this conversation until I say goodbye. ";
             // prompt += "Valid questions are: What is your name? How old are you? When is your birthday? Where are you from? Where do you live? What is your favorite color? What is your favorite food? ";
-            prompt += "You will play the role of 김철수 (Kim Cheolsu), a 25-year-old drama writer from Seoul. You are a native Korean speaker, unmarried. Make up the rest of your backstory as needed to answer my questions. ";
-            prompt += "Respond naturally as you would in a real conversation. ";
+            
+            // prompt += "Respond naturally as you would in a real conversation. ";
             prompt += "Please begin.";
         
             try
@@ -51,18 +53,21 @@ namespace SentenceStudio.Services
         {
             string prompt = "We are having a conversation in Korean. ";
             prompt += "You are playing the role of 김철수 (Kim Cheolsu), a 25-year-old drama writer from Seoul. You are a native Korean speaker, unmarried. Make up the rest of your backstory as needed to answer my questions. ";
-            prompt += "If you need to ask me a question, valid topics are: What is your name? How old are you? When is your birthday? Where are you from? Where do you live? What is your favorite color? What is your favorite food? ";
-            prompt += "Respond naturally as you would in a real conversation. ";
-            prompt += "Here is our conversation so far. ";
+            prompt += "Our conversation thus far is provided here, delimited by triple quotes. ";
+            prompt += "If you need to ask me a question, valid questions are: How old are you? When is your birthday? Where are you from? Where do you live? What did you want to become when you were young? What are your hobbies? Why are you learning Korean? What is your favorite color? What is your favorite food? What did you eat yesterday? What will you do tomorrow? ";
+            // prompt += "Respond naturally as you would in a real conversation. ";
             
-        
+            // conversation thus far
+            prompt += "\"\"\" ";
             foreach (var chunk in chunks)
             {
                 prompt += $"{chunk.Author.FirstName} said \"{chunk.Text}\". ";
             }
+            prompt += "\"\"\" ";
 
-            prompt += "If my last response is hard to understand or could be said more clearly, please ask for clarification or confirm your understanding of what you think I meant to say. ";
-            prompt += "Please continue the conversation until I say goodbye. Only include your newest reply or question as the response.";
+            prompt += "If my last response is hard to understand or could be said more clearly, then ask for clarification or confirm your understanding of what you think I meant to say. ";
+            prompt += "If I asked a question, then respond to the question before asking me a new question. ";
+            prompt += "Continue the conversation until I say goodbye. In your response only include your newest reply, only in Korean, and you don't need to repeat your name.";
 
             try
             {

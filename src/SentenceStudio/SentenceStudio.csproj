@@ -94,7 +94,7 @@
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 	</ItemGroup>
 
-	<ItemGroup>
+	<!-- <ItemGroup>
 		<Compile Update="Resources\Strings\AppResources.Designer.cs">
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
@@ -103,13 +103,26 @@
 		<Compile Update="Resources\Strings\AppResources.Designer.cs">
 		  <DependentUpon>AppResources.resx</DependentUpon>
 		</Compile>
-	</ItemGroup>
+	</ItemGroup> -->
 	
-	<ItemGroup>
+	<!-- <ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
 			<Generator>ResXFileCodeGenerator</Generator>
 			<LastGenOutput>AppResources.Designer.cs</LastGenOutput>
 		</EmbeddedResource>
+	</ItemGroup> -->
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources\Strings\AppResources.Designer.cs</LastGenOutput>
+			<StronglyTypedFileName>Resources\Strings\AppResources.Designer.cs</StronglyTypedFileName>
+			<StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+			<StronglyTypedNamespace>SentenceStudio.Resources.Strings</StronglyTypedNamespace>
+			<StronglyTypedClassName>AppResources</StronglyTypedClassName>
+		</EmbeddedResource>
 	</ItemGroup>
+
+	
 
 </Project>

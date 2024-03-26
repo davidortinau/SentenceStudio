@@ -59,31 +59,30 @@
         <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
     </resheader>
     <data name="TitleDashboard" xml:space="preserve">
-        <value>Dashboard</value>
+        <value>홈</value>
         <comment>the title of the main page</comment>
     </data>
     <data name="Add" xml:space="preserve">
-        <value>Add</value>
+        <value>추가하기</value>
         <comment>button title</comment>
     </data>
     <data name="VocabularyList" xml:space="preserve">
-        <value>Vocabulary List</value>
+        <value>어휘 목록</value>
         <comment>label</comment>
     </data>
     <data name="Activities" xml:space="preserve">
-        <value>Activities</value>
-        <comment>label</comment>
+        <value>활동들</value>
     </data>
     <data name="AppTitle" xml:space="preserve">
-        <value>Sentence Studio</value>
+        <value>작가의 스튜디오</value>
     </data>
     <data name="StartLesson" xml:space="preserve">
-        <value>Start a Lesson</value>
+        <value>새로운 레슨 시작하기</value>
     </data>
     <data name="PracticeWriting" xml:space="preserve">
-        <value>Writing Practice</value>
+        <value>쓰기 연습하기</value>
     </data>
     <data name="ChangeLanguage" xml:space="preserve">
-        <value>Toggle Language</value>
+        <value>언어 전환하기</value>
     </data>
 </root>
