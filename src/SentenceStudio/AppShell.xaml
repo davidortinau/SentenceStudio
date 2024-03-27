@@ -30,7 +30,10 @@
                 Command="{Binding ChangeUILanguageCommand}"
                 HorizontalOptions="Center"
                 VerticalOptions="Center"
+                Margin="15"
              />
         </Grid>
     </Shell.FlyoutFooter>
+
+    
 </Shell>

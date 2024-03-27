@@ -22,6 +22,7 @@
                       ColumnSpacing="0"
                       x:DataType="model:ConversationChunk"
                       ColumnDefinitions="50,*"
+                      RowSpacing="{StaticResource InputLabelSpacing}"
                       RowDefinitions="Auto,*">
                     <Image Grid.Column="0" Grid.RowSpan="2"
                         WidthRequest="40"
