@@ -390,7 +390,7 @@
     <Style TargetType="Label"
        Class="FlyoutItemLabelStyle">
         <Setter Property="TextColor"
-                Value="Black" />
+                Value="{AppThemeBinding Light={StaticResource DarkOnLightBackground}, Dark={StaticResource LightOnDarkBackground}}" />
         <Setter Property="HeightRequest"
                 Value="100" />
     </Style>
@@ -406,7 +406,7 @@
         ApplyToDerivedTypes="True">
         <Setter Property="BackgroundColor"
                 Value="Teal" />
-                <Setter Property="Padding" Value="30"/>
+        <Setter Property="Padding" Value="30"/>
     </Style>
 
 </ResourceDictionary>

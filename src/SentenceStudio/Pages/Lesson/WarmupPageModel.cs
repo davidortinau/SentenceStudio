@@ -19,9 +19,6 @@ public partial class WarmupPageModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
-    [ObservableProperty]
-    private ObservableCollection<ConversationParticipant> _participants;
-
     [ObservableProperty] 
     private ObservableCollection<ConversationChunk> _chunks;
 
@@ -30,20 +27,43 @@ public partial class WarmupPageModel : ObservableObject
         Chunks = new ObservableCollection<ConversationChunk>();
         _teacherService = service.GetRequiredService<TeacherService>();
         _conversationService = service.GetRequiredService<ConversationService>();
-        TaskMonitor.Create(StartConversation);
+        TaskMonitor.Create(ResumeConversation);
         
+    }
+
+    private async Task ResumeConversation()
+    {
+        var conversation = await _conversationService.ResumeConversation();
+
+        if (conversation == null || !conversation.Any())
+        {
+            await StartConversation();
+            return;
+        }
+
+        foreach (var chunk in conversation)
+        {
+            Chunks.Add(chunk);
+        }
     }
 
     public async Task StartConversation()
     {
         await Task.Delay(100);
         IsBusy = true; 
+
+        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        Chunks.Add(chunk);
         
+
         // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
         var response = await _conversationService.StartConversation();
-        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot, response);
-        Chunks.Add(chunk);
+        chunk.Text = response;
 
+        await _conversationService.SaveConversationChunk(chunk);
+
+        // OnPropertyChanged(nameof(Chunks));
+        
         IsBusy = false;
             
     }
@@ -51,15 +71,17 @@ public partial class WarmupPageModel : ObservableObject
     public async Task GetReply()
     {
         IsBusy = true; 
-        
-        // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
-        var response = await _conversationService.ContinueConveration(Chunks.ToList());
-        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot, response);
-        // Chunks.Insert(0, chunk);
+
+        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         Chunks.Add(chunk);
 
-        IsBusy = false;
-            
+        // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
+        var response = await _conversationService.ContinueConveration(Chunks.ToList());
+        chunk.Text = response;
+
+        await _conversationService.SaveConversationChunk(chunk);
+        
+        IsBusy = false;            
     }
 
     [RelayCommand]
@@ -67,9 +89,14 @@ public partial class WarmupPageModel : ObservableObject
     {
         if (!string.IsNullOrWhiteSpace(UserInput))
         {
-            var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Me, UserInput);
-            // Chunks.Insert(0, chunk);
+            var chunk = new ConversationChunk(
+                DateTime.Now, 
+                $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}", 
+                UserInput
+            );
+            
             Chunks.Add(chunk);
+            await _conversationService.SaveConversationChunk(chunk);
             
             UserInput = string.Empty;
 
@@ -77,5 +104,13 @@ public partial class WarmupPageModel : ObservableObject
             await Task.Delay(2000);
             await GetReply();
         }
+    }
+
+    [RelayCommand]
+    async Task NewConversation()
+    {
+        Chunks.Clear();
+        await _conversationService.ClearConversation();
+        await StartConversation();
     }
 }

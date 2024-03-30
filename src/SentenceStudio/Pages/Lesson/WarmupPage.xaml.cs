@@ -17,35 +17,48 @@ public partial class WarmupPage : ContentPage
 		InitializeComponent();
 
 		BindingContext = _model = model;
-		_model.PropertyChanged += ConversationViewModelPropertyChanged;
-            // _model.InitAsync();
-        }
+        _model.Chunks.CollectionChanged += ChunksCollectionChanged;
+		// _model.PropertyChanged += ConversationViewModelPropertyChanged;
+        // _model.InitAsync();
+    }
 
-        private void ConversationViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
+    private void ConversationViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WarmupPageModel.Chunks))
         {
-            if (e.PropertyName == nameof(WarmupPageModel.Chunks))
+            if (_model.Chunks != null)
             {
-                if (_model.Chunks != null)
-                {
-                    _model.Chunks.CollectionChanged += ChunksCollectionChanged;
-                }
+                _model.Chunks.CollectionChanged += ChunksCollectionChanged;
             }
         }
+    }
 
-        private void ChunksCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+    private void ChunksCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Add)
         {
-            if (e.Action == NotifyCollectionChangedAction.Add)
-            {
-                foreach (ConversationChunk item in e.NewItems)
-                {
-                    // if (item.Author == ConversationParticipant.Me)
-                    // {
-                        int lastItemIndex = _model.Chunks.Count - 1;
-                        MessageCollectionView.ScrollTo(lastItemIndex);
-                        
-                    // }
-                }
-            }
+            // foreach (ConversationChunk item in e.NewItems)
+            // {
+                // if (item.Author == ConversationParticipant.Me)
+                // {
+                    Device.BeginInvokeOnMainThread(async () =>
+                    {
+                        await Task.Delay(100); // Wait for the UI to finish updating
+                        await MessageCollectionView.ScrollToAsync(0, MessageCollectionView.ContentSize.Height, animated: true);
+                    });
+                    //MessageCollectionView.ScrollToAsync(0,MessageCollectionView.ContentSize.Height, animated: true);
+
+                    // int lastItemIndex = _model.Chunks.Count - 1;
+                    // MessageCollectionView.ScrollTo(lastItemIndex);
+                    
+                // }
+            // }
         }
+    }
+
+    private void OnUpdatePressed(object sender, EventArgs e)
+    {
+        //MessageCollectionView.PlatformSizeChanged();
+    }
 
 }

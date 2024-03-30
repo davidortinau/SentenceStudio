@@ -8,6 +8,8 @@ public class MessageTemplateSelector: DataTemplateSelector
 {
     public DataTemplate MessageFromMe { get; set; }
 
+    public DataTemplate MessageFromOtherTyping { get; set; }
+
     public DataTemplate MessageFromOthers { get; set; }
 
     public DataTemplate TopPaddingMessage { get; set; }
@@ -19,9 +21,12 @@ public class MessageTemplateSelector: DataTemplateSelector
     {
         if (item is ConversationChunk conversationChunk)
         {
-            if (conversationChunk.Author == ConversationParticipant.Me)
+            if (conversationChunk.Author.Equals(ConversationParticipant.Bot.FirstName))
             {
-                return MessageFromMe;
+                // if(string.IsNullOrWhiteSpace(conversationChunk.Text))
+                //     return MessageFromOtherTyping;
+                // else
+                    return MessageFromOthers;
             }
 
             // if (conversationChunk is ConversationChunkPaddingTop)
@@ -34,7 +39,7 @@ public class MessageTemplateSelector: DataTemplateSelector
             //     return BottomPaddingMessage;
             // }
 
-            return MessageFromOthers;
+            return MessageFromMe;
         }
 
         return null;

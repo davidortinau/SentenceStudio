@@ -14,6 +14,7 @@
 		<OutputType>Exe</OutputType>
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
+		<UseMauiCompat>false</UseMauiCompat>
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -66,7 +67,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.14" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.14" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
 		
 	</ItemGroup>
@@ -123,6 +123,11 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
-	
+	<ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
+		<NativeReference Include="$(HOME)\Library\Application Support\Reveal\RevealServer\RevealServer.xcframework">
+			<Kind>Framework</Kind>
+			<SmartLink>True</SmartLink>
+		</NativeReference>
+	</ItemGroup>
 
 </Project>

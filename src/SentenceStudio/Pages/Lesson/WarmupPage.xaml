@@ -14,67 +14,66 @@
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
 
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="New"
+                Command="{Binding NewConversationCommand}"
+                Priority="0"                     
+                />
+    </ContentPage.ToolbarItems>
+
     <ContentPage.Resources>
         <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
 
         <DataTemplate x:Key="MessageFromOthers">
-                <Grid Padding="10"
-                      ColumnSpacing="0"
-                      x:DataType="model:ConversationChunk"
-                      ColumnDefinitions="50,*"
-                      RowSpacing="{StaticResource InputLabelSpacing}"
-                      RowDefinitions="Auto,*">
-                    <Image Grid.Column="0" Grid.RowSpan="2"
-                        WidthRequest="40"
-                        HeightRequest="40"
-                        HorizontalOptions="End"
-                        VerticalOptions="Start"
-                        Aspect="AspectFill"
-                        Source="{Binding Author.AvatarUrl}">
-                        <Image.Clip>
-                            <EllipseGeometry
-                                    Center="20,20"
-                                    RadiusX="20"
-                                    RadiusY="20"/>
-                        </Image.Clip>
-                    </Image>
-
-                    <Label Text="{Binding Author.FirstName}"
-                            Style="{StaticResource Caption1}"
-                            Margin="20,0,20,0"
-                            Grid.Column="1"/>
-
-                    <Frame Grid.Column="1" Grid.Row="1"
-                           Margin="5,0,20,0"
-                           Padding="5"
+                <Grid x:DataType="model:ConversationChunk">
+                    <Border 
+                           Margin="15,5"
+                           Padding="12,4,12,8"
                            HorizontalOptions="Start"
-                           BackgroundColor="{StaticResource Primary}"
-                           CornerRadius="20"
-                           HasShadow="False">
-                        <Label Margin="10,5"
+                           Background="{StaticResource Primary}"
+                           StrokeThickness="1"
+                           Stroke="{StaticResource Primary}"
+                           StrokeShape="RoundRectangle 10,10,2,10">
+                        <Label 
                             Text="{Binding Text}"
                             Style="{StaticResource Body1}"
                             TextColor="White" />
-                    </Frame>
+                    </Border>
+                    
+                </Grid>
+            </DataTemplate>
+
+            <DataTemplate x:Key="MessageFromOtherTyping">
+                <Grid x:DataType="model:ConversationChunk">
+                    <Border Margin="15,5"
+                            Padding="12,4,12,8"
+                            HorizontalOptions="Start"
+                            Background="{StaticResource Primary}"
+                            StrokeThickness="1"
+                            Stroke="{StaticResource Primary}"
+                            StrokeShape="RoundRectangle 10,10,2,10">
+                        <Label Text="User is typing..." 
+                               Style="{StaticResource Body1}"
+                               TextColor="White"/>
+                    </Border>
                 </Grid>
             </DataTemplate>
 
             <DataTemplate x:Key="MessageFromMe">
-                <Grid Padding="10"
-                      ColumnSpacing="0"
-                      x:DataType="model:ConversationChunk">
-                    <Frame Margin="20,0,10,0"
-                           Padding="5"
-                           BackgroundColor="{StaticResource Secondary}"
+                <Grid x:DataType="model:ConversationChunk">
+                    <Border Margin="15,5"
+                            Padding="12,4,12,8"
+                           Background="{StaticResource Secondary}"
                            HorizontalOptions="End"
-                           VerticalOptions="Fill"
-                           CornerRadius="20"
-                           HasShadow="False">
-                        <Label Margin="10,5"
-                               Text="{Binding Text}" 
+                           Stroke="{StaticResource Secondary}"
+                           StrokeThickness="1"
+                           StrokeShape="RoundRectangle 10, 10, 10, 2"
+                           >
+                        <Label Text="{Binding Text}" 
                                Style="{StaticResource Body1}"
                                TextColor="White"/>
-                    </Frame>
+                    </Border>
+                    
                 </Grid>
             </DataTemplate>
 
@@ -87,53 +86,43 @@
                 <!-- Trick to overcome the lack of collection padding -->
                 <ContentView HeightRequest="70" />
             </DataTemplate>
+            
 
             <lesson:MessageTemplateSelector x:Key="MessageTemplateSelector"
                                              MessageFromMe="{StaticResource MessageFromMe}"
+                                             MessageFromOtherTyping="{StaticResource MessageFromOtherTyping}"
                                              MessageFromOthers="{StaticResource MessageFromOthers}"
                                              TopPaddingMessage="{StaticResource PaddingMessageTop}"
                                              BottomPaddingMessage="{StaticResource PaddingMessageBottom}"/>
 
-        <!-- <toolkit:DataTemplateSelector 
-            x:Key="ChatMessageTemplateSelector"
-            MatchType="{x:Type model:ChatMessage}">
-            <toolkit:DataTemplateSelector.Case>
-                <toolkit:DataTemplateCase Value="User">
-                    <StaticResource Key="MessageFromMe" />
-                </toolkit:DataTemplateCase>
-                <toolkit:DataTemplateCase Value="Bot">
-                    <StaticResource Key="MessageFromOthers" />
-                </toolkit:DataTemplateCase>
-            </toolkit:DataTemplateSelector.Case>
-        </toolkit:DataTemplateSelector> -->
-
-
     </ContentPage.Resources>
 
-    <ScrollView>    
+      
         <Grid RowDefinitions="*,Auto">
-        
-            <CollectionView x:Name="MessageCollectionView"
-                            ItemsSource="{Binding Chunks}"
-                            ItemTemplate="{StaticResource MessageTemplateSelector}"
-                            >
-            </CollectionView>
-
-            <c:FormField 
-            Grid.Row="1"
-            VerticalOptions="End"
-                        ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="">
-                        <Entry Placeholder="그건 한국어로 어떻게 말해요?"
-                                Text="{Binding UserInput}"
-                                x:Name="UserInputField"
-                                FontSize="{OnIdiom 32, Phone=16}" 
-                                ReturnType="Send"
-                                
-                                ReturnCommand="{Binding SendMessageCommand}"
-                                />
-                    </c:FormField>
-</Grid>
+            <ScrollView x:Name="MessageCollectionView">
+                <VerticalStackLayout Spacing="15" 
+                                BindableLayout.ItemsSource="{Binding Chunks}"
+                                BindableLayout.ItemTemplateSelector="{StaticResource MessageTemplateSelector}"/>
+            </ScrollView>
+            
+            <Border Background="Transparent"
+                Margin="15"
+                Padding="15,0"
+                Grid.Row="1"
+                VerticalOptions="End"
+                Stroke="{StaticResource Gray300}"
+                StrokeShape="RoundRectangle 6"
+                StrokeThickness="1">
+            <Entry Placeholder="그건 한국어로 어떻게 말해요?"
+                Text="{Binding UserInput}"
+                x:Name="UserInputField"
+                FontSize="{OnIdiom 32, Phone=16}" 
+                ReturnType="Send"
+                ReturnCommand="{Binding SendMessageCommand}"
+            />
+            </Border>
+            
+        </Grid>
         <!-- Navigation -->
 <!--
         <Grid Grid.Row="2"
@@ -152,5 +141,5 @@
         </Grid>
 -->
         
-    </ScrollView>
+    
 </ContentPage>

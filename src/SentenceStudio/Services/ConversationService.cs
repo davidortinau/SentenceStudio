@@ -5,12 +5,15 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
+using SentenceStudio.Common;
 using SentenceStudio.Models;
+using SQLite;
 
 namespace SentenceStudio.Services
 {
     public class ConversationService
     {
+        private SQLiteAsyncConnection Database;
         readonly IConfiguration configuration;
         private AiService _aiService;
 
@@ -18,6 +21,39 @@ namespace SentenceStudio.Services
         {
             _aiService = service.GetRequiredService<AiService>();
             this.configuration = configuration;
+        }
+
+        async Task Init()
+        {
+            if (Database is not null)
+                return;
+
+            Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
+
+            CreateTableResult result;
+            
+            try
+            {
+                result = await Database.CreateTableAsync<ConversationChunk>();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"{ex.Message}");
+                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            }
+        }
+        
+        public async Task<List<ConversationChunk>> ResumeConversation()
+        {
+            await Init();
+            var conversationChunks = await Database.Table<ConversationChunk>().ToListAsync();
+            return conversationChunks;
+        }
+
+        public async Task SaveConversationChunk(ConversationChunk chunk)
+        {
+            await Init();
+            await Database.InsertAsync(chunk);
         }
 
         public async Task<string> StartConversation()
@@ -61,7 +97,7 @@ namespace SentenceStudio.Services
             prompt += "\"\"\" ";
             foreach (var chunk in chunks)
             {
-                prompt += $"{chunk.Author.FirstName} said \"{chunk.Text}\". ";
+                prompt += $"{chunk.Author} said \"{chunk.Text}\". ";
             }
             prompt += "\"\"\" ";
 
@@ -83,6 +119,12 @@ namespace SentenceStudio.Services
                 Debug.WriteLine($"An error occurred StartConversation: {ex.Message}");
                 return string.Empty;
             }
-        }  
+        }
+
+        public async Task ClearConversation()
+        {
+            await Init();
+            await Database.DeleteAllAsync<ConversationChunk>();
+        }
     }
 }
