@@ -34,7 +34,7 @@
                            StrokeThickness="1"
                            Stroke="{StaticResource Primary}"
                            StrokeShape="RoundRectangle 10,10,2,10">
-                        <Label 
+                        <c:SelectableLabel 
                             Text="{Binding Text}"
                             Style="{StaticResource Body1}"
                             TextColor="White" />
@@ -105,41 +105,37 @@
                                 BindableLayout.ItemTemplateSelector="{StaticResource MessageTemplateSelector}"/>
             </ScrollView>
             
-            <Border Background="Transparent"
-                Margin="15"
-                Padding="15,0"
+            <Grid Margin="15"
                 Grid.Row="1"
                 VerticalOptions="End"
-                Stroke="{StaticResource Gray300}"
-                StrokeShape="RoundRectangle 6"
-                StrokeThickness="1">
-            <Entry Placeholder="그건 한국어로 어떻게 말해요?"
-                Text="{Binding UserInput}"
-                x:Name="UserInputField"
-                FontSize="{OnIdiom 32, Phone=16}" 
-                ReturnType="Send"
-                ReturnCommand="{Binding SendMessageCommand}"
-            />
-            </Border>
-            
-        </Grid>
-        <!-- Navigation -->
-<!--
-        <Grid Grid.Row="2"
-            RowDefinitions="1,*"
-            ColumnDefinitions="60,1,*,1,60,1,60">
-            
-            <c:ModeSelector x:Name="ModeSelector"
-                    Grid.Column="2" Grid.Row="1"
-                    HorizontalOptions="Center" VerticalOptions="Center"/>            
+                ColumnDefinitions="*,Auto"
+                ColumnSpacing="15">
+                <Border Background="Transparent"
+                    Stroke="{StaticResource Gray300}"
+                    StrokeShape="RoundRectangle 6"
+                    VerticalOptions="End"
+                    Padding="15,0"
+                    StrokeThickness="1">
+                    <Entry Placeholder="그건 한국어로 어떻게 말해요?"
+                        Text="{Binding UserInput}"
+                        x:Name="UserInputField"
+                        FontSize="{OnIdiom 32, Phone=16}" 
+                        VerticalOptions="End"
+                        ReturnType="Send"
+                        ReturnCommand="{Binding SendMessageCommand}"
+                    />
+                </Border>
 
-            
-            <BoxView Grid.ColumnSpan="7"
-                Color="Black"
-                HeightRequest="1"
-                />
+                <Button ImageSource="{mi:SegoeFluent Icon=Add, IconSize=18}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        VerticalOptions="Center"
+                        Command="{Binding GetPhraseCommand}"
+                        Grid.Column="1"
+                        />
+            </Grid>
         </Grid>
--->
+        
         
     
 </ContentPage>

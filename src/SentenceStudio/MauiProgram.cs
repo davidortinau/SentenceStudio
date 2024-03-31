@@ -12,6 +12,7 @@ using System.Diagnostics;
 using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
 using Shiny;
+using CommunityToolkit.Maui.ApplicationModel;
 
 namespace SentenceStudio;
 
@@ -62,9 +63,13 @@ public static class MauiProgram
 
 		builder.Configuration.AddJsonPlatformBundle();
 		builder.Services.AddFilePicker();
+
+		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		
 		return builder.Build();
 	}
+
+	
 
     private static void ModifyPicker()
     {

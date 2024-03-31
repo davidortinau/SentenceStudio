@@ -1,7 +1,8 @@
 ﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
+using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Mvvm.Input;
 using SentenceStudio.Models;
+using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
@@ -12,6 +13,8 @@ public partial class WarmupPageModel : ObservableObject
     private TeacherService _teacherService;
 
     private ConversationService _conversationService;
+
+    private IPopupService _popupService;
     
     [ObservableProperty]
     private string _userInput;
@@ -27,6 +30,7 @@ public partial class WarmupPageModel : ObservableObject
         Chunks = new ObservableCollection<ConversationChunk>();
         _teacherService = service.GetRequiredService<TeacherService>();
         _conversationService = service.GetRequiredService<ConversationService>();
+        _popupService = service.GetRequiredService<IPopupService>();
         TaskMonitor.Create(ResumeConversation);
         
     }
@@ -112,5 +116,16 @@ public partial class WarmupPageModel : ObservableObject
         Chunks.Clear();
         await _conversationService.ClearConversation();
         await StartConversation();
+    }
+
+    [RelayCommand]
+    async Task GetPhrase()
+    {
+        
+        var result = await _popupService.ShowPopupAsync<PhraseClipboardViewModel>(CancellationToken.None);
+        if(result is string phrase)
+        {
+            UserInput = phrase;
+        }
     }
 }
