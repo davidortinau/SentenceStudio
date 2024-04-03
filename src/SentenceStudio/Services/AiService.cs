@@ -21,8 +21,10 @@ public class AiService {
 
             // Send the prompt to OpenAI and receive the conversation response
             var response = await aiClient.SendPrompt(prompt);
-
+            Debug.WriteLine($"Response: {response}");
             // Process the response and return the reply
+            response = CleanJson(response);
+            Debug.WriteLine($"CleanResponse: {response}");
             var reply = JsonSerializer.Deserialize<T>(response);
 
             return reply;
@@ -33,6 +35,25 @@ public class AiService {
             Debug.WriteLine($"An error occurred SendPrompt: {ex.Message}");
             return new T();
         }
+    }
+
+    private string CleanJson(string response)
+    {
+        if (string.IsNullOrEmpty(response))
+        {
+            return response;
+        }
+
+        int startIndex = response.IndexOf('{');
+        int endIndex = response.LastIndexOf('}');
+
+        if (startIndex == -1 || endIndex == -1 || startIndex > endIndex)
+        {
+            // If there's no valid JSON object in the response, return an empty string
+            return string.Empty;
+        }
+
+        return response.Substring(startIndex, endIndex - startIndex + 1);
     }
 }
     

@@ -19,7 +19,7 @@ public class AIClient
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
         var chatCompletionsOptions = new ChatCompletionsOptions()
         {
-            DeploymentName = "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
+            DeploymentName = "gpt-4-0125-preview",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
             Messages =
             {
                 new ChatRequestUserMessage(prompt),
@@ -29,7 +29,7 @@ public class AIClient
         try{
             var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
             ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
-            // 
+            
             return responseMessage.Content;
         }catch(Exception ex){
             Debug.WriteLine(ex.Message);

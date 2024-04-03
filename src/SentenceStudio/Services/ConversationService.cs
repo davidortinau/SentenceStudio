@@ -68,6 +68,7 @@ namespace SentenceStudio.Services
             
             // prompt += "Respond naturally as you would in a real conversation. ";
             prompt += "Please begin.";
+            Debug.WriteLine(prompt);
         
             try
             {
@@ -104,7 +105,7 @@ namespace SentenceStudio.Services
             prompt += "If my last response is hard to understand or could be said more clearly, then ask for clarification or confirm your understanding of what you think I meant to say. ";
             prompt += "If I asked a question, then respond to the question before asking me a new question. ";
             prompt += "Continue the conversation until I say goodbye. In your response only include your newest reply, only in Korean, and you don't need to repeat your name.";
-
+            Debug.WriteLine(prompt);
             try
             {
                 var key = this.configuration.GetValue<string>("OpenAI:ApiKey", "oops");

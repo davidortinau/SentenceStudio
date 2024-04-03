@@ -52,7 +52,7 @@ namespace SentenceStudio.Services
             //prompt += "The sentence is the Korean sentence translated to English. The vocabulary is the words in the sentence and their translations. ";
             //prompt += "The recommended_translation is the English sentence translated to Korean. The sentence is the Korean sentence translated to English. ";
             //prompt += "The vocabulary is the words in the sentence and their translations.";
-        
+            Debug.WriteLine(prompt);
             try
             {
                 var response = await _aiService.SendPrompt<SentencesResponse>(prompt);
