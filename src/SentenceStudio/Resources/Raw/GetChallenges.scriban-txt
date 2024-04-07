@@ -1,0 +1,15 @@
+I am a student that speaks English learning Korean. 
+Using the following Korean vocabulary, generate for me 10 Korean sentences along with English variations. 
+Keep the sentences short and at a beginner Korean level using simple present, past, and future tenses. 
+Use 존댓말. I will read the English variation and write a Korean variation for you to grade for accuracy and fluency. 
+For example if you generate the Korean sentence '저는 학생이에요' because '학생' is one of the provided vocabulary words, you would provide the English sentence 'I am a student'. 
+
+The vocabulary is: {{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}.{{ end }}{{ end }}
+
+Format your response as json like this: 
+
+{\"sentences\": [{\"sentence\": \"I live in an apartment.\",\"recommended_translation\": \"저는 아파트에 살아요.\",\"vocabulary\": [{\"original\": \"I\", \"translation\": \"저\"},{\"original\": \"live\", \"translation\": \"살다\"},{\"original\": \"in\", \"translation\": \"\"},{\"original\": \"an\", \"translation\": \"\"},{\"original\": \"apartment\", \"translation\": \"아파트\"}]}]}
+
+In the response vocabulary include all the English words, but only the Korean translation of that word if the word is necessary for a natural Korean sentence. 
+Use the Korean dictionary form in the response vocabulary array. 
+The vocabulary is the words in the sentence and their translations.

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Azure.AI.OpenAI;
 using SentenceStudio.Models;
+using Scriban;
 
 namespace SentenceStudio.Services
 {
@@ -36,22 +37,15 @@ namespace SentenceStudio.Services
             var random = new Random();
             
             _terms = vocab.Terms.OrderBy(t => random.Next()).Take(10).ToList();
-            string t = string.Join(",", _terms.Select(t => t.TargetLanguageTerm));
-            Debug.WriteLine(t);
+            
+            var prompt = string.Empty;     
+            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetChallenges.scriban-txt");
+            using (StreamReader reader = new StreamReader(templateStream))
+            {
+                var template = Template.Parse(reader.ReadToEnd());
+                prompt = await template.RenderAsync(new { terms = _terms });
+            }
 
-            string prompt = "I am a student that speaks English learning Korean. ";
-            prompt += "Using the following Korean vocabulary, generate for me 10 Korean sentences along with English variations. ";
-            // prompt += "Use additional vocabulary as needed to make the sentences natural to native speakers. ";
-            prompt += "Keep the sentences short and at a beginner Korean level using simple present, past, and future tenses. ";
-            prompt += "Use 존댓말. I will read the English variation and write a Korean variation for you to grade for accuracy and fluency. ";
-            prompt += "For example if you generate the Korean sentence '저는 학생이에요' because '학생' is one of the provided vocabulary words, you would generate the English sentence 'I am a student'. ";
-            prompt += $"The vocabulary is: { t }";
-            prompt += "Format your response as json like this: {\"sentences\": [{\"sentence\": \"I live in an apartment.\",\"recommended_translation\": \"저는 아파트에 살아요.\",\"vocabulary\": [{\"original\": \"I\", \"translation\": \"저\"},{\"original\": \"live\", \"translation\": \"살다\"},{\"original\": \"in\", \"translation\": \"\"},{\"original\": \"an\", \"translation\": \"\"},{\"original\": \"apartment\", \"translation\": \"아파트\"}]}]}";
-            prompt += "In the response vocabulary include all the English words, but only the Korean translation of that word if the word is necessary for a natural Korean sentence. ";
-            prompt += "Use the Korean dictionary form in the response vocabulary array. ";
-            //prompt += "The sentence is the Korean sentence translated to English. The vocabulary is the words in the sentence and their translations. ";
-            //prompt += "The recommended_translation is the English sentence translated to Korean. The sentence is the Korean sentence translated to English. ";
-            //prompt += "The vocabulary is the words in the sentence and their translations.";
             Debug.WriteLine(prompt);
             try
             {
