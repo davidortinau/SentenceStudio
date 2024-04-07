@@ -12,6 +12,9 @@ public partial class AddVocabularyPageModel : ObservableObject
 
     [ObservableProperty]
     string _vocabListName;
+
+    [ObservableProperty]
+    string _delimiter = "comma";
     
     readonly IFilePickerService picker;
     
@@ -47,11 +50,13 @@ public partial class AddVocabularyPageModel : ObservableObject
 
     private List<Term> ParseTerms(string vocabList)
     {
+        string delimiter = Delimiter == "tab" ? "\t" : ",";
+
         List<Term> terms = new List<Term>();
         string[] lines = vocabList.Split('\n');
         foreach (var line in lines)
         {
-            string[] parts = line.Split(',');
+            string[] parts = line.Split(delimiter);
             if (parts.Length == 2)
             {
                 terms.Add(new Term

@@ -86,4 +86,13 @@
     <data name="ChangeLanguage" xml:space="preserve">
         <value>Toggle Language</value>
     </data>
+    <data name="Warmup" xml:space="preserve">
+        <value>Warmup</value>
+    </data>
+    <data name="Translate" xml:space="preserve">
+        <value>Translation</value>
+    </data>
+    <data name="Write" xml:space="preserve">
+        <value>Write</value>
+    </data>
 </root>

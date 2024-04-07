@@ -85,4 +85,13 @@
     <data name="ChangeLanguage" xml:space="preserve">
         <value>언어 전환하기</value>
     </data>
+    <data name="Warmup" xml:space="preserve">
+        <value>워밍업해요!</value>
+    </data>
+    <data name="Translate" xml:space="preserve">
+        <value>번역하기</value>
+    </data>
+    <data name="Write" xml:space="preserve">
+        <value>쓰하기</value>
+    </data>
 </root>

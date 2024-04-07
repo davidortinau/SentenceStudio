@@ -56,8 +56,11 @@ public partial class DashboardPageModel : ObservableObject
     [RelayCommand]
     async Task Play(int listID)
     {
+        if(listID == 0)
+            listID = VocabLists.First().ID;
+
         try{
-        await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -67,8 +70,11 @@ public partial class DashboardPageModel : ObservableObject
     [RelayCommand]
     async Task Write(int listID)
     {
+        if(listID == 0)
+            listID = VocabLists.First().ID;
+
         try{
-        await Shell.Current.GoToAsync($"writingLesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"writingLesson?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

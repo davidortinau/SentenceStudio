@@ -1,10 +1,10 @@
-I am a student that speaks English learning Korean. 
-Using the following Korean vocabulary, generate for me 10 Korean sentences along with English variations. 
-Keep the sentences short and at a beginner Korean level using simple present, past, and future tenses. 
-Use 존댓말. I will read the English variation and write a Korean variation for you to grade for accuracy and fluency. 
-For example if you generate the Korean sentence '저는 학생이에요' because '학생' is one of the provided vocabulary words, you would provide the English sentence 'I am a student'. 
+I am an English speaking student learning Korean. 
+Using this following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate for me 10 Korean sentences along with English variations. The sentences should use 존댓말, be short and, at a beginner Korean level using simple present, past, and future tenses. 
 
-The vocabulary is: {{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}.{{ end }}{{ end }}
+Here are some examples of sentences like you might generate when given vocabulary like 학생, 한국어, and 공부하다: 
+저는 학생이에요.
+왜 한국어를 공부해요?
+언제부토 한국어를 공부했어요?
 
 Format your response as json like this: 
 

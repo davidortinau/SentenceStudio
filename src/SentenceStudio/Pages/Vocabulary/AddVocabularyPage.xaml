@@ -37,31 +37,15 @@
                     />
             </c:FormField>
 
-            <!--<VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
-                <Label Text="Vocabulary" 
-                    HorizontalOptions="Start" />
-                <Label 
-                    HorizontalOptions="Start"
-                    Style="{StaticResource Caption1}">
-                    <Label.FormattedText>
-                        <FormattedString>
-                            <Span Text="Type your vocabulary list below, " />
-                            <Span Text="or load from a file." 
-                                    TextColor="{StaticResource Primary}">
-                                <Span.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding ChooseFileCommand}" />
-                                </Span.GestureRecognizers>
-                            </Span>
-                        </FormattedString>
-                    </Label.FormattedText>
-                </Label>
-                <Border Style="{StaticResource InputWrapper}">                
-                    <Editor Text="{Binding VocabList, Mode=TwoWay}" 
-                        MinimumHeightRequest="400"
-                        MaximumHeightRequest="600"
-                    />
-                </Border>
-            </VerticalStackLayout>-->
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                        FieldLabel="File Type">
+                <HorizontalStackLayout 
+                    Spacing="{StaticResource InterSpacing}"
+                    RadioButtonGroup.SelectedValue="{Binding Delimiter}">
+                    <RadioButton Content="Comma" Value="comma" />    
+                    <RadioButton Content="Tab" Value="tab" />    
+                </HorizontalStackLayout>
+            </c:FormField>
 
             <Button 
                 HorizontalOptions="{OnIdiom Desktop=Start, Default=Fill}"

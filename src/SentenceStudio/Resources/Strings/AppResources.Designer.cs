@@ -121,11 +121,38 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Translation.
+        /// </summary>
+        internal static string Translate {
+            get {
+                return ResourceManager.GetString("Translate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Vocabulary List.
         /// </summary>
         internal static string VocabularyList {
             get {
                 return ResourceManager.GetString("VocabularyList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warmup.
+        /// </summary>
+        internal static string Warmup {
+            get {
+                return ResourceManager.GetString("Warmup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Write.
+        /// </summary>
+        internal static string Write {
+            get {
+                return ResourceManager.GetString("Write", resourceCulture);
             }
         }
     }

@@ -15,15 +15,52 @@
     <ScrollView>
         <VerticalStackLayout
             Padding="{StaticResource InnerSpacing}"
-            Spacing="{StaticResource InnerSpacing}">
+            Spacing="{StaticResource InnerSpacing}">            
 
+            <Label Text="{Binding Localize[Activities]}"
+                Style="{StaticResource Title1}"
+                HorizontalOptions="Start"/>
+            <layouts:HorizontalWrapLayout 
+                Spacing="{StaticResource InterSpacing}">
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="{Binding Localize[Warmup]}"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding WarmupCommand}" />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="{Binding Localize[Translate]}"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding PlayCommand}" 
+                                CommandParameter="0"
+                            />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="{Binding Localize[Write]}"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding WriteCommand}" 
+                                CommandParameter="0"/>
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
+            </layouts:HorizontalWrapLayout>
+            
             <Label Text="{Binding Localize[VocabularyList]}" 
                 Style="{StaticResource Title1}"
                 HorizontalOptions="Start"/>
             <layouts:HorizontalWrapLayout 
                 Spacing="{StaticResource InterSpacing}"
-                BindableLayout.ItemsSource="{Binding VocabLists}"
-                >
+                BindableLayout.ItemsSource="{Binding VocabLists}">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate>
                         <Border StrokeShape="Rectangle" StrokeThickness="1" x:DataType="models:VocabularyList">
@@ -36,81 +73,52 @@
                                             <Span Text='{Binding Terms.Count, StringFormat=" ({0}) "}'/>
                                         </FormattedString>
                                     </Label.FormattedText>
-                                    </Label>
+                                </Label>    
 
-                                    <Button ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
+                                <Button ImageSource="{mi:SegoeFluent Icon=Settings, IconSize=24}"
+                                        Background="Transparent"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Start"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}, Path=ViewListCommand}"
+                                        CommandParameter="{Binding ID}"/>
+
+                                <HorizontalStackLayout 
+                                    Spacing="{StaticResource InnerSpacing}"
+                                    CompressedLayout.IsHeadless="True"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="End">
+                                    <Button ImageSource="{mi:SegoeFluent Icon=ComposeMode, IconSize=24}"
                                             Background="Transparent"
-                                            HorizontalOptions="End"
-                                            VerticalOptions="End"
+                                            Padding="0"
                                             Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}}"
                                             CommandParameter="{Binding ID}"/>
-                                            <Button ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
+                                    <Button ImageSource="{mi:SegoeFluent Icon=Pencil, IconSize=24}"
                                             Background="Transparent"
-                                            HorizontalOptions="Start"
-                                            VerticalOptions="End"
+                                            Padding="0"
                                             Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}}"
                                             CommandParameter="{Binding ID}"/>
+                                </HorizontalStackLayout>
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer 
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type dashboard:DashboardPageModel}}, Path=ViewListCommand}"
-                                        CommandParameter="{Binding ID}"
-                                        />
+                                        CommandParameter="{Binding ID}" />
                                 </Grid.GestureRecognizers>
-                            </Grid>
-                    
+                            </Grid>                    
                         </Border>
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>
-                
-                
             </layouts:HorizontalWrapLayout>
 
             <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
-                
                 <Grid WidthRequest="300" HeightRequest="60">
-
                     <Label Text="{Binding Localize[Add]}"
                            x:Name="BoxLabel"
-                           VerticalOptions="Center" HorizontalOptions="Center">
-
-                        </Label>
+                           VerticalOptions="Center" HorizontalOptions="Center"/>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding AddVocabularyCommand}" />
-                    </Grid.GestureRecognizers>
-                    
-                </Grid>
-                    
+                    </Grid.GestureRecognizers>                    
+                </Grid>                    
             </Border>
-
-            <Label Text="{Binding Localize[Activities]}"
-                Style="{StaticResource Title1}"
-                HorizontalOptions="Start"/>
-            <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
-                <Grid WidthRequest="300" HeightRequest="120">
-
-                    <Label Text="워밍업해요!"
-                           VerticalOptions="Center" HorizontalOptions="Center">
-
-                        </Label>
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding WarmupCommand}" />
-                    </Grid.GestureRecognizers>
-                    
-                </Grid>
-                    
-            </Border>
-            
-            <!--<Button Text="Play" 
-                Command="{Binding PlayCommand}" 
-                HorizontalOptions="Start"
-                WidthRequest="300"
-                />-->
-
-                
-
-            
-        
-            
         </VerticalStackLayout>
     </ScrollView>
 
