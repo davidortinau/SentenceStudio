@@ -38,12 +38,14 @@ public partial class AddVocabularyPageModel : ObservableObject
     async Task SaveVocab()
     {
         // persist here
-        VocabularyList list = new VocabularyList();
-        list.Name = _vocabListName;
-        list.Terms = ParseTerms(_vocabList);
-        
-        
-       var listId = await _vocabService.SaveListAsync(list); // this saves the terms
+        VocabularyList list = new VocabularyList
+        {
+            Name = _vocabListName,
+            Terms = ParseTerms(_vocabList)
+        };
+
+
+        var listId = await _vocabService.SaveListAsync(list); // this saves the terms
         
         await Shell.Current.GoToAsync("..?refresh=true");
     }
@@ -72,18 +74,6 @@ public partial class AddVocabularyPageModel : ObservableObject
     [RelayCommand]
     async Task ChooseFile()
     {
-        /*FileResult? file = await FilePicker.PickAsync(new PickOptions
-        {
-            PickerTitle = "Pick a file",
-            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-            {
-                { DevicePlatform.iOS, new[] { "public.text" } },
-                { DevicePlatform.Android, new[] { "text/plain" } },
-                { DevicePlatform.WinUI, new[] { ".txt",".csv" } },
-                { DevicePlatform.MacCatalyst, new[] { "public.text" } }
-            })
-        });*/
-        
         var file = await picker.PickFileAsync("Select a file", FileType);
 
         if (file != null)

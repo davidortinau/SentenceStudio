@@ -36,9 +36,7 @@
                         <Label Text="{Binding Localize[Translate]}"
                             VerticalOptions="Center" HorizontalOptions="Center"/>
                         <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding PlayCommand}" 
-                                CommandParameter="0"
-                            />
+                            <TapGestureRecognizer Command="{Binding DefaultTranslateCommand}" />
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>
@@ -48,8 +46,7 @@
                             VerticalOptions="Center" HorizontalOptions="Center"/>
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer 
-                                Command="{Binding WriteCommand}" 
-                                CommandParameter="0"/>
+                                Command="{Binding DefaultWriteCommand}" />
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>
