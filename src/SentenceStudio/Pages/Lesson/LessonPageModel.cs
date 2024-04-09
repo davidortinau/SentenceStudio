@@ -106,7 +106,7 @@ public partial class LessonPageModel : ObservableObject
     async Task GradeMe()
     {
         IsBusy = true;
-        GradeResponse = await _teacherService.GradeSentence(UserInput, CurrentSentence, RecommendedTranslation);
+        GradeResponse = await _teacherService.GradeTranslation(UserInput, CurrentSentence, RecommendedTranslation);
         Feedback = FormatGradeResponse(GradeResponse);
         HasFeedback = true;
         IsBusy = false;

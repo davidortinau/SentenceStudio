@@ -15,7 +15,7 @@ public partial class LessonPage : ContentPage
 		InitializeComponent();
 
 		BindingContext = _model = model;
-		model.PropertyChanged += Model_PropertyChanged;
+		// model.PropertyChanged += Model_PropertyChanged;
 		ModeSelector.PropertyChanged += Mode_PropertyChanged;
 
 		VisualStateManager.GoToState(InputUI, PlayMode.Keyboard.ToString());

@@ -130,6 +130,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to How do you say that in Korean?.
+        /// </summary>
+        internal static string UserInputPlaceholder {
+            get {
+                return ResourceManager.GetString("UserInputPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Vocabulary List.
         /// </summary>
         internal static string VocabularyList {
@@ -144,6 +153,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Warmup {
             get {
                 return ResourceManager.GetString("Warmup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What do you want to say?.
+        /// </summary>
+        internal static string WhatDoYouWantToSay {
+            get {
+                return ResourceManager.GetString("WhatDoYouWantToSay", resourceCulture);
             }
         }
         

@@ -1,11 +1,25 @@
-﻿namespace SentenceStudio;
+﻿namespace SentenceStudio.Models;
 
-public class Sentence
+[ObservableObject]
+public partial class Sentence
 {
-    public string Problem { get; set; }
-    public string Answer { get; set; }
-    public decimal Accuracy { get; set; }
-    public decimal Fluency { get; set; }
-    public string Explanation { get; set; }
+    [ObservableProperty]
+    private string _problem;
+
+    [ObservableProperty]
+    private string _answer;
+
+    [ObservableProperty]
+    private double _accuracy;
+    
+    [ObservableProperty]
+    private string _accuracyExplanation;
+
+    [ObservableProperty]
+    private double _fluency;
+
+    [ObservableProperty]
+    private string _fluencyExplanation;
+    public string GrammarNotes { get; set; }
     public List<string> Vocabulary { get; set; }
 }

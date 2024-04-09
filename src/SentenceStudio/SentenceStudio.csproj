@@ -84,6 +84,7 @@
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" version="3.3.0" Version="3.3.0" />
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.0" />
+		<PackageReference Include="akgul.Maui.DataGrid" Version="4.0.2" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -95,4 +95,10 @@
     <data name="Write" xml:space="preserve">
         <value>Write</value>
     </data>
+    <data name="WhatDoYouWantToSay" xml:space="preserve">
+        <value>What do you want to say?</value>
+    </data>
+    <data name="UserInputPlaceholder" xml:space="preserve">
+        <value>How do you say that in Korean?</value>
+    </data>
 </root>

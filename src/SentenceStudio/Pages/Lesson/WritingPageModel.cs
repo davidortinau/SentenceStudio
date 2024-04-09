@@ -1,7 +1,10 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Maui.Core;
+using CommunityToolkit.Maui.Views;
 using SentenceStudio.Models;
+using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
@@ -12,8 +15,12 @@ namespace SentenceStudio.Pages.Lesson;
 [QueryProperty(nameof(Level), "level")]
 public partial class WritingPageModel : ObservableObject
 {
+    public LocalizationManager Localize => LocalizationManager.Instance;
+
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
+
+    private IPopupService _popupService;
 
     public int ListID { get; set; }
     public string PlayMode { get; set; }
@@ -62,6 +69,7 @@ public partial class WritingPageModel : ObservableObject
     {
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
+        _popupService = service.GetRequiredService<IPopupService>();
         TaskMonitor.Create(GetVocab);
     }
     public async Task GetVocab()
@@ -82,20 +90,29 @@ public partial class WritingPageModel : ObservableObject
     }
 
     [ObservableProperty]
-    private ObservableCollection<string> _sentences;
+    private ObservableCollection<Sentence> _sentences;
 
     [RelayCommand]
     async Task GradeMe()
     {
         if(Sentences is null)
-            Sentences = new ObservableCollection<string>();
+            Sentences = new ObservableCollection<Sentence>();
 
-        IsBusy = true;
-        Sentences.Add(UserInput);
+        // IsBusy = true;
+        var s = new Sentence{
+            Answer = UserInput,
+        };
+        Sentences.Add(s);
         UserInput = string.Empty;
-        // GradeResponse = await _teacherService.GradeSentence(UserInput, CurrentSentence, RecommendedTranslation);
-        // HasFeedback = true;
-        IsBusy = false;
+        var grade = await _teacherService.GradeSentence(s.Answer);
+        
+        s.Accuracy = grade.Accuracy;
+        s.Fluency = grade.Fluency;
+        s.FluencyExplanation = grade.FluencyExplanation;
+        s.AccuracyExplanation = grade.AccuracyExplanation;
+        //s.GrammarNotes = grade.;
+
+        // IsBusy = false;
     }
 
     [RelayCommand]
@@ -114,6 +131,20 @@ public partial class WritingPageModel : ObservableObject
     void UseVocab(string word)
     {
         UserInput += word;
+    }
+
+    static Page MainPage => Shell.Current;
+
+    [RelayCommand]
+    async Task ShowExplanation(string explanation)
+    {
+        // var popup = new ExplanationPopup{
+        //     BindingContext = new { Explanation = explanation }
+        // };
+        
+        // MainPage.ShowPopup(popup);
+        // await _popupService.ShowPopupAsync(new Popup());
+        await App.Current.MainPage.DisplayAlert("Explanation", explanation, "OK");
     }
 
 

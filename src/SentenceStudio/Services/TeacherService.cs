@@ -60,22 +60,52 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeSentence(string userInput, string originalSentence, string recommendedTranslation)
+        public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation)
         {
             try
             {
-                string prompt = "I am a student that speaks English, and I'm learning Korean. ";
-                prompt += $"Given this sentence: \"{originalSentence}\" you recommended this translation: \"{recommendedTranslation}\". ";
-                prompt += $"This is my translation: {userInput}. ";
-                prompt += "Please grade my translation for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말). Use a scale of 0 to 100 where higher is better.";
-                prompt += "Format your response as json with properties like this: {\"accuracy_score\": 100, \"accuracy_explanation\": \"\", \"fluency_score\": 100, \"fluency_explanation\": \"\", \"grammar_notes\": {\"original_sentence\": \"\", \"recommended_translation\": \"\", \"explanation\": \"\"}}. grammar_notes is a break down of the recommended sentence as it compares to my translation.";
+                var prompt = string.Empty;     
+                using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
+                using (StreamReader reader = new StreamReader(templateStream))
+                {
+                    var template = Template.Parse(reader.ReadToEnd());
+                    prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput});
+
+                    Debug.WriteLine(prompt);
+                }
+
                 GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
                 return response;
             }
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred GradeSentence: {ex.Message}");
+                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+                return new GradeResponse();
+            }
+        }
+
+        public async Task<GradeResponse> GradeSentence(string userInput)
+        {
+            try
+            {
+                var prompt = string.Empty;     
+                using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
+                using (StreamReader reader = new StreamReader(templateStream))
+                {
+                    var template = Template.Parse(reader.ReadToEnd());
+                    prompt = await template.RenderAsync(new { user_input = userInput});
+
+                    Debug.WriteLine(prompt);
+                }
+
+                GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                // Handle any exceptions that occur during the process
+                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
                 return new GradeResponse();
             }
         }
