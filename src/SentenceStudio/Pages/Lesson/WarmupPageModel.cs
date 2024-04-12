@@ -91,6 +91,7 @@ public partial class WarmupPageModel : ObservableObject
     [RelayCommand]
     public async Task SendMessage()
     {
+        
         if (!string.IsNullOrWhiteSpace(UserInput))
         {
             var chunk = new ConversationChunk(

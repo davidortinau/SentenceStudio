@@ -16,7 +16,6 @@ public partial class WritingPage : ContentPage
 
 		BindingContext = _model = model;
 		// model.PropertyChanged += Model_PropertyChanged;
-		ModeSelector.PropertyChanged += Mode_PropertyChanged;
 
 		VisualStateManager.GoToState(InputUI, PlayMode.Keyboard.ToString());
 	}
@@ -112,14 +111,7 @@ public partial class WritingPage : ContentPage
 		
     }
 
-    private void Mode_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-	{
-		if (e.PropertyName == "SelectedMode")
-		{
-			// Do something when SelectedMode changes
-			VisualStateManager.GoToState(InputUI, ModeSelector.SelectedMode);
-		}
-	}
+    
 
 	
 

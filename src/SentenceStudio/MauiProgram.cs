@@ -65,6 +65,7 @@ public static class MauiProgram
 		builder.Services.AddFilePicker();
 
 		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
+		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
 		
 		return builder.Build();
 	}

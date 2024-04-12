@@ -66,9 +66,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.20-nightly.10419" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.20" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
-		<PackageReference Include="Scriban" Version="5.9.1" />
+		
 		
 	</ItemGroup>
 
@@ -85,6 +85,7 @@
 		<PackageReference Include="Shiny.Hosting.Maui" version="3.3.0" Version="3.3.0" />
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.0" />
 		<PackageReference Include="akgul.Maui.DataGrid" Version="4.0.2" />
+		<PackageReference Include="Scriban" Version="5.9.1" />
 	</ItemGroup>
 
 	<ItemGroup>

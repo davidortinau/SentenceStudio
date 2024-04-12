@@ -55,6 +55,7 @@
             <Label Text="{Binding Localize[VocabularyList]}" 
                 Style="{StaticResource Title1}"
                 HorizontalOptions="Start"/>
+                
             <layouts:HorizontalWrapLayout 
                 Spacing="{StaticResource InterSpacing}"
                 BindableLayout.ItemsSource="{Binding VocabLists}">
@@ -105,7 +106,7 @@
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>
             </layouts:HorizontalWrapLayout>
-
+            
             <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                 <Grid WidthRequest="300" HeightRequest="60">
                     <Label Text="{Binding Localize[Add]}"

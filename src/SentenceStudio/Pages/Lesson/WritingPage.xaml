@@ -15,10 +15,11 @@
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
 
-    <Grid RowDefinitions="Auto,*,Auto,80">
+    <Grid RowDefinitions="Auto,*,Auto">
         
         <ScrollView Grid.Row="1">
-            <Grid RowDefinitions="30,*,Auto">
+            <Grid RowDefinitions="0,*,Auto">
+                
                 <dg:DataGrid 
                     Grid.Row="1" 
                     ItemsSource="{Binding Sentences}" 
@@ -29,36 +30,48 @@
                         <dg:DataGridColumn Title="Sentence" Width="*">
                             <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
-                                    <Label Text="{Binding Answer}" HorizontalOptions="Fill" VerticalOptions="Fill"
+                                <ContentView Padding="4,0">
+                                    <Label Text="{Binding Answer}" HorizontalOptions="Fill" VerticalOptions="Center"
                                         TextColor="Black" />
+                                        </ContentView>
                                 </DataTemplate>
                             </dg:DataGridColumn.CellTemplate>
                         </dg:DataGridColumn>
-                        <dg:DataGridColumn Title="Accuracy" >
+                        <dg:DataGridColumn Title="Accuracy">
                              <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
-                                    <Label Text="{Binding Accuracy}" 
-                                    HorizontalOptions="Center" 
-                                    VerticalOptions="Center"
-                                        TextColor="Black">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding AccuracyExplanation}"/>  
-                                        </Label.GestureRecognizers>
-                                    </Label>
+                                    <Border Background="{StaticResource Primary}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Margin="4"
+                                        StrokeThickness="0" Padding="4,0">
+                                        <Label Text="{Binding Accuracy}" 
+                                        HorizontalOptions="Center" 
+                                        VerticalOptions="Center"
+                                            TextColor="White">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding AccuracyExplanation}"/>  
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                    </Border>
                                 </DataTemplate>
                             </dg:DataGridColumn.CellTemplate>
                         </dg:DataGridColumn>
                         <dg:DataGridColumn Title="Fluency">
                             <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
+                                <Border Background="{StaticResource Secondary}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Margin="4"
+                                        StrokeThickness="0" Padding="4,0">
                                     <Label Text="{Binding Fluency}" 
                                     HorizontalOptions="Center" 
                                     VerticalOptions="Center"
-                                        TextColor="Black">
+                                        TextColor="White">
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding FluencyExplanation}"/>  
                                         </Label.GestureRecognizers>
                                     </Label>
+                                    </Border>
                                 </DataTemplate>
                             </dg:DataGridColumn.CellTemplate>
                         </dg:DataGridColumn>        
@@ -87,103 +100,57 @@
         </ScrollView>
 
         <!-- Input -->
-                <Grid RowDefinitions="Auto,Auto"
-                      x:Name="InputUI"
-                      Grid.Row="2"
-                      RowSpacing="{StaticResource InnerSpacing}"
-                      Padding="{OnIdiom 30, Phone='15, 0'}"
-                      ColumnSpacing="{OnIdiom 15, Phone=5}">
+        <Grid RowDefinitions="Auto,Auto"
+                x:Name="InputUI"
+                Grid.Row="2"
+                RowSpacing="{StaticResource InnerSpacing}"
+                Padding="{OnIdiom 30, Phone='15, 0'}"
+                ColumnSpacing="{OnIdiom 15, Phone=5}">
 
-                    <HorizontalStackLayout
-                        Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
-                        Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
-                        BindableLayout.ItemsSource="{Binding VocabBlocks}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="model:Term">
-                                <Button Text="{Binding TargetLanguageTerm}"
-                                    Background="{StaticResource Gray200}"
-                                    TextColor="{StaticResource Gray900}"
-                                    FontSize="{OnIdiom 32, Phone=16}" 
-                                    Padding="4"
-                                    VerticalOptions="Start"
-                                        Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
-                                        CommandParameter="{Binding TargetLanguageTerm}"
-                                />
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate> 
-                    </HorizontalStackLayout>
-                    
-
-                    <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                            FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"
-                                 Grid.Row="1"
-                                 >
-                        <Entry Placeholder="{Binding Localize[UserInputPlaceholder]}"
-                               Text="{Binding UserInput}"
-                               x:Name="UserInputField"
-                               FontSize="{OnIdiom 32, Phone=16}" 
-                               ReturnType="Go"
-                               toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
-                               ReturnCommand="{Binding GradeMeCommand}"
-                               />
-                    </c:FormField>
-
-                    
-                
-                </Grid>
-
-        <!-- Navigation -->
-        <Grid Grid.Row="3"
-            RowDefinitions="1,*"
-            ColumnDefinitions="60,1,*,1,60,1,60">
+            <HorizontalStackLayout
+                Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
+                Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
+                BindableLayout.ItemsSource="{Binding VocabBlocks}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="model:Term">
+                        <Button Text="{Binding TargetLanguageTerm}"
+                            Background="{StaticResource Gray200}"
+                            TextColor="{StaticResource Gray900}"
+                            FontSize="{OnIdiom 32, Phone=16}" 
+                            Padding="4"
+                            VerticalOptions="Start"
+                                Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
+                                CommandParameter="{Binding TargetLanguageTerm}"
+                        />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate> 
+            </HorizontalStackLayout>
             
-            <Button Grid.Column="0"
-                    Grid.Row="1" 
-                    IsVisible="False"
-                    Text="GO"
-                    TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
-                    Background="Transparent"
-                    Command="{Binding GradeMeCommand}"
-            />
 
-            <c:ModeSelector x:Name="ModeSelector"
-                    Grid.Column="2" Grid.Row="1"
-                    IsVisible="False"
-                    HorizontalOptions="Center" VerticalOptions="Center"/>
-
-            <Button Grid.Column="4" Grid.Row="1"
-                ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
-                Background="Transparent"
-                Command="{Binding PreviousCommand}"
-            />
-                
-            <Button Grid.Column="6" Grid.Row="1"
-                ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"
-                Background="Transparent"
-                Command="{Binding NextCommand}"
-            />
-
-            <!-- Grid Lines -->
-            <BoxView Grid.ColumnSpan="7"
-                Color="Black"
-                HeightRequest="1"
-                />
-            <BoxView Grid.Column="1"
-                        Grid.Row="1"
-                Color="Black"
-                WidthRequest="1"
-                />
-            <BoxView Grid.Column="3"
-                        Grid.Row="1"
-                Color="Black"
-                WidthRequest="1"/>
-            <BoxView Grid.Column="5"
-                        Grid.Row="1"
-                Color="Black"
-                WidthRequest="1"/>
-        </Grid>
-
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                    FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"
+                            Grid.Row="1"
+                            >
+                <Entry 
+                    Placeholder="{Binding Localize[UserInputPlaceholder]}"
+                    Text="{Binding UserInput}"
+                    x:Name="UserInputField"
+                    FontSize="{OnIdiom 32, Phone=16}" 
+                    ReturnType="Go"
+                    toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                    ReturnCommand="{Binding GradeMeCommand}"
+                    >
+                    <Entry.Keyboard>
+                        <Keyboard x:FactoryMethod="Create">
+                            <x:Arguments>
+                                <KeyboardFlags>Suggestions,Spellcheck</KeyboardFlags>
+                            </x:Arguments>
+                        </Keyboard>
+                    </Entry.Keyboard>
+                </Entry>
+            </c:FormField>                   
         
+        </Grid>
 
         <!-- Busy Indicator -->
         <AbsoluteLayout
