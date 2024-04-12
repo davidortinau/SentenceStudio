@@ -4,17 +4,18 @@
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
             x:Class="SentenceStudio.Pages.Controls.ExplanationPopup"
             Color="Transparent"
+            VerticalOptions="Fill"
             HorizontalOptions="Fill">
-    <Grid RowDefinitions="*,Auto" 
-        Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}" Padding="15"
-    Margin="15">
+    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource InterSpacing}">
         <ScrollView>
-            <VerticalStackLayout Spacing="{StaticResource InterSpacing}">
-                <Label Text="Explanation" FontSize="Title" FontAttributes="Bold" TextColor="{AppThemeBinding Light={StaticResource LightText}, Dark={StaticResource DarkText}}"/>
-                <Label Text="{Binding Explanation}" FontSize="Body" TextColor="{AppThemeBinding Light={StaticResource LightText}, Dark={StaticResource DarkText}}"/>
+            <VerticalStackLayout Spacing="{StaticResource InnerSpacing}">
+                <Label Text="Explanation" 
+                    Style="{StaticResource Title1}"/>
+                <Label Text="{Binding Text}" />
             </VerticalStackLayout>
         </ScrollView>
 
         <Button Text="Cancel" Clicked="OnCloseClicked" Grid.Row="1"/>
+    
     </Grid>
 </toolkit:Popup>

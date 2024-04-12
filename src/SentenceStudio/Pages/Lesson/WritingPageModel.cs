@@ -92,7 +92,7 @@ public partial class WritingPageModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<Sentence> _sentences;
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GradeMe()
     {
         if(Sentences is null)
@@ -143,9 +143,14 @@ public partial class WritingPageModel : ObservableObject
         // };
         
         // MainPage.ShowPopup(popup);
-        // await _popupService.ShowPopupAsync(new Popup());
-        await App.Current.MainPage.DisplayAlert("Explanation", explanation, "OK");
+        // var explanationViewModel = new ExplanationViewModel { Text = explanation };
+        
+        // await _popupService.ShowPopupAsync<ExplanationViewModel>();
+        try{
+            await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => viewModel.Text = explanation);
+            // await AppShell.Current.CurrentPage.ShowPopupAsync(new ExplanationPopup(explanationViewModel));//.DisplayAlert("Explanation", explanation, "OK");
+        }catch(Exception e){
+            Debug.WriteLine(e.Message);
+        }
     }
-
-
 }

@@ -4,9 +4,10 @@ namespace SentenceStudio.Pages.Controls;
 
 public partial class ExplanationPopup : Popup
 {
-	public ExplanationPopup()
+	public ExplanationPopup(ExplanationViewModel viewModel)
 	{
 		InitializeComponent();
+		BindingContext = viewModel;
 	}
 
 	private async void OnCloseClicked(object sender, EventArgs e)
