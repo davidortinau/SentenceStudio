@@ -98,7 +98,6 @@ public partial class WritingPageModel : ObservableObject
         if(Sentences is null)
             Sentences = new ObservableCollection<Sentence>();
 
-        // IsBusy = true;
         var s = new Sentence{
             Answer = UserInput,
         };
@@ -110,21 +109,7 @@ public partial class WritingPageModel : ObservableObject
         s.Fluency = grade.Fluency;
         s.FluencyExplanation = grade.FluencyExplanation;
         s.AccuracyExplanation = grade.AccuracyExplanation;
-        //s.GrammarNotes = grade.;
-
-        // IsBusy = false;
-    }
-
-    [RelayCommand]
-    async Task Next()
-    {
-        // SetCurrentSentence();
-    }
-
-    [RelayCommand]
-    async Task Previous()
-    {
-        //SetCurrentSentence();
+        
     }
 
     [RelayCommand]
@@ -138,17 +123,10 @@ public partial class WritingPageModel : ObservableObject
     [RelayCommand]
     async Task ShowExplanation(string explanation)
     {
-        // var popup = new ExplanationPopup{
-        //     BindingContext = new { Explanation = explanation }
-        // };
-        
-        // MainPage.ShowPopup(popup);
-        // var explanationViewModel = new ExplanationViewModel { Text = explanation };
-        
-        // await _popupService.ShowPopupAsync<ExplanationViewModel>();
         try{
-            await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => viewModel.Text = explanation);
-            // await AppShell.Current.CurrentPage.ShowPopupAsync(new ExplanationPopup(explanationViewModel));//.DisplayAlert("Explanation", explanation, "OK");
+            await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => {
+                viewModel.Text = explanation;
+                });
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }

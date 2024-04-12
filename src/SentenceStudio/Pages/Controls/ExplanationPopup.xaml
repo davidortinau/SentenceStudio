@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"   
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
@@ -6,7 +6,8 @@
             Color="Transparent"
             VerticalOptions="Fill"
             HorizontalOptions="Fill">
-    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource InterSpacing}">
+    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource InterSpacing}"
+          Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
         <ScrollView>
             <VerticalStackLayout Spacing="{StaticResource InnerSpacing}">
                 <Label Text="Explanation" 
@@ -15,7 +16,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <Button Text="Cancel" Clicked="OnCloseClicked" Grid.Row="1"/>
+        <Button Text="Close" Clicked="OnCloseClicked" Grid.Row="1"/>
     
     </Grid>
 </toolkit:Popup>

@@ -27,21 +27,27 @@
                     SelectedItem="{Binding VocabList, Mode=TwoWay}" />
         </c:FormField>      
 
-        <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+        <!--<c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                     FieldLabel="Mode">
             <Picker x:Name="ModePicker" 
                     ItemsSource="{Binding PlayModes}"
                     ItemDisplayBinding="{Binding .}"
                     SelectedItem="{Binding SelectedPlayMode, Mode=TwoWay}" />
-        </c:FormField>  
+        </c:FormField>-->  
 
         <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                    FieldLabel="Level">
-            <HorizontalStackLayout RadioButtonGroup.SelectedValue="{Binding Level}">
-                <RadioButton Content="Level 1" Value="1" />
-                <RadioButton Content="Level 2" Value="2" />
-                <RadioButton Content="Level 3" Value="3" />
-            </HorizontalStackLayout>
+                    FieldLabel="Activity">
+            <Picker SelectedItem="{Binding SelectedLesson, Mode=TwoWay}">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>Translate</x:String>
+                        <x:String>Warmup</x:String>
+                        <x:String>Write</x:String>                      
+
+                    </x:Array>
+                </Picker.ItemsSource>
+
+            </Picker>
         </c:FormField>                    
 
         <Button 

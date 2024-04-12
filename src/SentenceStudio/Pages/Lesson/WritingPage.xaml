@@ -103,29 +103,30 @@
         <Grid RowDefinitions="Auto,Auto"
                 x:Name="InputUI"
                 Grid.Row="2"
-                RowSpacing="{StaticResource InnerSpacing}"
+                RowSpacing="4"
                 Padding="{OnIdiom 30, Phone='15, 0'}"
                 ColumnSpacing="{OnIdiom 15, Phone=5}">
 
-            <HorizontalStackLayout
-                Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
-                Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
-                BindableLayout.ItemsSource="{Binding VocabBlocks}">
-                <BindableLayout.ItemTemplate>
-                    <DataTemplate x:DataType="model:Term">
-                        <Button Text="{Binding TargetLanguageTerm}"
-                            Background="{StaticResource Gray200}"
-                            TextColor="{StaticResource Gray900}"
-                            FontSize="{OnIdiom 32, Phone=16}" 
-                            Padding="4"
-                            VerticalOptions="Start"
-                                Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
-                                CommandParameter="{Binding TargetLanguageTerm}"
-                        />
-                    </DataTemplate>
-                </BindableLayout.ItemTemplate> 
-            </HorizontalStackLayout>
-            
+            <ScrollView Orientation="Horizontal">
+                <HorizontalStackLayout
+                    Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
+                    Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
+                    BindableLayout.ItemsSource="{Binding VocabBlocks}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="model:Term">
+                            <Button Text="{Binding TargetLanguageTerm}"
+                                Background="{StaticResource Gray200}"
+                                TextColor="{StaticResource Gray900}"
+                                FontSize="{OnIdiom 32, Phone=16}" 
+                                Padding="4"
+                                VerticalOptions="Start"
+                                    Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
+                                    CommandParameter="{Binding TargetLanguageTerm}"
+                            />
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate> 
+                </HorizontalStackLayout>
+            </ScrollView>
 
             <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                     FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"

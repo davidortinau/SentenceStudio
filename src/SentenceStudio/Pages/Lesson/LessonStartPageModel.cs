@@ -19,6 +19,9 @@ public partial class LessonStartPageModel : ObservableObject
     private PlayMode _selectedPlayMode;
 
     [ObservableProperty]
+    private string _selectedLesson;
+
+    [ObservableProperty]
     private VocabularyList _vocabList;
 
     [ObservableProperty]
@@ -54,7 +57,21 @@ public partial class LessonStartPageModel : ObservableObject
     {
         try
         {
-            await Shell.Current.GoToAsync($"lesson?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
+            string route = string.Empty;
+            switch (SelectedLesson)
+            {
+                case "Warmup":
+                    route = "warmup";
+                    break;
+                case "Write":
+                    route = "writingLesson";
+                    break;
+                case "Translate":
+                default:
+                    route = "lesson";
+                    break;
+            }
+            await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
