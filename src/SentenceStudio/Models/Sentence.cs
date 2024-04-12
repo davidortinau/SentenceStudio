@@ -20,6 +20,10 @@ public partial class Sentence
 
     [ObservableProperty]
     private string _fluencyExplanation;
+    
+    [ObservableProperty]
+    private string _recommendedSentence;
+    
     public string GrammarNotes { get; set; }
     public List<string> Vocabulary { get; set; }
 }

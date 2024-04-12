@@ -49,7 +49,7 @@
                                         VerticalOptions="Center"
                                             TextColor="White">
                                             <Label.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding AccuracyExplanation}"/>  
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding .}"/>  
                                             </Label.GestureRecognizers>
                                         </Label>
                                     </Border>
@@ -68,7 +68,7 @@
                                     VerticalOptions="Center"
                                         TextColor="White">
                                         <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding FluencyExplanation}"/>  
+                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding .}"/>  
                                         </Label.GestureRecognizers>
                                     </Label>
                                     </Border>

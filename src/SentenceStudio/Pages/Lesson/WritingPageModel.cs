@@ -109,7 +109,8 @@ public partial class WritingPageModel : ObservableObject
         s.Fluency = grade.Fluency;
         s.FluencyExplanation = grade.FluencyExplanation;
         s.AccuracyExplanation = grade.AccuracyExplanation;
-        
+        s.RecommendedSentence = grade.GrammarNotes.RecommendedTranslation;
+        s.GrammarNotes = grade.GrammarNotes.Explanation;
     }
 
     [RelayCommand]
@@ -121,8 +122,14 @@ public partial class WritingPageModel : ObservableObject
     static Page MainPage => Shell.Current;
 
     [RelayCommand]
-    async Task ShowExplanation(string explanation)
+    async Task ShowExplanation(Sentence s)
     {
+        string explanation = $"Original: {s.Answer}" + Environment.NewLine + Environment.NewLine;
+        explanation += $"Recommended: {s.RecommendedSentence}" + Environment.NewLine + Environment.NewLine;
+        explanation += $"Accuracy: {s.AccuracyExplanation}" + Environment.NewLine + Environment.NewLine;
+        explanation += $"Fluency: {s.FluencyExplanation}" + Environment.NewLine + Environment.NewLine;
+        explanation += $"Additional Notes: {s.GrammarNotes}" + Environment.NewLine + Environment.NewLine;
+
         try{
             await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => {
                 viewModel.Text = explanation;
