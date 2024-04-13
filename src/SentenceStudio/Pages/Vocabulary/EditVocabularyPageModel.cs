@@ -13,9 +13,9 @@ public partial class EditVocabularyPageModel : ObservableObject
 
     [ObservableProperty] private int _listId;
 
-    partial void OnListIdChanged(int id)
+    partial void OnListIdChanged(int value)
     {
-        if (id > 0)
+        if (value > 0)
         {
             TaskMonitor.Create(LoadList);
         }
@@ -36,10 +36,10 @@ public partial class EditVocabularyPageModel : ObservableObject
 
     private async Task LoadList()
     {
-        if (_listId <= 0)
+        if (ListId <= 0)
             return; // display an alert that it cannot be found perhaps
         
-        _vocabList = await _vocabService.GetListAsync(_listId);
+        _vocabList = await _vocabService.GetListAsync(ListId);
         VocabListName = _vocabList.Name;
         Terms = _vocabList.Terms;
     }
@@ -47,8 +47,8 @@ public partial class EditVocabularyPageModel : ObservableObject
     [RelayCommand]
     async Task SaveVocab()
     {
-        _vocabList.Name = _vocabListName;
-        _vocabList.Terms = _terms;
+        _vocabList.Name = VocabListName;
+        _vocabList.Terms = Terms;
         
        var listId = await _vocabService.SaveListAsync(_vocabList);
         

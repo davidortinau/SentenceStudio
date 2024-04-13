@@ -1,25 +1,18 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
-using CustomLayouts;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Lesson;
 
 public partial class WarmupPage : ContentPage
 {
-	WarmupPageModel _model;
+    WarmupPageModel _model;
 
-	public WarmupPage(WarmupPageModel model)
-	{
-		InitializeComponent();
+    public WarmupPage(WarmupPageModel model)
+    {
+        InitializeComponent();
 
-		BindingContext = _model = model;
+        BindingContext = _model = model;
         _model.Chunks.CollectionChanged += ChunksCollectionChanged;
-		// _model.PropertyChanged += ConversationViewModelPropertyChanged;
-        // _model.InitAsync();
     }
 
     private void ConversationViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -37,28 +30,11 @@ public partial class WarmupPage : ContentPage
     {
         if (e.Action == NotifyCollectionChangedAction.Add)
         {
-            // foreach (ConversationChunk item in e.NewItems)
-            // {
-                // if (item.Author == ConversationParticipant.Me)
-                // {
-                    Device.BeginInvokeOnMainThread(async () =>
-                    {
-                        await Task.Delay(100); // Wait for the UI to finish updating
-                        await MessageCollectionView.ScrollToAsync(0, MessageCollectionView.ContentSize.Height, animated: true);
-                    });
-                    //MessageCollectionView.ScrollToAsync(0,MessageCollectionView.ContentSize.Height, animated: true);
-
-                    // int lastItemIndex = _model.Chunks.Count - 1;
-                    // MessageCollectionView.ScrollTo(lastItemIndex);
-                    
-                // }
-            // }
+            this.Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(100); // Wait for the UI to finish updating
+                await MessageCollectionView.ScrollToAsync(0, MessageCollectionView.ContentSize.Height, animated: true);
+            });
         }
     }
-
-    private void OnUpdatePressed(object sender, EventArgs e)
-    {
-        //MessageCollectionView.PlatformSizeChanged();
-    }
-
 }

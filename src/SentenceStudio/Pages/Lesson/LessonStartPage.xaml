@@ -10,8 +10,8 @@
              Shell.NavBarIsVisible="true">
     
     <VerticalStackLayout
-        Padding="{StaticResource InnerSpacing}"
-        Spacing="{StaticResource InnerSpacing}">
+        Padding="{StaticResource size240}"
+        Spacing="{StaticResource size240}">
 
         <Label Text="Let's Learn!" 
                     Style="{StaticResource Title1}"

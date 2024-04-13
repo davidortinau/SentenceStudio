@@ -1,7 +1,6 @@
 ﻿namespace SentenceStudio;
 
-[ObservableObject]
-public partial class PhraseClipboardViewModel
+public partial class PhraseClipboardViewModel : ObservableObject
 {
 
 }

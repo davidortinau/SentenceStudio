@@ -4,7 +4,7 @@
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
              x:DataType="c:FeedbackPanelModel"
              x:Class="SentenceStudio.Pages.Controls.FeedbackPanel">
-    <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource InterSpacing}">
+    <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource size320}">
         <ScrollView>
             <VerticalStackLayout>
                 <Label Text="Feedback" 

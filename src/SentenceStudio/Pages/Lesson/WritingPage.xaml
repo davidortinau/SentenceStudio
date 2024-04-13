@@ -1,55 +1,61 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" 
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson" 
+             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson"
              xmlns:l="clr-namespace:CustomLayouts"
              xmlns:s="clr-namespace:SentenceStudio.Services"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:model="clr-namespace:SentenceStudio.Models"
-              xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
+             xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Lesson.WritingPage"
              Title="필기해 봅시다!"
              x:DataType="lesson:WritingPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
-
     <Grid RowDefinitions="Auto,*,Auto">
-        
         <ScrollView Grid.Row="1">
             <Grid RowDefinitions="0,*,Auto">
-                
-                <dg:DataGrid 
-                    Grid.Row="1" 
-                    ItemsSource="{Binding Sentences}" 
-                    SelectionEnabled="False" 
-                    Margin="30"                    
-                    PaginationEnabled="False">
+                <dg:DataGrid Grid.Row="1"
+                             ItemsSource="{Binding Sentences}"
+                             SelectionEnabled="False"
+                             Margin="30"
+                             PaginationEnabled="False">
                     <dg:DataGrid.Columns>
-                        <dg:DataGridColumn Title="Sentence" Width="*">
+                        <dg:DataGridColumn Title="Sentence"
+                                           Width="*">
                             <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
-                                <ContentView Padding="4,0">
-                                    <Label Text="{Binding Answer}" HorizontalOptions="Fill" VerticalOptions="Center"
-                                        TextColor="Black" />
-                                        </ContentView>
+                                    <ContentView Padding="4,0">
+                                        <Label Text="{Binding Answer}"
+                                               HorizontalOptions="Fill"
+                                               VerticalOptions="Center"
+                                               TextColor="Black">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=UseVocabCommand}"
+                                                                      CommandParameter="{Binding Answer}" />
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                    </ContentView>
                                 </DataTemplate>
                             </dg:DataGridColumn.CellTemplate>
                         </dg:DataGridColumn>
                         <dg:DataGridColumn Title="Accuracy">
-                             <dg:DataGridColumn.CellTemplate>
+                            <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
                                     <Border Background="{StaticResource Primary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0" Padding="4,0">
-                                        <Label Text="{Binding Accuracy}" 
-                                        HorizontalOptions="Center" 
-                                        VerticalOptions="Center"
-                                            TextColor="White">
+                                            StrokeShape="RoundRectangle 8"
+                                            Margin="4"
+                                            StrokeThickness="0"
+                                            Padding="4,0">
+                                        <Label Text="{Binding Accuracy}"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               TextColor="White">
                                             <Label.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding .}"/>  
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
+                                                                      CommandParameter="{Binding .}" />
                                             </Label.GestureRecognizers>
                                         </Label>
                                     </Border>
@@ -59,22 +65,24 @@
                         <dg:DataGridColumn Title="Fluency">
                             <dg:DataGridColumn.CellTemplate>
                                 <DataTemplate x:DataType="model:Sentence">
-                                <Border Background="{StaticResource Secondary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0" Padding="4,0">
-                                    <Label Text="{Binding Fluency}" 
-                                    HorizontalOptions="Center" 
-                                    VerticalOptions="Center"
-                                        TextColor="White">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}" CommandParameter="{Binding .}"/>  
-                                        </Label.GestureRecognizers>
-                                    </Label>
+                                    <Border Background="{StaticResource Secondary}"
+                                            StrokeShape="RoundRectangle 8"
+                                            Margin="4"
+                                            StrokeThickness="0"
+                                            Padding="4,0">
+                                        <Label Text="{Binding Fluency}"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               TextColor="White">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Label.GestureRecognizers>
+                                        </Label>
                                     </Border>
                                 </DataTemplate>
                             </dg:DataGridColumn.CellTemplate>
-                        </dg:DataGridColumn>        
+                        </dg:DataGridColumn>
                     </dg:DataGrid.Columns>
                     <dg:DataGrid.RowsBackgroundColorPalette>
                         <dg:PaletteCollection>
@@ -83,87 +91,89 @@
                         </dg:PaletteCollection>
                     </dg:DataGrid.RowsBackgroundColorPalette>
                 </dg:DataGrid>
-
-                
-
-                
-
                 <!-- HUD with progress -->
-                <Grid Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource InnerSpacing}}">
+                <Grid Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}">
                     <Label Text="{Binding Progress}"
-                        HorizontalOptions="End"
-                        VerticalOptions="Start"
-                        />
+                           HorizontalOptions="End"
+                           VerticalOptions="Start" />
                 </Grid>
-            
             </Grid>
         </ScrollView>
-
         <!-- Input -->
         <Grid RowDefinitions="Auto,Auto"
-                x:Name="InputUI"
-                Grid.Row="2"
-                RowSpacing="4"
-                Padding="{OnIdiom 30, Phone='15, 0'}"
-                ColumnSpacing="{OnIdiom 15, Phone=5}">
-
+              x:Name="InputUI"
+              Grid.Row="2"
+              RowSpacing="4"
+              Padding="{OnIdiom 30, Phone='15, 0'}"
+              ColumnSpacing="{OnIdiom 15, Phone=5}">
             <ScrollView Orientation="Horizontal">
-                <HorizontalStackLayout
-                    Spacing="{OnIdiom {StaticResource InterSpacing}, Phone=4}" 
-                    Padding="{OnIdiom {StaticResource InnerSpacing}, Phone=15}"
-                    BindableLayout.ItemsSource="{Binding VocabBlocks}">
+                <HorizontalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone=4}"
+                                       Padding="{OnIdiom {StaticResource size240}, Phone=15}"
+                                       BindableLayout.ItemsSource="{Binding VocabBlocks}">
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="model:Term">
                             <Button Text="{Binding TargetLanguageTerm}"
-                                Background="{StaticResource Gray200}"
-                                TextColor="{StaticResource Gray900}"
-                                FontSize="{OnIdiom 32, Phone=16}" 
-                                Padding="4"
-                                VerticalOptions="Start"
+                                    Background="{StaticResource Gray200}"
+                                    TextColor="{StaticResource Gray900}"
+                                    FontSize="{OnIdiom 32, Phone=16}"
+                                    Padding="4"
+                                    MinimumHeightRequest="-1"
+                                    VerticalOptions="Start"
                                     Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
-                                    CommandParameter="{Binding TargetLanguageTerm}"
-                            />
+                                    CommandParameter="{Binding TargetLanguageTerm}" />
                         </DataTemplate>
-                    </BindableLayout.ItemTemplate> 
+                    </BindableLayout.ItemTemplate>
                 </HorizontalStackLayout>
             </ScrollView>
-
             <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                    FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"
-                            Grid.Row="1"
-                            >
-                <Entry 
-                    Placeholder="{Binding Localize[UserInputPlaceholder]}"
-                    Text="{Binding UserInput}"
-                    x:Name="UserInputField"
-                    FontSize="{OnIdiom 32, Phone=16}" 
-                    ReturnType="Go"
-                    toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
-                    ReturnCommand="{Binding GradeMeCommand}"
-                    >
-                    <Entry.Keyboard>
-                        <Keyboard x:FactoryMethod="Create">
-                            <x:Arguments>
-                                <KeyboardFlags>Suggestions,Spellcheck</KeyboardFlags>
-                            </x:Arguments>
-                        </Keyboard>
-                    </Entry.Keyboard>
-                </Entry>
-            </c:FormField>                   
-        
+                         FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"
+                         Grid.Row="1">
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="2">
+                    <Entry Placeholder="{Binding Localize[UserInputPlaceholder]}"
+                           Text="{Binding UserInput}"
+                           x:Name="UserInputField"
+                           FontSize="{OnIdiom 32, Phone=16}"
+                           ReturnType="Go"
+                           toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                           ReturnCommand="{Binding GradeMeCommand}">
+                        <Entry.Keyboard>
+                            <Keyboard x:FactoryMethod="Create">
+                                <x:Arguments>
+                                    <KeyboardFlags>Suggestions,Spellcheck</KeyboardFlags>
+                                </x:Arguments>
+                            </Keyboard>
+                        </Entry.Keyboard>
+                    </Entry>
+                    <Button ImageSource="{mi:SegoeFluent Icon=SpellingKorean, IconSize={StaticResource IconSize}}"
+                            BackgroundColor="Transparent"
+                            TextColor="Black"
+                            Padding="0" Margin="0"
+                            VerticalOptions="Center"
+                            HorizontalOptions="End"
+                            Command="{Binding TranslateInputCommand}"
+                            Grid.Column="1" />
+                    <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
+                            BackgroundColor="Transparent"
+                            TextColor="Black"
+                            Padding="0" Margin="0"
+                            VerticalOptions="Center"
+                            Command="{Binding ClearInputCommand}"
+                            Grid.Column="0"
+                            HorizontalOptions="End" />
+                </Grid>
+            </c:FormField>
         </Grid>
-
         <!-- Busy Indicator -->
-        <AbsoluteLayout
-            x:Name="LoadingOverlay"
-                IsVisible="{Binding IsBusy}" 
-                BackgroundColor="#80000000"
-                Grid.RowSpan="2">
-                <Label Text="Thinking..."
-                       FontSize="64"
-                       AbsoluteLayout.LayoutFlags="PositionProportional"
-                       AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
-                       TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+        <AbsoluteLayout x:Name="LoadingOverlay"
+                        IsVisible="{Binding IsBusy}"
+                        BackgroundColor="#80000000"
+                        Grid.RowSpan="2">
+            <Label Text="Thinking..."
+                   FontSize="64"
+                   AbsoluteLayout.LayoutFlags="PositionProportional"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
         </AbsoluteLayout>
     </Grid>
 </ContentPage>

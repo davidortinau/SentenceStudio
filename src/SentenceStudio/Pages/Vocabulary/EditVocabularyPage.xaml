@@ -16,9 +16,9 @@
     <CollectionView ItemsSource="{Binding Terms}">
         <CollectionView.Header>
             <VerticalStackLayout 
-                Spacing="{StaticResource InterSpacing}" 
+                Spacing="{StaticResource size320}" 
                 Padding="24">
-                <VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
+                <VerticalStackLayout Spacing="{StaticResource size120}" CompressedLayout.IsHeadless="true">
                     <Label Text="List Name" 
                             HorizontalOptions="Start" />
                     <Border Style="{StaticResource InputWrapper}">
@@ -26,12 +26,12 @@
                     </Border>
                 </VerticalStackLayout>
             
-                <VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
+                <VerticalStackLayout Spacing="{StaticResource size120}" CompressedLayout.IsHeadless="true">
                     <Label Text="Vocabulary" 
                         HorizontalOptions="Start" />
                     <Grid ColumnDefinitions="*,*"
-                            Padding="{StaticResource InnerSpacing}"
-                            ColumnSpacing="{StaticResource InnerSpacing}">
+                            Padding="{StaticResource size240}"
+                            ColumnSpacing="{StaticResource size240}">
                         <Label Text="Term"/>
                         <Label Text="Translation" Grid.Column="1"/>
                     </Grid>
@@ -42,9 +42,9 @@
         <CollectionView.ItemTemplate>
             <DataTemplate>
                 <Grid 
-                    Padding="{StaticResource InnerSpacing}"
+                    Padding="{StaticResource size240}"
                     x:DataType="models:Term"
-                    ColumnDefinitions="*,*" ColumnSpacing="{StaticResource InnerSpacing}">
+                    ColumnDefinitions="*,*" ColumnSpacing="{StaticResource size240}">
                     <Border Style="{StaticResource InputWrapper}">
                         <Entry Text="{Binding TargetLanguageTerm}"/>
                     </Border>

@@ -1,7 +1,6 @@
 ﻿namespace SentenceStudio.Models;
 
-[ObservableObject]
-public partial class Sentence
+public partial class Sentence : ObservableObject
 {
     [ObservableProperty]
     private string _problem;

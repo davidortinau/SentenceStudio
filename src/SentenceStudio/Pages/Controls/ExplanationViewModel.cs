@@ -1,7 +1,6 @@
 ﻿namespace SentenceStudio;
 
-[ObservableObject]
-public partial class ExplanationViewModel
+public partial class ExplanationViewModel : ObservableObject
 {
     [ObservableProperty]
     private string _text;

@@ -40,8 +40,8 @@ public partial class AddVocabularyPageModel : ObservableObject
         // persist here
         VocabularyList list = new VocabularyList
         {
-            Name = _vocabListName,
-            Terms = ParseTerms(_vocabList)
+            Name = VocabListName,
+            Terms = ParseTerms(VocabList)
         };
 
 

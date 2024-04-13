@@ -28,8 +28,6 @@ public partial class LessonPageModel : ObservableObject
 
     [ObservableProperty]
     private string _userTranslation;
-    
-    private string _terms;
 
     [ObservableProperty]
     private GradeResponse _gradeResponse;
@@ -72,7 +70,7 @@ public partial class LessonPageModel : ObservableObject
             Feedback = string.Empty;
             CurrentSentence = Sentences[0].SentenceText;
             Vocabulary = Sentences[0].Vocabulary;
-            
+
             var random = new Random();
             VocabBlocks = Vocabulary.Select(v => v.TargetLanguageTerm)
                                     .Where(t => !string.IsNullOrEmpty(t))
@@ -127,15 +125,9 @@ public partial class LessonPageModel : ObservableObject
     }
 
     [RelayCommand]
-    async Task NextSentence()
+    void NextSentence()
     {
         SetCurrentSentence();
-    }
-
-    [RelayCommand]
-    async Task PreviousSentence()
-    {
-        //SetCurrentSentence();
     }
 
     [RelayCommand]

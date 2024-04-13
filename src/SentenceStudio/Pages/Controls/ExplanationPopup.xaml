@@ -6,10 +6,10 @@
             Color="Transparent"
             VerticalOptions="Fill"
             HorizontalOptions="Fill">
-    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource InterSpacing}"
+    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource size320}"
           Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
         <ScrollView>
-            <VerticalStackLayout Spacing="{StaticResource InnerSpacing}">
+            <VerticalStackLayout Spacing="{StaticResource size240}">
                 <Label Text="Explanation" 
                     Style="{StaticResource Title1}"/>
                 <Label Text="{Binding Text}" />

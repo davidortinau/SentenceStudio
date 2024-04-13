@@ -14,9 +14,9 @@
     </ContentPage.ToolbarItems>
     
     <ScrollView>
-        <VerticalStackLayout Spacing="{StaticResource InterSpacing}" Margin="24">
+        <VerticalStackLayout Spacing="{StaticResource size320}" Margin="24">
 
-            <!--<VerticalStackLayout Spacing="{StaticResource InputLabelSpacing}" CompressedLayout.IsHeadless="true">
+            <!--<VerticalStackLayout Spacing="{StaticResource size120}" CompressedLayout.IsHeadless="true">
                 <Label Text="List Name" 
                     HorizontalOptions="Start" />
                 <Border Style="{StaticResource InputWrapper}">
@@ -40,7 +40,7 @@
             <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                         FieldLabel="File Type">
                 <HorizontalStackLayout 
-                    Spacing="{StaticResource InterSpacing}"
+                    Spacing="{StaticResource size320}"
                     RadioButtonGroup.SelectedValue="{Binding Delimiter}">
                     <RadioButton Content="Comma" Value="comma" />    
                     <RadioButton Content="Tab" Value="tab" />    

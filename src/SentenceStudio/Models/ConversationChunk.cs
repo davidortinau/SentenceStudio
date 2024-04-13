@@ -2,8 +2,7 @@ using System;
 
 namespace SentenceStudio.Models;
 
-[ObservableObject]
-public partial class ConversationChunk
+public partial class ConversationChunk : ObservableObject
 {
     public ConversationChunk()
     {

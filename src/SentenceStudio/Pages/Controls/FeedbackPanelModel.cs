@@ -12,7 +12,7 @@ public partial class FeedbackPanelModel : ObservableObject
     private string _userInput;
 
     [RelayCommand]
-    async Task Ask()
+    void Ask()
     {
         // the idea here is that I can ask for clarification or a question related to the feedback.
         // how might I provide that context?

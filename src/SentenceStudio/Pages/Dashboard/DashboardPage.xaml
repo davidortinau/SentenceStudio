@@ -14,14 +14,14 @@
 
     <ScrollView>
         <VerticalStackLayout
-            Padding="{StaticResource InnerSpacing}"
-            Spacing="{StaticResource InnerSpacing}">            
+            Padding="{StaticResource size160}"
+            Spacing="{StaticResource size240}">            
 
             <Label Text="{Binding Localize[Activities]}"
                 Style="{StaticResource Title1}"
                 HorizontalOptions="Start"/>
             <layouts:HorizontalWrapLayout 
-                Spacing="{StaticResource InterSpacing}">
+                Spacing="{StaticResource size320}">
                 <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                     <Grid WidthRequest="300" HeightRequest="120">
                         <Label Text="{Binding Localize[Warmup]}"
@@ -57,7 +57,7 @@
                 HorizontalOptions="Start"/>
                 
             <layouts:HorizontalWrapLayout 
-                Spacing="{StaticResource InterSpacing}"
+                Spacing="{StaticResource size320}"
                 BindableLayout.ItemsSource="{Binding VocabLists}">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate>
@@ -81,7 +81,7 @@
                                         CommandParameter="{Binding ID}"/>
 
                                 <HorizontalStackLayout 
-                                    Spacing="{StaticResource InnerSpacing}"
+                                    Spacing="{StaticResource size240}"
                                     CompressedLayout.IsHeadless="True"
                                     HorizontalOptions="End"
                                     VerticalOptions="End">

@@ -9,7 +9,7 @@
         Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}" Padding="15"
     Margin="15">
         <ScrollView>
-            <VerticalStackLayout Spacing="{StaticResource InterSpacing}">
+            <VerticalStackLayout Spacing="{StaticResource size320}">
                 <BindableLayout.ItemsSource>
                     <x:Array Type="{x:Type x:String}">
                         <x:String>이거 한국어로 뭐예요?</x:String>

@@ -7,6 +7,8 @@ using SentenceStudio.Models;
 using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
+using CommunityToolkit.Maui.Alerts;
+
 
 namespace SentenceStudio.Pages.Lesson;
 
@@ -32,8 +34,6 @@ public partial class WritingPageModel : ObservableObject
     [ObservableProperty]
     private string _userTranslation;
     
-    private string _terms;
-
     [ObservableProperty]
     private GradeResponse _gradeResponse;
 
@@ -137,5 +137,26 @@ public partial class WritingPageModel : ObservableObject
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }
+    }
+
+    [RelayCommand]
+    async Task TranslateInput()
+    {
+        if(string.IsNullOrWhiteSpace(UserInput))
+            return;
+
+        
+        var translation = await _teacherService.Translate(UserInput);
+        ToastDuration duration = ToastDuration.Long;
+        double fontSize = 14;
+        var toast = Toast.Make(translation, duration, fontSize);
+        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        await toast.Show(cancellationTokenSource.Token);
+    }
+
+    [RelayCommand]
+    void ClearInput()
+    {
+        UserInput = string.Empty;
     }
 }
