@@ -74,18 +74,18 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="8.0.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="8.0.1" />
 		<PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.15" />
 		<PackageReference Include="DotNetMeteor.HotReload.Plugin" Version="3.2.0" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
-		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="2.1.2" />
-		<PackageReference Include="sqlite-net-pcl" Version="1.8.116" />
+		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="2.1.5" />
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.8" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
-		<PackageReference Include="Shiny.Hosting.Maui" version="3.3.0" Version="3.3.0" />
-		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.0" />
+		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />
+		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.3" />
 		<PackageReference Include="akgul.Maui.DataGrid" Version="4.0.2" />
-		<PackageReference Include="Scriban" Version="5.9.1" />
+		<PackageReference Include="Scriban" Version="5.10.0" />
 	</ItemGroup>
 
 	<ItemGroup>

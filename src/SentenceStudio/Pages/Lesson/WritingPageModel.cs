@@ -104,13 +104,24 @@ public partial class WritingPageModel : ObservableObject
         Sentences.Add(s);
         UserInput = string.Empty;
         var grade = await _teacherService.GradeSentence(s.Answer);
-        
+        if(grade is null){
+            _ = ShowError();
+        }
         s.Accuracy = grade.Accuracy;
         s.Fluency = grade.Fluency;
         s.FluencyExplanation = grade.FluencyExplanation;
         s.AccuracyExplanation = grade.AccuracyExplanation;
         s.RecommendedSentence = grade.GrammarNotes.RecommendedTranslation;
         s.GrammarNotes = grade.GrammarNotes.Explanation;
+    }
+
+    private async Task ShowError()
+    {
+        ToastDuration duration = ToastDuration.Long;
+        double fontSize = 14;
+        var toast = Toast.Make("Something went wrong. Check the server.", duration, fontSize);
+        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        await toast.Show(cancellationTokenSource.Token);
     }
 
     [RelayCommand]

@@ -63,8 +63,8 @@ public partial class AddVocabularyPageModel : ObservableObject
             {
                 terms.Add(new Term
                 {
-                    TargetLanguageTerm  = parts[0], 
-                    NativeLanguageTerm = parts[1]
+                    TargetLanguageTerm  = parts[0].Replace("\"", ""), 
+                    NativeLanguageTerm = parts[1].Replace("\"", "")
                 });
             }
         }

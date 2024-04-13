@@ -41,6 +41,11 @@ public class AiService {
 
             // Send the prompt to OpenAI and receive the conversation response
             var response = await aiClient.SendPrompt(prompt);
+            if(string.IsNullOrEmpty(response))
+            {
+                return new T();
+            }
+
             Debug.WriteLine($"Response: {response}");
             if (typeof(T) == typeof(string))
             {
