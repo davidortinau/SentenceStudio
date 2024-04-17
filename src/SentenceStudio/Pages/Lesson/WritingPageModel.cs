@@ -47,6 +47,9 @@ public partial class WritingPageModel : ObservableObject
     private string _userInput;
 
     [ObservableProperty]
+    private string _userMeaning;
+
+    [ObservableProperty]
     private string _progress;
 
     [ObservableProperty]
@@ -100,10 +103,11 @@ public partial class WritingPageModel : ObservableObject
 
         var s = new Sentence{
             Answer = UserInput,
+            Problem = UserMeaning
         };
         Sentences.Add(s);
-        UserInput = string.Empty;
-        var grade = await _teacherService.GradeSentence(s.Answer);
+        UserInput = UserMeaning = string.Empty;
+        var grade = await _teacherService.GradeSentence(s.Answer, s.Problem);
         if(grade is null){
             _ = ShowError();
         }

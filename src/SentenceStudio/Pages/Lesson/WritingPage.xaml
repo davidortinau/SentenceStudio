@@ -92,7 +92,7 @@
         </ScrollView>
 
         <!-- Input -->
-        <Grid RowDefinitions="Auto,Auto"
+        <Grid RowDefinitions="Auto,Auto,Auto"
               x:Name="InputUI"
               Grid.Row="2"
               RowSpacing="{StaticResource size40}"
@@ -126,9 +126,9 @@
                            Text="{Binding UserInput}"
                            x:Name="UserInputField"
                            FontSize="{OnIdiom 32, Phone=16}"
-                           ReturnType="Go"
-                           toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
-                           ReturnCommand="{Binding GradeMeCommand}">
+                           ReturnType="Next"
+                           toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference IMeanToSayField}"
+                           >
                         <Entry.Keyboard>
                             <Keyboard x:FactoryMethod="Create">
                                 <x:Arguments>
@@ -155,6 +155,19 @@
                             HorizontalOptions="End" />
                 </Grid>
             </c:FormField>
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                         Grid.Row="2">
+                <Entry Placeholder="What I mean to say is..."
+                        Text="{Binding UserMeaning}"
+                        x:Name="IMeanToSayField"
+                        FontSize="{OnIdiom 32, Phone=16}"
+                        ReturnType="Go"
+                        toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                        ReturnCommand="{Binding GradeMeCommand}">
+                    
+                </Entry>
+            </c:FormField>
+            
         </Grid>
         <!-- Busy Indicator -->
         <AbsoluteLayout x:Name="LoadingOverlay"

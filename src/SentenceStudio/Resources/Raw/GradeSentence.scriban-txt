@@ -1,6 +1,8 @@
-I am a student that speaks English, and I'm learning Korean. I've written this sentence: \"{{user_input}}\". Please grade it for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말). Also include a recommended version of the sentence based on what you best think I was trying to say.
+I am a student that speaks English, and I'm learning Korean. I've written this sentence: \"{{user_input}}\"{{if user_meaning && user_meaning != ''}} which I mean to express \"{{user_meaning}}\"{{end}}. 
 
-Use a scale of 0 to 100 where higher is better. 
+Please grade it for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말). Also include a recommended version of the sentence based on what you best think I was trying to say.
+
+Use a scale of 0 to 100 where higher is better. If the vocabulary and grammar are accurate, then score 100. Any improvements for vocabulary, grammar, or fluency should not deduct from the score but only be included in the explanations.
 
 Format your response as json with properties like this: {\"accuracy_score\": 100, \"accuracy_explanation\": \"\", \"fluency_score\": 100, \"fluency_explanation\": \"\", \"grammar_notes\": {\"original_sentence\": \"\", \"recommended_translation\": \"\", \"explanation\": \"\"}}. 
 

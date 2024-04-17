@@ -19,7 +19,7 @@ public class AIClient
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
         var chatCompletionsOptions = new ChatCompletionsOptions()
         {
-            DeploymentName = "gpt-4-0125-preview",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
+            DeploymentName = "gpt-4-turbo",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
             Messages =
             {
                 new ChatRequestUserMessage(prompt),

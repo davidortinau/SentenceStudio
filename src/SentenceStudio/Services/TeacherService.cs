@@ -107,7 +107,7 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeSentence(string userInput)
+        public async Task<GradeResponse> GradeSentence(string userInput, string userMeaning)
         {
             try
             {
@@ -116,7 +116,7 @@ namespace SentenceStudio.Services
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(reader.ReadToEnd());
-                    prompt = await template.RenderAsync(new { user_input = userInput});
+                    prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning});
 
                     Debug.WriteLine(prompt);
                 }

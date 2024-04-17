@@ -409,3 +409,4 @@ src/.vscode/settings.json
 src/.vscode/
 
 appsettings.json
+src/global.json

@@ -41,12 +41,30 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-ios|AnyCPU'">
+	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+		<PublishAot>true</PublishAot>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<EnableAotAnalyzer>true</EnableAotAnalyzer>   
+		<EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer> 
+	</PropertyGroup> -->
+
+	<!-- <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-ios|AnyCPU'">
 	  <CreatePackage>false</CreatePackage>
-	</PropertyGroup>
+	  <CodesignProvision>Automatic</CodesignProvision>
+	  <CodesignKey>Mac Developer: Created via API (Y7P75477YN)</CodesignKey>
+	</PropertyGroup> -->
+
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0-ios|AnyCPU'">
 	  <CreatePackage>false</CreatePackage>
 	</PropertyGroup>
+
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+		<CreatePackage>false</CreatePackage>
+		<CodesignProvision>Automatic</CodesignProvision>
+		<CodesignKey>Apple Development: Created via API (Y7P75477YN)</CodesignKey>
+	</PropertyGroup>
+
+	
 	<ItemGroup>
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\studio_icon.png" Color="#0c0b10" />
@@ -68,8 +86,6 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.20" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
-		
-		
 	</ItemGroup>
 
 	<ItemGroup>
@@ -96,24 +112,6 @@
 	<ItemGroup>
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 	</ItemGroup>
-
-	<!-- <ItemGroup>
-		<Compile Update="Resources\Strings\AppResources.Designer.cs">
-			<DesignTime>True</DesignTime>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>AppResources.resx</DependentUpon>
-		</Compile>
-		<Compile Update="Resources\Strings\AppResources.Designer.cs">
-		  <DependentUpon>AppResources.resx</DependentUpon>
-		</Compile>
-	</ItemGroup> -->
-	
-	<!-- <ItemGroup>
-		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>AppResources.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-	</ItemGroup> -->
 
 	<ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
