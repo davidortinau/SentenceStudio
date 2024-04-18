@@ -4,20 +4,18 @@ using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
-namespace SentenceStudio.Pages.Dashboard;
+namespace SentenceStudio.Pages.Vocabulary;
 
 [QueryProperty(nameof(ShouldRefresh), "refresh")]
-public partial class DashboardPageModel : ObservableObject
+public partial class ListVocabularyPageModel : ObservableObject
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
+    
+    private VocabularyService _vocabService;
 
     [ObservableProperty]
     private List<VocabularyList> _vocabLists;
 
-    public DashboardPageModel(IServiceProvider service)
-    {
-        _vocabService = service.GetRequiredService<VocabularyService>();
-    }
 
     private bool _shouldRefresh;
     public bool ShouldRefresh
@@ -33,13 +31,23 @@ public partial class DashboardPageModel : ObservableObject
             //    TaskMonitor.Create(LoadVocabLists);
         }
     }
+    
+    public ListVocabularyPageModel(IServiceProvider service)
+    {
+        _vocabService = service.GetRequiredService<VocabularyService>();
+        TaskMonitor.Create(LoadVocabLists);
+    }
+
+    // public void Init()
+    // {
+    //     TaskMonitor.Create(LoadVocabLists);
+    // }
 
     private async Task LoadVocabLists()
     {
+        await Task.Delay(100);
         VocabLists = await _vocabService.GetAllListsWithTermsAsync();
     }
-
-    public VocabularyService _vocabService { get; }
 
     [RelayCommand]
     async Task AddVocabulary()
@@ -54,32 +62,6 @@ public partial class DashboardPageModel : ObservableObject
     }
 
     [RelayCommand]
-    async Task Play(int listID)
-    {
-        // if(listID == 0)
-        //     listID = VocabLists.First().ID;
-
-        try{
-            await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
-        }catch(Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-        }
-    }
-
-    [RelayCommand]
-    async Task DefaultTranslate()
-    {
-        await Play(VocabLists.First().ID);
-    }
-
-    [RelayCommand]
-    async Task DefaultWrite()
-    {
-        await Write(VocabLists.First().ID);
-    }
-
-    [RelayCommand]
     async Task Write(int listID)
     {
         try{
@@ -88,21 +70,16 @@ public partial class DashboardPageModel : ObservableObject
         {
             Debug.WriteLine($"{ex.Message}");
         }
-    }    
+    }
 
     [RelayCommand]
-    async Task Warmup()
+    async Task Play(int listID)
     {
         try{
-            await Shell.Current.GoToAsync($"warmup");
+            await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
         }
-    }
-
-    public void Init()
-    {
-        TaskMonitor.Create(LoadVocabLists);
     }
 }

@@ -6,6 +6,7 @@
     xmlns:resx="clr-namespace:SentenceStudio.Resources.Strings"
     xmlns:local="clr-namespace:SentenceStudio"
     xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson;assembly=SentenceStudio"
+    xmlns:vocabulary="clr-namespace:SentenceStudio.Pages.Vocabulary;assembly=SentenceStudio"
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}">
 
@@ -23,6 +24,11 @@
         Title="{Binding Localize[StartLesson]}"
         ContentTemplate="{DataTemplate lesson:LessonStartPage}"
         Route="newLesson" />
+
+    <ShellContent
+        Title="{Binding Localize[VocabularyList]}"
+        ContentTemplate="{DataTemplate vocabulary:ListVocabularyPage}"
+        Route="vocabulary" />
 
     <Shell.FlyoutFooter>
         <Grid>
