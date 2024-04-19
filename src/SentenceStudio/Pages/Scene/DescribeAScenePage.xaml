@@ -10,10 +10,18 @@
              xmlns:model="clr-namespace:SentenceStudio.Models"
              xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Scene.DescribeAScenePage"
-             Title="필기해 봅시다!"
+             Title="Describe a Scene"
              x:DataType="scene:DescribeAScenePageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
+             
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem 
+            IconImageSource="{mi:SegoeFluent Icon=OpenFile, IconSize=24}"            
+            Command="{Binding LoadImageCommand}" />
+    </ContentPage.ToolbarItems>
+
     <Grid RowDefinitions="Auto,*,Auto">
         <dg:DataGrid ItemsSource="{Binding Sentences}"
                             SelectionEnabled="False"
@@ -88,18 +96,6 @@
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Padding="{StaticResource size160}"
                                  Spacing="{StaticResource size240}">
-                <Label Text="Describe the Scene"
-                       Style="{StaticResource Title1}"
-                       HorizontalOptions="Start" />
-                <Entry Text="{Binding ImageUrl}"
-                       Placeholder="https://example.com/image.jpg"
-                       FontSize="{OnIdiom 32, Phone=16}"
-                       ReturnType="Go"
-                       toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
-                       />
-                <Button Text="Get Description"
-                        Command="{Binding GetDescriptionCommand}"
-                        />
                 <Image Source="{Binding ImageUrl}"
                              Aspect="AspectFit"
                              MaximumWidthRequest="400"
@@ -158,7 +154,7 @@
                         IsVisible="{Binding IsBusy}"
                         BackgroundColor="#80000000"
                         Grid.RowSpan="2">
-            <Label Text="Thinking..."
+            <Label Text="Analyzing the image..."
                    FontSize="64"
                    AbsoluteLayout.LayoutFlags="PositionProportional"
                    AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"

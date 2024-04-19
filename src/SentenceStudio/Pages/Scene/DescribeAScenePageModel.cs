@@ -23,7 +23,7 @@ public partial class DescribeAScenePageModel : ObservableObject
 
     [ObservableProperty]
     private string _imageUrl = "https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png";
-    
+    //https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/8a859154-10d2-4f58-9a86-18d2b8bfc99d/8b579331-04c5-4f18-9ea8-5df381c216ca.png
     [ObservableProperty]
     private string _userInput;
 
@@ -53,8 +53,11 @@ public partial class DescribeAScenePageModel : ObservableObject
     [RelayCommand]
     async Task GetDescription()
     {
+        
         if(string.IsNullOrWhiteSpace(ImageUrl))
             return;
+
+        IsBusy = true;
 
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("DescribeThisImage.scriban-txt");
@@ -65,7 +68,9 @@ public partial class DescribeAScenePageModel : ObservableObject
         }
         
         Description = await _aiService.SendImage(ImageUrl, prompt);
-        TaskMonitor.Create(ShowDescription);
+        // TaskMonitor.Create(ShowDescription);
+
+        IsBusy = false;
     }
 
     [RelayCommand]
@@ -98,7 +103,7 @@ public partial class DescribeAScenePageModel : ObservableObject
             Answer = UserInput
         };
         Sentences.Add(s);
-        
+
         UserInput = string.Empty;
         var grade = await _teacherService.GradeDescription(s.Answer, Description);
         if(grade is null){
@@ -166,5 +171,20 @@ public partial class DescribeAScenePageModel : ObservableObject
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }
+    }
+
+    [RelayCommand]
+    async Task LoadImage()
+    {
+        // open an alert to access a string input
+        await Shell.Current.CurrentPage.DisplayPromptAsync("Enter Image URL", "Please enter the URL of the image you would like to describe.", "OK", "Cancel", "https://example.com/something.jpg").ContinueWith(async (task) =>
+        {
+            var result = await task;
+            if (result != null)
+            {
+                ImageUrl = result;
+                await GetDescription();
+            }
+        });
     }
 }
