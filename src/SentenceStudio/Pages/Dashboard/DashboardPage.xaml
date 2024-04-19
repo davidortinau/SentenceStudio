@@ -50,6 +50,16 @@
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="Describe a Scene"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding DescribeASceneCommand}" />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
             </layouts:HorizontalWrapLayout>
             
             

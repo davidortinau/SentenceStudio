@@ -68,6 +68,26 @@ public class AiService {
         }
     }
 
+    public async Task<string> SendImage(string imagePath, string prompt)
+    {
+        try
+        {
+            // Create a new instance of the OpenAI client
+            var aiClient = new AIClient(_openAiApiKey);
+
+            // Send the image to OpenAI and receive the response
+            var response = await aiClient.SendImage(new Uri(imagePath), prompt);
+            Debug.WriteLine($"Response: {response}");
+            return response;
+        }
+        catch (Exception ex)
+        {
+            // Handle any exceptions that occur during the process
+            Debug.WriteLine($"An error occurred SendImage: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
     private string CleanJson(string response)
     {
         if (string.IsNullOrEmpty(response))

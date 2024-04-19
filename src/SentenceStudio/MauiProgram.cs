@@ -13,6 +13,7 @@ using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
 using Shiny;
 using CommunityToolkit.Maui.ApplicationModel;
+using SentenceStudio.Pages.Scene;
 
 namespace SentenceStudio;
 
@@ -61,6 +62,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<LessonStartPage, LessonStartPageModel>("playLesson");
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
+		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
 
 		builder.Configuration.AddJsonPlatformBundle();
 		builder.Services.AddFilePicker();

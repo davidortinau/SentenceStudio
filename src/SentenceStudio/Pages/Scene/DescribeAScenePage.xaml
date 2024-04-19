@@ -1,0 +1,168 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:scene="clr-namespace:SentenceStudio.Pages.Scene"
+             xmlns:l="clr-namespace:CustomLayouts"
+             xmlns:s="clr-namespace:SentenceStudio.Services"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:model="clr-namespace:SentenceStudio.Models"
+             xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
+             x:Class="SentenceStudio.Pages.Scene.DescribeAScenePage"
+             Title="필기해 봅시다!"
+             x:DataType="scene:DescribeAScenePageModel"
+             HideSoftInputOnTapped="True"
+             Shell.NavBarIsVisible="true">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <dg:DataGrid ItemsSource="{Binding Sentences}"
+                            SelectionEnabled="False"
+                            Margin="{StaticResource size160}"
+                            PaginationEnabled="False">
+                <dg:DataGrid.Columns>
+                    <dg:DataGridColumn Title="Sentence"
+                                        Width="*">
+                        <dg:DataGridColumn.CellTemplate>
+                            <DataTemplate x:DataType="model:Sentence">
+                                <ContentView Padding="4,0">
+                                    <Label Text="{Binding Answer}"
+                                            HorizontalOptions="Fill"
+                                            VerticalOptions="Center"
+                                            TextColor="Black">
+
+                                    </Label>
+                                </ContentView>
+                            </DataTemplate>
+                        </dg:DataGridColumn.CellTemplate>
+                    </dg:DataGridColumn>
+                    <dg:DataGridColumn Title="Accuracy">
+                        <dg:DataGridColumn.CellTemplate>
+                            <DataTemplate x:DataType="model:Sentence">
+                                <Border Background="{StaticResource Primary}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Margin="4"
+                                        StrokeThickness="0"
+                                        Padding="4,0">
+                                    <Label Text="{Binding Accuracy}"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            TextColor="White">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
+                                                                    CommandParameter="{Binding .}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Border>
+                            </DataTemplate>
+                        </dg:DataGridColumn.CellTemplate>
+                    </dg:DataGridColumn>
+                    <dg:DataGridColumn Title="Fluency">
+                        <dg:DataGridColumn.CellTemplate>
+                            <DataTemplate x:DataType="model:Sentence">
+                                <Border Background="{StaticResource Secondary}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Margin="4"
+                                        StrokeThickness="0"
+                                        Padding="4,0">
+                                    <Label Text="{Binding Fluency}"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            TextColor="White">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
+                                                                    CommandParameter="{Binding .}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Border>
+                            </DataTemplate>
+                        </dg:DataGridColumn.CellTemplate>
+                    </dg:DataGridColumn>
+                </dg:DataGrid.Columns>
+                <dg:DataGrid.RowsBackgroundColorPalette>
+                    <dg:PaletteCollection>
+                        <Color>#F2F2F2</Color>
+                        <Color>#FFFFFF</Color>
+                    </dg:PaletteCollection>
+                </dg:DataGrid.RowsBackgroundColorPalette>
+            </dg:DataGrid>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource size160}"
+                                 Spacing="{StaticResource size240}">
+                <Label Text="Describe the Scene"
+                       Style="{StaticResource Title1}"
+                       HorizontalOptions="Start" />
+                <Entry Text="{Binding ImageUrl}"
+                       Placeholder="https://example.com/image.jpg"
+                       FontSize="{OnIdiom 32, Phone=16}"
+                       ReturnType="Go"
+                       toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                       />
+                <Button Text="Get Description"
+                        Command="{Binding GetDescriptionCommand}"
+                        />
+                <Image Source="{Binding ImageUrl}"
+                             Aspect="AspectFit"
+                             MaximumWidthRequest="400"
+                             Margin="{StaticResource size240}" >                             
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ViewDescriptionCommand}" />
+                    </Image.GestureRecognizers>
+                </Image>
+                
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Input -->
+        <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                         FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"     
+              Grid.Row="2"
+              Margin="{StaticResource size160}">
+            <Grid ColumnDefinitions="*,Auto"
+                    ColumnSpacing="2">
+                <Entry Placeholder="{Binding Localize[UserInputPlaceholder]}"
+                        Text="{Binding UserInput}"
+                        x:Name="UserInputField"
+                        FontSize="{OnIdiom 32, Phone=16}"
+                        ReturnType="Next"
+                        ReturnCommand="{Binding GradeMyDescriptionCommand}"
+                        >
+                    <Entry.Keyboard>
+                        <Keyboard x:FactoryMethod="Create">
+                            <x:Arguments>
+                                <KeyboardFlags>Suggestions,Spellcheck</KeyboardFlags>
+                            </x:Arguments>
+                        </Keyboard>
+                    </Entry.Keyboard>
+                </Entry>
+                <Button ImageSource="{mi:SegoeFluent Icon=SpellingKorean, IconSize={StaticResource IconSize}}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        Padding="0" Margin="0"
+                        VerticalOptions="Center"
+                        HorizontalOptions="End"
+                        Command="{Binding TranslateInputCommand}"
+                        Grid.Column="1" />
+                <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        Padding="0" Margin="0"
+                        VerticalOptions="Center"
+                        Command="{Binding ClearInputCommand}"
+                        Grid.Column="0"
+                        HorizontalOptions="End" />
+            </Grid>
+        </c:FormField>
+        
+        <!-- Busy Indicator -->
+        <AbsoluteLayout x:Name="LoadingOverlay"
+                        IsVisible="{Binding IsBusy}"
+                        BackgroundColor="#80000000"
+                        Grid.RowSpan="2">
+            <Label Text="Thinking..."
+                   FontSize="64"
+                   AbsoluteLayout.LayoutFlags="PositionProportional"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
+        </AbsoluteLayout>
+    </Grid>
+</ContentPage>

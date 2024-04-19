@@ -9,11 +9,6 @@ public partial class DashboardPage : ContentPage
 		BindingContext = model;
 	}
 
-	protected override void OnNavigatedTo(NavigatedToEventArgs args)
-	{
-		base.OnNavigatedTo(args);
-
-		(BindingContext as DashboardPageModel).Init();
-	}
+	
 }
 

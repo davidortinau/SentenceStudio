@@ -29,15 +29,10 @@ public partial class DashboardPageModel : ObservableObject
         set
         {
             _shouldRefresh = value; 
-            //if(_shouldRefresh)
-            //    TaskMonitor.Create(LoadVocabLists);
         }
     }
 
-    private async Task LoadVocabLists()
-    {
-        VocabLists = await _vocabService.GetAllListsWithTermsAsync();
-    }
+    
 
     public VocabularyService _vocabService { get; }
 
@@ -88,7 +83,18 @@ public partial class DashboardPageModel : ObservableObject
         {
             Debug.WriteLine($"{ex.Message}");
         }
-    }    
+    }  
+
+    [RelayCommand]  
+    async Task DescribeAScene()
+    {
+        try{
+            await Shell.Current.GoToAsync($"describeScene");
+        }catch(Exception ex)
+        {
+            Debug.WriteLine($"{ex.Message}");
+        }
+    }
 
     [RelayCommand]
     async Task Warmup()
@@ -99,10 +105,5 @@ public partial class DashboardPageModel : ObservableObject
         {
             Debug.WriteLine($"{ex.Message}");
         }
-    }
-
-    public void Init()
-    {
-        TaskMonitor.Create(LoadVocabLists);
     }
 }

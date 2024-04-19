@@ -50,4 +50,33 @@ public class AIClient
         //     }
         // }
     }
+
+    public async Task<string> SendImage(Uri imageUri, string prompt)
+    {
+        var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
+        var imageItem = new ChatMessageImageContentItem(imageUri);
+        
+        var chatCompletionsOptions = new ChatCompletionsOptions()
+        {
+            DeploymentName = "gpt-4-turbo",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients            
+            Messages =
+            {
+                new ChatRequestUserMessage(imageItem),
+                new ChatRequestUserMessage(prompt),
+            }
+        };
+        
+        try
+        {
+            var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
+            var responseMessage = response.Value.Choices[0].Message.Content;
+            return responseMessage;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+        }
+
+        return string.Empty;
+    }
 }

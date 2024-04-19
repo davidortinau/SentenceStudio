@@ -131,6 +131,31 @@ namespace SentenceStudio.Services
                 return new GradeResponse();
             }
         }
+        
+        public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription)
+        {
+            try
+            {
+                var prompt = string.Empty;     
+                using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
+                using (StreamReader reader = new StreamReader(templateStream))
+                {
+                    var template = Template.Parse(reader.ReadToEnd());
+                    prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription});
+
+                    Debug.WriteLine(prompt);
+                }
+
+                GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                // Handle any exceptions that occur during the process
+                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+                return new GradeResponse();
+            }
+        }
 
         
     }
