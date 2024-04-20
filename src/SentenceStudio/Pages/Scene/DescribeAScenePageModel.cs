@@ -25,7 +25,7 @@ public partial class DescribeAScenePageModel : ObservableObject
 
     [ObservableProperty]
     private string _imageUrl = "https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png";
-    //https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/8a859154-10d2-4f58-9a86-18d2b8bfc99d/8b579331-04c5-4f18-9ea8-5df381c216ca.png
+    
     [ObservableProperty]
     private string _userInput;
 
@@ -51,8 +51,6 @@ public partial class DescribeAScenePageModel : ObservableObject
     }
 
     static Page MainPage => Shell.Current;
-
-    
 
     [RelayCommand]
     async Task GetDescription()
@@ -84,10 +82,17 @@ public partial class DescribeAScenePageModel : ObservableObject
         await _sceneImageService.SaveAsync(new SceneImage { Url = ImageUrl, Description = Description });
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanViewDescription))]
     void ViewDescription()
     {
         TaskMonitor.Create(ShowDescription);
+    }
+
+    private bool CanViewDescription()
+    {
+        
+        return !string.IsNullOrWhiteSpace(Description);
+        
     }
 
     private async Task ShowDescription()

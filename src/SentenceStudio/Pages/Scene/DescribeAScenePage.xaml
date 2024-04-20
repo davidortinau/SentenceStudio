@@ -18,13 +18,60 @@
 
     <ContentPage.ToolbarItems>
         <ToolbarItem 
+            IconImageSource="{mi:SegoeFluent Icon=Info, IconSize=24}"   
+            Command="{Binding ViewDescriptionCommand}" />
+        <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize=24}"            
             Command="{Binding LoadImageCommand}" />
     </ContentPage.ToolbarItems>
 
-    <Grid RowDefinitions="0,*,Auto" ColumnDefinitions="*,*">
+    <Grid 
+        x:Name="MainGrid"
+        RowDefinitions="0,*,0,Auto" 
+        ColumnDefinitions="*,*">
+        <VisualStateManager.VisualStateGroups>            
+            <VisualStateGroupList>
+                <VisualStateGroup>
+                    <VisualState x:Name="Narrow">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="0" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Property="ColumnDefinitions"
+                                    Value="*,0" />
+                            <Setter Property="RowDefinitions"
+                                    Value="0,*,*,Auto" />
+                            <Setter TargetName="SentenceList"
+                                    Property="Grid.Column"
+                                    Value="0" />
+                            <Setter TargetName="SentenceList"
+                                    Property="Grid.Row"
+                                    Value="2" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Wide">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="800" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Property="ColumnDefinitions"
+                                    Value="*,*" />
+                            <Setter Property="RowDefinitions"
+                                    Value="0,*,0,Auto" />
+                            <Setter TargetName="SentenceList"
+                                    Property="Grid.Column"
+                                    Value="1" />
+                            <Setter TargetName="SentenceList"
+                                    Property="Grid.Row"
+                                    Value="1" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </VisualStateManager.VisualStateGroups>
 
-        <ListView ItemsSource="{Binding Sentences}" Grid.Column="1" Grid.Row="1"
+
+        <ListView x:Name="SentenceList" ItemsSource="{Binding Sentences}" Grid.Column="1" Grid.Row="1"
                   SelectionMode="None"
                   Margin="{StaticResource size160}"
                   SeparatorVisibility="None">
@@ -46,26 +93,22 @@
         </ListView>       
 
 
-        <ScrollView Grid.Column="0" Grid.Row="1">
-            <VerticalStackLayout>
-                <Image Source="{Binding ImageUrl}" 
-                        Aspect="AspectFit"
-                        HorizontalOptions="Fill"
-                        Margin="{StaticResource size240}" >                             
-                    <Image.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ViewDescriptionCommand}" />
-                    </Image.GestureRecognizers>
-                </Image>
-
-                <Label Text="{Binding Description}"
-                    Margin="{StaticResource size160}" />
-            </VerticalStackLayout>
-        </ScrollView>
+        <Grid Grid.Column="0" Grid.Row="1">
+            <Image Source="{Binding ImageUrl}" 
+                    Aspect="AspectFit"
+                    HorizontalOptions="Fill"
+                    VerticalOptions="Start"
+                    Margin="{StaticResource size240}" >                             
+                <Image.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ViewDescriptionCommand}" />
+                </Image.GestureRecognizers>
+            </Image>
+        </Grid>
 
         <!-- Input -->
         <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                          FieldLabel="{Binding Localize[WhatDoYouSee]}"     
-              Grid.Row="2" Grid.ColumnSpan="2"
+              Grid.Row="3" Grid.ColumnSpan="2"
               Margin="{StaticResource size160}">
             <Grid ColumnDefinitions="*,Auto"
                     ColumnSpacing="2">
