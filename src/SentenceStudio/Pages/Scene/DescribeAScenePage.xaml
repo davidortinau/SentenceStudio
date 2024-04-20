@@ -10,7 +10,7 @@
              xmlns:model="clr-namespace:SentenceStudio.Models"
              xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Scene.DescribeAScenePage"
-             Title="Describe a Scene"
+             Title="{Binding Localize[DescribeAScene]}"
              x:DataType="scene:DescribeAScenePageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
@@ -18,104 +18,58 @@
 
     <ContentPage.ToolbarItems>
         <ToolbarItem 
-            IconImageSource="{mi:SegoeFluent Icon=OpenFile, IconSize=24}"            
+            IconImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize=24}"            
             Command="{Binding LoadImageCommand}" />
     </ContentPage.ToolbarItems>
 
-    <Grid RowDefinitions="Auto,*,Auto">
-        <dg:DataGrid ItemsSource="{Binding Sentences}"
-                            SelectionEnabled="False"
-                            Margin="{StaticResource size160}"
-                            PaginationEnabled="False">
-                <dg:DataGrid.Columns>
-                    <dg:DataGridColumn Title="Sentence"
-                                        Width="*">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <ContentView Padding="4,0">
-                                    <Label Text="{Binding Answer}"
-                                            HorizontalOptions="Fill"
-                                            VerticalOptions="Center"
-                                            TextColor="Black">
+    <Grid RowDefinitions="0,*,Auto" ColumnDefinitions="*,*">
 
-                                    </Label>
-                                </ContentView>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                    <dg:DataGridColumn Title="Accuracy">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <Border Background="{StaticResource Primary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0"
-                                        Padding="4,0">
-                                    <Label Text="{Binding Accuracy}"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            TextColor="White">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </Border>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                    <dg:DataGridColumn Title="Fluency">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <Border Background="{StaticResource Secondary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0"
-                                        Padding="4,0">
-                                    <Label Text="{Binding Fluency}"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            TextColor="White">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </Border>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                </dg:DataGrid.Columns>
-                <dg:DataGrid.RowsBackgroundColorPalette>
-                    <dg:PaletteCollection>
-                        <Color>#F2F2F2</Color>
-                        <Color>#FFFFFF</Color>
-                    </dg:PaletteCollection>
-                </dg:DataGrid.RowsBackgroundColorPalette>
-            </dg:DataGrid>
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="{StaticResource size160}"
-                                 Spacing="{StaticResource size240}">
-                <Image Source="{Binding ImageUrl}"
-                             Aspect="AspectFit"
-                             MaximumWidthRequest="400"
-                             Margin="{StaticResource size240}" >                             
+        <ListView ItemsSource="{Binding Sentences}" Grid.Column="1" Grid.Row="1"
+                  SelectionMode="None"
+                  Margin="{StaticResource size160}"
+                  SeparatorVisibility="None">
+                  <ListView.Header>
+                        <ContentView Padding="{StaticResource size160}">
+                            <Label Text="{Binding Localize[WhatDoYouSee]}"
+                                    Style="{StaticResource Title1}" />
+                        </ContentView>
+                    </ListView.Header>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="model:Sentence">
+                    <TextCell 
+                        Text="{Binding Answer}"
+                        Detail="{Binding Accuracy, StringFormat='Accuracy: {0}'}"
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
+                        CommandParameter="{Binding .}"/>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>       
+
+
+        <ScrollView Grid.Column="0" Grid.Row="1">
+            <VerticalStackLayout>
+                <Image Source="{Binding ImageUrl}" 
+                        Aspect="AspectFit"
+                        HorizontalOptions="Fill"
+                        Margin="{StaticResource size240}" >                             
                     <Image.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding ViewDescriptionCommand}" />
                     </Image.GestureRecognizers>
                 </Image>
-                
+
+                <Label Text="{Binding Description}"
+                    Margin="{StaticResource size160}" />
             </VerticalStackLayout>
         </ScrollView>
 
         <!-- Input -->
         <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                         FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"     
-              Grid.Row="2"
+                         FieldLabel="{Binding Localize[WhatDoYouSee]}"     
+              Grid.Row="2" Grid.ColumnSpan="2"
               Margin="{StaticResource size160}">
             <Grid ColumnDefinitions="*,Auto"
                     ColumnSpacing="2">
-                <Entry Placeholder="{Binding Localize[UserInputPlaceholder]}"
+                <Entry 
                         Text="{Binding UserInput}"
                         x:Name="UserInputField"
                         FontSize="{OnIdiom 32, Phone=16}"

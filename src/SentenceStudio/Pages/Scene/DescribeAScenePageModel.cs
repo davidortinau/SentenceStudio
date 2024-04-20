@@ -17,6 +17,8 @@ public partial class DescribeAScenePageModel : ObservableObject
     private AiService _aiService;
     private TeacherService _teacherService;
     private IPopupService _popupService;
+
+    private SceneImageService _sceneImageService;
     
     [ObservableProperty]
     private string _description;
@@ -35,6 +37,8 @@ public partial class DescribeAScenePageModel : ObservableObject
         _aiService = service.GetRequiredService<AiService>();
         _teacherService = service.GetRequiredService<TeacherService>();
         _popupService = service.GetRequiredService<IPopupService>();
+        _sceneImageService = service.GetRequiredService<SceneImageService>();
+        TaskMonitor.Create(GetDescription);
     }  
 
     private async Task ShowError()
@@ -57,7 +61,16 @@ public partial class DescribeAScenePageModel : ObservableObject
         if(string.IsNullOrWhiteSpace(ImageUrl))
             return;
 
-        IsBusy = true;
+        Description = string.Empty;
+
+        var sceneImage = await _sceneImageService.GetAsync(ImageUrl);
+        if (sceneImage != null)
+        {
+            Description = sceneImage.Description;
+            return;
+        }
+
+        // IsBusy = true;
 
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("DescribeThisImage.scriban-txt");
@@ -68,9 +81,7 @@ public partial class DescribeAScenePageModel : ObservableObject
         }
         
         Description = await _aiService.SendImage(ImageUrl, prompt);
-        // TaskMonitor.Create(ShowDescription);
-
-        IsBusy = false;
+        await _sceneImageService.SaveAsync(new SceneImage { Url = ImageUrl, Description = Description });
     }
 
     [RelayCommand]
@@ -105,10 +116,31 @@ public partial class DescribeAScenePageModel : ObservableObject
         Sentences.Add(s);
 
         UserInput = string.Empty;
+
+        var timeout = TimeSpan.FromSeconds(10);
+
+        var stopwatch = Stopwatch.StartNew();
+
+        while (string.IsNullOrEmpty(Description) && stopwatch.Elapsed < timeout)
+        {
+            await Task.Delay(100); // Wait for 100 milliseconds before checking again
+        }
+
+        if (string.IsNullOrEmpty(Description))
+        {
+            ToastDuration duration = ToastDuration.Long;
+            double fontSize = 14;
+            var toast = Toast.Make("Description is still empty.", duration, fontSize);
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            await toast.Show(cancellationTokenSource.Token);
+            return;
+        }
+        
         var grade = await _teacherService.GradeDescription(s.Answer, Description);
         if(grade is null){
             _ = ShowError();
         }
+
         s.Accuracy = grade.Accuracy;
         s.Fluency = grade.Fluency;
         s.FluencyExplanation = grade.FluencyExplanation;
@@ -116,19 +148,6 @@ public partial class DescribeAScenePageModel : ObservableObject
         s.RecommendedSentence = grade.GrammarNotes.RecommendedTranslation;
         s.GrammarNotes = grade.GrammarNotes.Explanation;
         
-        try{
-            string explanation = $"Original: {s.Answer}" + Environment.NewLine + Environment.NewLine;
-            explanation += $"Recommended: {s.RecommendedSentence}" + Environment.NewLine + Environment.NewLine;
-            explanation += $"Accuracy: {s.AccuracyExplanation}" + Environment.NewLine + Environment.NewLine;
-            explanation += $"Fluency: {s.FluencyExplanation}" + Environment.NewLine + Environment.NewLine;
-            explanation += $"Additional Notes: {s.GrammarNotes}" + Environment.NewLine + Environment.NewLine;
-            
-            await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => {
-                viewModel.Text = explanation;
-            });
-        }catch(Exception e){
-            Debug.WriteLine(e.Message);
-        }
     }
 
     [ObservableProperty]

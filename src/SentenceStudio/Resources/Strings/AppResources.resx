@@ -101,4 +101,10 @@
     <data name="UserInputPlaceholder" xml:space="preserve">
         <value>How do you say that in Korean?</value>
     </data>
+    <data name="DescribeAScene" xml:space="preserve">
+        <value>Describe a Scene</value>
+    </data>
+    <data name="WhatDoYouSee" xml:space="preserve">
+        <value>What do you see?</value>
+    </data>
 </root>

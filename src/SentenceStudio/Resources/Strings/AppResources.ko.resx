@@ -100,4 +100,10 @@
     <data name="UserInputPlaceholder" xml:space="preserve">
         <value>그건 한국어로 어떻게 말해요?</value>
     </data>
+    <data name="DescribeAScene" xml:space="preserve">
+        <value>장면을 설명하기	</value>
+    </data>
+    <data name="WhatDoYouSee" xml:space="preserve">
+        <value>무엇을 보고 있나요?</value>
+    </data>
 </root>

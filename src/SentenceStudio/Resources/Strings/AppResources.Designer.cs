@@ -94,6 +94,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Describe a Scene.
+        /// </summary>
+        internal static string DescribeAScene {
+            get {
+                return ResourceManager.GetString("DescribeAScene", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Writing Practice.
         /// </summary>
         internal static string PracticeWriting {
@@ -153,6 +162,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Warmup {
             get {
                 return ResourceManager.GetString("Warmup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What do you see?.
+        /// </summary>
+        internal static string WhatDoYouSee {
+            get {
+                return ResourceManager.GetString("WhatDoYouSee", resourceCulture);
             }
         }
         

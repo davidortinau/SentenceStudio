@@ -17,6 +17,12 @@ public partial class DashboardPageModel : ObservableObject
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
+        TaskMonitor.Create(GetLists);
+    }
+
+    private async Task GetLists()
+    {
+        VocabLists = await _vocabService.GetListsAsync();
     }
 
     private bool _shouldRefresh;
@@ -65,13 +71,19 @@ public partial class DashboardPageModel : ObservableObject
     [RelayCommand]
     async Task DefaultTranslate()
     {
+        if(VocabLists.Count == 0)
+            VocabLists = await _vocabService.GetListsAsync();
+        
         await Play(VocabLists.First().ID);
     }
 
     [RelayCommand]
     async Task DefaultWrite()
     {
+        if(VocabLists.Count == 0)
+            VocabLists = await _vocabService.GetListsAsync();
         await Write(VocabLists.First().ID);
+        
     }
 
     [RelayCommand]

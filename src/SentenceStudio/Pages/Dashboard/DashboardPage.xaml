@@ -52,7 +52,7 @@
                 </Border>
                 <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                     <Grid WidthRequest="300" HeightRequest="120">
-                        <Label Text="Describe a Scene"
+                        <Label Text="{Binding Localize[DescribeAScene]}"
                             VerticalOptions="Center" HorizontalOptions="Center"/>
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer 

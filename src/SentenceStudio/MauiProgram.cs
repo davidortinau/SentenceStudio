@@ -52,8 +52,11 @@ public static class MauiProgram
 		builder.Services.AddSingleton<VocabularyService>();
 		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
+		builder.Services.AddSingleton<SceneImageService>();
+
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();
+		
 		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
 		builder.Services.AddTransientWithShellRoute<LessonPage, LessonPageModel>("lesson");		
 		builder.Services.AddTransientWithShellRoute<ListVocabularyPage, ListVocabularyPageModel>("vocabulary");
