@@ -60,7 +60,7 @@
             </DataTemplate>
 
             <DataTemplate x:Key="MessageFromMe">
-                <Grid x:DataType="model:ConversationChunk">
+                <Grid x:DataType="model:ConversationChunk" IsClippedToBounds="False">
                     <Border Margin="15,5"
                             Padding="12,4,12,8"
                            Background="{StaticResource Secondary}"
@@ -69,11 +69,29 @@
                            StrokeThickness="1"
                            StrokeShape="RoundRectangle 10, 10, 10, 2"
                            >
-                        <Label Text="{Binding Text}" 
-                               Style="{StaticResource Body1}"
-                               TextColor="White"/>
+                           <Grid IsClippedToBounds="False">
+                                <Label Text="{Binding Text}" 
+                                    Style="{StaticResource Body1}"
+                                    TextColor="White"/>
+                               <Border Background="Black"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="0"
+                                HorizontalOptions="End"
+                                VerticalOptions="Start"
+                                TranslationX="10" 
+                                TranslationY="-10">
+                                    <Label Text="{Binding Comprehension}" 
+                                        TextColor="White"
+                                        VerticalOptions="Center"
+                                        HorizontalOptions="Center"/>
+                                 </Border>
+                            </Grid>
                     </Border>
-                    
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer 
+                            Command="{Binding ShowExplanationCommand, Source={RelativeSource AncestorType={x:Type lesson:WarmupPageModel}}}" 
+                            CommandParameter="{Binding .}"/>
+                    </Grid.GestureRecognizers>
                 </Grid>
             </DataTemplate>
 

@@ -82,7 +82,7 @@ public partial class DescribeAScenePageModel : ObservableObject
         await _sceneImageService.SaveAsync(new SceneImage { Url = ImageUrl, Description = Description });
     }
 
-    [RelayCommand(CanExecute = nameof(CanViewDescription))]
+    [RelayCommand]
     void ViewDescription()
     {
         TaskMonitor.Create(ShowDescription);
@@ -207,8 +207,21 @@ public partial class DescribeAScenePageModel : ObservableObject
             if (result != null)
             {
                 ImageUrl = result;
+                Sentences.Clear();
                 await GetDescription();
             }
         });
+    }
+
+    [RelayCommand]
+    async Task SwapImage()
+    {
+        var image = await _sceneImageService.GetRandomAsync();
+        if(image is null)
+            return;
+
+        ImageUrl = image.Url;
+        Description = image.Description;
+        Sentences.Clear();
     }
 }

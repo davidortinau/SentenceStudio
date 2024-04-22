@@ -41,6 +41,8 @@
                 Value="Transparent" />
         <Setter Property="FontFamily"
                 Value="{StaticResource FluentFontFamily}" />
+        <!-- <Setter Property="FontFamily"
+                Value="Yeonsung" /> -->
         <Setter Property="FontSize"
                 Value="17" />
         <Setter Property="PlaceholderColor"
@@ -83,6 +85,8 @@
                 Value="Transparent" />
         <Setter Property="FontFamily"
                 Value="{StaticResource FluentFontFamily}" />
+        <!-- <Setter Property="FontFamily"
+                Value="Yeonsung" /> -->
         <Setter Property="FontSize"
                 Value="17" />
         <Setter Property="LineHeight"

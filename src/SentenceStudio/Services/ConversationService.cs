@@ -80,7 +80,7 @@ namespace SentenceStudio.Services
             }
         }   
 
-        public async Task<string> ContinueConveration(List<ConversationChunk> chunks)
+        public async Task<Reply> ContinueConveration(List<ConversationChunk> chunks)
         {       
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
@@ -94,17 +94,20 @@ namespace SentenceStudio.Services
             
             try
             {
-                var key = this.configuration.GetValue<string>("OpenAI:ApiKey", "oops");
-                var aiClient = new AIClient(key);
-                var response = await aiClient.SendPrompt(prompt);
-                return response;
+                // var key = this.configuration.GetValue<string>("OpenAI:ApiKey", "oops");
+                // var aiClient = new AIClient(key);
+                // var response = await aiClient.SendPrompt(prompt);
+                // return response;
 
+                Reply response = await _aiService.SendPrompt<Reply>(prompt);
+
+                return response;
             }
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
                 Debug.WriteLine($"An error occurred StartConversation: {ex.Message}");
-                return string.Empty;
+                return null;
             }
         }
 

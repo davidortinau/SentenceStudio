@@ -13,6 +13,8 @@ namespace SentenceStudio.Pages.Lesson;
 [QueryProperty(nameof(Level), "level")]
 public partial class LessonPageModel : ObservableObject
 {
+    
+
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
 

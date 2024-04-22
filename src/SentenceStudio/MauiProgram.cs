@@ -33,7 +33,7 @@ public static class MauiProgram
 				fonts.AddFont("Segoe-Ui-Regular.ttf", "SegoeRegular");
 				fonts.AddFont("Segoe-Ui-Semibold.ttf", "SegoeSemibold");
 				fonts.AddFont("Segoe-Ui-Semilight.ttf", "SegoeSemilight");
-				// fonts.AddFont("Segoe-Fluent-Icons.ttf", "SegoeFluentIcons");
+				fonts.AddFont("bm_yeonsung.ttf", "Yeonsung");
 			})
 			.ConfigureMauiHandlers(handlers =>
 			{
@@ -56,7 +56,7 @@ public static class MauiProgram
 
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();
-		
+
 		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
 		builder.Services.AddTransientWithShellRoute<LessonPage, LessonPageModel>("lesson");		
 		builder.Services.AddTransientWithShellRoute<ListVocabularyPage, ListVocabularyPageModel>("vocabulary");

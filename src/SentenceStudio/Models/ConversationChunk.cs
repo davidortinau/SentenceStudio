@@ -21,4 +21,10 @@ public partial class ConversationChunk : ObservableObject
     public DateTime SentTime { get; set;}
 
     public string Author { get;set; }
+
+    [ObservableProperty]
+    private double _comprehension;
+
+    [ObservableProperty]
+    private string _comprehensionNotes;
 }

@@ -25,14 +25,11 @@ public partial class DescribeAScenePage : ContentPage
 		
         if (currentWidth < minPageWidth)
         {
-            // change the second column to 0
-			// MainGrid.ColumnDefinitions[1].Width = new GridLength(0);
-			VisualStateManager.GoToState(MainGrid, "Narrow");
+            VisualStateManager.GoToState(MainGrid, "Narrow");
         }
         else 
         {
-            // set the second column to *
-			VisualStateManager.GoToState(MainGrid, "Wide");
+            VisualStateManager.GoToState(MainGrid, "Wide");
         }
     }
 }

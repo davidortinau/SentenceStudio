@@ -5,11 +5,11 @@ using SentenceStudio.Common;
 
 namespace SentenceStudio.Services;
 
-public class SceneImageService
+public class UserActivityService
 {
     private SQLiteAsyncConnection Database;
 
-    public SceneImageService()
+    public UserActivityService()
     {
         
     }
@@ -25,7 +25,7 @@ public class SceneImageService
         
         try
         {
-            result = await Database.CreateTableAsync<SceneImage>();
+            result = await Database.CreateTableAsync<UserActivity>();
         }
         catch (Exception ex)
         {
@@ -34,19 +34,19 @@ public class SceneImageService
         }
     }
 
-    public async Task<List<SceneImage>> ListAsync()
+    public async Task<List<UserActivity>> ListAsync()
     {
         await Init();
-        return await Database.Table<SceneImage>().ToListAsync();
+        return await Database.Table<UserActivity>().ToListAsync();
     }
 
-    public async Task<SceneImage> GetAsync(string url)
+    public async Task<List<UserActivity>> GetAsync(string activity)
     {
         await Init();
-        return await Database.Table<SceneImage>().Where(i => i.Url == url).FirstOrDefaultAsync();
+        return await Database.Table<UserActivity>().Where(i => i.Activity == activity).ToListAsync();
     }
 
-    public async Task<int> SaveAsync(SceneImage item)
+    public async Task<int> SaveAsync(UserActivity item)
     {
         await Init();
         int result = -1;
@@ -77,24 +77,9 @@ public class SceneImageService
     }
     
 
-    public async Task<int> DeleteAsync(SceneImage item)
+    public async Task<int> DeleteAsync(UserActivity item)
     {
         await Init();
         return await Database.DeleteAsync(item);
-    }
-
-    public async Task<SceneImage> GetRandomAsync()
-    {
-        await Init();
-        var images = await Database.Table<SceneImage>().ToListAsync();
-        if (images.Count > 0)
-        {
-            var random = new Random();
-            var index = random.Next(0, images.Count);
-            var image = images[index];
-            return image;
-        }else{
-            return null;
-        }
     }
 }

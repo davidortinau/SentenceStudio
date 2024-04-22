@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Mvvm.Input;
 using SentenceStudio.Models;
@@ -80,9 +81,14 @@ public partial class WarmupPageModel : ObservableObject
         Chunks.Add(chunk);
 
         // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
-        var response = await _conversationService.ContinueConveration(Chunks.ToList());
-        chunk.Text = response;
+        Reply response = await _conversationService.ContinueConveration(Chunks.ToList());
+        chunk.Text = response.Message;
 
+        var previousChunk = Chunks[Chunks.Count - 2];
+        previousChunk.Comprehension = response.Comprehension;
+        previousChunk.ComprehensionNotes = response.ComprehensionNotes;
+
+        await _conversationService.SaveConversationChunk(previousChunk);
         await _conversationService.SaveConversationChunk(chunk);
         
         IsBusy = false;            
@@ -127,6 +133,21 @@ public partial class WarmupPageModel : ObservableObject
         if(result is string phrase)
         {
             UserInput = phrase;
+        }
+    }
+
+    [RelayCommand]
+    async Task ShowExplanation(ConversationChunk s)
+    {
+        string explanation = $"Comprehension Score: {s.Comprehension}" + Environment.NewLine + Environment.NewLine;
+        explanation += $"{s.ComprehensionNotes}" + Environment.NewLine + Environment.NewLine;
+        
+        try{
+            await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => {
+                viewModel.Text = explanation;
+                });
+        }catch(Exception e){
+            Debug.WriteLine(e.Message);
         }
     }
 }

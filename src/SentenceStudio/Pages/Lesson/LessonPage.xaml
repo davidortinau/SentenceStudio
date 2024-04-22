@@ -11,7 +11,7 @@
              Title="LessonPage"
              x:DataType="lesson:LessonPageModel"
              HideSoftInputOnTapped="True"
-             Shell.NavBarIsVisible="true">
+             Shell.NavBarIsVisible="True">
     <ContentPage.Resources>
         <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
     </ContentPage.Resources>

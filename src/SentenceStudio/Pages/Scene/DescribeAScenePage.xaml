@@ -21,6 +21,9 @@
             IconImageSource="{mi:SegoeFluent Icon=Info, IconSize=24}"   
             Command="{Binding ViewDescriptionCommand}" />
         <ToolbarItem 
+            IconImageSource="{mi:SegoeFluent Icon=Switch, IconSize=24}"   
+            Command="{Binding SwapImageCommand}" />
+        <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize=24}"            
             Command="{Binding LoadImageCommand}" />
     </ContentPage.ToolbarItems>
@@ -40,7 +43,7 @@
                             <Setter Property="ColumnDefinitions"
                                     Value="*,0" />
                             <Setter Property="RowDefinitions"
-                                    Value="0,*,*,Auto" />
+                                    Value="0,2*,1*,Auto" />
                             <Setter TargetName="SentenceList"
                                     Property="Grid.Column"
                                     Value="0" />
@@ -98,7 +101,7 @@
                     Aspect="AspectFit"
                     HorizontalOptions="Fill"
                     VerticalOptions="Start"
-                    Margin="{StaticResource size240}" >                             
+                    Margin="{StaticResource size160}" >                             
                 <Image.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ViewDescriptionCommand}" />
                 </Image.GestureRecognizers>
