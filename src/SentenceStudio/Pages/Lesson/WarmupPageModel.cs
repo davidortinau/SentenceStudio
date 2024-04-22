@@ -26,6 +26,8 @@ public partial class WarmupPageModel : ObservableObject
     [ObservableProperty] 
     private ObservableCollection<ConversationChunk> _chunks;
 
+    private Conversation _conversation;
+
     public WarmupPageModel(IServiceProvider service)
     {
         Chunks = new ObservableCollection<ConversationChunk>();
@@ -38,15 +40,15 @@ public partial class WarmupPageModel : ObservableObject
 
     private async Task ResumeConversation()
     {
-        var conversation = await _conversationService.ResumeConversation();
+        _conversation = await _conversationService.ResumeConversation();
 
-        if (conversation == null || !conversation.Any())
+        if (_conversation == null || !_conversation.Chunks.Any())
         {
             await StartConversation();
             return;
         }
 
-        foreach (var chunk in conversation)
+        foreach (var chunk in _conversation.Chunks)
         {
             Chunks.Add(chunk);
         }
@@ -57,18 +59,17 @@ public partial class WarmupPageModel : ObservableObject
         await Task.Delay(100);
         IsBusy = true; 
 
-        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        _conversation = new Conversation();
+        await _conversationService.SaveConversation(_conversation);
+
+        var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         Chunks.Add(chunk);
         
-
-        // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
         var response = await _conversationService.StartConversation();
         chunk.Text = response;
 
         await _conversationService.SaveConversationChunk(chunk);
 
-        // OnPropertyChanged(nameof(Chunks));
-        
         IsBusy = false;
             
     }
@@ -77,7 +78,7 @@ public partial class WarmupPageModel : ObservableObject
     {
         IsBusy = true; 
 
-        var chunk = new ConversationChunk(DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         Chunks.Add(chunk);
 
         // start the convo...pick a random scenario? Saying hello, introducing yourself to a group, ordering a coffee, etc.
@@ -101,6 +102,7 @@ public partial class WarmupPageModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(UserInput))
         {
             var chunk = new ConversationChunk(
+                _conversation.ID,
                 DateTime.Now, 
                 $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}", 
                 UserInput
@@ -121,7 +123,6 @@ public partial class WarmupPageModel : ObservableObject
     async Task NewConversation()
     {
         Chunks.Clear();
-        await _conversationService.ClearConversation();
         await StartConversation();
     }
 

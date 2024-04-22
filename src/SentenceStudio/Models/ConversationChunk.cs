@@ -8,8 +8,9 @@ public partial class ConversationChunk : ObservableObject
     {
         
     }
-    public ConversationChunk(DateTime sentTime, string author, string text)
+    public ConversationChunk(int conversationId, DateTime sentTime, string author, string text)
     {
+        ConversationId = conversationId;
         Text = text;
         SentTime = sentTime;
         Author = author;
@@ -27,4 +28,6 @@ public partial class ConversationChunk : ObservableObject
 
     [ObservableProperty]
     private string _comprehensionNotes;
+
+    public int ConversationId { get; set; } 
 }

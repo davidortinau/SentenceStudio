@@ -4,6 +4,7 @@ using SentenceStudio.Common;
 using SentenceStudio.Models;
 using SQLite;
 using Scriban;
+using System.Text.Json;
 
 namespace SentenceStudio.Services
 {
@@ -26,11 +27,11 @@ namespace SentenceStudio.Services
 
             Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
 
-            CreateTableResult result;
+            CreateTablesResult result;
             
             try
             {
-                result = await Database.CreateTableAsync<ConversationChunk>();
+                result = await Database.CreateTablesAsync<Conversation,ConversationChunk>();
             }
             catch (Exception ex)
             {
@@ -39,11 +40,16 @@ namespace SentenceStudio.Services
             }
         }
         
-        public async Task<List<ConversationChunk>> ResumeConversation()
+        public async Task<Conversation> ResumeConversation()
         {
             await Init();
-            var conversationChunks = await Database.Table<ConversationChunk>().ToListAsync();
-            return conversationChunks;
+            var mostRecentConversation = await Database.Table<Conversation>().OrderByDescending(c => c.ID).FirstOrDefaultAsync();
+            if (mostRecentConversation != null)
+            {
+                var conversationChunks = await Database.Table<ConversationChunk>().Where(cc => cc.ConversationId == mostRecentConversation.ID).ToListAsync();
+                mostRecentConversation.Chunks = conversationChunks;
+            }
+            return mostRecentConversation;
         }
 
         public async Task SaveConversationChunk(ConversationChunk chunk)
@@ -99,9 +105,11 @@ namespace SentenceStudio.Services
                 // var response = await aiClient.SendPrompt(prompt);
                 // return response;
 
-                Reply response = await _aiService.SendPrompt<Reply>(prompt);
+                string response = await _aiService.SendPrompt(prompt, true);
 
-                return response;
+                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.Reply);
+
+                return reply;
             }
             catch (Exception ex)
             {
@@ -111,10 +119,26 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task ClearConversation()
+        // public async Task ClearConversation()
+        // {
+        //     await Init();
+        //     await Database.DeleteAllAsync<ConversationChunk>();
+        // }
+
+        public async Task<int> SaveConversation(Conversation conversation)
         {
             await Init();
-            await Database.DeleteAllAsync<ConversationChunk>();
+            await Database.InsertAsync(conversation);
+            return conversation.ID;
+        }
+
+        public async Task DeleteConversation(Conversation conversation)
+        {
+            await Init();
+            await Database.Table<ConversationChunk>().DeleteAsync(cc => cc.ConversationId == conversation.ID);
+            await Database.DeleteAsync(conversation);
+
+            
         }
     }
 }

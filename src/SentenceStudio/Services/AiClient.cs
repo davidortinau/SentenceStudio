@@ -12,7 +12,7 @@ public class AIClient
         _apiKey = apiKey;
     }
 
-    public async Task<string> SendPrompt(string prompt)
+    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
     {
         // Implement the logic to send the prompt to OpenAI and receive the conversation response
         // using the Azure.AI.OpenAI library
@@ -23,7 +23,8 @@ public class AIClient
             Messages =
             {
                 new ChatRequestUserMessage(prompt),
-            }
+            }, 
+            ResponseFormat = (shouldReturnJson) ? ChatCompletionsResponseFormat.JsonObject : ChatCompletionsResponseFormat.Text
         };
         
         try{
