@@ -33,41 +33,8 @@ public class AiService {
         }
     }
     
-    public async Task<T> SendPrompt<T>(string prompt) where T : new()
-    {
-        try{
-            // Create a new instance of the OpenAI client
-            var aiClient = new AIClient(_openAiApiKey);
-            
-
-            // Send the prompt to OpenAI and receive the conversation response
-            var response = await aiClient.SendPrompt(prompt);
-            if(string.IsNullOrEmpty(response))
-            {
-                return new T();
-            }
-
-            Debug.WriteLine($"Response: {response}");
-            if (typeof(T) == typeof(string))
-            {
-                // If T is of type string, directly return the response
-                return (T)(object)response;
-            }else{
-                // Process the response and return the reply
-                response = CleanJson(response);
-                // Debug.WriteLine($"CleanResponse: {response}");
-                var reply = JsonSerializer.Deserialize<T>(response);
-
-                return reply;
-            }
-        }
-        catch (Exception ex)
-        {
-            // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred SendPrompt: {ex.Message}");
-            return new T();
-        }
-    }
+    
+    
 
     public async Task<string> SendImage(string imagePath, string prompt)
     {

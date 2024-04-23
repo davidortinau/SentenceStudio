@@ -5,7 +5,7 @@
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson"
              xmlns:l="clr-namespace:CustomLayouts"
-             xmlns:s="clr-namespace:SentenceStudio.Services"
+             xmlns:m="clr-namespace:SentenceStudio.Models"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:Class="SentenceStudio.Pages.Lesson.LessonPage"
              Title="LessonPage"
@@ -27,7 +27,7 @@
                                             Spacing="8"
                                             IsVisible="{Binding HasFeedback, Converter={StaticResource InvertedBoolConverter}}">
                         <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="s:VocabWord">
+                            <DataTemplate x:DataType="m:VocabWord">
                                 <Grid IsClippedToBounds="False">
                                     <Grid.GestureRecognizers>
                                         <PointerGestureRecognizer PointerEntered="PointerGestureRecognizer_PointerEntered"

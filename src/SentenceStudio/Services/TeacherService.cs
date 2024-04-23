@@ -1,9 +1,5 @@
-using System;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Azure.AI.OpenAI;
 using SentenceStudio.Models;
 using Scriban;
 
@@ -49,8 +45,9 @@ namespace SentenceStudio.Services
             Debug.WriteLine(prompt);
             try
             {
-                var response = await _aiService.SendPrompt<SentencesResponse>(prompt);
-                return response.Sentences;
+                string response = await _aiService.SendPrompt(prompt, true);
+                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.SentencesResponse);
+                return reply.Sentences;
             }
             catch (Exception ex)
             {
@@ -74,8 +71,9 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
-                return response;
+                string response = await _aiService.SendPrompt(prompt, true);
+                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
+                return reply;
             }
             catch (Exception ex)
             {
@@ -121,8 +119,9 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
-                return response;
+                string response = await _aiService.SendPrompt(prompt, true);
+                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
+                return reply;
             }
             catch (Exception ex)
             {
@@ -146,8 +145,9 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                GradeResponse response = await _aiService.SendPrompt<GradeResponse>(prompt);
-                return response;
+                string response = await _aiService.SendPrompt(prompt, true);
+                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
+                return reply;
             }
             catch (Exception ex)
             {
@@ -160,65 +160,8 @@ namespace SentenceStudio.Services
         
     }
 
-    public class SentencesResponse
-    {
-        [JsonPropertyName("sentences")]
-        public List<Challenge> Sentences { get; set; }
-    }
+    
 
-    public class Challenge
-    {
-        [JsonPropertyName("sentence")]
-        public string SentenceText { get; set; }
-
-        [JsonPropertyName("recommended_translation")]
-        public string RecommendedTranslation { get; set; }
-
-        [JsonPropertyName("vocabulary")]
-        public List<VocabWord> Vocabulary { get; set; }
-    }
-
-    public class VocabWord
-    {
-        [JsonPropertyName("original")]
-        public string NativeLanguageTerm { get; set; }
-        
-        [JsonPropertyName("translation")]
-        public string TargetLanguageTerm { get; set; }
-    }
-
-    public class GradeResponse
-    {
-        [JsonPropertyName("fluency_score")]
-        public double Fluency { get; set; }
-
-        [JsonPropertyName("fluency_explanation")]
-        public string FluencyExplanation { get; set; }
-
-        [JsonPropertyName("accuracy_score")]
-        public double Accuracy { get; set; }
-
-        [JsonPropertyName("accuracy_explanation")]
-        public string AccuracyExplanation { get; set; }
-
-        [JsonPropertyName("recommended_translation")]
-        public string RecommendedTranslation { get; set; }
-
-        [JsonPropertyName("grammar_notes")]
-        public GrammarNotes GrammarNotes { get; set; }
-    }
-
-    public class GrammarNotes
-    {
-        [JsonPropertyName("original_sentence")]
-        public string OriginalSentence { get; set; }
-
-        [JsonPropertyName("recommended_translation")]
-        public string RecommendedTranslation { get; set; }
-
-        [JsonPropertyName("explanation")]
-        public string Explanation { get; set; }
-    }
     
 
     

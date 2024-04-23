@@ -100,11 +100,6 @@ namespace SentenceStudio.Services
             
             try
             {
-                // var key = this.configuration.GetValue<string>("OpenAI:ApiKey", "oops");
-                // var aiClient = new AIClient(key);
-                // var response = await aiClient.SendPrompt(prompt);
-                // return response;
-
                 string response = await _aiService.SendPrompt(prompt, true);
 
                 var reply = JsonSerializer.Deserialize(response, JsonContext.Default.Reply);
@@ -118,12 +113,6 @@ namespace SentenceStudio.Services
                 return null;
             }
         }
-
-        // public async Task ClearConversation()
-        // {
-        //     await Init();
-        //     await Database.DeleteAllAsync<ConversationChunk>();
-        // }
 
         public async Task<int> SaveConversation(Conversation conversation)
         {
