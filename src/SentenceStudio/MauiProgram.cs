@@ -11,9 +11,13 @@ using Microsoft.Maui.Handlers;
 using System.Diagnostics;
 using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
+#if ANDROID || IOS || MACCATALYST
 using Shiny;
+#endif
 using CommunityToolkit.Maui.ApplicationModel;
 using SentenceStudio.Pages.Scene;
+using System.Reflection;
+using System.Reactive;
 
 namespace SentenceStudio;
 
@@ -24,8 +28,10 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+            #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
-			.UseMauiCommunityToolkit()
+			#endif
+            .UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
 			.ConfigureFonts(fonts =>
 			{
@@ -41,10 +47,12 @@ public static class MauiProgram
 				//ModifyPicker();
 			})
 			.ConfigureFilePicker(100)
-			;
+            ;
+
+        //builder.Configuration.AddConfiguration(new ConfigurationBuilder().AddConfiguration("appsettings.json").Build());
 
 #if DEBUG
-		builder.Logging.AddDebug();
+        builder.Logging.AddDebug();
 		builder.EnableHotReload();
 #endif
 
@@ -67,8 +75,21 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
 
-		builder.Configuration.AddJsonPlatformBundle();
-		builder.Services.AddFilePicker();
+#if ANDROID || IOS || MACCATALYST
+        builder.Configuration.AddJsonPlatformBundle();
+#else
+		var a = Assembly.GetExecutingAssembly();
+		using var stream = a.GetManifestResourceStream("SentenceStudio.appsettings.json");
+
+		var config = new ConfigurationBuilder()
+			.AddJsonStream(stream)
+			.Build();
+
+        builder.Configuration.AddConfiguration(config);
+#endif
+
+
+        builder.Services.AddFilePicker();
 
 		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
@@ -80,14 +101,14 @@ public static class MauiProgram
 
     private static void ModifyPicker()
     {
-		#if MACCATALYST
+#if MACCATALYST
         Microsoft.Maui.Handlers.PickerHandler.Mapper.ReplaceMapping<Picker, IPickerHandler>(nameof(Picker.Title), (handler, view) =>
 		{
 			// do nothing
 			Debug.WriteLine("Do nothing");
 			
 		});
-		#endif
+#endif
     }
 
     public static void ModifyEntry()
@@ -100,6 +121,7 @@ public static class MauiProgram
             handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
 #elif WINDOWS
             handler.PlatformView.FontWeight = Microsoft.UI.Text.FontWeights.Thin;
+            handler.PlatformView.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
 #endif
         });
     }

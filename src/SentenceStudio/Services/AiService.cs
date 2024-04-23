@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using SentenceStudio.Models;
 
 namespace SentenceStudio.Services;
 
@@ -9,7 +10,7 @@ public class AiService {
     private readonly string _openAiApiKey;
     public AiService(IConfiguration configuration)
     {
-        _openAiApiKey = configuration.GetValue<string>("OpenAI:ApiKey", "oops");
+        _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
     }
 
     public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)

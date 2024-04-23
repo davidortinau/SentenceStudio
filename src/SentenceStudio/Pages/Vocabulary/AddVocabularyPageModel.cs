@@ -55,7 +55,11 @@ public partial class AddVocabularyPageModel : ObservableObject
         string delimiter = Delimiter == "tab" ? "\t" : ",";
 
         List<Term> terms = new List<Term>();
-        string[] lines = vocabList.Split('\n');
+        char lineBreak = (DeviceInfo.Platform == DevicePlatform.WinUI) ? '\r' : '\n';
+        //vocabList = vocabList.Replace("\r", "");
+        string[] lines = vocabList.Split(lineBreak);
+
+
         foreach (var line in lines)
         {
             string[] parts = line.Split(delimiter);

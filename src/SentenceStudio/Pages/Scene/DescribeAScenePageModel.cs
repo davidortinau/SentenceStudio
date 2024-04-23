@@ -62,7 +62,7 @@ public partial class DescribeAScenePageModel : ObservableObject
         Description = string.Empty;
 
         var sceneImage = await _sceneImageService.GetAsync(ImageUrl);
-        if (sceneImage != null)
+        if (sceneImage != null && !string.IsNullOrEmpty(sceneImage.Description))
         {
             Description = sceneImage.Description;
             return;

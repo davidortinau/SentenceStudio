@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"   
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
             x:Class="SentenceStudio.Pages.Controls.ExplanationPopup"
-            Color="Transparent"
+            Color="{OnPlatform Transparent, WinUI=White}"
             VerticalOptions="Fill"
             HorizontalOptions="Fill">
     <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource size320}"
