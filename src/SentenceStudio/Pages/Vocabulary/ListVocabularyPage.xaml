@@ -14,7 +14,8 @@
             Spacing="{StaticResource size240}">
             <Label Text="{Binding Localize[VocabularyList]}" 
                     Style="{StaticResource Title1}"
-                    HorizontalOptions="Start"/>
+                    HorizontalOptions="Start"
+                   IsVisible="{OnPlatform True, WinUI=False}"/>
                     
                 <layouts:HorizontalWrapLayout 
                     Spacing="{StaticResource size320}"

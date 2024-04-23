@@ -41,5 +41,13 @@
         </Grid>
     </Shell.FlyoutFooter>
 
+
+    <Shell.ItemTemplate>
+        <DataTemplate>
+            <Grid>
+                <Label Text="{Binding Title}" TextColor="Black"/>
+            </Grid>
+        </DataTemplate>
+    </Shell.ItemTemplate>
     
 </Shell>
