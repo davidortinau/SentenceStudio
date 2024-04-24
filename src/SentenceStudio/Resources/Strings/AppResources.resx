@@ -107,4 +107,16 @@
     <data name="WhatDoYouSee" xml:space="preserve">
         <value>What do you see?</value>
     </data>
+    <data name="Sentence" xml:space="preserve">
+        <value>I wrote</value>
+    </data>
+    <data name="Accuracy" xml:space="preserve">
+        <value>Accuracy</value>
+    </data>
+    <data name="Fluency" xml:space="preserve">
+        <value>Fluency</value>
+    </data>
+    <data name="Actions" xml:space="preserve">
+        <value>Actions</value>
+    </data>
 </root>

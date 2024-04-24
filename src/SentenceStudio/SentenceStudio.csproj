@@ -99,8 +99,6 @@
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.8" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />
-		
-		<PackageReference Include="akgul.Maui.DataGrid" Version="4.0.2" />
 		<PackageReference Include="Scriban" Version="5.10.0" />
 	</ItemGroup>
 

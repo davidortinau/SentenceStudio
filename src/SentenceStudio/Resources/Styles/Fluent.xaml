@@ -34,6 +34,11 @@
              Default="18">
         <OnIdiom.Desktop>32</OnIdiom.Desktop>
     </OnIdiom>
+    <OnIdiom x:Key="IconSizeSmall"
+             x:TypeArguments="x:Double"
+             Default="12">
+        <OnIdiom.Desktop>18</OnIdiom.Desktop>
+    </OnIdiom>
     <Style TargetType="Entry">
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />

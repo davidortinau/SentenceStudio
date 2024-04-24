@@ -58,6 +58,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Accuracy.
+        /// </summary>
+        internal static string Accuracy {
+            get {
+                return ResourceManager.GetString("Accuracy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Actions.
+        /// </summary>
+        internal static string Actions {
+            get {
+                return ResourceManager.GetString("Actions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Activities.
         /// </summary>
         internal static string Activities {
@@ -103,11 +121,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Fluency.
+        /// </summary>
+        internal static string Fluency {
+            get {
+                return ResourceManager.GetString("Fluency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Writing Practice.
         /// </summary>
         internal static string PracticeWriting {
             get {
                 return ResourceManager.GetString("PracticeWriting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to I wrote.
+        /// </summary>
+        internal static string Sentence {
+            get {
+                return ResourceManager.GetString("Sentence", resourceCulture);
             }
         }
         

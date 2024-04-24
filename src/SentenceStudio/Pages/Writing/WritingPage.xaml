@@ -8,87 +8,68 @@
              xmlns:s="clr-namespace:SentenceStudio.Services"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:model="clr-namespace:SentenceStudio.Models"
-             xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Lesson.WritingPage"
-             Title="필기해 봅시다!"
+             Title="{Binding Localize[Write]}"
              x:DataType="lesson:WritingPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
     <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Margin="{StaticResource size160}"
+                ColumnDefinitions="8*,2*,2*,2*">
+            <Label Text="{Binding Localize[Sentence]}"
+                Style="{StaticResource Title3}"
+                Grid.Column="0" />
+            <Label Text="{Binding Localize[Accuracy]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="1" />
+            <Label Text="{Binding Localize[Fluency]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="2" />
+            <Label Text="{Binding Localize[Actions]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="3" />
+        </Grid>
         <ScrollView Grid.Row="1">
-            <dg:DataGrid ItemsSource="{Binding Sentences}"
-                            SelectionEnabled="False"
-                            Margin="{StaticResource size160}"
-                            PaginationEnabled="False">
-                <dg:DataGrid.Columns>
-                    <dg:DataGridColumn Title="Sentence"
-                                        Width="*">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <ContentView Padding="4,0">
-                                    <Label Text="{Binding Answer}"
-                                            HorizontalOptions="Fill"
-                                            VerticalOptions="Center"
-                                            TextColor="Black">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=UseVocabCommand}"
-                                                                    CommandParameter="{Binding Answer}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </ContentView>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                    <dg:DataGridColumn Title="Accuracy">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <Border Background="{StaticResource Primary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0"
-                                        Padding="4,0">
-                                    <Label Text="{Binding Accuracy}"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            TextColor="White">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </Border>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                    <dg:DataGridColumn Title="Fluency">
-                        <dg:DataGridColumn.CellTemplate>
-                            <DataTemplate x:DataType="model:Sentence">
-                                <Border Background="{StaticResource Secondary}"
-                                        StrokeShape="RoundRectangle 8"
-                                        Margin="4"
-                                        StrokeThickness="0"
-                                        Padding="4,0">
-                                    <Label Text="{Binding Fluency}"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            TextColor="White">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
-                                                                    CommandParameter="{Binding .}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </Border>
-                            </DataTemplate>
-                        </dg:DataGridColumn.CellTemplate>
-                    </dg:DataGridColumn>
-                </dg:DataGrid.Columns>
-                <dg:DataGrid.RowsBackgroundColorPalette>
-                    <dg:PaletteCollection>
-                        <Color>#F2F2F2</Color>
-                        <Color>#FFFFFF</Color>
-                    </dg:PaletteCollection>
-                </dg:DataGrid.RowsBackgroundColorPalette>
-            </dg:DataGrid>
+            <VerticalStackLayout
+                Margin="{StaticResource size160}"
+                BindableLayout.ItemsSource="{Binding Sentences}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="model:Sentence">
+                        <Grid ColumnDefinitions="8*,2*,2*,2*">
+                            <Label Text="{Binding Answer}"
+                                Grid.Column="0" />
+                            <Label Text="{Binding Accuracy}"
+                                HorizontalOptions="Center"
+                                Grid.Column="1" />
+                            <Label Text="{Binding Fluency}"
+                                HorizontalOptions="Center"
+                                Grid.Column="2" />
+                            
+                            <HorizontalStackLayout Grid.Column="3" HorizontalOptions="Center">
+                                <Button ImageSource="{mi:SegoeFluent Icon=Copy, IconSize={StaticResource IconSizeSmall}}"
+                                        BackgroundColor="Transparent"
+                                        TextColor="Black"
+                                        Padding="0" Margin="0"
+                                        VerticalOptions="Center"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=UseVocabCommand}"
+                                        CommandParameter="{Binding Answer}" />
+                                <Button ImageSource="{mi:SegoeFluent Icon=Info, IconSize={StaticResource IconSizeSmall}}"
+                                    BackgroundColor="Transparent"
+                                    TextColor="Black"
+                                    Padding="0" Margin="0"
+                                    VerticalOptions="Center"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
+                                    CommandParameter="{Binding .}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+
+            </VerticalStackLayout>
+            
         </ScrollView>
 
         <!-- Input -->
