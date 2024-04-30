@@ -10,7 +10,7 @@
              xmlns:model="clr-namespace:SentenceStudio.Models"
              x:Class="SentenceStudio.Pages.Lesson.WritingPage"
              Title="{Binding Localize[Write]}"
-             x:DataType="lesson:WritingPageModel"
+             x:DataType="lesson:WritingPageModel" 
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="true">
     <Grid RowDefinitions="Auto,*,Auto">
@@ -77,26 +77,28 @@
               x:Name="InputUI"
               Grid.Row="2"
               RowSpacing="{StaticResource size40}"
-              Padding="{StaticResource size160}"
-              >
+              Padding="{StaticResource size160}">
             <ScrollView Orientation="Horizontal">
-                <HorizontalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone={StaticResource size40}}"
-                                       
-                                       BindableLayout.ItemsSource="{Binding VocabBlocks}">
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate x:DataType="model:Term">
-                            <Button Text="{Binding TargetLanguageTerm}"
-                                    Background="{StaticResource Gray200}"
-                                    TextColor="{StaticResource Gray900}"
-                                    FontSize="{OnIdiom 32, Phone=16}"
-                                    Padding="{StaticResource size40}"
-                                    MinimumHeightRequest="-1"
-                                    VerticalOptions="Start"
-                                    Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
-                                    CommandParameter="{Binding TargetLanguageTerm}" />
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                </HorizontalStackLayout>
+                <VerticalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone={StaticResource size40}}">
+                    <Label Text="{Binding Localize[ChooseAVocabularyWord]}" Style="{StaticResource Title3}"/>
+                    <HorizontalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone={StaticResource size40}}"
+                                        
+                                        BindableLayout.ItemsSource="{Binding VocabBlocks}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="model:Term">
+                                <Button Text="{Binding TargetLanguageTerm}"
+                                        Background="{StaticResource Gray200}"
+                                        TextColor="{StaticResource Gray900}"
+                                        FontSize="{OnIdiom 32, Phone=16}"
+                                        Padding="{StaticResource size40}"
+                                        MinimumHeightRequest="-1"
+                                        VerticalOptions="Start"
+                                        Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
+                                        CommandParameter="{Binding TargetLanguageTerm}" />
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
             </ScrollView>
             <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                          FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"

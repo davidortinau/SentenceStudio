@@ -10,7 +10,8 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:DataType="dashboard:DashboardPageModel"
              x:Class="SentenceStudio.Pages.Dashboard.DashboardPage"
-             Title="{Binding Localize[TitleDashboard]}">
+             Title="{Binding Localize[TitleDashboard]}"
+             BackgroundColor="White">
 
     <ScrollView>
         <VerticalStackLayout 
@@ -57,6 +58,16 @@
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer 
                                 Command="{Binding DescribeASceneCommand}" />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="{Binding Localize[ParseASentence]}"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding SyntacticAnalysisCommand}" />
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>

@@ -58,11 +58,11 @@
 	  <CreatePackage>false</CreatePackage>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
 		<CreatePackage>false</CreatePackage>
 		<CodesignProvision>Automatic</CodesignProvision>
 		<CodesignKey>Apple Development: Created via API (Y7P75477YN)</CodesignKey>
-	</PropertyGroup>
+	</PropertyGroup> -->
 
 	
 	<ItemGroup>
@@ -114,6 +114,7 @@
 
 	<ItemGroup>
 	  <Folder Include="Common/Layouts/" />
+	  <Folder Include="Pages/SyntacticAnalysis/" />
 	  <Folder Include="Services/" />
 	</ItemGroup>
 

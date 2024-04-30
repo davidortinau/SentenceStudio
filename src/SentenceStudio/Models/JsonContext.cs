@@ -7,6 +7,7 @@ using SentenceStudio.Models;
 [JsonSerializable(typeof(VocabWord))]
 [JsonSerializable(typeof(Challenge))]
 [JsonSerializable(typeof(SentencesResponse))]
+[JsonSerializable(typeof(SyntacticSentencesResponse))]
 public partial class JsonContext : JsonSerializerContext
 {
 }

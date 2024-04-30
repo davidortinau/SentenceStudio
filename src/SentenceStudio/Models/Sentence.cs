@@ -1,4 +1,6 @@
-﻿namespace SentenceStudio.Models;
+﻿
+
+namespace SentenceStudio.Models;
 
 public partial class Sentence : ObservableObject
 {
@@ -25,4 +27,5 @@ public partial class Sentence : ObservableObject
     
     public string GrammarNotes { get; set; }
     public List<string> Vocabulary { get; set; }
+
 }

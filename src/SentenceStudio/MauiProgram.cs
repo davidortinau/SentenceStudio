@@ -18,6 +18,8 @@ using CommunityToolkit.Maui.ApplicationModel;
 using SentenceStudio.Pages.Scene;
 using System.Reflection;
 using System.Reactive;
+using SentenceStudio.Pages.SyntacticAnalysis;
+using SentenceStudio.Pages.Account;
 
 namespace SentenceStudio;
 
@@ -61,10 +63,12 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
 		builder.Services.AddSingleton<SceneImageService>();
+		builder.Services.AddSingleton<UserProfileService>();
+		builder.Services.AddSingleton<SyntacticAnalysisService>();
 
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();
-
+		
 		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
 		builder.Services.AddTransientWithShellRoute<LessonPage, LessonPageModel>("lesson");		
 		builder.Services.AddTransientWithShellRoute<ListVocabularyPage, ListVocabularyPageModel>("vocabulary");
@@ -74,6 +78,8 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
+		builder.Services.AddTransientWithShellRoute<AnalysisPage, AnalysisPageModel>("syntacticAnalysis");
+		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();

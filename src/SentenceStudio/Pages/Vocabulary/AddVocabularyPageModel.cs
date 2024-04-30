@@ -37,11 +37,13 @@ public partial class AddVocabularyPageModel : ObservableObject
     [RelayCommand]
     async Task SaveVocab()
     {
+        //await Shell.Current.DisplayAlert("Oof", "Nope", "Okay");
+
         // persist here
         VocabularyList list = new VocabularyList
         {
             Name = VocabListName,
-            Terms = ParseTerms(VocabList)
+            Terms = Term.ParseTerms(VocabList, Delimiter)
         };
 
 
@@ -50,30 +52,7 @@ public partial class AddVocabularyPageModel : ObservableObject
         await Shell.Current.GoToAsync("..?refresh=true");
     }
 
-    private List<Term> ParseTerms(string vocabList)
-    {
-        string delimiter = Delimiter == "tab" ? "\t" : ",";
-
-        List<Term> terms = new List<Term>();
-        char lineBreak = (DeviceInfo.Platform == DevicePlatform.WinUI) ? '\r' : '\n';
-        //vocabList = vocabList.Replace("\r", "");
-        string[] lines = vocabList.Split(lineBreak);
-
-
-        foreach (var line in lines)
-        {
-            string[] parts = line.Split(delimiter);
-            if (parts.Length == 2)
-            {
-                terms.Add(new Term
-                {
-                    TargetLanguageTerm  = parts[0].Replace("\"", ""), 
-                    NativeLanguageTerm = parts[1].Replace("\"", "")
-                });
-            }
-        }
-        return terms;
-    }
+    
 
     [RelayCommand]
     async Task ChooseFile()

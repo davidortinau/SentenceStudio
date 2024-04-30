@@ -118,4 +118,35 @@
     <data name="Actions" xml:space="preserve">
         <value>옵션</value>
     </data>
+    <data name="ChooseAVocabularyWord" xml:space="preserve">
+        <value>어휘를 선택하세요</value>
+    </data>
+    <data name="MyProfile" xml:space="preserve">
+        <value>프로필</value>
+    </data>
+    <data name="Name" xml:space="preserve">
+        <value>이름</value>
+    </data>
+    <data name="Email" xml:space="preserve">
+        <value>이메일</value>
+    </data>
+    <data name="NativeLanguage" xml:space="preserve">
+        <value>모국어</value>
+    </data>
+    <data name="TargetLanguage" xml:space="preserve">
+        <value>대상 언어</value>
+    </data>
+    <data name="DisplayLanguage" xml:space="preserve">
+        <value>표시 언어</value>
+    </data>
+    <data name="Save" xml:space="preserve">
+        <value>저장하기</value>
+    </data>
+    <data name="Saved" xml:space="preserve">
+        <value>저장되었습니다</value>
+    </data>
+    <data name="ParseASentence" xml:space="preserve">
+        <value>문장 분석하기</value>
+    </data>
+    
 </root>

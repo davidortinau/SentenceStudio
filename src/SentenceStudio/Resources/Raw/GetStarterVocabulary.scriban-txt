@@ -1,0 +1,14 @@
+I speak {{native_language}} and am learning {{target_language}}. Generate for me 100 beginner-level {{target_language}} words in their dictionary form, with simple definitions in my {{native_language}}.
+
+Provide your response as a comma separated list of text in the order of {{target_language}}, {{native_language}}. For example:
+
+맞다, to be right 
+받다, to receive
+맞다, to be right 
+받다, to receive
+앉다, to sit
+영화, movie
+드라마, drama
+요일, day of the week
+어제, yesterday
+오늘, today

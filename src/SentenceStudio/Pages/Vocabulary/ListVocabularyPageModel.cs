@@ -27,8 +27,8 @@ public partial class ListVocabularyPageModel : ObservableObject
         set
         {
             _shouldRefresh = value; 
-            //if(_shouldRefresh)
-            //    TaskMonitor.Create(LoadVocabLists);
+            if(_shouldRefresh)
+               TaskMonitor.Create(LoadVocabLists);
         }
     }
     

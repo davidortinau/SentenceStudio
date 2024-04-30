@@ -17,12 +17,38 @@ public partial class DashboardPageModel : ObservableObject
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
+        _userService = service.GetRequiredService<UserProfileService>();
         TaskMonitor.Create(GetLists);
     }
 
     private async Task GetLists()
     {
         VocabLists = await _vocabService.GetListsAsync();
+        if(VocabLists.Count == 0)
+        {
+            //do we have a profile with languages
+            var profile = await _userService.GetAsync();
+            if(profile != null)
+            {
+                var lists = await _vocabService.GetListsAsync();
+                if(lists.Count == 0)
+                {
+                    //create default lists
+                    var response = await Shell.Current.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
+                    if(response){
+                        await _vocabService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+                        VocabLists = await _vocabService.GetListsAsync();
+                    }
+                }
+            }else{
+                // prompt to create a profile first
+                var response = await Shell.Current.DisplayAlert("Profile", "To get started, create a profile and tell us what language you are learning today.", "Let's do it", "Maybe later");
+                if(response)
+                {
+                    await Shell.Current.GoToAsync("userProfile");
+                }
+            }
+        }
     }
 
     private bool _shouldRefresh;
@@ -41,6 +67,8 @@ public partial class DashboardPageModel : ObservableObject
     
 
     public VocabularyService _vocabService { get; }
+
+    private UserProfileService _userService;
 
     [RelayCommand]
     async Task AddVocabulary()
@@ -87,8 +115,27 @@ public partial class DashboardPageModel : ObservableObject
     }
 
     [RelayCommand]
+    async Task SyntacticAnalysis()
+    {
+        try{
+            if(VocabLists.Count == 0)
+            VocabLists = await _vocabService.GetListsAsync();
+
+            var listID = VocabLists.First().ID;
+            
+            await Shell.Current.GoToAsync($"syntacticAnalysis?listID={listID}");
+        }catch(Exception ex)
+        {
+            Debug.WriteLine($"{ex.Message}");
+        }
+        
+    }
+
+    [RelayCommand]
     async Task Write(int listID)
     {
+        // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
+
         try{
             await Shell.Current.GoToAsync($"writingLesson?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
@@ -100,6 +147,7 @@ public partial class DashboardPageModel : ObservableObject
     [RelayCommand]  
     async Task DescribeAScene()
     {
+        // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
         try{
             await Shell.Current.GoToAsync($"describeScene");
         }catch(Exception ex)

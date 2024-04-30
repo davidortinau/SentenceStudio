@@ -112,11 +112,38 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Choose a vocabulary word.
+        /// </summary>
+        internal static string ChooseAVocabularyWord {
+            get {
+                return ResourceManager.GetString("ChooseAVocabularyWord", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Describe a Scene.
         /// </summary>
         internal static string DescribeAScene {
             get {
                 return ResourceManager.GetString("DescribeAScene", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to DisplayLanguage.
+        /// </summary>
+        internal static string DisplayLanguage {
+            get {
+                return ResourceManager.GetString("DisplayLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Email.
+        /// </summary>
+        internal static string Email {
+            get {
+                return ResourceManager.GetString("Email", resourceCulture);
             }
         }
         
@@ -130,11 +157,56 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to My Profile.
+        /// </summary>
+        internal static string MyProfile {
+            get {
+                return ResourceManager.GetString("MyProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name.
+        /// </summary>
+        internal static string Name {
+            get {
+                return ResourceManager.GetString("Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Native Language.
+        /// </summary>
+        internal static string NativeLanguage {
+            get {
+                return ResourceManager.GetString("NativeLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Parse a Sentence.
+        /// </summary>
+        internal static string ParseASentence {
+            get {
+                return ResourceManager.GetString("ParseASentence", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Writing Practice.
         /// </summary>
         internal static string PracticeWriting {
             get {
                 return ResourceManager.GetString("PracticeWriting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        internal static string Save {
+            get {
+                return ResourceManager.GetString("Save", resourceCulture);
             }
         }
         
@@ -153,6 +225,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string StartLesson {
             get {
                 return ResourceManager.GetString("StartLesson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target Language.
+        /// </summary>
+        internal static string TargetLanguage {
+            get {
+                return ResourceManager.GetString("TargetLanguage", resourceCulture);
             }
         }
         
