@@ -41,6 +41,13 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-ios|AnyCPU'">
+		<CreatePackage>false</CreatePackage>
+		<EnableCodeSigning>true</EnableCodeSigning>
+		<CodesignRequireProvisioningProfile>true</CodesignRequireProvisioningProfile>
+		<DisableCodesignVerification>true</DisableCodesignVerification>
+	</PropertyGroup>
+
 	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
 		<PublishAot>true</PublishAot>
 		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>

@@ -8,6 +8,7 @@ using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Core.Platform;
 
 
 namespace SentenceStudio.Pages.Lesson;
@@ -173,5 +174,17 @@ public partial class WritingPageModel : ObservableObject
     void ClearInput()
     {
         UserInput = string.Empty;
+    }
+
+    [RelayCommand]
+    void RefreshVocab()
+    {
+        TaskMonitor.Create(GetVocab);
+    }
+
+    [RelayCommand]
+    async Task HideKeyboard(ITextInput view, CancellationToken token)
+    {
+        bool isSuccessful = await view.HideKeyboardAsync(token);
     }
 }
