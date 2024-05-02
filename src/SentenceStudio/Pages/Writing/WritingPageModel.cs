@@ -23,6 +23,8 @@ public partial class WritingPageModel : ObservableObject
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
 
+    private UserActivityService _userActivityService;
+
     private IPopupService _popupService;
 
     public int ListID { get; set; }
@@ -74,6 +76,7 @@ public partial class WritingPageModel : ObservableObject
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         _popupService = service.GetRequiredService<IPopupService>();
+        _userActivityService = service.GetRequiredService<UserActivityService>();
         TaskMonitor.Create(GetVocab);
     }
     public async Task GetVocab()
@@ -118,6 +121,15 @@ public partial class WritingPageModel : ObservableObject
         s.AccuracyExplanation = grade.AccuracyExplanation;
         s.RecommendedSentence = grade.GrammarNotes.RecommendedTranslation;
         s.GrammarNotes = grade.GrammarNotes.Explanation;
+
+        // here is where we save the sentence to the database
+        await _userActivityService.SaveAsync(new UserActivity{
+            Activity = Models.Activity.Writer.ToString(),
+            Input = s.Problem,
+            Accuracy = s.Accuracy,
+            Fluency = s.Fluency,
+            CreatedAt = DateTime.Now
+        });
     }
 
     private async Task ShowError()

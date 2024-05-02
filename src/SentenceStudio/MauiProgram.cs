@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Lesson;
-using DotNet.Meteor.HotReload.Plugin;
 using SentenceStudio.Services;
 using SentenceStudio.Pages.Vocabulary;
 using Microsoft.Maui.Platform;
@@ -20,6 +19,8 @@ using System.Reflection;
 using System.Reactive;
 using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
+using Xceed.Maui.Toolkit;
+using Microcharts.Maui;
 
 namespace SentenceStudio;
 
@@ -30,11 +31,13 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseMicrocharts()
             #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
+			.UseXceedMauiToolkit( FluentDesignAccentColor.DarkOrange )
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
@@ -55,7 +58,6 @@ public static class MauiProgram
 
 #if DEBUG
         builder.Logging.AddDebug();
-		builder.EnableHotReload();
 #endif
 
 		builder.Services.AddSingleton<TeacherService>();
@@ -65,6 +67,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SceneImageService>();
 		builder.Services.AddSingleton<UserProfileService>();
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
+		builder.Services.AddSingleton<UserActivityService>();
 
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();

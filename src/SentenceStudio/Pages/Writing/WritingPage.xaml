@@ -74,14 +74,18 @@
                         
                     </SwipeItems>
                 </SwipeView.RightItems>
-                <Grid ColumnDefinitions="8*,2*,2*" Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
+                <Grid ColumnDefinitions="8*,2*,2*" RowDefinitions="45"
+                    Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
                     <Label Text="{Binding Answer}"
+                        VerticalOptions="Center"
                         Grid.Column="0" />
                     <Label Text="{Binding Accuracy}"
                         HorizontalOptions="Center"
+                        VerticalOptions="Center"
                         Grid.Column="1" />
                     <Label Text="{Binding Fluency}"
                         HorizontalOptions="Center"
+                        VerticalOptions="Center"
                         Grid.Column="2" />
                 </Grid>
             </SwipeView>

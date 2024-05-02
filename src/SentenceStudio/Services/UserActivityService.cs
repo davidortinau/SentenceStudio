@@ -40,10 +40,10 @@ public class UserActivityService
         return await Database.Table<UserActivity>().ToListAsync();
     }
 
-    public async Task<List<UserActivity>> GetAsync(string activity)
+    public async Task<List<UserActivity>> GetAsync(Models.Activity activity)
     {
         await Init();
-        return await Database.Table<UserActivity>().Where(i => i.Activity == activity).ToListAsync();
+        return await Database.Table<UserActivity>().Where(i => i.Activity == activity.ToString()).ToListAsync();
     }
 
     public async Task<int> SaveAsync(UserActivity item)

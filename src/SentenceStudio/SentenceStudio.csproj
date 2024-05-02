@@ -14,10 +14,12 @@
 		<OutputType>Exe</OutputType>
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
-		<UseMauiCompat>false</UseMauiCompat>
+		
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>disable</Nullable>
+
+		<MauiVersion>8.0.21</MauiVersion>
 
 
 		<!-- Display name -->
@@ -91,7 +93,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.20" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
 	</ItemGroup>
 
@@ -99,7 +102,6 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="8.0.1" />
 		<PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.15" />
-		<PackageReference Include="DotNetMeteor.HotReload.Plugin" Version="3.2.0" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="2.1.5" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
@@ -107,6 +109,8 @@
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />
 		<PackageReference Include="Scriban" Version="5.10.0" />
+		<PackageReference Include="Xceed.Product.Maui.Toolkit.Full" Version="1.7.24157.1331" />
+		<PackageReference Include="Microcharts.Maui" Version="1.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
