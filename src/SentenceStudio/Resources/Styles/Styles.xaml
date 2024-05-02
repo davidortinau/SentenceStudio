@@ -404,8 +404,6 @@
     <Style TargetType="Layout"
         Class="FlyoutItemLayoutStyle"
         ApplyToDerivedTypes="True">
-        <Setter Property="BackgroundColor"
-                Value="Teal" />
         <Setter Property="Padding" Value="30"/>
     </Style>
 

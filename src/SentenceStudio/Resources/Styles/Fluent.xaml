@@ -130,7 +130,7 @@
                 Value="1.38" />
         <!-- 18 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, iOS=&quot;.SFUI-SemiBold&quot;, MacCatalyst=&quot;.SFUI-SemiBold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, iOS=.SFUI-SemiBold, MacCatalyst=.SFUI-SemiBold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform Default=None, Android=Bold}" />
     </Style>
@@ -150,7 +150,7 @@
                 Value="1.33" />
         <!-- 20 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, iOS=&quot;.SFUI-SemiBold&quot;, MacCatalyst=&quot;.SFUI-SemiBold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, iOS=.SFUI-SemiBold, MacCatalyst=.SFUI-SemiBold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform Default=None, Android=Bold}" />
     </Style>
@@ -170,7 +170,7 @@
                 Value="1.29" />
         <!-- 22 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, iOS=&quot;.SFUI-SemiBold&quot;, MacCatalyst=&quot;.SFUI-SemiBold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, iOS=.SFUI-SemiBold, MacCatalyst=.SFUI-SemiBold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform Default=None, Android=Bold}" />
     </Style>
@@ -182,7 +182,7 @@
                 Value="1.25" />
         <!-- 25 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, iOS=&quot;.SFUI-SemiBold&quot;, MacCatalyst=&quot;.SFUI-SemiBold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, iOS=.SFUI-SemiBold, MacCatalyst=.SFUI-SemiBold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform Default=None, Android=Bold}" />
     </Style>
@@ -194,7 +194,7 @@
                 Value="1.27" />
         <!-- 28 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, iOS=&quot;.SFUI-SemiBold&quot;, MacCatalyst=&quot;.SFUI-SemiBold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, iOS=.SFUI-SemiBold, MacCatalyst=.SFUI-SemiBold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform Android=Bold, Default=None}" />
     </Style>
@@ -206,7 +206,7 @@
                 Value="1.21" />
         <!-- 34 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, Default={StaticResource FluentFontFamily}}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, Default={StaticResource FluentFontFamily}}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform WinUI=None, Default=Bold}" />
     </Style>
@@ -218,7 +218,7 @@
                 Value="1.21" />
         <!-- 41 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform WinUI=None, Default=Bold}" />
     </Style>
@@ -230,7 +230,7 @@
                 Value="1.17" />
         <!-- 70 -->
         <Setter Property="FontFamily"
-                Value="{OnPlatform WinUI=&quot;Segoe-Semibold&quot;, Default=&quot;&quot;}" />
+                Value="{OnPlatform WinUI=SegoeSemibold, Default=''}" />
         <Setter Property="FontAttributes"
                 Value="{OnPlatform WinUI=None, Default=Bold}" />
     </Style>
