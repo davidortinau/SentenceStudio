@@ -8,6 +8,7 @@
     xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson;assembly=SentenceStudio"
     xmlns:vocabulary="clr-namespace:SentenceStudio.Pages.Vocabulary;assembly=SentenceStudio"
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
+    xmlns:account="clr-namespace:SentenceStudio.Pages.Account;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}">
 
     <ShellContent
@@ -30,6 +31,11 @@
         ContentTemplate="{DataTemplate vocabulary:ListVocabularyPage}"
         Route="vocabulary" />
 
+    <ShellContent
+        Title="{Binding Localize[MyProfile]}"
+        ContentTemplate="{DataTemplate account:UserProfilePage}"
+        Route="userProfile" />
+
     <Shell.FlyoutFooter>
         <Grid>
             <Button Text="{Binding Localize[ChangeLanguage]}" 
@@ -42,12 +48,12 @@
     </Shell.FlyoutFooter>
 
 
-    <Shell.ItemTemplate>
+    <!-- <Shell.ItemTemplate>
         <DataTemplate>
             <Grid>
                 <Label Text="{Binding Title}" TextColor="Black"/>
             </Grid>
         </DataTemplate>
-    </Shell.ItemTemplate>
+    </Shell.ItemTemplate> -->
     
 </Shell>

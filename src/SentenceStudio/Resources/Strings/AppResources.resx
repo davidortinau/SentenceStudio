@@ -107,4 +107,43 @@
     <data name="WhatDoYouSee" xml:space="preserve">
         <value>What do you see?</value>
     </data>
+    <data name="Sentence" xml:space="preserve">
+        <value>I wrote</value>
+    </data>
+    <data name="Accuracy" xml:space="preserve">
+        <value>Accuracy</value>
+    </data>
+    <data name="Fluency" xml:space="preserve">
+        <value>Fluency</value>
+    </data>
+    <data name="Actions" xml:space="preserve">
+        <value>Actions</value>
+    </data>
+    <data name="ChooseAVocabularyWord" xml:space="preserve">
+        <value>Choose a vocabulary word</value>
+    </data>
+    <data name="MyProfile" xml:space="preserve">
+        <value>My Profile</value>
+    </data>
+    <data name="Name" xml:space="preserve">
+        <value>Name</value>
+    </data>
+    <data name="Email" xml:space="preserve">
+        <value>Email</value>
+    </data>
+    <data name="NativeLanguage" xml:space="preserve">
+        <value>Native Language</value>
+    </data>
+    <data name="TargetLanguage" xml:space="preserve">
+        <value>Target Language</value>
+    </data>
+    <data name="DisplayLanguage" xml:space="preserve">
+        <value>DisplayLanguage</value>
+    </data>
+    <data name="Save" xml:space="preserve">
+        <value>Save</value>
+    </data>
+    <data name="ParseASentence" xml:space="preserve">
+        <value>Parse a Sentence</value>
+    </data>
 </root>

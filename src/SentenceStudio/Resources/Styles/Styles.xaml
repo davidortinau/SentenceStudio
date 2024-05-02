@@ -387,24 +387,4 @@
         <Setter Property="SelectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />
     </Style>
 
-    <Style TargetType="Label"
-       Class="FlyoutItemLabelStyle">
-        <Setter Property="TextColor"
-                Value="{AppThemeBinding Light={StaticResource DarkOnLightBackground}, Dark={StaticResource LightOnDarkBackground}}" />
-        <Setter Property="HeightRequest"
-                Value="100" />
-    </Style>
-
-    <Style TargetType="Image"
-        Class="FlyoutItemImageStyle">
-        <Setter Property="Aspect"
-                Value="Fill" />
-    </Style>
-
-    <Style TargetType="Layout"
-        Class="FlyoutItemLayoutStyle"
-        ApplyToDerivedTypes="True">
-        <Setter Property="Padding" Value="30"/>
-    </Style>
-
 </ResourceDictionary>

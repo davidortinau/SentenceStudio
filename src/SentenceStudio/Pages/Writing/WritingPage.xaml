@@ -1,0 +1,228 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson"
+             xmlns:w="clr-namespace:SentenceStudio.Pages.Writing"
+             xmlns:l="clr-namespace:CustomLayouts"
+             xmlns:s="clr-namespace:SentenceStudio.Services"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:model="clr-namespace:SentenceStudio.Models"
+             x:Class="SentenceStudio.Pages.Lesson.WritingPage"
+             Title="{Binding Localize[Write]}"
+             x:DataType="lesson:WritingPageModel" 
+             HideSoftInputOnTapped="False"
+             Shell.NavBarIsVisible="True">
+
+    <ContentPage.Resources>
+        <DataTemplate x:Key="DesktopTemplate" x:DataType="model:Sentence">
+            <Grid ColumnDefinitions="8*,2*,2*,2*">
+                <Label Text="{Binding Answer}"
+                    Grid.Column="0" />
+                <Label Text="{Binding Accuracy}"
+                    HorizontalOptions="Center"
+                    Grid.Column="1" />
+                <Label Text="{Binding Fluency}"
+                    HorizontalOptions="Center"
+                    Grid.Column="2" />
+                
+                <HorizontalStackLayout Grid.Column="3" HorizontalOptions="Center">
+                    <Button ImageSource="{mi:SegoeFluent Icon=Copy, IconSize={StaticResource IconSizeSmall}}"
+                            BackgroundColor="Transparent"
+                            TextColor="Black"
+                            Padding="0" Margin="0"
+                            VerticalOptions="Center"
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=UseVocabCommand}"
+                            CommandParameter="{Binding Answer}" />
+                    <Button ImageSource="{mi:SegoeFluent Icon=Info, IconSize={StaticResource IconSizeSmall}}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        Padding="0" Margin="0"
+                        VerticalOptions="Center"
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
+                        CommandParameter="{Binding .}" />
+                </HorizontalStackLayout>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="MobileTemplate" x:DataType="model:Sentence">
+            <SwipeView>
+                <SwipeView.LeftItems>
+                    <SwipeItems Mode="Execute">
+                        <SwipeItemView  
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=UseVocabCommand}"
+                            CommandParameter="{Binding Answer}">
+                            <Grid WidthRequest="60" Background="Red">
+                                <Image Source="{mi:SegoeFluent Icon=Copy, IconSize={StaticResource IconSizeSmall}}"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center" />
+                            </Grid>
+                        </SwipeItemView>
+                    </SwipeItems>
+                </SwipeView.LeftItems>
+                <SwipeView.RightItems>
+                    <SwipeItems Mode="Execute">
+                     <SwipeItemView  
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}, Path=ShowExplanationCommand}"
+                            CommandParameter="{Binding .}">
+                            <Grid WidthRequest="60" Background="Orange">
+                                <Image Source="{mi:SegoeFluent Icon=Info, IconSize={StaticResource IconSizeSmall}}"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center" />
+                            </Grid>
+                        </SwipeItemView>
+                        
+                    </SwipeItems>
+                </SwipeView.RightItems>
+                <Grid ColumnDefinitions="8*,2*,2*" RowDefinitions="45"
+                    Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
+                    <Label Text="{Binding Answer}"
+                        VerticalOptions="Center"
+                        Grid.Column="0" />
+                    <Label Text="{Binding Accuracy}"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Grid.Column="1" />
+                    <Label Text="{Binding Fluency}"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Grid.Column="2" />
+                </Grid>
+            </SwipeView>
+        </DataTemplate>
+
+        <w:AnswerTemplateSelector x:Key="AnswerTemplateSelector"
+                                  DesktopTemplate="{StaticResource DesktopTemplate}"
+                                  MobileTemplate="{StaticResource MobileTemplate}" />
+    </ContentPage.Resources>
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="{mi:SegoeFluent Icon=Refresh, IconSize={StaticResource IconSize}}"
+                     Command="{Binding RefreshVocabCommand}" />
+    </ContentPage.ToolbarItems>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Margin="{StaticResource size160}"
+                ColumnDefinitions="{OnIdiom '8*,2*,2*,2*', Phone='8*,2*,2*,0'}">
+            <Label Text="{Binding Localize[Sentence]}"
+                Style="{StaticResource Title3}"
+                Grid.Column="0" />
+            <Label Text="{Binding Localize[Accuracy]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="1" />
+            <Label Text="{Binding Localize[Fluency]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="2" />
+            <Label Text="{Binding Localize[Actions]}"
+                Style="{StaticResource Title3}"
+                HorizontalOptions="Center"
+                Grid.Column="3" />
+        </Grid>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout 
+                Margin="{StaticResource size160}"
+                BindableLayout.ItemsSource="{Binding Sentences}"
+                BindableLayout.ItemTemplateSelector="{StaticResource AnswerTemplateSelector}">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding HideKeyboardCommand}" CommandParameter="{x:Reference Name=UserInputField}" />
+                </VerticalStackLayout.GestureRecognizers>               
+
+            </VerticalStackLayout>
+            
+        </ScrollView>
+
+        <!-- Input -->
+        <Grid RowDefinitions="Auto,Auto,Auto"
+              x:Name="InputUI"
+              Grid.Row="2"
+              RowSpacing="{StaticResource size40}"
+              Padding="{StaticResource size160}">
+            <ScrollView Orientation="Horizontal">
+                <VerticalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone={StaticResource size40}}">
+                    <Label Text="{Binding Localize[ChooseAVocabularyWord]}" Style="{StaticResource Title3}"/>
+                    <HorizontalStackLayout Spacing="{OnIdiom {StaticResource size320}, Phone={StaticResource size40}}"
+                                        
+                                        BindableLayout.ItemsSource="{Binding VocabBlocks}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="model:Term">
+                                <Button Text="{Binding TargetLanguageTerm}"
+                                        Background="{StaticResource Gray200}"
+                                        TextColor="{StaticResource Gray900}"
+                                        FontSize="{OnIdiom 32, Phone=16}"
+                                        Padding="{StaticResource size40}"
+                                        MinimumHeightRequest="-1"
+                                        VerticalOptions="Start"
+                                        Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:WritingPageModel}}}"
+                                        CommandParameter="{Binding TargetLanguageTerm}" />
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                         FieldLabel="{Binding Localize[WhatDoYouWantToSay]}"
+                         Grid.Row="1">
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="2">
+                    <Entry Placeholder="{Binding Localize[UserInputPlaceholder]}"
+                           Text="{Binding UserInput}"
+                           x:Name="UserInputField"
+                           FontSize="{OnIdiom 32, Phone=16}"
+                           ReturnType="Next"
+                           toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference IMeanToSayField}"
+                           >
+                        <Entry.Keyboard>
+                            <Keyboard x:FactoryMethod="Create">
+                                <x:Arguments>
+                                    <KeyboardFlags>Suggestions,Spellcheck</KeyboardFlags>
+                                </x:Arguments>
+                            </Keyboard>
+                        </Entry.Keyboard>
+                    </Entry>
+                    <Button ImageSource="{mi:SegoeFluent Icon=SpellingKorean, IconSize={StaticResource IconSize}}"
+                            BackgroundColor="Transparent"
+                            TextColor="Black"
+                            Padding="0" Margin="0"
+                            VerticalOptions="Center"
+                            HorizontalOptions="End"
+                            Command="{Binding TranslateInputCommand}"
+                            Grid.Column="1" />
+                    <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
+                            BackgroundColor="Transparent"
+                            TextColor="Black"
+                            Padding="0" Margin="0"
+                            VerticalOptions="Center"
+                            Command="{Binding ClearInputCommand}"
+                            Grid.Column="0"
+                            HorizontalOptions="End" />
+                </Grid>
+            </c:FormField>
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                         Grid.Row="2">
+                <Entry Placeholder="What I mean to say is..."
+                        Text="{Binding UserMeaning}"
+                        x:Name="IMeanToSayField"
+                        FontSize="{OnIdiom 32, Phone=16}"
+                        ReturnType="Go"
+                        toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
+                        ReturnCommand="{Binding GradeMeCommand}">
+                    
+                </Entry>
+            </c:FormField>
+            
+        </Grid>
+        <!-- Busy Indicator -->
+        <AbsoluteLayout x:Name="LoadingOverlay"
+                        IsVisible="{Binding IsBusy}"
+                        BackgroundColor="#80000000"
+                        Grid.RowSpan="2">
+            <Label Text="Thinking..."
+                   FontSize="64"
+                   AbsoluteLayout.LayoutFlags="PositionProportional"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
+        </AbsoluteLayout>
+    </Grid>
+</ContentPage>

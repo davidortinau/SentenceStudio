@@ -8,14 +8,90 @@
              xmlns:models="clr-namespace:SentenceStudio.Models"
              xmlns:app="clr-namespace:SentenceStudio"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:xctk="http://schemas.xceed.com/maui/xaml/toolkit"
+             xmlns:microcharts="clr-namespace:Microcharts.Maui;assembly=Microcharts.Maui"
              x:DataType="dashboard:DashboardPageModel"
              x:Class="SentenceStudio.Pages.Dashboard.DashboardPage"
              Title="{Binding Localize[TitleDashboard]}">
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <xctk:FluentDesign AccentColor="Blue"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </ContentPage.Resources>
 
     <ScrollView>
         <VerticalStackLayout 
             Padding="{StaticResource size160}"
             Spacing="{StaticResource size240}">
+
+            <Label Text="Progress"
+                Style="{StaticResource Title1}"
+                HorizontalOptions="Start"/>
+<!--
+                <microcharts:ChartView x:Name="chartView"
+                                   HeightRequest="250" 
+                                   MinimumWidthRequest="400"
+                                   />
+                                   -->                
+
+                <xctk:Chart x:Name="MyChart" 
+                    ShowLegend="False"
+                    WidthRequest="500" HeightRequest="240" HorizontalOptions="Start" Background="Transparent">
+                    <xctk:Chart.HorizontalAxis>
+                        <xctk:Axis TickLabelType="Text" ShowGridLines="False" />
+                    </xctk:Chart.HorizontalAxis>
+                    <xctk:Chart.VerticalAxis>
+                        <xctk:Axis TickLabelType="Numeric" 
+                        Title="Score"
+                        ShowGridLines="False" />
+                    </xctk:Chart.VerticalAxis>
+                    <xctk:Chart.Series>
+                        <xctk:Series x:Name="FluencySeries" Title="Fluency"
+                        ShowDataPointLabels="False">
+                            <xctk:Series.DataPoints>
+                                <xctk:DataPoint Text="0"
+                                                Y="0" />
+                                <xctk:DataPoint Text="1"
+                                                Y="100" />
+                                <xctk:DataPoint Text="2"
+                                                Y="65" />
+                                <xctk:DataPoint Text="3"
+                                                Y="80" />
+                                <xctk:DataPoint Text="4"
+                                                Y="85" />
+                                <xctk:DataPoint Text="5"
+                                                Y="100" />
+                                <xctk:DataPoint Text="6"
+                                                Y="100" />
+                            </xctk:Series.DataPoints>
+                        </xctk:Series>    
+                        <xctk:Series x:Name="AccuracySeries" Title="Accuracy">
+                            <xctk:Series.DataPoints>
+                                <xctk:DataPoint Text="0"
+                                                Y="0" />
+                                <xctk:DataPoint Text="1"
+                                                Y="80" />
+                                <xctk:DataPoint Text="2"
+                                                Y="50" />
+                                <xctk:DataPoint Text="3"
+                                                Y="85" />
+                                <xctk:DataPoint Text="4"
+                                                Y="75" />
+                                <xctk:DataPoint Text="5"
+                                                Y="100" />
+                                <xctk:DataPoint Text="6"
+                                                Y="100" />
+                            </xctk:Series.DataPoints>
+                        </xctk:Series>       
+                    </xctk:Chart.Series>
+                </xctk:Chart>
+
+                
+
+                
+                
 
             <Label Text="{Binding Localize[Activities]}"
                 Style="{StaticResource Title1}"
@@ -57,6 +133,16 @@
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer 
                                 Command="{Binding DescribeASceneCommand}" />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="{Binding Localize[ParseASentence]}"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding SyntacticAnalysisCommand}" />
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>

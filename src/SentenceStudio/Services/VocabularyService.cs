@@ -2,16 +2,18 @@ using System.Diagnostics;
 using SentenceStudio.Models;
 using SQLite;
 using SentenceStudio.Common;
+using Scriban;
 
 namespace SentenceStudio.Services;
 
 public class VocabularyService
 {
     private SQLiteAsyncConnection Database;
+    private AiService _aiService;
 
-    public VocabularyService()
+    public VocabularyService(IServiceProvider service)
     {
-        
+        _aiService = service.GetRequiredService<AiService>();
     }
 
     async Task Init()
@@ -170,4 +172,35 @@ public class VocabularyService
             await SaveTermAsync(term);
         }
     }
+
+    public async Task GetStarterVocabulary(string nativeLanguage, string targetLanguage)
+        {       
+            var prompt = string.Empty;     
+            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetStarterVocabulary.scriban-txt");
+            using (StreamReader reader = new StreamReader(templateStream))
+            {
+                var template = Template.Parse(reader.ReadToEnd());
+                prompt = await template.RenderAsync(new { native_language = nativeLanguage, target_language = targetLanguage});
+
+                Debug.WriteLine(prompt);
+            }
+            
+            try
+            {
+                string response = await _aiService.SendPrompt(prompt, false);
+
+                VocabularyList list = new();
+                list.Name = "Sentence Studio Starter Vocabulary";
+                list.Terms = Term.ParseTerms(response);
+                var listId = await SaveListAsync(list);
+                await AppShell.DisplayToastAsync("Starter vocabulary list created");
+                
+            }
+            catch (Exception ex)
+            {
+                // Handle any exceptions that occur during the process
+                Debug.WriteLine($"An error occurred GetStarterVocabulary: {ex.Message}");
+                
+            }
+        }
 }

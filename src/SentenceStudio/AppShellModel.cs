@@ -1,20 +1,40 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
+using SentenceStudio.Services;
+using Sharpnado.Tasks;
 
 namespace SentenceStudio;
 
 public partial class AppShellModel : ObservableObject
-{   
+{
+    private UserProfileService _userProfileService;
+
     public LocalizationManager Localize => LocalizationManager.Instance;
 
     [RelayCommand]
-    void ChangeUILanguage()
+    async Task ChangeUILanguage()
     {
-        if(CultureInfo.CurrentUICulture.Name == "ko")
-            Localize.SetCulture(new CultureInfo( "en", false ));
-        else
-            Localize.SetCulture(new CultureInfo( "ko", false ));
+        var culture = (CultureInfo.CurrentUICulture.Name == "ko") ? "en" : "ko";
+        Localize.SetCulture(new CultureInfo( culture, false ));
+        await _userProfileService.SaveDisplayCultureAsync(culture);
 
     }
 
+    public AppShellModel()
+    {
+        // _userProfileService = Shell.Current.CurrentPage
+        //     .Handler
+        //     .MauiContext
+        //     .Services  // IServiceProvider
+        //     .GetService<UserProfileService>();
+        
+        // TaskMonitor.Create(LoadProfile);
+    }
+
+    private async Task LoadProfile()
+    {
+        // var user = await _userProfileService.GetAsync();
+        // if(user != null)
+        //     Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+    }
 }
