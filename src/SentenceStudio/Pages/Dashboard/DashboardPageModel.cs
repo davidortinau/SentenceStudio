@@ -1,10 +1,8 @@
 ﻿using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
-using Microcharts;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
-using SkiaSharp;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -22,38 +20,9 @@ public partial class DashboardPageModel : ObservableObject
         _userService = service.GetRequiredService<UserProfileService>();
         _userActivityService = service.GetRequiredService<UserActivityService>();
         TaskMonitor.Create(GetLists);
-        TaskMonitor.Create(GetChartData);
     }
 
-    private async Task GetChartData()
-    {
-        var userActivities = await _userActivityService.ListAsync();//GetAsync(Models.Activity.Writer);
-        entries = userActivities.GroupBy(x => x.CreatedAt.Date).Select(x => new ChartSerie()
-            {
-                Color = SKColors.Black,
-                Name = "Fluency",
-                Entries = new List<ChartEntry>()
-                {
-                    new ChartEntry(x.Count())
-                    {
-                        Label = x.Key.ToString("d"),
-                        ValueLabel = x.Count().ToString(),
-                        Color = SKColors.Black
-                    }
-                }
-            }).ToList<ChartSerie>();
-
-        WritingChart = new LineChart()
-        {
-            Series = entries,
-            LineMode = LineMode.Straight,
-            LineSize = 8,
-            PointMode = PointMode.Square,
-            PointSize = 18,
-            BackgroundColor = SKColors.Red,
-        };
-    }
-
+    
     private async Task GetLists()
     {
         VocabLists = await _vocabService.GetListsAsync();
@@ -103,7 +72,7 @@ public partial class DashboardPageModel : ObservableObject
 
     private UserProfileService _userService;
     private UserActivityService _userActivityService;
-    private List<ChartSerie> entries;
+    
 
     [RelayCommand]
     async Task AddVocabulary()
@@ -201,7 +170,4 @@ public partial class DashboardPageModel : ObservableObject
             Debug.WriteLine($"{ex.Message}");
         }
     }
-
-    [ObservableProperty]
-    private Chart writingChart;
 }

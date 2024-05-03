@@ -9,8 +9,16 @@
     xmlns:vocabulary="clr-namespace:SentenceStudio.Pages.Vocabulary;assembly=SentenceStudio"
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
     xmlns:account="clr-namespace:SentenceStudio.Pages.Account;assembly=SentenceStudio"
+    xmlns:onboarding="clr-namespace:SentenceStudio.Pages.Onboarding;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}">
 
+    <!-- Show oboarding first -->
+    <ShellContent
+        Title="{Binding Localize[TitleDashboard]}"
+        ContentTemplate="{DataTemplate onboarding:OnboardingPage}"
+        Route="onboarding" />
+    
+    <!-- App Content in Flyout -->
     <ShellContent
         Title="{Binding Localize[TitleDashboard]}"
         ContentTemplate="{DataTemplate dashboard:DashboardPage}"

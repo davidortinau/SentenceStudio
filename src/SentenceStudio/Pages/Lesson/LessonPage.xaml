@@ -12,9 +12,7 @@
              x:DataType="lesson:LessonPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
-    <ContentPage.Resources>
-        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
-    </ContentPage.Resources>
+    
     <Grid RowDefinitions="*,80">
         <ScrollView>
             <Grid RowDefinitions="30,*,Auto">

@@ -109,8 +109,6 @@
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />
 		<PackageReference Include="Scriban" Version="5.10.0" />
-		<PackageReference Include="Xceed.Product.Maui.Toolkit.Full" Version="1.7.24157.1331" />
-		<PackageReference Include="Microcharts.Maui" Version="1.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

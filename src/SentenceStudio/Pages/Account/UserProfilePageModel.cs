@@ -70,5 +70,16 @@ public partial class UserProfilePageModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    async Task Reset()
+    {
+        var response = await Shell.Current.DisplayAlert("Reset", "Are you sure you want to reset your profile?", "Yes", "No");
+        if(response)
+        {
+            await _userProfileService.DeleteAsync();
+            await LoadProfile();
+        }
+    }
+
     
 }

@@ -10,43 +10,38 @@ public partial class OnboardingPageModel : ObservableObject
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
-    [ObservableProperty]
-    string _name;
+    [ObservableProperty] private int _currentPosition;
+    [ObservableProperty] private bool _lastPositionReached;
 
-    [ObservableProperty]
-    string _email;
+    [ObservableProperty] string _name;
 
-    [ObservableProperty]
-    string _nativeLanguage;
+    [ObservableProperty] string _email;
 
-    [ObservableProperty]
-    string _targetLanguage;
+    [ObservableProperty] string _nativeLanguage;
+
+    [ObservableProperty] string _targetLanguage;
 
     [ObservableProperty]
     string _displayLanguage;
+
+    
+    private UserProfileService _userProfileService;
+    private VocabularyService _vocabularyService;
     
     public OnboardingPageModel(IServiceProvider service)
     {
         _userProfileService = service.GetRequiredService<UserProfileService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
-        // TaskMonitor.Create(LoadProfile);
+        
     }
 
-    private async Task LoadProfile()
-    {
-        var profile = await _userProfileService.GetAsync();
-        Name = profile.Name;
-        Email = profile.Email;
-        NativeLanguage = profile.NativeLanguage;
-        TargetLanguage = profile.TargetLanguage;
-        DisplayLanguage = profile.DisplayLanguage;
-    }
+    
 
-    private UserProfileService _userProfileService;
-    private VocabularyService _vocabularyService;
+
+    
 
     [RelayCommand]
-    async Task Save()
+    public async Task End()
     {
         var profile = new UserProfile
         {
@@ -67,7 +62,28 @@ public partial class OnboardingPageModel : ObservableObject
             var response = await Shell.Current.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
             if(response)
                 await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+
         }
+
+        await Shell.Current.GoToAsync("//dashboard");
+    }
+
+    private int _screens = 4;
+
+    [RelayCommand]
+    public void Next()
+    {
+        if (CurrentPosition >= _screens) 
+            return;
+        CurrentPosition++;
+    }
+
+    partial void OnCurrentPositionChanged(int value)
+    {
+        if (CurrentPosition == _screens)
+            LastPositionReached = true;
+        else
+            LastPositionReached = false;
     }
 
     

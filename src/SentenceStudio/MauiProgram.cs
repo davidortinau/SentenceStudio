@@ -19,8 +19,7 @@ using System.Reflection;
 using System.Reactive;
 using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
-using Xceed.Maui.Toolkit;
-using Microcharts.Maui;
+using SentenceStudio.Pages.Onboarding;
 
 namespace SentenceStudio;
 
@@ -31,13 +30,11 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
-			.UseMicrocharts()
             #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
-			.UseXceedMauiToolkit( FluentDesignAccentColor.DarkOrange )
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
@@ -68,6 +65,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<UserProfileService>();
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
 		builder.Services.AddSingleton<UserActivityService>();
+		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel>();
 		builder.Services.AddTransient<FeedbackPanelModel>();
@@ -83,6 +81,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
 		builder.Services.AddTransientWithShellRoute<AnalysisPage, AnalysisPageModel>("syntacticAnalysis");
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
+		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();

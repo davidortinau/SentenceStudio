@@ -20,21 +20,17 @@ public partial class AppShellModel : ObservableObject
 
     }
 
-    public AppShellModel()
+    public AppShellModel(IServiceProvider serviceProvider)
     {
-        // _userProfileService = Shell.Current.CurrentPage
-        //     .Handler
-        //     .MauiContext
-        //     .Services  // IServiceProvider
-        //     .GetService<UserProfileService>();
-        
-        // TaskMonitor.Create(LoadProfile);
+        _userProfileService = serviceProvider.GetRequiredService<UserProfileService>();
     }
 
-    private async Task LoadProfile()
+    public async Task LoadProfile()
     {
-        // var user = await _userProfileService.GetAsync();
-        // if(user != null)
-        //     Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+        var user = await _userProfileService.GetAsync();
+        if(user != null){
+            Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+            await Shell.Current.GoToAsync("//dashboard");
+        }
     }
 }

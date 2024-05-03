@@ -77,7 +77,12 @@ public class UserProfileService
         return result;
     }
     
-
+    public async Task<int> DeleteAsync()
+    {
+        await Init();
+        return await Database.DeleteAllAsync<UserProfile>();
+    }
+    
     public async Task<int> DeleteAsync(UserProfile item)
     {
         await Init();
