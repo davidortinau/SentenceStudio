@@ -64,9 +64,12 @@ public partial class WarmupPageModel : ObservableObject
 
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         Chunks.Add(chunk);
+
+        await Task.Delay(1000);
         
-        var response = await _conversationService.StartConversation();
-        chunk.Text = response;
+        // var response = await _conversationService.StartConversation();
+        // chunk.Text = response;
+        chunk.Text = "안녕하세요. 이름이 워예요?";
 
         await _conversationService.SaveConversationChunk(chunk);
 

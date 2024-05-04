@@ -28,7 +28,8 @@
                         <Label Text="{Binding Localize[Warmup]}"
                             VerticalOptions="Center" HorizontalOptions="Center"/>
                         <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding WarmupCommand}" />
+                            <TapGestureRecognizer 
+                            Command="{Binding WarmupCommand}" />
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>

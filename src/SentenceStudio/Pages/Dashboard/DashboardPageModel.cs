@@ -7,7 +7,7 @@ using Sharpnado.Tasks;
 namespace SentenceStudio.Pages.Dashboard;
 
 [QueryProperty(nameof(ShouldRefresh), "refresh")]
-public partial class DashboardPageModel : ObservableObject
+public partial class DashboardPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
@@ -80,13 +80,18 @@ public partial class DashboardPageModel : ObservableObject
         await Shell.Current.GoToAsync("addVocabulary");
     }
 
+    private bool CanExecuteAddVocabularyCommand()
+    {
+        return IsConnected;
+    }
+
     [RelayCommand]
     async Task ViewList(int listID)
     {
         await Shell.Current.GoToAsync($"editVocabulary?id={listID}");
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Play(int listID)
     {
         // if(listID == 0)
@@ -100,7 +105,7 @@ public partial class DashboardPageModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultTranslate()
     {
         if(VocabLists.Count == 0)
@@ -109,7 +114,7 @@ public partial class DashboardPageModel : ObservableObject
         await Play(VocabLists.First().ID);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultWrite()
     {
         if(VocabLists.Count == 0)
@@ -118,7 +123,7 @@ public partial class DashboardPageModel : ObservableObject
         
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task SyntacticAnalysis()
     {
         try{
@@ -135,7 +140,7 @@ public partial class DashboardPageModel : ObservableObject
         
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Write(int listID)
     {
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
@@ -148,7 +153,7 @@ public partial class DashboardPageModel : ObservableObject
         }
     }  
 
-    [RelayCommand]  
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
     async Task DescribeAScene()
     {
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
@@ -160,7 +165,7 @@ public partial class DashboardPageModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Warmup()
     {
         try{
@@ -170,4 +175,6 @@ public partial class DashboardPageModel : ObservableObject
             Debug.WriteLine($"{ex.Message}");
         }
     }
+
+    
 }

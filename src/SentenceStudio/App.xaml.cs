@@ -1,4 +1,6 @@
 ﻿using System.Globalization;
+using CommunityToolkit.Mvvm.Messaging;
+using SentenceStudio.Messages;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Vocabulary;
@@ -15,9 +17,15 @@ public partial class App : Application
 
 		CultureInfo.CurrentUICulture = new CultureInfo( "ko", false );
 
-		MainPage = new AppShell();       
+		MainPage = new AppShell();     
+
+		// Register a message in some module
+		WeakReferenceMessenger.Default.Register<ConnectivityChangedMessage>(this, async (r, m) =>
+		{
+			if(!m.Value)
+				await Shell.Current.CurrentPage.DisplayAlert("No Internet Connection", "Please connect to the internet to use this feature", "OK");
+		});
         
-		
 	}
 
     

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Azure.AI.OpenAI;
+using CommunityToolkit.Mvvm.Messaging;
+using SentenceStudio.Messages;
 
 namespace SentenceStudio.Services;
 
@@ -14,6 +16,13 @@ public class AIClient
 
     public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
     {
+
+        // TODO check connectivity and bypass if not connected
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return string.Empty;
+        }
+
         // Implement the logic to send the prompt to OpenAI and receive the conversation response
         // using the Azure.AI.OpenAI library
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
@@ -54,6 +63,13 @@ public class AIClient
 
     public async Task<string> SendImage(Uri imageUri, string prompt)
     {
+        // TODO check connectivity and bypass if not connected
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return string.Empty;
+        }
+
+
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
         var imageItem = new ChatMessageImageContentItem(imageUri);
         
