@@ -8,8 +8,8 @@ public partial class BaseViewModel : ObservableObject
 
     public BaseViewModel()
     {
-        Connectivity.ConnectivityChanged += OnConnectivityChanged;
-        IsConnected = Connectivity.NetworkAccess == NetworkAccess.Internet;
+        Connectivity.Current.ConnectivityChanged += OnConnectivityChanged;
+        IsConnected = Connectivity.Current.NetworkAccess == NetworkAccess.Internet;
     }
 
     private void OnConnectivityChanged(object sender, ConnectivityChangedEventArgs e)

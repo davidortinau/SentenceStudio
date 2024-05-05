@@ -61,7 +61,7 @@
 
             <DataTemplate x:Key="MessageFromMe">
                 <Grid x:DataType="model:ConversationChunk" IsClippedToBounds="False">
-                    <Border Margin="15,5"
+                    <Border Margin="15,20,15,15"
                             Padding="12,4,12,8"
                            Background="{StaticResource Secondary}"
                            HorizontalOptions="End"
@@ -69,23 +69,22 @@
                            StrokeThickness="1"
                            StrokeShape="RoundRectangle 10, 10, 10, 2"
                            >
-                           <Grid IsClippedToBounds="False">
+                           
                                 <Label Text="{Binding Text}" 
                                     Style="{StaticResource Body1}"
                                     TextColor="White"/>
-                               <Border Background="Black"
-                                StrokeShape="RoundRectangle 10"
-                                StrokeThickness="0"
-                                HorizontalOptions="End"
-                                VerticalOptions="Start"
-                                TranslationX="10" 
-                                TranslationY="-10">
-                                    <Label Text="{Binding Comprehension}" 
-                                        TextColor="White"
-                                        VerticalOptions="Center"
-                                        HorizontalOptions="Center"/>
-                                 </Border>
-                            </Grid>
+                    </Border>
+                    <Border Background="{StaticResource Gray600}"
+                            StrokeShape="RoundRectangle 8"
+                            StrokeThickness="0"
+                            HorizontalOptions="End"
+                            VerticalOptions="Start"
+                            Margin="0,0,10,0"
+                            Padding="6,0,6,2">
+                        <Label Text="{Binding Comprehension}" 
+                            TextColor="White"
+                            VerticalOptions="Center"
+                            HorizontalOptions="Center"/>
                     </Border>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer 
