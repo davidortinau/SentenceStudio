@@ -6,12 +6,12 @@ using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Translation;
 
 [QueryProperty(nameof(ListID), "listID")]
 [QueryProperty(nameof(PlayMode), "playMode")]
 [QueryProperty(nameof(Level), "level")]
-public partial class LessonPageModel : ObservableObject
+public partial class TranslationPageModel : BaseViewModel
 {
     
 
@@ -88,7 +88,7 @@ public partial class LessonPageModel : ObservableObject
         }
     }
 
-    public LessonPageModel(IServiceProvider service)
+    public TranslationPageModel(IServiceProvider service)
     {
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();

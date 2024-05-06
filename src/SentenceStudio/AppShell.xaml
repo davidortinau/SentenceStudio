@@ -25,11 +25,6 @@
         Route="dashboard" />
 
     <ShellContent
-        Title="{Binding Localize[PracticeWriting]}"
-        ContentTemplate="{DataTemplate lesson:WritingPage}"
-        Route="writing" />
-
-    <ShellContent
         Title="{Binding Localize[StartLesson]}"
         ContentTemplate="{DataTemplate lesson:LessonStartPage}"
         Route="newLesson" />

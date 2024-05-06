@@ -9,7 +9,7 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Lesson;
 
-public partial class WarmupPageModel : ObservableObject
+public partial class WarmupPageModel : BaseViewModel
 {
     private TeacherService _teacherService;
 

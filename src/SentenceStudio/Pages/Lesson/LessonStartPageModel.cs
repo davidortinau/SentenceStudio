@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 namespace SentenceStudio.Pages.Lesson;
 
-public partial class LessonStartPageModel : ObservableObject
+public partial class LessonStartPageModel : BaseViewModel
 {
     private TeacherService _teacherService;
 
@@ -68,7 +68,7 @@ public partial class LessonStartPageModel : ObservableObject
                     break;
                 case "Translate":
                 default:
-                    route = "lesson";
+                    route = "translation";
                     break;
             }
             await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");

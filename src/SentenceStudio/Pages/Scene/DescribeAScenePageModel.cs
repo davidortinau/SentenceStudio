@@ -11,7 +11,7 @@ using System.Collections.ObjectModel;
 
 namespace SentenceStudio.Pages.Scene;
 
-public partial class DescribeAScenePageModel : ObservableObject
+public partial class DescribeAScenePageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
     private AiService _aiService;

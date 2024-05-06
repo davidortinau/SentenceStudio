@@ -98,7 +98,7 @@ public partial class DashboardPageModel : BaseViewModel
         //     listID = VocabLists.First().ID;
 
         try{
-            await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

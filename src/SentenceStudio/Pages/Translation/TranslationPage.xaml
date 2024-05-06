@@ -3,20 +3,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson"
+             xmlns:translation="clr-namespace:SentenceStudio.Pages.Translation"
              xmlns:l="clr-namespace:CustomLayouts"
              xmlns:m="clr-namespace:SentenceStudio.Models"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
-             x:Class="SentenceStudio.Pages.Lesson.LessonPage"
-             Title="LessonPage"
-             x:DataType="lesson:LessonPageModel"
+             x:Class="SentenceStudio.Pages.Translation.TranslationPage"
+             Title="Translation"
+             x:DataType="translation:TranslationPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
     
     <Grid RowDefinitions="*,80">
         <ScrollView>
             <Grid RowDefinitions="30,*,Auto">
-                <!-- Lesson Content -->
+                
                 <Grid Grid.Row="1"
                       ColumnDefinitions="{OnIdiom Phone='*', Default='6*,3*'}"
                       Margin="30">
@@ -139,7 +139,7 @@
                                        Padding="4"
                                        LineHeight="1">
                                     <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:LessonPageModel}}}"
+                                        <TapGestureRecognizer Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type translation:TranslationPageModel}}}"
                                                               CommandParameter="{Binding .}" />
                                     </Label.GestureRecognizers>
                                 </Label>

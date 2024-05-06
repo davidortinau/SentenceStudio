@@ -16,7 +16,7 @@ namespace SentenceStudio.Pages.Lesson;
 [QueryProperty(nameof(ListID), "listID")]
 [QueryProperty(nameof(PlayMode), "playMode")]
 [QueryProperty(nameof(Level), "level")]
-public partial class WritingPageModel : ObservableObject
+public partial class WritingPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 

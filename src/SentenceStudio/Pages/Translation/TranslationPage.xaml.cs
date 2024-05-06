@@ -4,13 +4,13 @@ using System.Linq;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Translation;
 
-public partial class LessonPage : ContentPage
+public partial class TranslationPage : ContentPage
 {
-	LessonPageModel _model;
+	TranslationPageModel _model;
 
-	public LessonPage(LessonPageModel model)
+	public TranslationPage(TranslationPageModel model)
 	{
 		InitializeComponent();
 

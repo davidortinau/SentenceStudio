@@ -20,6 +20,7 @@ using System.Reactive;
 using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Onboarding;
+using SentenceStudio.Pages.Translation;
 
 namespace SentenceStudio;
 
@@ -71,7 +72,7 @@ public static class MauiProgram
 		builder.Services.AddTransient<FeedbackPanelModel>();
 		
 		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
-		builder.Services.AddTransientWithShellRoute<LessonPage, LessonPageModel>("lesson");		
+		builder.Services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
 		builder.Services.AddTransientWithShellRoute<ListVocabularyPage, ListVocabularyPageModel>("vocabulary");
 		builder.Services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
 		builder.Services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
