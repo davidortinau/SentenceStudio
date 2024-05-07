@@ -13,7 +13,7 @@ public class AiService {
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
     }
 
-    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
+    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool shouldStreamResponse = false)
     {
         try{
             // Create a new instance of the OpenAI client
@@ -21,7 +21,7 @@ public class AiService {
             
 
             // Send the prompt to OpenAI and receive the conversation response
-            var response = await aiClient.SendPrompt(prompt, shouldReturnJson);
+            var response = await aiClient.SendPrompt(prompt, shouldReturnJson, shouldStreamResponse);
             Debug.WriteLine($"Response: {response}");
             return response;
         }

@@ -1,9 +1,13 @@
 
 using System.Text.Json.Serialization;
+using SQLite;
 
 namespace SentenceStudio.Models;
 public class Challenge
 {
+    [PrimaryKey, AutoIncrement]
+    public int ID { get; set; }
+    
     [JsonPropertyName("sentence")]
     public string SentenceText { get; set; }
 

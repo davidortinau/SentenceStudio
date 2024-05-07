@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using SentenceStudio.Models;
 using Scriban;
+using SQLite;
+using SentenceStudio.Common;
 
 namespace SentenceStudio.Services
 {
@@ -9,6 +11,8 @@ namespace SentenceStudio.Services
     {
         private AiService _aiService;
         private VocabularyService _vocabularyService;
+        private SQLiteAsyncConnection Database;
+        
         private List<Term> _terms;
 
         public List<Term> Terms {
@@ -55,6 +59,40 @@ namespace SentenceStudio.Services
                 Debug.WriteLine($"An error occurred GetChallenges: {ex.Message}");
                 return new List<Challenge>();
             }
+        }
+
+        async Task Init()
+        {
+            if (Database is not null)
+                return;
+
+            Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
+
+            CreateTablesResult result;
+            
+            try
+            {
+                result = await Database.CreateTablesAsync<Challenge, GradeResponse>();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"{ex.Message}");
+                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            }
+        }
+
+        public async Task<int> SaveChallenges(Challenge item)
+        {
+            await Init();
+            await Database.InsertAsync(item);
+            return item.ID;
+        }
+
+        public async Task<int> SaveGrade(GradeResponse item)
+        {
+            await Init();
+            await Database.InsertAsync(item);
+            return item.ID;
         }
 
         public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation)

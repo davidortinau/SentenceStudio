@@ -14,9 +14,8 @@ public class AIClient
         _apiKey = apiKey;
     }
 
-    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
+    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool streamResponse = false)
     {
-
         // TODO check connectivity and bypass if not connected
         if(Connectivity.NetworkAccess != NetworkAccess.Internet){
             WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
@@ -36,29 +35,38 @@ public class AIClient
             ResponseFormat = (shouldReturnJson) ? ChatCompletionsResponseFormat.JsonObject : ChatCompletionsResponseFormat.Text
         };
         
-        try{
-            var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
-            ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
-            
-            return responseMessage.Content;
-        }catch(Exception ex){
-            Debug.WriteLine(ex.Message);
+        
+        if(streamResponse){
+            await foreach (StreamingChatCompletionsUpdate chatUpdate in client.GetChatCompletionsStreaming(chatCompletionsOptions))
+            {
+                if (chatUpdate.Role.HasValue)
+                {
+                    Console.Write($"{chatUpdate.Role.Value.ToString().ToUpperInvariant()}: ");
+                }
+                if (!string.IsNullOrEmpty(chatUpdate.ContentUpdate))
+                {
+                    // Console.Write(chatUpdate.ContentUpdate);
+                    WeakReferenceMessenger.Default.Send(new ChatCompletionMessage(chatUpdate.ContentUpdate));  
+                }
+                if (chatUpdate.FinishReason.HasValue)
+                {
+                    Console.WriteLine($"Chat completion finished: {chatUpdate.FinishReason.Value}");
+                    return "End of line";
+                }
+            }
+        }else{
+            try{
+                var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
+                ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
+                
+                return responseMessage.Content;
+            }catch(Exception ex){
+                Debug.WriteLine(ex.Message);
+            }
+            return string.Empty;
         }
-
+        
         return string.Empty;
-
-        // Alternatively, you can use the streaming API to receive real-time updates
-        // await foreach (StreamingChatCompletionsUpdate chatUpdate in client.GetChatCompletionsStreaming(chatCompletionsOptions))
-        // {
-        //     if (chatUpdate.Role.HasValue)
-        //     {
-        //         Console.Write($"{chatUpdate.Role.Value.ToString().ToUpperInvariant()}: ");
-        //     }
-        //     if (!string.IsNullOrEmpty(chatUpdate.ContentUpdate))
-        //     {
-        //         Console.Write(chatUpdate.ContentUpdate);
-        //     }
-        // }
     }
 
     public async Task<string> SendImage(Uri imageUri, string prompt)

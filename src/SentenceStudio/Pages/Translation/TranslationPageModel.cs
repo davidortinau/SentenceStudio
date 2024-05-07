@@ -1,10 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
 using System.Web;
-using CommunityToolkit.Mvvm.Input;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
-using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -13,10 +9,9 @@ namespace SentenceStudio.Pages.Translation;
 [QueryProperty(nameof(Level), "level")]
 public partial class TranslationPageModel : BaseViewModel
 {
-    
-
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
+    private AiService _aiService;
 
     public int ListID { get; set; }
     public string PlayMode { get; set; }
@@ -92,6 +87,7 @@ public partial class TranslationPageModel : BaseViewModel
     {
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
+        _aiService = service.GetRequiredService<AiService>();
         TaskMonitor.Create(GetSentences);
     }
     public async Task GetSentences()
@@ -106,10 +102,35 @@ public partial class TranslationPageModel : BaseViewModel
     async Task GradeMe()
     {
         IsBusy = true;
-        GradeResponse = await _teacherService.GradeTranslation(UserInput, CurrentSentence, RecommendedTranslation);
-        Feedback = FormatGradeResponse(GradeResponse);
-        HasFeedback = true;
-        IsBusy = false;
+        var prompt = string.Empty;     
+        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
+        using (StreamReader reader = new StreamReader(templateStream))
+        {
+            var template = Template.Parse(reader.ReadToEnd());
+            prompt = await template.RenderAsync(new { original_sentence = CurrentSentence, recommended_translation = RecommendedTranslation, user_input = UserInput});
+
+            Debug.WriteLine(prompt);
+        }
+        // HasFeedback = true;
+        // IsBusy = false;
+
+        WeakReferenceMessenger.Default.Register<ChatCompletionMessage>(this, (r, m) =>
+        {
+            HasFeedback = true;
+            IsBusy = false;
+            Feedback += m.Value;
+            // I could parse the feedback quickly to capture Accuracy and Fluency scores and display them in the UI
+        });
+
+        _ = await _aiService.SendPrompt(prompt, false, true);
+
+        WeakReferenceMessenger.Default.Unregister<ChatCompletionMessage>(this);
+
+        // Feedback += await _aiService.SendPrompt(prompt, false, true);
+        // GradeResponse = await _teacherService.GradeTranslation(UserInput, CurrentSentence, RecommendedTranslation);
+        // Feedback = FormatGradeResponse(GradeResponse);
+        
+        
     }
 
     private string FormatGradeResponse(GradeResponse gradeResponse)
