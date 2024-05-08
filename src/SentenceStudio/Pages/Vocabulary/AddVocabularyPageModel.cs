@@ -1,7 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Input;
-using LukeMauiFilePicker;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
+﻿using LukeMauiFilePicker;
 
 namespace SentenceStudio.Pages.Vocabulary;
 
@@ -43,11 +40,11 @@ public partial class AddVocabularyPageModel : ObservableObject
         VocabularyList list = new VocabularyList
         {
             Name = VocabListName,
-            Terms = Term.ParseTerms(VocabList, Delimiter)
+            Words = VocabularyWord.ParseVocabularyWords(VocabList, Delimiter)
         };
 
 
-        var listId = await _vocabService.SaveListAsync(list); // this saves the terms
+        var listId = await _vocabService.SaveListAsync(list); 
         
         await Shell.Current.GoToAsync("..?refresh=true");
     }

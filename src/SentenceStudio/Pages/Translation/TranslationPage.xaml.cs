@@ -45,7 +45,7 @@ public partial class TranslationPage : ContentPage
 				}
 				
 				
-				foreach (var term in _model.Terms)
+				foreach (var term in _model.Words)
 				{
 					await PlaceLabel(term.TargetLanguageTerm, Colors.White);
 					await PlaceLabel(term.NativeLanguageTerm, Colors.Orange);
@@ -122,7 +122,7 @@ public partial class TranslationPage : ContentPage
 	void PointerGestureRecognizer_PointerEntered(System.Object sender, Microsoft.Maui.Controls.PointerEventArgs e)
 	{
 		// Assuming sender is of type that has TargetLanguageTerm property
-		if ((sender as Element).BindingContext is VocabWord obj)
+		if ((sender as Element).BindingContext is VocabularyWord obj)
 		{
 			PopOverLabel.Text = obj.TargetLanguageTerm;
 			PopOverLabel.IsVisible = true;

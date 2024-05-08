@@ -13,7 +13,7 @@
         <ToolbarItem Text="Delete" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding DeleteCommand}" />
     </ContentPage.ToolbarItems>
                 
-    <CollectionView ItemsSource="{Binding Terms}">
+    <CollectionView ItemsSource="{Binding Words}">
         <CollectionView.Header>
             <VerticalStackLayout 
                 Spacing="{StaticResource size320}" 
@@ -43,7 +43,7 @@
             <DataTemplate>
                 <Grid 
                     Padding="{StaticResource size240}"
-                    x:DataType="models:Term"
+                    x:DataType="models:VocabularyWord"
                     ColumnDefinitions="*,*" ColumnSpacing="{StaticResource size240}">
                     <Border Style="{StaticResource InputWrapper}">
                         <Entry Text="{Binding TargetLanguageTerm}"/>

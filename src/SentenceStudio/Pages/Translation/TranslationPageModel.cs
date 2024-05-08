@@ -30,7 +30,7 @@ public partial class TranslationPageModel : BaseViewModel
     private GradeResponse _gradeResponse;
 
     [ObservableProperty]
-    private List<VocabWord> _vocabulary;
+    private List<VocabularyWord> _vocabulary;
 
     [ObservableProperty]
     private List<string> _vocabBlocks;
@@ -53,9 +53,9 @@ public partial class TranslationPageModel : BaseViewModel
     [ObservableProperty]
     private string _feedback;
 
-    public List<Term> Terms
+    public List<VocabularyWord> Words
     {
-        get => _teacherService.Terms;
+        get => _teacherService.Words;
     }
 
     void SetCurrentSentence()

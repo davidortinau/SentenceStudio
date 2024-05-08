@@ -25,7 +25,7 @@
                                             Spacing="8"
                                             IsVisible="{Binding HasFeedback, Converter={StaticResource InvertedBoolConverter}}">
                         <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="m:VocabWord">
+                            <DataTemplate x:DataType="m:VocabularyWord">
                                 <Grid IsClippedToBounds="False">
                                     <Grid.GestureRecognizers>
                                         <PointerGestureRecognizer PointerEntered="PointerGestureRecognizer_PointerEntered"

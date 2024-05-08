@@ -15,5 +15,5 @@ public class Challenge
     public string RecommendedTranslation { get; set; }
 
     [JsonPropertyName("vocabulary")]
-    public List<VocabWord> Vocabulary { get; set; }
+    public List<VocabularyWord> Vocabulary { get; set; }
 }

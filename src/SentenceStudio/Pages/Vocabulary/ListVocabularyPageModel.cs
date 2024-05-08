@@ -46,7 +46,7 @@ public partial class ListVocabularyPageModel : ObservableObject
     private async Task LoadVocabLists()
     {
         await Task.Delay(100);
-        VocabLists = await _vocabService.GetAllListsWithTermsAsync();
+        VocabLists = await _vocabService.GetAllListsWithWordsAsync();
     }
 
     [RelayCommand]

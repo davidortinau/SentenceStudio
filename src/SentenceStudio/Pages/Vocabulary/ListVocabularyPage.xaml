@@ -29,7 +29,7 @@
                                         <Label.FormattedText>
                                             <FormattedString>
                                                 <Span Text="{Binding Name}" />
-                                                <Span Text='{Binding Terms.Count, StringFormat=" ({0}) "}'/>
+                                                <Span Text='{Binding Words.Count, StringFormat=" ({0}) "}'/>
                                             </FormattedString>
                                         </Label.FormattedText>
                                     </Label>    

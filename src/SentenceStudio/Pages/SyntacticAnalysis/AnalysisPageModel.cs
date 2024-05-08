@@ -30,7 +30,7 @@ public partial class AnalysisPageModel : BaseViewModel
 
     
     [ObservableProperty]
-    private List<VocabWord> _vocabulary;
+    private List<VocabularyWord> _vocabulary;
 
     [ObservableProperty]
     private string _progress;

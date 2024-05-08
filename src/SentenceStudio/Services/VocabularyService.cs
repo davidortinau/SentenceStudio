@@ -1,8 +1,4 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
-using Scriban;
+
 
 namespace SentenceStudio.Services;
 
@@ -27,7 +23,7 @@ public class VocabularyService
         
         try
         {
-            result = await Database.CreateTablesAsync<VocabularyList, Term>();
+            result = await Database.CreateTablesAsync<VocabularyList, VocabularyWord, VocabularyListVocabularyWord>();
         }
         catch (Exception ex)
         {
@@ -42,24 +38,40 @@ public class VocabularyService
         return await Database.Table<VocabularyList>().ToListAsync();
     }
 
-    public async Task<List<VocabularyList>> GetAllListsWithTermsAsync()
+    /// <summary>
+    /// Retrieves all vocabulary lists with their associated words asynchronously.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see cref="VocabularyList"/> objects.</returns>
+    public async Task<List<VocabularyList>> GetAllListsWithWordsAsync()
+{
+    await Init();
+    
+    var vocabularyLists = await Database.Table<VocabularyList>().ToListAsync();
+    
+    foreach (var vocabularyList in vocabularyLists)
     {
-        await Init();
         
-        var vocabularyLists = await Database.Table<VocabularyList>().ToListAsync();
-        
-        foreach (var vocabularyList in vocabularyLists)
-        {
-            vocabularyList.Terms = await Database.Table<Term>().Where(i => i.VocabularyListId == vocabularyList.ID).ToListAsync();
-        }
-        
-        return vocabularyLists;
-    }
+        var wordIds = await Database.QueryAsync<int>(@"
+            SELECT VocabularyWordId
+            FROM VocabularyListVocabularyWord
+            WHERE VocabularyListId = ?", vocabularyList.ID);
 
-    public async Task<List<Term>> GetTermsAsync()
+        vocabularyList.Words = await Database.Table<VocabularyWord>()
+            .Where(vw => wordIds.Contains(vw.ID))
+            .ToListAsync();
+    }
+    
+    return vocabularyLists;
+}
+
+    /// <summary>
+    /// Retrieves a list of vocabulary words asynchronously.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see cref="VocabularyWord"/>.</returns>
+    public async Task<List<VocabularyWord>> GetWordsAsync()
     {
         await Init();
-        return await Database.Table<Term>().ToListAsync();
+        return await Database.Table<VocabularyWord>().ToListAsync();
     }
 
     public async Task<VocabularyList> GetListAsync(int id)
@@ -68,28 +80,35 @@ public class VocabularyService
         var vocabularyList = await Database.Table<VocabularyList>().Where(i => i.ID == id).FirstOrDefaultAsync();
         if (vocabularyList != null)
         {
-            vocabularyList.Terms = await Database.Table<Term>().Where(i => i.VocabularyListId == vocabularyList.ID).ToListAsync();
+            var wordIds = await Database.QueryAsync<int>(@"
+            SELECT VocabularyWordId
+            FROM VocabularyListVocabularyWord
+            WHERE VocabularyListId = ?", vocabularyList.ID);
+
+            vocabularyList.Words = await Database.Table<VocabularyWord>()
+                .Where(vw => wordIds.Contains(vw.ID))
+                .ToListAsync();            
         }
         
         return vocabularyList;
     }
 
-    public async Task<Term> GetTermAsync(int id)
+    public async Task<VocabularyWord> GetWordAsync(int id)
     {
         await Init();
-        return await Database.Table<Term>().Where(i => i.ID == id).FirstOrDefaultAsync();
+        return await Database.Table<VocabularyWord>().Where(i => i.ID == id).FirstOrDefaultAsync();
     }
 
-    public async Task<int> SaveListAsync(VocabularyList item)
+    public async Task<int> SaveListAsync(VocabularyList list)
     {
         await Init();
         int result = -1;
-        if (item.ID != 0)
+        if (list.ID != 0)
         {
             try
             {
-                result = await Database.UpdateAsync(item);
-                result = await Database.UpdateAllAsync(item.Terms);
+                result = await Database.UpdateAsync(list);
+                result = await Database.UpdateAllAsync(list.Words);
             }
             catch (Exception ex)
             {
@@ -100,15 +119,18 @@ public class VocabularyService
         {
             try
             {
-                result = await Database.InsertAsync(item);
-            
+                result = await Database.InsertAsync(list);
 
-                if (item.Terms != null)
+                // list.Words = new List<Event> { event1 };
+                
+            
+                if (list.Words != null)
                 {
-                    foreach (var term in item.Terms)
+                    foreach (var term in list.Words)
                     {
-                        term.VocabularyListId = item.ID;
-                        await SaveTermAsync(term);
+                        // term.VocabularyListId = list.ID;
+                        await SaveWordAsync(term);
+                        await SaveWordToList(term, list.ID);
                     }
                 }
             }
@@ -118,24 +140,43 @@ public class VocabularyService
             }
         }
 
-        return item.ID;
+        return list.ID;
     }
 
-    public async Task<int> DeleteListAsync(VocabularyList item)
+    private async Task SaveWordToList(VocabularyWord term, int listID)
     {
         await Init();
-        return await Database.DeleteAsync(item);
+        VocabularyListVocabularyWord listWord = new VocabularyListVocabularyWord();
+        listWord.VocabularyListId = listID;
+        listWord.VocabularyWordId = term.ID;
+        await Database.InsertAsync(listWord);
     }
 
-    public async Task<int> SaveTermAsync(Term item)
+    public async Task<bool> DeleteListAsync(VocabularyList list)
+    {
+        await Init();
+        try{
+            await Database.DeleteAsync(list);
+            await Database.ExecuteAsync("DELETE FROM VocabularyListVocabularyWord WHERE VocabularyListId = ?", list.ID);
+            await Database.ExecuteAsync("DELETE FROM VocabularyWord WHERE ID NOT IN (SELECT VocabularyWordId FROM VocabularyListVocabularyWord)");
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+        return true;
+    }
+
+    public async Task<int> SaveWordAsync(VocabularyWord word)
     {
         await Init();
         int result = -1;
-        if (item.ID != 0)
+        if (word.ID != 0)
         {
             try
             {
-                result = await Database.UpdateAsync(item);
+                result = await Database.UpdateAsync(word);
             }catch(Exception ex)
             {
                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
@@ -145,7 +186,7 @@ public class VocabularyService
         {
             try
             {
-                result = await Database.InsertAsync(item);
+                result = await Database.InsertAsync(word);
             }
             catch (Exception ex)
             {
@@ -156,22 +197,22 @@ public class VocabularyService
         return result;
     }
 
-    public async Task<int> DeleteTermAsync(Term item)
+    public async Task<int> DeleteWordAsync(VocabularyWord word)
     {
         await Init();
-        return await Database.DeleteAsync(item);
+        return await Database.DeleteAsync(word);
     }
 
 
-    public async Task SaveTermsAsync(int listId, List<Term> listTerms)
-    {
-        await Init();
-        foreach (var term in listTerms)
-        {
-            term.VocabularyListId = listId;
-            await SaveTermAsync(term);
-        }
-    }
+    // public async Task SaveWordsAsync(int listId, List<VocabularyWord> listWords)
+    // {
+    //     await Init();
+    //     foreach (var term in listWords)
+    //     {
+    //         // term.VocabularyListId = listId;
+    //         await SaveWordAsync(term);
+    //     }
+    // }
 
     public async Task GetStarterVocabulary(string nativeLanguage, string targetLanguage)
         {       
@@ -191,7 +232,7 @@ public class VocabularyService
 
                 VocabularyList list = new();
                 list.Name = "Sentence Studio Starter Vocabulary";
-                list.Terms = Term.ParseTerms(response);
+                list.Words = VocabularyWord.ParseVocabularyWords(response);
                 var listId = await SaveListAsync(list);
                 await AppShell.DisplayToastAsync("Starter vocabulary list created");
                 

@@ -1,5 +1,3 @@
-using SQLite;
-
 namespace SentenceStudio.Models;
 public class VocabularyList
 {
@@ -8,7 +6,8 @@ public class VocabularyList
     public string Name { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
     
-    [Ignore]
-    public List<Term>? Terms { get; set; }
+    [ManyToMany(typeof(VocabularyWord))]
+    public List<VocabularyWord> Words { get; set; }
 }

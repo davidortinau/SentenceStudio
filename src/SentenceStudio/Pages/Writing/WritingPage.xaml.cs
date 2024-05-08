@@ -44,7 +44,7 @@ public partial class WritingPage : ContentPage
 				}
 				
 				
-				foreach (var term in _model.Terms)
+				foreach (var term in _model.Words)
 				{
 					await PlaceLabel(term.TargetLanguageTerm, Colors.White);
 					await PlaceLabel(term.NativeLanguageTerm, Colors.Orange);

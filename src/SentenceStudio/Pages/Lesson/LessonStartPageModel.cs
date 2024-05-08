@@ -48,7 +48,7 @@ public partial class LessonStartPageModel : BaseViewModel
 
     private async Task LoadVocabLists()
     {
-        VocabLists = await _vocabService.GetAllListsWithTermsAsync();
+        VocabLists = await _vocabService.GetAllListsWithWordsAsync();
         
     }
 

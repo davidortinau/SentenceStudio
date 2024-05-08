@@ -13,11 +13,11 @@ namespace SentenceStudio.Services
         private VocabularyService _vocabularyService;
         private SQLiteAsyncConnection Database;
         
-        private List<Term> _terms;
+        private List<VocabularyWord> _words;
 
-        public List<Term> Terms {
+        public List<VocabularyWord> Words {
             get {
-                return _terms;
+                return _words;
             }
         }
 
@@ -31,19 +31,19 @@ namespace SentenceStudio.Services
         {
             VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
 
-            if (vocab is null || vocab.Terms is null)
+            if (vocab is null || vocab.Words is null)
                 return null;
 
             var random = new Random();
             
-            _terms = vocab.Terms.OrderBy(t => random.Next()).Take(10).ToList();
+            _words = vocab.Words.OrderBy(t => random.Next()).Take(10).ToList();
             
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetChallenges.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(reader.ReadToEnd());
-                prompt = await template.RenderAsync(new { terms = _terms });
+                prompt = await template.RenderAsync(new { terms = _words });
             }
 
             Debug.WriteLine(prompt);

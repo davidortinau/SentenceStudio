@@ -105,6 +105,7 @@
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="2.1.5" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+		<PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.8" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />

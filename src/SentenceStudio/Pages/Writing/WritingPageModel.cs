@@ -41,10 +41,10 @@ public partial class WritingPageModel : BaseViewModel
     private GradeResponse _gradeResponse;
 
     [ObservableProperty]
-    private List<VocabWord> _vocabulary;
+    private List<VocabularyWord> _vocabulary;
 
     [ObservableProperty]
-    private List<Term> _vocabBlocks;
+    private List<VocabularyWord> _vocabBlocks;
 
     [ObservableProperty]
     private string _userInput;
@@ -64,9 +64,9 @@ public partial class WritingPageModel : BaseViewModel
     [ObservableProperty]
     private bool _isBusy;
 
-    public List<Term> Terms
+    public List<VocabularyWord> Words
     {
-        get => _teacherService.Terms;
+        get => _teacherService.Words;
     }
 
     
@@ -85,13 +85,8 @@ public partial class WritingPageModel : BaseViewModel
         IsBusy = true; 
         VocabularyList vocab = await _vocabularyService.GetListAsync(ListID);
 
-            // if (vocab is null || vocab.Terms is null)
-            //     return null;
-
-        var random = new Random();
-        
-        VocabBlocks = vocab.Terms.OrderBy(t => random.Next()).Take(4).ToList();
-        //string t = string.Join(",", _terms.Select(t => t.TargetLanguageTerm));
+        var random = new Random();       
+        VocabBlocks = vocab.Words.OrderBy(t => random.Next()).Take(4).ToList();
         IsBusy = false;
             
     }

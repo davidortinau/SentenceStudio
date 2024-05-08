@@ -146,7 +146,7 @@
                                         
                                         BindableLayout.ItemsSource="{Binding VocabBlocks}">
                         <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="model:Term">
+                            <DataTemplate x:DataType="model:VocabularyWord">
                                 <Button Text="{Binding TargetLanguageTerm}"
                                         Background="{StaticResource Gray200}"
                                         TextColor="{StaticResource Gray900}"

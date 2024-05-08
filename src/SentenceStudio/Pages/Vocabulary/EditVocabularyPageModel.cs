@@ -24,7 +24,7 @@ public partial class EditVocabularyPageModel : ObservableObject
     private VocabularyList _vocabList;
     
     [ObservableProperty]
-    List<Term> _terms;
+    List<VocabularyWord> _words;
 
     [ObservableProperty]
     string _vocabListName;
@@ -41,14 +41,14 @@ public partial class EditVocabularyPageModel : ObservableObject
         
         _vocabList = await _vocabService.GetListAsync(ListId);
         VocabListName = _vocabList.Name;
-        Terms = _vocabList.Terms;
+        Words = _vocabList.Words;
     }
 
     [RelayCommand]
     async Task SaveVocab()
     {
         _vocabList.Name = VocabListName;
-        _vocabList.Terms = Terms;
+        _vocabList.Words = Words;
         
        var listId = await _vocabService.SaveListAsync(_vocabList);
         
