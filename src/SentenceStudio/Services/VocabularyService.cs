@@ -51,14 +51,13 @@ public class VocabularyService
     foreach (var vocabularyList in vocabularyLists)
     {
         
-        var wordIds = await Database.QueryAsync<int>(@"
-            SELECT VocabularyWordId
-            FROM VocabularyListVocabularyWord
-            WHERE VocabularyListId = ?", vocabularyList.ID);
+        vocabularyList.Words = await Database.QueryAsync<VocabularyWord>(@"
+            SELECT vw.*
+            FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
+			WHERE vw.ID = vlvw.VocabularyWordId
+			AND vlvw.VocabularyListId = ?", vocabularyList.ID);
 
-        vocabularyList.Words = await Database.Table<VocabularyWord>()
-            .Where(vw => wordIds.Contains(vw.ID))
-            .ToListAsync();
+        Debug.WriteLine($"List {vocabularyList.Name} has {vocabularyList.Words.Count} words");
     }
     
     return vocabularyLists;
@@ -80,14 +79,11 @@ public class VocabularyService
         var vocabularyList = await Database.Table<VocabularyList>().Where(i => i.ID == id).FirstOrDefaultAsync();
         if (vocabularyList != null)
         {
-            var wordIds = await Database.QueryAsync<int>(@"
-            SELECT VocabularyWordId
-            FROM VocabularyListVocabularyWord
-            WHERE VocabularyListId = ?", vocabularyList.ID);
-
-            vocabularyList.Words = await Database.Table<VocabularyWord>()
-                .Where(vw => wordIds.Contains(vw.ID))
-                .ToListAsync();            
+            vocabularyList.Words = await Database.QueryAsync<VocabularyWord>(@"
+                SELECT vw.*
+                FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
+                WHERE vw.ID = vlvw.VocabularyWordId
+                AND vlvw.VocabularyListId = ?", vocabularyList.ID);          
         }
         
         return vocabularyList;
