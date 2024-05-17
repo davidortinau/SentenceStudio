@@ -94,6 +94,14 @@
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="True" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Keyboard">
@@ -104,12 +112,32 @@
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="False" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter TargetName="VocabBlocks"
+                                            Property="l:HorizontalWrapLayout.IsVisible"
+                                            Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Mic">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="Pink" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="True" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="True" />
+                                    <Setter TargetName="VocabBlocks"
+                                            Property="l:HorizontalWrapLayout.IsVisible"
+                                            Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -146,7 +174,20 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </l:HorizontalWrapLayout>
+                    <Button Grid.Row="0"
+                            Grid.Column="1"
+                            x:Name="ListenButton"
+                            ImageSource="{mi:SegoeFluent Icon=Record2, IconSize=24}"
+                            Background="Transparent"
+                            Command="{Binding StartListeningCommand}" />
+                    <Button Grid.Row="0"
+                            Grid.Column="2"
+                            x:Name="CancelButton"
+                            ImageSource="{mi:SegoeFluent Icon=Stop, IconSize=24}"
+                            Background="Transparent"
+                            Command="{Binding StopListeningCommand}" />
                 </Grid>
+
                 <!-- HUD with progress -->
                 <Grid Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}">
                     <Label Text="{Binding Progress}"

@@ -105,6 +105,11 @@ public class VocabularyService
             {
                 result = await Database.UpdateAsync(list);
                 result = await Database.UpdateAllAsync(list.Words);
+                
+                foreach (var term in list.Words)
+                {
+                    await SaveWordToListAsync(term, list.ID);
+                }
             }
             catch (Exception ex)
             {
@@ -126,7 +131,7 @@ public class VocabularyService
                     {
                         // term.VocabularyListId = list.ID;
                         await SaveWordAsync(term);
-                        await SaveWordToList(term, list.ID);
+                        await SaveWordToListAsync(term, list.ID);
                     }
                 }
             }
@@ -139,13 +144,21 @@ public class VocabularyService
         return list.ID;
     }
 
-    private async Task SaveWordToList(VocabularyWord term, int listID)
+    public async Task SaveWordToListAsync(VocabularyWord term, int listID)
     {
         await Init();
         VocabularyListVocabularyWord listWord = new VocabularyListVocabularyWord();
         listWord.VocabularyListId = listID;
         listWord.VocabularyWordId = term.ID;
-        await Database.InsertAsync(listWord);
+
+        var existingListWord = await Database.Table<VocabularyListVocabularyWord>()
+            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == term.ID)
+            .FirstOrDefaultAsync();
+
+        if (existingListWord is null)
+        {
+            await Database.InsertAsync(listWord);
+        }
     }
 
     public async Task<bool> DeleteListAsync(VocabularyList list)
@@ -197,6 +210,18 @@ public class VocabularyService
     {
         await Init();
         return await Database.DeleteAsync(word);
+    }
+
+    public async Task<int> DeleteWordFromListAsync(VocabularyWord word, int listID)
+    {
+        await Init();
+        var listWord = await Database.Table<VocabularyListVocabularyWord>()
+            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == word.ID)
+            .FirstOrDefaultAsync();
+        if(listWord is not null)
+            return await Database.DeleteAsync(listWord);
+        else
+            return 0;
     }
 
 

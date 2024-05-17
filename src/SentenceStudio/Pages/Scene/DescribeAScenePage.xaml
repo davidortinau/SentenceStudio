@@ -8,7 +8,6 @@
              xmlns:s="clr-namespace:SentenceStudio.Services"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:model="clr-namespace:SentenceStudio.Models"
-             xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Scene.DescribeAScenePage"
              Title="{Binding Localize[DescribeAScene]}"
              x:DataType="scene:DescribeAScenePageModel"
@@ -89,7 +88,7 @@
                     <TextCell 
                         Text="{Binding Answer}"
                         Detail="{Binding Accuracy, StringFormat='Accuracy: {0}'}"
-                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand, x:DataType=scene:DescribeAScenePageModel}"
                         CommandParameter="{Binding .}"/>
                 </DataTemplate>
             </ListView.ItemTemplate>

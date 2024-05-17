@@ -1,15 +1,7 @@
 ﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
-using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Maui.Core;
-using CommunityToolkit.Maui.Views;
-using SentenceStudio.Models;
-using SentenceStudio.Pages.Controls;
-using SentenceStudio.Services;
-using Sharpnado.Tasks;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core.Platform;
-
 
 namespace SentenceStudio.Pages.Lesson;
 
@@ -97,6 +89,9 @@ public partial class WritingPageModel : BaseViewModel
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GradeMe()
     {
+        if(ShowMore && string.IsNullOrWhiteSpace(UserMeaning))
+            return;
+
         if(Sentences is null)
             Sentences = new ObservableCollection<Sentence>();
 
@@ -192,6 +187,15 @@ public partial class WritingPageModel : BaseViewModel
     [RelayCommand]
     async Task HideKeyboard(ITextInput view, CancellationToken token)
     {
-        bool isSuccessful = await view.HideKeyboardAsync(token);
+        bool isSuccessful = await view.HideKeyboardAsync(CancellationToken.None);
+    }
+
+    [ObservableProperty]
+    private bool _showMore;
+
+    [RelayCommand]
+    async Task ToggleMore()
+    {
+        ShowMore = !ShowMore;
     }
 }

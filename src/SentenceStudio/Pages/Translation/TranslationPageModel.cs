@@ -1,6 +1,12 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
+using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Media;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -12,6 +18,17 @@ public partial class TranslationPageModel : BaseViewModel
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
     private AiService _aiService;
+
+    readonly ISpeechToText _speechToText;
+
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(StartListeningCommand))]
+	bool canListenExecute = true;
+
+	[ObservableProperty, NotifyCanExecuteChangedFor(nameof(StartListeningCommand))]
+	bool canStartListenExecute = true;
+
+	[ObservableProperty, NotifyCanExecuteChangedFor(nameof(StopListeningCommand))]
+	bool canStopListenExecute = false;
 
     public int ListID { get; set; }
     public string PlayMode { get; set; }
@@ -58,6 +75,25 @@ public partial class TranslationPageModel : BaseViewModel
         get => _teacherService.Words;
     }
 
+    public TranslationPageModel(IServiceProvider service, ISpeechToText speechToText)
+    {
+        _teacherService = service.GetRequiredService<TeacherService>();
+        _vocabularyService = service.GetRequiredService<VocabularyService>();
+        _aiService = service.GetRequiredService<AiService>();
+        TaskMonitor.Create(GetSentences);
+
+        _speechToText = speechToText;
+        // _speechToText.StateChanged += HandleSpeechToTextStateChanged;
+		// _speechToText.RecognitionResultCompleted += HandleRecognitionResultCompleted;
+    }
+    public async Task GetSentences()
+    {
+        await Task.Delay(100);
+        IsBusy = true;
+        Sentences = await _teacherService.GetChallenges(ListID);
+        SetCurrentSentence();
+    }
+
     void SetCurrentSentence()
     {
         if (Sentences != null && Sentences.Count > 0)
@@ -81,21 +117,6 @@ public partial class TranslationPageModel : BaseViewModel
             Progress = $"{10 - Sentences.Count} / 10";
             IsBusy = false;
         }
-    }
-
-    public TranslationPageModel(IServiceProvider service)
-    {
-        _teacherService = service.GetRequiredService<TeacherService>();
-        _vocabularyService = service.GetRequiredService<VocabularyService>();
-        _aiService = service.GetRequiredService<AiService>();
-        TaskMonitor.Create(GetSentences);
-    }
-    public async Task GetSentences()
-    {
-        await Task.Delay(100);
-        IsBusy = true;
-        Sentences = await _teacherService.GetChallenges(ListID);
-        SetCurrentSentence();
     }
 
     [RelayCommand]
@@ -158,6 +179,62 @@ public partial class TranslationPageModel : BaseViewModel
     {
         UserInput += word;
     }
+
+    [RelayCommand(IncludeCancelCommand = true, CanExecute = nameof(CanListenExecute))]
+    async Task StartListening(CancellationToken cancellationToken)
+    {
+        CanListenExecute = false;
+		CanStartListenExecute = false;
+		CanStopListenExecute = true;
+
+		var isGranted = await _speechToText.RequestPermissions(cancellationToken);
+		if (!isGranted)
+		{
+			await Toast.Make("Permission not granted").Show(cancellationToken);
+			return;
+		}
+
+		const string beginSpeakingPrompt = "Begin speaking...";
+
+		UserInput = beginSpeakingPrompt;
+
+		await _speechToText.StartListenAsync(CultureInfo.GetCultureInfo("ko-KR"), cancellationToken);
+
+		_speechToText.RecognitionResultUpdated += HandleRecognitionResultUpdated;
+
+		if (UserInput is beginSpeakingPrompt)
+		{
+			UserInput = string.Empty;
+		}
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopListenExecute))]
+    async Task StopListening(CancellationToken cancellationToken)
+	{
+		CanListenExecute = true;
+		CanStartListenExecute = true;
+		CanStopListenExecute = false;
+
+		_speechToText.RecognitionResultUpdated -= HandleRecognitionResultUpdated;
+
+		_speechToText.StopListenAsync(cancellationToken);
+	}
+
+    void HandleRecognitionResultUpdated(object? sender, SpeechToTextRecognitionResultUpdatedEventArgs e)
+	{
+		UserInput += e.RecognitionResult;
+	}
+
+	void HandleRecognitionResultCompleted(object? sender, SpeechToTextRecognitionResultCompletedEventArgs e)
+	{
+		UserInput = e.RecognitionResult;
+	}
+
+	async void HandleSpeechToTextStateChanged(object? sender, SpeechToTextStateChangedEventArgs e)
+	{
+		await Toast.Make($"State Changed: {e.State}").Show(CancellationToken.None);
+	}
+
 
 
 }

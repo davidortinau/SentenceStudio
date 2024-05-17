@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
@@ -24,7 +25,7 @@ public partial class EditVocabularyPageModel : ObservableObject
     private VocabularyList _vocabList;
     
     [ObservableProperty]
-    List<VocabularyWord> _words;
+    ObservableCollection<VocabularyWord> _words;
 
     [ObservableProperty]
     string _vocabListName;
@@ -41,14 +42,14 @@ public partial class EditVocabularyPageModel : ObservableObject
         
         _vocabList = await _vocabService.GetListAsync(ListId);
         VocabListName = _vocabList.Name;
-        Words = _vocabList.Words;
+        Words = new ObservableCollection<VocabularyWord>(_vocabList.Words);
     }
 
     [RelayCommand]
     async Task SaveVocab()
     {
         _vocabList.Name = VocabListName;
-        _vocabList.Words = Words;
+        _vocabList.Words = Words.ToList();
         
        var listId = await _vocabService.SaveListAsync(_vocabList);
         
@@ -67,5 +68,22 @@ public partial class EditVocabularyPageModel : ObservableObject
         {
             Debug.WriteLine($"{ex.Message}");
         }
+    }
+
+    [RelayCommand]
+    async Task DeleteVocab(VocabularyWord word)
+    {
+        Words.Remove(word);
+        await _vocabService.DeleteWordAsync(word);
+        await _vocabService.DeleteWordFromListAsync(word, _vocabList.ID);
+    }
+
+    [RelayCommand]
+    async Task AddVocab()
+    {
+        var word = new VocabularyWord();
+        Words.Insert(0, word);
+        await _vocabService.SaveWordAsync(word);
+        await _vocabService.SaveWordToListAsync(word, _vocabList.ID);
     }
 }

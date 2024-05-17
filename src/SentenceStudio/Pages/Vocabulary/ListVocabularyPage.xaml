@@ -38,7 +38,7 @@
                                             Background="Transparent"
                                             HorizontalOptions="End"
                                             VerticalOptions="Start"
-                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                             CommandParameter="{Binding ID}"/>
 
                                     <HorizontalStackLayout 
@@ -49,17 +49,17 @@
                                         <Button ImageSource="{mi:SegoeFluent Icon=ComposeMode, IconSize=24}"
                                                 Background="Transparent"
                                                 Padding="0"
-                                                Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                                Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                                 CommandParameter="{Binding ID}"/>
                                         <Button ImageSource="{mi:SegoeFluent Icon=Pencil, IconSize=24}"
                                                 Background="Transparent"
                                                 Padding="0"
-                                                Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                                Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                                 CommandParameter="{Binding ID}"/>
                                     </HorizontalStackLayout>
                                     <Grid.GestureRecognizers>
                                         <TapGestureRecognizer 
-                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                             CommandParameter="{Binding ID}" />
                                     </Grid.GestureRecognizers>
                                 </Grid>                    

@@ -88,7 +88,7 @@
                     </Border>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer 
-                            Command="{Binding ShowExplanationCommand, Source={RelativeSource AncestorType={x:Type lesson:WarmupPageModel}}}" 
+                            Command="{Binding ShowExplanationCommand, Source={RelativeSource AncestorType={x:Type lesson:WarmupPageModel}},x:DataType=lesson:WarmupPageModel}" 
                             CommandParameter="{Binding .}"/>
                     </Grid.GestureRecognizers>
                 </Grid>

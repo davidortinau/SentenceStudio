@@ -1,26 +1,21 @@
 ﻿using CommunityToolkit.Maui;
-using Microsoft.Extensions.Logging;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Lesson;
-using SentenceStudio.Services;
 using SentenceStudio.Pages.Vocabulary;
 using Microsoft.Maui.Platform;
 using MauiIcons.SegoeFluent;
 using Microsoft.Maui.Handlers;
-using System.Diagnostics;
 using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
 #if ANDROID || IOS || MACCATALYST
 using Shiny;
 #endif
-using CommunityToolkit.Maui.ApplicationModel;
 using SentenceStudio.Pages.Scene;
-using System.Reflection;
-using System.Reactive;
 using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Translation;
+using CommunityToolkit.Maui.Media;
 
 namespace SentenceStudio;
 
@@ -54,9 +49,6 @@ public static class MauiProgram
 
         //builder.Configuration.AddConfiguration(new ConfigurationBuilder().AddConfiguration("appsettings.json").Build());
 
-#if DEBUG
-        builder.Logging.AddDebug();
-#endif
 
 		builder.Services.AddSingleton<TeacherService>();
 		builder.Services.AddSingleton<VocabularyService>();
@@ -97,11 +89,23 @@ public static class MauiProgram
         builder.Configuration.AddConfiguration(config);
 #endif
 
-
+		builder.Services.AddSingleton<ISpeechToText>(SpeechToText.Default);
         builder.Services.AddFilePicker();
 
 		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+
+// 		builder.Services.AddLogging(logging =>
+// 			{
+// #if WINDOWS
+// 				logging.AddDebug();
+// #else
+// 				logging.AddConsole();
+// #endif
+
+// 				// Enable maximum logging for BlazorWebView
+// 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
+// 			});
 		
 		return builder.Build();
 	}
@@ -128,6 +132,7 @@ public static class MauiProgram
             handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
 #elif IOS || MACCATALYST
             handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
+			// (handler.PlatformView as UITextField).InlinePredictionType = UITextInlinePredictionType.Yes;
 #elif WINDOWS
             handler.PlatformView.FontWeight = Microsoft.UI.Text.FontWeights.Thin;
             handler.PlatformView.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
