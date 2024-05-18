@@ -6,6 +6,9 @@ public partial class BaseViewModel : ObservableObject
     [ObservableProperty]
     private bool _isConnected;
 
+    [ObservableProperty]
+    private bool _isBusy;
+
     public BaseViewModel()
     {
         Connectivity.Current.ConnectivityChanged += OnConnectivityChanged;

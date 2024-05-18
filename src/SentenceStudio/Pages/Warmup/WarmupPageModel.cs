@@ -20,9 +20,6 @@ public partial class WarmupPageModel : BaseViewModel
     [ObservableProperty]
     private string _userInput;
 
-    [ObservableProperty]
-    private bool _isBusy;
-
     [ObservableProperty] 
     private ObservableCollection<ConversationChunk> _chunks;
 

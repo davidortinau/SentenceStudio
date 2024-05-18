@@ -65,9 +65,6 @@ public partial class TranslationPageModel : BaseViewModel
     private bool _hasFeedback;
 
     [ObservableProperty]
-    private bool _isBusy;
-
-    [ObservableProperty]
     private string _feedback;
 
     public List<VocabularyWord> Words

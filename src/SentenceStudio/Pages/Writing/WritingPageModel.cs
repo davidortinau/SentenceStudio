@@ -53,9 +53,6 @@ public partial class WritingPageModel : BaseViewModel
     [ObservableProperty]
     private bool _hasFeedback;
 
-    [ObservableProperty]
-    private bool _isBusy;
-
     public List<VocabularyWord> Words
     {
         get => _teacherService.Words;

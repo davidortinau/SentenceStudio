@@ -148,5 +148,13 @@
     <data name="ParseASentence" xml:space="preserve">
         <value>문장 분석하기</value>
     </data>
-    
+    <data name="CreateStarterVocabPrompt" xml:space="preserve">
+        <value>스타터 어휘 목록을 생성하시겠습니까?</value>
+    </data>
+    <data name="Yes" xml:space="preserve">
+        <value>예</value>
+    </data>
+    <data name="NoVocabPromptResponse" xml:space="preserve">
+        <value>아니요, 제가 직접 할게요</value>
+    </data>
 </root>

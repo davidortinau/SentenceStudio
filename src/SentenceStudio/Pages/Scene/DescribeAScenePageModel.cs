@@ -27,10 +27,7 @@ public partial class DescribeAScenePageModel : BaseViewModel
     private string _imageUrl = "https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png";
     
     [ObservableProperty]
-    private string _userInput;
-
-    [ObservableProperty]
-    private bool _isBusy;
+    private string _userInput;    
     
     public DescribeAScenePageModel(IServiceProvider service)
     {

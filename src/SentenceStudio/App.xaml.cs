@@ -15,7 +15,11 @@ public partial class App : Application
 	{
 		InitializeComponent();
 
-		CultureInfo.CurrentUICulture = new CultureInfo( "ko", false );
+		Debug.WriteLine($"AppStart Culture: {CultureInfo.CurrentUICulture.Name}");
+
+		// CultureInfo.CurrentUICulture = new CultureInfo( "ko-KR", false );
+
+		// Debug.WriteLine($"New Culture: {CultureInfo.CurrentUICulture.Name}");
 
 		MainPage = new AppShell();     
 

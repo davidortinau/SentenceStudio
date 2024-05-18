@@ -14,7 +14,8 @@ public partial class AppShellModel : ObservableObject
     [RelayCommand]
     async Task ChangeUILanguage()
     {
-        var culture = (CultureInfo.CurrentUICulture.Name == "ko") ? "en" : "ko";
+        Debug.WriteLine($"ChangeUILanguage Current Culture: {CultureInfo.CurrentUICulture.Name}");
+        var culture = (CultureInfo.CurrentUICulture.Name == "ko-KR") ? "en-US" : "ko-KR";
         Localize.SetCulture(new CultureInfo( culture, false ));
         await _userProfileService.SaveDisplayCultureAsync(culture);
 

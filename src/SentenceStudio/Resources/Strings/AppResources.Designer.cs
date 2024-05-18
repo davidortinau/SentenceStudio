@@ -121,6 +121,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Would you like me to create a starter vocabulary list for you?.
+        /// </summary>
+        internal static string CreateStarterVocabPrompt {
+            get {
+                return ResourceManager.GetString("CreateStarterVocabPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Describe a Scene.
         /// </summary>
         internal static string DescribeAScene {
@@ -184,6 +193,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No, I&apos;ll do it myself.
+        /// </summary>
+        internal static string NoVocabPromptResponse {
+            get {
+                return ResourceManager.GetString("NoVocabPromptResponse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Parse a Sentence.
         /// </summary>
         internal static string ParseASentence {
@@ -207,6 +225,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Save {
             get {
                 return ResourceManager.GetString("Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saved.
+        /// </summary>
+        internal static string Saved {
+            get {
+                return ResourceManager.GetString("Saved", resourceCulture);
             }
         }
         
@@ -306,6 +333,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Write {
             get {
                 return ResourceManager.GetString("Write", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Yes.
+        /// </summary>
+        internal static string Yes {
+            get {
+                return ResourceManager.GetString("Yes", resourceCulture);
             }
         }
     }

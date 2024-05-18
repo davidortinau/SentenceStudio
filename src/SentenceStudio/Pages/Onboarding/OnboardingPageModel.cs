@@ -6,7 +6,7 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Onboarding;
 
-public partial class OnboardingPageModel : ObservableObject
+public partial class OnboardingPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
@@ -35,11 +35,6 @@ public partial class OnboardingPageModel : ObservableObject
         
     }
 
-    
-
-
-    
-
     [RelayCommand]
     public async Task End()
     {
@@ -59,9 +54,16 @@ public partial class OnboardingPageModel : ObservableObject
         var lists = await _vocabularyService.GetListsAsync();
         if(lists.Count == 0)
         {
-            var response = await Shell.Current.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
-            if(response)
+            var response = await Shell.Current.DisplayAlert(
+                Localize["VocabularyList"].ToString(), 
+                Localize["CreateStarterVocabPrompt"].ToString(), 
+                Localize["Yes"].ToString(), 
+                Localize["No, I'll do it myself"].ToString());
+            if(response){
+                IsBusy = true;
                 await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+                IsBusy = false;
+            }
 
         }
 

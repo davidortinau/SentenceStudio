@@ -35,9 +35,6 @@ public partial class AnalysisPageModel : BaseViewModel
     [ObservableProperty]
     private string _progress;
 
-    [ObservableProperty]
-    private bool _isBusy;
-
     void SetCurrentSentence()
     {
         if (Sentences != null && Sentences.Count > 0)

@@ -12,6 +12,30 @@
     xmlns:onboarding="clr-namespace:SentenceStudio.Pages.Onboarding;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}">
 
+    <Shell.ItemTemplate>
+        <DataTemplate>
+            <Grid Padding="{StaticResource size120}">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Selected">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" 
+                                Value="{StaticResource Primary}" />
+                            <Setter TargetName="TitleLabel"
+                                Property="Label.TextColor" 
+                                Value="White" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+                <Label Text="{Binding Title}" 
+                    x:Name="TitleLabel"
+                />
+            </Grid>
+        </DataTemplate>
+    </Shell.ItemTemplate>
+
     <!-- Show oboarding first -->
     <ShellContent
         Title="{Binding Localize[TitleDashboard]}"
@@ -50,13 +74,5 @@
         </Grid>
     </Shell.FlyoutFooter>
 
-
-    <!-- <Shell.ItemTemplate>
-        <DataTemplate>
-            <Grid>
-                <Label Text="{Binding Title}" TextColor="Black"/>
-            </Grid>
-        </DataTemplate>
-    </Shell.ItemTemplate> -->
     
 </Shell>

@@ -13,7 +13,7 @@
         <CarouselView Grid.Row="0"
                 HorizontalScrollBarVisibility="Never"
                 IndicatorView="Indicators"
-                IsSwipeEnabled="True"
+                IsSwipeEnabled="False"
                 Loop="False"
                 Position="{Binding CurrentPosition}">
             <CarouselView.ItemsSource>
@@ -143,6 +143,21 @@
                     SelectedIndicatorColor="{StaticResource Primary}" />
             </Grid>
 
+        <AbsoluteLayout x:Name="LoadingOverlay"
+                        IsVisible="{Binding IsBusy}"
+                        BackgroundColor="#80000000"
+                        Grid.RowSpan="2">
+                        <ActivityIndicator 
+                            Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            AbsoluteLayout.LayoutFlags="PositionProportional"
+                            AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                        />
+            <!-- <Label Text="Thinking..."
+                   FontSize="64"
+                   AbsoluteLayout.LayoutFlags="PositionProportional"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" /> -->
+        </AbsoluteLayout>
     </Grid>
 
 

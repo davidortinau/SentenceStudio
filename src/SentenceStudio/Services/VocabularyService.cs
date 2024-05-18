@@ -122,8 +122,7 @@ public class VocabularyService
             {
                 result = await Database.InsertAsync(list);
 
-                // list.Words = new List<Event> { event1 };
-                
+                // list.Words = new List<Event> { event1 };                
             
                 if (list.Words != null)
                 {
