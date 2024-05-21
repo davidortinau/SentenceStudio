@@ -16,6 +16,7 @@ using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Translation;
 using CommunityToolkit.Maui.Media;
+using The49.Maui.BottomSheet;
 
 namespace SentenceStudio;
 
@@ -31,6 +32,7 @@ public static class MauiProgram
 			#endif
             .UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
+			.UseBottomSheet()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");

@@ -21,10 +21,10 @@
             Command="{Binding ViewDescriptionCommand}" />
         <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=Switch, IconSize=24}"   
-            Command="{Binding SwapImageCommand}" />
-        <ToolbarItem 
+            Command="{Binding ManageImagesCommand}" />
+        <!-- <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize=24}"            
-            Command="{Binding LoadImageCommand}" />
+            Command="{Binding LoadImageCommand}" /> -->
     </ContentPage.ToolbarItems>
 
     <Grid 

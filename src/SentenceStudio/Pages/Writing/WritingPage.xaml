@@ -101,11 +101,9 @@
     <ContentPage.ToolbarItems>
         <ToolbarItem IconImageSource="{mi:SegoeFluent Icon=Refresh, IconSize={StaticResource IconSize}}"
                      Command="{Binding RefreshVocabCommand}" />
-    </ContentPage.ToolbarItems>
+    </ContentPage.ToolbarItems>    
 
-    
-
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid x:Name="PageContainer" RowDefinitions="Auto,*,Auto">
         <Grid.GestureRecognizers>
             <TapGestureRecognizer Command="{Binding HideKeyboardCommand}" CommandParameter="{x:Reference Name=UserInputField}" />
         </Grid.GestureRecognizers>  

@@ -156,7 +156,7 @@ public partial class DashboardPageModel : BaseViewModel
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
     async Task DescribeAScene()
     {
-        await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
+        // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
         try{
             await Shell.Current.GoToAsync($"describeScene");
         }catch(Exception ex)

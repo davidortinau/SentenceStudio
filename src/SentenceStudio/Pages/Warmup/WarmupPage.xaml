@@ -124,6 +124,7 @@
             
             <Grid Margin="15"
                 Grid.Row="1"
+                x:Name="InputUI"
                 VerticalOptions="End"
                 ColumnDefinitions="*,Auto"
                 ColumnSpacing="15">

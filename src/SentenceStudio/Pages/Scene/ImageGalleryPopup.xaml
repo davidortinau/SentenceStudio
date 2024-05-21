@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:scene="clr-namespace:SentenceStudio.Pages.Scene"
+             xmlns:m="clr-namespace:SentenceStudio.Models"
+             Color="{OnPlatform Transparent, WinUI=White}"
+             x:DataType="scene:DescribeAScenePageModel"
+             HorizontalOptions="Fill"
+             VerticalOptions="Fill"
+             x:Class="SentenceStudio.Pages.Scene.ImageGalleryPopup">
+    <Grid RowDefinitions="Auto,*,Auto" 
+        Padding="{StaticResource size240}"
+        RowSpacing="{StaticResource size120}"
+        Margin="{StaticResource size240}">
+        <Label Text="Choose an image" 
+            HorizontalOptions="Start"
+            HorizontalTextAlignment="Start"
+            Style="{StaticResource Title1}" />
+        <HorizontalStackLayout 
+            Spacing="{StaticResource size60}" 
+            CompressedLayout.IsHeadless="True"
+            HorizontalOptions="End"> 
+            
+            <Button 
+                ImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize={StaticResource IconSizeSmall}}"
+                BackgroundColor="Transparent"
+                TextColor="Black"
+                Padding="0" 
+                Margin="0"
+                VerticalOptions="Center"
+                Command="{Binding LoadImageCommand}"
+                IsVisible="{Binding IsDeleteVisible,Converter={StaticResource InvertedBoolConverter}}"
+            />
+            
+            <Button 
+                ImageSource="{mi:SegoeFluent Icon=CheckboxCompositeReversed, IconSize={StaticResource IconSizeSmall}}"
+                BackgroundColor="Transparent"
+                TextColor="Black"
+                Padding="0" 
+                Margin="0"
+                VerticalOptions="Center"
+                Command="{Binding ToggleSelectionCommand}"
+            />
+            <Button 
+                ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSizeSmall}}"
+                BackgroundColor="Transparent"
+                TextColor="Black"
+                Padding="0" 
+                Margin="0"
+                VerticalOptions="Center"
+                IsVisible="{Binding IsDeleteVisible}"
+                Command="{Binding DeleteImagesCommand}"
+            />
+        </HorizontalStackLayout>
+        <CollectionView 
+            Grid.Row="1"
+            ItemsSource="{Binding Images}"
+            SelectionMode="{Binding SelectionMode}"
+            SelectedItems="{Binding SelectedImages}"
+            >
+            <CollectionView.ItemsLayout>
+                <GridItemsLayout Span="4" Orientation="Vertical" 
+                    VerticalItemSpacing="{StaticResource size240}"
+                    HorizontalItemSpacing="{StaticResource size240}" />
+            </CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="m:SceneImage">
+                    <Grid>
+                        <!-- <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal">
+                                    <VisualState.Setters>
+                                        
+                                        <Setter
+                                            TargetName="CheckIcon"
+                                            Property="Image.IsVisible"
+                                            Value="False"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Selected">
+                                    <VisualState.Setters>
+                                        
+                                        <Setter
+                                            TargetName="CheckIcon"
+                                            Property="Image.IsVisible"
+                                            Value="True"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups> -->
+                        <!-- <Grid.Behaviors>
+                            <toolkit:TouchBehavior
+                                LongPressDuration="750"
+                                LongPressCommand="{Binding Source={x:Reference Page}, Path=LongPressCommand, x:DataType=scene:DescribeAScenePageModel}"
+                                LongPressCommandParameter="{Binding .}"
+                            />
+                        </Grid.Behaviors> -->
+                        <Image 
+                            Source="{Binding Url}" 
+                            Aspect="AspectFill"
+                            HeightRequest="100">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer 
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=SelectImageCommand, x:DataType=scene:DescribeAScenePageModel}" 
+                                    CommandParameter="{Binding .}" />
+                            </Image.GestureRecognizers>
+                        </Image>
+                        <Image
+                            Source="{mi:SegoeFluent Icon=Checkbox, 
+                                        IconSize={StaticResource IconSizeSmall},
+                                        IconColor=White}"
+                            VerticalOptions="End"
+                            HorizontalOptions="End"
+                            IsVisible="{Binding IsSelecting, Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}},x:DataType=scene:DescribeAScenePageModel}"
+                            Margin="4"/>
+                        <Image
+                            x:Name="CheckIcon"
+                            Source="{mi:SegoeFluent Icon=CheckboxCompositeReversed, 
+                                        IconSize={StaticResource IconSizeSmall},
+                                        IconColor=White}"
+                            VerticalOptions="End"
+                            HorizontalOptions="End"
+                            IsVisible="{Binding IsSelected}"
+                            Margin="4"/>
+                    </Grid>
+                    
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+        <Button Text="Close" Clicked="OnCloseClicked" Grid.Row="2"/>
+    </Grid>
+</toolkit:Popup>
