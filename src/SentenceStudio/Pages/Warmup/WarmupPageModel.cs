@@ -66,7 +66,7 @@ public partial class WarmupPageModel : BaseViewModel
         
         // var response = await _conversationService.StartConversation();
         // chunk.Text = response;
-        chunk.Text = "안녕하세요. 이름이 워예요?";
+        chunk.Text = "안녕하세요. 이름이 뭐예요?";
 
         await _conversationService.SaveConversationChunk(chunk);
 

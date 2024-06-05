@@ -3,13 +3,13 @@ using SentenceStudio.Models;
 using SQLite;
 using SentenceStudio.Common;
 
-namespace SentenceStudio.Services;
+namespace SentenceStudio.Data;
 
-public class UserActivityService
+public class UserActivityRepository
 {
     private SQLiteAsyncConnection Database;
 
-    public UserActivityService()
+    public UserActivityRepository()
     {
         
     }

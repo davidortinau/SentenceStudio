@@ -166,6 +166,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to I see....
+        /// </summary>
+        internal static string ISee {
+            get {
+                return ResourceManager.GetString("ISee", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to My Profile.
         /// </summary>
         internal static string MyProfile {

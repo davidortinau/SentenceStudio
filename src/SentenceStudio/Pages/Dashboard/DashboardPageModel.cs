@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
+using SentenceStudio.Data;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
@@ -18,11 +19,15 @@ public partial class DashboardPageModel : BaseViewModel
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
         _userService = service.GetRequiredService<UserProfileService>();
-        _userActivityService = service.GetRequiredService<UserActivityService>();
+        _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
         TaskMonitor.Create(GetLists);
     }
 
-    
+    public async Task<List<UserActivity>> GetWritingActivity()
+    {
+        return await _userActivityRepository.ListAsync();
+    }
+
     private async Task GetLists()
     {
         VocabLists = await _vocabService.GetListsAsync();
@@ -71,7 +76,7 @@ public partial class DashboardPageModel : BaseViewModel
     public VocabularyService _vocabService { get; }
 
     private UserProfileService _userService;
-    private UserActivityService _userActivityService;
+    private UserActivityRepository _userActivityRepository;
     
 
     [RelayCommand]
@@ -146,7 +151,7 @@ public partial class DashboardPageModel : BaseViewModel
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
 
         try{
-            await Shell.Current.GoToAsync($"writingLesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"writingLesson?listID={listID}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -176,5 +181,8 @@ public partial class DashboardPageModel : BaseViewModel
         }
     }
 
+    // A method that provides recent activity summary to AI
+    // and returns a proposed set of activity for the day
+    // would need to track progress until either completion or a new day
     
 }

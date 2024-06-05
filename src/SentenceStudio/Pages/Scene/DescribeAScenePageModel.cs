@@ -49,6 +49,9 @@ public partial class DescribeAScenePageModel : BaseViewModel
 
         ImageUrl = image.Url;
         Description = image.Description;
+
+        if(string.IsNullOrWhiteSpace(Description))
+            await GetDescription();
     }
 
     private async Task ShowError()
@@ -65,7 +68,6 @@ public partial class DescribeAScenePageModel : BaseViewModel
     [RelayCommand]
     async Task GetDescription()
     {
-        
         if(string.IsNullOrWhiteSpace(ImageUrl))
             return;
 
@@ -293,14 +295,12 @@ public partial class DescribeAScenePageModel : BaseViewModel
         {
             Debug.WriteLine($"Swap for {image.Url}");
             ImageUrl = image.Url;
-            if(string.IsNullOrWhiteSpace(image.Description))
-                await GetDescription();
-            
             Description = image.Description;
             Sentences?.Clear();
+            if(string.IsNullOrWhiteSpace(image.Description))
+                await GetDescription();            
+                        
         }
-
-        
     }
 
     [ObservableProperty]

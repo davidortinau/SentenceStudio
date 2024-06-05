@@ -10,7 +10,8 @@
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
     xmlns:account="clr-namespace:SentenceStudio.Pages.Account;assembly=SentenceStudio"
     xmlns:onboarding="clr-namespace:SentenceStudio.Pages.Onboarding;assembly=SentenceStudio"
-    Title="{x:Static resx:AppResources.AppTitle}">
+    Title="{x:Static resx:AppResources.AppTitle}"
+    Navigating="Shell_Navigating">
 
     <Shell.ItemTemplate>
         <DataTemplate>
@@ -36,32 +37,92 @@
         </DataTemplate>
     </Shell.ItemTemplate>
 
+    <Shell.FlyoutContentTemplate>
+        <DataTemplate>
+            <VerticalStackLayout>
+                <VerticalStackLayout.Resources>
+                    <Style TargetType="Label">
+                        <Setter Property="Padding" Value="{StaticResource size120}"/>
+                        <Setter Property="VisualStateManager.VisualStateGroups">
+                            <VisualStateGroupList>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="Selected">
+                                        <VisualState.Setters>
+                                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />
+                                            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateGroupList>
+                        </Setter>
+                    </Style>
+
+                </VerticalStackLayout.Resources>
+
+                <Label Text="{Binding Localize[TitleDashboard]}" 
+                     >
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToCommand}"
+                                        CommandParameter="dashboard" />
+                    </Label.GestureRecognizers>
+                </Label>
+                <Label Text="{Binding Localize[StartLesson]}">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToCommand}"
+                                        CommandParameter="newLesson" />
+                    </Label.GestureRecognizers>
+                </Label> 
+                <Label Text="{Binding Localize[VocabularyList]}">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToCommand}"
+                                        CommandParameter="vocabulary" />
+                    </Label.GestureRecognizers>
+                </Label>
+                <Label Text="{Binding Localize[MyProfile]}">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToCommand}"
+                                        CommandParameter="userProfile" />
+                    </Label.GestureRecognizers>
+                </Label>
+                
+            </VerticalStackLayout>
+        </DataTemplate>
+    </Shell.FlyoutContentTemplate>
+
     <!-- Show oboarding first -->
-    <ShellContent
-        Title="{Binding Localize[TitleDashboard]}"
-        ContentTemplate="{DataTemplate onboarding:OnboardingPage}"
-        Route="onboarding" />
+    <TabBar>
+        <ShellContent
+            Title=""
+            ContentTemplate="{DataTemplate onboarding:OnboardingPage}"
+            Route="onboarding" />
+    </TabBar>
     
     <!-- App Content in Flyout -->
-    <ShellContent
-        Title="{Binding Localize[TitleDashboard]}"
-        ContentTemplate="{DataTemplate dashboard:DashboardPage}"
-        Route="dashboard" />
+    <FlyoutItem Title="{Binding Localize[TitleDashboard]}">
+        <ShellContent
+            
+            ContentTemplate="{DataTemplate dashboard:DashboardPage}"
+            Route="dashboard" />
+    </FlyoutItem>
 
-    <ShellContent
-        Title="{Binding Localize[StartLesson]}"
-        ContentTemplate="{DataTemplate lesson:LessonStartPage}"
-        Route="newLesson" />
+    <FlyoutItem Title="{Binding Localize[StartLesson]}">    
+        <ShellContent
+            ContentTemplate="{DataTemplate lesson:LessonStartPage}"
+            Route="newLesson" />
+    </FlyoutItem>
 
-    <ShellContent
-        Title="{Binding Localize[VocabularyList]}"
-        ContentTemplate="{DataTemplate vocabulary:ListVocabularyPage}"
-        Route="vocabulary" />
-
-    <ShellContent
-        Title="{Binding Localize[MyProfile]}"
-        ContentTemplate="{DataTemplate account:UserProfilePage}"
-        Route="userProfile" />
+    <FlyoutItem Title="{Binding Localize[VocabularyList]}">
+        <ShellContent
+            ContentTemplate="{DataTemplate vocabulary:ListVocabularyPage}"
+            Route="vocabulary" />
+    </FlyoutItem>
+    
+    <FlyoutItem Title="{Binding Localize[MyProfile]}">
+        <ShellContent
+            ContentTemplate="{DataTemplate account:UserProfilePage}"
+            Route="userProfile" />
+    </FlyoutItem>
 
     <Shell.FlyoutFooter>
         <Grid>

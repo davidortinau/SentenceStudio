@@ -107,6 +107,9 @@
     <data name="WhatDoYouSee" xml:space="preserve">
         <value>What do you see?</value>
     </data>
+    <data name="ISee" xml:space="preserve">
+        <value>I see...</value>
+    </data>
     <data name="Sentence" xml:space="preserve">
         <value>I wrote</value>
     </data>

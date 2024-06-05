@@ -1,7 +1,7 @@
-I am an English speaking student learning Korean. 
-Using this following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate for me 10 Korean sentences. The sentences may use 존댓말, 반말, or 혼잣말. 
+I am an English speaker learning Korean. 
+From among the following vocabulary words generate for me 5 sentence:  ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}). When choosing a subject, avoid using pronouns like he or she; instead subtitute names or titles like 김거은, 언니, 형, 선생님, 아저씨, 이모, and others.
 
-Here are some examples of sentences like you might generate when given vocabulary like 학생, 한국어, and 공부하다: 
+For example, here are sentences given the vocabulary 학생, 한국어, 공부하다, 많다, 음식, 매우다, 보통, 밥, 주말: 
 저는 학생이에요.
 왜 한국어를 공부해요?
 언제부토 한국어를 공부했어요?
@@ -11,7 +11,7 @@ Here are some examples of sentences like you might generate when given vocabular
 밥 먹을 때 소리내도 돼요?
 오늘 주말이라서 일 안 해도 돼요.
 
-Identify the parts of speech for the chunks of each sentence and include that in the response.
+{%{ Identify the parts of speech for the chunks of each sentence and include that in the response. }%}
 
 Format your response as json like this: 
 

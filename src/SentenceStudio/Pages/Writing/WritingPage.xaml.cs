@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
@@ -21,6 +22,7 @@ public partial class WritingPage : ContentPage
 	{
 		InitializeComponent();
 		BindingContext = _model = model;
+		_model.Sentences.CollectionChanged += CollectionChanged;
 
 #if IOS
 		NSNotificationCenter.DefaultCenter.AddObserver(UIKeyboard.WillShowNotification, KeyboardWillShow);
@@ -28,6 +30,18 @@ public partial class WritingPage : ContentPage
 #endif
 		
 	}
+
+    private void CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Add)
+        {
+            this.Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(100); // Wait for the UI to finish updating
+                await SentencesScrollView.ScrollToAsync(0, SentencesScrollView.ContentSize.Height, animated: true);
+            });
+        }
+    }
 
 #if IOS
 	private void KeyboardWillShow(NSNotification notification)

@@ -19,11 +19,13 @@ public partial class AppShellModel : ObservableObject
         Localize.SetCulture(new CultureInfo( culture, false ));
         await _userProfileService.SaveDisplayCultureAsync(culture);
 
+        TitleDashboard = "YOU GOT UPDATED!";
     }
 
     public AppShellModel(IServiceProvider serviceProvider)
     {
         _userProfileService = serviceProvider.GetRequiredService<UserProfileService>();
+        TaskMonitor.Create(LoadProfile);
     }
 
     public async Task LoadProfile()
@@ -33,5 +35,14 @@ public partial class AppShellModel : ObservableObject
             Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
             await Shell.Current.GoToAsync("//dashboard");
         }
+    }
+
+    [ObservableProperty]
+    private string _titleDashboard = "Dashboard";
+
+    [RelayCommand]
+    async Task NavigateTo(string route)
+    {
+        await Shell.Current.GoToAsync($"//{route}");
     }
 }

@@ -17,6 +17,9 @@ using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Translation;
 using CommunityToolkit.Maui.Media;
 using The49.Maui.BottomSheet;
+using SentenceStudio.Data;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+using OxyPlot.Maui.Skia;
 
 namespace SentenceStudio;
 
@@ -33,6 +36,8 @@ public static class MauiProgram
             .UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
+			.UseSkiaSharp()
+			.UseOxyPlotSkia()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
@@ -59,7 +64,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SceneImageService>();
 		builder.Services.AddSingleton<UserProfileService>();
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
-		builder.Services.AddSingleton<UserActivityService>();
+		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel>();

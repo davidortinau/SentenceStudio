@@ -73,13 +73,16 @@
         </VisualStateManager.VisualStateGroups>
 
 
-        <ListView x:Name="SentenceList" ItemsSource="{Binding Sentences}" Grid.Column="1" Grid.Row="1"
+        <ListView x:Name="SentenceList" 
+                Grid.Column="1" Grid.Row="1"
+                    ItemsSource="{Binding Sentences}" 
+                    
                   SelectionMode="None"
                   Margin="{StaticResource size160}"
                   SeparatorVisibility="None">
                   <ListView.Header>
                         <ContentView Padding="{StaticResource size160}">
-                            <Label Text="{Binding Localize[WhatDoYouSee]}"
+                            <Label Text="{Binding Localize[ISee]}"
                                     Style="{StaticResource Title1}" />
                         </ContentView>
                     </ListView.Header>
@@ -97,7 +100,7 @@
 
         <Grid Grid.Column="0" Grid.Row="1">
             <Image Source="{Binding ImageUrl}" 
-                    Aspect="AspectFit"
+                    Aspect="AspectFit" 
                     HorizontalOptions="Fill"
                     VerticalOptions="Start"
                     Margin="{StaticResource size160}" >                             

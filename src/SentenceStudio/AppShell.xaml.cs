@@ -8,10 +8,10 @@ public partial class AppShell : Shell
 {
     private AppShellModel _model;
 
-    public AppShell()
+    public AppShell(AppShellModel model) 
     {
         InitializeComponent();
-        
+        BindingContext = _model = model;         
     }
 	
 
@@ -31,10 +31,8 @@ public partial class AppShell : Shell
         
     }
 
-    protected override void OnHandlerChanged()
+    void Shell_Navigating(object sender, ShellNavigatingEventArgs e)
     {
-        base.OnHandlerChanged();
-        BindingContext = _model = this.Handler.MauiContext.Services.GetService<AppShellModel>();
-        TaskMonitor.Create(_model.LoadProfile);
+        Debug.WriteLine($"Navigating to {e.Target.Location}");
     }
 }

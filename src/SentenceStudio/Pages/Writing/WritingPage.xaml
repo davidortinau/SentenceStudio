@@ -76,7 +76,7 @@
                         
                     </SwipeItems>
                 </SwipeView.RightItems>
-                <Grid ColumnDefinitions="8*,2*,2*" RowDefinitions="45"
+                <Grid ColumnDefinitions="8*,2*" RowDefinitions="45"
                     Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
                     <Label Text="{Binding Answer}"
                         VerticalOptions="Center"
@@ -85,10 +85,6 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
                         Grid.Column="1" />
-                    <Label Text="{Binding Fluency}"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        Grid.Column="2" />
                 </Grid>
             </SwipeView>
         </DataTemplate>
@@ -107,12 +103,12 @@
         <Grid.GestureRecognizers>
             <TapGestureRecognizer Command="{Binding HideKeyboardCommand}" CommandParameter="{x:Reference Name=UserInputField}" />
         </Grid.GestureRecognizers>  
-        <Grid Margin="{StaticResource size160}"
-                ColumnDefinitions="{OnIdiom '8*,2*,2*,2*', Phone='8*,2*,2*,0'}">
+        <Grid Margin="{StaticResource size160}" 
+                ColumnDefinitions="{OnIdiom '8*,2*,2*,2*', Phone='8*,2*,0,0'}">
             <Label Text="{Binding Localize[Sentence]}"
                 Style="{StaticResource Title3}"
                 Grid.Column="0" />
-            <Label Text="{Binding Localize[Accuracy]}"
+            <Label Text="{OnIdiom {Binding Localize[Accuracy]}, Phone=Grade}"
                 Style="{StaticResource Title3}"
                 HorizontalOptions="Center"
                 Grid.Column="1" />
@@ -126,9 +122,10 @@
                 Grid.Column="3" />
         </Grid>
 
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout 
-                Margin="{StaticResource size160}"
+        <ScrollView Grid.Row="1" x:Name="SentencesScrollView">
+            <VerticalStackLayout
+                Margin="16,0"
+                Spacing="0"
                 BindableLayout.ItemsSource="{Binding Sentences}"
                 BindableLayout.ItemTemplateSelector="{StaticResource AnswerTemplateSelector}">
                 
@@ -178,7 +175,6 @@
                             FontSize="{OnIdiom 32, Phone=16}"
                             ReturnType="{Binding ShowMore, Converter={StaticResource BoolToReturnTypeConverter}}"
                             ReturnCommand="{Binding GradeMeCommand}"
-                            toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference IMeanToSayField}"
                             >
                         <Entry.Keyboard>
                             <Keyboard x:FactoryMethod="Create">
@@ -191,10 +187,12 @@
                     <Button ImageSource="{mi:SegoeFluent Icon=Dictionary, IconSize={StaticResource IconSize}}"
                             BackgroundColor="Transparent"
                             TextColor="Black"
+                            x:Name="TranslateButton"
                             Padding="0" Margin="0"
                             VerticalOptions="Center"
                             HorizontalOptions="End"
                             Command="{Binding TranslateInputCommand}"
+                            CommandParameter="{x:Reference TranslateButton}"
                             Grid.Column="1" />
                     <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
                             BackgroundColor="Transparent"
@@ -224,7 +222,6 @@
                         x:Name="IMeanToSayField"
                         FontSize="{OnIdiom 32, Phone=16}"
                         ReturnType="Go"
-                        toolkit:SetFocusOnEntryCompletedBehavior.NextElement="{x:Reference UserInputField}"
                         ReturnCommand="{Binding GradeMeCommand}">
                     
                 </Entry>

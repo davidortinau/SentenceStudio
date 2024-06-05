@@ -21,7 +21,9 @@ public partial class App : Application
 
 		// Debug.WriteLine($"New Culture: {CultureInfo.CurrentUICulture.Name}");
 
-		MainPage = new AppShell();     
+		// MainPage = new AppShell(this.Handler.MauiContext.Services.GetService<AppShellModel>());
+		//MainPage = (Shell)Activator.CreateInstance(typeof(AppShell));     
+		
 
 		// Register a message in some module
 		WeakReferenceMessenger.Default.Register<ConnectivityChangedMessage>(this, async (r, m) =>
@@ -46,4 +48,10 @@ public partial class App : Application
 	protected override void OnResume()
 	{
 	}
+    protected override Window CreateWindow(IActivationState activationState)
+    {
+		MainPage = new AppShell(activationState.Context.Services.GetService<AppShellModel>());
+		
+        return base.CreateWindow(activationState);
+    }
 }
