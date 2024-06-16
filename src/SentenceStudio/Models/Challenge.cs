@@ -14,6 +14,12 @@ public class Challenge
     [JsonPropertyName("recommended_translation")]
     public string RecommendedTranslation { get; set; }
 
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+
+    [Ignore]
     [JsonPropertyName("vocabulary")]
     public List<VocabularyWord> Vocabulary { get; set; }
+
+    public string VocabularyWord {get;set;}
 }

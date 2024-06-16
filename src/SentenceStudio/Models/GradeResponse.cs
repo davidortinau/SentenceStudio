@@ -22,6 +22,7 @@ public class GradeResponse
     [JsonPropertyName("recommended_translation")]
     public string RecommendedTranslation { get; set; }
 
+    [Ignore]
     [JsonPropertyName("grammar_notes")]
     public GrammarNotes GrammarNotes { get; set; }
 

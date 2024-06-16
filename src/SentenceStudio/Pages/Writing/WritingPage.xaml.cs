@@ -16,8 +16,7 @@ namespace SentenceStudio.Pages.Lesson;
 public partial class WritingPage : ContentPage
 {
 	WritingPageModel _model;
-    private double previousHeight;
-
+    
     public WritingPage(WritingPageModel model)
 	{
 		InitializeComponent();

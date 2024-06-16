@@ -13,7 +13,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <c:FormField 
+        <!-- <c:FormField 
                 ControlTemplate="{StaticResource FormFieldTemplate}"
                 FieldLabel="Ask something"
                 x:Name="UserInputField"
@@ -24,7 +24,7 @@
                     ReturnType="Go"
                     ReturnCommand="{Binding AskCommand}"
                     />
-        </c:FormField>
+        </c:FormField> -->
     </Grid>
 
 </Border>

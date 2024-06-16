@@ -1,4 +1,3 @@
-I am a student that speaks English, and I'm learning Korean. Given this sentence: \"{{original_sentence}}\" you recommended this translation: \"{{recommended_translation}}\". I translated it as: \"{{user_input}}\". Please grade my translation for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말). 
+I am a student that speaks English, and I'm learning Korean. Given this sentence: \"{{recommended_translation}}\" you recommended this translation: \"{{original_sentence}}\". I translated it as: \"{{user_input}}\". Please grade my translation for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말). 
 
 Use a scale of 0 to 100 where higher is better. 
-

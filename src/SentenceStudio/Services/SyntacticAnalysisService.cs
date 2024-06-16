@@ -9,7 +9,7 @@ namespace SentenceStudio.Services;
 
 public class SyntacticAnalysisService
 {
-    private SQLiteAsyncConnection Database;
+    // private SQLiteAsyncConnection Database;
 
     private AiService _aiService;
 

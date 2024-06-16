@@ -30,12 +30,15 @@ public partial class TranslationPageModel : BaseViewModel
 	[ObservableProperty, NotifyCanExecuteChangedFor(nameof(StopListeningCommand))]
 	bool canStopListenExecute = false;
 
+    [ObservableProperty]
+    private bool _isBuffering;
+
     public int ListID { get; set; }
     public string PlayMode { get; set; }
     public int Level { get; set; }
 
     [ObservableProperty]
-    private List<Challenge> _sentences;
+    private List<Challenge> _sentences = new List<Challenge>();
 
     [ObservableProperty]
     private string _currentSentence;
@@ -77,19 +80,48 @@ public partial class TranslationPageModel : BaseViewModel
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         _aiService = service.GetRequiredService<AiService>();
-        TaskMonitor.Create(GetSentences);
+        TaskMonitor.Create(LoadSentences);
 
         _speechToText = speechToText;
         // _speechToText.StateChanged += HandleSpeechToTextStateChanged;
 		// _speechToText.RecognitionResultCompleted += HandleRecognitionResultCompleted;
     }
-    public async Task GetSentences()
+
+    private async Task LoadSentences()
+    {
+        await GetSentences(true);
+    }
+
+    public async Task GetSentences(bool start = true, int count = 2)
     {
         await Task.Delay(100);
-        IsBusy = true;
-        Sentences = await _teacherService.GetChallenges(ListID);
-        SetCurrentSentence();
+        if(start)
+            IsBusy = true;
+        else
+            IsBuffering = true;
+        
+        var sentences = await _teacherService.GetChallenges(ListID, count);
+        await Task.Delay(100);
+        foreach(var s in sentences)
+        {
+            Sentences.Add(s);
+            await _teacherService.SaveChallenges(s);
+        }
+        
+        IsBusy = false;
+        
+        // WeakReferenceMessenger.Default.Unregister<ChatCompletionMessage>(this);
+        if(start)
+            SetCurrentSentence();
+
+        if(Sentences.Count < 10)
+            await GetSentences(false, 8);
+        else
+            IsBuffering = false;
+        
     }
+
+    private int _currentSentenceIndex = 0;
 
     void SetCurrentSentence()
     {
@@ -98,8 +130,8 @@ public partial class TranslationPageModel : BaseViewModel
             GradeResponse = null;
             HasFeedback = false;
             Feedback = string.Empty;
-            CurrentSentence = Sentences[0].SentenceText;
-            Vocabulary = Sentences[0].Vocabulary;
+            CurrentSentence = Sentences[_currentSentenceIndex].SentenceText;
+            Vocabulary = Sentences[_currentSentenceIndex].Vocabulary;
 
             var random = new Random();
             VocabBlocks = Vocabulary.Select(v => v.TargetLanguageTerm)
@@ -108,10 +140,10 @@ public partial class TranslationPageModel : BaseViewModel
                                     .ToList();
 
             UserInput = string.Empty;
-            RecommendedTranslation = Sentences[0].RecommendedTranslation;
-            Sentences.RemoveAt(0);
+            RecommendedTranslation = Sentences[_currentSentenceIndex].RecommendedTranslation;
+            // Sentences.RemoveAt(0);
 
-            Progress = $"{10 - Sentences.Count} / 10";
+            Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
             IsBusy = false;
         }
     }
@@ -168,6 +200,14 @@ public partial class TranslationPageModel : BaseViewModel
     [RelayCommand]
     void NextSentence()
     {
+        _currentSentenceIndex++;
+        SetCurrentSentence();
+    }
+
+    [RelayCommand]
+    void PreviousSentence()
+    {
+        _currentSentenceIndex--;
         SetCurrentSentence();
     }
 

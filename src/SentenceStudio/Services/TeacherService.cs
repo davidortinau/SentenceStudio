@@ -27,31 +27,47 @@ namespace SentenceStudio.Services
             _vocabularyService = service.GetRequiredService<VocabularyService>();
         }
 
-        public async Task<List<Challenge>> GetChallenges(int vocabularyListID)
+        public async Task<List<Challenge>> GetChallenges(int vocabularyListID, int numberOfSentences)
         {
+            var watch = new Stopwatch();
+            watch.Start();
+
             VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
 
             if (vocab is null || vocab.Words is null)
                 return null;
 
+            // List<Challenge> challenges = await Database.Table<Challenge>().Where(c => vocab.Words.Contains(c.Vocabulary)).ToListAsync();
+
             var random = new Random();
             
-            _words = vocab.Words.OrderBy(t => random.Next()).Take(10).ToList();
+            _words = vocab.Words.OrderBy(t => random.Next()).Take(numberOfSentences).ToList();
             
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetChallenges.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(reader.ReadToEnd());
-                prompt = await template.RenderAsync(new { terms = _words });
+                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences });
             }
 
             Debug.WriteLine(prompt);
             try
             {
-                string response = await _aiService.SendPrompt(prompt, true);
+                string response = await _aiService.SendPrompt(prompt, true, false);
+                watch.Stop();
+                Debug.WriteLine($"Received response in: {watch.Elapsed}");
                 var reply = JsonSerializer.Deserialize(response, JsonContext.Default.SentencesResponse);
-                return reply.Sentences;
+                // return reply.Sentences;
+                if (reply != null && reply.Sentences != null)
+                {
+                    return reply.Sentences;
+                }
+                else
+                {
+                    Debug.WriteLine("Reply or Sentences is null");
+                    return new List<Challenge>();
+                }
             }
             catch (Exception ex)
             {
@@ -84,7 +100,11 @@ namespace SentenceStudio.Services
         public async Task<int> SaveChallenges(Challenge item)
         {
             await Init();
-            await Database.InsertAsync(item);
+            try{
+                await Database.InsertAsync(item);
+            }catch(Exception ex){
+                Debug.WriteLine($"An error occurred SaveChallenges: {ex.Message}");
+            }
             return item.ID;
         }
 
