@@ -63,6 +63,16 @@
                         </Grid.GestureRecognizers>                    
                     </Grid>                    
                 </Border>
+                <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                    <Grid WidthRequest="300" HeightRequest="120">
+                        <Label Text="Clozures"
+                            VerticalOptions="Center" HorizontalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding ClozuresCommand}" />
+                        </Grid.GestureRecognizers>                    
+                    </Grid>                    
+                </Border>
                 <!-- <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                     <Grid WidthRequest="300" HeightRequest="120">
                         <Label Text="{Binding Localize[ParseASentence]}"

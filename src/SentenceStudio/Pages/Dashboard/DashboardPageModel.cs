@@ -181,6 +181,22 @@ public partial class DashboardPageModel : BaseViewModel
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
+    async Task Clozures()
+    {
+        try{
+            if(VocabLists.Count == 0)
+            VocabLists = await _vocabService.GetListsAsync();
+
+            var listID = VocabLists.First().ID;
+            
+            await Shell.Current.GoToAsync($"clozures?listID={listID}");
+        }catch(Exception ex)
+        {
+            Debug.WriteLine($"{ex.Message}");
+        }
+    }
+
     // A method that provides recent activity summary to AI
     // and returns a proposed set of activity for the day
     // would need to track progress until either completion or a new day

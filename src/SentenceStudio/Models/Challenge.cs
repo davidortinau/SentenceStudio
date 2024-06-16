@@ -21,5 +21,9 @@ public class Challenge
     [JsonPropertyName("vocabulary")]
     public List<VocabularyWord> Vocabulary { get; set; }
 
+    [JsonPropertyName("vocabulary_word")]
     public string VocabularyWord {get;set;}
+
+    [JsonPropertyName("vocabulary_word_used")]
+    public string VocabularyWordAsUsed { get; set; } 
 }

@@ -20,6 +20,7 @@ using The49.Maui.BottomSheet;
 using SentenceStudio.Data;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using OxyPlot.Maui.Skia;
+using SentenceStudio.Pages.Clozure;
 
 namespace SentenceStudio;
 
@@ -64,6 +65,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SceneImageService>();
 		builder.Services.AddSingleton<UserProfileService>();
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
+		builder.Services.AddSingleton<ClozureService>();
 		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
@@ -82,6 +84,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<AnalysisPage, AnalysisPageModel>("syntacticAnalysis");
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
+		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
 
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
