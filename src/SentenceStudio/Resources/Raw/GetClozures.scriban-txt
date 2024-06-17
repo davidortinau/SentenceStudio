@@ -1,4 +1,4 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. The sentences should use 존댓말, and at a beginner Korean level.
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. The sentences should use 존댓말, and at a beginner Korean level. Include 5 words in the field vocabulary_word_used_guesses that can be presented as multiple choice options for a fill-in-the-blank question.
 
 Here are some examples of sentences using vocabulary like 학생, 한국어, and 공부하다:
 
@@ -16,6 +16,7 @@ Format the response as JSON like this:
       "vocabulary_word": "공부하다",
       "vocabulary_word_used": "공부했어요",
       "recommended_translation": "Since when did you study Korean?",
+      "vocabulary_word_used_guesses": "공부했어요, 좀, 한국어, 언제부터, 언제"
     }
   ]
 }

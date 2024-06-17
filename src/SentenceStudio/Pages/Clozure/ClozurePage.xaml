@@ -105,7 +105,8 @@
                     <!-- Blocks -->
                     <l:HorizontalWrapLayout x:Name="VocabBlocks"
                                             Grid.Row="0"
-                                            Spacing="4">
+                                            Spacing="4"
+                                            BindableLayout.ItemsSource="{Binding GuessOptions}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate>
                                 <Label Text="{Binding .}"

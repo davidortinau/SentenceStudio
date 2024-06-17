@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,7 +50,7 @@ public partial class ClozurePageModel : BaseViewModel
     private GradeResponse _gradeResponse;
 
     [ObservableProperty]
-    private List<VocabularyWord> _vocabulary;
+    private string[] _guessOptions;
 
     [ObservableProperty]
     private List<string> _vocabBlocks;
@@ -133,6 +134,7 @@ public partial class ClozurePageModel : BaseViewModel
             _currentChallenge = Sentences[_currentSentenceIndex];
 
             CurrentSentence = _currentChallenge.SentenceText.Replace(_currentChallenge.VocabularyWordAsUsed, "__");
+            GuessOptions = _currentChallenge.VocabularyWordGuesses.Split(",").OrderBy(x => Guid.NewGuid()).ToArray();
 
             // Vocabulary = challenge.Vocabulary;
 
@@ -154,7 +156,12 @@ public partial class ClozurePageModel : BaseViewModel
     [RelayCommand]
     async Task GradeMe()
     {
-        if(_currentChallenge.VocabularyWordAsUsed == UserInput)
+        await GradeAnswer(UserInput);
+    }
+
+    async Task GradeAnswer(string answer)
+    {
+        if(_currentChallenge.VocabularyWordAsUsed == answer)
         {
             await Toast.Make("Correct!").Show();
         }
@@ -163,7 +170,6 @@ public partial class ClozurePageModel : BaseViewModel
             await Toast.Make("Incorrect!").Show();
         }
     }
-
     
 
     [RelayCommand]
@@ -181,9 +187,9 @@ public partial class ClozurePageModel : BaseViewModel
     }
 
     [RelayCommand]
-    void UseVocab(string word)
+    async Task UseVocab(string word)
     {
-        UserInput += word;
+        await GradeAnswer(word);
     }
 
     [RelayCommand(IncludeCancelCommand = true, CanExecute = nameof(CanListenExecute))]
