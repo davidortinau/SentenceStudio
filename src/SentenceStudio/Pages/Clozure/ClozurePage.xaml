@@ -12,18 +12,19 @@
              x:DataType="clozure:ClozurePageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
-    
+
     <Grid RowDefinitions="*,80">
         <ScrollView>
             <Grid RowDefinitions="30,*,Auto">
-                
+
                 <VerticalStackLayout Spacing="16"
-                    Grid.Row="1"
-                    Margin="30">
-                    <Label Text="{Binding CurrentSentence}" FontSize="64"/>
-                    <Label Text="{Binding RecommendedTranslation}" />
+                                     Grid.Row="1"
+                                     Margin="30">
+                    <Label Text="{Binding CurrentSentence}"
+                            FontSize="64"/>
+                    <Label Text="{Binding RecommendedTranslation}"/>
                 </VerticalStackLayout>
-                    
+
                 <!-- Input -->
                 <Grid ColumnDefinitions="*, Auto, Auto, Auto"
                       RowDefinitions="{OnIdiom '*,*', Phone='*,*'}"
@@ -36,121 +37,146 @@
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Blocks">
                                 <VisualState.Setters>
-                                    <!-- <Setter TargetName="UserInputField"
+                                    <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
-                                            Value="False" /> -->
+                                            Value="False" />
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
-                                            Value="True" />
-                                    <Setter 
+                                            Value="True"/>
+                                    <Setter
                                         TargetName="ListenButton"
                                         Property="Button.IsVisible"
-                                        Value="False" />
-                                    <Setter 
+                                        Value="False"/>
+                                    <Setter
                                         TargetName="CancelButton"
                                         Property="Button.IsVisible"
-                                        Value="False" />
+                                        Value="False"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Keyboard">
                                 <VisualState.Setters>
                                     <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
-                                            Value="True" />
+                                            Value="True"/>
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
-                                            Value="False" />
-                                    <Setter 
+                                            Value="False"/>
+                                    <Setter
                                         TargetName="ListenButton"
                                         Property="Button.IsVisible"
-                                        Value="False" />
-                                    <Setter 
+                                        Value="False"/>
+                                    <Setter
                                         TargetName="CancelButton"
                                         Property="Button.IsVisible"
-                                        Value="False" />
+                                        Value="False"/>
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
-                                            Value="False" />
+                                            Value="False"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Mic">
                                 <VisualState.Setters>
-                                    <Setter 
+                                    <Setter
                                         TargetName="ListenButton"
                                         Property="Button.IsVisible"
-                                        Value="True" />
-                                    <Setter 
+                                        Value="True"/>
+                                    <Setter
                                         TargetName="CancelButton"
                                         Property="Button.IsVisible"
-                                        Value="True" />
+                                        Value="True"/>
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
-                                            Value="False" />
+                                            Value="False"/>
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
                     </VisualStateManager.VisualStateGroups>
                     <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                                 FieldLabel="Translation"
+                                 FieldLabel="Answer"
                                  x:Name="UserInputField"
                                  Grid.Row="1"
                                  Grid.Column="0"
                                  Grid.ColumnSpan="{OnIdiom 1, Phone=4}">
-                        <Entry Placeholder="그건 한국어로 어떻게 말해요?"
+                        <Entry 
                                Text="{Binding UserInput}"
                                FontSize="32"
                                ReturnType="Go"
-                               ReturnCommand="{Binding GradeMeCommand}" />
+                               ReturnCommand="{Binding GradeMeCommand}"/>
                     </c:FormField>
                     <!-- Blocks -->
-                    <l:HorizontalWrapLayout x:Name="VocabBlocks"
-                                            Grid.Row="0"
-                                            Spacing="4"
-                                            BindableLayout.ItemsSource="{Binding GuessOptions}">
+                    <VerticalStackLayout x:Name="VocabBlocks"
+                                         Grid.Row="0"
+                                         Spacing="4"
+                                         RadioButtonGroup.GroupName="VocabOptions"
+                                         RadioButtonGroup.SelectedValue="{Binding UserGuess}"
+                                         BindableLayout.ItemsSource="{Binding GuessOptions}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate>
-                                <Label Text="{Binding .}"
-                                       Background="{StaticResource Gray200}"
-                                       TextColor="{StaticResource Gray900}"
-                                       FontSize="32"
-                                       Padding="4"
-                                       LineHeight="1">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type clozure:ClozurePageModel}}}"
-                                                              CommandParameter="{Binding .}" />
-                                    </Label.GestureRecognizers>
-                                </Label>
+
+                                <RadioButton Content="{Binding .}"
+                                        Value="{Binding .}"
+                                        HorizontalOptions="Start">
+                                    <RadioButton.ControlTemplate>
+                                        <ControlTemplate>
+                                            <Border StrokeShape="RoundRectangle 4"
+                                                    StrokeThickness="1"
+                                                    Stroke="Black"
+                                                    Background="#f1f1f1"
+                                                    WidthRequest="180">
+                                                <VisualStateManager.VisualStateGroups>
+                                                    <VisualStateGroup x:Name="CommonStates">
+                                                        <VisualState x:Name="Checked">
+                                                            <VisualState.Setters>
+                                                                <Setter Property="Background"
+                                                                        Value="{StaticResource Primary}"/>
+                                                            </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Unchecked">
+                                                            <VisualState.Setters>
+                                                                <Setter Property="Background"
+                                                                        Value="#f1f1f1"/>
+                                                            </VisualState.Setters>
+                                                        </VisualState>
+                                                    </VisualStateGroup>
+                                                </VisualStateManager.VisualStateGroups>
+
+                                                <ContentPresenter HorizontalOptions="Center"/>
+
+                                            </Border>
+                                        </ControlTemplate>
+                                    </RadioButton.ControlTemplate>
+
+                                </RadioButton>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
-                    </l:HorizontalWrapLayout>
+                    </VerticalStackLayout>
                     <Button Grid.Row="0"
                             Grid.Column="1"
                             x:Name="ListenButton"
                             ImageSource="{mi:SegoeFluent Icon=Record2, IconSize=24}"
                             Background="Transparent"
-                            Command="{Binding StartListeningCommand}" />
+                            Command="{Binding StartListeningCommand}"/>
                     <Button Grid.Row="0"
                             Grid.Column="2"
                             x:Name="CancelButton"
                             ImageSource="{mi:SegoeFluent Icon=Stop, IconSize=24}"
                             Background="Transparent"
-                            Command="{Binding StopListeningCommand}" />
+                            Command="{Binding StopListeningCommand}"/>
                 </Grid>
 
                 <!-- HUD with progress -->
                 <HorizontalStackLayout Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}"
-                    Grid.RowSpan="2"
-                    Spacing="8"
-                    HorizontalOptions="End" 
-                    VerticalOptions="Start">
+                                       Grid.RowSpan="2"
+                                       Spacing="8"
+                                       HorizontalOptions="End"
+                                       VerticalOptions="Start">
                     <ActivityIndicator IsRunning="{Binding IsBuffering}"
                                        IsVisible="{Binding IsBuffering}"
                                        VerticalOptions="Center"
-                                       Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
+                                       Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
                     <Label Text="{Binding Progress}"
-                    VerticalOptions="Center"
-                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
-                            />
+                           VerticalOptions="Center"
+                           TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
                 </HorizontalStackLayout>
             </Grid>
         </ScrollView>
@@ -163,40 +189,40 @@
                     Text="GO"
                     TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
                     Background="Transparent"
-                    Command="{Binding GradeMeCommand}" />
+                    Command="{Binding GradeMeCommand}"/>
             <c:ModeSelector x:Name="ModeSelector"
                             Grid.Column="2"
                             Grid.Row="1"
                             HorizontalOptions="Center"
-                            VerticalOptions="Center" />
+                            VerticalOptions="Center"/>
             <Button Grid.Column="0"
                     Grid.Row="1"
                     ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
                     Background="Transparent"
-                    Command="{Binding PreviousSentenceCommand}" />
+                    Command="{Binding PreviousSentenceCommand}"/>
             <Button Grid.Column="6"
                     Grid.Row="1"
                     ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"
                     Background="Transparent"
-                    Command="{Binding NextSentenceCommand}" />
+                    Command="{Binding NextSentenceCommand}"/>
             <!-- Grid Lines -->
             <BoxView Grid.ColumnSpan="7"
                      Color="Black"
-                     HeightRequest="1" />
+                     HeightRequest="1"/>
             <BoxView Grid.Column="1"
                      Grid.Row="1"
                      Color="Black"
-                     WidthRequest="1" />
+                     WidthRequest="1"/>
             <BoxView Grid.Column="3"
                      Grid.Row="1"
                      Color="Black"
-                     WidthRequest="1" />
+                     WidthRequest="1"/>
             <BoxView Grid.Column="5"
                      Grid.Row="1"
                      Color="Black"
-                     WidthRequest="1" />
+                     WidthRequest="1"/>
         </Grid>
-        
+
         <!-- Busy Indicator -->
         <AbsoluteLayout x:Name="LoadingOverlay"
                         IsVisible="{Binding IsBusy}"
@@ -206,7 +232,7 @@
                    FontSize="64"
                    AbsoluteLayout.LayoutFlags="PositionProportional"
                    AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
-                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
         </AbsoluteLayout>
     </Grid>
 </ContentPage>

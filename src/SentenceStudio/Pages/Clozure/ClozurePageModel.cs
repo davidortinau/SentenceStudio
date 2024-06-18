@@ -70,6 +70,14 @@ public partial class ClozurePageModel : BaseViewModel
     [ObservableProperty]
     private string _feedback;
 
+    [ObservableProperty]
+    private string _userGuess;
+
+    partial void OnUserGuessChanged(string oldValue, string newValue)
+    {
+        _ = GradeAnswer(newValue);
+    }
+
     public List<VocabularyWord> Words
     {
         get => _clozureService.Words;
