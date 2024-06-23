@@ -46,6 +46,8 @@ public static class MauiProgram
 				fonts.AddFont("Segoe-Ui-Semibold.ttf", "SegoeSemibold");
 				fonts.AddFont("Segoe-Ui-Semilight.ttf", "SegoeSemilight");
 				fonts.AddFont("bm_yeonsung.ttf", "Yeonsung");
+				fonts.AddFont("fa_solid.ttf", "FontAwesome");
+				fonts.AddFont("FluentSystemIcons-Regular.ttf", "FluentUI");
 			})
 			.ConfigureMauiHandlers(handlers =>
 			{

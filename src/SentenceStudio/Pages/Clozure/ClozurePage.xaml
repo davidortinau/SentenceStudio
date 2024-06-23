@@ -13,6 +13,10 @@
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
 
+    <ContentPage.Resources>
+        <clozure:UserActivityToFontImageSourceConverter x:Key="UserActivityToFontImageSourceConverter"/>
+    </ContentPage.Resources>
+
     <Grid RowDefinitions="*,80">
         <ScrollView>
             <Grid RowDefinitions="30,*,Auto">
@@ -21,7 +25,7 @@
                                      Grid.Row="1"
                                      Margin="30">
                     <Label Text="{Binding CurrentSentence}"
-                            FontSize="64"/>
+                            FontSize="{OnIdiom 32, Desktop=64}"/>
                     <Label Text="{Binding RecommendedTranslation}"/>
                 </VerticalStackLayout>
 
@@ -121,7 +125,7 @@
                                             <Border StrokeShape="RoundRectangle 4"
                                                     StrokeThickness="1"
                                                     Stroke="Black"
-                                                    Background="#f1f1f1"
+                                                    Background="{AppThemeBinding Dark={StaticResource DarkBackground}, Light={StaticResource LightBackground}}"
                                                     WidthRequest="180">
                                                 <VisualStateManager.VisualStateGroups>
                                                     <VisualStateGroup x:Name="CommonStates">
@@ -134,7 +138,7 @@
                                                         <VisualState x:Name="Unchecked">
                                                             <VisualState.Setters>
                                                                 <Setter Property="Background"
-                                                                        Value="#f1f1f1"/>
+                                                                        Value="{AppThemeBinding Dark={StaticResource DarkBackground}, Light={StaticResource LightBackground}}"/>
                                                             </VisualState.Setters>
                                                         </VisualState>
                                                     </VisualStateGroup>
@@ -165,18 +169,30 @@
                 </Grid>
 
                 <!-- HUD with progress -->
-                <HorizontalStackLayout Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}"
+                <HorizontalStackLayout Padding="{OnIdiom Phone='16,6', Default={StaticResource size240}}"
                                        Grid.RowSpan="2"
-                                       Spacing="8"
-                                       HorizontalOptions="End"
-                                       VerticalOptions="Start">
-                    <ActivityIndicator IsRunning="{Binding IsBuffering}"
+                                       Spacing="4"
+                                       HorizontalOptions="Fill"
+                                       VerticalOptions="Start"
+                                       BindableLayout.ItemsSource="{Binding Sentences}"
+                                       >
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="m:Challenge">
+                            <Image 
+                                MaximumHeightRequest="20" 
+                                MaximumWidthRequest="20"
+                                Source="{Binding UserActivity, Converter={StaticResource UserActivityToFontImageSourceConverter}}"
+                            />
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                    
+                    <!-- <ActivityIndicator IsRunning="{Binding IsBuffering}"
                                        IsVisible="{Binding IsBuffering}"
                                        VerticalOptions="Center"
                                        Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
                     <Label Text="{Binding Progress}"
                            VerticalOptions="Center"
-                           TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+                           TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/> -->
                 </HorizontalStackLayout>
             </Grid>
         </ScrollView>

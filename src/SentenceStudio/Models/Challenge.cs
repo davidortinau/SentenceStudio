@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using SQLite;
 
 namespace SentenceStudio.Models;
-public class Challenge
+public partial class Challenge : ObservableObject
 {
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
@@ -29,4 +29,7 @@ public class Challenge
 
     [JsonPropertyName("vocabulary_word_used_guesses")]
     public string VocabularyWordGuesses { get; set; }
+
+    [ObservableProperty]
+    private UserActivity _userActivity;
 }

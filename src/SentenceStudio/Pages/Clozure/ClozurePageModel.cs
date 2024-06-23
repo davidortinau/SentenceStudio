@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -38,7 +39,7 @@ public partial class ClozurePageModel : BaseViewModel
     public int Level { get; set; }
 
     [ObservableProperty]
-    private List<Challenge> _sentences = new List<Challenge>();
+    private ObservableCollection<Challenge> _sentences = new ObservableCollection<Challenge>();
 
     [ObservableProperty]
     private string _currentSentence;
@@ -169,14 +170,25 @@ public partial class ClozurePageModel : BaseViewModel
 
     async Task GradeAnswer(string answer)
     {
+        var ua = new UserActivity
+        {
+            Activity = "Clozure",
+            Input = answer
+        };
+
         if(_currentChallenge.VocabularyWordAsUsed == answer)
         {
+            ua.Accuracy = 100;
             await Toast.Make("Correct!").Show();
         }
         else
         {
+            ua.Accuracy = 0;
             await Toast.Make("Incorrect!").Show();
         }
+
+        Sentences[_currentSentenceIndex].UserActivity = ua;
+        
     }
     
 

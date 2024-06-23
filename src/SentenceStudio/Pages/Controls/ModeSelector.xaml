@@ -59,12 +59,12 @@
                        Source="{mi:SegoeFluent Icon=KeyboardClassic, IconSize=18}" />
             </RadioButton.Content>
         </RadioButton>
-        <RadioButton Value="Mic">
+        <!-- <RadioButton Value="Mic">
             <RadioButton.Content>
                 <Image Aspect="Center"
                        Source="{mi:SegoeFluent Icon=Microphone, IconSize=18}" />
             </RadioButton.Content>
-        </RadioButton>
+        </RadioButton> -->
     </HorizontalStackLayout>   
 
 </Border>

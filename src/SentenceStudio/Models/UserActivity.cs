@@ -12,6 +12,13 @@ public class UserActivity
     public double Accuracy { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    [Ignore]
+    public bool IsCorrect {
+        get {
+            return Accuracy >= 80;
+        }
+    }
     
 }
 
