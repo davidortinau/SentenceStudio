@@ -1,9 +1,10 @@
 
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 using SQLite;
 
 namespace SentenceStudio.Models;
-public partial class Challenge : ObservableObject
+public partial class Challenge : INotifyPropertyChanged
 {
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
@@ -30,6 +31,34 @@ public partial class Challenge : ObservableObject
     [JsonPropertyName("vocabulary_word_used_guesses")]
     public string VocabularyWordGuesses { get; set; }
 
-    [ObservableProperty]
     private UserActivity _userActivity;
+
+    [Ignore]
+    public UserActivity UserActivity
+    {
+        get{
+            return _userActivity;
+        }
+        set {
+            if (value != null)
+            {
+                _userActivity = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UserActivity)));
+            }
+        }
+    }
+
+    private bool isCurrent;
+
+    [Ignore]
+    public bool IsCurrent
+    {
+        get => isCurrent; internal set
+        {
+            isCurrent = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCurrent)));
+        }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
 }

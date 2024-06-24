@@ -15,7 +15,7 @@ namespace SentenceStudio.Pages.Clozure
                     Glyph = FontAwesome.Circle,
                     FontFamily = "FontAwesome",
                     Color = (Color)Application.Current.Resources["Gray100"],
-                    Size = 18
+                    Size = 14
                 };
             }else{
                 UserActivity ua = value as UserActivity;
@@ -24,7 +24,7 @@ namespace SentenceStudio.Pages.Clozure
                     Glyph = ua.IsCorrect ? FontAwesome.CheckCircle : FontAwesome.TimesCircle,
                     FontFamily = "FontAwesome",
                     Color = ua.IsCorrect ? (Color)Application.Current.Resources["Primary"] : (Color)Application.Current.Resources["Gray400"],
-                    Size = 18
+                    Size = 14
                 };
             }
         }

@@ -2,7 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:clozure="clr-namespace:SentenceStudio.Pages.Clozure"
              xmlns:l="clr-namespace:CustomLayouts"
              xmlns:m="clr-namespace:SentenceStudio.Models"
@@ -15,6 +15,7 @@
 
     <ContentPage.Resources>
         <clozure:UserActivityToFontImageSourceConverter x:Key="UserActivityToFontImageSourceConverter"/>
+        <mct:BoolToObjectConverter x:Key="BoolToColorConverter" TrueObject="{StaticResource Primary}" FalseObject="{StaticResource Gray200}"/>
     </ContentPage.Resources>
 
     <Grid RowDefinitions="*,80">
@@ -39,7 +40,7 @@
                       ColumnSpacing="{OnIdiom 15, Phone=5}">
                     <VisualStateManager.VisualStateGroups>
                         <VisualStateGroup x:Name="CommonStates">
-                            <VisualState x:Name="Blocks">
+                            <VisualState x:Name="MultipleChoice">
                                 <VisualState.Setters>
                                     <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
@@ -47,17 +48,17 @@
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="True"/>
-                                    <Setter
+                                    <!-- <Setter
                                         TargetName="ListenButton"
                                         Property="Button.IsVisible"
                                         Value="False"/>
                                     <Setter
                                         TargetName="CancelButton"
                                         Property="Button.IsVisible"
-                                        Value="False"/>
+                                        Value="False"/> -->
                                 </VisualState.Setters>
                             </VisualState>
-                            <VisualState x:Name="Keyboard">
+                            <VisualState x:Name="Text">
                                 <VisualState.Setters>
                                     <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
@@ -65,20 +66,20 @@
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="False"/>
-                                    <Setter
+                                    <!-- <Setter
                                         TargetName="ListenButton"
                                         Property="Button.IsVisible"
                                         Value="False"/>
                                     <Setter
                                         TargetName="CancelButton"
                                         Property="Button.IsVisible"
-                                        Value="False"/>
+                                        Value="False"/> -->
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="False"/>
                                 </VisualState.Setters>
                             </VisualState>
-                            <VisualState x:Name="Mic">
+                            <VisualState x:Name="{x:Static m:InputMode.Voice.ToString()}">
                                 <VisualState.Setters>
                                     <Setter
                                         TargetName="ListenButton"
@@ -154,7 +155,7 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
-                    <Button Grid.Row="0"
+                    <!-- <Button Grid.Row="0"
                             Grid.Column="1"
                             x:Name="ListenButton"
                             ImageSource="{mi:SegoeFluent Icon=Record2, IconSize=24}"
@@ -165,35 +166,45 @@
                             x:Name="CancelButton"
                             ImageSource="{mi:SegoeFluent Icon=Stop, IconSize=24}"
                             Background="Transparent"
-                            Command="{Binding StopListeningCommand}"/>
+                            Command="{Binding StopListeningCommand}"/> -->
                 </Grid>
 
                 <!-- HUD with progress -->
-                <HorizontalStackLayout Padding="{OnIdiom Phone='16,6', Default={StaticResource size240}}"
-                                       Grid.RowSpan="2"
-                                       Spacing="4"
-                                       HorizontalOptions="Fill"
-                                       VerticalOptions="Start"
-                                       BindableLayout.ItemsSource="{Binding Sentences}"
-                                       >
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate x:DataType="m:Challenge">
-                            <Image 
-                                MaximumHeightRequest="20" 
-                                MaximumWidthRequest="20"
-                                Source="{Binding UserActivity, Converter={StaticResource UserActivityToFontImageSourceConverter}}"
-                            />
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                    
-                    <!-- <ActivityIndicator IsRunning="{Binding IsBuffering}"
-                                       IsVisible="{Binding IsBuffering}"
-                                       VerticalOptions="Center"
-                                       Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
-                    <Label Text="{Binding Progress}"
-                           VerticalOptions="Center"
-                           TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/> -->
-                </HorizontalStackLayout>
+                <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" Grid.RowSpan="2"
+                    VerticalOptions="Start">
+                    <HorizontalStackLayout Padding="{OnIdiom Phone='16,6', Default={StaticResource size240}}"
+                                        Spacing="2"
+                                        BindableLayout.ItemsSource="{Binding Sentences}"
+                                        >
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="m:Challenge">
+                                <Border StrokeShape="RoundRectangle 10" 
+                                    HeightRequest="20" WidthRequest="20"
+                                    StrokeThickness="2" 
+                                    Stroke="{Binding IsCurrent, Converter={StaticResource BoolToColorConverter}}">
+                                    <ImageButton
+                                        WidthRequest="18"
+                                        HeightRequest="18"
+                                        VerticalOptions="Center"
+                                        HorizontalOptions="Center"
+                                        Aspect="Center"
+                                        Source="{Binding UserActivity, Converter={StaticResource UserActivityToFontImageSourceConverter}}"
+                                        Command="{Binding JumpToCommand, Source={RelativeSource AncestorType={x:Type clozure:ClozurePageModel}}}"
+                                        CommandParameter="{Binding .}"
+                                    />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                        
+                        <!-- <ActivityIndicator IsRunning="{Binding IsBuffering}"
+                                        IsVisible="{Binding IsBuffering}"
+                                        VerticalOptions="Center"
+                                        Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+                        <Label Text="{Binding Progress}"
+                            VerticalOptions="Center"
+                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/> -->
+                    </HorizontalStackLayout>
+                </ScrollView>
             </Grid>
         </ScrollView>
         <!-- Navigation -->
@@ -209,8 +220,10 @@
             <c:ModeSelector x:Name="ModeSelector"
                             Grid.Column="2"
                             Grid.Row="1"
+                            SelectedMode="{Binding UserMode}"
                             HorizontalOptions="Center"
                             VerticalOptions="Center"/>
+            
             <Button Grid.Column="0"
                     Grid.Row="1"
                     ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"

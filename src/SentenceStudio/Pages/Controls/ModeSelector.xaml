@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
         xmlns:layouts="clr-namespace:CustomLayouts;assembly=SentenceStudio"
         xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+        xmlns:m="clr-namespace:SentenceStudio.Models"
         x:Class="SentenceStudio.Pages.Controls.ModeSelector"
         Padding="8"
         StrokeThickness="1"
@@ -45,21 +46,21 @@
 
     <HorizontalStackLayout 
         Spacing="4"
-        RadioButtonGroup.SelectedValue="{Binding SelectedMode}"
+        RadioButtonGroup.SelectedValue="{Binding UserMode}"
         RadioButtonGroup.GroupName="InputMode">
-        <RadioButton Value="Blocks">
+        <RadioButton Value="MultipleChoice">
             <RadioButton.Content>
                 <Image Aspect="Center"
                        Source="{mi:SegoeFluent Icon=Checkbox, IconSize=18}" />
             </RadioButton.Content>
         </RadioButton>
-        <RadioButton Value="Keyboard">
+        <RadioButton Value="Text">
             <RadioButton.Content>
                 <Image Aspect="Center"
                        Source="{mi:SegoeFluent Icon=KeyboardClassic, IconSize=18}" />
             </RadioButton.Content>
         </RadioButton>
-        <!-- <RadioButton Value="Mic">
+        <!-- <RadioButton Value="{x:Static m:InputMode.Voice.ToString()}">
             <RadioButton.Content>
                 <Image Aspect="Center"
                        Source="{mi:SegoeFluent Icon=Microphone, IconSize=18}" />

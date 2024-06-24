@@ -34,6 +34,9 @@ public partial class ClozurePageModel : BaseViewModel
     [ObservableProperty]
     private bool _isBuffering;
 
+    [ObservableProperty]
+    private string _userMode = InputMode.Text.ToString();
+
     public int ListID { get; set; }
     public string PlayMode { get; set; }
     public int Level { get; set; }
@@ -141,9 +144,10 @@ public partial class ClozurePageModel : BaseViewModel
             Feedback = string.Empty;
 
             _currentChallenge = Sentences[_currentSentenceIndex];
+            _currentChallenge.IsCurrent = true;
 
             CurrentSentence = _currentChallenge.SentenceText.Replace(_currentChallenge.VocabularyWordAsUsed, "__");
-            GuessOptions = _currentChallenge.VocabularyWordGuesses.Split(",").OrderBy(x => Guid.NewGuid()).ToArray();
+            GuessOptions = _currentChallenge.VocabularyWordGuesses.Split(",").Select(x => x.Trim()).OrderBy(x => Guid.NewGuid()).ToArray();
 
             // Vocabulary = challenge.Vocabulary;
 
@@ -153,9 +157,17 @@ public partial class ClozurePageModel : BaseViewModel
             //                         .OrderBy(_ => random.Next())
             //                         .ToList();
 
-            UserInput = string.Empty;
+            if(_currentChallenge.UserActivity != null)
+            {
+                UserInput = _currentChallenge.UserActivity.Input;
+            }
+            else
+            {
+                UserInput = string.Empty;
+            }
+
+            // UserInput = string.Empty;
             RecommendedTranslation = _currentChallenge.RecommendedTranslation;
-            // Sentences.RemoveAt(0);
 
             Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
             IsBusy = false;
@@ -179,12 +191,12 @@ public partial class ClozurePageModel : BaseViewModel
         if(_currentChallenge.VocabularyWordAsUsed == answer)
         {
             ua.Accuracy = 100;
-            await Toast.Make("Correct!").Show();
+            // await Toast.Make("Correct!").Show();
         }
         else
         {
             ua.Accuracy = 0;
-            await Toast.Make("Incorrect!").Show();
+            // await Toast.Make("Incorrect!").Show();
         }
 
         Sentences[_currentSentenceIndex].UserActivity = ua;
@@ -195,6 +207,8 @@ public partial class ClozurePageModel : BaseViewModel
     [RelayCommand]
     void NextSentence()
     {
+        UserMode = InputMode.Text.ToString();
+        Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex++;
         SetCurrentSentence();
     }
@@ -202,8 +216,20 @@ public partial class ClozurePageModel : BaseViewModel
     [RelayCommand]
     void PreviousSentence()
     {
+        UserMode = InputMode.Text.ToString();
+        Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex--;
         SetCurrentSentence();
+    }
+
+    [RelayCommand]
+    void JumpTo(Challenge challenge)
+    {
+        UserInput = InputMode.Text.ToString();
+        Sentences[_currentSentenceIndex].IsCurrent = false;
+        _currentSentenceIndex = Sentences.IndexOf(challenge);
+        SetCurrentSentence();
+
     }
 
     [RelayCommand]

@@ -6,7 +6,7 @@ Here are some examples of sentences using vocabulary like 학생, 한국어, and
 - 왜 한국어를 공부해요?
 - 언제부터 한국어를 공부했어요?
 
-Format the response as JSON like this:
+Format the response as JSON exactly like this:
 
 ```json
 {
@@ -21,3 +21,5 @@ Format the response as JSON like this:
   ]
 }
 ```
+
+vocabulary_word_used_guesses is a comma separated string.

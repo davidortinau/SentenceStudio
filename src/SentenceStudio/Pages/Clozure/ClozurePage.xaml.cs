@@ -17,7 +17,7 @@ public partial class ClozurePage : ContentPage
 		BindingContext = _model = model;
 		ModeSelector.PropertyChanged += Mode_PropertyChanged;
 
-		VisualStateManager.GoToState(InputUI, PlayMode.Keyboard.ToString());
+		// VisualStateManager.GoToState(InputUI, );
 	}
 
     private void Mode_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
