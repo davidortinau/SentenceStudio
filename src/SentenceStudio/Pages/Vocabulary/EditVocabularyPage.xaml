@@ -7,15 +7,21 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:DataType="vocabulary:EditVocabularyPageModel"
              x:Class="SentenceStudio.Pages.Vocabulary.EditVocabularyPage"
-             Title="{Binding VocabListName}">
+             x:Name="this"
+             Title="{Binding VocabListName}"
+             HideSoftInputOnTapped="True"
+             >
 
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Find" Clicked="Find_Clicked"/>
         <ToolbarItem Text="Add" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding AddVocabCommand}" />
         <ToolbarItem Text="Save" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding SaveVocabCommand}" />
         <ToolbarItem Text="Delete" x:DataType="vocabulary:EditVocabularyPageModel" Command="{Binding DeleteCommand}" />
     </ContentPage.ToolbarItems>
+
+    <Grid>
                 
-    <CollectionView ItemsSource="{Binding Words}">
+    <CollectionView ItemsSource="{Binding Words}" x:Name="WordsList">
         <CollectionView.Header>
             <VerticalStackLayout 
                 Spacing="{StaticResource size320}" 
@@ -66,4 +72,79 @@
         </CollectionView.ItemTemplate>
     </CollectionView>       
     
+    <!-- BottomSheetView.xaml -->
+    <ContentView 
+        IsVisible="False"
+        VerticalOptions="End"
+        x:Name="FindOnPageView">
+
+        <Grid 
+            Padding="4,8" 
+            BackgroundColor="{AppThemeBinding Light={StaticResource Gray100},Dark={StaticResource Gray900}}" 
+            ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+            
+            <Border Style="{StaticResource InputWrapper}" Grid.Column="1" Padding="4,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                    <Entry x:Name="SearchEntry" 
+                        Placeholder="Search..." 
+                        TextChanged="OnSearchTextChanged"
+                        IsSpellCheckEnabled="False"
+                        IsTextPredictionEnabled="False"
+                        ReturnType="Search"
+                        VerticalOptions="Center"
+                    />
+                    <Label Grid.Column="1" 
+                        HorizontalOptions="End" 
+                        HorizontalTextAlignment="End" 
+                        VerticalOptions="Center"
+                        FontSize="10"
+                        Margin="0,0,8,0"
+                        Text="{Binding SearchResultsDisplay, Source={x:Reference this}}" />
+                </Grid>
+            </Border>
+
+            
+            
+            <Button 
+                Text="Done" 
+                Grid.Column="0" 
+                Clicked="OnDoneClicked" 
+                Background="Transparent"
+                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                />
+            
+            <StackLayout Orientation="Horizontal" Grid.Column="2" Spacing="0" HorizontalOptions="End">
+                <ImageButton 
+                    Background="Transparent"
+                    Clicked="OnDownClicked"
+                    Aspect="Center"
+                    VerticalOptions="Center"
+                    HeightRequest="40"
+                    WidthRequest="40"> 
+                    <ImageButton.Source>
+                        <mi:SegoeFluent 
+                            Icon="ChevronUp" 
+                            IconColor="Black" 
+                            IconSize="{StaticResource IconSizeSmall}"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <ImageButton 
+                    Background="Transparent" 
+                    Clicked="OnUpClicked"
+                    Aspect="Center"
+                    VerticalOptions="Center"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <mi:SegoeFluent 
+                            Icon="ChevronDown" 
+                            IconColor="Black" 
+                            IconSize="{StaticResource IconSizeSmall}"/>
+                    </ImageButton.Source>
+                </ImageButton>
+            </StackLayout>
+        </Grid>
+    </ContentView>
+    </Grid>
 </ContentPage>

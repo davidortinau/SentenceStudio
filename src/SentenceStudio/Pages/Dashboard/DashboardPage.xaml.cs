@@ -22,7 +22,7 @@ public partial class DashboardPage : ContentPage
 override protected void OnAppearing()
 {
 	base.OnAppearing();
-	TaskMonitor.Create(SetupScatterChart);
+	// TaskMonitor.Create(SetupScatterChart);
 }
 	
 

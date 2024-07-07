@@ -16,8 +16,7 @@
             Padding="{StaticResource size160}"
             Spacing="{StaticResource size240}">
 
-            <ContentView x:Name="ScatterView" HeightRequest="600" WidthRequest="800" />
-
+            <ContentView x:Name="ScatterView" HeightRequest="600" WidthRequest="800" IsVisible="False" />
 
             <Label Text="{Binding Localize[Activities]}"
                 Style="{StaticResource Title1}"

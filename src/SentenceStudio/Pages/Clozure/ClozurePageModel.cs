@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Web;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Media;
+using SentenceStudio.Data;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -19,6 +20,7 @@ public partial class ClozurePageModel : BaseViewModel
 {
     private ClozureService _clozureService;
     private AiService _aiService;
+    private UserActivityRepository _userActivityRepository;
 
     readonly ISpeechToText _speechToText;
 
@@ -91,6 +93,7 @@ public partial class ClozurePageModel : BaseViewModel
     {
         _clozureService = service.GetRequiredService<ClozureService>();
         _aiService = service.GetRequiredService<AiService>();
+        _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
         TaskMonitor.Create(LoadSentences);
 
         _speechToText = speechToText;
@@ -135,9 +138,9 @@ public partial class ClozurePageModel : BaseViewModel
     private int _currentSentenceIndex = 0;
     private Challenge _currentChallenge;
 
-    void SetCurrentSentence()
+    async void SetCurrentSentence()
     {
-        if (Sentences != null && Sentences.Count > 0)
+        if (Sentences != null && Sentences.Count > 0 && _currentSentenceIndex < Sentences.Count)
         {
             GradeResponse = null;
             HasFeedback = false;
@@ -171,6 +174,8 @@ public partial class ClozurePageModel : BaseViewModel
 
             Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
             IsBusy = false;
+        }else{
+            await GetSentences(false, 10);
         }
     }
 
@@ -200,6 +205,8 @@ public partial class ClozurePageModel : BaseViewModel
         }
 
         Sentences[_currentSentenceIndex].UserActivity = ua;
+
+        await _userActivityRepository.SaveAsync(ua);
         
     }
     

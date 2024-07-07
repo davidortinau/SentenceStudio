@@ -60,6 +60,9 @@ public partial class LessonStartPageModel : BaseViewModel
             string route = string.Empty;
             switch (SelectedLesson)
             {
+                case "Clozure":
+                    route = "clozures";
+                    break;
                 case "Warmup":
                     route = "warmup";
                     break;

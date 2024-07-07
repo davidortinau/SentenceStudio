@@ -15,12 +15,12 @@
 
     <ContentPage.Resources>
         <clozure:UserActivityToFontImageSourceConverter x:Key="UserActivityToFontImageSourceConverter"/>
-        <mct:BoolToObjectConverter x:Key="BoolToColorConverter" TrueObject="{StaticResource Primary}" FalseObject="{StaticResource Gray200}"/>
+        <mct:BoolToObjectConverter x:Key="BoolToColorConverter" TrueObject="{StaticResource Secondary}" FalseObject="{StaticResource Gray200}"/>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="*,80">
+    <Grid RowDefinitions="*,80" RowSpacing="12">
         <ScrollView>
-            <Grid RowDefinitions="30,*,Auto">
+            <Grid RowDefinitions="30,*,Auto" RowSpacing="8">
 
                 <VerticalStackLayout Spacing="16"
                                      Grid.Row="1"
@@ -101,7 +101,8 @@
                                  x:Name="UserInputField"
                                  Grid.Row="1"
                                  Grid.Column="0"
-                                 Grid.ColumnSpan="{OnIdiom 1, Phone=4}">
+                                 Grid.ColumnSpan="{OnIdiom 1, Phone=4}"
+                                 Margin="0,0,0,12">
                         <Entry 
                                Text="{Binding UserInput}"
                                FontSize="32"
@@ -112,6 +113,7 @@
                     <VerticalStackLayout x:Name="VocabBlocks"
                                          Grid.Row="0"
                                          Spacing="4"
+                                         IsVisible="False"
                                          RadioButtonGroup.GroupName="VocabOptions"
                                          RadioButtonGroup.SelectedValue="{Binding UserGuess}"
                                          BindableLayout.ItemsSource="{Binding GuessOptions}">
@@ -189,20 +191,20 @@
                                         HorizontalOptions="Center"
                                         Aspect="Center"
                                         Source="{Binding UserActivity, Converter={StaticResource UserActivityToFontImageSourceConverter}}"
-                                        Command="{Binding JumpToCommand, Source={RelativeSource AncestorType={x:Type clozure:ClozurePageModel}}}"
+                                        Command="{Binding JumpToCommand, Source={RelativeSource AncestorType={x:Type clozure:ClozurePageModel}}, x:DataType=clozure:ClozurePageModel}"
                                         CommandParameter="{Binding .}"
                                     />
                                 </Border>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                         
-                        <!-- <ActivityIndicator IsRunning="{Binding IsBuffering}"
+                        <ActivityIndicator IsRunning="{Binding IsBuffering}"
                                         IsVisible="{Binding IsBuffering}"
                                         VerticalOptions="Center"
                                         Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
                         <Label Text="{Binding Progress}"
                             VerticalOptions="Center"
-                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/> -->
+                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
                     </HorizontalStackLayout>
                 </ScrollView>
             </Grid>

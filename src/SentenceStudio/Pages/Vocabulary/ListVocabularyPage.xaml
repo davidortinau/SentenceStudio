@@ -8,6 +8,7 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:DataType="v:ListVocabularyPageModel"
              Title="{Binding Localize[VocabularyList]}">
+
     <ScrollView>
         <VerticalStackLayout
             Padding="{StaticResource size160}"
@@ -16,6 +17,8 @@
                     Style="{StaticResource Title1}"
                     HorizontalOptions="Start"
                    IsVisible="{OnPlatform True, WinUI=False}"/>
+
+
                     
                 <layouts:HorizontalWrapLayout 
                     Spacing="{StaticResource size320}"
