@@ -189,8 +189,13 @@ public partial class DashboardPageModel : BaseViewModel
             VocabLists = await _vocabService.GetListsAsync();
 
             var listID = VocabLists.First().ID;
+
+            var payload = new ShellNavigationQueryParameters
+                        {
+                            {"listID", listID}
+                        };
             
-            await Shell.Current.GoToAsync($"clozures?listID={listID}");
+            await Shell.Current.GoToAsync($"clozures", payload);
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

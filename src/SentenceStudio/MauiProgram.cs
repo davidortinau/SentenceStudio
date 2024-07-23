@@ -21,6 +21,8 @@ using SentenceStudio.Data;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
+using CommunityToolkit.Maui.Markup;
+using Common;
 
 namespace SentenceStudio;
 
@@ -35,6 +37,7 @@ public static class MauiProgram
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
+			.UseMauiCommunityToolkitMarkup()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
@@ -106,6 +109,10 @@ public static class MauiProgram
 
 		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+
+#if DEBUG
+		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
+#endif
 
 // 		builder.Services.AddLogging(logging =>
 // 			{

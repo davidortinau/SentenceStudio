@@ -414,3 +414,4 @@ global.json
 _global.json
 nuget.config
 _nuget.config
+src/SentenceStudio/Common/FluentResourceGenerator.cs

@@ -13,10 +13,7 @@ using SentenceStudio.Data;
 
 namespace SentenceStudio.Pages.Clozure;
 
-[QueryProperty(nameof(ListID), "listID")]
-[QueryProperty(nameof(PlayMode), "playMode")]
-[QueryProperty(nameof(Level), "level")]
-public partial class ClozurePageModel : BaseViewModel
+public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 {
     private ClozureService _clozureService;
     private AiService _aiService;
@@ -94,7 +91,7 @@ public partial class ClozurePageModel : BaseViewModel
         _clozureService = service.GetRequiredService<ClozureService>();
         _aiService = service.GetRequiredService<AiService>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
-        TaskMonitor.Create(LoadSentences);
+        // TaskMonitor.Create(LoadSentences);
 
         _speechToText = speechToText;
         // _speechToText.StateChanged += HandleSpeechToTextStateChanged;
@@ -108,14 +105,13 @@ public partial class ClozurePageModel : BaseViewModel
 
     public async Task GetSentences(bool start = true, int count = 2)
     {
-        await Task.Delay(100);
         if(start)
             IsBusy = true;
         else
             IsBuffering = true;
         
         var sentences = await _clozureService.GetSentences(ListID, count);
-        await Task.Delay(100);
+        // await Task.Delay(100);
         foreach(var s in sentences)
         {
             Sentences.Add(s);
@@ -300,6 +296,12 @@ public partial class ClozurePageModel : BaseViewModel
 		await Toast.Make($"State Changed: {e.State}").Show(CancellationToken.None);
 	}
 
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        ListID = (int)query["listID"];
+        // PlayMode = (string)query["playMode"];
+        // Level = (int)query["level"];
 
-
+        TaskMonitor.Create(LoadSentences);
+    }
 }
