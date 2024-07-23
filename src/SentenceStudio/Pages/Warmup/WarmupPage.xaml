@@ -67,22 +67,23 @@
                            HorizontalOptions="End"
                            Stroke="{StaticResource Secondary}"
                            StrokeThickness="1"
-                           StrokeShape="RoundRectangle 10, 10, 10, 2"
+                           StrokeShape="RoundRectangle 10, 0, 10, 2"
                            >
                            
                                 <Label Text="{Binding Text}" 
                                     Style="{StaticResource Body1}"
                                     TextColor="White"/>
                     </Border>
-                    <Border Background="{StaticResource Gray600}"
-                            StrokeShape="RoundRectangle 8"
+                    <Border Background="{StaticResource Gray200}"
+                            StrokeShape="RoundRectangle 8, 8, 0, 0"
                             StrokeThickness="0"
                             HorizontalOptions="End"
                             VerticalOptions="Start"
-                            Margin="0,0,10,0"
+                            Margin="0,2,15,0"
                             Padding="6,0,6,2">
                         <Label Text="{Binding Comprehension}" 
-                            TextColor="White"
+                            TextColor="{StaticResource Gray900}"
+                            FontSize="10"
                             VerticalOptions="Center"
                             HorizontalOptions="Center"/>
                     </Border>
