@@ -193,6 +193,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
         {
             ua.Accuracy = 100;
             // await Toast.Make("Correct!").Show();
+            TransitionToNextSentence();
         }
         else
         {
@@ -204,12 +205,26 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
         await _userActivityRepository.SaveAsync(ua);
         
+        
     }
-    
+
+    private System.Timers.Timer autoNextTimer;
+
+    private async void TransitionToNextSentence()
+    {
+        autoNextTimer = new System.Timers.Timer(5000);
+        autoNextTimer.Elapsed += async (sender, e) =>
+        {
+            autoNextTimer.Stop();
+            NextSentence();
+        };
+        autoNextTimer.Start();
+    }
 
     [RelayCommand]
     void NextSentence()
     {
+        autoNextTimer?.Stop();
         UserMode = InputMode.Text.ToString();
         Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex++;
@@ -219,15 +234,22 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     [RelayCommand]
     void PreviousSentence()
     {
+        autoNextTimer?.Stop();
         UserMode = InputMode.Text.ToString();
         Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex--;
         SetCurrentSentence();
     }
 
+    partial void OnUserModeChanged(string oldValue, string newValue)
+    {
+        autoNextTimer?.Stop();
+    }
+
     [RelayCommand]
     void JumpTo(Challenge challenge)
     {
+        autoNextTimer?.Stop();
         UserInput = InputMode.Text.ToString();
         Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex = Sentences.IndexOf(challenge);

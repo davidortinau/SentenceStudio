@@ -4,6 +4,7 @@
              xmlns:resx="clr-namespace:SentenceStudio.Resources.Strings"
              xmlns:layouts="clr-namespace:CustomLayouts;assembly=SentenceStudio"
              xmlns:controls="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
+             xmlns:c="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
              xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard"
              xmlns:models="clr-namespace:SentenceStudio.Models"
              xmlns:app="clr-namespace:SentenceStudio"
@@ -17,6 +18,14 @@
             Spacing="{StaticResource size240}">
 
             <ContentView x:Name="ScatterView" HeightRequest="600" WidthRequest="800" IsVisible="False" />
+
+            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                        FieldLabel="Default Vocabulary">
+                <Picker x:Name="VocabPicker" 
+                        ItemsSource="{Binding VocabLists}"
+                        ItemDisplayBinding="{Binding Name}"                    
+                        SelectedItem="{Binding VocabList, Mode=TwoWay}" />
+            </c:FormField>  
 
             <Label Text="{Binding Localize[Activities]}"
                 Style="{StaticResource Title1}"

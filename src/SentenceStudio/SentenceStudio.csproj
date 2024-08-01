@@ -125,7 +125,12 @@
 		<PackageReference Include="OxyPlot.Maui.Skia" Version="1.0.0" />
 		<PackageReference Include="SkiaSharp.HarfBuzz" Version="2.88.8" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="2.88.8" />
+		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 	</ItemGroup>
+
+	<!-- <ItemGroup>
+		<ProjectReference Include="..\..\..\Plugin.Maui.DebugOverlay\src\Plugin.Maui.DebugOverlay\Plugin.Maui.DebugOverlay.csproj" />
+	</ItemGroup> -->
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.1" />

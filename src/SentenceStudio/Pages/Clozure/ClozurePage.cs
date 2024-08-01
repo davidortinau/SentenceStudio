@@ -1,10 +1,13 @@
 using CommunityToolkit.Maui.Converters;
+using CommunityToolkit.Maui.Extensions;
 using CommunityToolkit.Maui.Markup;
 using MauiIcons.Core;
 using MauiIcons.SegoeFluent;
 using Microsoft.Maui.Controls.Shapes;
 using SentenceStudio.Pages.Controls;
 using static CommunityToolkit.Maui.Markup.GridRowsColumns;
+using static Microsoft.Maui.Controls.VisualStateManager;
+using Border = Microsoft.Maui.Controls.Border;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -39,6 +42,9 @@ public static class ViewExtensions
 	}
 }
 
+
+
+
 public class ClozurePage : ContentPage
 {
 	ClozurePageModel _model;
@@ -50,8 +56,6 @@ public class ClozurePage : ContentPage
 
 	public ClozurePage(ClozurePageModel model)
 	{
-
-
 		BindingContext = _model = model;
 
 		//ModeSelector.PropertyChanged += Mode_PropertyChanged;
@@ -115,16 +119,19 @@ public class ClozurePage : ContentPage
 						.Assign(out LoadingOverlay)
 				}
 		}; // Content Grid
+
+		RadioButtonGroup.SetGroupName(VocabBlocks, "GuessOptions");
+		// RadioButtonGroup.SetSelectedValue(VocabBlocks, nameof(ClozurePageModel.UserGuess));
 	}
 
 	private Grid LoadingOverlayView()
 	{
 		return new Grid
-		{ 
+		{
 			Background = Color.FromArgb("#80000000"),
 			Children = {
 							new Label {
-								Text = "Thinking...",
+								Text = "Thinking.....",
 							}
 							.Font(size: 64)
 							.AppThemeColorBinding(Label.TextColorProperty, light: (Color)Application.Current.Resources["DarkOnLightBackground"], dark: (Color)Application.Current.Resources["LightOnDarkBackground"])
@@ -139,7 +146,7 @@ public class ClozurePage : ContentPage
 		{ // Navigation
 			RowDefinitions = Rows.Define(1, Star),
 			ColumnDefinitions = Columns.Define(60, 1, Star, 1, 60, 1, 60),
-			Children = 
+			Children =
 			{
 				new Button{ Text = "GO" }
 					.AppThemeColorBinding(Button.TextColorProperty, light: (Color)Application.Current.Resources["DarkOnLightBackground"], dark: (Color)Application.Current.Resources["LightOnDarkBackground"])
@@ -228,49 +235,87 @@ public class ClozurePage : ContentPage
 			RowSpacing = DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5,
 			Padding = DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0),
 			Children = {
-												new FormField
-													{
-														FieldLabel = "Answer",
-														Content = new Entry
-															{
-																ReturnType = ReturnType.Go,
-															}
+				new FormField
+					{
+						FieldLabel = "Answer",
+						Content = new Entry
+							{
+								ReturnType = ReturnType.Go,
+							}
 
-															.Font(size:32)
-															.Bind(Entry.TextProperty, nameof(ClozurePageModel.UserInput))
-															.Bind(Entry.ReturnCommandProperty, nameof(ClozurePageModel.GradeMeCommand))
-													}
-													.Row(1).Column(0).ColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-													.Margins(bottom:12)
-													.Assign(out UserInputField), // FormField
-												new VerticalStackLayout
-													{
-														Spacing = 4,
-														IsVisible = false
-													}
-													.ItemTemplate(()=> new RadioButton
-														{
-															Content = new Label().Bind(Label.TextProperty, "."),
-															ControlTemplate = new ControlTemplate(() =>
-															{
-																return new Border
-																{
-																	StrokeShape = new RoundRectangle{CornerRadius = 4},
-																	StrokeThickness = 1,
-																	Stroke = Colors.Black,
-																	WidthRequest = 180,
-																	Content = new ContentPresenter().Center()
-																}.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
-															})
-														})
-													.Bind(BindableLayout.ItemsSourceProperty, nameof(ClozurePageModel.GuessOptions))
-													.Row(0)
-													.Assign(out VocabBlocks) // VerticalStacklayout
-												
-													
-											}
-		}
-										;
+							.Font(size:32)
+							.Bind(Entry.TextProperty, nameof(ClozurePageModel.UserInput))
+							.Bind(Entry.ReturnCommandProperty, nameof(ClozurePageModel.GradeMeCommand))
+					}
+					.Bind(VisualElement.IsVisibleProperty, nameof(ClozurePageModel.UserMode), convert: (string text) => (text != "MultipleChoice"))
+					.Row(1).Column(0).ColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
+					.Margins(bottom:12)
+					.Assign(out UserInputField), // FormField
+				new VerticalStackLayout
+					{
+						Spacing = 4,
+					}
+					.Bind(VisualElement.IsVisibleProperty, nameof(ClozurePageModel.UserMode), convert: (string text) => (text == "MultipleChoice"))
+.ItemTemplate(()=> new RadioButton
+	{
+		// TODO - wrong and right colors, with the same icon usage as in the scoreboard, show correct answer when wrong
+		ControlTemplate = new ControlTemplate(() =>
+		{
+			return new Border
+			{
+				StrokeShape = new RoundRectangle { CornerRadius = 4 },
+				StrokeThickness = 1,
+				Stroke = Colors.Black,
+				WidthRequest = 180,
+				Content = new Microsoft.Maui.Controls.ContentPresenter().Center(),
+				Style = GuessStyle()
+			}
+			.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
+		})
+	}
+	.OnCheckChanged((RadioButton radioButton) => {
+		if(radioButton.IsChecked)
+			_model.UserGuess = radioButton.Content.ToString();
+		// radioButton.BackgroundColor = radioButton.IsChecked ? (Color)Application.Current.Resources["Primary"] : (Color)Application.Current.Resources["LightBackground"];
+	})
+						.Bind(RadioButton.ContentProperty, ".")
+						.Bind(RadioButton.ValueProperty, "."))
+					.Bind(BindableLayout.ItemsSourceProperty, nameof(ClozurePageModel.GuessOptions))
+					.Bind(RadioButtonGroup.SelectedValueProperty, nameof(ClozurePageModel.UserGuess))
+					.Row(0)
+					.Assign(out VocabBlocks) // VerticalStacklayout					
+			}
+		};
+	}
+
+	private Style GuessStyle()
+	{
+		VisualStateGroupList visualStateGroupList = new() { 
+			new VisualStateGroup { 
+				Name = "RadioButtonStates", 
+				States = { 
+					new VisualState { 
+						Name = RadioButton.CheckedVisualState, 
+						Setters = { 
+							new Setter { 
+								Property = BackgroundProperty, 
+								Value = (Color)Application.Current.Resources["Primary"] 
+							} 
+						} 
+					}, 
+					new VisualState { Name = RadioButton.UncheckedVisualState } 
+				} 
+			}
+		 };
+
+		return new(typeof(Border)) { 
+			Setters = { 
+				new Setter { 
+					Property = VisualStateGroupsProperty, 
+					Value = visualStateGroupList 
+				} 
+			} 
+		};
 	}
 
 	private VerticalStackLayout SentenceDisplay()

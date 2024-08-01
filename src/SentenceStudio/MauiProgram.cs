@@ -23,6 +23,7 @@ using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
 using CommunityToolkit.Maui.Markup;
 using Common;
+using Plugin.Maui.DebugOverlay;
 
 namespace SentenceStudio;
 
@@ -111,6 +112,7 @@ public static class MauiProgram
 		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
 
 #if DEBUG
+		builder.UseDebugRibbon(Colors.Green);
 		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
 #endif
 

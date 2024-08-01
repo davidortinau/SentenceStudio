@@ -15,6 +15,9 @@ public partial class DashboardPageModel : BaseViewModel
     [ObservableProperty]
     private List<VocabularyList> _vocabLists;
 
+    [ObservableProperty]
+    private VocabularyList _vocabList;
+
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
@@ -112,20 +115,14 @@ public partial class DashboardPageModel : BaseViewModel
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultTranslate()
-    {
-        if(VocabLists.Count == 0)
-            VocabLists = await _vocabService.GetListsAsync();
-        
-        await Play(VocabLists.First().ID);
+    {        
+        await Play(VocabList.ID);
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultWrite()
     {
-        if(VocabLists.Count == 0)
-            VocabLists = await _vocabService.GetListsAsync();
-        await Write(VocabLists.First().ID);
-        
+        await Write(VocabList.ID);        
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
@@ -185,14 +182,9 @@ public partial class DashboardPageModel : BaseViewModel
     async Task Clozures()
     {
         try{
-            if(VocabLists.Count == 0)
-            VocabLists = await _vocabService.GetListsAsync();
-
-            var listID = VocabLists.First().ID;
-
             var payload = new ShellNavigationQueryParameters
                         {
-                            {"listID", listID}
+                            {"listID", VocabList.ID}
                         };
             
             await Shell.Current.GoToAsync($"clozures", payload);

@@ -74,7 +74,16 @@ public partial class LessonStartPageModel : BaseViewModel
                     route = "translation";
                     break;
             }
-            await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
+
+            var payload = new ShellNavigationQueryParameters
+                {
+                    {"listID", VocabList.ID},
+                    {"playMode", SelectedPlayMode.ToString()},
+                    {"level", Level.ToString()}
+                };
+            
+            await Shell.Current.GoToAsync($"{route}", payload);
+            // await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
