@@ -103,16 +103,17 @@ public class ClozurePage : ContentPage
 						{
 							Content = new Grid
 							{
-								RowDefinitions = Rows.Define(20,Star,Auto),
+								RowDefinitions = Rows.Define(60,Star,Auto),
 								RowSpacing = 8,
 								Children = {
 									SentenceDisplay().Row(1),
 									UserInput().Row(2).Assign(out InputUI),
-									SentenceScoreboard().RowSpan(2).Top()
+									SentenceScoreboard().Row(0).CenterVertical()
 								}
 							} // Grid
 						}, // ScrollView
 					NavigationFooter().Row(1),
+					AutoTransitionBar().Row(0).Top(),
 					LoadingOverlayView()
 						.RowSpan(2)
 						.Bind(Grid.IsVisibleProperty, nameof(ClozurePageModel.IsBusy))
@@ -124,7 +125,18 @@ public class ClozurePage : ContentPage
 		// RadioButtonGroup.SetSelectedValue(VocabBlocks, nameof(ClozurePageModel.UserGuess));
 	}
 
-	private Grid LoadingOverlayView()
+    private ProgressBar AutoTransitionBar()
+    {
+        return new ProgressBar
+		{
+			Progress = 0.5,
+			HeightRequest = 4,
+			BackgroundColor = Colors.Transparent,
+			ProgressColor = (Color)Application.Current.Resources["Primary"]
+		}.Bind(ProgressBar.ProgressProperty, nameof(ClozurePageModel.AutoTransitionProgress));
+    }
+
+    private Grid LoadingOverlayView()
 	{
 		return new Grid
 		{
@@ -256,28 +268,28 @@ public class ClozurePage : ContentPage
 						Spacing = 4,
 					}
 					.Bind(VisualElement.IsVisibleProperty, nameof(ClozurePageModel.UserMode), convert: (string text) => (text == "MultipleChoice"))
-.ItemTemplate(()=> new RadioButton
-	{
-		// TODO - wrong and right colors, with the same icon usage as in the scoreboard, show correct answer when wrong
-		ControlTemplate = new ControlTemplate(() =>
-		{
-			return new Border
-			{
-				StrokeShape = new RoundRectangle { CornerRadius = 4 },
-				StrokeThickness = 1,
-				Stroke = Colors.Black,
-				WidthRequest = 180,
-				Content = new Microsoft.Maui.Controls.ContentPresenter().Center(),
-				Style = GuessStyle()
-			}
-			.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
-		})
-	}
-	.OnCheckChanged((RadioButton radioButton) => {
-		if(radioButton.IsChecked)
-			_model.UserGuess = radioButton.Content.ToString();
-		// radioButton.BackgroundColor = radioButton.IsChecked ? (Color)Application.Current.Resources["Primary"] : (Color)Application.Current.Resources["LightBackground"];
-	})
+					.ItemTemplate(()=> new RadioButton
+						{
+							// TODO - wrong and right colors, with the same icon usage as in the scoreboard, show correct answer when wrong
+							ControlTemplate = new ControlTemplate(() =>
+							{
+								return new Border
+								{
+									StrokeShape = new RoundRectangle { CornerRadius = 4 },
+									StrokeThickness = 1,
+									Stroke = Colors.Black,
+									WidthRequest = 180,
+									Content = new Microsoft.Maui.Controls.ContentPresenter().Center(),
+									Style = GuessStyle()
+								}
+								.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
+							})
+						}
+						.OnCheckChanged((RadioButton radioButton) => {
+							if(radioButton.IsChecked)
+								_model.UserGuess = radioButton.Content.ToString();
+							// radioButton.BackgroundColor = radioButton.IsChecked ? (Color)Application.Current.Resources["Primary"] : (Color)Application.Current.Resources["LightBackground"];
+						})
 						.Bind(RadioButton.ContentProperty, ".")
 						.Bind(RadioButton.ValueProperty, "."))
 					.Bind(BindableLayout.ItemsSourceProperty, nameof(ClozurePageModel.GuessOptions))

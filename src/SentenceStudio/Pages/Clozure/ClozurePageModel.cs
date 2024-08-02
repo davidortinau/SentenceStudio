@@ -76,6 +76,9 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     [ObservableProperty]
     private string _userGuess;
 
+    [ObservableProperty]
+    private double _autoTransitionProgress;
+
     partial void OnUserGuessChanged(string oldValue, string newValue)
     {
         _ = GradeAnswer(newValue);
@@ -212,11 +215,17 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
     private async void TransitionToNextSentence()
     {
-        autoNextTimer = new System.Timers.Timer(5000);
+        autoNextTimer = new System.Timers.Timer(250);
+        var startedTime = DateTime.Now;
         autoNextTimer.Elapsed += async (sender, e) =>
         {
-            autoNextTimer.Stop();
-            NextSentence();
+            AutoTransitionProgress = (e.SignalTime - startedTime).TotalMilliseconds / 5000;
+            if (AutoTransitionProgress >= 1)
+            {
+                autoNextTimer.Stop();
+                NextSentence();
+                AutoTransitionProgress = 0;
+            }
         };
         autoNextTimer.Start();
     }
