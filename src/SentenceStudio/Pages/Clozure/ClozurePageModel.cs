@@ -215,7 +215,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
     private async void TransitionToNextSentence()
     {
-        autoNextTimer = new System.Timers.Timer(250);
+        autoNextTimer = new System.Timers.Timer(100);
         var startedTime = DateTime.Now;
         autoNextTimer.Elapsed += async (sender, e) =>
         {
