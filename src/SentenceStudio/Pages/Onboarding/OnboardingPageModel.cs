@@ -51,21 +51,25 @@ public partial class OnboardingPageModel : BaseViewModel
         
         await AppShell.DisplayToastAsync(Localize["Saved"].ToString());
 
-        var lists = await _vocabularyService.GetListsAsync();
-        if(lists.Count == 0)
-        {
-            var response = await Shell.Current.DisplayAlert(
-                Localize["VocabularyList"].ToString(), 
-                Localize["CreateStarterVocabPrompt"].ToString(), 
-                Localize["Yes"].ToString(), 
-                Localize["No, I'll do it myself"].ToString());
-            if(response){
-                IsBusy = true;
-                await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
-                IsBusy = false;
-            }
+        // crashes, why?
+        // var lists = await _vocabularyService.GetListsAsync();
+        // if(lists.Count == 0)
+        // {
+        //     Shell.Current.Dispatcher.Dispatch(async () =>
+        //     {
+        //         var response = await Shell.Current.DisplayAlert(
+        //             Localize["VocabularyList"].ToString(), 
+        //             Localize["CreateStarterVocabPrompt"].ToString(), 
+        //             Localize["Yes"].ToString(), 
+        //             Localize["No, I'll do it myself"].ToString());
+        //         if(response){
+        //             IsBusy = true;
+        //             await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+        //             IsBusy = false;
+        //         }
+        //     });
 
-        }
+        // }
 
         await Shell.Current.GoToAsync("//dashboard");
     }
