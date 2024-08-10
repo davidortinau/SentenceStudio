@@ -23,7 +23,7 @@
                         FieldLabel="Default Vocabulary">
                 <Picker x:Name="VocabPicker" 
                         ItemsSource="{Binding VocabLists}"
-                        ItemDisplayBinding="{Binding Name}"                    
+                        ItemDisplayBinding="{Binding Name, x:DataType=models:VocabularyList}"                    
                         SelectedItem="{Binding VocabList, Mode=TwoWay}" />
             </c:FormField>  
 

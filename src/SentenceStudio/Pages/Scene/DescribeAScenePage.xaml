@@ -12,7 +12,7 @@
              Title="{Binding Localize[DescribeAScene]}"
              x:DataType="scene:DescribeAScenePageModel"
              HideSoftInputOnTapped="True"
-             Shell.NavBarIsVisible="true">
+             Shell.NavBarIsVisible="True">
              
 
     <ContentPage.ToolbarItems>

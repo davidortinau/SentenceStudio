@@ -95,8 +95,13 @@
     </ContentPage.Resources>
 
     <ContentPage.ToolbarItems>
-        <ToolbarItem IconImageSource="{mi:SegoeFluent Icon=Refresh, IconSize={StaticResource IconSize}}"
-                     Command="{Binding RefreshVocabCommand}" />
+        <ToolbarItem 
+                     Command="{Binding RefreshVocabCommand}">
+            <ToolbarItem.IconImageSource>
+                <mi:SegoeFluent Icon="Refresh" IconSize="{StaticResource IconSize}" 
+                            IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground},Light={StaticResource DarkOnLightBackground}}"/>
+            </ToolbarItem.IconImageSource>
+        </ToolbarItem>
     </ContentPage.ToolbarItems>    
 
     <Grid x:Name="PageContainer" RowDefinitions="Auto,*,Auto">

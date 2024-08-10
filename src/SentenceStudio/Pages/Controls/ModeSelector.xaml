@@ -50,14 +50,22 @@
         RadioButtonGroup.GroupName="InputMode">
         <RadioButton Value="MultipleChoice">
             <RadioButton.Content>
-                <Image Aspect="Center"
-                       Source="{mi:SegoeFluent Icon=Checkbox, IconSize=18}" />
+                <Image Aspect="Center">
+                    <Image.Source>
+                        <mi:SegoeFluent Icon="Checkbox" IconSize="18" 
+                            IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground},Light={StaticResource DarkOnLightBackground}}"/>
+                    </Image.Source>
+                </Image>
             </RadioButton.Content>
         </RadioButton>
         <RadioButton Value="Text">
             <RadioButton.Content>
-                <Image Aspect="Center"
-                       Source="{mi:SegoeFluent Icon=KeyboardClassic, IconSize=18}" />
+                <Image Aspect="Center">
+                    <Image.Source>
+                        <mi:SegoeFluent Icon="KeyboardClassic" IconSize="18" 
+                            IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground},Light={StaticResource DarkOnLightBackground}}"/>
+                    </Image.Source>
+                </Image>
             </RadioButton.Content>
         </RadioButton>
         <!-- <RadioButton Value="{x:Static m:InputMode.Voice.ToString()}">

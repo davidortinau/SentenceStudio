@@ -99,7 +99,7 @@
                         VerticalOptions="Center"
                         FontSize="10"
                         Margin="0,0,8,0"
-                        Text="{Binding SearchResultsDisplay, Source={x:Reference this}}" />
+                        Text="{Binding SearchResultsDisplay, Source={x:Reference this}, x:DataType=vocabulary:EditVocabularyPage}" />
                 </Grid>
             </Border>
 

@@ -58,6 +58,8 @@ public partial class DashboardPageModel : BaseViewModel
                     await Shell.Current.GoToAsync("userProfile");
                 }
             }
+        }else{
+            VocabList = VocabLists.First();
         }
     }
 
