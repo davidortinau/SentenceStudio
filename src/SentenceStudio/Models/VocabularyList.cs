@@ -10,4 +10,9 @@ public class VocabularyList
     
     [ManyToMany(typeof(VocabularyWord))]
     public List<VocabularyWord> Words { get; set; }
+
+    public override string ToString()
+    {
+        return Name;
+    }
 }
