@@ -30,7 +30,7 @@ public class UserActivityRepository
         catch (Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
         }
     }
 
@@ -69,7 +69,7 @@ public class UserActivityRepository
             }
             catch (Exception ex)
             {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
             }
         }
 
