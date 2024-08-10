@@ -174,7 +174,16 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
             Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
             IsBusy = false;
         }else{
-            await GetSentences(false, 10);
+            Shell.Current.Dispatcher.Dispatch(async () =>
+            {
+                var result = await Shell.Current.DisplayAlert("More Sentences", "Do you want to get more sentences?", "Yes", "No");
+                if (result)
+                {
+                    IsBusy = true;
+                    await GetSentences(false, 10);
+                }
+            });
+            
         }
     }
 
@@ -259,7 +268,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     void JumpTo(Challenge challenge)
     {
         autoNextTimer?.Stop();
-        UserInput = InputMode.Text.ToString();
+        UserMode = InputMode.Text.ToString();
         Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex = Sentences.IndexOf(challenge);
         SetCurrentSentence();
