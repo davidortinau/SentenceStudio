@@ -18,7 +18,8 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>disable</Nullable>
-		<MauiVersion>8.0.70</MauiVersion>
+		<!-- <MauiVersion>8.0.71</MauiVersion> -->
+		<!-- <MauiVersion>8.0.80-ci.net9.24381.6</MauiVersion> -->
 		<!-- <MauiVersion>9.0.0-preview.4.10657</MauiVersion> -->
 
 
@@ -52,6 +53,10 @@
 		<DisableCodesignVerification>true</DisableCodesignVerification>
 	</PropertyGroup>
 
+	<ItemGroup>
+		<TrimmerRootDescriptor Include="roots.xml"/>
+	</ItemGroup>
+
 	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
 		<PublishAot>true</PublishAot>
 		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
@@ -67,6 +72,7 @@
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net9.0-ios|AnyCPU'">
 	  <CreatePackage>false</CreatePackage>
+	  <!-- <MtouchUseLlvm>false</MtouchUseLlvm> -->
 	</PropertyGroup>
 
 	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
@@ -95,8 +101,8 @@
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(UseMaui)' == 'true' ">
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.71" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.71" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(UseMaui)' != 'true' ">
@@ -144,8 +150,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
 	</ItemGroup>
 
-	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
-		
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.3" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 	</ItemGroup>
