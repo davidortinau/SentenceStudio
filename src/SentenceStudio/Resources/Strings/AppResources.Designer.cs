@@ -256,6 +256,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Skill Profiles.
+        /// </summary>
+        internal static string SkillProfiles {
+            get {
+                return ResourceManager.GetString("SkillProfiles", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Start a Lesson.
         /// </summary>
         internal static string StartLesson {

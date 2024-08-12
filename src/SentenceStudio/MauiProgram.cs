@@ -73,6 +73,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
 		builder.Services.AddSingleton<ClozureService>();
 		builder.Services.AddSingleton<UserActivityRepository>();
+		builder.Services.AddSingleton<SkillProfileRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel>();
@@ -91,6 +92,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
+		builder.Services.AddTransientWithShellRoute<SkillProfilesPage, SkillProfilesPageModel>("skills");
 
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();

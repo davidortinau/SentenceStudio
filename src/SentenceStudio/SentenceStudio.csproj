@@ -53,9 +53,9 @@
 		<DisableCodesignVerification>true</DisableCodesignVerification>
 	</PropertyGroup>
 
-	<ItemGroup>
+	<!-- <ItemGroup>
 		<TrimmerRootDescriptor Include="roots.xml"/>
-	</ItemGroup>
+	</ItemGroup> -->
 
 	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
 		<PublishAot>true</PublishAot>

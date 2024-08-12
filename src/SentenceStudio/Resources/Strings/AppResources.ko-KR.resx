@@ -160,4 +160,7 @@
     <data name="NoVocabPromptResponse" xml:space="preserve">
         <value>아니요, 제가 직접 할게요</value>
     </data>
+    <data name="SkillProfiles" xml:space="preserve">
+        <value>기술 프로필</value>
+    </data>
 </root>

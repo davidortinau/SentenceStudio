@@ -113,7 +113,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
         else
             IsBuffering = true;
         
-        var sentences = await _clozureService.GetSentences(ListID, count);
+        var sentences = await _clozureService.GetSentences(ListID, count, 1);
         // await Task.Delay(100);
         foreach(var s in sentences)
         {

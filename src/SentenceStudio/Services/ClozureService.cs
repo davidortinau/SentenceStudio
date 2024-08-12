@@ -4,6 +4,7 @@ using SentenceStudio.Models;
 using Scriban;
 using SQLite;
 using SentenceStudio.Common;
+using SentenceStudio.Data;
 
 namespace SentenceStudio.Services
 {
@@ -11,6 +12,7 @@ namespace SentenceStudio.Services
     {
         private AiService _aiService;
         private VocabularyService _vocabularyService;
+        private SkillProfileRepository _skillRepository;
         private SQLiteAsyncConnection Database;
         
         private List<VocabularyWord> _words;
@@ -25,9 +27,10 @@ namespace SentenceStudio.Services
         {
             _aiService = service.GetRequiredService<AiService>();
             _vocabularyService = service.GetRequiredService<VocabularyService>();
+            _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         }
 
-        public async Task<List<Challenge>> GetSentences(int vocabularyListID, int numberOfSentences)
+        public async Task<List<Challenge>> GetSentences(int vocabularyListID, int numberOfSentences, int skillID)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -40,13 +43,15 @@ namespace SentenceStudio.Services
             // List<Challenge> challenges = await Database.Table<Challenge>().Where(c => vocab.Words.Contains(c.Vocabulary)).ToListAsync();
 
             _words = vocab.Words.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences).ToList();
+
+            var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
             
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozures.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(reader.ReadToEnd());
-                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences });
+                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description}); 
             }
 
             Debug.WriteLine(prompt);

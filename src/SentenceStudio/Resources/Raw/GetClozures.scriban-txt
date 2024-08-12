@@ -1,4 +1,9 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. The sentences should use 존댓말, and at a beginner Korean level. Include 5 words in the field vocabulary_word_used_guesses that can be presented as multiple choice options for a fill-in-the-blank question.
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. Include 5 words in the field vocabulary_word_used_guesses that can be presented as multiple choice options for a fill-in-the-blank question.
+
+{{ if skills }}
+Emphasize the following skills that I want to practice: 
+{{ skills }}
+{{ end }}
 
 Here are some examples of sentences using vocabulary like 학생, 한국어, and 공부하다:
 

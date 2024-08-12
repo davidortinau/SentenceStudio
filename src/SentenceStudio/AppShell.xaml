@@ -79,6 +79,12 @@
                                         CommandParameter="vocabulary" />
                     </Label.GestureRecognizers>
                 </Label>
+                <Label Text="Skills">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToCommand}"
+                                        CommandParameter="skills" />
+                    </Label.GestureRecognizers>
+                </Label>
                 <Label Text="{Binding Localize[MyProfile]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
@@ -119,9 +125,16 @@
     </FlyoutItem>
     
     <FlyoutItem Title="{Binding Localize[MyProfile]}">
-        <ShellContent
-            ContentTemplate="{DataTemplate account:UserProfilePage}"
-            Route="userProfile" />
+        <ShellSection>
+            <ShellContent
+                ContentTemplate="{DataTemplate account:UserProfilePage}"
+                Route="userProfile" />
+        </ShellSection>
+        <ShellSection>
+            <ShellContent
+                ContentTemplate="{DataTemplate account:SkillProfilesPage}"
+                Route="skills" />
+        </ShellSection>
     </FlyoutItem>
 
     <Shell.FlyoutFooter>
