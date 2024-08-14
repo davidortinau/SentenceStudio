@@ -18,11 +18,16 @@ public partial class DashboardPageModel : BaseViewModel
     [ObservableProperty]
     private VocabularyList _vocabList;
 
+    [ObservableProperty] private List<SkillProfile> _skillProfiles;
+
+    [ObservableProperty] private SkillProfile _skillProfile;
+
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
         _userService = service.GetRequiredService<UserProfileService>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
+        _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
         TaskMonitor.Create(GetLists);
     }
 
@@ -61,6 +66,8 @@ public partial class DashboardPageModel : BaseViewModel
         }else{
             VocabList = VocabLists.First();
         }
+
+        SkillProfiles = await _skillsRepository.ListAsync();
     }
 
     private bool _shouldRefresh;
@@ -82,7 +89,8 @@ public partial class DashboardPageModel : BaseViewModel
 
     private UserProfileService _userService;
     private UserActivityRepository _userActivityRepository;
-    
+    private readonly SkillProfileRepository _skillsRepository;
+
 
     [RelayCommand]
     async Task AddVocabulary()

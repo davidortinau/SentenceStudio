@@ -1,6 +1,5 @@
-#if DEBUG
-using Common;
-#endif
+
+
 using CommunityToolkit.Maui.Converters;
 using CommunityToolkit.Maui.Extensions;
 using CommunityToolkit.Maui.Markup;
@@ -76,12 +75,6 @@ public class ClozurePage : ContentPage
 		Build();
 
 		// VisualStateManager.GoToState(InputUI, );
-
-#if DEBUG
-        HotReloadService.UpdateApplicationEvent += ReloadUI;
-#endif
-
-
 	}
 
     private void ReloadUI(Type[] obj)

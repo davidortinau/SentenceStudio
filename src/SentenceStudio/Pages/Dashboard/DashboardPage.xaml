@@ -27,7 +27,15 @@
                             ItemsSource="{Binding VocabLists}"
                             ItemDisplayBinding="{Binding Name, x:DataType=models:VocabularyList}"                    
                             SelectedItem="{Binding VocabList, Mode=TwoWay}" />
-                </c:FormField>  
+                </c:FormField> 
+                
+                <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
+                             FieldLabel="Default Skill Profile">
+                    <Picker x:Name="SkillPicker" 
+                            ItemsSource="{Binding SkillProfiles}"
+                            ItemDisplayBinding="{Binding Title, x:DataType=models:SkillProfile}"                    
+                            SelectedItem="{Binding SkillProfile, Mode=TwoWay}" />
+                </c:FormField> 
 
                 <Label Text="{Binding Localize[Activities]}"
                     Style="{StaticResource Title1}"

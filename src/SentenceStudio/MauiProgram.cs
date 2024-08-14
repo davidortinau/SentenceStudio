@@ -118,7 +118,7 @@ public static class MauiProgram
 		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
 
 #if DEBUG
-		builder.UseDebugRibbon(Colors.Green);
+		builder.UseDebugRibbon(Colors.Black);
 		// builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
 #endif
 
