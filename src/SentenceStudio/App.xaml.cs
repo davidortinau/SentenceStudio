@@ -4,6 +4,7 @@ using SentenceStudio.Messages;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Vocabulary;
+using SentenceStudio.Resources.Styles;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
@@ -16,6 +17,22 @@ public partial class App : Application
 		InitializeComponent();
 
 		Debug.WriteLine($"AppStart Culture: {CultureInfo.CurrentUICulture.Name}");
+		Debug.WriteLine($"Manufacturer: {DeviceInfo.Model}");
+
+		if(DeviceInfo.Model.Contains("NoteAir3C", StringComparison.CurrentCultureIgnoreCase)) // TODO expand this to detect any eInk device
+		{
+			Application.Current.Resources.MergedDictionaries.Add(new HighContrastColors());
+		}
+		else
+		{
+			Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Colors());
+		}
+		
+		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Fluent());
+		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Styles());
+		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Converters());
+
+		// Application.Current.Resources.MergedDictionaries.Add(mergedResources);
 
 		// CultureInfo.CurrentUICulture = new CultureInfo( "ko-KR", false );
 

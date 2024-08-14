@@ -22,7 +22,9 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
 using CommunityToolkit.Maui.Markup;
+#if DEBUG
 using Common;
+#endif
 using Plugin.Maui.DebugOverlay;
 
 namespace SentenceStudio;
@@ -56,7 +58,7 @@ public static class MauiProgram
 			.ConfigureMauiHandlers(handlers =>
 			{
 				ModifyEntry();
-				//ModifyPicker();
+				ModifyPicker();
 			})
 			.ConfigureFilePicker(100)
             ;
@@ -76,8 +78,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SkillProfileRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
-		builder.Services.AddTransient<FeedbackPanel>();
-		builder.Services.AddTransient<FeedbackPanelModel>();
+		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
+		// builder.Services.AddTransient<FeedbackPanelModel>();
+
+		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
 		
 		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
 		builder.Services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
@@ -115,7 +119,7 @@ public static class MauiProgram
 
 #if DEBUG
 		builder.UseDebugRibbon(Colors.Green);
-		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
+		// builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
 #endif
 
 // 		builder.Services.AddLogging(logging =>
@@ -129,6 +133,9 @@ public static class MauiProgram
 // 				// Enable maximum logging for BlazorWebView
 // 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
 // 			});
+
+	
+
 		
 		return builder.Build();
 	}
@@ -137,14 +144,24 @@ public static class MauiProgram
 
     private static void ModifyPicker()
     {
-#if MACCATALYST
-        Microsoft.Maui.Handlers.PickerHandler.Mapper.ReplaceMapping<Picker, IPickerHandler>(nameof(Picker.Title), (handler, view) =>
+		
+#if ANDROID
+		Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
 		{
-			// do nothing
-			Debug.WriteLine("Do nothing");
+            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+
 			
 		});
 #endif
+
+// #if MACCATALYST
+//         Microsoft.Maui.Handlers.PickerHandler.Mapper.ReplaceMapping<Picker, IPickerHandler>(nameof(Picker.Title), (handler, view) =>
+// 		{
+// 			handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
+// 			Debug.WriteLine("Do nothing");
+			
+// 		});
+// #endif
     }
 
     public static void ModifyEntry()
@@ -152,6 +169,7 @@ public static class MauiProgram
         Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoMoreBorders", (handler, view) =>
         {
 #if ANDROID
+			handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
             handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
 #elif IOS || MACCATALYST
             handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;

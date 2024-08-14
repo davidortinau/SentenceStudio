@@ -189,24 +189,36 @@
                             </Keyboard>
                         </Entry.Keyboard>
                     </Entry>
-                    <Button ImageSource="{mi:SegoeFluent Icon=Dictionary, IconSize={StaticResource IconSize}}"
-                            BackgroundColor="Transparent"
-                            TextColor="Black"
+                    <Button BackgroundColor="Transparent"
                             x:Name="TranslateButton"
                             Padding="0" Margin="0"
                             VerticalOptions="Center"
                             HorizontalOptions="End"
                             Command="{Binding TranslateInputCommand}"
                             CommandParameter="{x:Reference TranslateButton}"
-                            Grid.Column="1" />
-                    <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
-                            BackgroundColor="Transparent"
-                            TextColor="Black"
+                            Grid.Column="1">
+                        <Button.ImageSource>
+                            <mi:SegoeFluent 
+                                Icon="Dictionary" 
+                                IconSize="{StaticResource IconSize}"
+                                IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                                />
+                        </Button.ImageSource>
+                    </Button>
+                    <Button BackgroundColor="Transparent"
                             Padding="0" Margin="0"
                             VerticalOptions="Center"
                             Command="{Binding ClearInputCommand}"
                             Grid.Column="0"
-                            HorizontalOptions="End" />
+                            HorizontalOptions="End">
+                        <Button.ImageSource>
+                            <mi:SegoeFluent 
+                                Icon="Dictionary" 
+                                IconSize="{StaticResource IconSize}"
+                                IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                                />
+                        </Button.ImageSource>
+                    </Button>
                 </Grid>
             </c:FormField>
             <Button ImageSource="{mi:SegoeFluent Icon=More, IconSize={StaticResource IconSize}}"

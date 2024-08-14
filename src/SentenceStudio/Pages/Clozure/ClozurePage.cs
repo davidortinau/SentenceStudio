@@ -1,3 +1,6 @@
+#if DEBUG
+using Common;
+#endif
 using CommunityToolkit.Maui.Converters;
 using CommunityToolkit.Maui.Extensions;
 using CommunityToolkit.Maui.Markup;
@@ -74,10 +77,20 @@ public class ClozurePage : ContentPage
 
 		// VisualStateManager.GoToState(InputUI, );
 
+#if DEBUG
+        HotReloadService.UpdateApplicationEvent += ReloadUI;
+#endif
+
 
 	}
 
-	private void Mode_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void ReloadUI(Type[] obj)
+    {
+		Debug.WriteLine("🔥 ReloadUI");
+        Build();
+    }
+
+    private void Mode_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
 	{
 		if (e.PropertyName == "SelectedMode")
 		{
@@ -88,6 +101,8 @@ public class ClozurePage : ContentPage
 
 	public void Build()
 	{
+		Title = "Clozures";
+
 		Shell.SetNavBarIsVisible(this, true);
 
 		Content = new Grid

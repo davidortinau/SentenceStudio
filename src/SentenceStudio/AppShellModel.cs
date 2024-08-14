@@ -44,5 +44,6 @@ public partial class AppShellModel : ObservableObject
     async Task NavigateTo(string route)
     {
         await Shell.Current.GoToAsync($"//{route}");
+        Shell.Current.FlyoutIsPresented = false;
     }
 }
