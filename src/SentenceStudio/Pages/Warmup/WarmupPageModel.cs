@@ -9,7 +9,7 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Lesson;
 
-public partial class WarmupPageModel : ObservableObject
+public partial class WarmupPageModel : BaseViewModel
 {
     private TeacherService _teacherService;
 
@@ -19,9 +19,6 @@ public partial class WarmupPageModel : ObservableObject
     
     [ObservableProperty]
     private string _userInput;
-
-    [ObservableProperty]
-    private bool _isBusy;
 
     [ObservableProperty] 
     private ObservableCollection<ConversationChunk> _chunks;
@@ -64,9 +61,12 @@ public partial class WarmupPageModel : ObservableObject
 
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         Chunks.Add(chunk);
+
+        await Task.Delay(1000);
         
-        var response = await _conversationService.StartConversation();
-        chunk.Text = response;
+        // var response = await _conversationService.StartConversation();
+        // chunk.Text = response;
+        chunk.Text = "안녕하세요. 이름이 뭐예요?";
 
         await _conversationService.SaveConversationChunk(chunk);
 

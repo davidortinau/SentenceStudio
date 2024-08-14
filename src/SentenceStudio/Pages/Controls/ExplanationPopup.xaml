@@ -6,8 +6,11 @@
             Color="{OnPlatform Transparent, WinUI=White}"
             VerticalOptions="Fill"
             HorizontalOptions="Fill">
-    <Grid RowDefinitions="*,Auto" Padding="15" RowSpacing="{StaticResource size320}"
-          Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
+    <Grid 
+        RowDefinitions="*,Auto" 
+        Padding="15" 
+        RowSpacing="{StaticResource size320}"
+        Background="{AppThemeBinding Light={StaticResource LightBackground}, Dark={StaticResource DarkBackground}}">
         <ScrollView>
             <VerticalStackLayout Spacing="{StaticResource size240}">
                 <Label Text="Explanation" 

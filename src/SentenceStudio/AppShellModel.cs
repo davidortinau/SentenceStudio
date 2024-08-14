@@ -14,27 +14,36 @@ public partial class AppShellModel : ObservableObject
     [RelayCommand]
     async Task ChangeUILanguage()
     {
-        var culture = (CultureInfo.CurrentUICulture.Name == "ko") ? "en" : "ko";
+        Debug.WriteLine($"ChangeUILanguage Current Culture: {CultureInfo.CurrentUICulture.Name}");
+        var culture = (CultureInfo.CurrentUICulture.Name == "ko-KR") ? "en-US" : "ko-KR";
         Localize.SetCulture(new CultureInfo( culture, false ));
         await _userProfileService.SaveDisplayCultureAsync(culture);
 
+        TitleDashboard = "YOU GOT UPDATED!";
     }
 
-    public AppShellModel()
+    public AppShellModel(IServiceProvider serviceProvider)
     {
-        // _userProfileService = Shell.Current.CurrentPage
-        //     .Handler
-        //     .MauiContext
-        //     .Services  // IServiceProvider
-        //     .GetService<UserProfileService>();
-        
-        // TaskMonitor.Create(LoadProfile);
+        _userProfileService = serviceProvider.GetRequiredService<UserProfileService>();
+        TaskMonitor.Create(LoadProfile);
     }
 
-    private async Task LoadProfile()
+    public async Task LoadProfile()
     {
-        // var user = await _userProfileService.GetAsync();
-        // if(user != null)
-        //     Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+        var user = await _userProfileService.GetAsync();
+        if(user != null){
+            Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+            await Shell.Current.GoToAsync("//dashboard");
+        }
+    }
+
+    [ObservableProperty]
+    private string _titleDashboard = "Dashboard";
+
+    [RelayCommand]
+    async Task NavigateTo(string route)
+    {
+        await Shell.Current.GoToAsync($"//{route}");
+        Shell.Current.FlyoutIsPresented = false;
     }
 }

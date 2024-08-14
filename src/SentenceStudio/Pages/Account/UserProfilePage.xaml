@@ -5,6 +5,11 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
              Title="{Binding Localize[MyProfile]}">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
+                     Command="{Binding ResetCommand}" />
+    </ContentPage.ToolbarItems>
     
     <ScrollView>
         <VerticalStackLayout Spacing="{StaticResource size320}" Margin="24">

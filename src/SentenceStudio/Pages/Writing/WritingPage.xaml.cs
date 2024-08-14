@@ -1,118 +1,59 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using Microsoft.Maui.Platform;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
+
+#if IOS
+using UIKit;
+using Foundation;
+#endif
 
 namespace SentenceStudio.Pages.Lesson;
 
 public partial class WritingPage : ContentPage
 {
 	WritingPageModel _model;
-
-	public WritingPage(WritingPageModel model)
+    
+    public WritingPage(WritingPageModel model)
 	{
 		InitializeComponent();
-
 		BindingContext = _model = model;
-		// model.PropertyChanged += Model_PropertyChanged;
+		_model.Sentences.CollectionChanged += CollectionChanged;
 
-		VisualStateManager.GoToState(InputUI, PlayMode.Keyboard.ToString());
+#if IOS
+		NSNotificationCenter.DefaultCenter.AddObserver(UIKeyboard.WillShowNotification, KeyboardWillShow);
+		NSNotificationCenter.DefaultCenter.AddObserver(UIKeyboard.WillHideNotification, KeyboardWillHide);
+#endif
+		
 	}
 
-    private async void Model_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
-		
-
-		if (e.PropertyName == "IsBusy" || (_model.IsBusy == true && LoadingOverlay.Children.Count() < 4))
-		{
-
-            await Task.Delay(200);
-            
-            if (_model.IsBusy)
-			{
-				// Remove all labels except the first one
-				if (LoadingOverlay.Children.Count > 1)
-				{
-					for (int i = LoadingOverlay.Children.Count - 1; i > 0; i--)
-					{
-						if (LoadingOverlay.Children[i] is Label)
-						{
-							LoadingOverlay.Children.RemoveAt(i);
-						}
-					}
-				}
-				
-				
-				foreach (var term in _model.Terms)
-				{
-					await PlaceLabel(term.TargetLanguageTerm, Colors.White);
-					await PlaceLabel(term.NativeLanguageTerm, Colors.Orange);
-					await Task.Delay(200);
-				}
-			}
-		}
+        if (e.Action == NotifyCollectionChangedAction.Add)
+        {
+            this.Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(100); // Wait for the UI to finish updating
+                await SentencesScrollView.ScrollToAsync(0, SentencesScrollView.ContentSize.Height, animated: true);
+            });
+        }
     }
 
-	private async Task PlaceLabel(string term, Color typeColor)
+#if IOS
+	private void KeyboardWillShow(NSNotification notification)
 	{
-		var textField = new Label { Text = term, TextColor = typeColor };
-		textField.Opacity = 0;
+		// Handle keyboard will show event here
+		InputUI.Margin = new Thickness(0, 0, 0, 40);
+	}
 
-		// Generate random position and font size
-		Random random = new Random();
-		double x = random.NextDouble() * (LoadingOverlay.Width - textField.Width);
-		double y = random.NextDouble() * (LoadingOverlay.Height - textField.Height);
-		double fontSize = random.Next(24, 82); // Change this range as needed
-
-		textField.FontSize = fontSize;
-
-		// Check for collisions with existing labels
-		bool collisionDetected = true;
-		while (collisionDetected)
-		{
-			collisionDetected = false;
-
-			// Iterate through existing labels
-			foreach (var child in LoadingOverlay.Children)
-			{
-				if (child is Label existingLabel)
-				{
-					// Get the bounds of the existing label
-					var existingBounds = AbsoluteLayout.GetLayoutBounds(existingLabel);
-
-					// Check for collision with existing label
-					if (x < existingBounds.Right && x + textField.Width > existingBounds.Left &&
-						y < existingBounds.Bottom && y + textField.Height > existingBounds.Top)
-					{
-						// Adjust the position of the label
-						x = random.NextDouble() * (LoadingOverlay.Width - textField.Width);
-						y = random.NextDouble() * (LoadingOverlay.Height - textField.Height);
-
-						// Set collision flag to true
-						collisionDetected = true;
-						break;
-					}
-				}
-			}
-		}
-
-		// Set the position and font size
-		AbsoluteLayout.SetLayoutBounds(textField, new Rect(x, y, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
-
-		MainThread.BeginInvokeOnMainThread(() =>
-		{
-			LoadingOverlay.Add(textField);
-
-			
-		});
-
-		await textField.FadeTo(1, 400);
-		
-    }
-
-    
-
-	
+	private void KeyboardWillHide(NSNotification notification)
+	{
+		// Handle keyboard will hide event here
+		InputUI.Margin = new Thickness(0, 0, 0, 0);
+	}
+#endif
 
 }

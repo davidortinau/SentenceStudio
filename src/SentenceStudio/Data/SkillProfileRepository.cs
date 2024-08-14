@@ -3,13 +3,13 @@ using SentenceStudio.Models;
 using SQLite;
 using SentenceStudio.Common;
 
-namespace SentenceStudio.Services;
+namespace SentenceStudio.Data;
 
-public class UserActivityService
+public class SkillProfileRepository
 {
     private SQLiteAsyncConnection Database;
 
-    public UserActivityService()
+    public SkillProfileRepository()
     {
         
     }
@@ -25,28 +25,28 @@ public class UserActivityService
         
         try
         {
-            result = await Database.CreateTableAsync<UserActivity>();
+            result = await Database.CreateTableAsync<SkillProfile>();
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
         }
     }
 
-    public async Task<List<UserActivity>> ListAsync()
+    public async Task<List<SkillProfile>> ListAsync()
     {
         await Init();
-        return await Database.Table<UserActivity>().ToListAsync();
+        return await Database.Table<SkillProfile>().ToListAsync();
     }
 
-    public async Task<List<UserActivity>> GetAsync(Models.Activity activity)
+    public async Task<List<SkillProfile>> GetSkillsByLanguageAsync(string language)
     {
         await Init();
-        return await Database.Table<UserActivity>().Where(i => i.Activity == activity.ToString()).ToListAsync();
+        return await Database.Table<SkillProfile>().Where(i => i.Language == language).ToListAsync();
     }
 
-    public async Task<int> SaveAsync(UserActivity item)
+    public async Task<int> SaveAsync(SkillProfile item)
     {
         await Init();
         int result = -1;
@@ -69,7 +69,7 @@ public class UserActivityService
             }
             catch (Exception ex)
             {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
             }
         }
 
@@ -77,9 +77,15 @@ public class UserActivityService
     }
     
 
-    public async Task<int> DeleteAsync(UserActivity item)
+    public async Task<int> DeleteAsync(SkillProfile item)
     {
         await Init();
         return await Database.DeleteAsync(item);
+    }
+
+    internal async Task<SkillProfile> GetSkillProfileAsync(int skillID)
+    {
+        await Init();
+        return await Database.Table<SkillProfile>().Where(i => i.ID == skillID).FirstOrDefaultAsync();
     }
 }

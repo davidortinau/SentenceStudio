@@ -28,4 +28,6 @@ public partial class Sentence : ObservableObject
     public string GrammarNotes { get; set; }
     public List<string> Vocabulary { get; set; }
 
+    
+
 }

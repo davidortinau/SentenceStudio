@@ -3,22 +3,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:lesson="clr-namespace:SentenceStudio.Pages.Lesson"
+             xmlns:translation="clr-namespace:SentenceStudio.Pages.Translation"
              xmlns:l="clr-namespace:CustomLayouts"
              xmlns:m="clr-namespace:SentenceStudio.Models"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
-             x:Class="SentenceStudio.Pages.Lesson.LessonPage"
-             Title="LessonPage"
-             x:DataType="lesson:LessonPageModel"
+             x:Class="SentenceStudio.Pages.Translation.TranslationPage"
+             Title="Translation"
+             x:DataType="translation:TranslationPageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
-    <ContentPage.Resources>
-        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
-    </ContentPage.Resources>
+    
     <Grid RowDefinitions="*,80">
         <ScrollView>
             <Grid RowDefinitions="30,*,Auto">
-                <!-- Lesson Content -->
+                
                 <Grid Grid.Row="1"
                       ColumnDefinitions="{OnIdiom Phone='*', Default='6*,3*'}"
                       Margin="30">
@@ -27,7 +25,7 @@
                                             Spacing="8"
                                             IsVisible="{Binding HasFeedback, Converter={StaticResource InvertedBoolConverter}}">
                         <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="m:VocabWord">
+                            <DataTemplate x:DataType="m:VocabularyWord">
                                 <Grid IsClippedToBounds="False">
                                     <Grid.GestureRecognizers>
                                         <PointerGestureRecognizer PointerEntered="PointerGestureRecognizer_PointerEntered"
@@ -80,7 +78,7 @@
                 </Grid>
                 <!-- Input -->
                 <Grid ColumnDefinitions="*, Auto, Auto, Auto"
-                      RowDefinitions="{OnIdiom *, Phone='*,*'}"
+                      RowDefinitions="{OnIdiom '*,*', Phone='*,*'}"
                       x:Name="InputUI"
                       Grid.Row="2"
                       RowSpacing="{OnIdiom 0, Phone=5}"
@@ -90,12 +88,20 @@
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Blocks">
                                 <VisualState.Setters>
-                                    <Setter TargetName="UserInputField"
+                                    <!-- <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
-                                            Value="False" />
+                                            Value="False" /> -->
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="True" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Keyboard">
@@ -106,12 +112,32 @@
                                     <Setter TargetName="VocabBlocks"
                                             Property="l:HorizontalWrapLayout.IsVisible"
                                             Value="False" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="False" />
+                                    <Setter TargetName="VocabBlocks"
+                                            Property="l:HorizontalWrapLayout.IsVisible"
+                                            Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Mic">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="Pink" />
+                                    <Setter 
+                                        TargetName="ListenButton"
+                                        Property="Button.IsVisible"
+                                        Value="True" />
+                                    <Setter 
+                                        TargetName="CancelButton"
+                                        Property="Button.IsVisible"
+                                        Value="True" />
+                                    <Setter TargetName="VocabBlocks"
+                                            Property="l:HorizontalWrapLayout.IsVisible"
+                                            Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -119,7 +145,7 @@
                     <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                                  FieldLabel="Translation"
                                  x:Name="UserInputField"
-                                 Grid.Row="0"
+                                 Grid.Row="1"
                                  Grid.Column="0"
                                  Grid.ColumnSpan="{OnIdiom 1, Phone=4}">
                         <Entry Placeholder="그건 한국어로 어떻게 말해요?"
@@ -130,6 +156,7 @@
                     </c:FormField>
                     <!-- Blocks -->
                     <l:HorizontalWrapLayout x:Name="VocabBlocks"
+                                            Grid.Row="0"
                                             Spacing="4"
                                             BindableLayout.ItemsSource="{Binding VocabBlocks}">
                         <BindableLayout.ItemTemplate>
@@ -141,27 +168,49 @@
                                        Padding="4"
                                        LineHeight="1">
                                     <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type lesson:LessonPageModel}}}"
+                                        <TapGestureRecognizer Command="{Binding UseVocabCommand, Source={RelativeSource AncestorType={x:Type translation:TranslationPageModel}}}"
                                                               CommandParameter="{Binding .}" />
                                     </Label.GestureRecognizers>
                                 </Label>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </l:HorizontalWrapLayout>
+                    <Button Grid.Row="0"
+                            Grid.Column="1"
+                            x:Name="ListenButton"
+                            ImageSource="{mi:SegoeFluent Icon=Record2, IconSize=24}"
+                            Background="Transparent"
+                            Command="{Binding StartListeningCommand}" />
+                    <Button Grid.Row="0"
+                            Grid.Column="2"
+                            x:Name="CancelButton"
+                            ImageSource="{mi:SegoeFluent Icon=Stop, IconSize=24}"
+                            Background="Transparent"
+                            Command="{Binding StopListeningCommand}" />
                 </Grid>
+
                 <!-- HUD with progress -->
-                <Grid Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}">
+                <HorizontalStackLayout Padding="{OnIdiom Phone='0,6,15,0', Default={StaticResource size240}}"
+                    Grid.RowSpan="2"
+                    Spacing="8"
+                    HorizontalOptions="End" 
+                    VerticalOptions="Start">
+                    <ActivityIndicator IsRunning="{Binding IsBuffering}"
+                                       IsVisible="{Binding IsBuffering}"
+                                       VerticalOptions="Center"
+                                       Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" />
                     <Label Text="{Binding Progress}"
-                           HorizontalOptions="End"
-                           VerticalOptions="Start" />
-                </Grid>
+                    VerticalOptions="Center"
+                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            />
+                </HorizontalStackLayout>
             </Grid>
         </ScrollView>
         <!-- Navigation -->
         <Grid Grid.Row="1"
               RowDefinitions="1,*"
               ColumnDefinitions="60,1,*,1,60,1,60">
-            <Button Grid.Column="0"
+            <Button Grid.Column="4"
                     Grid.Row="1"
                     Text="GO"
                     TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
@@ -172,6 +221,11 @@
                             Grid.Row="1"
                             HorizontalOptions="Center"
                             VerticalOptions="Center" />
+            <Button Grid.Column="0"
+                    Grid.Row="1"
+                    ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
+                    Background="Transparent"
+                    Command="{Binding PreviousSentenceCommand}" />
             <Button Grid.Column="6"
                     Grid.Row="1"
                     ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"

@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 namespace SentenceStudio.Pages.Lesson;
 
-public partial class LessonStartPageModel : ObservableObject
+public partial class LessonStartPageModel : BaseViewModel
 {
     private TeacherService _teacherService;
 
@@ -48,7 +48,7 @@ public partial class LessonStartPageModel : ObservableObject
 
     private async Task LoadVocabLists()
     {
-        VocabLists = await _vocabService.GetAllListsWithTermsAsync();
+        VocabLists = await _vocabService.GetAllListsWithWordsAsync();
         
     }
 
@@ -60,6 +60,9 @@ public partial class LessonStartPageModel : ObservableObject
             string route = string.Empty;
             switch (SelectedLesson)
             {
+                case "Clozure":
+                    route = "clozures";
+                    break;
                 case "Warmup":
                     route = "warmup";
                     break;
@@ -68,10 +71,19 @@ public partial class LessonStartPageModel : ObservableObject
                     break;
                 case "Translate":
                 default:
-                    route = "lesson";
+                    route = "translation";
                     break;
             }
-            await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
+
+            var payload = new ShellNavigationQueryParameters
+                {
+                    {"listID", VocabList.ID},
+                    {"playMode", SelectedPlayMode.ToString()},
+                    {"level", Level.ToString()}
+                };
+            
+            await Shell.Current.GoToAsync($"{route}", payload);
+            // await Shell.Current.GoToAsync($"{route}?listID={VocabList.ID}&playMode={SelectedPlayMode}&level={Level}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

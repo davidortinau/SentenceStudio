@@ -8,6 +8,7 @@
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              x:DataType="v:ListVocabularyPageModel"
              Title="{Binding Localize[VocabularyList]}">
+
     <ScrollView>
         <VerticalStackLayout
             Padding="{StaticResource size160}"
@@ -16,6 +17,8 @@
                     Style="{StaticResource Title1}"
                     HorizontalOptions="Start"
                    IsVisible="{OnPlatform True, WinUI=False}"/>
+
+
                     
                 <layouts:HorizontalWrapLayout 
                     Spacing="{StaticResource size320}"
@@ -29,7 +32,7 @@
                                         <Label.FormattedText>
                                             <FormattedString>
                                                 <Span Text="{Binding Name}" />
-                                                <Span Text='{Binding Terms.Count, StringFormat=" ({0}) "}'/>
+                                                <Span Text='{Binding Words.Count, StringFormat=" ({0}) "}'/>
                                             </FormattedString>
                                         </Label.FormattedText>
                                     </Label>    
@@ -38,7 +41,7 @@
                                             Background="Transparent"
                                             HorizontalOptions="End"
                                             VerticalOptions="Start"
-                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                             CommandParameter="{Binding ID}"/>
 
                                     <HorizontalStackLayout 
@@ -49,17 +52,17 @@
                                         <Button ImageSource="{mi:SegoeFluent Icon=ComposeMode, IconSize=24}"
                                                 Background="Transparent"
                                                 Padding="0"
-                                                Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                                Command="{Binding PlayCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                                 CommandParameter="{Binding ID}"/>
                                         <Button ImageSource="{mi:SegoeFluent Icon=Pencil, IconSize=24}"
                                                 Background="Transparent"
                                                 Padding="0"
-                                                Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                                Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                                 CommandParameter="{Binding ID}"/>
                                     </HorizontalStackLayout>
                                     <Grid.GestureRecognizers>
                                         <TapGestureRecognizer 
-                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}}}"
+                                            Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                             CommandParameter="{Binding ID}" />
                                     </Grid.GestureRecognizers>
                                 </Grid>                    

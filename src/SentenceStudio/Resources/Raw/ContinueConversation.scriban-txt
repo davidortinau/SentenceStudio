@@ -6,7 +6,7 @@ Our conversation thus far is provided here:
     {{ c.author }} said ""{{ c.text }}"". 
 {{ end }}
 
-If you need to ask me a question, valid questions are: 몇 살이에요? 성함이 어떻게 되세요? 생일이 언제예요? 나이가 어떻게 되세요? 무슨 일해요? 어디에 살아요? 어릴 때 뭐가 되고 싶었어요? 취미가 뭐예요? 뭐 좋아해요? 취미가 어떻게 되세요? 왜 한국어 배워요? 오늘 뭐 먹었어요? 지난 주말에 뭐 했어요? 내일 뭐 할 거예요? 어느 나라 여행하고 싶어요? 한 주 동안 뭐 했어요? 한국에 가 봤어요? 한국에 가면 뭐 해 보고 싶어요?
+Before making up additional questions, work in these questinos: 몇 살이에요? 성함이 어떻게 되세요? 생일이 언제예요? 나이가 어떻게 되세요? 무슨 일해요? 어디에 살아요? 어릴 때 뭐가 되고 싶었어요? 취미가 뭐예요? 뭐 좋아해요? 취미가 어떻게 되세요? 왜 한국어 배워요? 오늘 뭐 먹었어요? 지난 주말에 뭐 했어요? 내일 뭐 할 거예요? 어느 나라 여행하고 싶어요? 한 주 동안 뭐 했어요? 한국에 가 봤어요? 한국에 가면 뭐 해 보고 싶어요?
 
 Score your comprehension of my last message on a scale of 0-100, with 0 meaning you didn't understand anything and 100 meaning you understood everything. Put your score in the comprehension_score of your json response. Explain your score in a few words, and include that in the comprehension_notes of your json response.
 

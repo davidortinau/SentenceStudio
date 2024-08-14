@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Azure.AI.OpenAI;
+using CommunityToolkit.Mvvm.Messaging;
+using SentenceStudio.Messages;
 
 namespace SentenceStudio.Services;
 
@@ -12,14 +14,20 @@ public class AIClient
         _apiKey = apiKey;
     }
 
-    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
+    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool streamResponse = false)
     {
+        // TODO check connectivity and bypass if not connected
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return string.Empty;
+        }
+
         // Implement the logic to send the prompt to OpenAI and receive the conversation response
         // using the Azure.AI.OpenAI library
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
         var chatCompletionsOptions = new ChatCompletionsOptions()
         {
-            DeploymentName = "gpt-4-turbo",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
+            DeploymentName = "gpt-4o",//"gpt-3.5-turbo", //"gpt-4-turbo",// "gpt-4o" "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
             Messages =
             {
                 new ChatRequestUserMessage(prompt),
@@ -27,33 +35,49 @@ public class AIClient
             ResponseFormat = (shouldReturnJson) ? ChatCompletionsResponseFormat.JsonObject : ChatCompletionsResponseFormat.Text
         };
         
-        try{
-            var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
-            ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
-            
-            return responseMessage.Content;
-        }catch(Exception ex){
-            Debug.WriteLine(ex.Message);
+        
+        if(streamResponse){
+            await foreach (StreamingChatCompletionsUpdate chatUpdate in client.GetChatCompletionsStreaming(chatCompletionsOptions))
+            {
+                if (chatUpdate.Role.HasValue)
+                {
+                    Console.Write($"{chatUpdate.Role.Value.ToString().ToUpperInvariant()}: ");
+                }
+                if (!string.IsNullOrEmpty(chatUpdate.ContentUpdate))
+                {
+                    // Console.Write(chatUpdate.ContentUpdate);
+                    WeakReferenceMessenger.Default.Send(new ChatCompletionMessage(chatUpdate.ContentUpdate));  
+                }
+                if (chatUpdate.FinishReason.HasValue)
+                {
+                    Console.WriteLine($"Chat completion finished: {chatUpdate.FinishReason.Value}");
+                    return "End of line";
+                }
+            }
+        }else{
+            try{
+                var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
+                ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
+                
+                return responseMessage.Content;
+            }catch(Exception ex){
+                Debug.WriteLine(ex.Message);
+            }
+            return string.Empty;
         }
-
+        
         return string.Empty;
-
-        // Alternatively, you can use the streaming API to receive real-time updates
-        // await foreach (StreamingChatCompletionsUpdate chatUpdate in client.GetChatCompletionsStreaming(chatCompletionsOptions))
-        // {
-        //     if (chatUpdate.Role.HasValue)
-        //     {
-        //         Console.Write($"{chatUpdate.Role.Value.ToString().ToUpperInvariant()}: ");
-        //     }
-        //     if (!string.IsNullOrEmpty(chatUpdate.ContentUpdate))
-        //     {
-        //         Console.Write(chatUpdate.ContentUpdate);
-        //     }
-        // }
     }
 
     public async Task<string> SendImage(Uri imageUri, string prompt)
     {
+        // TODO check connectivity and bypass if not connected
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return string.Empty;
+        }
+
+
         var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
         var imageItem = new ChatMessageImageContentItem(imageUri);
         

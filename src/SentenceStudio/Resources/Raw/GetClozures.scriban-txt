@@ -1,0 +1,30 @@
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. Include 5 words in the field vocabulary_word_used_guesses that can be presented as multiple choice options for a fill-in-the-blank question.
+
+{{ if skills }}
+Emphasize the following skills that I want to practice: 
+{{ skills }}
+{{ end }}
+
+Here are some examples of sentences using vocabulary like 학생, 한국어, and 공부하다:
+
+- 저는 학생이에요.
+- 왜 한국어를 공부해요?
+- 언제부터 한국어를 공부했어요?
+
+Format the response as JSON exactly like this:
+
+```json
+{
+  "sentences": [
+    {
+      "sentence": "언제부터 한국어를 공부했어요?",
+      "vocabulary_word": "공부하다",
+      "vocabulary_word_used": "공부했어요",
+      "recommended_translation": "Since when did you study Korean?",
+      "vocabulary_word_used_guesses": "공부했어요, 좀, 한국어, 언제부터, 언제"
+    }
+  ]
+}
+```
+
+vocabulary_word_used_guesses is a comma separated string.

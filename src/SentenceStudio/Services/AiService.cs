@@ -13,7 +13,7 @@ public class AiService {
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
     }
 
-    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false)
+    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool shouldStreamResponse = false)
     {
         try{
             // Create a new instance of the OpenAI client
@@ -21,7 +21,7 @@ public class AiService {
             
 
             // Send the prompt to OpenAI and receive the conversation response
-            var response = await aiClient.SendPrompt(prompt, shouldReturnJson);
+            var response = await aiClient.SendPrompt(prompt, shouldReturnJson, shouldStreamResponse);
             Debug.WriteLine($"Response: {response}");
             return response;
         }
@@ -32,9 +32,6 @@ public class AiService {
             return string.Empty;
         }
     }
-    
-    
-    
 
     public async Task<string> SendImage(string imagePath, string prompt)
     {
@@ -54,25 +51,6 @@ public class AiService {
             Debug.WriteLine($"An error occurred SendImage: {ex.Message}");
             return string.Empty;
         }
-    }
-
-    private string CleanJson(string response)
-    {
-        if (string.IsNullOrEmpty(response))
-        {
-            return response;
-        }
-
-        int startIndex = response.IndexOf('{');
-        int endIndex = response.LastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1 || startIndex > endIndex)
-        {
-            // If there's no valid JSON object in the response, return an empty string
-            return string.Empty;
-        }
-
-        return response.Substring(startIndex, endIndex - startIndex + 1);
     }
 }
     

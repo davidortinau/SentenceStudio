@@ -8,12 +8,11 @@
              xmlns:s="clr-namespace:SentenceStudio.Services"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:model="clr-namespace:SentenceStudio.Models"
-             xmlns:dg="clr-namespace:Maui.DataGrid;assembly=Maui.DataGrid"
              x:Class="SentenceStudio.Pages.Scene.DescribeAScenePage"
              Title="{Binding Localize[DescribeAScene]}"
              x:DataType="scene:DescribeAScenePageModel"
              HideSoftInputOnTapped="True"
-             Shell.NavBarIsVisible="true">
+             Shell.NavBarIsVisible="True">
              
 
     <ContentPage.ToolbarItems>
@@ -22,10 +21,10 @@
             Command="{Binding ViewDescriptionCommand}" />
         <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=Switch, IconSize=24}"   
-            Command="{Binding SwapImageCommand}" />
-        <ToolbarItem 
+            Command="{Binding ManageImagesCommand}" />
+        <!-- <ToolbarItem 
             IconImageSource="{mi:SegoeFluent Icon=ImageExport, IconSize=24}"            
-            Command="{Binding LoadImageCommand}" />
+            Command="{Binding LoadImageCommand}" /> -->
     </ContentPage.ToolbarItems>
 
     <Grid 
@@ -74,13 +73,16 @@
         </VisualStateManager.VisualStateGroups>
 
 
-        <ListView x:Name="SentenceList" ItemsSource="{Binding Sentences}" Grid.Column="1" Grid.Row="1"
+        <ListView x:Name="SentenceList" 
+                Grid.Column="1" Grid.Row="1"
+                    ItemsSource="{Binding Sentences}" 
+                    
                   SelectionMode="None"
                   Margin="{StaticResource size160}"
                   SeparatorVisibility="None">
                   <ListView.Header>
                         <ContentView Padding="{StaticResource size160}">
-                            <Label Text="{Binding Localize[WhatDoYouSee]}"
+                            <Label Text="{Binding Localize[ISee]}"
                                     Style="{StaticResource Title1}" />
                         </ContentView>
                     </ListView.Header>
@@ -89,7 +91,7 @@
                     <TextCell 
                         Text="{Binding Answer}"
                         Detail="{Binding Accuracy, StringFormat='Accuracy: {0}'}"
-                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand}"
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand, x:DataType=scene:DescribeAScenePageModel}"
                         CommandParameter="{Binding .}"/>
                 </DataTemplate>
             </ListView.ItemTemplate>
@@ -98,7 +100,7 @@
 
         <Grid Grid.Column="0" Grid.Row="1">
             <Image Source="{Binding ImageUrl}" 
-                    Aspect="AspectFit"
+                    Aspect="AspectFit" 
                     HorizontalOptions="Fill"
                     VerticalOptions="Start"
                     Margin="{StaticResource size160}" >                             
@@ -130,22 +132,36 @@
                         </Keyboard>
                     </Entry.Keyboard>
                 </Entry>
-                <Button ImageSource="{mi:SegoeFluent Icon=SpellingKorean, IconSize={StaticResource IconSize}}"
-                        BackgroundColor="Transparent"
+                <Button BackgroundColor="Transparent"
                         TextColor="Black"
                         Padding="0" Margin="0"
                         VerticalOptions="Center"
                         HorizontalOptions="End"
                         Command="{Binding TranslateInputCommand}"
-                        Grid.Column="1" />
-                <Button ImageSource="{mi:SegoeFluent Icon=Delete, IconSize={StaticResource IconSize}}"
-                        BackgroundColor="Transparent"
+                        Grid.Column="1">
+                    <Button.ImageSource>
+                        <mi:SegoeFluent 
+                            Icon="SpellingKorean" 
+                            IconSize="{StaticResource IconSize}"
+                            IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            />
+                    </Button.ImageSource>
+                </Button>
+                <Button BackgroundColor="Transparent"
                         TextColor="Black"
                         Padding="0" Margin="0"
                         VerticalOptions="Center"
                         Command="{Binding ClearInputCommand}"
                         Grid.Column="0"
-                        HorizontalOptions="End" />
+                        HorizontalOptions="End">
+                    <Button.ImageSource>
+                        <mi:SegoeFluent 
+                            Icon="Delete" 
+                            IconSize="{StaticResource IconSize}"
+                            IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            />
+                    </Button.ImageSource>
+                </Button>
             </Grid>
         </c:FormField>
         

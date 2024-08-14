@@ -4,7 +4,7 @@ using SentenceStudio.Models;
 [JsonSerializable(typeof(Reply))]
 [JsonSerializable(typeof(GradeResponse))]
 [JsonSerializable(typeof(GrammarNotes))]
-[JsonSerializable(typeof(VocabWord))]
+[JsonSerializable(typeof(VocabularyWord))]
 [JsonSerializable(typeof(Challenge))]
 [JsonSerializable(typeof(SentencesResponse))]
 [JsonSerializable(typeof(SyntacticSentencesResponse))]

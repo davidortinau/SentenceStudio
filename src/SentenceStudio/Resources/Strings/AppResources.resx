@@ -107,6 +107,9 @@
     <data name="WhatDoYouSee" xml:space="preserve">
         <value>What do you see?</value>
     </data>
+    <data name="ISee" xml:space="preserve">
+        <value>I see...</value>
+    </data>
     <data name="Sentence" xml:space="preserve">
         <value>I wrote</value>
     </data>
@@ -143,7 +146,22 @@
     <data name="Save" xml:space="preserve">
         <value>Save</value>
     </data>
+    <data name="Saved" xml:space="preserve">
+        <value>Saved</value>
+    </data>
+    <data name="CreateStarterVocabPrompt" xml:space="preserve">
+        <value>Would you like me to create a starter vocabulary list for you?</value>
+    </data>
     <data name="ParseASentence" xml:space="preserve">
         <value>Parse a Sentence</value>
+    </data>
+    <data name="NoVocabPromptResponse" xml:space="preserve">
+        <value>No, I'll do it myself</value>
+    </data>
+    <data name="Yes" xml:space="preserve">
+        <value>Yes</value>
+    </data>
+    <data name="SkillProfiles" xml:space="preserve">
+        <value>Skill Profiles</value>
     </data>
 </root>

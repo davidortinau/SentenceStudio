@@ -1,57 +1,39 @@
 ﻿using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
-using Microcharts;
+using SentenceStudio.Data;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
-using SkiaSharp;
 
 namespace SentenceStudio.Pages.Dashboard;
 
 [QueryProperty(nameof(ShouldRefresh), "refresh")]
-public partial class DashboardPageModel : ObservableObject
+public partial class DashboardPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
     [ObservableProperty]
     private List<VocabularyList> _vocabLists;
 
+    [ObservableProperty]
+    private VocabularyList _vocabList;
+
+    [ObservableProperty] private List<SkillProfile> _skillProfiles;
+
+    [ObservableProperty] private SkillProfile _skillProfile;
+
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
         _userService = service.GetRequiredService<UserProfileService>();
-        _userActivityService = service.GetRequiredService<UserActivityService>();
+        _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
+        _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
         TaskMonitor.Create(GetLists);
-        TaskMonitor.Create(GetChartData);
     }
 
-    private async Task GetChartData()
+    public async Task<List<UserActivity>> GetWritingActivity()
     {
-        var userActivities = await _userActivityService.ListAsync();//GetAsync(Models.Activity.Writer);
-        entries = userActivities.GroupBy(x => x.CreatedAt.Date).Select(x => new ChartSerie()
-            {
-                Color = SKColors.Black,
-                Name = "Fluency",
-                Entries = new List<ChartEntry>()
-                {
-                    new ChartEntry(x.Count())
-                    {
-                        Label = x.Key.ToString("d"),
-                        ValueLabel = x.Count().ToString(),
-                        Color = SKColors.Black
-                    }
-                }
-            }).ToList<ChartSerie>();
-
-        WritingChart = new LineChart()
-        {
-            Series = entries,
-            LineMode = LineMode.Straight,
-            LineSize = 8,
-            PointMode = PointMode.Square,
-            PointSize = 18,
-            BackgroundColor = SKColors.Red,
-        };
+        return await _userActivityRepository.ListAsync();
     }
 
     private async Task GetLists()
@@ -81,7 +63,11 @@ public partial class DashboardPageModel : ObservableObject
                     await Shell.Current.GoToAsync("userProfile");
                 }
             }
+        }else{
+            VocabList = VocabLists.First();
         }
+
+        SkillProfiles = await _skillsRepository.ListAsync();
     }
 
     private bool _shouldRefresh;
@@ -102,13 +88,19 @@ public partial class DashboardPageModel : ObservableObject
     public VocabularyService _vocabService { get; }
 
     private UserProfileService _userService;
-    private UserActivityService _userActivityService;
-    private List<ChartSerie> entries;
+    private UserActivityRepository _userActivityRepository;
+    private readonly SkillProfileRepository _skillsRepository;
+
 
     [RelayCommand]
     async Task AddVocabulary()
     {
         await Shell.Current.GoToAsync("addVocabulary");
+    }
+
+    private bool CanExecuteAddVocabularyCommand()
+    {
+        return IsConnected;
     }
 
     [RelayCommand]
@@ -117,39 +109,33 @@ public partial class DashboardPageModel : ObservableObject
         await Shell.Current.GoToAsync($"editVocabulary?id={listID}");
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Play(int listID)
     {
         // if(listID == 0)
         //     listID = VocabLists.First().ID;
 
         try{
-            await Shell.Current.GoToAsync($"lesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultTranslate()
-    {
-        if(VocabLists.Count == 0)
-            VocabLists = await _vocabService.GetListsAsync();
-        
-        await Play(VocabLists.First().ID);
+    {        
+        await Play(VocabList.ID);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultWrite()
     {
-        if(VocabLists.Count == 0)
-            VocabLists = await _vocabService.GetListsAsync();
-        await Write(VocabLists.First().ID);
-        
+        await Write(VocabList.ID);        
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task SyntacticAnalysis()
     {
         try{
@@ -166,20 +152,20 @@ public partial class DashboardPageModel : ObservableObject
         
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Write(int listID)
     {
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
 
         try{
-            await Shell.Current.GoToAsync($"writingLesson?listID={listID}&playMode=Blocks&level=1");
+            await Shell.Current.GoToAsync($"writingLesson?listID={listID}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
         }
     }  
 
-    [RelayCommand]  
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
     async Task DescribeAScene()
     {
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
@@ -191,7 +177,7 @@ public partial class DashboardPageModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task Warmup()
     {
         try{
@@ -202,6 +188,24 @@ public partial class DashboardPageModel : ObservableObject
         }
     }
 
-    [ObservableProperty]
-    private Chart writingChart;
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
+    async Task Clozures()
+    {
+        try{
+            var payload = new ShellNavigationQueryParameters
+                        {
+                            {"listID", VocabList.ID}
+                        };
+            
+            await Shell.Current.GoToAsync($"clozures", payload);
+        }catch(Exception ex)
+        {
+            Debug.WriteLine($"{ex.Message}");
+        }
+    }
+
+    // A method that provides recent activity summary to AI
+    // and returns a proposed set of activity for the day
+    // would need to track progress until either completion or a new day
+    
 }

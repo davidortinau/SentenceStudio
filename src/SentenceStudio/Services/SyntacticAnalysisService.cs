@@ -9,12 +9,12 @@ namespace SentenceStudio.Services;
 
 public class SyntacticAnalysisService
 {
-    private SQLiteAsyncConnection Database;
+    // private SQLiteAsyncConnection Database;
 
     private AiService _aiService;
 
     private VocabularyService _vocabularyService;
-    private List<Term> _terms;
+    private List<VocabularyWord> _words;
 
     public SyntacticAnalysisService(IServiceProvider service)
     {
@@ -26,19 +26,19 @@ public class SyntacticAnalysisService
     {
         VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
 
-        if (vocab is null || vocab.Terms is null)
+        if (vocab is null || vocab.Words is null)
             return null;
 
         var random = new Random();
         
-        _terms = vocab.Terms.OrderBy(t => random.Next()).Take(10).ToList();
+        _words = vocab.Words.OrderBy(t => random.Next()).Take(10).ToList();
         
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetSentences.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(reader.ReadToEnd());
-            prompt = await template.RenderAsync(new { terms = _terms });
+            prompt = await template.RenderAsync(new { terms = _words });
         }
 
         Debug.WriteLine(prompt);

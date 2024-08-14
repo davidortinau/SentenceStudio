@@ -40,6 +40,7 @@
             <Picker SelectedItem="{Binding SelectedLesson, Mode=TwoWay}">
                 <Picker.ItemsSource>
                     <x:Array Type="{x:Type x:String}">
+                        <x:String>Clozure</x:String>      
                         <x:String>Translate</x:String>
                         <x:String>Warmup</x:String>
                         <x:String>Write</x:String>                      

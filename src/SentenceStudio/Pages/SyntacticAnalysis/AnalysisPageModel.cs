@@ -9,7 +9,7 @@ using Sharpnado.Tasks;
 namespace SentenceStudio.Pages.SyntacticAnalysis;
 
 [QueryProperty(nameof(ListID), "listID")]
-public partial class AnalysisPageModel : ObservableObject
+public partial class AnalysisPageModel : BaseViewModel
 {
     
 
@@ -30,13 +30,10 @@ public partial class AnalysisPageModel : ObservableObject
 
     
     [ObservableProperty]
-    private List<VocabWord> _vocabulary;
+    private List<VocabularyWord> _vocabulary;
 
     [ObservableProperty]
     private string _progress;
-
-    [ObservableProperty]
-    private bool _isBusy;
 
     void SetCurrentSentence()
     {

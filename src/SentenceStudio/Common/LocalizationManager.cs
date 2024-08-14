@@ -17,12 +17,23 @@ public class LocalizationManager : INotifyPropertyChanged {
 
     public void SetCulture(CultureInfo culture)
     {
-        AppResources.Culture =
-        CultureInfo.DefaultThreadCurrentCulture=
-        CultureInfo.DefaultThreadCurrentUICulture =
-        CultureInfo.CurrentCulture =
-        CultureInfo.CurrentUICulture =
-        culture;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        try{
+            Debug.WriteLine($"Current Culture: {CultureInfo.CurrentUICulture.Name}");
+            // CultureInfo.CurrentUICulture = new CultureInfo( "ko", false );
+            AppResources.Culture =
+            CultureInfo.DefaultThreadCurrentCulture=
+            CultureInfo.DefaultThreadCurrentUICulture =
+            CultureInfo.CurrentCulture =
+            CultureInfo.CurrentUICulture =
+            culture;
+
+            Debug.WriteLine($"New Culture: {CultureInfo.CurrentUICulture.Name}");
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+        }
     }
+
 }

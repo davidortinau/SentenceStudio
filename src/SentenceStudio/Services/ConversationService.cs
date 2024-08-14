@@ -36,7 +36,7 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"{ex.Message}");
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
             }
         }
         

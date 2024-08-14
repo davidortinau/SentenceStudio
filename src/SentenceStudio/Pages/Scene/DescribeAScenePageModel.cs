@@ -7,11 +7,14 @@ using Scriban;
 using SentenceStudio.Models;
 using Sharpnado.Tasks;
 using System.Collections.ObjectModel;
+using System.Windows.Input;
+using System.ComponentModel;
+using CommunityToolkit.Maui.Views;
 
 
 namespace SentenceStudio.Pages.Scene;
 
-public partial class DescribeAScenePageModel : ObservableObject
+public partial class DescribeAScenePageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
     private AiService _aiService;
@@ -27,10 +30,7 @@ public partial class DescribeAScenePageModel : ObservableObject
     private string _imageUrl = "https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png";
     
     [ObservableProperty]
-    private string _userInput;
-
-    [ObservableProperty]
-    private bool _isBusy;
+    private string _userInput;    
     
     public DescribeAScenePageModel(IServiceProvider service)
     {
@@ -38,8 +38,21 @@ public partial class DescribeAScenePageModel : ObservableObject
         _teacherService = service.GetRequiredService<TeacherService>();
         _popupService = service.GetRequiredService<IPopupService>();
         _sceneImageService = service.GetRequiredService<SceneImageService>();
-        TaskMonitor.Create(GetDescription);
-    }  
+        TaskMonitor.Create(LoadScene);
+    }
+
+    private async Task LoadScene()
+    {
+        var image = await _sceneImageService.GetRandomAsync();
+        if(image is null)
+            return;
+
+        ImageUrl = image.Url;
+        Description = image.Description;
+
+        if(string.IsNullOrWhiteSpace(Description))
+            await GetDescription();
+    }
 
     private async Task ShowError()
     {
@@ -55,7 +68,6 @@ public partial class DescribeAScenePageModel : ObservableObject
     [RelayCommand]
     async Task GetDescription()
     {
-        
         if(string.IsNullOrWhiteSpace(ImageUrl))
             return;
 
@@ -79,13 +91,35 @@ public partial class DescribeAScenePageModel : ObservableObject
         }
         
         Description = await _aiService.SendImage(ImageUrl, prompt);
-        await _sceneImageService.SaveAsync(new SceneImage { Url = ImageUrl, Description = Description });
+        if(sceneImage is null)
+        {
+            sceneImage = new SceneImage { Url = ImageUrl };
+        }
+        sceneImage.Description = Description;
+        await _sceneImageService.SaveAsync(sceneImage);
     }
 
     [RelayCommand]
     void ViewDescription()
     {
         TaskMonitor.Create(ShowDescription);
+    }
+
+    [ObservableProperty]
+    private SelectionMode _selectionMode;
+
+    [ObservableProperty]
+    private ObservableCollection<SceneImage> _selectedImages = new ObservableCollection<SceneImage>();
+
+    [RelayCommand]
+    void LongPress(SceneImage obj)
+    {
+        Debug.WriteLine("LongPressed");
+        if(SelectionMode == SelectionMode.None)
+        {
+            SelectionMode = SelectionMode.Multiple;
+            SelectedImages.Add(obj);
+        }
     }
 
     private bool CanViewDescription()
@@ -207,21 +241,106 @@ public partial class DescribeAScenePageModel : ObservableObject
             if (result != null)
             {
                 ImageUrl = result;
+                var sceneImage = new SceneImage { Url = ImageUrl };
+                Images.Add(sceneImage);
+                await _sceneImageService.SaveAsync(sceneImage);
                 Sentences.Clear();
                 await GetDescription();
             }
         });
     }
 
+    [ObservableProperty]
+    private ObservableCollection<SceneImage> _images;
+
     [RelayCommand]
-    async Task SwapImage()
+    async Task ManageImages()
     {
-        var image = await _sceneImageService.GetRandomAsync();
-        if(image is null)
+        var imgs = await _sceneImageService.ListAsync();
+        Images = new ObservableCollection<SceneImage>(imgs);
+        if(DeviceInfo.Idiom == DeviceIdiom.Phone){
+            try{
+                var gallery = new ImageGalleryBottomSheet(this);        
+                await gallery.ShowAsync(Shell.Current.CurrentPage.Window);
+            }catch(Exception e){
+                Debug.WriteLine(e.Message);
+            }
+        }else{
+            try{
+                var gallery = new ImageGalleryPopup(this);        
+                await Shell.Current.CurrentPage.ShowPopupAsync(gallery);
+            }catch(Exception e){
+                Debug.WriteLine(e.Message);
+            }
+        }
+    }
+
+    [RelayCommand]
+    async Task SelectImage(SceneImage image)
+    {
+        if (SelectionMode != SelectionMode.None)
+        {             
+            if (SelectedImages.Contains(image)){
+                SelectedImages.Remove(image);
+                image.IsSelected = false;
+            }
+            else{
+                SelectedImages.Add(image);
+                image.IsSelected = true;
+            }
+
+            Debug.WriteLine($"Added or removed {image.Url} to SelectedImages: {SelectedImages.Count}");
+        }
+        else
+        {
+            Debug.WriteLine($"Swap for {image.Url}");
+            ImageUrl = image.Url;
+            Description = image.Description;
+            Sentences?.Clear();
+            if(string.IsNullOrWhiteSpace(image.Description))
+                await GetDescription();            
+                        
+        }
+    }
+
+    [ObservableProperty]
+    private bool _isDeleteVisible;
+
+    [RelayCommand]
+    async Task DeleteImages()
+    {
+        if(SelectedImages.Count == 0)
             return;
 
-        ImageUrl = image.Url;
-        Description = image.Description;
-        Sentences.Clear();
+        foreach(var img in SelectedImages)
+        {
+            await _sceneImageService.DeleteAsync(img);
+            Images.Remove(img);
+        }
+        SelectedImages.Clear();
+    }
+
+    [ObservableProperty]
+    private bool _isSelecting;
+
+    [RelayCommand]
+    async Task ToggleSelection()
+    {
+        if(SelectionMode == SelectionMode.None){
+            SelectionMode = SelectionMode.Multiple;
+            IsDeleteVisible = true;
+            IsSelecting = true;
+        }
+        else{
+            SelectionMode = SelectionMode.None;
+            IsDeleteVisible = false;
+            IsSelecting = false;
+        }
+        
+        foreach(var img in SelectedImages)
+        {
+            img.IsSelected = false;
+        }
+        SelectedImages.Clear();
     }
 }

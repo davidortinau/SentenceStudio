@@ -1,30 +1,28 @@
 ﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
-using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Maui.Core;
-using CommunityToolkit.Maui.Views;
-using SentenceStudio.Models;
-using SentenceStudio.Pages.Controls;
-using SentenceStudio.Services;
-using Sharpnado.Tasks;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core.Platform;
-
+using SentenceStudio.Data;
 
 namespace SentenceStudio.Pages.Lesson;
 
 [QueryProperty(nameof(ListID), "listID")]
 [QueryProperty(nameof(PlayMode), "playMode")]
 [QueryProperty(nameof(Level), "level")]
-public partial class WritingPageModel : ObservableObject
+public partial class WritingPageModel : BaseViewModel //, IQueryAttributable
 {
+    // public void ApplyQueryAttributes(IDictionary<string, object> query)
+    // {
+    //     ListID = int.Parse(query["listID"].ToString());
+    //     // OnPropertyChanged(nameof(ListID));
+    //     TaskMonitor.Create(GetVocab);
+    // }
+    
     public LocalizationManager Localize => LocalizationManager.Instance;
 
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
-
-    private UserActivityService _userActivityService;
-
+    private UserActivityRepository _userActivityRepository;
     private IPopupService _popupService;
 
     public int ListID { get; set; }
@@ -41,10 +39,10 @@ public partial class WritingPageModel : ObservableObject
     private GradeResponse _gradeResponse;
 
     [ObservableProperty]
-    private List<VocabWord> _vocabulary;
+    private List<VocabularyWord> _vocabulary;
 
     [ObservableProperty]
-    private List<Term> _vocabBlocks;
+    private List<VocabularyWord> _vocabBlocks;
 
     [ObservableProperty]
     private string _userInput;
@@ -61,49 +59,52 @@ public partial class WritingPageModel : ObservableObject
     [ObservableProperty]
     private bool _hasFeedback;
 
-    [ObservableProperty]
-    private bool _isBusy;
-
-    public List<Term> Terms
+    public List<VocabularyWord> Words
     {
-        get => _teacherService.Terms;
-    }
-
-    
+        get => _teacherService.Words;
+    }  
 
     public WritingPageModel(IServiceProvider service)
     {
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
-        _popupService = service.GetRequiredService<IPopupService>();
-        _userActivityService = service.GetRequiredService<UserActivityService>();
         TaskMonitor.Create(GetVocab);
+        
+        _popupService = service.GetRequiredService<IPopupService>();
+        _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
+        
     }
+    
+    private HashSet<int> _usedWordIds = new HashSet<int>();
+
     public async Task GetVocab()
     {
         await Task.Delay(100);
         IsBusy = true; 
         VocabularyList vocab = await _vocabularyService.GetListAsync(ListID);
+        if(vocab is not null)
+        {
+            var random = new Random();       
+            VocabBlocks = vocab.Words
+                .Where(w => !_usedWordIds.Contains(w.ID)) // Filter out already used words
+                .OrderBy(t => random.Next())
+                .Take(4)
+                .ToList();
 
-            // if (vocab is null || vocab.Terms is null)
-            //     return null;
-
-        var random = new Random();
-        
-        VocabBlocks = vocab.Terms.OrderBy(t => random.Next()).Take(4).ToList();
-        //string t = string.Join(",", _terms.Select(t => t.TargetLanguageTerm));
+            // Add the newly selected word IDs to the usedWordIds set
+            _usedWordIds.UnionWith(VocabBlocks.Select(w => w.ID));
+        }
         IsBusy = false;
-            
     }
 
     [ObservableProperty]
-    private ObservableCollection<Sentence> _sentences;
+    private ObservableCollection<Sentence> _sentences = new ObservableCollection<Sentence>();
 
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GradeMe()
     {
-        if(Sentences is null)
-            Sentences = new ObservableCollection<Sentence>();
+        if(ShowMore && string.IsNullOrWhiteSpace(UserMeaning))
+            return;
 
         var s = new Sentence{
             Answer = UserInput,
@@ -123,9 +124,9 @@ public partial class WritingPageModel : ObservableObject
         s.GrammarNotes = grade.GrammarNotes.Explanation;
 
         // here is where we save the sentence to the database
-        await _userActivityService.SaveAsync(new UserActivity{
+        await _userActivityRepository.SaveAsync(new UserActivity{
             Activity = Models.Activity.Writer.ToString(),
-            Input = s.Problem,
+            Input = $"{s.Answer} {s.Problem}",
             Accuracy = s.Accuracy,
             Fluency = s.Fluency,
             CreatedAt = DateTime.Now
@@ -168,18 +169,24 @@ public partial class WritingPageModel : ObservableObject
     }
 
     [RelayCommand]
-    async Task TranslateInput()
+    async Task TranslateInput(Button btn)
     {
         if(string.IsNullOrWhiteSpace(UserInput))
             return;
 
-        
         var translation = await _teacherService.Translate(UserInput);
-        ToastDuration duration = ToastDuration.Long;
-        double fontSize = 14;
-        var toast = Toast.Make(translation, duration, fontSize);
+        
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        await toast.Show(cancellationTokenSource.Token);
+
+        var snackbarOptions = new SnackbarOptions
+        {
+            CornerRadius = new CornerRadius(8)
+        };
+
+        TimeSpan duration = TimeSpan.FromSeconds(3);
+
+        var snackbar = Snackbar.Make(translation, duration: duration, visualOptions: snackbarOptions, anchor: btn);
+        await snackbar.Show(cancellationTokenSource.Token);
     }
 
     [RelayCommand]
@@ -197,6 +204,15 @@ public partial class WritingPageModel : ObservableObject
     [RelayCommand]
     async Task HideKeyboard(ITextInput view, CancellationToken token)
     {
-        bool isSuccessful = await view.HideKeyboardAsync(token);
+        bool isSuccessful = await view.HideKeyboardAsync(CancellationToken.None);
+    }
+
+    [ObservableProperty]
+    private bool _showMore;
+
+    [RelayCommand]
+    async Task ToggleMore()
+    {
+        ShowMore = !ShowMore;
     }
 }

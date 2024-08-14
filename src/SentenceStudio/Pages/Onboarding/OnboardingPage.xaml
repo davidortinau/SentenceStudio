@@ -4,85 +4,165 @@
              x:Class="SentenceStudio.Pages.Onboarding.OnboardingPage"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls"
+             xmlns:o="clr-namespace:SentenceStudio.Pages.Onboarding"
              Title="{Binding Localize[MyProfile]}"
              Shell.FlyoutBehavior="Disabled"
-             Shell.NavBarIsVisible="False"
-             >
+             Shell.NavBarIsVisible="False">
+
+    <Grid RowDefinitions="*,Auto" Padding="{StaticResource size160}">
+        <CarouselView Grid.Row="0"
+                HorizontalScrollBarVisibility="Never"
+                IndicatorView="Indicators"
+                IsSwipeEnabled="False"
+                Loop="False"
+                Position="{Binding CurrentPosition}">
+            <CarouselView.ItemsSource>
+                <x:Array Type="{x:Type ContentView}">
+                    <ContentView>
+                        <Grid RowDefinitions="Auto,Auto" 
+                            RowSpacing="{StaticResource size160}"
+                            Margin="{StaticResource size160}">
+                            <Label Text="Welcome to Sentence Studio!"
+                                Style="{StaticResource Title1}"
+                                HorizontalOptions="Center"/>
+                            <Label Text="Strengthen your language skills with our fun and interactive sentence building activities."
+                                Style="{StaticResource Title3}"
+                                Grid.Row="1"
+                                HorizontalOptions="Center"/>
+                        </Grid>
+                    </ContentView>
+                    <ContentView>
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="{StaticResource size160}"
+                            Margin="{StaticResource size160}">
+                            <Label Text="What should I call you?"
+                                Style="{StaticResource Title1}"
+                                HorizontalOptions="Center"/>
+                            <Entry Text="{Binding Name, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
+                                Placeholder="Enter your name"
+                                Grid.Row="1"
+                                HorizontalOptions="Center"/>
+                        </Grid>
+                    </ContentView>
+                    <ContentView>
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="{StaticResource size160}"
+                            Margin="{StaticResource size160}">
+                            <Label Text="What is your primary language?"
+                                Style="{StaticResource Title1}"
+                                HorizontalOptions="Center"/>
+                            <Picker SelectedItem="{Binding NativeLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
+                                Grid.Row="1">
+                                <Picker.ItemsSource>
+                                    <x:Array Type="{x:Type x:String}">
+                                        <x:String>English</x:String>
+                                        <x:String>Spanish</x:String>
+                                        <x:String>French</x:String>
+                                        <x:String>German</x:String>
+                                        <x:String>Italian</x:String>
+                                        <x:String>Portuguese</x:String>
+                                        <x:String>Chinese</x:String>
+                                        <x:String>Japanese</x:String>
+                                        <x:String>Korean</x:String>
+                                        <x:String>Arabic</x:String>
+                                        <x:String>Russian</x:String>
+                                        <x:String>Other</x:String>
+                                    </x:Array>
+                                </Picker.ItemsSource>
+                            </Picker>
+                        </Grid>
+                    </ContentView>
+                    <ContentView>
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="{StaticResource size160}"
+                        Margin="{StaticResource size160}">
+                            <Label Text="What language are you here to practice?"
+                                Style="{StaticResource Title1}"
+                                HorizontalOptions="Center"/>
+                            <Picker  
+                                
+                                SelectedItem="{Binding TargetLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
+                                Grid.Row="1">
+                                <Picker.ItemsSource>
+                                    <x:Array Type="{x:Type x:String}">
+                                        <x:String>Korean</x:String>
+                                        <x:String>English</x:String>
+                                        <x:String>Spanish</x:String>
+                                        <x:String>French</x:String>
+                                        <x:String>German</x:String>
+                                        <x:String>Italian</x:String>
+                                        <x:String>Portuguese</x:String>
+                                        <x:String>Chinese</x:String>
+                                        <x:String>Japanese</x:String>
+                                        <x:String>Arabic</x:String>
+                                        <x:String>Russian</x:String>
+                                        <x:String>Other</x:String>
+                                    </x:Array>
+                                </Picker.ItemsSource>
+                            </Picker>
+                        </Grid>
+                    </ContentView>
+                    <ContentView>
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="{StaticResource size160}"
+                        Margin="{StaticResource size160}">
+                            <Label Text="Let's begin!"
+                                Style="{StaticResource Title1}"
+                                HorizontalOptions="Center"/>
+                            <Label Text="On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth."
+                                Style="{StaticResource Title3}"
+                                Grid.Row="1"
+                                HorizontalOptions="Center"/>
+                        </Grid>
+                    </ContentView>
+                </x:Array>
+            </CarouselView.ItemsSource>
+            <CarouselView.ItemTemplate>
+                <DataTemplate>
+                    <ContentView Content="{Binding .}"/>
+                </DataTemplate>
+            </CarouselView.ItemTemplate>
+        </CarouselView>
+
+        <Grid
+                Grid.Row="1"
+                ColumnDefinitions="*"
+                RowDefinitions="Auto, Auto"
+                RowSpacing="20">
+                <Button
+                    Grid.Row="0"
+                    Command="{Binding NextCommand}"
+                    IsVisible="{Binding LastPositionReached, Converter={StaticResource InvertedBoolConverter}}"
+                    Text="Next" />
+                <Button
+                    Grid.Row="0"
+                    Command="{Binding EndCommand}"
+                    IsVisible="{Binding LastPositionReached}"
+                    Text="Continue" />
+                <IndicatorView
+                    x:Name="Indicators"
+                    Grid.Row="1"
+                    HorizontalOptions="Center"
+                    IndicatorColor="{StaticResource Gray200}"
+                    IndicatorSize="{OnPlatform iOS=6,
+                                               Android=8}"
+                    SelectedIndicatorColor="{StaticResource Primary}" />
+            </Grid>
+
+        <AbsoluteLayout x:Name="LoadingOverlay"
+                        IsVisible="{Binding IsBusy}"
+                        BackgroundColor="#80000000"
+                        Grid.RowSpan="2">
+                        <ActivityIndicator 
+                            Color="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            AbsoluteLayout.LayoutFlags="PositionProportional"
+                            AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                        />
+            <!-- <Label Text="Thinking..."
+                   FontSize="64"
+                   AbsoluteLayout.LayoutFlags="PositionProportional"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,AutoSize,AutoSize"
+                   TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}" /> -->
+        </AbsoluteLayout>
+    </Grid>
+
+
     
-    <ScrollView>
-        <VerticalStackLayout Spacing="{StaticResource size320}" Margin="24">
-
-            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="{Binding Localize[Name]}">
-                <Entry Text="{Binding Name, Mode=TwoWay}" />
-            </c:FormField>
-
-            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="{Binding Localize[Email]}">
-                <Entry Text="{Binding Email, Mode=TwoWay}" />
-            </c:FormField>
-
-            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="{Binding Localize[NativeLanguage]}">
-                <Picker SelectedItem="{Binding NativeLanguage, Mode=TwoWay}">
-                    <Picker.ItemsSource>
-                        <x:Array Type="{x:Type x:String}">
-                            <x:String>English</x:String>
-                            <x:String>Spanish</x:String>
-                            <x:String>French</x:String>
-                            <x:String>German</x:String>
-                            <x:String>Italian</x:String>
-                            <x:String>Portuguese</x:String>
-                            <x:String>Chinese</x:String>
-                            <x:String>Japanese</x:String>
-                            <x:String>Korean</x:String>
-                            <x:String>Arabic</x:String>
-                            <x:String>Russian</x:String>
-                            <x:String>Other</x:String>
-                        </x:Array>
-                    </Picker.ItemsSource>
-                </Picker>
-            </c:FormField>
-
-            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="{Binding Localize[TargetLanguage]}">
-                <Picker SelectedItem="{Binding TargetLanguage, Mode=TwoWay}">
-                    <Picker.ItemsSource>
-                        <x:Array Type="{x:Type x:String}">
-                            <x:String>English</x:String>
-                            <x:String>Spanish</x:String>
-                            <x:String>French</x:String>
-                            <x:String>German</x:String>
-                            <x:String>Italian</x:String>
-                            <x:String>Portuguese</x:String>
-                            <x:String>Chinese</x:String>
-                            <x:String>Japanese</x:String>
-                            <x:String>Korean</x:String>
-                            <x:String>Arabic</x:String>
-                            <x:String>Russian</x:String>
-                            <x:String>Other</x:String>
-                        </x:Array>
-                    </Picker.ItemsSource>
-                </Picker>
-            </c:FormField>
-
-            <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                        FieldLabel="{Binding Localize[DisplayLanguage]}">
-                <Picker SelectedItem="{Binding DisplayLanguage, Mode=TwoWay}">
-                    <Picker.ItemsSource>
-                        <x:Array Type="{x:Type x:String}">
-                            <x:String>English</x:String>
-                            <x:String>Korean</x:String>
-                        </x:Array>
-                    </Picker.ItemsSource>
-                </Picker>
-            </c:FormField>
-
-            <Button 
-                HorizontalOptions="{OnIdiom Desktop=Start, Default=Fill}"
-                WidthRequest="{OnIdiom Desktop=300, Default=-1}"
-                Text="{Binding Localize[Save]}" 
-                Command="{Binding SaveCommand}" />
-        </VerticalStackLayout>
-    </ScrollView>
+    
 </ContentPage>
