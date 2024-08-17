@@ -116,7 +116,14 @@ public partial class DashboardPageModel : BaseViewModel
         //     listID = VocabLists.First().ID;
 
         try{
-            await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
+            var payload = new ShellNavigationQueryParameters
+                        {
+                            {"listID", VocabList.ID},
+                            {"skillProfileID", SkillProfile.ID}
+                        };
+            
+            await Shell.Current.GoToAsync($"translation", payload);
+            // await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -194,7 +201,8 @@ public partial class DashboardPageModel : BaseViewModel
         try{
             var payload = new ShellNavigationQueryParameters
                         {
-                            {"listID", VocabList.ID}
+                            {"listID", VocabList.ID},
+                            {"skillProfileID", SkillProfile.ID}
                         };
             
             await Shell.Current.GoToAsync($"clozures", payload);

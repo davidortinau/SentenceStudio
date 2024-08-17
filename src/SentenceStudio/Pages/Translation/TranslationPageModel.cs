@@ -11,6 +11,7 @@ using CommunityToolkit.Maui.Media;
 namespace SentenceStudio.Pages.Translation;
 
 [QueryProperty(nameof(ListID), "listID")]
+[QueryProperty(nameof(SkillProfileID), "skillProfileID")]
 [QueryProperty(nameof(PlayMode), "playMode")]
 [QueryProperty(nameof(Level), "level")]
 public partial class TranslationPageModel : BaseViewModel
@@ -34,6 +35,7 @@ public partial class TranslationPageModel : BaseViewModel
     private bool _isBuffering;
 
     public int ListID { get; set; }
+    public int SkillProfileID { get; set; }
     public string PlayMode { get; set; }
     public int Level { get; set; }
 
@@ -100,7 +102,7 @@ public partial class TranslationPageModel : BaseViewModel
         else
             IsBuffering = true;
         
-        var sentences = await _teacherService.GetChallenges(ListID, count);
+        var sentences = await _teacherService.GetChallenges(ListID, count, SkillProfileID);
         await Task.Delay(100);
         foreach(var s in sentences)
         {

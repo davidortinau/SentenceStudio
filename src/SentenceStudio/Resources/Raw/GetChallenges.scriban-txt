@@ -1,4 +1,9 @@
-I am an English-speaking student learning Korean. Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences along with their English translations. The sentences should use 존댓말, be short, and at a beginner Korean level using simple present, past, and future tenses.
+I am an English-speaking student learning Korean. Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences along with English translations. 
+
+{{ if skills }}
+Emphasize the following skills that I want to practice: 
+{{ skills }}
+{{ end }}
 
 Here are some examples of sentences using vocabulary like 학생, 한국어, and 공부하다:
 - 저는 학생이에요.
