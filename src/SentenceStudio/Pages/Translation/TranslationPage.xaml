@@ -20,7 +20,13 @@
                 <Grid Grid.Row="1"
                       ColumnDefinitions="{OnIdiom Phone='*', Default='6*,3*'}"
                       Margin="30">
-                    <l:HorizontalWrapLayout x:Name="SentenceStack"
+                      <Label Text="{Binding CurrentSentence}"
+                            HorizontalOptions="Start"
+                            LineBreakMode="WordWrap"
+                            TextColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                            FontSize="64" 
+                            IsVisible="{Binding HasFeedback, Converter={StaticResource InvertedBoolConverter}}"/>
+                    <!-- <l:HorizontalWrapLayout x:Name="SentenceStack"
                                             BindableLayout.ItemsSource="{Binding Vocabulary}"
                                             Spacing="8"
                                             IsVisible="{Binding HasFeedback, Converter={StaticResource InvertedBoolConverter}}">
@@ -70,7 +76,7 @@
                                 </Grid>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
-                    </l:HorizontalWrapLayout>
+                    </l:HorizontalWrapLayout> -->
                     <!-- Feedback -->
                     <c:FeedbackPanel Grid.Column="{OnIdiom Phone=0, Default=1}"
                                      IsVisible="{Binding HasFeedback}"
@@ -85,8 +91,8 @@
                       Padding="{OnIdiom 30, Phone='15, 0'}"
                       ColumnSpacing="{OnIdiom 15, Phone=5}">
                     <VisualStateManager.VisualStateGroups>
-                        <VisualStateGroup x:Name="CommonStates">
-                            <VisualState x:Name="Blocks">
+                        <VisualStateGroup x:Name="CustomStates">
+                            <VisualState x:Name="MultipleChoice">
                                 <VisualState.Setters>
                                     <!-- <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
@@ -104,7 +110,7 @@
                                         Value="False" />
                                 </VisualState.Setters>
                             </VisualState>
-                            <VisualState x:Name="Keyboard">
+                            <VisualState x:Name="Text">
                                 <VisualState.Setters>
                                     <Setter TargetName="UserInputField"
                                             Property="Border.IsVisible"
@@ -217,6 +223,7 @@
                     Background="Transparent"
                     Command="{Binding GradeMeCommand}" />
             <c:ModeSelector x:Name="ModeSelector"
+                SelectedMode="{Binding UserMode}"
                             Grid.Column="2"
                             Grid.Row="1"
                             HorizontalOptions="Center"

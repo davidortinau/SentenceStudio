@@ -15,43 +15,18 @@ public partial class TranslationPage : ContentPage
 		InitializeComponent();
 
 		BindingContext = _model = model;
-		// model.PropertyChanged += Model_PropertyChanged;
-		ModeSelector.PropertyChanged += Mode_PropertyChanged;
+		model.PropertyChanged += Model_PropertyChanged;
+		// ModeSelector.PropertyChanged += Mode_PropertyChanged;
 
-		VisualStateManager.GoToState(InputUI, PlayMode.Keyboard.ToString());
+		VisualStateManager.GoToState(InputUI, InputMode.Text.ToString());
 	}
 
     private async void Model_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-		
-
-		if (e.PropertyName == "IsBusy" || (_model.IsBusy == true && LoadingOverlay.Children.Count() < 4))
+		if (e.PropertyName == nameof(TranslationPageModel.UserMode))
 		{
-
-            await Task.Delay(200);
-            
-            if (_model.IsBusy)
-			{
-				// Remove all labels except the first one
-				if (LoadingOverlay.Children.Count > 1)
-				{
-					for (int i = LoadingOverlay.Children.Count - 1; i > 0; i--)
-					{
-						if (LoadingOverlay.Children[i] is Label)
-						{
-							LoadingOverlay.Children.RemoveAt(i);
-						}
-					}
-				}
-				
-				
-				foreach (var term in _model.Words)
-				{
-					await PlaceLabel(term.TargetLanguageTerm, Colors.White);
-					await PlaceLabel(term.NativeLanguageTerm, Colors.Orange);
-					await Task.Delay(200);
-				}
-			}
+			Debug.WriteLine($"UserMode changed to {_model.UserMode}");
+			VisualStateManager.GoToState(InputUI, _model.UserMode);
 		}
     }
 

@@ -1,14 +1,14 @@
-I am an English-speaking student learning Korean. Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences along with English translations. 
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences along with natural English translations. 
 
 {{ if skills }}
 Emphasize the following skills that I want to practice: 
 {{ skills }}
 {{ end }}
 
-Here are some examples of sentences using vocabulary like 학생, 한국어, and 공부하다:
-- 저는 학생이에요.
-- 왜 한국어를 공부해요?
-- 언제부터 한국어를 공부했어요?
+Here are some examples Korean sentences and English translations using vocabulary like 학생, 한국어, and 공부하다:
+- 저는 학생이에요. I am a student.
+- 왜 한국어를 공부해요? Why do you study Korean?
+- 언제부터 한국어를 공부했어요? Since when have you studied Korean?
 
 Format the response as JSON like this:
 
@@ -30,4 +30,4 @@ Format the response as JSON like this:
 }
 ```
 
-In the vocabulary list, include all the English words, but only provide the Korean translation if the word is necessary for a natural Korean sentence. Use the Korean dictionary form in the vocabulary array.
+In the vocabulary array of the response, include all the English words, but only include the Korean if the word is necessary for a natural Korean sentence. Use the Korean dictionary form in the vocabulary array.

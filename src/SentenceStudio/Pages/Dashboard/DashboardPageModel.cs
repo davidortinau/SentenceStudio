@@ -68,6 +68,10 @@ public partial class DashboardPageModel : BaseViewModel
         }
 
         SkillProfiles = await _skillsRepository.ListAsync();
+        if (SkillProfiles.Count > 0)
+        {
+            SkillProfile = SkillProfiles.First();
+        }
     }
 
     private bool _shouldRefresh;

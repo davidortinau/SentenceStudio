@@ -34,6 +34,9 @@ public partial class TranslationPageModel : BaseViewModel
     [ObservableProperty]
     private bool _isBuffering;
 
+    [ObservableProperty]
+    private string _userMode = InputMode.Text.ToString();
+
     public int ListID { get; set; }
     public int SkillProfileID { get; set; }
     public string PlayMode { get; set; }
@@ -129,10 +132,11 @@ public partial class TranslationPageModel : BaseViewModel
     {
         if (Sentences != null && Sentences.Count > 0)
         {
+            UserMode = InputMode.Text.ToString();
             GradeResponse = null;
             HasFeedback = false;
             Feedback = string.Empty;
-            CurrentSentence = Sentences[_currentSentenceIndex].SentenceText;
+            CurrentSentence = Sentences[_currentSentenceIndex].RecommendedTranslation;
             Vocabulary = Sentences[_currentSentenceIndex].Vocabulary;
 
             var random = new Random();
