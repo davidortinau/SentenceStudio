@@ -6,9 +6,9 @@ using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
-namespace SentenceStudio.Pages.Account;
+namespace SentenceStudio.Pages.Skills;
 
-public partial class SkillProfilesPageModel : ObservableObject
+public partial class ListSkillProfilesPageModel : ObservableObject
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
@@ -30,7 +30,7 @@ public partial class SkillProfilesPageModel : ObservableObject
     [ObservableProperty]
     ObservableCollection<SkillProfile> _profiles;
     
-    public SkillProfilesPageModel(IServiceProvider service)
+    public ListSkillProfilesPageModel(IServiceProvider service)
     {
         _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
         TaskMonitor.Create(LoadProfiles);
@@ -71,9 +71,17 @@ public partial class SkillProfilesPageModel : ObservableObject
     }
 
     [RelayCommand]
-    void AddProfile()
+    async Task EditProfile(SkillProfile profile)
     {
-        Profiles.Add(new SkillProfile());
+        await Shell.Current.GoToAsync($"editSkillProfile?profileID={profile.ID}");
+    }
+
+    [RelayCommand]
+    async Task AddProfile()
+    {
+        // Profiles.Add(new SkillProfile());
+        await Shell.Current.GoToAsync($"addSkillProfile");
+
     }
 
     [RelayCommand]

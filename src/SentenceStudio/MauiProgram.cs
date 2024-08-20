@@ -22,6 +22,8 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
 using CommunityToolkit.Maui.Markup;
+using SentenceStudio.Pages.Skills;
+
 #if DEBUG
 using Common;
 #endif
@@ -96,7 +98,9 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		builder.Services.AddTransientWithShellRoute<SkillProfilesPage, SkillProfilesPageModel>("skills");
+		builder.Services.AddTransientWithShellRoute<ListSkillProfilesPage, ListSkillProfilesPageModel>("skills");
+		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
+		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
 
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
