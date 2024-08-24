@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Web;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Media;
+using Plugin.Maui.Audio;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -146,7 +147,7 @@ public partial class TranslationPageModel : BaseViewModel
                                     .ToList();
 
             UserInput = string.Empty;
-            RecommendedTranslation = Sentences[_currentSentenceIndex].RecommendedTranslation;
+            RecommendedTranslation = Sentences[_currentSentenceIndex].SentenceText;
             // Sentences.RemoveAt(0);
 
             Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
@@ -278,6 +279,15 @@ public partial class TranslationPageModel : BaseViewModel
 		await Toast.Make($"State Changed: {e.State}").Show(CancellationToken.None);
 	}
 
+    [RelayCommand]
+    async Task PlayAudio()
+    {
+        var myStream = await _aiService.TextToSpeechAsync(RecommendedTranslation, "Nova");
+            
+        var audioPlayer = AudioManager.Current.CreatePlayer(myStream);
+        audioPlayer.Play();
+        
+    }
 
 
 }

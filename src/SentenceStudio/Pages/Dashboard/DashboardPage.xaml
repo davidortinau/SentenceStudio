@@ -9,6 +9,7 @@
              xmlns:models="clr-namespace:SentenceStudio.Models"
              xmlns:app="clr-namespace:SentenceStudio"
              xmlns:mi="http://www.aathifmahir.com/dotnet/2022/maui/icons"
+             xmlns:picker="clr-namespace:Syncfusion.Maui.Picker;assembly=Syncfusion.Maui.Picker"
              x:DataType="dashboard:DashboardPageModel"
              x:Class="SentenceStudio.Pages.Dashboard.DashboardPage"
              Title="{Binding Localize[TitleDashboard]}">
@@ -24,9 +25,15 @@
                 <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
                             FieldLabel="Default Vocabulary">
                     <Picker x:Name="VocabPicker" 
-                            ItemsSource="{Binding VocabLists}"
-                            ItemDisplayBinding="{Binding Name, x:DataType=models:VocabularyList}"                    
+                            ItemsSource="{Binding VocabLists}"                    
                             SelectedItem="{Binding VocabList, Mode=TwoWay}" />
+                    <!-- <picker:SfPicker x:Name="VocabPicker" Mode="Dialog">
+                         <picker:SfPicker.Columns>
+                            <picker:PickerColumn 
+                                SelectedItem="{Binding VocabList, Mode=TwoWay}" 
+                                ItemsSource="{Binding VocabLists}"/>
+                        </picker:SfPicker.Columns>
+                    </picker:SfPicker> -->
                 </c:FormField> 
                 
                 <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"

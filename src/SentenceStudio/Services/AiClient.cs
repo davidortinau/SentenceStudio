@@ -1,17 +1,50 @@
-using System.Diagnostics;
-using Azure.AI.OpenAI;
-using CommunityToolkit.Mvvm.Messaging;
-using SentenceStudio.Messages;
+using System.ClientModel;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel.__Internals;
+using OpenAI.Audio;
+using Microsoft.Maui.Networking;
+using OpenAI;
+using OpenAI.Chat;
+using OpenAI.Images;
 
 namespace SentenceStudio.Services;
 
 public class AIClient
 {
     private readonly string _apiKey;
+    private readonly ChatClient _client;
+    private readonly AudioClient _audio;
+    private readonly ImageClient _image;
 
-    public AIClient(string apiKey)
+    public AIClient(string apiKey, bool hd = false)
     {
         _apiKey = apiKey;
+        _client = new ChatClient("gpt-4o", _apiKey);
+        _audio = new("tts-1", _apiKey);
+        _image = new ImageClient("gpt-4o", _apiKey);
+    }
+
+    public async Task<Stream> TextToSpeechAsync(string text, string voice)
+    {
+        text = text.Trim();
+        try
+        {
+            BinaryData speech = await _audio.GenerateSpeechFromTextAsync(text, GeneratedSpeechVoice.Alloy);
+
+            // using FileStream stream = File.OpenWrite($"{Guid.NewGuid()}.mp3");
+            return speech.ToStream();
+            
+            var result = await _audio.GenerateSpeechFromTextAsync(text, Enum.Parse<GeneratedSpeechVoice>(voice),
+                new SpeechGenerationOptions { ResponseFormat = GeneratedSpeechFormat.Mp3 });
+            return result.Value.ToStream();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"{ex.Message}");
+        }
+
+        return null;
     }
 
     public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool streamResponse = false)
@@ -24,30 +57,35 @@ public class AIClient
 
         // Implement the logic to send the prompt to OpenAI and receive the conversation response
         // using the Azure.AI.OpenAI library
-        var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
-        var chatCompletionsOptions = new ChatCompletionsOptions()
+        
+        // var chatCompletionsOptions = new ChatCompletionsOptions()
+        // {
+        //     DeploymentName = "gpt-4o",//"gpt-3.5-turbo", //"gpt-4-turbo",// "gpt-4o" "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
+        //     Messages =
+        //     {
+        //         new ChatRequestUserMessage(prompt),
+        //     }, 
+        //     ResponseFormat = (shouldReturnJson) ? ChatCompletionsResponseFormat.JsonObject : ChatCompletionsResponseFormat.Text
+        // };
+        
+        List<ChatMessage> messages = new List<ChatMessage>()
         {
-            DeploymentName = "gpt-4o",//"gpt-3.5-turbo", //"gpt-4-turbo",// "gpt-4o" "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients
-            Messages =
-            {
-                new ChatRequestUserMessage(prompt),
-            }, 
-            ResponseFormat = (shouldReturnJson) ? ChatCompletionsResponseFormat.JsonObject : ChatCompletionsResponseFormat.Text
+            new UserChatMessage(prompt)
         };
         
-        
         if(streamResponse){
-            await foreach (StreamingChatCompletionsUpdate chatUpdate in client.GetChatCompletionsStreaming(chatCompletionsOptions))
+            await foreach (StreamingChatCompletionUpdate chatUpdate in _client.CompleteChatStreamingAsync(messages))
             {
                 if (chatUpdate.Role.HasValue)
                 {
                     Console.Write($"{chatUpdate.Role.Value.ToString().ToUpperInvariant()}: ");
                 }
-                if (!string.IsNullOrEmpty(chatUpdate.ContentUpdate))
+                if (chatUpdate.ContentUpdate.Count > 0)
                 {
                     // Console.Write(chatUpdate.ContentUpdate);
-                    WeakReferenceMessenger.Default.Send(new ChatCompletionMessage(chatUpdate.ContentUpdate));  
+                    WeakReferenceMessenger.Default.Send(new ChatCompletionMessage(chatUpdate.ContentUpdate[0].Text));  
                 }
+                
                 if (chatUpdate.FinishReason.HasValue)
                 {
                     Console.WriteLine($"Chat completion finished: {chatUpdate.FinishReason.Value}");
@@ -56,10 +94,13 @@ public class AIClient
             }
         }else{
             try{
-                var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
-                ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
-                
-                return responseMessage.Content;
+                ChatCompletionOptions options = new ChatCompletionOptions()
+                {
+                    ResponseFormat = ChatResponseFormat.JsonObject
+                };
+
+                ClientResult<ChatCompletion> result = await _client.CompleteChatAsync(messages, options);
+                return result.Value.Content[0].Text;
             }catch(Exception ex){
                 Debug.WriteLine(ex.Message);
             }
@@ -76,26 +117,24 @@ public class AIClient
             WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
             return string.Empty;
         }
-
-
-        var client = new OpenAIClient(_apiKey, new OpenAIClientOptions());
-        var imageItem = new ChatMessageImageContentItem(imageUri);
         
-        var chatCompletionsOptions = new ChatCompletionsOptions()
+        List<ChatMessage> messages = new List<ChatMessage>()
         {
-            DeploymentName = "gpt-4-turbo",// "gpt-3.5-turbo", // Use DeploymentName for "model" with non-Azure clients            
-            Messages =
-            {
-                new ChatRequestUserMessage(imageItem),
-                new ChatRequestUserMessage(prompt),
-            }
+            new UserChatMessage(
+                ChatMessageContentPart.CreateTextMessageContentPart(prompt),
+                ChatMessageContentPart.CreateImageMessageContentPart(imageUri)
+            )
+        };
+
+        ChatCompletionOptions options = new ChatCompletionOptions()
+        {
+            ResponseFormat = ChatResponseFormat.JsonObject
         };
         
         try
         {
-            var response = await client.GetChatCompletionsAsync(chatCompletionsOptions);
-            var responseMessage = response.Value.Choices[0].Message.Content;
-            return responseMessage;
+            ClientResult<ChatCompletion> result = await _client.CompleteChatAsync(messages, options);
+            return result.Value.Content[0].Text;
         }
         catch (Exception ex)
         {

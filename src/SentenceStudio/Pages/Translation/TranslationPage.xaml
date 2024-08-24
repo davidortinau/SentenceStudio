@@ -233,6 +233,12 @@
                     ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
                     Background="Transparent"
                     Command="{Binding PreviousSentenceCommand}" />
+            <Button Grid.Column="2"
+                    Grid.Row="1"
+                    HorizontalOptions="End"
+                    ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
+                    Background="Transparent"
+                    Command="{Binding PlayAudioCommand}" />
             <Button Grid.Column="6"
                     Grid.Row="1"
                     ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"
