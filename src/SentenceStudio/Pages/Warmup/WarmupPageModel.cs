@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Mvvm.Input;
+using Plugin.Maui.Audio;
 using SentenceStudio.Models;
 using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
@@ -16,7 +17,8 @@ public partial class WarmupPageModel : BaseViewModel
     private ConversationService _conversationService;
 
     private IPopupService _popupService;
-    
+    private AiService _aiService;
+
     [ObservableProperty]
     private string _userInput;
 
@@ -31,6 +33,7 @@ public partial class WarmupPageModel : BaseViewModel
         _teacherService = service.GetRequiredService<TeacherService>();
         _conversationService = service.GetRequiredService<ConversationService>();
         _popupService = service.GetRequiredService<IPopupService>();
+        _aiService = service.GetRequiredService<AiService>();
         TaskMonitor.Create(ResumeConversation);
         
     }
@@ -91,8 +94,10 @@ public partial class WarmupPageModel : BaseViewModel
 
         await _conversationService.SaveConversationChunk(previousChunk);
         await _conversationService.SaveConversationChunk(chunk);
-        
+
         IsBusy = false;            
+
+        await PlayAudio(response.Message);
     }
 
     [RelayCommand]
@@ -150,5 +155,14 @@ public partial class WarmupPageModel : BaseViewModel
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }
+    }
+
+    async Task PlayAudio(string text)
+    {
+        var myStream = await _aiService.TextToSpeechAsync(text, "Nova");
+            
+        var audioPlayer = AudioManager.Current.CreatePlayer(myStream);
+        audioPlayer.Play();
+        
     }
 }

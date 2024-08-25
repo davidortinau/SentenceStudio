@@ -199,17 +199,18 @@ public partial class DashboardPageModel : BaseViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
-    async Task Clozures()
+    
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
+    async Task Navigate(string route)
     {
-        try{
-            var payload = new ShellNavigationQueryParameters
+        var payload = new ShellNavigationQueryParameters
                         {
                             {"listID", VocabList.ID},
                             {"skillProfileID", SkillProfile.ID}
                         };
-            
-            await Shell.Current.GoToAsync($"clozures", payload);
+
+        try{
+            await Shell.Current.GoToAsync($"{route}", payload);
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

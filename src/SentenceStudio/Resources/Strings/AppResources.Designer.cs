@@ -274,6 +274,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Story Teller.
+        /// </summary>
+        internal static string Storyteller {
+            get {
+                return ResourceManager.GetString("Storyteller", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Target Language.
         /// </summary>
         internal static string TargetLanguage {

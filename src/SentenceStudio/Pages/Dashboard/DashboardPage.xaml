@@ -61,6 +61,17 @@
                     </Border>
                     <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                         <Grid WidthRequest="300" HeightRequest="120">
+                            <Label Text="{Binding Localize[Storyteller]}"
+                                VerticalOptions="Center" HorizontalOptions="Center"/>
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer 
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="storyteller" />
+                            </Grid.GestureRecognizers>                    
+                        </Grid>                    
+                    </Border>
+                    <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                        <Grid WidthRequest="300" HeightRequest="120">
                             <Label Text="{Binding Localize[Translate]}"
                                 VerticalOptions="Center" HorizontalOptions="Center"/>
                             <Grid.GestureRecognizers>
@@ -94,7 +105,8 @@
                                 VerticalOptions="Center" HorizontalOptions="Center"/>
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer 
-                                    Command="{Binding ClozuresCommand}" />
+                                    Command="{Binding NavigateCommand}"
+                                    CommandParameter="clozures" />
                             </Grid.GestureRecognizers>                    
                         </Grid>                    
                     </Border>

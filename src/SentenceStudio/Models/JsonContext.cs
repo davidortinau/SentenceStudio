@@ -1,6 +1,9 @@
 using System.Text.Json.Serialization;
 using SentenceStudio.Models;
 
+[JsonSerializable(typeof(StorytellerResponse))]
+[JsonSerializable(typeof(Story))]
+[JsonSerializable(typeof(Question))]
 [JsonSerializable(typeof(Reply))]
 [JsonSerializable(typeof(GradeResponse))]
 [JsonSerializable(typeof(GrammarNotes))]

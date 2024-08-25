@@ -34,10 +34,6 @@ public class AIClient
 
             // using FileStream stream = File.OpenWrite($"{Guid.NewGuid()}.mp3");
             return speech.ToStream();
-            
-            var result = await _audio.GenerateSpeechFromTextAsync(text, Enum.Parse<GeneratedSpeechVoice>(voice),
-                new SpeechGenerationOptions { ResponseFormat = GeneratedSpeechFormat.Mp3 });
-            return result.Value.ToStream();
         }
         catch (Exception ex)
         {

@@ -1,14 +1,4 @@
 
-
-using CommunityToolkit.Maui.Converters;
-using CommunityToolkit.Maui.Extensions;
-using CommunityToolkit.Maui.Markup;
-using MauiIcons.Core;
-using MauiIcons.SegoeFluent;
-using Microsoft.Maui.Controls.Shapes;
-using SentenceStudio.Pages.Controls;
-using static CommunityToolkit.Maui.Markup.GridRowsColumns;
-using static Microsoft.Maui.Controls.VisualStateManager;
 using Border = Microsoft.Maui.Controls.Border;
 
 namespace SentenceStudio.Pages.Clozure;
@@ -43,9 +33,6 @@ public static class ViewExtensions
 		return layout;
 	}
 }
-
-
-
 
 public class ClozurePage : ContentPage
 {

@@ -28,6 +28,8 @@ using Microsoft.Maui.Hosting;
 using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Skills;
 using Syncfusion.Maui.Core.Hosting;
+using SentenceStudio.Pages.Storyteller;
+
 
 
 #if DEBUG
@@ -100,6 +102,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ClozureService>();
 		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<SkillProfileRepository>();
+		builder.Services.AddSingleton<StorytellerService>();
 		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
@@ -123,6 +126,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<ListSkillProfilesPage, ListSkillProfilesPageModel>("skills");
 		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
 		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
+		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
 
         
 #if ANDROID || IOS || MACCATALYST
