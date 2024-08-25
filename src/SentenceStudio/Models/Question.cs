@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using SQLite;
 
 namespace SentenceStudio.Models;
-public partial class Question : INotifyPropertyChanged
+public partial class Question
 {
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
@@ -18,6 +18,5 @@ public partial class Question : INotifyPropertyChanged
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    
-    public event PropertyChangedEventHandler PropertyChanged;
+    public int StoryID { get; set; }     
 }

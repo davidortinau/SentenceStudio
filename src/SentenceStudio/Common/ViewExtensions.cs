@@ -70,5 +70,47 @@ namespace SentenceStudio.Common
 
             return visualElement;
 		}
+        
+		public static TLayout AddMany<TLayout>(this TLayout layout, IEnumerable<IView> newViews) where TLayout : Layout
+		{
+			foreach (var view in newViews)
+			{
+				layout.Children.Add(view);
+			}
+
+			return layout;
+		}
+
+		public static TLayout PrependMany<TLayout>(this TLayout layout, IEnumerable<IView> newViews) where TLayout : Layout
+		{
+			var existingViews = layout.Children.ToList();
+			layout.Children.Clear();
+
+			foreach (var view in newViews)
+			{
+				layout.Children.Add(view);
+			}
+
+			foreach (var view in existingViews)
+			{
+				layout.Children.Add(view);
+			}
+
+			return layout;
+		}
+
+		public static T OnValueChanged<T>(this T self, System.EventHandler<ValueChangedEventArgs> handler)
+            where T : Microsoft.Maui.Controls.Slider
+        {
+            self.ValueChanged += handler;
+            return self;
+        }
+
+		public static T OnValueChanged<T>(this T self, Action<T> action) 
+            where T : Microsoft.Maui.Controls.Slider
+        {
+            self.ValueChanged += (sender, e) => action?.Invoke(self);
+            return self;
+        }
     }
 }

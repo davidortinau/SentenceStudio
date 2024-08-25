@@ -18,12 +18,6 @@ public class StorytellerPage : ContentPage
 
 		Shell.SetNavBarIsVisible(this, true);
 
-		ToolbarItems.Add(new ToolbarItem
-		{
-			Text = "Play",
-			
-		}.BindCommand(nameof(_model.PlayCommand)));
-
 		Content = new Grid
 		{
 			Padding = DeviceInfo.Idiom == DeviceIdiom.Phone ? new Thickness(16, 6) : new Thickness((Double)Application.Current.Resources["size240"]),
@@ -77,6 +71,11 @@ public class StorytellerPage : ContentPage
 							}; // VerticalStackLayout
 						})) // ItemTemplate					
 						.Row(1)
+						.IsVisible(false),
+					new AudioControls()
+						.Bind(AudioControls.StreamProperty, nameof(_model.Stream))
+						.Bottom()
+						.CenterHorizontal()
 				}
 		}; // Content Grid
 

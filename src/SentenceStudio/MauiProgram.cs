@@ -103,6 +103,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<SkillProfileRepository>();
 		builder.Services.AddSingleton<StorytellerService>();
+		builder.Services.AddSingleton<StoryRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();

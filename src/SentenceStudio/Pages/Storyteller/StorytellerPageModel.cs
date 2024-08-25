@@ -34,9 +34,13 @@ public partial class StorytellerPageModel : BaseViewModel, IQueryAttributable
 
     [ObservableProperty]
     private ObservableCollection<Question> _questions;
+
+    [ObservableProperty] private Stream _stream;
     
     public int ListID { get; set; }
     public int SkillProfileID { get; set; }
+    
+    private Story _story;
     
     public StorytellerPageModel(IServiceProvider service)
     {
@@ -57,32 +61,26 @@ public partial class StorytellerPageModel : BaseViewModel, IQueryAttributable
     {
         IsBusy = true;
         
-        var story = await _storytellerService.TellAStory(ListID, 10, SkillProfileID);
+        _story = await _storytellerService.TellAStory(ListID, 10, SkillProfileID);
                 
-        Body = story.Body;
+        Body = _story.Body;
 
-        Questions = new ObservableCollection<Question>(story.Questions);
-
+        Questions = new ObservableCollection<Question>(_story.Questions);
+        
         IsBusy = false;        
+        
+        Stream = await _aiService.TextToSpeechAsync(Body, "Nova");
+        await SaveStreamToFile(Stream);
+
     }
 
-    private Stream _myStream;
-
-    private IAudioPlayer _audioPlayer;
-
-    [RelayCommand]
-    async Task Play()
+    private async Task SaveStreamToFile(Stream stream)
     {
-        if(_myStream is null)
-        {
-            _myStream = await _aiService.TextToSpeechAsync(Body, "Nova");
-        }   
+        // Create an output filename
+        string targetFile = System.IO.Path.Combine(FileSystem.Current.AppDataDirectory, $"Story_{_story.ID}.mp3");
 
-        if(_audioPlayer is null)
-        {
-            _audioPlayer = AudioManager.Current.CreatePlayer(_myStream);
-        }     
-            
-        _audioPlayer.Play();
+        // Copy the file to the AppDataDirectory
+        using FileStream outputStream = File.Create(targetFile);
+        await stream.CopyToAsync(outputStream);
     }
 }

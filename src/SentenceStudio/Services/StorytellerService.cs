@@ -13,6 +13,7 @@ namespace SentenceStudio.Services
         private AiService _aiService;
         private VocabularyService _vocabularyService;
         private SkillProfileRepository _skillRepository;
+        private StoryRepository _storyRepository;
         private SQLiteAsyncConnection Database;
         
         private List<VocabularyWord> _words;
@@ -28,6 +29,7 @@ namespace SentenceStudio.Services
             _aiService = service.GetRequiredService<AiService>();
             _vocabularyService = service.GetRequiredService<VocabularyService>();
             _skillRepository = service.GetRequiredService<SkillProfileRepository>();
+            _storyRepository = service.GetRequiredService<StoryRepository>();
         }
 
         public async Task<Story> TellAStory(int vocabularyListID, int numberOfWords, int skillID)
@@ -60,6 +62,12 @@ namespace SentenceStudio.Services
                 watch.Stop();
                 Debug.WriteLine($"Received response in: {watch.Elapsed}");
                 StorytellerResponse reply = JsonSerializer.Deserialize(response, JsonContext.Default.StorytellerResponse);
+                
+                reply.Story.ListID = vocabularyListID;
+                reply.Story.SkillID = skillID;
+
+                await _storyRepository.SaveAsync(reply.Story);
+
                 return reply.Story;
             }
             catch (Exception ex)
