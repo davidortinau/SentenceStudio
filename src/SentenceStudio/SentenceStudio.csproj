@@ -116,8 +116,10 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="9.0.2" />
-		<PackageReference Include="CommunityToolkit.Maui.Markup" Version="4.0.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="9.0.3" />
+		<PackageReference Include="CommunityToolkit.Maui.Markup" Version="4.1.0" />
+		<PackageReference Include="OpenAI" Version="2.0.0-beta.9" />
+		<PackageReference Include="Plugin.Maui.Audio" Version="3.0.0" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="3.0.0" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
@@ -131,7 +133,8 @@
 		<PackageReference Include="SkiaSharp.HarfBuzz" Version="2.88.8" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="2.88.8" />
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
-		<PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.15" />
+		<PackageReference Include="Azure.AI.OpenAI" Version="2.0.0-beta.2" />
+		<PackageReference Include="Syncfusion.Maui.Picker" Version="26.2.10" />
 		
 	</ItemGroup>
 

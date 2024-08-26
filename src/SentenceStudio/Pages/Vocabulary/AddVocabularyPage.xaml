@@ -12,6 +12,10 @@
             IconImageSource="{mi:SegoeFluent Icon=OpenFile, IconSize=24}"            
             Command="{Binding ChooseFileCommand}" />
     </ContentPage.ToolbarItems>
+
+   
+
+
     
     <ScrollView>
         <VerticalStackLayout Spacing="{StaticResource size320}" Margin="24">

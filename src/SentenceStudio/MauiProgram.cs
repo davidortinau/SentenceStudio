@@ -22,6 +22,16 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
 using CommunityToolkit.Maui.Markup;
+using Microsoft.Maui;
+using Microsoft.Maui.Controls.Hosting;
+using Microsoft.Maui.Hosting;
+using Plugin.Maui.Audio;
+using SentenceStudio.Pages.Skills;
+using Syncfusion.Maui.Core.Hosting;
+using SentenceStudio.Pages.Storyteller;
+
+
+
 #if DEBUG
 using Common;
 #endif
@@ -45,6 +55,22 @@ public static class MauiProgram
 			.UseBottomSheet()
 			.UseSkiaSharp()
 			.UseOxyPlotSkia()
+			.ConfigureSyncfusionCore()
+			.AddAudio(
+				playbackOptions =>
+				{
+#if IOS || MACCATALYST
+					playbackOptions.Category = AVFoundation.AVAudioSessionCategory.Playback;
+#endif
+				},
+				recordingOptions =>
+				{
+#if IOS || MACCATALYST
+					recordingOptions.Category = AVFoundation.AVAudioSessionCategory.Record;
+					recordingOptions.Mode = AVFoundation.AVAudioSessionMode.Default;
+					recordingOptions.CategoryOptions = AVFoundation.AVAudioSessionCategoryOptions.MixWithOthers;
+			#endif
+			})
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
@@ -76,6 +102,8 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ClozureService>();
 		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<SkillProfileRepository>();
+		builder.Services.AddSingleton<StorytellerService>();
+		builder.Services.AddSingleton<StoryRepository>();
 		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
@@ -96,8 +124,12 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		builder.Services.AddTransientWithShellRoute<SkillProfilesPage, SkillProfilesPageModel>("skills");
+		builder.Services.AddTransientWithShellRoute<ListSkillProfilesPage, ListSkillProfilesPageModel>("skills");
+		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
+		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
+		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
 
+        
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
 #else
@@ -119,7 +151,7 @@ public static class MauiProgram
 
 #if DEBUG
 		builder.UseDebugRibbon(Colors.Black);
-		// builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
+		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
 #endif
 
 // 		builder.Services.AddLogging(logging =>
@@ -145,23 +177,15 @@ public static class MauiProgram
     private static void ModifyPicker()
     {
 		
-#if ANDROID
+
 		Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
 		{
-            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
-
-			
+			#if ANDROID
+            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);			
+			#elif IOS || MACCATALYST
+			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
+			#endif
 		});
-#endif
-
-// #if MACCATALYST
-//         Microsoft.Maui.Handlers.PickerHandler.Mapper.ReplaceMapping<Picker, IPickerHandler>(nameof(Picker.Title), (handler, view) =>
-// 		{
-// 			handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
-// 			Debug.WriteLine("Do nothing");
-			
-// 		});
-// #endif
     }
 
     public static void ModifyEntry()

@@ -14,6 +14,8 @@ namespace SentenceStudio.Services
         readonly IConfiguration configuration;
         private AiService _aiService;
 
+        
+
         public ConversationService(IServiceProvider service, IConfiguration configuration)
         {
             _aiService = service.GetRequiredService<AiService>();

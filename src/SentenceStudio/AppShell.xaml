@@ -10,6 +10,7 @@
     xmlns:dashboard="clr-namespace:SentenceStudio.Pages.Dashboard;assembly=SentenceStudio"
     xmlns:account="clr-namespace:SentenceStudio.Pages.Account;assembly=SentenceStudio"
     xmlns:onboarding="clr-namespace:SentenceStudio.Pages.Onboarding;assembly=SentenceStudio"
+    xmlns:skills="clr-namespace:SentenceStudio.Pages.Skills;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}"
     Navigating="Shell_Navigating">
 
@@ -132,7 +133,7 @@
         </ShellSection>
         <ShellSection>
             <ShellContent
-                ContentTemplate="{DataTemplate account:SkillProfilesPage}"
+                ContentTemplate="{DataTemplate skills:ListSkillProfilesPage}"
                 Route="skills" />
         </ShellSection>
     </FlyoutItem>

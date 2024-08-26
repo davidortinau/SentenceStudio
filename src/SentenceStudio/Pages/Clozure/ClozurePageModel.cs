@@ -37,6 +37,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     private string _userMode = InputMode.Text.ToString();
 
     public int ListID { get; set; }
+    public int SkillProfileID { get; set; }
     public string PlayMode { get; set; }
     public int Level { get; set; }
 
@@ -113,7 +114,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
         else
             IsBuffering = true;
         
-        var sentences = await _clozureService.GetSentences(ListID, count, 1);
+        var sentences = await _clozureService.GetSentences(ListID, count, SkillProfileID);
         // await Task.Delay(100);
         foreach(var s in sentences)
         {
@@ -339,6 +340,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
         ListID = (int)query["listID"];
+        SkillProfileID = query.ContainsKey("skillProfileID") ? (int)query["skillProfileID"] : 1;
         // PlayMode = (string)query["playMode"];
         // Level = (int)query["level"];
 

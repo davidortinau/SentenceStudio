@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using OpenAI.Audio;
 using SentenceStudio.Models;
 
 namespace SentenceStudio.Services;
@@ -47,10 +48,17 @@ public class AiService {
         }
         catch (Exception ex)
         {
+            
             // Handle any exceptions that occur during the process
             Debug.WriteLine($"An error occurred SendImage: {ex.Message}");
             return string.Empty;
         }
+    }
+
+    public async Task<Stream> TextToSpeechAsync(string text, string voice)
+    {
+        var aiClient = new AIClient(_openAiApiKey);
+        return await aiClient.TextToSpeechAsync(text, voice);
     }
 }
     

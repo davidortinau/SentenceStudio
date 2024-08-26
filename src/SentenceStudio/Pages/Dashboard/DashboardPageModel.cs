@@ -68,6 +68,10 @@ public partial class DashboardPageModel : BaseViewModel
         }
 
         SkillProfiles = await _skillsRepository.ListAsync();
+        if (SkillProfiles.Count > 0)
+        {
+            SkillProfile = SkillProfiles.First();
+        }
     }
 
     private bool _shouldRefresh;
@@ -116,7 +120,14 @@ public partial class DashboardPageModel : BaseViewModel
         //     listID = VocabLists.First().ID;
 
         try{
-            await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
+            var payload = new ShellNavigationQueryParameters
+                        {
+                            {"listID", VocabList.ID},
+                            {"skillProfileID", SkillProfile.ID}
+                        };
+            
+            await Shell.Current.GoToAsync($"translation", payload);
+            // await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -188,16 +199,18 @@ public partial class DashboardPageModel : BaseViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
-    async Task Clozures()
+    
+    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
+    async Task Navigate(string route)
     {
-        try{
-            var payload = new ShellNavigationQueryParameters
+        var payload = new ShellNavigationQueryParameters
                         {
-                            {"listID", VocabList.ID}
+                            {"listID", VocabList.ID},
+                            {"skillProfileID", SkillProfile.ID}
                         };
-            
-            await Shell.Current.GoToAsync($"clozures", payload);
+
+        try{
+            await Shell.Current.GoToAsync($"{route}", payload);
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

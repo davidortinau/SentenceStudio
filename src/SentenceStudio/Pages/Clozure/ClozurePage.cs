@@ -1,51 +1,7 @@
 
-
-using CommunityToolkit.Maui.Converters;
-using CommunityToolkit.Maui.Extensions;
-using CommunityToolkit.Maui.Markup;
-using MauiIcons.Core;
-using MauiIcons.SegoeFluent;
-using Microsoft.Maui.Controls.Shapes;
-using SentenceStudio.Pages.Controls;
-using static CommunityToolkit.Maui.Markup.GridRowsColumns;
-using static Microsoft.Maui.Controls.VisualStateManager;
 using Border = Microsoft.Maui.Controls.Border;
 
 namespace SentenceStudio.Pages.Clozure;
-
-public static class ViewExtensions
-{
-	public static TLayout AddMany<TLayout>(this TLayout layout, IEnumerable<IView> newViews) where TLayout : Layout
-	{
-		foreach (var view in newViews)
-		{
-			layout.Children.Add(view);
-		}
-
-		return layout;
-	}
-
-	public static TLayout PrependMany<TLayout>(this TLayout layout, IEnumerable<IView> newViews) where TLayout : Layout
-	{
-		var existingViews = layout.Children.ToList();
-		layout.Children.Clear();
-
-		foreach (var view in newViews)
-		{
-			layout.Children.Add(view);
-		}
-
-		foreach (var view in existingViews)
-		{
-			layout.Children.Add(view);
-		}
-
-		return layout;
-	}
-}
-
-
-
 
 public class ClozurePage : ContentPage
 {

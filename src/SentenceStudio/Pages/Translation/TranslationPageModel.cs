@@ -7,10 +7,12 @@ using System.Threading.Tasks;
 using System.Web;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Media;
+using Plugin.Maui.Audio;
 
 namespace SentenceStudio.Pages.Translation;
 
 [QueryProperty(nameof(ListID), "listID")]
+[QueryProperty(nameof(SkillProfileID), "skillProfileID")]
 [QueryProperty(nameof(PlayMode), "playMode")]
 [QueryProperty(nameof(Level), "level")]
 public partial class TranslationPageModel : BaseViewModel
@@ -33,7 +35,11 @@ public partial class TranslationPageModel : BaseViewModel
     [ObservableProperty]
     private bool _isBuffering;
 
+    [ObservableProperty]
+    private string _userMode = InputMode.Text.ToString();
+
     public int ListID { get; set; }
+    public int SkillProfileID { get; set; }
     public string PlayMode { get; set; }
     public int Level { get; set; }
 
@@ -100,7 +106,7 @@ public partial class TranslationPageModel : BaseViewModel
         else
             IsBuffering = true;
         
-        var sentences = await _teacherService.GetChallenges(ListID, count);
+        var sentences = await _teacherService.GetChallenges(ListID, count, SkillProfileID);
         await Task.Delay(100);
         foreach(var s in sentences)
         {
@@ -127,10 +133,11 @@ public partial class TranslationPageModel : BaseViewModel
     {
         if (Sentences != null && Sentences.Count > 0)
         {
+            UserMode = InputMode.Text.ToString();
             GradeResponse = null;
             HasFeedback = false;
             Feedback = string.Empty;
-            CurrentSentence = Sentences[_currentSentenceIndex].SentenceText;
+            CurrentSentence = Sentences[_currentSentenceIndex].RecommendedTranslation;
             Vocabulary = Sentences[_currentSentenceIndex].Vocabulary;
 
             var random = new Random();
@@ -140,7 +147,7 @@ public partial class TranslationPageModel : BaseViewModel
                                     .ToList();
 
             UserInput = string.Empty;
-            RecommendedTranslation = Sentences[_currentSentenceIndex].RecommendedTranslation;
+            RecommendedTranslation = Sentences[_currentSentenceIndex].SentenceText;
             // Sentences.RemoveAt(0);
 
             Progress = $"{_currentSentenceIndex + 1} / {Sentences.Count}";
@@ -272,6 +279,15 @@ public partial class TranslationPageModel : BaseViewModel
 		await Toast.Make($"State Changed: {e.State}").Show(CancellationToken.None);
 	}
 
+    [RelayCommand]
+    async Task PlayAudio()
+    {
+        var myStream = await _aiService.TextToSpeechAsync(RecommendedTranslation, "Nova");
+            
+        var audioPlayer = AudioManager.Current.CreatePlayer(myStream);
+        audioPlayer.Play();
+        
+    }
 
 
 }
