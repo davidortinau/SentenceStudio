@@ -30,6 +30,10 @@ using SentenceStudio.Pages.Skills;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
 
+#if WINDOWS
+using System.Reflection;
+#endif
+
 
 
 #if DEBUG
