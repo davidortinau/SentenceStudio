@@ -33,6 +33,8 @@ public class AudioControls : Border, INotifyPropertyChanged
     private IAudioPlayer _player;
     private bool _isSeeking;
     private Slider _slider;
+    private Label _currentPositionLabel, _durationLabel;
+    private Button _playBtn, _pauseBtn;
 
     public AudioControls()
     {
@@ -48,6 +50,7 @@ public class AudioControls : Border, INotifyPropertyChanged
         StrokeThickness = 2;
         Padding = new Thickness((Double)Application.Current.Resources["size120"]);
 
+        
         Content = new Grid
         {
             RowDefinitions = Rows.Define(Auto,20),
@@ -62,6 +65,7 @@ public class AudioControls : Border, INotifyPropertyChanged
                     .Background(Colors.Transparent)
                     .Column(1)
                     .OnClicked(Pause)
+                    .Assign(out _pauseBtn)
                     .Bind(Button.IsVisibleProperty, nameof(IsPlaying)),
                 new Button {  }
                     .Icon(SegoeFluentIcons.Play)
@@ -70,16 +74,19 @@ public class AudioControls : Border, INotifyPropertyChanged
                     .Background(Colors.Transparent)
                     .Column(1)
                     .OnClicked(Play)
+                    .Assign(out _playBtn)
                     .Bind(Button.IsVisibleProperty, nameof(IsPlaying), converter: new InvertedBoolConverter()),
                 new Label {  }
                     .Text("00:00")
                     .TextColor((Color)Application.Current.Resources["LightOnDarkBackground"])
                     .Column(0)
+                    .Assign(out _currentPositionLabel)
                     .Bind(Label.TextProperty, nameof(_player.CurrentPosition), converter: new SecondsToStringConverter()),
                 new Label {  }
                     .Text("00:00")
                     .TextColor((Color)Application.Current.Resources["LightOnDarkBackground"])
                     .Column(2)
+                    .Assign(out _durationLabel)
                     .Bind(Label.TextProperty, nameof(_player.Duration), converter: new SecondsToStringConverter()),
                 new Slider{}
                     .Row(1)
@@ -88,6 +95,8 @@ public class AudioControls : Border, INotifyPropertyChanged
                     .OnValueChanged(OnSliderValueChanged)
             }
         };
+
+        TogglePlayPause();
     }
 
     private void Play(object sender, EventArgs e)
@@ -101,13 +110,29 @@ public class AudioControls : Border, INotifyPropertyChanged
         _player?.Play();
         Device.StartTimer(TimeSpan.FromMilliseconds(500), UpdateSlider);
         NotifyPropertyChanged(nameof(IsPlaying));
+
+        _currentPositionLabel.Text = TimeSpan.FromSeconds(_player.CurrentPosition).ToString(@"mm\:ss");
+        _durationLabel.Text = TimeSpan.FromSeconds(_player.Duration).ToString(@"mm\:ss");
+
+        TogglePlayPause();
+    }
+
+    private void TogglePlayPause()
+    {
+        if(_player is not null){
+            _playBtn.IsVisible = !_player.IsPlaying;
+            _pauseBtn.IsVisible = _player.IsPlaying;
+        }else{
+            _playBtn.IsVisible = true;
+            _pauseBtn.IsVisible = false;
+        }
     }
 
     private void Pause(object sender, EventArgs e)
     {
         _player?.Pause();
         NotifyPropertyChanged(nameof(IsPlaying));
-        
+        TogglePlayPause();
     }
 
     private void OnSliderValueChanged(object sender, ValueChangedEventArgs e)
@@ -128,6 +153,7 @@ public class AudioControls : Border, INotifyPropertyChanged
     {
         if (_player != null && _player.Duration > 0 && !_isSeeking)
         {
+            _currentPositionLabel.Text = TimeSpan.FromSeconds(_player.CurrentPosition).ToString(@"mm\:ss");
             _isSeeking = true;
             _slider.Value = (_player.CurrentPosition / _player.Duration) * 100;
             _isSeeking = false;
@@ -139,6 +165,7 @@ public class AudioControls : Border, INotifyPropertyChanged
     private void OnPlaybackEnded(object sender, EventArgs e)
     {
         _slider.Value = 0;
+        TogglePlayPause();
     }
 
     public event PropertyChangedEventHandler PropertyChanged;

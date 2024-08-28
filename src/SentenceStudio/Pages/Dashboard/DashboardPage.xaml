@@ -110,6 +110,17 @@
                             </Grid.GestureRecognizers>                    
                         </Grid>                    
                     </Border>
+                    <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
+                        <Grid WidthRequest="300" HeightRequest="120">
+                            <Label Text="How Do You Say"
+                                VerticalOptions="Center" HorizontalOptions="Center"/>
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer 
+                                    Command="{Binding NavigateCommand}"
+                                    CommandParameter="howDoYouSay" />
+                            </Grid.GestureRecognizers>                    
+                        </Grid>                    
+                    </Border>
                     <!-- <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                         <Grid WidthRequest="300" HeightRequest="120">
                             <Label Text="{Binding Localize[ParseASentence]}"

@@ -29,6 +29,8 @@ using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Skills;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
+using SentenceStudio.Pages.HowDoYouSay;
+
 
 
 
@@ -128,6 +130,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
 		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
 		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
+		builder.Services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
 
         
 #if ANDROID || IOS || MACCATALYST
