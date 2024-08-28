@@ -62,7 +62,9 @@ public class HowDoYouSayPage : ContentPage
 									new HorizontalStackLayout{
 										Spacing = (Double)Application.Current.Resources["size120"],
 										Children = {
-											new Button()
+											new Button{
+												Background = Colors.Transparent
+											}
 												.Icon(SegoeFluentIcons.Play).IconSize(24).IconColor(Colors.Black)
 												.BindCommand(
 													path: nameof(HowDoYouSayPageModel.PlayCommand),

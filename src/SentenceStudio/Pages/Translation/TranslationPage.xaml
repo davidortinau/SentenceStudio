@@ -184,15 +184,27 @@
                     <Button Grid.Row="0"
                             Grid.Column="1"
                             x:Name="ListenButton"
-                            ImageSource="{mi:SegoeFluent Icon=Record2, IconSize=24}"
+                            IsVisible="False"
                             Background="Transparent"
-                            Command="{Binding StartListeningCommand}" />
+                            Command="{Binding StartListeningCommand}">
+                        <Button.ImageSource>
+                            <mi:SegoeFluent Icon="Record2" IconSize="24"
+                                IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                                 />
+                        </Button.ImageSource>
+                    </Button>
                     <Button Grid.Row="0"
                             Grid.Column="2"
+                            IsVisible="False"
                             x:Name="CancelButton"
-                            ImageSource="{mi:SegoeFluent Icon=Stop, IconSize=24}"
                             Background="Transparent"
-                            Command="{Binding StopListeningCommand}" />
+                            Command="{Binding StopListeningCommand}">
+                        <Button.ImageSource>
+                            <mi:SegoeFluent Icon="Stop" IconSize="24"
+                                IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"
+                                 />
+                        </Button.ImageSource>
+                    </Button>
                 </Grid>
 
                 <!-- HUD with progress -->
@@ -230,20 +242,32 @@
                             VerticalOptions="Center" />
             <Button Grid.Column="0"
                     Grid.Row="1"
-                    ImageSource="{mi:SegoeFluent Icon=Previous, IconSize=24}"
                     Background="Transparent"
-                    Command="{Binding PreviousSentenceCommand}" />
+                    Command="{Binding PreviousSentenceCommand}">
+                <Button.ImageSource>
+                    <mi:SegoeFluent Icon="Previous" IconSize="24"
+                        IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+                </Button.ImageSource>
+            </Button>
             <Button Grid.Column="2"
                     Grid.Row="1"
                     HorizontalOptions="End"
-                    ImageSource="{mi:SegoeFluent Icon=Play, IconSize=24}"
                     Background="Transparent"
-                    Command="{Binding PlayAudioCommand}" />
+                    Command="{Binding PlayAudioCommand}">
+                <Button.ImageSource>
+                    <mi:SegoeFluent Icon="Play" IconSize="24"
+                        IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+                </Button.ImageSource>
+            </Button>
             <Button Grid.Column="6"
                     Grid.Row="1"
-                    ImageSource="{mi:SegoeFluent Icon=Next, IconSize=24}"
                     Background="Transparent"
-                    Command="{Binding NextSentenceCommand}" />
+                    Command="{Binding NextSentenceCommand}">
+                <Button.ImageSource>
+                    <mi:SegoeFluent Icon="Next" IconSize="24"
+                        IconColor="{AppThemeBinding Dark={StaticResource LightOnDarkBackground}, Light={StaticResource DarkOnLightBackground}}"/>
+                </Button.ImageSource>
+            </Button>
             <!-- Grid Lines -->
             <BoxView Grid.ColumnSpan="7"
                      Color="Black"

@@ -13,7 +13,6 @@
              x:DataType="scene:DescribeAScenePageModel"
              HideSoftInputOnTapped="True"
              Shell.NavBarIsVisible="True">
-             
 
     <ContentPage.ToolbarItems>
         <ToolbarItem 
@@ -73,30 +72,29 @@
         </VisualStateManager.VisualStateGroups>
 
 
-        <ListView x:Name="SentenceList" 
+        <CollectionView x:Name="SentenceList" 
                 Grid.Column="1" Grid.Row="1"
-                    ItemsSource="{Binding Sentences}" 
-                    
-                  SelectionMode="None"
-                  Margin="{StaticResource size160}"
-                  SeparatorVisibility="None">
-                  <ListView.Header>
-                        <ContentView Padding="{StaticResource size160}">
-                            <Label Text="{Binding Localize[ISee]}"
-                                    Style="{StaticResource Title1}" />
-                        </ContentView>
-                    </ListView.Header>
-            <ListView.ItemTemplate>
+                ItemsSource="{Binding Sentences}" 
+                Margin="{StaticResource size160}">
+            <CollectionView.Header>
+                <ContentView Padding="{StaticResource size160}">
+                    <Label Text="{Binding Localize[ISee]}"
+                            Style="{StaticResource Title1}" />
+                </ContentView>
+            </CollectionView.Header>
+            <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="model:Sentence">
-                    <TextCell 
-                        Text="{Binding Answer}"
-                        Detail="{Binding Accuracy, StringFormat='Accuracy: {0}'}"
-                        Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand, x:DataType=scene:DescribeAScenePageModel}"
-                        CommandParameter="{Binding .}"/>
+                    <VerticalStackLayout Padding="{StaticResource size160}" Spacing="2">
+                        <Label Text="{Binding Answer}"
+                            FontSize="{OnIdiom 26, Phone=16}" />
+                        <Label Text="{Binding Accuracy, StringFormat='Accuracy: {0}'}" />
+                        <VerticalStackLayout.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type scene:DescribeAScenePageModel}}, Path=ShowExplanationCommand, x:DataType=scene:DescribeAScenePageModel}" CommandParameter="{Binding .}"/>
+                        </VerticalStackLayout.GestureRecognizers>
+                    </VerticalStackLayout>
                 </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>       
-
+            </CollectionView.ItemTemplate>
+        </CollectionView>       
 
         <Grid Grid.Column="0" Grid.Row="1">
             <Image Source="{Binding ImageUrl}" 
