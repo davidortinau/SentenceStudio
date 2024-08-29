@@ -37,10 +37,11 @@
                             <Label Text="What should I call you?"
                                 Style="{StaticResource Title1}"
                                 HorizontalOptions="Center"/>
-                            <Entry Text="{Binding Name, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
-                                Placeholder="Enter your name"
-                                Grid.Row="1"
-                                HorizontalOptions="Center"/>
+                            <c:FormField Grid.Row="1">
+                                <Entry Text="{Binding Name, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
+                                    Placeholder="Enter your name"
+                                    HorizontalOptions="Center"/>
+                            </c:FormField>
                         </Grid>
                     </ContentView>
                     <ContentView>
@@ -49,25 +50,26 @@
                             <Label Text="What is your primary language?"
                                 Style="{StaticResource Title1}"
                                 HorizontalOptions="Center"/>
-                            <Picker SelectedItem="{Binding NativeLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
-                                Grid.Row="1">
-                                <Picker.ItemsSource>
-                                    <x:Array Type="{x:Type x:String}">
-                                        <x:String>English</x:String>
-                                        <x:String>Spanish</x:String>
-                                        <x:String>French</x:String>
-                                        <x:String>German</x:String>
-                                        <x:String>Italian</x:String>
-                                        <x:String>Portuguese</x:String>
-                                        <x:String>Chinese</x:String>
-                                        <x:String>Japanese</x:String>
-                                        <x:String>Korean</x:String>
-                                        <x:String>Arabic</x:String>
-                                        <x:String>Russian</x:String>
-                                        <x:String>Other</x:String>
-                                    </x:Array>
-                                </Picker.ItemsSource>
-                            </Picker>
+                            <c:FormField Grid.Row="1">                                    
+                                <Picker SelectedItem="{Binding NativeLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}">
+                                    <Picker.ItemsSource>
+                                        <x:Array Type="{x:Type x:String}">
+                                            <x:String>English</x:String>
+                                            <x:String>Spanish</x:String>
+                                            <x:String>French</x:String>
+                                            <x:String>German</x:String>
+                                            <x:String>Italian</x:String>
+                                            <x:String>Portuguese</x:String>
+                                            <x:String>Chinese</x:String>
+                                            <x:String>Japanese</x:String>
+                                            <x:String>Korean</x:String>
+                                            <x:String>Arabic</x:String>
+                                            <x:String>Russian</x:String>
+                                            <x:String>Other</x:String>
+                                        </x:Array>
+                                    </Picker.ItemsSource>
+                                </Picker>
+                            </c:FormField>
                         </Grid>
                     </ContentView>
                     <ContentView>
@@ -76,27 +78,29 @@
                             <Label Text="What language are you here to practice?"
                                 Style="{StaticResource Title1}"
                                 HorizontalOptions="Center"/>
-                            <Picker  
-                                
-                                SelectedItem="{Binding TargetLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
-                                Grid.Row="1">
-                                <Picker.ItemsSource>
-                                    <x:Array Type="{x:Type x:String}">
-                                        <x:String>Korean</x:String>
-                                        <x:String>English</x:String>
-                                        <x:String>Spanish</x:String>
-                                        <x:String>French</x:String>
-                                        <x:String>German</x:String>
-                                        <x:String>Italian</x:String>
-                                        <x:String>Portuguese</x:String>
-                                        <x:String>Chinese</x:String>
-                                        <x:String>Japanese</x:String>
-                                        <x:String>Arabic</x:String>
-                                        <x:String>Russian</x:String>
-                                        <x:String>Other</x:String>
-                                    </x:Array>
-                                </Picker.ItemsSource>
-                            </Picker>
+                            <c:FormField Grid.Row="1">
+                                <Picker  
+                                    
+                                    SelectedItem="{Binding TargetLanguage, Source={RelativeSource AncestorType={x:Type o:OnboardingPageModel}}, Mode=TwoWay}"
+                                    >
+                                    <Picker.ItemsSource>
+                                        <x:Array Type="{x:Type x:String}">
+                                            <x:String>Korean</x:String>
+                                            <x:String>English</x:String>
+                                            <x:String>Spanish</x:String>
+                                            <x:String>French</x:String>
+                                            <x:String>German</x:String>
+                                            <x:String>Italian</x:String>
+                                            <x:String>Portuguese</x:String>
+                                            <x:String>Chinese</x:String>
+                                            <x:String>Japanese</x:String>
+                                            <x:String>Arabic</x:String>
+                                            <x:String>Russian</x:String>
+                                            <x:String>Other</x:String>
+                                        </x:Array>
+                                    </Picker.ItemsSource>
+                                </Picker>
+                            </c:FormField>
                         </Grid>
                     </ContentView>
                     <ContentView>

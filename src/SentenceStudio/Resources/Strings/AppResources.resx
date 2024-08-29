@@ -257,4 +257,20 @@
     <value>Story Teller</value>
     <comment/>
   </data>
+  <data name="DefaultVocabulary" xml:space="preserve">
+    <value>Default Vocabulary</value>
+    <comment/>
+  </data>
+  <data name="DefaultSkill" xml:space="preserve">
+    <value>Default Skill Profile</value>
+    <comment/>
+  </data>
+  <data name="Clozures" xml:space="preserve">
+    <value>Clozures</value>
+    <comment/>
+  </data>
+  <data name="HowDoYouSay" xml:space="preserve">
+    <value>How Do You Say</value>
+    <comment/>
+  </data>
 </root>

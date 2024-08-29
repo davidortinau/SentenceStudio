@@ -257,4 +257,20 @@
     <value>이야기꾼</value>
     <comment/>
   </data>
+  <data name="DefaultVocabulary" xml:space="preserve">
+    <value>기본값 어휘</value>
+    <comment/>
+  </data>
+  <data name="DefaultSkill" xml:space="preserve">
+    <value>기본값 스킬</value>
+    <comment/>
+  </data>
+  <data name="Clozures" xml:space="preserve">
+    <value>클로저</value>
+    <comment/>
+  </data>
+  <data name="HowDoYouSay" xml:space="preserve">
+    <value>어떻게 말합니까?</value>
+    <comment/>
+  </data>
 </root>

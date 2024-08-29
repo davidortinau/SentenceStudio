@@ -4,6 +4,7 @@ using SentenceStudio.Converters;
 using Shiny;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using CommunityToolkit.Maui.Behaviors;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -44,12 +45,13 @@ public class AudioControls : Border, INotifyPropertyChanged
 
     public void Build()
     {
-        Background = (Color)Application.Current.Resources["DarkBackground"];
-        StrokeShape = new RoundRectangle { CornerRadius = 12 };
-        Stroke = (Color)Application.Current.Resources["DarkBackground"];
-        StrokeThickness = 2;
-        Padding = new Thickness((Double)Application.Current.Resources["size120"]);
+        this
+            .AppThemeColorBinding(Border.BackgroundProperty, light: (Color)Application.Current.Resources["LightBackground"], dark: (Color)Application.Current.Resources["DarkBackground"])
+            .AppThemeColorBinding(Border.StrokeProperty, light: (Color)Application.Current.Resources["DarkOnLightBackground"], dark: (Color)Application.Current.Resources["LightOnDarkBackground"])
+            .Padding((Double)Application.Current.Resources["size120"]);
 
+        StrokeShape = new RoundRectangle { CornerRadius = 12 };
+        StrokeThickness = 2;
         
         Content = new Grid
         {

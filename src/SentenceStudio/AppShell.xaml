@@ -80,7 +80,7 @@
                                         CommandParameter="vocabulary" />
                     </Label.GestureRecognizers>
                 </Label>
-                <Label Text="Skills">
+                <Label Text="{Binding Localize[SkillProfiles]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
                                         CommandParameter="skills" />

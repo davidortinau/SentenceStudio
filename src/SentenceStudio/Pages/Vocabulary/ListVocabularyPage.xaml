@@ -37,7 +37,7 @@
                                         </Label.FormattedText>
                                     </Label>    
 
-                                    <Button ImageSource="{mi:SegoeFluent Icon=Settings, IconSize=24}"
+                                    <!-- <Button ImageSource="{mi:SegoeFluent Icon=Settings, IconSize=24}"
                                             Background="Transparent"
                                             HorizontalOptions="End"
                                             VerticalOptions="Start"
@@ -59,7 +59,7 @@
                                                 Padding="0"
                                                 Command="{Binding WriteCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"
                                                 CommandParameter="{Binding ID}"/>
-                                    </HorizontalStackLayout>
+                                    </HorizontalStackLayout> -->
                                     <Grid.GestureRecognizers>
                                         <TapGestureRecognizer 
                                             Command="{Binding ViewListCommand, Source={RelativeSource AncestorType={x:Type v:ListVocabularyPageModel}},x:DataType=v:ListVocabularyPageModel}"

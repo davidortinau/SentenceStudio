@@ -23,7 +23,7 @@
                 <ContentView x:Name="ScatterView" HeightRequest="600" WidthRequest="800" IsVisible="False" />
 
                 <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                            FieldLabel="Default Vocabulary">
+                            FieldLabel="{Binding Localize[DefaultVocabulary]}">
                     <Picker x:Name="VocabPicker" 
                             ItemsSource="{Binding VocabLists}"                    
                             SelectedItem="{Binding VocabList, Mode=TwoWay}" />
@@ -37,7 +37,7 @@
                 </c:FormField> 
                 
                 <c:FormField ControlTemplate="{StaticResource FormFieldTemplate}"
-                             FieldLabel="Default Skill Profile">
+                             FieldLabel="{Binding Localize[DefaultSkill]}">
                     <Picker x:Name="SkillPicker" 
                             ItemsSource="{Binding SkillProfiles}"
                             ItemDisplayBinding="{Binding Title, x:DataType=models:SkillProfile}"                    
@@ -101,7 +101,7 @@
                     </Border>
                     <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                         <Grid WidthRequest="300" HeightRequest="120">
-                            <Label Text="Clozures"
+                            <Label Text="{Binding Localize[Clozures]}"
                                 VerticalOptions="Center" HorizontalOptions="Center"/>
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer 
@@ -112,7 +112,7 @@
                     </Border>
                     <Border StrokeShape="Rectangle" StrokeThickness="1" HorizontalOptions="Start">
                         <Grid WidthRequest="300" HeightRequest="120">
-                            <Label Text="How Do You Say"
+                            <Label Text="{Binding Localize[HowDoYouSay]}"
                                 VerticalOptions="Center" HorizontalOptions="Center"/>
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer 

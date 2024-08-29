@@ -121,11 +121,38 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Clozures.
+        /// </summary>
+        internal static string Clozures {
+            get {
+                return ResourceManager.GetString("Clozures", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Would you like me to create a starter vocabulary list for you?.
         /// </summary>
         internal static string CreateStarterVocabPrompt {
             get {
                 return ResourceManager.GetString("CreateStarterVocabPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default Skill Profile.
+        /// </summary>
+        internal static string DefaultSkill {
+            get {
+                return ResourceManager.GetString("DefaultSkill", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default Vocabulary.
+        /// </summary>
+        internal static string DefaultVocabulary {
+            get {
+                return ResourceManager.GetString("DefaultVocabulary", resourceCulture);
             }
         }
         
@@ -162,6 +189,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Fluency {
             get {
                 return ResourceManager.GetString("Fluency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How Do You Say.
+        /// </summary>
+        internal static string HowDoYouSay {
+            get {
+                return ResourceManager.GetString("HowDoYouSay", resourceCulture);
             }
         }
         
