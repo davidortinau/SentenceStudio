@@ -93,20 +93,21 @@ public static class MauiProgram
 
         //builder.Configuration.AddConfiguration(new ConfigurationBuilder().AddConfiguration("appsettings.json").Build());
 
-
 		builder.Services.AddSingleton<TeacherService>();
 		builder.Services.AddSingleton<VocabularyService>();
 		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
 		builder.Services.AddSingleton<SceneImageService>();
-		builder.Services.AddSingleton<UserProfileService>();
 		builder.Services.AddSingleton<SyntacticAnalysisService>();
 		builder.Services.AddSingleton<ClozureService>();
+		builder.Services.AddSingleton<StorytellerService>();
+
+		builder.Services.AddSingleton<AppShellModel>();
+
+		builder.Services.AddSingleton<StoryRepository>();
+		builder.Services.AddSingleton<UserProfileRepository>();
 		builder.Services.AddSingleton<UserActivityRepository>();
 		builder.Services.AddSingleton<SkillProfileRepository>();
-		builder.Services.AddSingleton<StorytellerService>();
-		builder.Services.AddSingleton<StoryRepository>();
-		builder.Services.AddSingleton<AppShellModel>();
 
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 		// builder.Services.AddTransient<FeedbackPanelModel>();

@@ -25,7 +25,7 @@ public partial class DashboardPageModel : BaseViewModel
     public DashboardPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
-        _userService = service.GetRequiredService<UserProfileService>();
+        _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
         _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
         TaskMonitor.Create(GetLists);
@@ -42,7 +42,7 @@ public partial class DashboardPageModel : BaseViewModel
         if(VocabLists.Count == 0)
         {
             //do we have a profile with languages
-            var profile = await _userService.GetAsync();
+            var profile = await _userProfileRepository.GetAsync();
             if(profile != null)
             {
                 var lists = await _vocabService.GetListsAsync();
@@ -91,7 +91,7 @@ public partial class DashboardPageModel : BaseViewModel
 
     public VocabularyService _vocabService { get; }
 
-    private UserProfileService _userService;
+    private UserProfileRepository _userProfileRepository;
     private UserActivityRepository _userActivityRepository;
     private readonly SkillProfileRepository _skillsRepository;
 

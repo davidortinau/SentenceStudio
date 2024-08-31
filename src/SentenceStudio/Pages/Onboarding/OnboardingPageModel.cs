@@ -25,12 +25,12 @@ public partial class OnboardingPageModel : BaseViewModel
     string _displayLanguage;
 
     
-    private UserProfileService _userProfileService;
+    private UserProfileRepository _userProfileRepository;
     private VocabularyService _vocabularyService;
     
     public OnboardingPageModel(IServiceProvider service)
     {
-        _userProfileService = service.GetRequiredService<UserProfileService>();
+        _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         
     }
@@ -47,7 +47,7 @@ public partial class OnboardingPageModel : BaseViewModel
             DisplayLanguage = DisplayLanguage
         };
 
-        await _userProfileService.SaveAsync(profile);
+        await _userProfileRepository.SaveAsync(profile);
         
         await AppShell.DisplayToastAsync(Localize["Saved"].ToString());
 

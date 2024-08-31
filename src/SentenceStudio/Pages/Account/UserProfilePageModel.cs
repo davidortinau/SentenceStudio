@@ -27,14 +27,14 @@ public partial class UserProfilePageModel : ObservableObject
     
     public UserProfilePageModel(IServiceProvider service)
     {
-        _userProfileService = service.GetRequiredService<UserProfileService>();
+        _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         TaskMonitor.Create(LoadProfile);
     }
 
     private async Task LoadProfile()
     {
-        var profile = await _userProfileService.GetAsync();
+        var profile = await _userProfileRepository.GetAsync();
         Name = profile.Name;
         Email = profile.Email;
         NativeLanguage = profile.NativeLanguage;
@@ -42,7 +42,7 @@ public partial class UserProfilePageModel : ObservableObject
         DisplayLanguage = profile.DisplayLanguage;
     }
 
-    private UserProfileService _userProfileService;
+    private UserProfileRepository _userProfileRepository;
     private VocabularyService _vocabularyService;
 
     [RelayCommand]
@@ -57,7 +57,7 @@ public partial class UserProfilePageModel : ObservableObject
             DisplayLanguage = DisplayLanguage
         };
 
-        await _userProfileService.SaveAsync(profile);
+        await _userProfileRepository.SaveAsync(profile);
         
         await AppShell.DisplayToastAsync(Localize["Saved"].ToString());
 
@@ -76,7 +76,7 @@ public partial class UserProfilePageModel : ObservableObject
         var response = await Shell.Current.DisplayAlert("Reset", "Are you sure you want to reset your profile?", "Yes", "No");
         if(response)
         {
-            await _userProfileService.DeleteAsync();
+            await _userProfileRepository.DeleteAsync();
             await LoadProfile();
         }
     }
