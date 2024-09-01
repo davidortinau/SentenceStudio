@@ -30,7 +30,7 @@ using SentenceStudio.Pages.Skills;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
 using SentenceStudio.Pages.HowDoYouSay;
-
+using Fonts;
 
 
 
@@ -80,8 +80,8 @@ public static class MauiProgram
 				fonts.AddFont("Segoe-Ui-Semibold.ttf", "SegoeSemibold");
 				fonts.AddFont("Segoe-Ui-Semilight.ttf", "SegoeSemilight");
 				fonts.AddFont("bm_yeonsung.ttf", "Yeonsung");
-				fonts.AddFont("fa_solid.ttf", "FontAwesome");
-				fonts.AddFont("FluentSystemIcons-Regular.ttf", "FluentUI");
+				fonts.AddFont("fa_solid.ttf", FontAwesome.FontFamily);
+				fonts.AddFont("FluentSystemIcons-Regular.ttf", FluentUI.FontFamily);
 			})
 			.ConfigureMauiHandlers(handlers =>
 			{
@@ -90,8 +90,6 @@ public static class MauiProgram
 			})
 			.ConfigureFilePicker(100)
             ;
-
-        //builder.Configuration.AddConfiguration(new ConfigurationBuilder().AddConfiguration("appsettings.json").Build());
 
 		builder.Services.AddSingleton<TeacherService>();
 		builder.Services.AddSingleton<VocabularyService>();
@@ -110,7 +108,6 @@ public static class MauiProgram
 		builder.Services.AddSingleton<SkillProfileRepository>();
 
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
-		// builder.Services.AddTransient<FeedbackPanelModel>();
 
 		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
 		

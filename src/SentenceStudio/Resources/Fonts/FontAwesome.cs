@@ -6,6 +6,7 @@ namespace Fonts
 
     static class FontAwesome
     {
+        public const string FontFamily = "FontAwesome";
         // FontAwesome
         public const string Ad = "\uf641";
         public const string AddressBook = "\uf2b9";
