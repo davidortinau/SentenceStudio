@@ -11,7 +11,6 @@ using Microsoft.Extensions.Configuration;
 using Shiny;
 #endif
 using SentenceStudio.Pages.Scene;
-using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Translation;
@@ -96,7 +95,6 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
 		builder.Services.AddSingleton<SceneImageService>();
-		builder.Services.AddSingleton<SyntacticAnalysisService>();
 		builder.Services.AddSingleton<ClozureService>();
 		builder.Services.AddSingleton<StorytellerService>();
 
@@ -120,7 +118,6 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		builder.Services.AddTransientWithShellRoute<AnalysisPage, AnalysisPageModel>("syntacticAnalysis");
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");

@@ -18,9 +18,10 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>disable</Nullable>
-		<!-- <MauiVersion>8.0.71</MauiVersion> -->
+		<MauiVersion>8.0.90-ci.net8.24453.24</MauiVersion>
 		<!-- <MauiVersion>8.0.80-ci.net9.24381.6</MauiVersion> -->
 		<!-- <MauiVersion>9.0.0-preview.4.10657</MauiVersion> -->
+
 
 
 		<!-- Display name -->

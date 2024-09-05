@@ -135,12 +135,6 @@ public partial class DashboardPageModel : BaseViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
-    async Task DefaultTranslate()
-    {        
-        await Play(VocabList.ID);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task DefaultWrite()
     {
         await Write(VocabList.ID);        

@@ -79,7 +79,7 @@ public class DashboardPage : ContentPage
                                 {
                                     CreateActivityBorder("Warmup", "WarmupCommand"),
                                     CreateActivityBorder("Storyteller", "NavigateCommand", "storyteller"),
-                                    CreateActivityBorder("Translate", "DefaultTranslateCommand"),
+                                    CreateActivityBorder("Translate", "NavigateCommand", "translation"),
                                     CreateActivityBorder("Write", "DefaultWriteCommand"),
                                     CreateActivityBorder("DescribeAScene", "DescribeASceneCommand"),
                                     CreateActivityBorder("Clozures", "NavigateCommand", "clozures"),
