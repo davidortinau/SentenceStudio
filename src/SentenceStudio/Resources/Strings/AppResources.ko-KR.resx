@@ -129,6 +129,10 @@
     <value>어휘 목록</value>
     <comment>label</comment>
   </data>
+  <data name="AddVocabularyList" xml:space="preserve">
+    <value>어휘 목록 추가하기</value>
+    <comment>label</comment>
+  </data>
   <data name="Activities" xml:space="preserve">
     <value>활동들</value>
     <comment/>
@@ -255,6 +259,18 @@
   </data>
   <data name="Storyteller" xml:space="preserve">
     <value>이야기꾼</value>
+    <comment/>
+  </data>
+  <data name="Vocabulary" xml:space="preserve">
+    <value>어휘</value>
+    <comment/>
+  </data>
+  <data name="ListName" xml:space="preserve">
+    <value>목록 이름</value>
+    <comment/>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>파일 유형</value>
     <comment/>
   </data>
   <data name="DefaultVocabulary" xml:space="preserve">

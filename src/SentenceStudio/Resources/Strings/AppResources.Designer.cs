@@ -94,6 +94,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add a Vocabulary List.
+        /// </summary>
+        internal static string AddVocabularyList {
+            get {
+                return ResourceManager.GetString("AddVocabularyList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Sentence Studio.
         /// </summary>
         internal static string AppTitle {
@@ -184,6 +193,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to File Type.
+        /// </summary>
+        internal static string FileType {
+            get {
+                return ResourceManager.GetString("FileType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Fluency.
         /// </summary>
         internal static string Fluency {
@@ -207,6 +225,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ISee {
             get {
                 return ResourceManager.GetString("ISee", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to List Name.
+        /// </summary>
+        internal static string ListName {
+            get {
+                return ResourceManager.GetString("ListName", resourceCulture);
             }
         }
         
@@ -351,6 +378,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string UserInputPlaceholder {
             get {
                 return ResourceManager.GetString("UserInputPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary.
+        /// </summary>
+        internal static string Vocabulary {
+            get {
+                return ResourceManager.GetString("Vocabulary", resourceCulture);
             }
         }
         

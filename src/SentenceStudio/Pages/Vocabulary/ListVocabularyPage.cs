@@ -13,6 +13,8 @@ public class ListVocabularyPage : ContentPage
 
 	public void Build()
 	{
+		this.Bind(Page.TitleProperty, "Localize[VocabularyList]");
+
 		Content = new ScrollView
 		{
 			Content = new VerticalStackLayout

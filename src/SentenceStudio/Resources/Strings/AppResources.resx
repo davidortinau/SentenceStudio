@@ -129,6 +129,10 @@
     <value>Vocabulary List</value>
     <comment>label</comment>
   </data>
+  <data name="AddVocabularyList" xml:space="preserve">
+    <value>Add a Vocabulary List</value>
+    <comment>label</comment>
+  </data>
   <data name="Activities" xml:space="preserve">
     <value>Activities</value>
     <comment>label</comment>
@@ -255,6 +259,18 @@
   </data>
   <data name="Storyteller" xml:space="preserve">
     <value>Story Teller</value>
+    <comment/>
+  </data>
+  <data name="ListName" xml:space="preserve">
+    <value>List Name</value>
+    <comment/>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>File Type</value>
+    <comment/>
+  </data>
+  <data name="Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
     <comment/>
   </data>
   <data name="DefaultVocabulary" xml:space="preserve">
