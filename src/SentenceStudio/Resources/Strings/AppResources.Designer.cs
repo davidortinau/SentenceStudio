@@ -364,6 +364,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Term.
+        /// </summary>
+        internal static string Term {
+            get {
+                return ResourceManager.GetString("Term", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Dashboard.
         /// </summary>
         internal static string TitleDashboard {
@@ -378,6 +387,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Translate {
             get {
                 return ResourceManager.GetString("Translate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Translation.
+        /// </summary>
+        internal static string Translation {
+            get {
+                return ResourceManager.GetString("Translation", resourceCulture);
             }
         }
         
