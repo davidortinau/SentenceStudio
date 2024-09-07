@@ -289,4 +289,16 @@
     <value>어떻게 말합니까?</value>
     <comment/>
   </data>
+  <data name="Done" xml:space="preserve">
+    <value>완료</value>
+    <comment/>
+  </data>
+  <data name="Term" xml:space="preserve">
+    <value>단어</value>
+    <comment/>
+  </data>
+  <data name="Translation" xml:space="preserve">
+    <value>Translation</value>
+    <comment/>
+  </data>
 </root>

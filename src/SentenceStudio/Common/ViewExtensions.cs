@@ -21,18 +21,40 @@ namespace SentenceStudio.Common
         }
 
         public static T OnClicked<T>(this T self, System.EventHandler handler)
-            where T : Microsoft.Maui.Controls.Button
+            where T : class
         {
-            self.Clicked += handler;
-            return self;
+            var eventInfo = self.GetType().GetEvent("Clicked");
+			if (eventInfo != null)
+			{
+				eventInfo.AddEventHandler(self, handler);
+			}
+			else
+			{
+				throw new InvalidOperationException($"The type {self.GetType().Name} does not have a Clicked event.");
+			}
+			return self;
         }
-        
-        public static T OnClicked<T>(this T self, System.Action<T> action)
+
+		public static T OnClicked<T>(this T self, System.Action<T> action)
             where T : Microsoft.Maui.Controls.Button
         {
             self.Clicked += (o, arg) => action(self);
             return self;
         }
+
+		public static T OnTextChanged<T>(this T self, System.EventHandler<Microsoft.Maui.Controls.TextChangedEventArgs> handler) 
+			where T : Microsoft.Maui.Controls.Entry
+		{
+			self.TextChanged += handler;
+			return self;
+		}
+
+		public static T OnTextChanged<T>(this T self, Action<T> action) 
+			where T : Microsoft.Maui.Controls.Entry
+		{
+			self.TextChanged += (sender, e) => action?.Invoke(self);
+			return self;
+		}
 
         public static T SelectedStateBackgroundColor<T>(this T visualElement, Color color) where T : VisualElement
 		{

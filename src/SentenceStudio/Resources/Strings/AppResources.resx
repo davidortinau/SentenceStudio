@@ -289,4 +289,16 @@
     <value>How Do You Say</value>
     <comment/>
   </data>
+  <data name="Done" xml:space="preserve">
+    <value>Done</value>
+    <comment/>
+  </data>
+  <data name="Term" xml:space="preserve">
+    <value>Term</value>
+    <comment/>
+  </data>
+  <data name="Translation" xml:space="preserve">
+    <value>Translation</value>
+    <comment/>
+  </data>
 </root>
