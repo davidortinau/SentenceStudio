@@ -4,12 +4,9 @@ using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core.Platform;
 using SentenceStudio.Data;
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Writing;
 
-[QueryProperty(nameof(ListID), "listID")]
-[QueryProperty(nameof(PlayMode), "playMode")]
-[QueryProperty(nameof(Level), "level")]
-public partial class WritingPageModel : BaseViewModel //, IQueryAttributable
+public partial class WritingPageModel : BaseViewModel, IQueryAttributable
 {
     // public void ApplyQueryAttributes(IDictionary<string, object> query)
     // {
@@ -68,7 +65,7 @@ public partial class WritingPageModel : BaseViewModel //, IQueryAttributable
     {
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
-        TaskMonitor.Create(GetVocab);
+        // TaskMonitor.Create(GetVocab);
         
         _popupService = service.GetRequiredService<IPopupService>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
@@ -79,7 +76,7 @@ public partial class WritingPageModel : BaseViewModel //, IQueryAttributable
 
     public async Task GetVocab()
     {
-        await Task.Delay(100);
+        // await Task.Delay(100);
         IsBusy = true; 
         VocabularyList vocab = await _vocabularyService.GetListAsync(ListID);
         if(vocab is not null)
@@ -214,5 +211,15 @@ public partial class WritingPageModel : BaseViewModel //, IQueryAttributable
     async Task ToggleMore()
     {
         ShowMore = !ShowMore;
+    }
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        ListID = (int)query["listID"];
+        // SkillProfileID = query.ContainsKey("skillProfileID") ? (int)query["skillProfileID"] : 1;
+        // PlayMode = (string)query["playMode"];
+        // Level = (int)query["level"];
+
+        TaskMonitor.Create(GetVocab);
     }
 }

@@ -135,12 +135,6 @@ public partial class DashboardPageModel : BaseViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
-    async Task DefaultWrite()
-    {
-        await Write(VocabList.ID);        
-    }
-
-    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
     async Task SyntacticAnalysis()
     {
         try{
@@ -156,19 +150,6 @@ public partial class DashboardPageModel : BaseViewModel
         }
         
     }
-
-    [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
-    async Task Write(int listID)
-    {
-        // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
-
-        try{
-            await Shell.Current.GoToAsync($"writingLesson?listID={listID}");
-        }catch(Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-        }
-    }  
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]  
     async Task DescribeAScene()

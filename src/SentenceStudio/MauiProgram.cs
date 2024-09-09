@@ -30,6 +30,8 @@ using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
 using SentenceStudio.Pages.HowDoYouSay;
 using Fonts;
+using SentenceStudio.Pages.Writing;
+
 
 
 
