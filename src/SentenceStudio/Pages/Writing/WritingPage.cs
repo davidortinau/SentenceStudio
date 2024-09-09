@@ -201,8 +201,8 @@ public class WritingPage : ContentPage
 
         answerTemplateSelector = new AnswerTemplateSelector
             {
-                DesktopTemplate = desktopTemplate,
-                MobileTemplate = mobileTemplate
+                DesktopTemplate = (DataTemplate)Resources["DesktopTemplate"],
+                MobileTemplate = (DataTemplate)Resources["MobileTemplate"]
             };
     }
 
@@ -360,7 +360,7 @@ public class WritingPage : ContentPage
                                         .End()
                                         .BindCommand(nameof(WritingPageModel.ClearInputCommand))
                                         .Column(0)
-                                        .Icon(SegoeFluentIcons.Dictionary).IconSize(24)
+                                        .Icon(SegoeFluentIcons.Delete).IconSize(24)
                                         .AppThemeColorBinding(Button.TextColorProperty,
                                             (Color)Application.Current.Resources["LightOnDarkBackground"],
                                             (Color)Application.Current.Resources["DarkOnLightBackground"]
