@@ -323,10 +323,10 @@ public class WritingPage : ContentPage
                                 {
                                     new Entry
                                         {
-                                            FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 16 : 32,
-                                            // ReturnType = new Binding("ShowMore", converter: (IValueConverter)Application.Current.Resources["BoolToReturnTypeConverter"]),
-                                            // ReturnCommand = new Binding("GradeMeCommand")
+                                            FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 16 : 32
                                         }
+                                        .Bind(Entry.ReturnTypeProperty, nameof(WritingPageModel.ShowMore), converter: new BoolToReturnTypeConverter())
+                                        .Bind(Entry.ReturnCommandProperty,nameof(WritingPageModel.GradeMeCommand))
                                         .Bind(Entry.TextProperty, nameof(WritingPageModel.UserInput))
                                         .Bind(Entry.PlaceholderProperty, "Localize[UserInputPlaceholder]")
                                         .Assign(out userInputField),
@@ -348,7 +348,6 @@ public class WritingPage : ContentPage
                                         .OnClicked((s,e)=>{
                                             _model.TranslateInputCommand.Execute(TranslationBtn);
                                         })
-                                        // .BindCommand(nameof(WritingPageModel.TranslateInputCommand), parameterSource: TranslationBtn)
                                         .Assign(out TranslationBtn),
 
                                     new Button
@@ -397,9 +396,9 @@ public class WritingPage : ContentPage
                             {
                                 Placeholder = "What I mean to say is...",
                                 FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 16 : 32,
-                                ReturnType = ReturnType.Go,
-                                // ReturnCommand = new Binding("GradeMeCommand")
+                                ReturnType = ReturnType.Go
                             }
+                            .Bind(Entry.ReturnCommandProperty, nameof(WritingPageModel.GradeMeCommand))
                             .Bind(Entry.TextProperty, nameof(WritingPageModel.UserMeaning))
                             .Assign(out iMeanToSayField)
                     }
@@ -435,49 +434,6 @@ public class WritingPage : ContentPage
             .RowSpan(2)
             .Assign(out loadingOverlay);
     }
-
-    //     VisualStateManager.SetVisualStateGroups(inputUI, new VisualStateGroupList
-    //     {
-    //         new VisualStateGroup
-    //         {
-    //             Name = "CustomStates",
-    //             States =
-    //             {
-    //                 new VisualState
-    //                 {
-    //                     Name = "MultipleChoice",
-    //                     Setters =
-    //                     {
-    //                         new Setter { TargetName = nameof(vocabBlocks), Property = "IsVisible", Value = true },
-    //                         new Setter { TargetName = nameof(listenButton), Property = "IsVisible", Value = false },
-    //                         new Setter { TargetName = nameof(cancelButton), Property = "IsVisible", Value = false }
-    //                     }
-    //                 },
-    //                 new VisualState
-    //                 {
-    //                     Name = "Text",
-    //                     Setters =
-    //                     {
-    //                         new Setter { TargetName = nameof(userInputField), Property = "IsVisible", Value = true },
-    //                         new Setter { TargetName = nameof(vocabBlocks), Property = "IsVisible", Value = false },
-    //                         new Setter { TargetName = nameof(listenButton), Property = "IsVisible", Value = false },
-    //                         new Setter { TargetName = nameof(cancelButton), Property = "IsVisible", Value = false }
-    //                     }
-    //                 },
-    //                 new VisualState
-    //                 {
-    //                     Name = "Mic",
-    //                     Setters =
-    //                     {
-    //                         new Setter { TargetName = nameof(listenButton), Property = "IsVisible", Value = true },
-    //                         new Setter { TargetName = nameof(cancelButton), Property = "IsVisible", Value = true },
-    //                         new Setter { TargetName = nameof(vocabBlocks), Property = "IsVisible", Value = false }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     });
-    // }
 
     private void CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
     {

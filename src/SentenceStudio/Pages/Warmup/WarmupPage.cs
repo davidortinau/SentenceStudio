@@ -187,9 +187,8 @@ public class WarmupPage : ContentPage
                                 VerticalOptions = LayoutOptions.End,
                                 ReturnType = ReturnType.Send
                             }
+                            .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
                             .Bind(Entry.TextProperty, "UserInput")
-                            
-                            // .BindCommand(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
                     },
                     new Button
                         {
