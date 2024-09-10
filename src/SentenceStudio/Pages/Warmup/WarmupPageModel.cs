@@ -8,7 +8,7 @@ using SentenceStudio.Pages.Controls;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Warmup;
 
 public partial class WarmupPageModel : BaseViewModel
 {

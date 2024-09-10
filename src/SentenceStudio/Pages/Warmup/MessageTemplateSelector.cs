@@ -1,8 +1,6 @@
-
-
 using SentenceStudio.Models;
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Warmup;
 
 public class MessageTemplateSelector: DataTemplateSelector
 {

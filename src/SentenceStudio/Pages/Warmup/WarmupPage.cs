@@ -1,12 +1,13 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 
+
 #if IOS
 using UIKit;
 using Foundation;
 #endif
 
-namespace SentenceStudio.Pages.Lesson;
+namespace SentenceStudio.Pages.Warmup;
 
 public class WarmupPage : ContentPage
 {

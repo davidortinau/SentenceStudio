@@ -342,8 +342,8 @@ public class WritingPage : ContentPage
                                         .Column(1)
                                         .Icon(SegoeFluentIcons.Dictionary).IconSize(24)
                                         .AppThemeColorBinding(Button.TextColorProperty,
-                                            (Color)Application.Current.Resources["LightOnDarkBackground"],
-                                            (Color)Application.Current.Resources["DarkOnLightBackground"]
+                                            (Color)Application.Current.Resources["DarkOnLightBackground"],
+                                            (Color)Application.Current.Resources["LightOnDarkBackground"]
                                         )
                                         .OnClicked((s,e)=>{
                                             _model.TranslateInputCommand.Execute(TranslationBtn);
@@ -360,10 +360,10 @@ public class WritingPage : ContentPage
                                         .End()
                                         .BindCommand(nameof(WritingPageModel.ClearInputCommand))
                                         .Column(0)
-                                        .Icon(SegoeFluentIcons.Delete).IconSize(24)
+                                        .Icon(SegoeFluentIcons.Clear).IconSize(24)
                                         .AppThemeColorBinding(Button.TextColorProperty,
-                                            (Color)Application.Current.Resources["LightOnDarkBackground"],
-                                            (Color)Application.Current.Resources["DarkOnLightBackground"]
+                                            (Color)Application.Current.Resources["DarkOnLightBackground"],
+                                            (Color)Application.Current.Resources["LightOnDarkBackground"]
                                         )
                                 }
                             }
