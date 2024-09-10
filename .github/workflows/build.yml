@@ -19,6 +19,6 @@ jobs:
       with:
         dotnet-version: 9.0.x
     - name: Install .NET MAUI
-      run: dotnet workload install maui
+      run: dotnet workload install maui-windows
     - name: Build
       run: dotnet build src
