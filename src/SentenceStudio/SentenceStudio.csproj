@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
+		<!-- <TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks> -->
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
 		
 		<!-- Note for MacCatalyst:
@@ -156,7 +156,7 @@
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.3" />
-		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
+		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" Condition="Exists('appsettings.json')" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -166,7 +166,7 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
-		<EmbeddedResource Include="appsettings.json" />
+		<EmbeddedResource Include="appsettings.json" Condition="Exists('appsettings.json')" />
 	</ItemGroup>
 
 	<ItemGroup>
