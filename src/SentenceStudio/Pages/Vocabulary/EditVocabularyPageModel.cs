@@ -10,6 +10,8 @@ namespace SentenceStudio.Pages.Vocabulary;
 [QueryProperty(nameof(ListId), "id")]
 public partial class EditVocabularyPageModel : ObservableObject
 {
+    public LocalizationManager Localize => LocalizationManager.Instance;
+
     private VocabularyService _vocabService;
 
     [ObservableProperty] private int _listId;

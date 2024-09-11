@@ -129,6 +129,10 @@
     <value>Vocabulary List</value>
     <comment>label</comment>
   </data>
+  <data name="AddVocabularyList" xml:space="preserve">
+    <value>Add a Vocabulary List</value>
+    <comment>label</comment>
+  </data>
   <data name="Activities" xml:space="preserve">
     <value>Activities</value>
     <comment>label</comment>
@@ -255,6 +259,46 @@
   </data>
   <data name="Storyteller" xml:space="preserve">
     <value>Story Teller</value>
+    <comment/>
+  </data>
+  <data name="ListName" xml:space="preserve">
+    <value>List Name</value>
+    <comment/>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>File Type</value>
+    <comment/>
+  </data>
+  <data name="Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment/>
+  </data>
+  <data name="DefaultVocabulary" xml:space="preserve">
+    <value>Default Vocabulary</value>
+    <comment/>
+  </data>
+  <data name="DefaultSkill" xml:space="preserve">
+    <value>Default Skill Profile</value>
+    <comment/>
+  </data>
+  <data name="Clozures" xml:space="preserve">
+    <value>Clozures</value>
+    <comment/>
+  </data>
+  <data name="HowDoYouSay" xml:space="preserve">
+    <value>How Do You Say</value>
+    <comment/>
+  </data>
+  <data name="Done" xml:space="preserve">
+    <value>Done</value>
+    <comment/>
+  </data>
+  <data name="Term" xml:space="preserve">
+    <value>Term</value>
+    <comment/>
+  </data>
+  <data name="Translation" xml:space="preserve">
+    <value>Translation</value>
     <comment/>
   </data>
 </root>

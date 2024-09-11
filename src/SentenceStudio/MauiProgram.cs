@@ -11,7 +11,6 @@ using Microsoft.Extensions.Configuration;
 using Shiny;
 #endif
 using SentenceStudio.Pages.Scene;
-using SentenceStudio.Pages.SyntacticAnalysis;
 using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Translation;
@@ -29,6 +28,11 @@ using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Skills;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
+using SentenceStudio.Pages.HowDoYouSay;
+using Fonts;
+using SentenceStudio.Pages.Writing;
+using SentenceStudio.Pages.Warmup;
+
 
 #if WINDOWS
 using System.Reflection;
@@ -82,8 +86,8 @@ public static class MauiProgram
 				fonts.AddFont("Segoe-Ui-Semibold.ttf", "SegoeSemibold");
 				fonts.AddFont("Segoe-Ui-Semilight.ttf", "SegoeSemilight");
 				fonts.AddFont("bm_yeonsung.ttf", "Yeonsung");
-				fonts.AddFont("fa_solid.ttf", "FontAwesome");
-				fonts.AddFont("FluentSystemIcons-Regular.ttf", "FluentUI");
+				fonts.AddFont("fa_solid.ttf", FontAwesome.FontFamily);
+				fonts.AddFont("FluentSystemIcons-Regular.ttf", FluentUI.FontFamily);
 			})
 			.ConfigureMauiHandlers(handlers =>
 			{
@@ -93,25 +97,22 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
             ;
 
-        //builder.Configuration.AddConfiguration(new ConfigurationBuilder().AddConfiguration("appsettings.json").Build());
-
-
 		builder.Services.AddSingleton<TeacherService>();
 		builder.Services.AddSingleton<VocabularyService>();
 		builder.Services.AddSingleton<ConversationService>();
 		builder.Services.AddSingleton<AiService>();
 		builder.Services.AddSingleton<SceneImageService>();
-		builder.Services.AddSingleton<UserProfileService>();
-		builder.Services.AddSingleton<SyntacticAnalysisService>();
 		builder.Services.AddSingleton<ClozureService>();
-		builder.Services.AddSingleton<UserActivityRepository>();
-		builder.Services.AddSingleton<SkillProfileRepository>();
 		builder.Services.AddSingleton<StorytellerService>();
-		builder.Services.AddSingleton<StoryRepository>();
+
 		builder.Services.AddSingleton<AppShellModel>();
 
+		builder.Services.AddSingleton<StoryRepository>();
+		builder.Services.AddSingleton<UserProfileRepository>();
+		builder.Services.AddSingleton<UserActivityRepository>();
+		builder.Services.AddSingleton<SkillProfileRepository>();
+
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
-		// builder.Services.AddTransient<FeedbackPanelModel>();
 
 		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
 		
@@ -124,7 +125,6 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		builder.Services.AddTransientWithShellRoute<AnalysisPage, AnalysisPageModel>("syntacticAnalysis");
 		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
 		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
@@ -132,6 +132,7 @@ public static class MauiProgram
 		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
 		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
 		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
+		builder.Services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
 
         
 #if ANDROID || IOS || MACCATALYST

@@ -51,10 +51,11 @@ public class ListSkillProfilesPage : ContentPage
 							.BindTapGesture(
 									commandPath: nameof(ListSkillProfilesPageModel.AddProfileCommand),
 									commandSource: _model)
+						.Start()
 
 				}
-			}.Paddings((double)Application.Current.Resources["size160"])
-		};
+			}
+		}.Margin((double)Application.Current.Resources["size160"]);
 	}
 
     private Border AddButton()

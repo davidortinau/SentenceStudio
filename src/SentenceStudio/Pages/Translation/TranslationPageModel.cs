@@ -11,11 +11,7 @@ using Plugin.Maui.Audio;
 
 namespace SentenceStudio.Pages.Translation;
 
-[QueryProperty(nameof(ListID), "listID")]
-[QueryProperty(nameof(SkillProfileID), "skillProfileID")]
-[QueryProperty(nameof(PlayMode), "playMode")]
-[QueryProperty(nameof(Level), "level")]
-public partial class TranslationPageModel : BaseViewModel
+public partial class TranslationPageModel : BaseViewModel, IQueryAttributable
 {
     private TeacherService _teacherService;
     private VocabularyService _vocabularyService;
@@ -86,7 +82,7 @@ public partial class TranslationPageModel : BaseViewModel
         _teacherService = service.GetRequiredService<TeacherService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         _aiService = service.GetRequiredService<AiService>();
-        TaskMonitor.Create(LoadSentences);
+        // TaskMonitor.Create(LoadSentences);
 
         _speechToText = speechToText;
         // _speechToText.StateChanged += HandleSpeechToTextStateChanged;
@@ -289,5 +285,14 @@ public partial class TranslationPageModel : BaseViewModel
         
     }
 
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        ListID = (int)query["listID"];
+        SkillProfileID = query.ContainsKey("skillProfileID") ? (int)query["skillProfileID"] : 1;
+        // PlayMode = (string)query["playMode"];
+        // Level = (int)query["level"];
+
+        TaskMonitor.Create(LoadSentences);
+    }
 
 }

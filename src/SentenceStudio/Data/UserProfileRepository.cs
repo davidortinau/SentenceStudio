@@ -3,13 +3,13 @@ using SentenceStudio.Models;
 using SQLite;
 using SentenceStudio.Common;
 
-namespace SentenceStudio.Services;
+namespace SentenceStudio.Data;
 
-public class UserProfileService
+public class UserProfileRepository
 {
     private SQLiteAsyncConnection Database;
 
-    public UserProfileService
+    public UserProfileRepository
 ()
     {
         
@@ -51,7 +51,7 @@ public class UserProfileService
     {
         await Init();
         int result = -1;
-        if (item.ID != 0)
+        if (item.ID != -1)
         {
             try
             {

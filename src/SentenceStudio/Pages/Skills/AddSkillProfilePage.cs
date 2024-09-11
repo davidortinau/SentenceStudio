@@ -38,8 +38,8 @@ public class AddSkillProfilePage : ContentPage
 							.Bind(Editor.TextProperty, nameof(AddSkillProfilePageModel.Description))
 					},
 				}
-			}.Margins((double)Application.Current.Resources["size160"])
+			}
 			
-		};
+		}.Margins((double)Application.Current.Resources["size160"]);
 	}
 }

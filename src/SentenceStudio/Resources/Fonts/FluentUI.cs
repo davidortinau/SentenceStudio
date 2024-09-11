@@ -5,6 +5,8 @@ namespace Fonts;
 //  you should also change the fields from 'const' to 'public static readonly'
 static class FluentUI
 {
+	public const string FontFamily = "FluentUI";
+
 	public const string access_time_20_regular = "\ue000";
 	public const string access_time_24_regular = "\uf101";
 	public const string accessibility_16_regular = "\uf102";

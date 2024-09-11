@@ -4,6 +4,8 @@ namespace SentenceStudio.Pages.Vocabulary;
 
 public partial class AddVocabularyPageModel : ObservableObject
 {
+    public LocalizationManager Localize => LocalizationManager.Instance;
+    
     [ObservableProperty]
     string _vocabList;
 
