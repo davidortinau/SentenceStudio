@@ -25,16 +25,16 @@ public partial class AppShellModel : ObservableObject
     public AppShellModel(IServiceProvider serviceProvider)
     {
         _userProfileRepository = serviceProvider.GetRequiredService<UserProfileRepository>();
-        TaskMonitor.Create(LoadProfile);
+        // TaskMonitor.Create(LoadProfile);
     }
 
     public async Task LoadProfile()
     {
-        var user = await _userProfileRepository.GetAsync();
-        if(user != null){
-            Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
-            await Shell.Current.GoToAsync("//dashboard");
-        }
+        // var user = await _userProfileRepository.GetAsync();
+        // if(user != null){
+        //     Localize.SetCulture(new CultureInfo(user.DisplayCulture, false));
+        //     await Shell.Current.GoToAsync("//dashboard");
+        // }
     }
 
     [ObservableProperty]

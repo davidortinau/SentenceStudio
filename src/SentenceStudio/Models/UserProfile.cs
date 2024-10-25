@@ -12,6 +12,7 @@ public class UserProfile
     public string TargetLanguage { get; set; } = "Korean";
     public string DisplayLanguage { get; set; }
     public string Email { get; set; }
+    public string OpenAI_APIKey { get; set; }
     public DateTime CreatedAt { get; set; }
     public string DisplayCulture { 
         get{

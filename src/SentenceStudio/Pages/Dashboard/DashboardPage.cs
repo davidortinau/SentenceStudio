@@ -1,9 +1,4 @@
-﻿
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Maui.Skia;
-using OxyPlot.Series;
-using Sharpnado.Tasks;
+﻿using Sharpnado.Tasks;
 using CustomLayouts;
 
 namespace SentenceStudio.Pages.Dashboard;

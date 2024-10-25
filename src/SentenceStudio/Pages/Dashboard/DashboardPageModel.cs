@@ -127,7 +127,6 @@ public partial class DashboardPageModel : BaseViewModel
                         };
             
             await Shell.Current.GoToAsync($"translation", payload);
-            // await Shell.Current.GoToAsync($"translation?listID={listID}&playMode=Blocks&level=1");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

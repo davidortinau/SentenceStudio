@@ -301,4 +301,8 @@
     <value>Translation</value>
     <comment/>
   </data>
+  <data name="OpenAI_APIKey" xml:space="preserve">
+    <value>API Key</value>
+    <comment/>
+  </data>
 </root>

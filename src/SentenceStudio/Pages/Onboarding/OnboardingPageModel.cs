@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using LukeMauiFilePicker;
+using Microsoft.Extensions.Configuration;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
 using Sharpnado.Tasks;
@@ -12,27 +13,32 @@ public partial class OnboardingPageModel : BaseViewModel
 
     [ObservableProperty] private int _currentPosition;
     [ObservableProperty] private bool _lastPositionReached;
-
     [ObservableProperty] string _name;
-
     [ObservableProperty] string _email;
-
     [ObservableProperty] string _nativeLanguage;
-
     [ObservableProperty] string _targetLanguage;
+    [ObservableProperty] string _displayLanguage;
 
-    [ObservableProperty]
-    string _displayLanguage;
+    [ObservableProperty] string _openAI_APIKey;
 
-    
+    [ObservableProperty] bool _needsApiKey;
+    private IServiceProvider _service;
     private UserProfileRepository _userProfileRepository;
     private VocabularyService _vocabularyService;
+
+    private readonly string _openAiApiKey;
+    private int _screens = 4;
+
     
-    public OnboardingPageModel(IServiceProvider service)
+    
+    public OnboardingPageModel(IServiceProvider service, IConfiguration configuration)
     {
+        _service = service;
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
-        
+        _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+
+        NeedsApiKey = string.IsNullOrEmpty(_openAiApiKey);
     }
 
     [RelayCommand]
@@ -51,30 +57,12 @@ public partial class OnboardingPageModel : BaseViewModel
         
         await AppShell.DisplayToastAsync(Localize["Saved"].ToString());
 
-        // crashes, why?
-        // var lists = await _vocabularyService.GetListsAsync();
-        // if(lists.Count == 0)
-        // {
-        //     Shell.Current.Dispatcher.Dispatch(async () =>
-        //     {
-        //         var response = await Shell.Current.DisplayAlert(
-        //             Localize["VocabularyList"].ToString(), 
-        //             Localize["CreateStarterVocabPrompt"].ToString(), 
-        //             Localize["Yes"].ToString(), 
-        //             Localize["No, I'll do it myself"].ToString());
-        //         if(response){
-        //             IsBusy = true;
-        //             await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
-        //             IsBusy = false;
-        //         }
-        //     });
-
-        // }
-
-        await Shell.Current.GoToAsync("//dashboard");
+        //await Shell.Current.GoToAsync("//dashboard");
+        Preferences.Default.Set("is_onboarded", true);
+        App.Current.Windows[0].Page = new AppShell(_service.GetService<AppShellModel>());
     }
 
-    private int _screens = 4;
+    
 
     [RelayCommand]
     public void Next()
@@ -90,6 +78,12 @@ public partial class OnboardingPageModel : BaseViewModel
             LastPositionReached = true;
         else
             LastPositionReached = false;
+    }
+
+    [RelayCommand]
+    async Task GoToOpenAI()
+    {
+        await Browser.OpenAsync("https://platform.openai.com/account/api-keys");
     }
 
     

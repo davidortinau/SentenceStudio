@@ -66,6 +66,15 @@ public partial class App : Application
 	
     protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window( new AppShell(activationState.Context.Services.GetService<AppShellModel>()) );
+		bool isOnboarded = Preferences.Default.ContainsKey("is_onboarded");
+        
+        if (!isOnboarded)
+        {
+            return new Window( new OnboardingPage(activationState.Context.Services.GetService<OnboardingPageModel>()) );
+        }
+		else
+		{
+			return new Window( new AppShell(activationState.Context.Services.GetService<AppShellModel>()) );
+		}
 	}
 }

@@ -283,6 +283,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to API Key.
+        /// </summary>
+        internal static string OpenAI_APIKey {
+            get {
+                return ResourceManager.GetString("OpenAI_APIKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Parse a Sentence.
         /// </summary>
         internal static string ParseASentence {

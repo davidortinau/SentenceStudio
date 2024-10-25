@@ -184,7 +184,7 @@ public class WarmupPage : ContentPage
                         Content = new Entry
                             {
                                 Placeholder = "그건 한국어로 어떻게 말해요?",
-                                FontSize = Device.GetNamedSize(NamedSize.Medium, typeof(Entry)),
+                                FontSize = (double)Application.Current.Resources["size200"],
                                 VerticalOptions = LayoutOptions.End,
                                 ReturnType = ReturnType.Send
                             }

@@ -1,10 +1,5 @@
 using System.ClientModel;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel.__Internals;
 using OpenAI.Audio;
-using Microsoft.Maui.Networking;
-using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Images;
 
@@ -30,7 +25,9 @@ public class AIClient
         text = text.Trim();
         try
         {
-            BinaryData speech = await _audio.GenerateSpeechFromTextAsync(text, GeneratedSpeechVoice.Alloy);
+            BinaryData speech = await _audio.GenerateSpeechAsync(text, GeneratedSpeechVoice.Echo, new SpeechGenerationOptions{
+                 SpeedRatio = 1.0f
+            });
 
             // using FileStream stream = File.OpenWrite($"{Guid.NewGuid()}.mp3");
             return speech.ToStream();
@@ -92,7 +89,7 @@ public class AIClient
             try{
                 ChatCompletionOptions options = new ChatCompletionOptions()
                 {
-                    ResponseFormat = ChatResponseFormat.JsonObject
+                    ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
                 };
 
                 ClientResult<ChatCompletion> result = await _client.CompleteChatAsync(messages, options);
@@ -117,14 +114,14 @@ public class AIClient
         List<ChatMessage> messages = new List<ChatMessage>()
         {
             new UserChatMessage(
-                ChatMessageContentPart.CreateTextMessageContentPart(prompt),
-                ChatMessageContentPart.CreateImageMessageContentPart(imageUri)
+                ChatMessageContentPart.CreateTextPart(prompt),
+                ChatMessageContentPart.CreateImagePart(imageUri)
             )
         };
 
         ChatCompletionOptions options = new ChatCompletionOptions()
         {
-            ResponseFormat = ChatResponseFormat.JsonObject
+            ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
         };
         
         try

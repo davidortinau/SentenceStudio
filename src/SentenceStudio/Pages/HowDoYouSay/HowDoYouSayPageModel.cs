@@ -64,8 +64,6 @@ public partial class HowDoYouSayPageModel : BaseViewModel
     //     await stream.CopyToAsync(outputStream);
     // }
 
-    private IAudioPlayer _player;
-
     [RelayCommand]
     async Task Play(StreamHistory stream)
     {

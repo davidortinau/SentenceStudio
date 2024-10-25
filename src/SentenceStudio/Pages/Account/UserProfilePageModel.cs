@@ -24,6 +24,9 @@ public partial class UserProfilePageModel : ObservableObject
 
     [ObservableProperty]
     string _displayLanguage;
+
+    [ObservableProperty]
+    string _openAI_APIKey;
     
     public UserProfilePageModel(IServiceProvider service)
     {
@@ -40,6 +43,7 @@ public partial class UserProfilePageModel : ObservableObject
         NativeLanguage = profile.NativeLanguage;
         TargetLanguage = profile.TargetLanguage;
         DisplayLanguage = profile.DisplayLanguage;
+        OpenAI_APIKey = profile.OpenAI_APIKey;
     }
 
     private UserProfileRepository _userProfileRepository;
@@ -54,7 +58,8 @@ public partial class UserProfilePageModel : ObservableObject
             Email = Email,
             NativeLanguage = NativeLanguage,
             TargetLanguage = TargetLanguage,
-            DisplayLanguage = DisplayLanguage
+            DisplayLanguage = DisplayLanguage,
+            OpenAI_APIKey = OpenAI_APIKey
         };
 
         await _userProfileRepository.SaveAsync(profile);
@@ -79,6 +84,12 @@ public partial class UserProfilePageModel : ObservableObject
             await _userProfileRepository.DeleteAsync();
             await LoadProfile();
         }
+    }
+
+    [RelayCommand]
+    async Task GoToOpenAI()
+    {
+        await Browser.OpenAsync("https://platform.openai.com/account/api-keys");
     }
 
     

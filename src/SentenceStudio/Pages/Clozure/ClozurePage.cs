@@ -16,8 +16,6 @@ public class ClozurePage : ContentPage
 	{
 		BindingContext = _model = model;
 
-		//ModeSelector.PropertyChanged += Mode_PropertyChanged;
-
 		var userActivityToFontImageSourceConverter = new UserActivityToFontImageSourceConverter();
 		var boolToColorConverter = new BoolToObjectConverter
 		{
@@ -29,8 +27,6 @@ public class ClozurePage : ContentPage
 		Resources.Add("BoolToColorConverter", boolToColorConverter);
 
 		Build();
-
-		// VisualStateManager.GoToState(InputUI, );
 	}
 
     private void ReloadUI(Type[] obj)
@@ -50,7 +46,7 @@ public class ClozurePage : ContentPage
 
 	public void Build()
 	{
-		Title = "Clozures";
+		this.Bind(ContentPage.TitleProperty, "Localize[Clozures]");
 
 		Shell.SetNavBarIsVisible(this, true);
 

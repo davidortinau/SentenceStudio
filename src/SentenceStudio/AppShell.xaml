@@ -12,7 +12,8 @@
     xmlns:onboarding="clr-namespace:SentenceStudio.Pages.Onboarding;assembly=SentenceStudio"
     xmlns:skills="clr-namespace:SentenceStudio.Pages.Skills;assembly=SentenceStudio"
     Title="{x:Static resx:AppResources.AppTitle}"
-    Navigating="Shell_Navigating">
+    Navigating="Shell_Navigating"
+    FlyoutBehavior="Flyout">
 
     <Shell.ItemTemplate>
         <DataTemplate>
@@ -97,23 +98,13 @@
         </DataTemplate>
     </Shell.FlyoutContentTemplate>
 
-    <!-- Show oboarding first -->
-    <TabBar>
+    <FlyoutItem>
         <ShellContent
-            Title=""
-            ContentTemplate="{DataTemplate onboarding:OnboardingPage}"
-            Route="onboarding" />
-    </TabBar>
-    
-    <!-- App Content in Flyout -->
-    <FlyoutItem Title="{Binding Localize[TitleDashboard]}">
-        <ShellContent
-            
-            ContentTemplate="{DataTemplate dashboard:DashboardPage}"
-            Route="dashboard" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="{Binding Localize[StartLesson]}">    
+        Title=""
+        ContentTemplate="{DataTemplate dashboard:DashboardPage}"
+        Route="dashboard" />   
+</FlyoutItem>   
+        <FlyoutItem Title="{Binding Localize[StartLesson]}">    
         <ShellContent
             ContentTemplate="{DataTemplate lesson:LessonStartPage}"
             Route="newLesson" />
@@ -136,7 +127,8 @@
                 ContentTemplate="{DataTemplate skills:ListSkillProfilesPage}"
                 Route="skills" />
         </ShellSection>
-    </FlyoutItem>
+    </FlyoutItem> 
+    
 
     <Shell.FlyoutFooter>
         <Grid>

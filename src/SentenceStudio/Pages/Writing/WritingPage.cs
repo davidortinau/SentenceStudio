@@ -27,8 +27,6 @@ public class WritingPage : ContentPage
     Entry userInputField, iMeanToSayField;
     Grid inputUI, loadingOverlay;
     Button TranslationBtn;
-    private DataTemplate desktopTemplate;
-    private DataTemplate mobileTemplate;
     private AnswerTemplateSelector answerTemplateSelector;
 
     public WritingPage(WritingPageModel model)
@@ -46,6 +44,8 @@ public class WritingPage : ContentPage
 
     private void Build()
     {
+        
+
         InitResources();
 
         InitToolbarItems();

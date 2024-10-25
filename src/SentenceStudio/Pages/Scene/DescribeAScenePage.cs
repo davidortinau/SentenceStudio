@@ -12,8 +12,6 @@ public class DescribeAScenePage : ContentPage
     private CollectionView SentenceList;
     private Grid MainGrid;
 
-    private MauiIcon InfoIcon;
-
     public DescribeAScenePage(DescribeAScenePageModel model)
     {
         BindingContext = model;

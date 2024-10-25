@@ -18,7 +18,6 @@ using CommunityToolkit.Maui.Media;
 using The49.Maui.BottomSheet;
 using SentenceStudio.Data;
 using SkiaSharp.Views.Maui.Controls.Hosting;
-using OxyPlot.Maui.Skia;
 using SentenceStudio.Pages.Clozure;
 using CommunityToolkit.Maui.Markup;
 using Microsoft.Maui;
@@ -26,12 +25,13 @@ using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Skills;
-using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.Storyteller;
 using SentenceStudio.Pages.HowDoYouSay;
 using Fonts;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Warmup;
+using Syncfusion.Maui.Toolkit.Hosting;
+
 
 
 
@@ -58,8 +58,7 @@ public static class MauiProgram
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
-			.UseOxyPlotSkia()
-			.ConfigureSyncfusionCore()
+			.ConfigureSyncfusionToolkit()
 			.AddAudio(
 				playbackOptions =>
 				{
@@ -111,20 +110,21 @@ public static class MauiProgram
 		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 
 		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
+
+		builder.Services.AddSingleton<OnboardingPageModel>();
+		builder.Services.AddSingleton<DashboardPageModel>();
+		builder.Services.AddSingleton<ListVocabularyPageModel>();
+		builder.Services.AddSingleton<LessonStartPageModel>();
+		builder.Services.AddSingleton<UserProfilePageModel>();
+		builder.Services.AddSingleton<ListSkillProfilesPageModel>();
 		
-		builder.Services.AddTransientWithShellRoute<DashboardPage, DashboardPageModel>("dashboard");	
 		builder.Services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
-		builder.Services.AddTransientWithShellRoute<ListVocabularyPage, ListVocabularyPageModel>("vocabulary");
 		builder.Services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
 		builder.Services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
-		builder.Services.AddTransientWithShellRoute<LessonStartPage, LessonStartPageModel>("playLesson");
 		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
 		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
 		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		builder.Services.AddTransientWithShellRoute<UserProfilePage, UserProfilePageModel>("userProfile");
-		builder.Services.AddTransientWithShellRoute<OnboardingPage, OnboardingPageModel>("onboarding");
 		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		builder.Services.AddTransientWithShellRoute<ListSkillProfilesPage, ListSkillProfilesPageModel>("skills");
 		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
 		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
 		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
