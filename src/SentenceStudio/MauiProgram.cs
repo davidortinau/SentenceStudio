@@ -34,6 +34,10 @@ using Syncfusion.Maui.Toolkit.Hosting;
 
 
 
+#if WINDOWS
+using System.Reflection;
+#endif
+
 
 
 #if DEBUG
