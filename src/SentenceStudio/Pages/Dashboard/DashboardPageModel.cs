@@ -7,7 +7,6 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Dashboard;
 
-[QueryProperty(nameof(ShouldRefresh), "refresh")]
 public partial class DashboardPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
@@ -28,8 +27,12 @@ public partial class DashboardPageModel : BaseViewModel
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
         _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
-        TaskMonitor.Create(GetLists);
     }
+
+    public override async Task Refresh()
+    {
+        await GetLists();
+    }   
 
     public async Task<List<UserActivity>> GetWritingActivity()
     {
@@ -72,22 +75,7 @@ public partial class DashboardPageModel : BaseViewModel
         {
             SkillProfile = SkillProfiles.First();
         }
-    }
-
-    private bool _shouldRefresh;
-    public bool ShouldRefresh
-    {
-        get
-        {
-            return _shouldRefresh;
-        }
-        set
-        {
-            _shouldRefresh = value; 
-        }
-    }
-
-    
+    }   
 
     public VocabularyService _vocabService { get; }
 

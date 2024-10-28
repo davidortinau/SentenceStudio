@@ -6,8 +6,7 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Vocabulary;
 
-[QueryProperty(nameof(ShouldRefresh), "refresh")]
-public partial class ListVocabularyPageModel : ObservableObject
+public partial class ListVocabularyPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
     
@@ -15,37 +14,20 @@ public partial class ListVocabularyPageModel : ObservableObject
 
     [ObservableProperty]
     private List<VocabularyList> _vocabLists;
-
-
-    private bool _shouldRefresh;
-    public bool ShouldRefresh
+    
+    public override async Task Refresh()
     {
-        get
-        {
-            return _shouldRefresh;
-        }
-        set
-        {
-            _shouldRefresh = value; 
-            if(_shouldRefresh)
-               TaskMonitor.Create(LoadVocabLists);
-        }
-    }
+        await LoadVocabLists();
+    }   
     
     public ListVocabularyPageModel(IServiceProvider service)
     {
         _vocabService = service.GetRequiredService<VocabularyService>();
-        TaskMonitor.Create(LoadVocabLists);
     }
-
-    // public void Init()
-    // {
-    //     TaskMonitor.Create(LoadVocabLists);
-    // }
 
     private async Task LoadVocabLists()
     {
-        await Task.Delay(100);
+        // await Task.Delay(100);
         VocabLists = await _vocabService.GetAllListsWithWordsAsync();
     }
 

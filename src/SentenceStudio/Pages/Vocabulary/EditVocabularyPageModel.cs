@@ -55,7 +55,7 @@ public partial class EditVocabularyPageModel : ObservableObject
         
        var listId = await _vocabService.SaveListAsync(_vocabList);
         
-        await Shell.Current.GoToAsync("..?refresh=true");
+        await Shell.Current.GoToAsync("..");
     }
 
     [RelayCommand]
@@ -64,7 +64,7 @@ public partial class EditVocabularyPageModel : ObservableObject
         var result = await _vocabService.DeleteListAsync(_vocabList);
         try
         {
-            await Shell.Current.GoToAsync($"..?refresh=true");
+            await Shell.Current.GoToAsync($"..");
         }
         catch (Exception ex)
         {

@@ -130,12 +130,13 @@
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Azure.AI.OpenAI" Version="2.0.0" />		
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.1" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.8" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
 	</ItemGroup>
 
 	<!-- to override lower dependencies with vulerabilities -->
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="System.Text.Json" Version="8.0.4" />
+		<PackageReference Include="System.Text.Json" Version="8.0.5" />
 	</ItemGroup>
 
 	<!-- <ItemGroup>
@@ -144,7 +145,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
 	</ItemGroup>
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
@@ -175,11 +176,11 @@
 	</ItemGroup>
 
 	<!-- enable this to use Reveal for UI inspection -->
-	<!-- <ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
+	<ItemGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
 		<NativeReference Include="$(HOME)\Library\Application Support\Reveal\RevealServer\RevealServer.xcframework">
 			<Kind>Framework</Kind>
 			<SmartLink>True</SmartLink>
 		</NativeReference>
-	</ItemGroup> -->
+	</ItemGroup>
 
 </Project>

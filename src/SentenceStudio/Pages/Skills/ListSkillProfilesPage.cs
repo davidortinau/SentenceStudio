@@ -1,8 +1,5 @@
-using CommunityToolkit.Maui.Converters;
-using CommunityToolkit.Maui.Markup;
+using CommunityToolkit.Maui.Behaviors;
 using CustomLayouts;
-using Microsoft.Maui.Controls.Shapes;
-using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.Skills;
 
@@ -12,16 +9,48 @@ public class ListSkillProfilesPage : ContentPage
 	public ListSkillProfilesPage(ListSkillProfilesPageModel model)
 	{
 		BindingContext = _model = model;
+		InitBehaviors();
 		Build();	
 	}
 
-	public void Build()
+    private void InitBehaviors()
+    {
+        this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedTo),
+				Command = _model.NavigatedToCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedFrom),
+				Command = _model.NavigatedFromCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.Appearing),
+				Command = _model.AppearingCommand
+			}
+		);
+    }
+
+    public void Build()
 	{
 		Title = "Skill Profiles";
+		// Shell.SetTabBarIsVisible(this, false); // Hide the tab bar - no clue why it's appearing here
+
+		
 
 		Content = new ScrollView { 
 			Content = new VerticalStackLayout
 			{
+				Padding = (double)Application.Current.Resources["size160"],
 				Spacing = (double)Application.Current.Resources["size240"],
 				Children = {
 					new HorizontalWrapLayout
@@ -55,7 +84,7 @@ public class ListSkillProfilesPage : ContentPage
 
 				}
 			}
-		}.Margin((double)Application.Current.Resources["size160"]);
+		};
 	}
 
     private Border AddButton()

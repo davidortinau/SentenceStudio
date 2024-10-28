@@ -11,7 +11,6 @@ using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Media;
 using SentenceStudio.Data;  
 using Plugin.Maui.Audio;
-using AVFoundation;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 

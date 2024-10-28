@@ -48,7 +48,7 @@ public partial class AddVocabularyPageModel : ObservableObject
 
         var listId = await _vocabService.SaveListAsync(list); 
         
-        await Shell.Current.GoToAsync("..?refresh=true");
+        await Shell.Current.GoToAsync("..");
     }
 
     

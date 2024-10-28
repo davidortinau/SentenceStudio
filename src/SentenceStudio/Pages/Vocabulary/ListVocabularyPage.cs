@@ -1,3 +1,4 @@
+using CommunityToolkit.Maui.Behaviors;
 using CustomLayouts;
 
 namespace SentenceStudio.Pages.Vocabulary;
@@ -8,8 +9,36 @@ public class ListVocabularyPage : ContentPage
 	public ListVocabularyPage(ListVocabularyPageModel model)
 	{
 		BindingContext = _model = model;
+		InitBehaviors();
 		Build();
 	}
+
+	private void InitBehaviors()
+    {
+        this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedTo),
+				Command = _model.NavigatedToCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedFrom),
+				Command = _model.NavigatedFromCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.Appearing),
+				Command = _model.AppearingCommand
+			}
+		);
+    }
 
 	public void Build()
 	{

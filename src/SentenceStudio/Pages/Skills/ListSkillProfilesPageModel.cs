@@ -8,7 +8,7 @@ using Sharpnado.Tasks;
 
 namespace SentenceStudio.Pages.Skills;
 
-public partial class ListSkillProfilesPageModel : ObservableObject
+public partial class ListSkillProfilesPageModel : BaseViewModel
 {
     public LocalizationManager Localize => LocalizationManager.Instance;
 
@@ -33,7 +33,7 @@ public partial class ListSkillProfilesPageModel : ObservableObject
     public ListSkillProfilesPageModel(IServiceProvider service)
     {
         _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
-        TaskMonitor.Create(LoadProfiles);
+        // TaskMonitor.Create(LoadProfiles);
     }
 
     private async Task LoadProfiles()
@@ -42,34 +42,13 @@ public partial class ListSkillProfilesPageModel : ObservableObject
         Profiles = new ObservableCollection<SkillProfile>(profiles);
     }
 
-    private SkillProfileRepository _skillsRepository;
-
-    [RelayCommand]
-    async Task Save()
+    public override async Task Refresh()
     {
-        // TODO
-        // var profile = new UserProfile
-        // {
-        //     Name = Name,
-        //     Email = Email,
-        //     NativeLanguage = NativeLanguage,
-        //     TargetLanguage = TargetLanguage,
-        //     DisplayLanguage = DisplayLanguage
-        // };
+        await LoadProfiles();
+    }   
 
-        // await _userProfileService.SaveAsync(profile);
-        
-        // await AppShell.DisplayToastAsync(Localize["Saved"].ToString());
-
-        // var lists = await _vocabularyService.GetListsAsync();
-        // if(lists.Count == 0)
-        // {
-        //     var response = await Shell.Current.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
-        //     if(response)
-        //         await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
-        // }
-    }
-
+    private SkillProfileRepository _skillsRepository;
+    
     [RelayCommand]
     async Task EditProfile(SkillProfile profile)
     {

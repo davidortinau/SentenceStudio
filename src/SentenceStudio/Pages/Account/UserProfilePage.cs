@@ -14,10 +14,11 @@ public class UserProfilePage : ContentPage
 
 	public void Build()
 	{
+        this.Title = "User Profile";
+        // Shell.SetTabBarIsVisible(this, false); // Hide the tab bar - no clue why it's appearing here
+
         this.ToolbarItems.Add(
-            new ToolbarItem{
-                    Text = "Reset",
-                }
+            new ToolbarItem()
                 .Bind(ToolbarItem.TextProperty, "Localize[Reset]")
                 .BindCommand("ResetCommand")
                 // .Icon(SegoeFluentIcons.Delete).IconSize((double)Application.Current.Resources["IconSize"])

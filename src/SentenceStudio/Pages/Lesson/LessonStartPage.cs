@@ -12,7 +12,7 @@ public class LessonStartPage : ContentPage
 	{
 		Content = new VerticalStackLayout
 		{
-			Padding = (double)Application.Current.Resources["size240"],
+			Padding = (double)Application.Current.Resources["size160"],
 			Spacing = (double)Application.Current.Resources["size240"],
 			Children =
 			{

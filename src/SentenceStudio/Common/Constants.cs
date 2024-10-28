@@ -14,4 +14,7 @@ public static class Constants
 
     public static string DatabasePath => 
         System.IO.Path.Combine(FileSystem.AppDataDirectory, DatabaseFilename);
+
+    public static string SQLDatabasePath =>
+		$"Data Source={System.IO.Path.Combine(FileSystem.AppDataDirectory, DatabaseFilename)}";
 }

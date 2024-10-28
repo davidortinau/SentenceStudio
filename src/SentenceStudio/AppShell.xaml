@@ -18,23 +18,22 @@
     <Shell.ItemTemplate>
         <DataTemplate>
             <Grid Padding="{StaticResource size120}">
-            <VisualStateManager.VisualStateGroups>
-                <VisualStateGroup x:Name="CommonStates">
-                    <VisualState x:Name="Normal" />
-                    <VisualState x:Name="Selected">
-                        <VisualState.Setters>
-                            <Setter Property="BackgroundColor" 
-                                Value="{StaticResource Primary}" />
-                            <Setter TargetName="TitleLabel"
-                                Property="Label.TextColor" 
-                                Value="White" />
-                        </VisualState.Setters>
-                    </VisualState>
-                </VisualStateGroup>
-            </VisualStateManager.VisualStateGroups>
-                <Label Text="{Binding Title}" 
-                    x:Name="TitleLabel"
-                />
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal"/>
+                        <VisualState x:Name="Selected">
+                            <VisualState.Setters>
+                                <Setter Property="BackgroundColor"
+                                        Value="{StaticResource Primary}"/>
+                                <Setter TargetName="TitleLabel"
+                                        Property="Label.TextColor"
+                                        Value="White"/>
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <Label Text="{Binding Title}"
+                       x:Name="TitleLabel"/>
             </Grid>
         </DataTemplate>
     </Shell.ItemTemplate>
@@ -44,102 +43,98 @@
             <VerticalStackLayout>
                 <VerticalStackLayout.Resources>
                     <Style TargetType="Label">
-                        <Setter Property="Padding" Value="{StaticResource size120}"/>
+                        <Setter Property="Padding"
+                                Value="{StaticResource size120}"/>
                         <Setter Property="VisualStateManager.VisualStateGroups">
                             <VisualStateGroupList>
                                 <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="Normal"/>
                                     <VisualState x:Name="Selected">
                                         <VisualState.Setters>
-                                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />
-                                            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}" />
+                                            <Setter Property="TextColor"
+                                                    Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}"/>
+                                            <Setter Property="BackgroundColor"
+                                                    Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"/>
                                         </VisualState.Setters>
                                     </VisualState>
                                 </VisualStateGroup>
                             </VisualStateGroupList>
                         </Setter>
                     </Style>
-
                 </VerticalStackLayout.Resources>
 
-                <Label Text="{Binding Localize[TitleDashboard]}" 
-                     >
+                <Label Text="{Binding Localize[TitleDashboard]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
-                                        CommandParameter="dashboard" />
+                                              CommandParameter="dashboard"/>
                     </Label.GestureRecognizers>
                 </Label>
                 <Label Text="{Binding Localize[StartLesson]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
-                                        CommandParameter="newLesson" />
+                                              CommandParameter="newLesson"/>
                     </Label.GestureRecognizers>
-                </Label> 
+                </Label>
                 <Label Text="{Binding Localize[VocabularyList]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
-                                        CommandParameter="vocabulary" />
+                                              CommandParameter="vocabulary"/>
                     </Label.GestureRecognizers>
                 </Label>
                 <Label Text="{Binding Localize[SkillProfiles]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
-                                        CommandParameter="skills" />
+                                              CommandParameter="skills"/>
                     </Label.GestureRecognizers>
                 </Label>
                 <Label Text="{Binding Localize[MyProfile]}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding NavigateToCommand}"
-                                        CommandParameter="userProfile" />
+                                              CommandParameter="userProfile"/>
                     </Label.GestureRecognizers>
                 </Label>
-                
             </VerticalStackLayout>
         </DataTemplate>
     </Shell.FlyoutContentTemplate>
 
     <FlyoutItem>
         <ShellContent
-        Title=""
-        ContentTemplate="{DataTemplate dashboard:DashboardPage}"
-        Route="dashboard" />   
-</FlyoutItem>   
-        <FlyoutItem Title="{Binding Localize[StartLesson]}">    
+            Title=""
+            ContentTemplate="{DataTemplate dashboard:DashboardPage}"
+            Route="dashboard"/>
+    </FlyoutItem>
+    
+    <FlyoutItem Title="{Binding Localize[StartLesson]}">
         <ShellContent
             ContentTemplate="{DataTemplate lesson:LessonStartPage}"
-            Route="newLesson" />
+            Route="newLesson"/>
     </FlyoutItem>
 
     <FlyoutItem Title="{Binding Localize[VocabularyList]}">
         <ShellContent
             ContentTemplate="{DataTemplate vocabulary:ListVocabularyPage}"
-            Route="vocabulary" />
+            Route="vocabulary"/>
     </FlyoutItem>
-    
+
     <FlyoutItem Title="{Binding Localize[MyProfile]}">
-        <ShellSection>
-            <ShellContent
-                ContentTemplate="{DataTemplate account:UserProfilePage}"
-                Route="userProfile" />
-        </ShellSection>
-        <ShellSection>
-            <ShellContent
-                ContentTemplate="{DataTemplate skills:ListSkillProfilesPage}"
-                Route="skills" />
-        </ShellSection>
-    </FlyoutItem> 
-    
+        <ShellContent
+            ContentTemplate="{DataTemplate account:UserProfilePage}"
+            Route="userProfile"/>
+    </FlyoutItem>
+
+    <FlyoutItem Title="{Binding Localize[SkillProfiles]}">
+        <ShellContent
+            ContentTemplate="{DataTemplate skills:ListSkillProfilesPage}"
+            Route="skills"/>
+    </FlyoutItem>
 
     <Shell.FlyoutFooter>
         <Grid>
-            <Button Text="{Binding Localize[ChangeLanguage]}" 
-                Command="{Binding ChangeUILanguageCommand}"
-                HorizontalOptions="Center"
-                VerticalOptions="Center"
-                Margin="15"
-             />
+            <Button Text="{Binding Localize[ChangeLanguage]}"
+                    Command="{Binding ChangeUILanguageCommand}"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Margin="15"/>
         </Grid>
     </Shell.FlyoutFooter>
-
-    
 </Shell>

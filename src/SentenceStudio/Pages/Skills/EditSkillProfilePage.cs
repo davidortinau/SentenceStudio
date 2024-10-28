@@ -44,6 +44,10 @@ public class EditSkillProfilePage : ContentPage
 							}
 							.Bind(Editor.TextProperty, nameof(EditSkillProfilePageModel.Description))
 					},
+					new Label()
+						.Bind(Label.TextProperty, nameof(EditSkillProfilePageModel.Profile.CreatedAt), stringFormat: "Created: {0:MM/dd/yyyy}"),
+					new Label()
+						.Bind(Label.TextProperty, nameof(EditSkillProfilePageModel.Profile.UpdatedAt), stringFormat: "Updated: {0:MM/dd/yyyy}"),
 				}
 			}
 			

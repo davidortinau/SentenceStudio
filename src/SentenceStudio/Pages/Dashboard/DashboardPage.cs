@@ -1,5 +1,6 @@
 ﻿using Sharpnado.Tasks;
 using CustomLayouts;
+using CommunityToolkit.Maui.Behaviors;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -10,10 +11,37 @@ public class DashboardPage : ContentPage
     public DashboardPage(DashboardPageModel model)
 	{
 		BindingContext = _model = model;
-
+        InitBehaviors();
         Build();
 				
 	}
+
+    private void InitBehaviors()
+    {
+        this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedTo),
+				Command = _model.NavigatedToCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.NavigatedFrom),
+				Command = _model.NavigatedFromCommand
+			}
+		);
+
+		this.Behaviors.Add(
+			new EventToCommandBehavior
+			{
+				EventName = nameof(ContentPage.Appearing),
+				Command = _model.AppearingCommand
+			}
+		);
+    }
 
     // ContentView scatterView;
     public void Build()
