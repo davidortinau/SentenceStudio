@@ -96,22 +96,22 @@ public class SkillProfileRepository
 		if (item.ID == 0)
 		{
 			saveCmd.CommandText = @"
-                INSERT INTO SkillProfile (Title, Description)
-                VALUES (@Title, @Description);
+                INSERT INTO SkillProfile (Title, Description, Language)
+                VALUES (@Title, @Description, @Language);
                 SELECT last_insert_rowid();";
 		}
 		else
 		{
 			saveCmd.CommandText = @"
                 UPDATE SkillProfile
-                SET Title = @Title, Description = @Description
+                SET Title = @Title, Description = @Description, Language = @Language
                 WHERE ID = @ID";
 			saveCmd.Parameters.AddWithValue("@ID", item.ID);
 		}
 
 		saveCmd.Parameters.AddWithValue("@Title", item.Title);
 		saveCmd.Parameters.AddWithValue("@Description", item.Description);
-		// saveCmd.Parameters.AddWithValue("@Language", item.Language);
+		saveCmd.Parameters.AddWithValue("@Language", item.Language);
 		// saveCmd.Parameters.AddWithValue("@CreatedAt", item.CreatedAt);
         // saveCmd.Parameters.AddWithValue("@UpdatedAt", item.UpdatedAt);
 

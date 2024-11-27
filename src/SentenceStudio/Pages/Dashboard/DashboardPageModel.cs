@@ -63,7 +63,7 @@ public partial class DashboardPageModel : BaseViewModel
                 var response = await Shell.Current.DisplayAlert("Profile", "To get started, create a profile and tell us what language you are learning today.", "Let's do it", "Maybe later");
                 if(response)
                 {
-                    await Shell.Current.GoToAsync("userProfile");
+                    await Shell.Current.GoToAsync("///userProfile");
                 }
             }
         }else{

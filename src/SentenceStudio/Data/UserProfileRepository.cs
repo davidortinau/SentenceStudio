@@ -50,8 +50,8 @@ public class UserProfileRepository
     public async Task<int> SaveAsync(UserProfile item)
     {
         await Init();
-        int result = -1;
-        if (item.ID != -1)
+        int result = 0;
+        if (item.ID > 0)
         {
             try
             {

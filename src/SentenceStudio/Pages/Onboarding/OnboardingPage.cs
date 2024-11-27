@@ -43,7 +43,7 @@ public class OnboardingPage : ContentPage
                 {
                     CreateContentView("Welcome to Sentence Studio!", "Strengthen your language skills with our fun and interactive sentence building activities."),
                     CreateContentViewWithEntry("What should I call you?", "Name", "Enter your name"),
-                    CreateContentViewWithPicker("What is your primary language?", "NativeLanguage", new string[]
+                    CreateContentViewWithPicker("What is your primary language?", nameof(OnboardingPageModel.NativeLanguage), new string[]
                     {
                         "English", "Spanish", "French", "German", "Italian", "Portuguese",
                         "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
@@ -186,7 +186,10 @@ public class OnboardingPage : ContentPage
                                 {
                                     ItemsSource = items
                                 }
-                                .Bind(Picker.SelectedItemProperty, bindingPath, BindingMode.TwoWay, source: new RelativeBindingSource(RelativeBindingSourceMode.FindAncestor, typeof(OnboardingPageModel)))
+                                .Bind(Picker.SelectedItemProperty, 
+                                    bindingPath, 
+                                    BindingMode.TwoWay, 
+                                    source: _model)
                         }
                         .Row(1)
                 }

@@ -69,7 +69,10 @@ public class TranslationPage : ContentPage
 	{
 		return new Grid
 		{
-			ColumnDefinitions = Columns.Define(Stars(6),Stars(3)),
+			ColumnDefinitions = (DeviceInfo.Idiom == DeviceIdiom.Phone 
+				? Columns.Define(Stars(1)) 
+				: Columns.Define(Stars(6),Stars(3))
+			),
 			Margin = 30,
 			Children =
 			{
@@ -94,7 +97,7 @@ public class TranslationPage : ContentPage
 					}
 					.Bind(FeedbackPanel.IsVisibleProperty, nameof(TranslationPageModel.HasFeedback))
 					.Bind(FeedbackPanel.FeedbackProperty, nameof(TranslationPageModel.Feedback))
-					.Column(1)
+					.Column(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)
 			}
 		};
 	}
