@@ -154,6 +154,7 @@ public partial class TranslationPageModel : BaseViewModel, IQueryAttributable
     [RelayCommand]
     async Task GradeMe()
     {
+        Feedback = string.Empty; // wipe it in case of a repeat
         IsBusy = true;
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
@@ -164,8 +165,6 @@ public partial class TranslationPageModel : BaseViewModel, IQueryAttributable
 
             Debug.WriteLine(prompt);
         }
-        // HasFeedback = true;
-        // IsBusy = false;
 
         WeakReferenceMessenger.Default.Register<ChatCompletionMessage>(this, (r, m) =>
         {
@@ -175,15 +174,15 @@ public partial class TranslationPageModel : BaseViewModel, IQueryAttributable
             // I could parse the feedback quickly to capture Accuracy and Fluency scores and display them in the UI
         });
 
-        _ = await _aiService.SendPrompt(prompt, false, true);
+        await _aiService.SendPrompt(prompt, false, true);
+        // HasFeedback = true;
+        // IsBusy = false;
 
         WeakReferenceMessenger.Default.Unregister<ChatCompletionMessage>(this);
 
         // Feedback += await _aiService.SendPrompt(prompt, false, true);
         // GradeResponse = await _teacherService.GradeTranslation(UserInput, CurrentSentence, RecommendedTranslation);
         // Feedback = FormatGradeResponse(GradeResponse);
-        
-        
     }
 
     private string FormatGradeResponse(GradeResponse gradeResponse)

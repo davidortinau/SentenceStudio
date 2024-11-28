@@ -10,6 +10,7 @@ using System.Web;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Media;
 using SentenceStudio.Data;
+using Shiny;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -82,7 +83,8 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
     partial void OnUserGuessChanged(string oldValue, string newValue)
     {
-        _ = GradeAnswer(newValue);
+        if(!newValue.IsEmpty())
+            _ = GradeAnswer(newValue);
     }
 
     public List<VocabularyWord> Words
@@ -145,6 +147,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
             GradeResponse = null;
             HasFeedback = false;
             Feedback = string.Empty;
+            UserGuess = null;
 
             _currentChallenge = Sentences[_currentSentenceIndex];
             _currentChallenge.IsCurrent = true;
@@ -245,6 +248,8 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
     {
         autoNextTimer?.Stop();
         UserMode = InputMode.Text.ToString();
+        GuessOptions = null;
+        UserGuess = null;
         Sentences[_currentSentenceIndex].IsCurrent = false;
         _currentSentenceIndex++;
         SetCurrentSentence();

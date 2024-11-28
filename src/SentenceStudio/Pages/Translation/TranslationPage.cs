@@ -91,10 +91,7 @@ public class TranslationPage : ContentPage
 					)
 					.Bind(Label.IsVisibleProperty, nameof(TranslationPageModel.HasFeedback), converter: new InvertedBoolConverter()),
 
-				new FeedbackPanel
-					{
-						IsVisible = false
-					}
+				new FeedbackPanel()
 					.Bind(FeedbackPanel.IsVisibleProperty, nameof(TranslationPageModel.HasFeedback))
 					.Bind(FeedbackPanel.FeedbackProperty, nameof(TranslationPageModel.Feedback))
 					.Column(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)

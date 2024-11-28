@@ -4,27 +4,15 @@
              xmlns:c="clr-namespace:SentenceStudio.Pages.Controls;assembly=SentenceStudio"
              x:DataType="c:FeedbackPanelModel"
              x:Class="SentenceStudio.Pages.Controls.FeedbackPanel">
-    <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource size320}">
+    <Grid RowDefinitions="*">
         <ScrollView>
             <VerticalStackLayout>
                 <Label Text="Feedback" 
                     Style="{StaticResource LargeTitle}" />
-                    <Label Text="{Binding Feedback}" TextType="Html" />
+                <Label                   
+                    Text="{Binding Feedback, Mode=OneWay}" />
             </VerticalStackLayout>
         </ScrollView>
-
-        <!-- <c:FormField 
-                ControlTemplate="{StaticResource FormFieldTemplate}"
-                FieldLabel="Ask something"
-                x:Name="UserInputField"
-                Grid.Row="1">
-            <Entry Placeholder="무엇을 알고 싶으신가요?"
-                    Text="{Binding UserInput}"
-                    FontSize="18"
-                    ReturnType="Go"
-                    ReturnCommand="{Binding AskCommand}"
-                    />
-        </c:FormField> -->
     </Grid>
 
 </Border>

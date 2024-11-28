@@ -26,6 +26,23 @@ public class ClozurePage : ContentPage
 		Resources.Add("UserActivityToFontImageSourceConverter", userActivityToFontImageSourceConverter);
 		Resources.Add("BoolToColorConverter", boolToColorConverter);
 
+		_model.PropertyChanged += (sender, e) =>
+		{
+			if (e.PropertyName == nameof(ClozurePageModel.GuessOptions))
+			{
+				MainThread.BeginInvokeOnMainThread(() =>
+				{
+					foreach (var child in VocabBlocks.Children)
+					{
+						if (child is RadioButton radioButton)
+						{
+							radioButton.IsChecked = false;
+						}
+					}
+				});
+			}
+		};
+		
 		Build();
 	}
 
