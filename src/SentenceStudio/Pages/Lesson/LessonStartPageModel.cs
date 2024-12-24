@@ -77,7 +77,7 @@ public partial class LessonStartPageModel : BaseViewModel
 
             var payload = new ShellNavigationQueryParameters
                 {
-                    {"listID", VocabList.ID},
+                    {"listID", VocabList.PrimaryID},
                     {"playMode", SelectedPlayMode.ToString()},
                     {"level", Level.ToString()}
                 };

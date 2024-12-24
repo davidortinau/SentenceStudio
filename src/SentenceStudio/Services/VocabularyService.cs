@@ -1,5 +1,7 @@
 
 
+using CommunityToolkit.Datasync.Client.Offline;
+
 namespace SentenceStudio.Services;
 
 public class VocabularyService
@@ -55,7 +57,7 @@ public class VocabularyService
             SELECT vw.*
             FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
 			WHERE vw.ID = vlvw.VocabularyWordId
-			AND vlvw.VocabularyListId = ?", vocabularyList.ID);
+			AND vlvw.VocabularyListId = ?", vocabularyList.PrimaryID);
 
         Debug.WriteLine($"List {vocabularyList.Name} has {vocabularyList.Words.Count} words");
     }
@@ -76,14 +78,14 @@ public class VocabularyService
     public async Task<VocabularyList> GetListAsync(int id)
     {
         await Init();    
-        var vocabularyList = await Database.Table<VocabularyList>().Where(i => i.ID == id).FirstOrDefaultAsync();
+        var vocabularyList = await Database.Table<VocabularyList>().Where(i => i.PrimaryID == id).FirstOrDefaultAsync();
         if (vocabularyList != null)
         {
             vocabularyList.Words = await Database.QueryAsync<VocabularyWord>(@"
                 SELECT vw.*
                 FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
                 WHERE vw.ID = vlvw.VocabularyWordId
-                AND vlvw.VocabularyListId = ?", vocabularyList.ID);          
+                AND vlvw.VocabularyListId = ?", vocabularyList.PrimaryID);          
         }
         
         return vocabularyList;
@@ -92,55 +94,72 @@ public class VocabularyService
     public async Task<VocabularyWord> GetWordAsync(int id)
     {
         await Init();
-        return await Database.Table<VocabularyWord>().Where(i => i.ID == id).FirstOrDefaultAsync();
+        return await Database.Table<VocabularyWord>().Where(i => i.PrimaryID == id).FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveListAsync(VocabularyList list)
     {
-        await Init();
-        int result = -1;
-        if (list.ID != 0)
+        Task.Run(async () =>
         {
-            try
+            using var context = new LocalAppDbContext();
+            context.VocabularyLists.Add(list);
+            try{
+                // await context.SaveChangesAsync();
+                context.SaveChanges();
+            }catch(Exception ex){
+                Console.WriteLine(ex.Message);
+            }
+
+            PushResult pushResult = await context.PushAsync();
+            if(!pushResult.IsSuccessful)
             {
-                result = await Database.UpdateAsync(list);
-                result = await Database.UpdateAllAsync(list.Words);
+                await Shell.Current.DisplayAlert("Error", $"Failed to save item: {pushResult.FailedRequests.FirstOrDefault().Value.ReasonPhrase}", "OK");
+            }
+        });
+        // await Init();
+        // int result = -1;
+        // if (list.ID != 0)
+        // {
+        //     try
+        //     {
+        //         result = await Database.UpdateAsync(list);
+        //         result = await Database.UpdateAllAsync(list.Words);
                 
-                foreach (var term in list.Words)
-                {
-                    await SaveWordToListAsync(term, list.ID);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"{ex.Message}");
-            }
-        }
-        else
-        {
-            try
-            {
-                result = await Database.InsertAsync(list);
+        //         foreach (var term in list.Words)
+        //         {
+        //             await SaveWordToListAsync(term, list.ID);
+        //         }
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         Debug.WriteLine($"{ex.Message}");
+        //     }
+        // }
+        // else
+        // {
+        //     try
+        //     {
+        //         result = await Database.InsertAsync(list);
 
-                // list.Words = new List<Event> { event1 };                
+        //         // list.Words = new List<Event> { event1 };                
             
-                if (list.Words != null)
-                {
-                    foreach (var term in list.Words)
-                    {
-                        // term.VocabularyListId = list.ID;
-                        await SaveWordAsync(term);
-                        await SaveWordToListAsync(term, list.ID);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-            }
-        }
+        //         if (list.Words != null)
+        //         {
+        //             foreach (var term in list.Words)
+        //             {
+        //                 // term.VocabularyListId = list.ID;
+        //                 await SaveWordAsync(term);
+        //                 await SaveWordToListAsync(term, list.ID);
+        //             }
+        //         }
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+        //     }
+        // }
 
-        return list.ID;
+        return list.PrimaryID;
     }
 
     public async Task SaveWordToListAsync(VocabularyWord term, int listID)
@@ -148,10 +167,10 @@ public class VocabularyService
         await Init();
         VocabularyListVocabularyWord listWord = new VocabularyListVocabularyWord();
         listWord.VocabularyListId = listID;
-        listWord.VocabularyWordId = term.ID;
+        listWord.VocabularyWordId = term.PrimaryID;
 
         var existingListWord = await Database.Table<VocabularyListVocabularyWord>()
-            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == term.ID)
+            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == term.PrimaryID)
             .FirstOrDefaultAsync();
 
         if (existingListWord is null)
@@ -165,7 +184,7 @@ public class VocabularyService
         await Init();
         try{
             await Database.DeleteAsync(list);
-            await Database.ExecuteAsync("DELETE FROM VocabularyListVocabularyWord WHERE VocabularyListId = ?", list.ID);
+            await Database.ExecuteAsync("DELETE FROM VocabularyListVocabularyWord WHERE VocabularyListId = ?", list.PrimaryID);
             await Database.ExecuteAsync("DELETE FROM VocabularyWord WHERE ID NOT IN (SELECT VocabularyWordId FROM VocabularyListVocabularyWord)");
         }
         catch (Exception ex)
@@ -180,7 +199,7 @@ public class VocabularyService
     {
         await Init();
         int result = -1;
-        if (word.ID != 0)
+        if (word.PrimaryID != 0)
         {
             try
             {
@@ -215,7 +234,7 @@ public class VocabularyService
     {
         await Init();
         var listWord = await Database.Table<VocabularyListVocabularyWord>()
-            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == word.ID)
+            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == word.PrimaryID)
             .FirstOrDefaultAsync();
         if(listWord is not null)
             return await Database.DeleteAsync(listWord);

@@ -1,12 +1,14 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace SentenceStudio.Models;
-public class VocabularyList
+public class VocabularyList : OfflineClientEntity
 {
     [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int PrimaryID { get; set; }
+
+    [Required]
     public string Name { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-
     
     [ManyToMany(typeof(VocabularyWord))]
     public List<VocabularyWord> Words { get; set; }

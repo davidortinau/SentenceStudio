@@ -15,11 +15,11 @@ public partial class DashboardPageModel : BaseViewModel
     private List<VocabularyList> _vocabLists;
 
     [ObservableProperty]
-    private VocabularyList _vocabList;
+    private VocabularyList _selectedVocabList;
 
     [ObservableProperty] private List<SkillProfile> _skillProfiles;
 
-    [ObservableProperty] private SkillProfile _skillProfile;
+    [ObservableProperty] private SkillProfile _selectedSkillProfile;
 
     public DashboardPageModel(IServiceProvider service)
     {
@@ -27,6 +27,16 @@ public partial class DashboardPageModel : BaseViewModel
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _userActivityRepository = service.GetRequiredService<UserActivityRepository>();
         _skillsRepository = service.GetRequiredService<SkillProfileRepository>();
+    }
+
+    partial void OnSelectedSkillProfileChanged(SkillProfile oldValue, SkillProfile newValue)
+    {
+        Preferences.Set(nameof(SelectedSkillProfile), newValue.ID);
+    }
+
+    partial void OnSelectedVocabListChanged(VocabularyList oldValue, VocabularyList newValue)
+    {
+        Preferences.Set(nameof(SelectedVocabList), newValue.PrimaryID);
     }
 
     public override async Task Refresh()
@@ -67,13 +77,15 @@ public partial class DashboardPageModel : BaseViewModel
                 }
             }
         }else{
-            VocabList = VocabLists.First();
+            var lastSelected = Preferences.Get(nameof(SelectedVocabList), "0");
+            SelectedVocabList = VocabLists.FirstOrDefault(v => v.PrimaryID == int.Parse(lastSelected));
         }
 
         SkillProfiles = await _skillsRepository.ListAsync();
         if (SkillProfiles.Count > 0)
         {
-            SkillProfile = SkillProfiles.First();
+            var lastSelectedSkillProfile = Preferences.Get(nameof(SelectedSkillProfile), "0");
+            SelectedSkillProfile = SkillProfiles.FirstOrDefault(s => s.ID == int.Parse(lastSelectedSkillProfile));
         }
     }   
 
@@ -110,8 +122,8 @@ public partial class DashboardPageModel : BaseViewModel
         try{
             var payload = new ShellNavigationQueryParameters
                         {
-                            {"listID", VocabList.ID},
-                            {"skillProfileID", SkillProfile.ID}
+                            {"listID", SelectedVocabList.PrimaryID},
+                            {"skillProfileID", SelectedSkillProfile.ID}
                         };
             
             await Shell.Current.GoToAsync($"translation", payload);
@@ -128,7 +140,7 @@ public partial class DashboardPageModel : BaseViewModel
             if(VocabLists.Count == 0)
             VocabLists = await _vocabService.GetListsAsync();
 
-            var listID = VocabLists.First().ID;
+            var listID = VocabLists.First().PrimaryID;
             
             await Shell.Current.GoToAsync($"syntacticAnalysis?listID={listID}");
         }catch(Exception ex)
@@ -167,8 +179,8 @@ public partial class DashboardPageModel : BaseViewModel
     {
         var payload = new ShellNavigationQueryParameters
                         {
-                            {"listID", VocabList.ID},
-                            {"skillProfileID", SkillProfile.ID}
+                            {"listID", SelectedVocabList.PrimaryID},
+                            {"skillProfileID", SelectedSkillProfile.ID}
                         };
 
         try{

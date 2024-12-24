@@ -3,10 +3,10 @@ using SQLite;
 using SQLiteNetExtensions.Attributes;
 
 namespace SentenceStudio.Models;
-public class VocabularyWord
+public class VocabularyWord : OfflineClientEntity
 {
     [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int PrimaryID { get; set; }
 
     [JsonPropertyName("original")]
     public string NativeLanguageTerm { get; set; }
@@ -17,7 +17,6 @@ public class VocabularyWord
     public double Fluency { get; set; }
     public double Accuracy { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
 
     [ManyToMany(typeof(VocabularyWord))]
     public List<VocabularyList> VocabularyLists { get; set; }

@@ -76,7 +76,7 @@ public class DashboardPage : ContentPage
                             {
                                 ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
                                 Content = new Picker()
-                                    .Bind(Picker.SelectedItemProperty, "VocabList", BindingMode.TwoWay)
+                                    .Bind(Picker.SelectedItemProperty, "SelectedVocabList", BindingMode.TwoWay)
                                     .Bind(Picker.ItemsSourceProperty, "VocabLists")
                             }.Bind(FormField.FieldLabelProperty, "Localize[DefaultVocabulary]"),
 
@@ -84,7 +84,7 @@ public class DashboardPage : ContentPage
                             {
                                 ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
                                 Content = new Picker()
-                                    .Bind(Picker.SelectedItemProperty, "SkillProfile", BindingMode.TwoWay)
+                                    .Bind(Picker.SelectedItemProperty, "SelectedSkillProfile", BindingMode.TwoWay)
                                     .Bind(Picker.ItemsSourceProperty, "SkillProfiles")
                             }.Bind(FormField.FieldLabelProperty, "Localize[DefaultSkill]"),
 

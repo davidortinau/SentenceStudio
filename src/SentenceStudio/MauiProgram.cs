@@ -172,7 +172,7 @@ public static class MauiProgram
 // 			});
 
 	
-
+		ConfigureDatabase();
 		
 		return builder.Build();
 	}
@@ -209,4 +209,11 @@ public static class MauiProgram
 #endif
         });
     }
+
+	private static void ConfigureDatabase()
+	{
+		using var context = new LocalAppDbContext();
+        SQLitePCL.Batteries_V2.Init();
+        context.Database.EnsureCreated();
+	}
 }

@@ -83,13 +83,13 @@ public partial class WritingPageModel : BaseViewModel, IQueryAttributable
         {
             var random = new Random();       
             VocabBlocks = vocab.Words
-                .Where(w => !_usedWordIds.Contains(w.ID)) // Filter out already used words
+                .Where(w => !_usedWordIds.Contains(w.PrimaryID)) // Filter out already used words
                 .OrderBy(t => random.Next())
                 .Take(4)
                 .ToList();
 
             // Add the newly selected word IDs to the usedWordIds set
-            _usedWordIds.UnionWith(VocabBlocks.Select(w => w.ID));
+            _usedWordIds.UnionWith(VocabBlocks.Select(w => w.PrimaryID));
         }
         IsBusy = false;
     }

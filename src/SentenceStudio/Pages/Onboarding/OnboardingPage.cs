@@ -48,7 +48,7 @@ public class OnboardingPage : ContentPage
                         "English", "Spanish", "French", "German", "Italian", "Portuguese",
                         "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
                     }),
-                    CreateContentViewWithPicker("What language are you here to practice?", "TargetLanguage", new string[]
+                    CreateContentViewWithCollectionView("What language are you here to practice?", "TargetLanguage", new string[]
                     {
                         "Korean", "English", "Spanish", "French", "German", "Italian",
                         "Portuguese", "Chinese", "Japanese", "Arabic", "Russian", "Other"
@@ -196,6 +196,82 @@ public class OnboardingPage : ContentPage
             }
         };
     }
+
+    private ContentView CreateContentViewWithCollectionView(string title, string bindingPath, string[] items)
+    {
+        return new ContentView
+        {
+            Content = new Grid
+            {
+                RowDefinitions = Rows.Define(Auto,Auto),
+                RowSpacing = (double)Application.Current.Resources["size160"],
+                Margin = (double)Application.Current.Resources["size160"],
+
+                Children =
+                {
+                    new Label
+                        {
+                            Text = title,
+                            Style = (Style)Application.Current.Resources["Title1"]
+                        }.CenterHorizontal(),
+
+                    new CollectionView
+                        {
+                            ItemsSource = items,
+                            ItemsLayout = new GridItemsLayout(3, ItemsLayoutOrientation.Vertical){
+                                VerticalItemSpacing = 10,
+                                HorizontalItemSpacing = 10
+                            },
+                            SelectionMode = SelectionMode.Single
+                        }
+                        .Bind(CollectionView.SelectedItemProperty,
+                                    bindingPath, 
+                                    BindingMode.TwoWay, 
+                                    source: _model)
+                        .ItemTemplate(new DataTemplate(() =>
+                            new Border
+                            {
+                                StrokeShape = new RoundRectangle { CornerRadius = 0 },
+                                StrokeThickness = 2,
+                                Content = new Label().Font(size: 24).Padding(10).Bind(Label.TextProperty, "."),
+                                Style = SelectionStyle()
+                            }
+                        ))
+                        .Row(1)
+                }
+            }.Top()
+        };
+    }
+
+    private Style SelectionStyle()
+	{
+		VisualStateGroupList visualStateGroupList = new() { 
+			new VisualStateGroup { 
+				Name = "RadioButtonStates", 
+				States = { 
+					new VisualState { 
+						Name = RadioButton.CheckedVisualState, 
+						Setters = { 
+							new Setter { 
+								Property = BackgroundProperty, 
+								Value = (Color)Application.Current.Resources["Primary"] 
+							} 
+						} 
+					}, 
+					new VisualState { Name = RadioButton.UncheckedVisualState } 
+				} 
+			}
+		 };
+
+		return new(typeof(Border)) { 
+			Setters = { 
+				new Setter { 
+					Property = VisualStateGroupsProperty, 
+					Value = visualStateGroupList 
+				} 
+			} 
+		};
+	}
 
     private ContentView ApiKeyStep()
     {

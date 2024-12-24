@@ -1,0 +1,6 @@
+@SentenceStudio.WebAPI_HostAddress = http://localhost:5136
+
+GET {{SentenceStudio.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

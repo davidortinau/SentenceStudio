@@ -15,7 +15,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<MauiVersion>9.0.10</MauiVersion>
+		<MauiVersion>9.0.21</MauiVersion>
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -132,7 +132,8 @@
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Azure.AI.OpenAI" Version="2.0.0" />		
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.1" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.8" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.11" />
+		<PackageReference Include="CommunityToolkit.Datasync.Client" Version="8.0.4" />
 	</ItemGroup>
 
 	<!-- to override lower dependencies with vulerabilities -->
@@ -158,7 +159,6 @@
 	<ItemGroup>
 	  <Folder Include="Common/Layouts/" />
 	  <Folder Include="Pages/SyntacticAnalysis/" />
-	  <Folder Include="Services/" />
 	</ItemGroup>
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">

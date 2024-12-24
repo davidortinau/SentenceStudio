@@ -77,7 +77,7 @@ public partial class EditVocabularyPageModel : ObservableObject
     {
         Words.Remove(word);
         await _vocabService.DeleteWordAsync(word);
-        await _vocabService.DeleteWordFromListAsync(word, _vocabList.ID);
+        await _vocabService.DeleteWordFromListAsync(word, _vocabList.PrimaryID);
     }
 
     [RelayCommand]
@@ -86,6 +86,6 @@ public partial class EditVocabularyPageModel : ObservableObject
         var word = new VocabularyWord();
         Words.Insert(0, word);
         await _vocabService.SaveWordAsync(word);
-        await _vocabService.SaveWordToListAsync(word, _vocabList.ID);
+        await _vocabService.SaveWordToListAsync(word, _vocabList.PrimaryID);
     }
 }
