@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using CommunityToolkit.Maui;
 using CommunityToolkit.Mvvm.Messaging;
 using SentenceStudio.Messages;
 using SentenceStudio.Pages.Dashboard;
@@ -74,7 +75,39 @@ public partial class App : Application
         }
 		else
 		{
-			return new Window( new AppShell(activationState.Context.Services.GetService<AppShellModel>()) );
+			AppWindow window = new AppWindow();
+			window.Page = new AppShell( activationState.Context.Services.GetService<AppShellModel>() );
+			return window;
+
+			// return new Window( new AppShell( activationState.Context.Services.GetService<AppShellModel>() ) )
+			// {
+			// 	TitleBar = new TitleBar
+			// 	{
+			// 		Background = (Color)Application.Current.Resources["Primary"],
+			// 		Title = "Sentence Studio",
+			// 		Content = new HorizontalStackLayout
+			// 		{
+			// 			new Button
+			// 			{
+			// 				Text = "Light"
+			// 			},
+			// 			new Button
+			// 			{
+			// 				Text = "Dark"
+			// 			}
+			// 		},
+			// 		TrailingContent = new HorizontalStackLayout{
+			// 			new Button
+			// 			{
+			// 				Text = "Light"
+			// 			},
+			// 			new Button
+			// 			{
+			// 				Text = "Dark"
+			// 			}
+			// 		}
+			// 	}
+			// };
 		}
 	}
 }

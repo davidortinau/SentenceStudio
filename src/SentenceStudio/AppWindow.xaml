@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Window xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:b="clr-namespace:Syncfusion.Maui.Toolkit.Buttons;assembly=Syncfusion.Maui.Toolkit"
+             xmlns:sf="clr-namespace:Syncfusion.Maui.Toolkit.SegmentedControl;assembly=Syncfusion.Maui.Toolkit"
+             x:Class="SentenceStudio.AppWindow">
+    <Window.TitleBar>
+        <TitleBar>
+            <TitleBar.TrailingContent>
+                <HorizontalStackLayout 
+                    Spacing="8" Margin="4" VerticalOptions="Fill">
+                    <toolkit:AvatarView Text="DO" 
+                        FontSize="12"
+                        TextColor="White"
+                        BackgroundColor="#999999" 
+                        HeightRequest="36" 
+                        WidthRequest="36"/>
+
+                    <!-- <Image Source="{StaticResource IconLight}"/>
+                    <Image Source="{StaticResource IconDark}"/> -->
+
+                    <Grid>
+                        <sf:SfSegmentedControl 
+                            x:Name="ThemeSegmentedControl" 
+                            VisibleSegmentsCount="2" 
+                            VerticalOptions="Start" 
+                            SegmentHeight="36" SegmentWidth="36"
+                            SelectionChanged="SfSegmentedControl_SelectionChanged">
+                            <sf:SfSegmentedControl.ItemsSource>
+                                <x:Array Type="{x:Type sf:SfSegmentItem}">
+                                    <sf:SfSegmentItem ImageSource="{StaticResource IconLight}" />
+                                    <sf:SfSegmentItem ImageSource="{StaticResource IconDark}" />
+                                </x:Array>
+                            </sf:SfSegmentedControl.ItemsSource>
+                            <!-- <sf:SfSegmentedControl.SegmentTemplate>
+                                <DataTemplate>
+                                    <Button ImageSource="{Binding ImageSource}" BackgroundColor="Transparent" />
+                                </DataTemplate>
+                            </sf:SfSegmentedControl.SegmentTemplate> -->
+                        </sf:SfSegmentedControl>
+                    </Grid>
+                </HorizontalStackLayout>
+            </TitleBar.TrailingContent>
+        </TitleBar>
+    </Window.TitleBar>
+</Window>

@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:f="clr-namespace:Fonts"
                     x:Class="SentenceStudio.Resources.Styles.Fluent">
 
     <!-- https://develop.fluentui.dev/layout -->
@@ -39,6 +40,19 @@
              Default="12">
         <OnIdiom.Desktop>18</OnIdiom.Desktop>
     </OnIdiom>
+
+        <FontImageSource x:Key="IconLight"
+        Glyph="{x:Static f:FluentUI.weather_sunny_28_regular}"
+        FontFamily="{x:Static f:FluentUI.FontFamily}"
+        Color="{AppThemeBinding Light={StaticResource DarkOnLightBackground}, Dark={StaticResource LightOnDarkBackground}}"
+        Size="{StaticResource size240}" />
+<FontImageSource x:Key="IconDark"
+        Glyph="{x:Static f:FluentUI.weather_moon_28_regular}"
+        FontFamily="{x:Static f:FluentUI.FontFamily}"
+        Color="{AppThemeBinding Light={StaticResource DarkOnLightBackground}, Dark={StaticResource LightOnDarkBackground}}"
+        Size="{StaticResource size240}" />
+
+
     <Style TargetType="Entry">
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
