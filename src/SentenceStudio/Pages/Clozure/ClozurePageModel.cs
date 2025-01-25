@@ -305,7 +305,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
 		UserInput = beginSpeakingPrompt;
 
-		await _speechToText.StartListenAsync(CultureInfo.GetCultureInfo("ko-KR"), cancellationToken);
+		await _speechToText.StartListenAsync(new SpeechToTextOptions{ Culture = CultureInfo.GetCultureInfo("ko-KR") }, cancellationToken);
 
 		_speechToText.RecognitionResultUpdated += HandleRecognitionResultUpdated;
 
@@ -334,7 +334,7 @@ public partial class ClozurePageModel : BaseViewModel, IQueryAttributable
 
 	void HandleRecognitionResultCompleted(object? sender, SpeechToTextRecognitionResultCompletedEventArgs e)
 	{
-		UserInput = e.RecognitionResult;
+		UserInput = e.RecognitionResult.Text;
 	}
 
 	async void HandleSpeechToTextStateChanged(object? sender, SpeechToTextStateChangedEventArgs e)
