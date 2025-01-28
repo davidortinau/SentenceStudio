@@ -52,7 +52,7 @@ public partial class DashboardPageModel : BaseViewModel
                 if(lists.Count == 0)
                 {
                     //create default lists
-                    var response = await Shell.Current.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
+                    var response = await App.Current.Windows[0].Page.DisplayAlert("Vocabulary", "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
                     if(response){
                         await _vocabService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
                         VocabLists = await _vocabService.GetListsAsync();
@@ -60,10 +60,10 @@ public partial class DashboardPageModel : BaseViewModel
                 }
             }else{
                 // prompt to create a profile first
-                var response = await Shell.Current.DisplayAlert("Profile", "To get started, create a profile and tell us what language you are learning today.", "Let's do it", "Maybe later");
+                var response = await App.Current.Windows[0].Page.DisplayAlert("Profile", "To get started, create a profile and tell us what language you are learning today.", "Let's do it", "Maybe later");
                 if(response)
                 {
-                    await Shell.Current.GoToAsync("///userProfile");
+                    // await Shell.Current.GoToAsync("///userProfile");
                 }
             }
         }else{
@@ -87,7 +87,7 @@ public partial class DashboardPageModel : BaseViewModel
     [RelayCommand]
     async Task AddVocabulary()
     {
-        await Shell.Current.GoToAsync("addVocabulary");
+        // await Shell.Current.GoToAsync("addVocabulary");
     }
 
     private bool CanExecuteAddVocabularyCommand()
@@ -98,7 +98,7 @@ public partial class DashboardPageModel : BaseViewModel
     [RelayCommand]
     async Task ViewList(int listID)
     {
-        await Shell.Current.GoToAsync($"editVocabulary?id={listID}");
+        // await Shell.Current.GoToAsync($"editVocabulary?id={listID}");
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteCommands))]
@@ -114,7 +114,7 @@ public partial class DashboardPageModel : BaseViewModel
                             {"skillProfileID", SkillProfile.ID}
                         };
             
-            await Shell.Current.GoToAsync($"translation", payload);
+            // await Shell.Current.GoToAsync($"translation", payload);
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -130,7 +130,7 @@ public partial class DashboardPageModel : BaseViewModel
 
             var listID = VocabLists.First().ID;
             
-            await Shell.Current.GoToAsync($"syntacticAnalysis?listID={listID}");
+            // await Shell.Current.GoToAsync($"syntacticAnalysis?listID={listID}");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -143,7 +143,7 @@ public partial class DashboardPageModel : BaseViewModel
     {
         // await Shell.Current.DisplayAlert("HR", "Reloaded", "Okay");
         try{
-            await Shell.Current.GoToAsync($"describeScene");
+            // await Shell.Current.GoToAsync($"describeScene");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -154,7 +154,7 @@ public partial class DashboardPageModel : BaseViewModel
     async Task Warmup()
     {
         try{
-            await Shell.Current.GoToAsync($"warmup");
+            // await Shell.Current.GoToAsync($"warmup");
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
@@ -172,7 +172,7 @@ public partial class DashboardPageModel : BaseViewModel
                         };
 
         try{
-            await Shell.Current.GoToAsync($"{route}", payload);
+            // await Shell.Current.GoToAsync($"{route}", payload);
         }catch(Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");

@@ -2,9 +2,9 @@
 
 namespace SentenceStudio.Resources.Styles
 {
-    public partial class Colors : ResourceDictionary
+    public partial class AppColors : ResourceDictionary
     {
-        public Colors()
+        public AppColors()
         {
             InitializeComponent();
         }

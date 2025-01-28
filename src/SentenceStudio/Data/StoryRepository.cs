@@ -30,7 +30,7 @@ public class StoryRepository
         catch (Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
-            await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
+            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
         }
     }
 
@@ -84,14 +84,14 @@ public class StoryRepository
                         catch (Exception ex)
                         {
                             Debug.WriteLine($"{ex.Message}");
-                            await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
+                            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
+                await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
             }
         }       
 

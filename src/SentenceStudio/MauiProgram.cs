@@ -1,36 +1,17 @@
 ﻿using CommunityToolkit.Maui;
 using SentenceStudio.Pages.Dashboard;
-using SentenceStudio.Pages.Lesson;
-using SentenceStudio.Pages.Vocabulary;
 using Microsoft.Maui.Platform;
-using MauiIcons.SegoeFluent;
-using Microsoft.Maui.Handlers;
-using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
 #if ANDROID || IOS || MACCATALYST
 using Shiny;
 #endif
-using SentenceStudio.Pages.Scene;
-using SentenceStudio.Pages.Account;
-using SentenceStudio.Pages.Onboarding;
-using SentenceStudio.Pages.Translation;
 using CommunityToolkit.Maui.Media;
 using The49.Maui.BottomSheet;
-using SentenceStudio.Data;
 using SkiaSharp.Views.Maui.Controls.Hosting;
-using SentenceStudio.Pages.Clozure;
-using CommunityToolkit.Maui.Markup;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls.Hosting;
-using Microsoft.Maui.Hosting;
 using Plugin.Maui.Audio;
-using SentenceStudio.Pages.Skills;
-using SentenceStudio.Pages.Storyteller;
-using SentenceStudio.Pages.HowDoYouSay;
 using Fonts;
-using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Warmup;
 using Syncfusion.Maui.Toolkit.Hosting;
+using MauiReactor.HotReload;
 
 
 
@@ -41,7 +22,6 @@ using System.Reflection;
 
 
 #if DEBUG
-using Common;
 #endif
 using Plugin.Maui.DebugOverlay;
 
@@ -58,7 +38,7 @@ public static class MauiProgram
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
-			.UseMauiCommunityToolkitMarkup()
+			// .UseMauiCommunityToolkitMarkup()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
@@ -76,7 +56,7 @@ public static class MauiProgram
 					recordingOptions.Category = AVFoundation.AVAudioSessionCategory.Record;
 					recordingOptions.Mode = AVFoundation.AVAudioSessionMode.Default;
 					recordingOptions.CategoryOptions = AVFoundation.AVAudioSessionCategoryOptions.MixWithOthers;
-			#endif
+#endif
 			})
 			.ConfigureFonts(fonts =>
 			{
@@ -96,44 +76,6 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
             ;
 
-		builder.Services.AddSingleton<TeacherService>();
-		builder.Services.AddSingleton<VocabularyService>();
-		builder.Services.AddSingleton<ConversationService>();
-		builder.Services.AddSingleton<AiService>();
-		builder.Services.AddSingleton<SceneImageService>();
-		builder.Services.AddSingleton<ClozureService>();
-		builder.Services.AddSingleton<StorytellerService>();
-
-		builder.Services.AddSingleton<AppShellModel>();
-
-		builder.Services.AddSingleton<StoryRepository>();
-		builder.Services.AddSingleton<UserProfileRepository>();
-		builder.Services.AddSingleton<UserActivityRepository>();
-		builder.Services.AddSingleton<SkillProfileRepository>();
-
-		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
-
-		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
-
-		builder.Services.AddSingleton<OnboardingPageModel>();
-		builder.Services.AddSingleton<DashboardPageModel>();
-		builder.Services.AddSingleton<ListVocabularyPageModel>();
-		builder.Services.AddSingleton<LessonStartPageModel>();
-		builder.Services.AddSingleton<UserProfilePageModel>();
-		builder.Services.AddSingleton<ListSkillProfilesPageModel>();
-		
-		builder.Services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
-		builder.Services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
-		builder.Services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
-		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
-		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
-		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
-		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
-		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
-		builder.Services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
-
         
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
@@ -147,19 +89,21 @@ public static class MauiProgram
 
         builder.Configuration.AddConfiguration(config);
 #endif
-
-		builder.Services.AddSingleton<ISpeechToText>(SpeechToText.Default);
-        builder.Services.AddFilePicker();
-
-		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
-		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+		
 
 #if DEBUG
+		// builder.EnableMauiReactorHotReload(); 
+		// builder.OnMauiReactorUnhandledException(ex =>
+        // {
+        //     System.Diagnostics.Debug.WriteLine(ex);
+        // });
 		builder.UseDebugRibbon(Colors.Black);
-		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
 #endif
 
-// 		builder.Services.AddLogging(logging =>
+		RegisterRoutes();
+		RegisterServices(builder.Services);
+
+// 		services.AddLogging(logging =>
 // 			{
 // #if WINDOWS
 // 				logging.AddDebug();
@@ -176,6 +120,63 @@ public static class MauiProgram
 		
 		return builder.Build();
 	}
+
+    private static void RegisterRoutes()
+    {
+		// MauiReactor.Routing.RegisterRoute<ProjectDetailsPage>(nameof(ProjectDetailsPage));
+        // services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
+		// services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
+		// services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
+		// services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
+		// services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
+		// services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
+		// services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
+		// services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
+		// services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
+		// services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
+		// services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
+    }
+
+    [ComponentServices]
+    static void RegisterServices(IServiceCollection services)
+    {
+// #if DEBUG
+//         services.AddLogging(configure => configure.AddDebug());
+// #endif
+
+        
+		services.AddSingleton<TeacherService>();
+		services.AddSingleton<VocabularyService>();
+		services.AddSingleton<ConversationService>();
+		services.AddSingleton<AiService>();
+		services.AddSingleton<SceneImageService>();
+		services.AddSingleton<ClozureService>();
+		services.AddSingleton<StorytellerService>();
+
+		services.AddSingleton<AppShellModel>();
+
+		services.AddSingleton<StoryRepository>();
+		services.AddSingleton<UserProfileRepository>();
+		services.AddSingleton<UserActivityRepository>();
+		services.AddSingleton<SkillProfileRepository>();
+
+		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
+
+		// services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
+
+		// services.AddSingleton<OnboardingPageModel>();
+		// services.AddSingleton<DashboardPageModel>();
+		// services.AddSingleton<ListVocabularyPageModel>();
+		// services.AddSingleton<LessonStartPageModel>();
+		// services.AddSingleton<UserProfilePageModel>();
+		// services.AddSingleton<ListSkillProfilesPageModel>();
+
+		services.AddSingleton<ISpeechToText>(SpeechToText.Default);
+        services.AddFilePicker();
+
+		// services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
+		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+    }
 
 	
 
