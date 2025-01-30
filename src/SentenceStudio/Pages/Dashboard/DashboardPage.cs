@@ -1,10 +1,14 @@
-﻿namespace SentenceStudio.Pages.Dashboard;
+﻿
+using CustomLayouts;
+using ReactorCustomLayouts;
+
+namespace SentenceStudio.Pages.Dashboard;
 
 class DashboardPageState
 {
-    public List<VocabularyList> VocabLists { get; set; }
-    public List<SkillProfile> SkillProfiles { get; set; }
-    public VocabularyList SelectedVocabList { get; set; }   
+    public List<VocabularyList> VocabLists { get; set; } = [];
+    public List<SkillProfile> SkillProfiles { get; set; } = [];
+    public VocabularyList SelectedVocabList { get; set; }
     public SkillProfile SelectedSkillProfile { get; set; }
     public int SelectedVocabListIndex { get; set; }
     public int SelectedSkillProfileIndex { get; set; }
@@ -15,19 +19,7 @@ partial class DashboardPage : Component<DashboardPageState>
     [Inject] VocabularyService _vocabService;
     [Inject] SkillProfileRepository _skillService;
 
-    protected override async void OnMounted()
-    {
-        State.VocabLists = await _vocabService.GetListsAsync();
-        State.SkillProfiles = await _skillService.ListAsync();
-
-        // State.SelectedVocabListIndex = State.VocabLists.FirstOrDefault(p => p.ID == Props.Task.ProjectID);
-        // State.SelectedProjectIndex = State.Projects.IndexOf(State.SelectedProject);
-        
-        base.OnMounted();
-    }
-
     
-
     // ContentView scatterView;
     public override VisualNode Render()
 	{
@@ -44,7 +36,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         new SfTextInputLayout
                             {
                                 Picker()
-                                    .ItemsSource(State.VocabLists.Select(p => p.Name).ToList())
+                                    .ItemsSource(State.VocabLists.Select(_ => _.Name).ToList())
                                     .SelectedIndex(State.SelectedVocabListIndex)
                                     .OnSelectedIndexChanged(index => 
                                     {
@@ -56,7 +48,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         new SfTextInputLayout
                             {
                                 Picker()
-                                    .ItemsSource(State.SkillProfiles.Select(p => p.Title).ToList())
+                                    .ItemsSource(State.SkillProfiles?.Select(p => p.Title).ToList())
                                     .SelectedIndex(State.SelectedSkillProfileIndex)
                                     .OnSelectedIndexChanged(index => 
                                     {
@@ -67,14 +59,14 @@ partial class DashboardPage : Component<DashboardPageState>
                             .Hint("Skills"),
                         
                         Label().Style((Style)Application.Current.Resources["Title1"]).HStart().Text("Localize[Activities]"),
-                        HStack(
+                        new HWrap(){
                             new ActivityBorder().LabelText("Warmup"),
                             new ActivityBorder().LabelText("Storyteller"),
                             new ActivityBorder().LabelText("Translate"),
                             new ActivityBorder().LabelText("Write"),
                             new ActivityBorder().LabelText("Clozures"),
                             new ActivityBorder().LabelText("How do you say")                                
-                        )
+                        }.Spacing(20)
                                 
                                 // new HorizontalWrapLayout
                                 // {
@@ -98,7 +90,24 @@ partial class DashboardPage : Component<DashboardPageState>
                 )// vscrollview
             )// grid
                 
-        );// contentpage
+        ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
+    }
+
+    private async Task LoadOrRefreshDataAsync()
+    {
+        var vocabLists = await _vocabService.GetListsAsync();
+        var skills = await _skillService.ListAsync();
+
+        // var listIndex = State.VocabLists.FirstOrDefault(p => p.ID == Props.Task.ProjectID);
+        var profileIndex = State.SkillProfiles.IndexOf(State.SelectedSkillProfile);
+
+        SetState(s => 
+        {
+            s.VocabLists = vocabLists;
+            s.SkillProfiles = skills;
+            // s.SelectedVocabListIndex = listIndex;
+            s.SelectedSkillProfileIndex = profileIndex;
+        });
     }
 
     private void NavToWarmup(object sender, EventArgs e)
@@ -111,10 +120,6 @@ partial class DashboardPage : Component<DashboardPageState>
         //                     props.Skill = State.SelectedSkillProfile;
         //                 });
     }
-
-
-
-
 
 
     //     private async Task SetupScatterChart()
@@ -195,7 +200,7 @@ partial class DashboardPage : Component<DashboardPageState>
     //     }
 }
 
-public partial class ActivityBorder : Component
+public partial class ActivityBorder : MauiReactor.Component
     {
         [Prop]
         string _labelText;
@@ -205,6 +210,7 @@ public partial class ActivityBorder : Component
 
         [Prop]
         string _commandParameter;
+
 
         public override VisualNode Render()
         => Border(
