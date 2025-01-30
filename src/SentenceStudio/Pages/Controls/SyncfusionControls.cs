@@ -1,5 +1,4 @@
 using MauiReactor.Internals;
-using MauiControls = Microsoft.Maui.Controls;
 using System.Linq;
 
 namespace SentenceStudio.Pages.Controls;

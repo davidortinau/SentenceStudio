@@ -1,5 +1,4 @@
 using MauiReactor.Shapes;
-using MauiControls = Microsoft.Maui.Controls;
 using Fonts;
 
 namespace SentenceStudio.Resources.Styles;

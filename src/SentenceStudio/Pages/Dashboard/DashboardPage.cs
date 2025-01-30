@@ -1,15 +1,21 @@
 ﻿
 using CustomLayouts;
+using MauiReactor.Parameters;
 using ReactorCustomLayouts;
 
 namespace SentenceStudio.Pages.Dashboard;
+
+class DashboardParameters
+{
+    public VocabularyList SelectedVocabList { get; set; }
+    public SkillProfile SelectedSkillProfile { get; set; }
+}
 
 class DashboardPageState
 {
     public List<VocabularyList> VocabLists { get; set; } = [];
     public List<SkillProfile> SkillProfiles { get; set; } = [];
-    public VocabularyList SelectedVocabList { get; set; }
-    public SkillProfile SelectedSkillProfile { get; set; }
+    
     public int SelectedVocabListIndex { get; set; }
     public int SelectedSkillProfileIndex { get; set; }
 }
@@ -19,11 +25,15 @@ partial class DashboardPage : Component<DashboardPageState>
     [Inject] VocabularyService _vocabService;
     [Inject] SkillProfileRepository _skillService;
 
+    [Param] IParameter<DashboardParameters> _parameters;
+
+    LocalizationManager _localize => LocalizationManager.Instance;
+
     
     // ContentView scatterView;
     public override VisualNode Render()
 	{
-        return ContentPage("Dashboard",
+        return ContentPage($"{_localize["Dashboard"]}",
 
             Grid(                
                 VScrollView(
@@ -32,40 +42,48 @@ partial class DashboardPage : Component<DashboardPageState>
                             .Height(600)
                             .Width(800)
                             .IsVisible(false),
-                        Label().Text("Hello Reactor").FontSize(64),
-                        new SfTextInputLayout
-                            {
-                                Picker()
-                                    .ItemsSource(State.VocabLists.Select(_ => _.Name).ToList())
-                                    .SelectedIndex(State.SelectedVocabListIndex)
-                                    .OnSelectedIndexChanged(index => 
-                                    {
-                                        State.SelectedVocabListIndex = index;
-                                        State.SelectedVocabList = State.VocabLists[index];
-                                    })
-                            }
-                            .Hint("Vocabulary"),
-                        new SfTextInputLayout
-                            {
-                                Picker()
-                                    .ItemsSource(State.SkillProfiles?.Select(p => p.Title).ToList())
-                                    .SelectedIndex(State.SelectedSkillProfileIndex)
-                                    .OnSelectedIndexChanged(index => 
-                                    {
-                                        State.SelectedSkillProfileIndex = index;
-                                        State.SelectedSkillProfile = State.SkillProfiles[index];
-                                    })
-                            }
-                            .Hint("Skills"),
+                        Grid(
+                            new SfTextInputLayout
+                                {
+                                    Picker()
+                                        .ItemsSource(State.VocabLists.Select(_ => _.Name).ToList())
+                                        .SelectedIndex(State.SelectedVocabListIndex)
+                                        .OnSelectedIndexChanged(index => 
+                                        {
+                                            State.SelectedVocabListIndex = index;
+                                            _parameters.Set(p => p.SelectedVocabList = State.VocabLists[index]);
+                                        })
+                                }
+                                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
+                                .ContainerBackground(Colors.White)
+                                .Hint("Vocabulary"),
+                            new SfTextInputLayout
+                                {
+                                    Picker()
+                                        .ItemsSource(State.SkillProfiles?.Select(p => p.Title).ToList())
+                                        .SelectedIndex(State.SelectedSkillProfileIndex)
+                                        .OnSelectedIndexChanged(index => 
+                                        {
+                                            State.SelectedSkillProfileIndex = index;
+                                            _parameters.Set(p => p.SelectedSkillProfile = State.SkillProfiles[index]);
+                                        })
+                                }
+                                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
+                                .ContainerBackground(Colors.White)
+                                .Hint("Skills")
+                                .GridColumn(1)
+                        ).Columns("*,*").ColumnSpacing(15),
                         
-                        Label().Style((Style)Application.Current.Resources["Title1"]).HStart().Text("Localize[Activities]"),
+                        Label().Style((Style)Application.Current.Resources["Title1"]).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
-                            new ActivityBorder().LabelText("Warmup"),
-                            new ActivityBorder().LabelText("Storyteller"),
-                            new ActivityBorder().LabelText("Translate"),
-                            new ActivityBorder().LabelText("Write"),
-                            new ActivityBorder().LabelText("Clozures"),
-                            new ActivityBorder().LabelText("How do you say")                                
+                            new ActivityBorder()
+                                .LabelText($"{_localize["Warmup"]}")
+                                .Route("warmup"),
+                            new ActivityBorder().LabelText($"{_localize["Storyteller"]}"),
+                            new ActivityBorder().LabelText($"{_localize["Translate"]}"),
+                            new ActivityBorder().LabelText($"{_localize["Write"]}"),
+                            new ActivityBorder().LabelText($"{_localize["Clozures"]}"),
+                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}")                                
                         }.Spacing(20)
                                 
                                 // new HorizontalWrapLayout
@@ -99,14 +117,19 @@ partial class DashboardPage : Component<DashboardPageState>
         var skills = await _skillService.ListAsync();
 
         // var listIndex = State.VocabLists.FirstOrDefault(p => p.ID == Props.Task.ProjectID);
-        var profileIndex = State.SkillProfiles.IndexOf(State.SelectedSkillProfile);
+        // var profileIndex = State.SkillProfiles.IndexOf(State.SelectedSkillProfile);
+
+        _parameters.Set(p =>{
+            p.SelectedVocabList = vocabLists.FirstOrDefault();
+            p.SelectedSkillProfile = skills.FirstOrDefault();
+        });
 
         SetState(s => 
         {
             s.VocabLists = vocabLists;
             s.SkillProfiles = skills;
             // s.SelectedVocabListIndex = listIndex;
-            s.SelectedSkillProfileIndex = profileIndex;
+            // s.SelectedSkillProfileIndex = profileIndex;
         });
     }
 
@@ -206,10 +229,9 @@ public partial class ActivityBorder : MauiReactor.Component
         string _labelText;
 
         [Prop]
-        string _commandName;
+        string _route;
 
-        [Prop]
-        string _commandParameter;
+        [Param] IParameter<DashboardParameters> _parameters;
 
 
         public override VisualNode Render()
@@ -227,7 +249,15 @@ public partial class ActivityBorder : MauiReactor.Component
             .StrokeShape( Rectangle())
             .StrokeThickness(1)
             .HorizontalOptions(LayoutOptions.Start)
-            ;
+            .OnTapped(async ()=>
+            await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
+                _route, 
+                props => {
+                    props.Vocabulary = _parameters.Value.SelectedVocabList;
+                    props.Skill = _parameters.Value.SelectedSkillProfile;
+                    }
+                    )
+                    );
     }
 
 class ActivityProps

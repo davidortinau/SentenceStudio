@@ -14,3 +14,4 @@ global using SentenceStudio.Common;
 global using SQLiteNetExtensions.Attributes;
 global using SentenceStudio.Pages.Controls;
 global using MauiReactor;
+global using MauiControls = Microsoft.Maui.Controls;
