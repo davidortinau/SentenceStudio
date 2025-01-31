@@ -2,6 +2,7 @@
 using CustomLayouts;
 using MauiReactor.Parameters;
 using ReactorCustomLayouts;
+using SentenceStudio.Pages.Warmup;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -29,7 +30,14 @@ partial class DashboardPage : Component<DashboardPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
-    
+    protected override void OnMounted()
+    {
+        MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
+
+        base.OnMounted();
+    }
+
+
     // ContentView scatterView;
     public override VisualNode Render()
 	{
