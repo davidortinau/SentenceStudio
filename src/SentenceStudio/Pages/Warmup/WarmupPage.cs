@@ -14,16 +14,23 @@ class WarmupPageState
     public ObservableCollection<ConversationChunk> Chunks { get; set; } = new();
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
+
+    public bool IsPopupShown { get; set; }
+
+    public bool? PopupResult { get; set; }
+
+    public string Explanation { get; set; }
 }
 
 partial class WarmupPage : Component<WarmupPageState>
 {
     [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
-    [Inject] IPopupService _popupService;
     [Inject] AiService _aiService;
 
     private Conversation _conversation;
+
+    private CommunityToolkit.Maui.Views.Popup? _popup;
 
     public override VisualNode Render()
     {
@@ -35,7 +42,28 @@ partial class WarmupPage : Component<WarmupPageState>
                     )
                     .Spacing(15)
                 ),
-                Input()
+                Input(),
+                new PopupHost(r => _popup = r)
+                {
+                    VStack(spacing: 10,
+                    
+                        Label("Hi!"),
+
+                        HStack(spacing: 10,
+                        
+                            Button("OK", ()=> _popup?.Close(true)),
+
+                            Button("Cancel", ()=> _popup?.Close(false))
+                        )
+                    )
+                }
+                .GridRowSpan(2)
+                .IsShown(State.IsPopupShown)
+                .OnClosed(result => SetState(s =>
+                {
+                    s.IsPopupShown = false;
+                    s.PopupResult = (bool?)result;
+                }))
             )
         ).OnAppearing(ResumeConversation);
     }
@@ -80,9 +108,10 @@ partial class WarmupPage : Component<WarmupPageState>
         explanation += $"{s.ComprehensionNotes}" + Environment.NewLine + Environment.NewLine;
         
         try{
-            // await _popupService.ShowPopupAsync<ExplanationViewModel>(onPresenting: viewModel => {
-            //     viewModel.Text = explanation;
-            //     });
+            SetState(s =>{
+                s.Explanation = explanation;
+                s.IsPopupShown = true;
+            });
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }
@@ -96,6 +125,11 @@ partial class WarmupPage : Component<WarmupPageState>
                     .FontSize((double)Application.Current.Resources["size200"])
                     .ReturnType(ReturnType.Send)
                     .Text(State.UserInput)
+                    .OnTextChanged((s, e) => State.UserInput = e.NewTextValue)
+                    .OnCompleted(async () =>
+                    {
+                        await SendMessage();
+                    })
                     // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
             )
             .Background(Colors.Transparent)
@@ -117,6 +151,31 @@ partial class WarmupPage : Component<WarmupPageState>
         .Margin(new Thickness(15))
         .ColumnSpacing(15)
         .VEnd();
+
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(State.UserInput))
+        {
+            var chunk = new ConversationChunk(
+                _conversation.ID,
+                DateTime.Now, 
+                $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}", 
+                State.UserInput
+            );
+            
+            
+            await _conversationService.SaveConversationChunk(chunk);
+            
+            SetState(s => {
+                s.Chunks.Add(chunk);
+                s.UserInput = string.Empty;
+            });
+
+            // send to the bot for a response
+            await Task.Delay(2000);
+            await GetReply();
+        }
+    }
 
     private async Task ResumeConversation()
     {
