@@ -1,9 +1,11 @@
 using CommunityToolkit.Maui.Core;
+using CommunityToolkit.Maui.Views;
 using MauiReactor;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using SentenceStudio.Models;
 using SentenceStudio.Pages.Controls;
+using SentenceStudio.Resources.Styles;
 using SentenceStudio.Services;
 using System.Collections.ObjectModel;
 
@@ -15,7 +17,9 @@ class WarmupPageState
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
 
-    public bool IsPopupShown { get; set; }
+    public bool IsExplanationShown { get; set; }
+
+    public bool IsPhraseListShown { get; set; }
 
     public bool? PopupResult { get; set; }
 
@@ -30,43 +34,89 @@ partial class WarmupPage : Component<WarmupPageState>
 
     private Conversation _conversation;
 
-    private CommunityToolkit.Maui.Views.Popup? _popup;
+    private CommunityToolkit.Maui.Views.Popup? _popup, _phrasesPopup;
+
+    private Action<string>? _onItemTapped;
+    private Action? _onCloseClicked;
+
+    string[] phrases = new[]
+        {
+            "이거 한국어로 뭐예요?",
+            "더 자세히 설명해 주세요.",
+            "잘 알겠어요.",
+            "잘 이해했어요.",
+            "다시 한 번 말해 주세요.",
+            "한국어 조금밖에 안 해요.",
+            "도와주셔서 감사합니다.",
+            "한국어로 말해 주세요.",
+            "한국어로 쓰세요.",
+            "한국어로 번역해 주세요."
+        };
 
     public override VisualNode Render()
     {
         return ContentPage("Warmup",
             Grid(rows: "*, Auto","*",
-                ScrollView(
+                RenderMessageScroll(),
+                RenderInput(),
+                RenderExplanationPopup(),
+                RenderPhrasesPopup()
+            )
+        ).OnAppearing(ResumeConversation);
+    }
+
+    VisualNode RenderMessageScroll() => ScrollView(
                     VStack(
                         State.Chunks.Select(c => RenderChunk(c)).ToArray()
                     )
                     .Spacing(15)
-                ),
-                Input(),
-                new PopupHost(r => _popup = r)
+                );
+
+    VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
                 {
                     VStack(spacing: 10,
                     
-                        Label("Hi!"),
+                        Label(State.Explanation),
 
-                        HStack(spacing: 10,
-                        
-                            Button("OK", ()=> _popup?.Close(true)),
-
-                            Button("Cancel", ()=> _popup?.Close(false))
-                        )
+                        Button("Close", ()=> _popup?.Close(false))
                     )
+                    .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
                 }
-                .GridRowSpan(2)
-                .IsShown(State.IsPopupShown)
+                .GridRowSpan(2)                
                 .OnClosed(result => SetState(s =>
                 {
-                    s.IsPopupShown = false;
+                    s.IsExplanationShown = false;
                     s.PopupResult = (bool?)result;
                 }))
-            )
-        ).OnAppearing(ResumeConversation);
-    }
+                .IsShown(State.IsExplanationShown);
+
+    VisualNode RenderPhrasesPopup() => new PopupHost(r => _phrasesPopup = r)
+                {
+                    Grid("*,Auto","",
+                    ScrollView(
+                        VStack(spacing: 20,
+                        phrases.Select(text =>
+                            Label()
+                            .Text(text)
+                            .OnTapped((sender, args) => {
+                                SetState(s=> s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text);
+                                _popup?.Close(true);
+                            }
+                                )
+                            )
+                        )
+                    ),
+                    Button()
+                        .Text("Cancel")
+                        .GridRow(1)
+                        .OnClicked(() => _onCloseClicked?.Invoke())
+                    )
+                    .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
+                    .Padding(15)
+                    .Margin(15)
+                    .HorizontalOptions(LayoutOptions.Fill)
+                    .MinimumWidthRequest(320)
+                }.IsShown(State.IsPhraseListShown);
 
     VisualNode RenderChunk(ConversationChunk chunk)
     {
@@ -110,14 +160,14 @@ partial class WarmupPage : Component<WarmupPageState>
         try{
             SetState(s =>{
                 s.Explanation = explanation;
-                s.IsPopupShown = true;
+                s.IsExplanationShown = true;
             });
         }catch(Exception e){
             Debug.WriteLine(e.Message);
         }
     }
 
-    VisualNode Input() =>
+    VisualNode RenderInput() =>
         Grid("", "* Auto",
             Border(
                 Entry()
@@ -139,18 +189,35 @@ partial class WarmupPage : Component<WarmupPageState>
             .StrokeThickness(1)
             .VerticalOptions(LayoutOptions.End),
             Button()
-                .BackgroundColor(Colors.Transparent)
-                // .ImageSource(SegoeFluentIcons.Add)
+                .BackgroundColor(Colors.Red)
+                .ImageSource(ApplicationTheme.IconAdd)
+                .Text("add")
                 // .IconSize(18)
                 // .AppThemeBinding(Button.TextColorProperty, (Color)Application.Current.Resources["DarkOnLightBackground"], (Color)Application.Current.Resources["LightOnDarkBackground"])
                 .VCenter()
                 // .BindCommand(nameof(WarmupPageModel.GetPhraseCommand))
                 .GridColumn(1)
+                .OnPressed(async () =>
+                {
+                    // await GetPhrase();
+                    SetState(s => s.IsPhraseListShown = true);
+                })
         )
         .GridRow(1)
         .Margin(new Thickness(15))
         .ColumnSpacing(15)
         .VEnd();
+
+    private async Task GetPhrase()
+    {
+        // var result = await _popupService.ShowPopupAsync<PhraseClipboardViewModel>(CancellationToken.None);
+        // if(result is string phrase)
+        // {
+        //     UserInput = phrase;
+        // }
+
+        // ContainerPage.ShowPopup(_popup);
+    }
 
     private async Task SendMessage()
     {

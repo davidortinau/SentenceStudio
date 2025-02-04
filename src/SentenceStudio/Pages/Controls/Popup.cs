@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Core;
 using MauiReactor.Internals;
+using CommunityToolkit.Maui.Views;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -78,7 +79,7 @@ class PopupHost : Component
                     return;
                 }
 
-                // ContainerPage.ShowPopup(_popup);
+                ContainerPage.ShowPopup(_popup);
             });
         }
     }
@@ -96,6 +97,7 @@ class PopupHost : Component
                 children[0]
             }
             .OnClosed(OnClosed)
+            .CanBeDismissedByTappingOutsideOfPopup(true)
             : null!;
     }
 
