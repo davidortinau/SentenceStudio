@@ -13,13 +13,9 @@ using Fonts;
 using Syncfusion.Maui.Toolkit.Hosting;
 using MauiReactor.HotReload;
 
-
-
 #if WINDOWS
 using System.Reflection;
 #endif
-
-
 
 #if DEBUG
 #endif
@@ -38,7 +34,6 @@ public static class MauiProgram
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
-			// .UseMauiCommunityToolkitMarkup()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
@@ -76,7 +71,6 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
             ;
 
-        
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
 #else

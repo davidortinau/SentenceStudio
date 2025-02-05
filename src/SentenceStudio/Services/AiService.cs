@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using SentenceStudio.Models;
+using Microsoft.Extensions.AI;
+using OpenAI;
 
 namespace SentenceStudio.Services;
 
@@ -17,14 +19,21 @@ public class AiService {
     public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool shouldStreamResponse = false)
     {
         try{
+            IChatClient client =
+                new OpenAIClient(_openAiApiKey)
+                    .AsChatClient(modelId: "gpt-4o-mini");
+
+                var response = await client.CompleteAsync(prompt);
+
+
             // Create a new instance of the OpenAI client
-            var aiClient = new AIClient(_openAiApiKey);
+            // var aiClient = new AIClient(_openAiApiKey);
             
 
             // Send the prompt to OpenAI and receive the conversation response
-            var response = await aiClient.SendPrompt(prompt, shouldReturnJson, shouldStreamResponse);
-            Debug.WriteLine($"Response: {response}");
-            return response;
+            // var response = await aiClient.SendPrompt(prompt, shouldReturnJson, shouldStreamResponse);
+            Debug.WriteLine($"Response: {response.Message.Text}");
+            return response.Message.Text;
         }
         catch (Exception ex)
         {

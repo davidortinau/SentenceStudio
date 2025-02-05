@@ -5,6 +5,8 @@ using SentenceStudio.Models;
 using SQLite;
 using Scriban;
 using System.Text.Json;
+using Microsoft.Extensions.AI;
+using OpenAI;
 
 namespace SentenceStudio.Services
 {
@@ -14,12 +16,14 @@ namespace SentenceStudio.Services
         readonly IConfiguration configuration;
         private AiService _aiService;
 
-        
+        private readonly string _openAiApiKey;
 
         public ConversationService(IServiceProvider service, IConfiguration configuration)
         {
             _aiService = service.GetRequiredService<AiService>();
             this.configuration = configuration;
+
+            _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         }
 
         async Task Init()
@@ -102,11 +106,17 @@ namespace SentenceStudio.Services
             
             try
             {
-                string response = await _aiService.SendPrompt(prompt, true);
+                // string response = await _aiService.SendPrompt(prompt, true);
 
-                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.Reply);
+                // var reply = JsonSerializer.Deserialize(response, JsonContext.Default.Reply);
 
-                return reply;
+                IChatClient client =
+                new OpenAIClient(_openAiApiKey)
+                    .AsChatClient(modelId: "gpt-4o-mini");
+
+                var response = await client.CompleteAsync<Reply>(prompt);
+
+                return response.Result;
             }
             catch (Exception ex)
             {

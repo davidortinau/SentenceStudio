@@ -115,7 +115,7 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="11.0.0" />
-		<PackageReference Include="OpenAI" Version="2.0.0" />
+		<PackageReference Include="OpenAI" Version="2.1.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="3.0.1" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="4.0.0" />
@@ -137,7 +137,7 @@
 
 	<!-- to override lower dependencies with vulerabilities -->
 	<ItemGroup>
-		<PackageReference Include="System.Text.Json" Version="8.0.5" />
+		<PackageReference Include="System.Text.Json" Version="9.0.1" />
 	</ItemGroup>
 
 	<!-- <ItemGroup>
@@ -150,6 +150,10 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
+				
+		<PackageReference Include="Microsoft.Extensions.AI" Version="9.1.0-preview.1.25064.3" />		
+				
+		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.1.0-preview.1.25064.3" />		
 				
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.3" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />

@@ -74,12 +74,14 @@ partial class WarmupPage : Component<WarmupPageState>
 
     VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
                 {
-                    VStack(spacing: 10,
+                    VStack(
                     
                         Label(State.Explanation),
 
                         Button("Close", ()=> _popup?.Close(false))
                     )
+                    .Spacing(10)
+                    .Padding(15)
                     .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
                 }
                 .GridRowSpan(2)                
@@ -136,16 +138,28 @@ partial class WarmupPage : Component<WarmupPageState>
         }
         else
         {
-            return Border(
-                new SelectableLabel()
-                    .Text(chunk.Text)
+            return Grid(
+                Border(
+                    new SelectableLabel()
+                        .Text(chunk.Text)
+                    )
+                    .Margin(new Thickness(15, 5))
+                    .Padding(new Thickness(12, 4, 12, 8))
+                    .Background((Color)Application.Current.Resources["Secondary"])
+                    .Stroke((Color)Application.Current.Resources["Secondary"])
+                    .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
+                    .HEnd()
+                    .VStart(),
+                Border(Label().Text($"{chunk.Comprehension}").FontSize(10))
+                    .BackgroundColor((Color)Application.Current.Resources["Gray200"])
+                    .StrokeShape(new RoundRectangle().CornerRadius(8, 8, 0, 0))
+                    .StrokeThickness(0)
+                    .Margin(new Thickness(0, 0, 15, 0))
+                    .Padding(new Thickness(6, 0, 6, 2))
+                    .HEnd()
+                    .VStart()
+                    .TranslationY(-14)
             )
-            .Margin(new Thickness(15, 5))
-            .Padding(new Thickness(12, 4, 12, 8))
-            .Background((Color)Application.Current.Resources["Secondary"])
-            .Stroke((Color)Application.Current.Resources["Secondary"])
-            .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
-            .HorizontalOptions(LayoutOptions.End)
             .OnTapped(()=>{
                 ShowExplanation(chunk);
             });
@@ -189,13 +203,10 @@ partial class WarmupPage : Component<WarmupPageState>
             .StrokeThickness(1)
             .VerticalOptions(LayoutOptions.End),
             Button()
-                .BackgroundColor(Colors.Red)
+                .Background(Theme.IsLightTheme ? (Color)Application.Current.Resources["DarkOnLightBackground"] : (Color)Application.Current.Resources["LightOnDarkBackground"])
                 .ImageSource(ApplicationTheme.IconAdd)
                 .Text("add")
-                // .IconSize(18)
-                // .AppThemeBinding(Button.TextColorProperty, (Color)Application.Current.Resources["DarkOnLightBackground"], (Color)Application.Current.Resources["LightOnDarkBackground"])
                 .VCenter()
-                // .BindCommand(nameof(WarmupPageModel.GetPhraseCommand))
                 .GridColumn(1)
                 .OnPressed(async () =>
                 {
@@ -292,10 +303,17 @@ partial class WarmupPage : Component<WarmupPageState>
         State.IsBusy = true;
 
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
-        State.Chunks.Add(chunk);
+        
+        SetState(s => s.Chunks.Add(chunk));
+        // State.Chunks.Add(chunk);
 
         Reply response = await _conversationService.ContinueConveration(State.Chunks.ToList());
         chunk.Text = response.Message;
+
+        SetState(s =>
+        {
+            s.Chunks[State.Chunks.Count - 1] = chunk;
+        });
 
         var previousChunk = State.Chunks[State.Chunks.Count - 2];
         previousChunk.Comprehension = response.Comprehension;
