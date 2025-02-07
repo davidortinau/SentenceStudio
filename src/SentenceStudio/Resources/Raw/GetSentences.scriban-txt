@@ -1,7 +1,9 @@
 I am an English speaker learning Korean. 
+
 From among the following vocabulary words generate for me 5 sentence:  ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}). When choosing a subject, avoid using pronouns like he or she; instead subtitute names or titles like 김거은, 언니, 형, 선생님, 아저씨, 이모, and others.
 
 For example, here are sentences given the vocabulary 학생, 한국어, 공부하다, 많다, 음식, 매우다, 보통, 밥, 주말: 
+
 저는 학생이에요.
 왜 한국어를 공부해요?
 언제부토 한국어를 공부했어요?
@@ -10,9 +12,3 @@ For example, here are sentences given the vocabulary 학생, 한국어, 공부�
 보통 일찍 자는데 어제는 늦게 잤어요. 
 밥 먹을 때 소리내도 돼요?
 오늘 주말이라서 일 안 해도 돼요.
-
-{%{ Identify the parts of speech for the chunks of each sentence and include that in the response. }%}
-
-Format your response as json like this: 
-
-{\"sentences\": [{\"sentence\": \"저는 학생이에요.\",\"chunks\": [{\"chunk\": \"저는\",\"part_of_speech\": \"subject\"},{\"chunk\": \"학생이에요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"왜 한국어를 공부해요?\",\"chunks\": [{\"chunk\": \"왜\",\"part_of_speech\": \"adverb\"},{\"chunk\": \"한국어를 공부해요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"언제부터 한국어를 공부했어요?\",\"chunks\": [{\"chunk\": \"언제부터\",\"part_of_speech\": \"adverb\"},{\"chunk\": \"한국어를 공부했어요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"어제 너무 많이 먹은 것 같아요.\",\"chunks\": [{\"chunk\": \"어제\",\"part_of_speech\": \"adverb\"},{\"chunk\": \"너무 많이 먹은 것 같아요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"한국 음식은 맛있는데 매워요.\",\"chunks\": [{\"chunk\": \"한국 음식은\",\"part_of_speech\": \"subject\"},{\"chunk\": \"맛있는데 매워요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"보통 일찍 자는데 어제는 늦게 잤어요.\",\"chunks\": [{\"chunk\": \"보통 일찍 자는데\",\"part_of_speech\": \"subject\"},{\"chunk\": \"어제는 늦게 잤어요\",\"part_of_speech\": \"predicate\"}]},{\"sentence\": \"밥 먹을 때 소리내도 돼요?\",\"chunks\": [{\"chunk\": \"밥 먹을 때\",\"part_of_speech\": \"subject\"},{\"chunk\": \"소리내도 돼요\",\"part_of_speech\": \"predicate\"}]}]}

@@ -15,6 +15,8 @@ using MauiReactor.HotReload;
 using SentenceStudio.Pages.Warmup;
 using SentenceStudio.Pages.HowDoYouSay;
 using SentenceStudio.Pages.Clozure;
+using SentenceStudio.Pages.Translation;
+
 
 
 
@@ -97,7 +99,7 @@ public static class MauiProgram
         // {
         //     System.Diagnostics.Debug.WriteLine(ex);
         // });
-		builder.UseDebugRibbon(Colors.Black);
+		// builder.UseDebugRibbon(Colors.Black);
 #endif
 
 		RegisterRoutes();
@@ -126,6 +128,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
 		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
 		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
+		MauiReactor.Routing.RegisterRoute<TranslationPage>(nameof(TranslationPage));
 		// MauiReactor.Routing.RegisterRoute<ProjectDetailsPage>(nameof(ProjectDetailsPage));
         // services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
 		// services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");

@@ -3,6 +3,7 @@ using CustomLayouts;
 using MauiReactor.Parameters;
 using ReactorCustomLayouts;
 using SentenceStudio.Pages.Clozure;
+using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.Warmup;
 
 namespace SentenceStudio.Pages.Dashboard;
@@ -89,7 +90,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                 .LabelText($"{_localize["Warmup"]}")
                                 .Route("warmup"),
                             new ActivityBorder().LabelText($"{_localize["Storyteller"]}"),
-                            new ActivityBorder().LabelText($"{_localize["Translate"]}"),
+                            new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}"),
                             new ActivityBorder().LabelText($"{_localize["Clozures"]}").Route(nameof(ClozurePage)),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")                                
