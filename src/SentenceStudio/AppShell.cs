@@ -2,6 +2,7 @@
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
 using SentenceStudio.Pages.Dashboard;
+using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Resources.Styles;
 using Sharpnado.Tasks;
 
@@ -47,7 +48,13 @@ public class AppShell : Component<AppShellState>
                     .Title("Dashboard")
                     .RenderContent(() => new DashboardPage())
                     .Route("dashboard")
-            )//.Icon(ResourceHelper.GetResource<FontImageSource>("IconDashboard"))
+            ),
+            FlyoutItem("Vocabulary",
+                ShellContent()
+                    .Title("Vocabulary")
+                    .RenderContent(() => new ListVocabularyPage())
+                    .Route(nameof(ListVocabularyPage))
+            )
             
         );
         // .FlyoutFooter(
