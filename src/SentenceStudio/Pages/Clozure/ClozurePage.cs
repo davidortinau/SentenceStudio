@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Dashboard;
+using System.Timers;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -84,14 +85,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Source(SegoeFluentIcons.Previous.ToImageSource())
-				.Aspect(Aspect.Center)
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Source(SegoeFluentIcons.Next.ToImageSource())
-				.Aspect(Aspect.Center)
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
 
@@ -215,8 +214,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (activity == null) return null;
 		
 		return activity.Accuracy == 100 ? 
-			SegoeFluentIcons.StatusCircleCheckmark.ToImageSource() : 
-			SegoeFluentIcons.StatusErrorCircle7.ToImageSource();
+			SegoeFluentIcons.StatusCircleCheckmark.ToFontImageSource() : 
+			SegoeFluentIcons.StatusErrorCircle7.ToFontImageSource();
 	}
 
 	private async void JumpTo(Challenge challenge)
@@ -263,20 +262,23 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.OrderBy(x => Guid.NewGuid())
 						.ToArray();
 				});
-			}
 
-			if (sentences.Count < 10)
-			{
-				SetState(s => s.IsBuffering = true);
-				var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
-				SetState(s =>
+				if (sentences.Count < 10)
 				{
-					foreach (var sentence in moreSentences)
+					SetState(s => s.IsBuffering = true);
+					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					SetState(s =>
 					{
-						s.Sentences.Add(sentence);
-					}
-					s.IsBuffering = false;
-				});
+						if (moreSentences != null && moreSentences.Any())
+						{
+							foreach (var sentence in moreSentences)
+							{
+								s.Sentences.Add(sentence);
+							}
+						}
+						s.IsBuffering = false;
+					});
+				}
 			}
 		}
 		catch (Exception ex)
@@ -317,52 +319,111 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	private System.Timers.Timer autoNextTimer;
 
-	private void TransitionToNextSentence()
+	private async void TransitionToNextSentence()
 	{
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
+		if (currentIndex >= State.Sentences.Count - 1)
+		{
+			NextSentence();
+			return;
+		}
+
 		autoNextTimer = new System.Timers.Timer(100);
 		var startedTime = DateTime.Now;
-		
-		autoNextTimer.Elapsed += (sender, e) =>
+
+		ElapsedEventHandler handler = null;
+		handler = (sender, e) =>
 		{
 			SetState(s => s.AutoTransitionProgress = (e.SignalTime - startedTime).TotalMilliseconds / 5000);
-			
+
 			if (State.AutoTransitionProgress >= 1)
 			{
 				autoNextTimer.Stop();
+				autoNextTimer.Elapsed -= handler; // Unsubscribe from the event
 				NextSentence();
 				SetState(s => s.AutoTransitionProgress = 0);
 			}
 		};
-		
+
+		autoNextTimer.Elapsed += handler;
 		autoNextTimer.Start();
 	}
 
-	private void PreviousSentence()
+	private async void NextSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = "Text");
 
-		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
-		if (currentIndex <= 0) return;
-
-		var previousChallenge = State.Sentences[currentIndex - 1];
-		JumpTo(previousChallenge);
-	}
-
-	private void NextSentence()
-	{
-		autoNextTimer?.Stop();
-		SetState(s => s.UserMode = "Text");
-
-		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+		if (currentIndex == -1) currentIndex = State.Sentences.Count - 1; // Handle case where no sentence is current
+		
 		if (currentIndex >= State.Sentences.Count - 1)
 		{
-			// Optional: Load more sentences or show completion message
+			var result = await Application.Current.MainPage.DisplayAlert(
+				_localize["End of Sentences"].ToString(),
+				_localize["Would you like to get more sentences?"].ToString(),
+				_localize["Yes"].ToString(),
+				_localize["No"].ToString()
+			);
+
+			if (result)
+			{
+				SetState(s => s.IsBuffering = true);
+				try 
+				{
+					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					if (moreSentences?.Any() == true)
+					{
+						SetState(s =>
+						{
+							foreach (var sentence in moreSentences)
+							{
+								s.Sentences.Add(sentence);
+							}
+						});
+						JumpTo(State.Sentences[currentIndex + 1]);
+					}
+					else 
+					{
+						await Application.Current.MainPage.DisplayAlert(
+							_localize["No More Sentences"].ToString(),
+							_localize["There are no more sentences available for this vocabulary."].ToString(),
+							_localize["OK"].ToString()
+						);
+					}
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine(ex.Message);
+					await Application.Current.MainPage.DisplayAlert(
+						_localize["Error"].ToString(),
+						_localize["Unable to load more sentences."].ToString(),
+						_localize["OK"].ToString()
+					);
+				}
+				finally
+				{
+					SetState(s => s.IsBuffering = false);
+				}
+			}
 			return;
 		}
 
 		var nextChallenge = State.Sentences[currentIndex + 1];
 		JumpTo(nextChallenge);
+	}
+
+	private async void PreviousSentence()
+	{
+		autoNextTimer?.Stop();
+		SetState(s => s.UserMode = "Text");
+
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+		if (currentIndex == -1) return; // Handle case where no sentence is current
+		if (currentIndex <= 0) return;
+
+		var previousChallenge = State.Sentences[currentIndex - 1];
+		JumpTo(previousChallenge);
 	}
 
 	protected override void OnMounted()
