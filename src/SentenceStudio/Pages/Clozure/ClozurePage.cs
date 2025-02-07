@@ -1,12 +1,5 @@
-using Border = Microsoft.Maui.Controls.Border;
-using MauiReactor;
 using MauiReactor.Shapes;
-using SentenceStudio.Models;
 using System.Collections.ObjectModel;
-using MauiIcons.SegoeFluent;
-using System.Linq;
-using System.Diagnostics;
-using System.Timers;
 using SentenceStudio.Pages.Dashboard;
 
 namespace SentenceStudio.Pages.Clozure;
@@ -36,9 +29,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	public override VisualNode Render()
 	{
 		return ContentPage($"{_localize["Clozures"]}",
-			Grid(rows: "*, Auto", "*",
+			Grid(rows: "*, 80", columns: "*",
 				ScrollView(
-					Grid(rows: "60,*,Auto","",
+					Grid(rows: "60,*,Auto", columns: "*",
 						SentenceScoreboard(),
 						SentenceDisplay(),
 						UserInput()
@@ -47,9 +40,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				NavigationFooter(),
 				AutoTransitionBar(),
 				LoadingOverlay()
-					
-			)
-		).OnAppearing(LoadSentences);
+			).RowSpacing(12)
+		)
+		.OnAppearing(LoadSentences);
 	}
 
 	private VisualNode AutoTransitionBar() =>
@@ -58,7 +51,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			.HeightRequest(4)
 			.BackgroundColor(Colors.Transparent)
 			.ProgressColor((Color)Application.Current.Resources["Primary"])
-			.GridRow(0).VStart();
+			.VStart();
 
 	private VisualNode LoadingOverlay() =>
 		Grid(
@@ -69,12 +62,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					(Color)Application.Current.Resources["LightOnDarkBackground"])
 				.Center()
 		)
-		.Background(Color.FromArgb("#80000000"))
-		.GridRowSpan(2)
-		.IsVisible(State.IsBusy);
+			.Background(Color.FromArgb("#80000000"))
+			.GridRowSpan(2)
+			.IsVisible(State.IsBusy);
 
 	private VisualNode NavigationFooter() =>
-		Grid("1,*", "60,1,*,1,60,1,60",
+		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
 				.TextColor(Theme.IsLightTheme ? 
 					(Color)Application.Current.Resources["DarkOnLightBackground"] : 
@@ -84,20 +77,21 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.OnClicked(GradeMe),
 
 			new ModeSelector()
+				.SelectedMode(State.UserMode)
+				.OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
 				.GridRow(1).GridColumn(2),
-				// .SelectedMode(State.UserMode)
-				// .OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
-				// .Center(),
 
-			Button()
+			ImageButton()
 				.Background(Colors.Transparent)
-				.ImageSource(SegoeFluentIcons.Previous.ToFontImageSource())
+				.Source(SegoeFluentIcons.Previous.ToImageSource())
+				.Aspect(Aspect.Center)
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
-			Button()
+			ImageButton()
 				.Background(Colors.Transparent)
-				.ImageSource(SegoeFluentIcons.Next.ToFontImageSource())
+				.Source(SegoeFluentIcons.Next.ToImageSource())
+				.Aspect(Aspect.Center)
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
 
@@ -132,21 +126,23 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						(Color)Application.Current.Resources["DarkOnLightBackground"] : 
 						(Color)Application.Current.Resources["LightOnDarkBackground"])
 					.VCenter(),
-				CollectionView().ItemsSource(State.Sentences, sentence =>
-					Border(
-						ImageButton()
-							.WidthRequest(18).HeightRequest(18)
-							.Center()
-							.Aspect(Aspect.Center)
-							.Source(UserActivityToImageSource(sentence.UserActivity))
-							.OnClicked(() => JumpTo(sentence))
-					)
-					.WidthRequest(20).HeightRequest(20)
-					.StrokeShape(new RoundRectangle().CornerRadius(10))
-					.StrokeThickness(2)
-					.Stroke(sentence.IsCurrent ? 
-						(Color)Application.Current.Resources["Secondary"] : 
-						(Color)Application.Current.Resources["Gray200"])
+				HStack(spacing: 4,
+					State.Sentences.Select(sentence =>
+						Border(
+							ImageButton()
+								.WidthRequest(18).HeightRequest(18)
+								.Center()
+								.Aspect(Aspect.Center)
+								.Source(UserActivityToImageSource(sentence.UserActivity))
+								.OnClicked(() => JumpTo(sentence))
+						)
+						.WidthRequest(20).HeightRequest(20)
+						.StrokeShape(new RoundRectangle().CornerRadius(10))
+						.StrokeThickness(2)
+						.Stroke(sentence.IsCurrent ? 
+							(Color)Application.Current.Resources["Secondary"] : 
+							(Color)Application.Current.Resources["Gray200"])
+					)					
 				)
 			)
 			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
@@ -155,7 +151,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		)
 		.Orientation(ScrollOrientation.Horizontal)
 		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
-		;
+		.GridRow(0)
+		.VCenter();
 
 	private VisualNode SentenceDisplay() =>
 		VStack(spacing: 16,
@@ -163,7 +160,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32),
 			Label(State.RecommendedTranslation)
 		)
-		.Margin(30);
+		.Margin(30)
+		.GridRow(1);
 
 	private VisualNode UserInput() =>
 		Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
@@ -172,8 +170,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				RenderTextInput()
 		)
 		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
-		.Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? 
-			new Thickness(30) : new Thickness(15, 0));
+		.Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0))
+		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
+		.GridRow(2);
 
 	private VisualNode RenderTextInput() =>
 		Border(
@@ -187,7 +186,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		)
 		.GridRow(1)
 		.GridColumn(0)
-		.GridColumnSpan(4)
+		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
 		.Margin(0,0,0,12)
 		.Background(Colors.Transparent)
 		.Stroke((Color)Application.Current.Resources["Gray300"])
@@ -196,37 +195,28 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	private VisualNode RenderMultipleChoice() =>
 		VStack(spacing: 4,
-			CollectionView().ItemsSource(State.GuessOptions ?? Array.Empty<string>(), (option =>
-				RadioButton()
-					.Content(option)
-					.Value(option)
-					.IsChecked(State.UserGuess == option)
-					.OnCheckedChanged(() => SetState(s => s.UserGuess = option))
-					// .ControlTemplate(new ControlTemplate(() =>
-					// 	Border()
-					// 		.StrokeShape(new RoundRectangle().CornerRadius(4))
-					// 		.StrokeThickness(1)
-					// 		.Stroke(Colors.Black)
-					// 		.WidthRequest(180)
-					// 		.Content(
-					// 			ContentPresenter().Center()
-					// 		)
-					// 		.Background(Theme.IsLightTheme ? 
-					// 			(Color)Application.Current.Resources["LightBackground"] : 
-					// 			(Color)Application.Current.Resources["DarkBackground"])
-					// ))
-				)
-			)
+			CollectionView()
+				.ItemsSource(State.GuessOptions, RenderOption)
 		)
 		.GridRow(0);
 
-	private ImageSource UserActivityToImageSource(UserActivity activity)
+    private VisualNode RenderOption(string option) =>
+			RadioButton()
+				.Content(option)
+				.Value(option)
+				.IsChecked(State.UserGuess == option)
+				.OnCheckedChanged(() => {
+					SetState(s => s.UserGuess = option);
+					GradeMe();
+				});
+
+    private ImageSource UserActivityToImageSource(UserActivity activity)
 	{
 		if (activity == null) return null;
 		
 		return activity.Accuracy == 100 ? 
-			SegoeFluentIcons.StatusCircleCheckmark.ToFontImageSource() : 
-			SegoeFluentIcons.StatusErrorCircle7.ToFontImageSource();
+			SegoeFluentIcons.StatusCircleCheckmark.ToImageSource() : 
+			SegoeFluentIcons.StatusErrorCircle7.ToImageSource();
 	}
 
 	private async void JumpTo(Challenge challenge)
@@ -309,8 +299,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		var activity = new UserActivity
 		{
-			Activity = "Clozure",
-			Input = answer,
+						Activity = "Clozure",
+						Input = answer,
 			Accuracy = answer == currentChallenge.VocabularyWordAsUsed ? 100 : 0
 		};
 
@@ -321,6 +311,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			TransitionToNextSentence();
 		}
+
+		SetState(s => s.UserInput = string.Empty);
 	}
 
 	private System.Timers.Timer autoNextTimer;
