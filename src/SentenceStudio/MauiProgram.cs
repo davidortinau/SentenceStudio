@@ -12,6 +12,12 @@ using Plugin.Maui.Audio;
 using Fonts;
 using Syncfusion.Maui.Toolkit.Hosting;
 using MauiReactor.HotReload;
+using SentenceStudio.Pages.Warmup;
+using SentenceStudio.Pages.HowDoYouSay;
+using SentenceStudio.Pages.Clozure;
+
+
+
 
 #if WINDOWS
 using System.Reflection;
@@ -117,6 +123,9 @@ public static class MauiProgram
 
     private static void RegisterRoutes()
     {
+		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
+		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
+		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
 		// MauiReactor.Routing.RegisterRoute<ProjectDetailsPage>(nameof(ProjectDetailsPage));
         // services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
 		// services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");

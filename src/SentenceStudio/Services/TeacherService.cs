@@ -59,14 +59,13 @@ namespace SentenceStudio.Services
             Debug.WriteLine(prompt);
             try
             {
-                string response = await _aiService.SendPrompt(prompt, true, false);
+                var response = await _aiService.SendPrompt<SentencesResponse>(prompt);
                 watch.Stop();
                 Debug.WriteLine($"Received response in: {watch.Elapsed}");
-                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.SentencesResponse);
-                // return reply.Sentences;
-                if (reply != null && reply.Sentences != null)
+                
+                if (response != null && response.Sentences != null)
                 {
-                    return reply.Sentences;
+                    return response.Sentences;
                 }
                 else
                 {
@@ -134,9 +133,8 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                string response = await _aiService.SendPrompt(prompt, true);
-                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
-                return reply;
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+                return response;
             }
             catch (Exception ex)
             {
@@ -160,7 +158,7 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                var response = await _aiService.SendPrompt(prompt);
+                var response = await _aiService.SendPrompt<string>(prompt);
                 return response;
             }catch(Exception ex){
                 Debug.WriteLine($"An error occurred Translate: {ex.Message}");
@@ -182,9 +180,8 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                string response = await _aiService.SendPrompt(prompt, true);
-                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
-                return reply;
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+                return response;
             }
             catch (Exception ex)
             {
@@ -208,9 +205,8 @@ namespace SentenceStudio.Services
                     Debug.WriteLine(prompt);
                 }
 
-                string response = await _aiService.SendPrompt(prompt, true);
-                var reply = JsonSerializer.Deserialize(response, JsonContext.Default.GradeResponse);
-                return reply;
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+                return response;
             }
             catch (Exception ex)
             {

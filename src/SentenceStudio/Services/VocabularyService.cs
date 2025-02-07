@@ -248,7 +248,7 @@ public class VocabularyService
             
             try
             {
-                string response = await _aiService.SendPrompt(prompt, false);
+                var response = await _aiService.SendPrompt<string>(prompt);
 
                 VocabularyList list = new();
                 list.Name = "Sentence Studio Starter Vocabulary";

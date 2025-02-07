@@ -58,17 +58,16 @@ namespace SentenceStudio.Services
 
             try
             {
-                string response = await _aiService.SendPrompt(prompt, true, false);
+                var response = await _aiService.SendPrompt<StorytellerResponse>(prompt);
                 watch.Stop();
                 Debug.WriteLine($"Received response in: {watch.Elapsed}");
-                StorytellerResponse reply = JsonSerializer.Deserialize(response, JsonContext.Default.StorytellerResponse);
                 
-                reply.Story.ListID = vocabularyListID;
-                reply.Story.SkillID = skillID;
+                response.Story.ListID = vocabularyListID;
+                response.Story.SkillID = skillID;
 
-                await _storyRepository.SaveAsync(reply.Story);
+                await _storyRepository.SaveAsync(response.Story);
 
-                return reply.Story;
+                return response.Story;
             }
             catch (Exception ex)
             {

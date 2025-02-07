@@ -45,9 +45,8 @@ public class SyntacticAnalysisService
         
         try
         {
-            string response = await _aiService.SendPrompt(prompt, true);
-            var reply = JsonSerializer.Deserialize(response, JsonContext.Default.SyntacticSentencesResponse);
-            return reply.Sentences;
+            var response = await _aiService.SendPrompt<SyntacticSentencesResponse>(prompt);
+            return response.Sentences;
         }
         catch (Exception ex)
         {

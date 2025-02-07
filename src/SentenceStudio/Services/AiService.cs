@@ -5,55 +5,63 @@ using OpenAI.Audio;
 using SentenceStudio.Models;
 using Microsoft.Extensions.AI;
 using OpenAI;
+using OpenAI.Images;
 
 namespace SentenceStudio.Services;
 
 public class AiService {
 
     private readonly string _openAiApiKey;
+    private readonly IChatClient _client;
+    private readonly AudioClient _audio;
+    private readonly ImageClient _image;
     public AiService(IConfiguration configuration)
     {
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+
+        _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
+        _audio = new("tts-1", _openAiApiKey);
+        _image = new ImageClient("gpt-4o", _openAiApiKey);
     }
 
-    public async Task<string> SendPrompt(string prompt, bool shouldReturnJson = false, bool shouldStreamResponse = false)
+    public async Task<T> SendPrompt<T>(string prompt)
     {
-        try{
-            IChatClient client =
-                new OpenAIClient(_openAiApiKey)
-                    .AsChatClient(modelId: "gpt-4o-mini");
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return default(T);
+        }
 
-                var response = await client.CompleteAsync(prompt);
-
-
-            // Create a new instance of the OpenAI client
-            // var aiClient = new AIClient(_openAiApiKey);
-            
-
-            // Send the prompt to OpenAI and receive the conversation response
-            // var response = await aiClient.SendPrompt(prompt, shouldReturnJson, shouldStreamResponse);
-            Debug.WriteLine($"Response: {response.Message.Text}");
-            return response.Message.Text;
+        try
+        {
+            var response = await _client.CompleteAsync<T>(prompt);
+            return response.Result;            
         }
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
             Debug.WriteLine($"An error occurred SendPrompt: {ex.Message}");
-            return string.Empty;
+            return default(T);
         }
     }
 
     public async Task<string> SendImage(string imagePath, string prompt)
     {
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return string.Empty;
+        }
+
         try
         {
-            // Create a new instance of the OpenAI client
-            var aiClient = new AIClient(_openAiApiKey);
+            var message = new ChatMessage(ChatRole.User, prompt);
+            message.Contents.Add(
+                new ImageContent(new Uri(imagePath))
+            );
 
-            // Send the image to OpenAI and receive the response
-            var response = await aiClient.SendImage(new Uri(imagePath), prompt);
-            Debug.WriteLine($"Response: {response}");
-            return response;
+            var response = await _client.CompleteAsync<string>(new List<ChatMessage> { message });
+            
+            Debug.WriteLine($"Response: {response.Result}");
+            return response.Result;
         }
         catch (Exception ex)
         {
@@ -66,6 +74,11 @@ public class AiService {
 
     public async Task<Stream> TextToSpeechAsync(string text, string voice)
     {
+        if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            return default(Stream);
+        }
+
         var aiClient = new AIClient(_openAiApiKey);
         return await aiClient.TextToSpeechAsync(text, voice);
     }
