@@ -38,8 +38,9 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                     VStack(
                         Label("Skills Description").HStart(),
                         Border(
-                            Editor()
-                                .Text(State.Description)
+							Editor()
+								.Text(State.Description)
+								.MinimumHeightRequest(300)
                                 .AutoSize(EditorAutoSizeOption.TextChanges)
                                 .OnTextChanged(text => SetState(s => s.Description = text))
                         )

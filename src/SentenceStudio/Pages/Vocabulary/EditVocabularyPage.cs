@@ -171,6 +171,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         var list = await _vocabService.GetListAsync(Props.ListID);
         SetState(s => 
         {
+            s.ListId = list.ID;
             s.VocabListName = list.Name;
             s.Words = list.Words;
         });
