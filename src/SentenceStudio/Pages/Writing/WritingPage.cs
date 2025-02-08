@@ -13,6 +13,7 @@ using SentenceStudio.Pages.Dashboard;
 
 
 
+
 #if IOS
 using UIKit;
 using Foundation;
@@ -101,24 +102,23 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             ).GridColumnSpan(2),
 
             new SfTextInputLayout{
-                Grid("",columns: "*,Auto",
-                    Entry()
-                        .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
-                        .Text(State.UserInput)
-                        .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                        .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
-                        .OnCompleted(GradeMe),
-
-                    Button()
-                        .BackgroundColor(Colors.Transparent)
-                        .HEnd()
-                        .GridColumn(1)
-                        .ImageSource(SegoeFluentIcons.Dictionary.ToImageSource())
-                        .OnClicked(TranslateInput)
-                ).ColumnSpacing(2)
-
+                Entry()
+                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
+                    .Text(State.UserInput)
+                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                    .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
+                    .OnCompleted(GradeMe)
             }
+            .TrailingView(
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .HEnd()
+                    .GridColumn(1)
+                    .ImageSource(SegoeFluentIcons.Dictionary.ToImageSource())
+                    .OnClicked(TranslateInput)
+            )
             .Hint(_localize["WhatDoYouWantToSay"].ToString())
+            .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
             .GridRow(1)
             .GridColumn(0)
 
@@ -221,7 +221,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         await Application.Current.MainPage.DisplayAlert(
             _localize["Translation"].ToString(),
             translation,
-            _localize["OK"].ToString());
+            "Okay");
     }
 
     private VisualNode RenderDesktopSentence(Sentence sentence) =>

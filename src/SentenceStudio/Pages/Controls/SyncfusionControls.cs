@@ -53,6 +53,55 @@ partial class SfContentView<T>
 partial class SfTextInputLayout
 { }
 
+partial interface ISfTextInputLayout
+{
+    public VisualNode? TrailingView { get; set; }
+}
+
+partial class SfTextInputLayout<T>
+{
+    VisualNode? ISfTextInputLayout.TrailingView { get; set; }
+
+    protected override IEnumerable<VisualNode> RenderChildren()
+    {
+        var thisAsISfTextInputLayout = (ISfTextInputLayout)this;
+
+        var children = base.RenderChildren();
+
+        if (thisAsISfTextInputLayout.TrailingView != null)
+        {
+            children = children.Concat(new[] { thisAsISfTextInputLayout.TrailingView });
+        }
+
+        return children;
+    }
+
+    protected override void OnAddChild(VisualNode widget, BindableObject childControl)
+    {
+        Validate.EnsureNotNull(NativeControl);
+
+        var thisAsISfTextInputLayout = (ISfTextInputLayout)this;
+
+        if (widget == thisAsISfTextInputLayout.TrailingView)
+        {
+            NativeControl.TrailingView = (View)childControl;
+        }
+        else
+        {
+            base.OnAddChild(widget, childControl);
+        }
+    }
+}
+
+partial class SfTextInputLayoutExtensions
+{
+    public static T TrailingView<T>(this T textInputLayout, VisualNode? trailingView) where T : ISfTextInputLayout
+    {
+        textInputLayout.TrailingView = trailingView;
+        return textInputLayout;
+    }
+}
+
 [Scaffold(typeof(Syncfusion.Maui.Toolkit.Shimmer.SfShimmer))]
 partial class SfShimmer
 {

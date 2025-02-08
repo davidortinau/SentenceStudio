@@ -305,4 +305,8 @@
     <value>API Key</value>
     <comment/>
   </data>
+  <data name="OK" xml:space="preserve">
+    <value>확인</value>
+    <comment/>
+  </data>
 </root>
