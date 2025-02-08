@@ -30,43 +30,59 @@ partial class AddVocabularyPage : Component<AddVocabularyPageState>
 			
 			VScrollView(
 				VStack(
-					Entry()
-						.Text(State.VocabListName)
-						.Placeholder($"{_localize["ListName"]}")
-						.OnTextChanged(text => SetState(s => s.VocabListName = text)),
+					new SfTextInputLayout{
+						Entry()
+							.Text(State.VocabListName)
+							.OnTextChanged(text => SetState(s => s.VocabListName = text))
+						}
+						.ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
+						.ContainerBackground(Colors.White)
+						.Hint($"{_localize["ListName"]}"),
 
-					Editor()
-						.Text(State.VocabList)
-						.Placeholder($"{_localize["Vocabulary"]}")
-						.OnTextChanged(text => SetState(s => s.VocabList = text))
-						.MinimumHeightRequest(400)
-						.MaximumHeightRequest(600),
+					new SfTextInputLayout{
+						Editor()
+							.Text(State.VocabList)
+							.OnTextChanged(text => SetState(s => s.VocabList = text))
+							.MinimumHeightRequest(400)
+							.MaximumHeightRequest(600)
+						}
+						.ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
+						.ContainerBackground(Colors.White)
+						.Hint($"{_localize["Vocabulary"]}"),
 
-					
+					Button()
+						.ImageSource(SegoeFluentIcons.FileExplorer.ToImageSource())
+						.Background(Colors.Transparent)
+						.HEnd()
+						.OnClicked(ChooseFile)
+					,
+
+
 					HStack(
 						RadioButton()
 							.Content("Comma").Value("comma")
 							.IsChecked(State.Delimiter == "comma")
-							.OnCheckedChanged(e => 
-								{ if(e.Value) SetState(s => s.Delimiter = "comma"); }),
+							.OnCheckedChanged(e =>
+								{ if (e.Value) SetState(s => s.Delimiter = "comma"); }),
 						RadioButton()
 							.Content("Tab").Value("tab")
 							.IsChecked(State.Delimiter == "tab")
-							.OnCheckedChanged(e => 
-								{ if(e.Value) SetState(s => s.Delimiter = "tab"); })
+							.OnCheckedChanged(e =>
+								{ if (e.Value) SetState(s => s.Delimiter = "tab"); })
 					)
 					.Spacing((Double)Application.Current.Resources["size320"]),
 
 					Button($"{_localize["Save"]}")
 						.OnClicked(SaveVocab)
-						.HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 
+						.HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ?
 							LayoutOptions.Start : LayoutOptions.Fill)
 						.WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1)
 				)
+				.HorizontalOptions(LayoutOptions.Fill)
 				.Spacing((Double)Application.Current.Resources["size320"])
 				.Margin(24)	
-			),
-			ToolbarItem().IconImageSource(SegoeFluentIcons.FileExplorer.ToImageSource()).OnClicked(() => ChooseFile())
+			)
+			// ToolbarItem().IconImageSource(SegoeFluentIcons.FileExplorer.ToImageSource()).OnClicked(() => ChooseFile())
 		);
     }
 

@@ -21,6 +21,10 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
     public override VisualNode Render()
     {
         return ContentPage(State.VocabListName,
+        ToolbarItem("Find").OnClicked(() => SetState(s => s.IsSearchVisible = true)),
+                ToolbarItem("Add").OnClicked(AddVocab),
+                ToolbarItem("Save").OnClicked(SaveVocab),
+                ToolbarItem("Delete").OnClicked(DeleteList),
                 Grid(
                     CollectionView()
                         .Header(RenderHeader())
@@ -28,11 +32,8 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                         .SelectionMode(Microsoft.Maui.Controls.SelectionMode.None),
 
                     RenderSearchBottomSheet()
-                ),
-                ToolbarItem("Find").OnClicked(() => SetState(s => s.IsSearchVisible = true)),
-                ToolbarItem("Add").OnClicked(AddVocab),
-                ToolbarItem("Save").OnClicked(SaveVocab),
-                ToolbarItem("Delete").OnClicked(DeleteList)
+                )
+                
             ).OnAppearing(async () => await LoadList());
     }
 
