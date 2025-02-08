@@ -18,6 +18,8 @@ using SentenceStudio.Pages.Clozure;
 using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.Skills;
+using SentenceStudio.Pages.Writing;
+
 
 
 
@@ -138,6 +140,7 @@ public static class MauiProgram
 
 		MauiReactor.Routing.RegisterRoute<AddVocabularyPage>(nameof(AddVocabularyPage));
 		MauiReactor.Routing.RegisterRoute<EditVocabularyPage>(nameof(EditVocabularyPage));
+		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
 		// MauiReactor.Routing.RegisterRoute<ProjectDetailsPage>(nameof(ProjectDetailsPage));
 		// services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
 		// services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
