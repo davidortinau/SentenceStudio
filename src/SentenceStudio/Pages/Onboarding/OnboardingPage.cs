@@ -25,7 +25,22 @@ public partial class OnboardingPage : Component<OnboardingState>
     [Inject] IConfiguration _configuration;
 
     LocalizationManager _localize => LocalizationManager.Instance;
-    private int _screens = 4;
+    
+    VisualNode[] GetScreens() => new[]
+    {
+        RenderWelcomeStep(),
+        RenderNameStep(),
+        RenderLanguageStep(
+            "What is your primary language?", 
+            s => s.NativeLanguage,
+            (s, lang) => s.NativeLanguage = lang),
+        RenderLanguageStep(
+            "What language are you here to practice?", 
+            s => s.TargetLanguage,
+            (s, lang) => s.TargetLanguage = lang),
+        State.NeedsApiKey ? RenderApiKeyStep() : null,
+        RenderFinalStep()
+    }.Where(screen => screen != null).ToArray();
 
     protected override void OnMounted()
     {
@@ -34,8 +49,22 @@ public partial class OnboardingPage : Component<OnboardingState>
         base.OnMounted();
     }
 
+    private void NavigateToPosition(int newPosition)
+    {
+        var screens = GetScreens();
+        var maxScreens = screens.Length - 1;
+        if (newPosition < 0 || newPosition > maxScreens) return;
+        
+        SetState(s => 
+        {
+            s.CurrentPosition = newPosition;
+            s.LastPositionReached = newPosition == maxScreens;
+        });
+    }
+
     public override VisualNode Render()
     {
+        var screens = GetScreens();
         return ContentPage($"{_localize["MyProfile"]}",
             
                 Grid(rows: "*, Auto", "",
@@ -44,55 +73,49 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .IsSwipeEnabled(false)
                         .Loop(false)
                         .Position(State.CurrentPosition)
-                        .OnPositionChanged((pos) => SetState(s =>
-                        {
-                            s.CurrentPosition = pos.CurrentPosition;
-                            s.LastPositionReached = pos.CurrentPosition == _screens;
-                        }))
-                        .ItemsSource(new[]
-                        {
-                            RenderWelcomeStep(),
-                            RenderNameStep(),
-                            // RenderLanguageStep("What is your primary language?", s => s.NativeLanguage),
-                            // RenderLanguageStep("What language are you here to practice?", s => s.TargetLanguage),
-                            RenderApiKeyStep(),
-                            RenderFinalStep()
-                        }, RenderItemTemplate),
+                        .ItemsSource(screens, RenderItemTemplate),
 
-                    Grid(rows: "Auto, Auto", "",
+                    Grid(rows: "Auto, Auto", columns: "1*, 3*", 
+                        Button("Back")
+                            .IsEnabled(State.CurrentPosition > 0)
+                            .OnClicked(() => NavigateToPosition(State.CurrentPosition - 1)),
+
                         Button("Next")
+                            .GridColumn(1)
                             .IsVisible(!State.LastPositionReached)
-                            .OnClicked(() => SetState(s =>
-                            {
-                                if (s.CurrentPosition >= _screens) return;
-                                s.CurrentPosition++;
-                                s.LastPositionReached = s.CurrentPosition == _screens;
-                            })),
+                            .OnClicked(() => NavigateToPosition(State.CurrentPosition + 1)),
 
                         Button("Continue")
+                            .GridColumn(1)
                             .IsVisible(State.LastPositionReached)
                             .OnClicked(End),
 
                         IndicatorView()
                             .GridRow(1)
+                            .GridColumnSpan(2)
                             .HCenter()
                             .IndicatorColor(ApplicationTheme.Gray200)
                             .SelectedIndicatorColor(ApplicationTheme.Primary)
                             .IndicatorSize(DeviceInfo.Platform == DevicePlatform.iOS ? 6 : 8)
                     )
-                    .GridRow(1)
-                    .RowSpacing(20)
+                        .GridRow(1)
+                        .RowSpacing(20),
+                    Label($"{State.CurrentPosition + 1} of {screens.Length}")
+                        .FontSize(64)
+                        .GridRow(0)
+                        .HCenter()
+                        .VCenter()
                 )
                 .Padding(ApplicationTheme.Size160)
             );
     }
 
-    private VisualNode RenderItemTemplate(VisualNode node)
+    VisualNode RenderItemTemplate(VisualNode node)
     {
         return node;
     }
 
-    private VisualNode RenderWelcomeStep() =>
+    VisualNode RenderWelcomeStep() =>
         ContentView(
             Grid("Auto, Auto","",
                 Label("Welcome to Sentence Studio!")
@@ -108,7 +131,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             .Margin(ApplicationTheme.Size160)
         );
 
-    private VisualNode RenderNameStep() =>
+    VisualNode RenderNameStep() =>
         ContentView(
             Grid("Auto, Auto","",
                 Label("What should I call you?")
@@ -126,13 +149,13 @@ public partial class OnboardingPage : Component<OnboardingState>
                 .ContainerBackground(Colors.White)
                 .Hint("Enter your name")
             )
-            .RowSpacing(ApplicationTheme.Size160)
+            .RowSpacing(ApplicationTheme.Size160).ColumnSpacing(ApplicationTheme.Size160)
             .Margin(ApplicationTheme.Size160)
         );
 
-    private VisualNode RenderLanguageStep(string title, Action<OnboardingState> setter) =>
+    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<OnboardingState, string> setter) =>
         ContentView(
-            Grid("Auto, Auto","",
+            Grid("Auto, Auto", "",
                 Label(title)
                     .Style((Style)Application.Current.Resources["Title1"])
                     .HCenter(),
@@ -141,7 +164,12 @@ public partial class OnboardingPage : Component<OnboardingState>
                 {
                     Picker()
                         .ItemsSource(Languages)
-                        // .OnSelectedIndexChanged(index => SetState(s => setter(s)))
+                        .SelectedIndex(Array.IndexOf(Languages, getter(State)))
+                        .OnSelectedIndexChanged((index) =>
+                        {
+                            if (index >= 0 && index < Languages.Length)
+                                SetState(s => setter(s, Languages[index]));
+                        })
                 }
                 .GridRow(1)
                 .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
@@ -152,7 +180,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             .Margin(ApplicationTheme.Size160)
         );
 
-    private VisualNode RenderApiKeyStep() =>
+    VisualNode RenderApiKeyStep() =>
         ContentView(
             VStack(
                 Label("Sentence Studio needs an API key from OpenAI to use the AI features.")
@@ -179,7 +207,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         )
         .IsVisible(State.NeedsApiKey);
 
-    private VisualNode RenderFinalStep() =>
+    VisualNode RenderFinalStep() =>
         ContentView(
             Grid("Auto, Auto","",
                 Label("Let's begin!")

@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Resources.Styles;
 
 namespace SentenceStudio;
@@ -58,7 +59,7 @@ public partial class App : MauiReactorApplication
 	// }
 }
 
-public abstract class MauiReactorApplication : ReactorApplication<AppShell>
+public abstract class MauiReactorApplication : ReactorApplication<OnboardingPage>
 {
     public MauiReactorApplication(IServiceProvider serviceProvider)
         : base(serviceProvider)
