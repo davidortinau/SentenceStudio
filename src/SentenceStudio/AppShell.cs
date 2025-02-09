@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
+using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Vocabulary;
@@ -61,6 +62,12 @@ public class AppShell : Component<AppShellState>
                     .Title("Skills")
                     .RenderContent(() => new ListSkillProfilesPage())
                     .Route(nameof(ListSkillProfilesPage))
+            ),
+            FlyoutItem("Profile",
+                ShellContent()
+                    .Title("Profile")
+                    .RenderContent(() => new UserProfilePage())
+                    .Route(nameof(UserProfilePage))
             )
         );
         // .FlyoutFooter(
