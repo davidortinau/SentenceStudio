@@ -59,7 +59,7 @@ public partial class App : MauiReactorApplication
 	// }
 }
 
-public abstract class MauiReactorApplication : ReactorApplication<OnboardingPage>
+public abstract class MauiReactorApplication : ReactorApplication<AppShell>
 {
     public MauiReactorApplication(IServiceProvider serviceProvider)
         : base(serviceProvider)

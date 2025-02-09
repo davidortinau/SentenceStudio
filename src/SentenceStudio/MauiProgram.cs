@@ -27,6 +27,7 @@ using SentenceStudio.Pages.Writing;
 
 
 
+
 #if WINDOWS
 using System.Reflection;
 #endif
@@ -111,25 +112,28 @@ public static class MauiProgram
 		RegisterRoutes();
 		RegisterServices(builder.Services);
 
-// 		services.AddLogging(logging =>
-// 			{
-// #if WINDOWS
-// 				logging.AddDebug();
-// #else
-// 				logging.AddConsole();
-// #endif
+		// 		services.AddLogging(logging =>
+		// 			{
+		// #if WINDOWS
+		// 				logging.AddDebug();
+		// #else
+		// 				logging.AddConsole();
+		// #endif
 
-// 				// Enable maximum logging for BlazorWebView
-// 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
-// 			});
+		// 				// Enable maximum logging for BlazorWebView
+		// 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
+		// 			});
 
-	
+
+		// PreLoadInit();
 
 		
 		return builder.Build();
 	}
 
-	private static void RegisterRoutes()
+    
+
+    private static void RegisterRoutes()
 	{
 		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
 		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
@@ -155,14 +159,14 @@ public static class MauiProgram
 		// services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
 	}
 
-    [ComponentServices]
-    static void RegisterServices(IServiceCollection services)
-    {
-// #if DEBUG
-//         services.AddLogging(configure => configure.AddDebug());
-// #endif
+	[ComponentServices]
+	static void RegisterServices(IServiceCollection services)
+	{
+		// #if DEBUG
+		//         services.AddLogging(configure => configure.AddDebug());
+		// #endif
 
-        
+
 		services.AddSingleton<TeacherService>();
 		services.AddSingleton<VocabularyService>();
 		services.AddSingleton<ConversationService>();
@@ -171,7 +175,7 @@ public static class MauiProgram
 		services.AddSingleton<ClozureService>();
 		services.AddSingleton<StorytellerService>();
 
-		services.AddSingleton<AppShellModel>();
+		// services.AddSingleton<AppShellModel>();
 
 		services.AddSingleton<StoryRepository>();
 		services.AddSingleton<UserProfileRepository>();
@@ -190,10 +194,12 @@ public static class MauiProgram
 		// services.AddSingleton<ListSkillProfilesPageModel>();
 
 		services.AddSingleton<ISpeechToText>(SpeechToText.Default);
-        services.AddFilePicker();
+		services.AddFilePicker();
 
 		// services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+		
+		services.AddSingleton<IAppState, AppState>();
     }
 
 	
