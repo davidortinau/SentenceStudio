@@ -1,8 +1,5 @@
-using System.Diagnostics;
-using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
-using SentenceStudio.Models;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Images;
