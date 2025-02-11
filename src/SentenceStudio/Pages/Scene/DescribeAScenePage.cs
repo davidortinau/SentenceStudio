@@ -8,7 +8,7 @@ namespace SentenceStudio.Pages.Scene;
 class DescribeAScenePageState
 {
     public string Description { get; set; }
-    public string ImageUrl { get; set; } = "https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png";
+    public Uri ImageUrl { get; set; } = new Uri("https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png");
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
     public ObservableCollection<Sentence> Sentences { get; set; } = new();
@@ -70,7 +70,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .VerticalOptions(LayoutOptions.Start)
                     .Margin(ApplicationTheme.Size160)
                     .Background(Colors.BlueViolet)
-                    .MinimumHeightRequest(100).MinimumWidthRequest(100)
             ).GridColumn(0),
 
             CollectionView()
@@ -102,23 +101,31 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     {
         return Grid(
                 Grid("","*,Auto",
-                    Entry()
-                        .Text(State.UserInput)
-                        .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                        .ReturnType(ReturnType.Next)
-                        .OnCompleted(GradeMyDescription)
-                        .GridColumn(0)
-                        .FontSize(18),
+                    Border(
+                        Entry()
+                            .Text(State.UserInput)
+                            .Placeholder($"{_localize["WhatDoYouSee"]}")
+                            .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                            .ReturnType(ReturnType.Next)
+                            .OnCompleted(GradeMyDescription)
+                            .GridColumn(0)
+                            .FontSize(18)
+		            )
+                    .GridColumn(0)
+                    .Background(Colors.Transparent)
+                    .Stroke(ApplicationTheme.Gray300)
+                    .StrokeShape(new RoundRectangle().CornerRadius(4))
+                    .StrokeThickness(1),                   
 
                     Button()
                         .Background(Colors.Transparent)
-                        .ImageSource(SegoeFluentIcons.Previous.ToImageSource())
+                        .ImageSource(SegoeFluentIcons.LanguageKor.ToImageSource())
                         .OnClicked(TranslateInput)
                         .GridColumn(1),
 
                     Button()
                         .Background(Colors.Transparent)
-                        .ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+                        .ImageSource(SegoeFluentIcons.EraseTool.ToImageSource())
                         .OnClicked(ClearInput)
                         .GridColumn(0)
                         .HEnd()
@@ -131,13 +138,18 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         .Margin(ApplicationTheme.Size160);
     }
 
+    private CommunityToolkit.Maui.Views.Popup? _popup;
+
     private VisualNode RenderExplanationPopup()
     {
-        return new PopupHost()
+        return new PopupHost(r => _popup = r)
         {
             VStack(spacing: 10,
                 Label(State.Description),
-                Button("Close", () => SetState(s => s.IsExplanationShown = false))
+                Button("Close", () => {
+                    SetState(s => s.IsExplanationShown = false);
+                    _popup?.Close();
+                })
             ).Padding(20)
             .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
         }
@@ -184,7 +196,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 SetState(s =>
                 {
-                    s.ImageUrl = image.Url;
+                    s.ImageUrl = new Uri(image.Url);
                     s.Description = image.Description;
                 });
 
@@ -265,8 +277,12 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RecommendedSentence = grade.GrammarNotes.RecommendedTranslation,
                 GrammarNotes = grade.GrammarNotes.Explanation
             };
-            State.Sentences.Insert(0, sentence);
-            SetState(s => s.UserInput = string.Empty);
+            // State.Sentences.Insert(0, sentence);
+            SetState(s =>
+            {
+                s.UserInput = string.Empty;
+                s.Sentences.Insert(0, sentence);
+            });
         }
         finally
         {
@@ -309,7 +325,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 prompt = await template.RenderAsync();
             }
             
-            var description = await _aiService.SendImage(State.ImageUrl, prompt);
+            var description = await _aiService.SendImage(State.ImageUrl.AbsolutePath, prompt);
             SetState(s => s.Description = description);
         }
         finally
@@ -333,7 +349,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         {
             SetState(s => 
             {
-                s.ImageUrl = result;
+                s.ImageUrl = new Uri(result);
                 s.Sentences?.Clear();
             });
             var sceneImage = new SceneImage { Url = result };
@@ -362,7 +378,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         {
             SetState(s => 
             {
-                s.ImageUrl = image.Url;
+                s.ImageUrl = new Uri(image.Url);
                 s.Description = image.Description;
                 s.Sentences?.Clear();
             });
