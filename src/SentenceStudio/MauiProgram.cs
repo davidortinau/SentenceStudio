@@ -19,6 +19,8 @@ using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
+using SentenceStudio.Pages.Scene;
+
 
 
 
@@ -145,18 +147,8 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<AddVocabularyPage>(nameof(AddVocabularyPage));
 		MauiReactor.Routing.RegisterRoute<EditVocabularyPage>(nameof(EditVocabularyPage));
 		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
-		// MauiReactor.Routing.RegisterRoute<ProjectDetailsPage>(nameof(ProjectDetailsPage));
-		// services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
-		// services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
-		// services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
-		// services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
-		// services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
-		// services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		// services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		// services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
-		// services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
-		// services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
-		// services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
+		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
+		
 	}
 
 	[ComponentServices]
