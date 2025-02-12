@@ -76,8 +76,8 @@ partial class ImageGalleryBottomSheet : Component
     {
         return Grid(
             Image()
-                .Source(image.Url)
-                .Aspect(Aspect.AspectFill)
+                .Source(new Uri(image.Url))
+                .Aspect(Aspect.AspectFit)
                 .HeightRequest(100)
                 .OnTapped(() => OnImageSelected(image)),
 

@@ -1,6 +1,4 @@
 using MauiReactor.Shapes;
-using System.Collections.ObjectModel;
-using SentenceStudio.Resources.Styles;
 using The49.Maui.BottomSheet;
 using System.Collections.Immutable;
 
@@ -36,9 +34,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
                 .IconImageSource(SegoeFluentIcons.Info.ToImageSource())
-                        // .AppThemeColorBinding(FontImageSource.ColorProperty,
-                        //     (Color)Application.Current.Resources["DarkOnLightBackground"],
-                        //     (Color)Application.Current.Resources["LightOnDarkBackground"]))
                 .OnClicked(ViewDescription),
 
             ToolbarItem()
@@ -47,10 +42,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
             ToolbarItem()
                 .IconImageSource(SegoeFluentIcons.SwitchApps.ToImageSource())
-                        // .AppThemeColorBinding(FontImageSource.ColorProperty,
-                        //     (Color)Application.Current.Resources["DarkOnLightBackground"],
-                        //     (Color)Application.Current.Resources["LightOnDarkBackground"]))
                 .OnClicked(ManageImages),
+
             Grid("Auto,*,Auto", "*",
                 RenderMainContent(),
                 RenderInput(),
@@ -147,7 +140,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         return new PopupHost(r => _popup = r)
         {
             VStack(spacing: 10,
-                Label(State.Description),
+                Label()
+                    .Text(State.Description),
                 Button("Close", () => {
                     SetState(s => s.IsExplanationShown = false);
                     _popup?.Close();
@@ -198,7 +192,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 Button()
                     .ImageSource(SegoeFluentIcons.ImageExport.ToImageSource())
                     .Background(Colors.Transparent)
-                    .TextColor(Colors.Black)
                     .Padding(0)
                     .Margin(0)
                     .VCenter()
@@ -207,7 +200,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 Button()
                     .ImageSource(SegoeFluentIcons.CheckboxCompositeReversed.ToImageSource())
                     .Background(Colors.Transparent)
-                    .TextColor(Colors.Black)
                     .Padding(0)
                     .Margin(0)
                     .VCenter(),
@@ -243,20 +235,20 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     {
         return Grid(
             Image()
-                .Source(image.Url)
-                .Aspect(Aspect.AspectFill)
-                .HeightRequest(100),
-                // .OnTapped(() => OnImageSelected(image)),
+                .Source(new Uri(image.Url))
+                .Aspect(Aspect.AspectFit)
+                .HeightRequest(100)
+                .OnTapped(() => OnImageSelected(image)),
 
             Image()
-                .Source(SegoeFluentIcons.Checkbox.ToFontImageSource())
+                .Source(SegoeFluentIcons.Checkbox.ToImageSource())
                 .VEnd()
                 .HEnd()
                 .IsVisible(State.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(SegoeFluentIcons.CheckboxCompositeReversed.ToFontImageSource())
+                .Source(SegoeFluentIcons.CheckboxCompositeReversed.ToImageSource())
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)
