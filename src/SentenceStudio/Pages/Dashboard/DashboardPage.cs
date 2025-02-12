@@ -98,7 +98,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         }.Spacing(20)
                     )// vstack
                     .Padding((Double)Application.Current.Resources["size160"])
-                    .Spacing((Double)Application.Current.Resources["size240"])
+                    .Spacing(ApplicationTheme.Size240)
                 )// vscrollview
             )// grid
                 

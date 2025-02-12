@@ -52,7 +52,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                     .HStart()
                 )
                 .Padding((Double)Application.Current.Resources["size160"])
-                .Spacing((Double)Application.Current.Resources["size240"])
+                .Spacing(ApplicationTheme.Size240)
             )
         ).OnAppearing(LoadProfiles);
     }

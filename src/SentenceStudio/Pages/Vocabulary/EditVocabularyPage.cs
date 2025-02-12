@@ -48,7 +48,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                 )
                 .Style((Style)Application.Current.Resources["InputWrapper"])
             )
-            .Spacing((Double)Application.Current.Resources["size120"]),
+            .Spacing(ApplicationTheme.Size120),
 
             VStack(
                 Label($"{_localize["Vocabulary"]}").HStart(),
@@ -57,13 +57,13 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                     Label($"{_localize["Translation"]}").GridColumn(1)
                 )
                 .Columns("*,*")
-                .Padding((Double)Application.Current.Resources["size240"])
-                .ColumnSpacing((Double)Application.Current.Resources["size240"])
+                .Padding(ApplicationTheme.Size240)
+                .ColumnSpacing(ApplicationTheme.Size240)
             )
-            .Spacing((Double)Application.Current.Resources["size120"])
+            .Spacing(ApplicationTheme.Size120)
         )
-        .Spacing((Double)Application.Current.Resources["size120"])
-        .Padding((Double)Application.Current.Resources["size240"]);
+        .Spacing(ApplicationTheme.Size120)
+        .Padding(ApplicationTheme.Size240);
 
     private VisualNode RenderWordItem(VocabularyWord word) =>
         Grid(
@@ -92,8 +92,8 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                 //     (Color)Application.Current.Resources["LightOnDarkBackground"]
                 // )
         )
-        .Padding((Double)Application.Current.Resources["size240"])
-        .ColumnSpacing((Double)Application.Current.Resources["size240"])
+        .Padding(ApplicationTheme.Size240)
+        .ColumnSpacing(ApplicationTheme.Size240)
         .Columns("*,*,auto");
 
     private VisualNode RenderSearchBottomSheet() =>

@@ -8,6 +8,7 @@ global using SentenceStudio.Messages;
 global using SentenceStudio.Models;
 global using SentenceStudio.Services;
 global using SentenceStudio.Data;
+global using SentenceStudio.Resources.Styles;
 global using System.Diagnostics;
 global using SQLite;
 global using SentenceStudio.Common;

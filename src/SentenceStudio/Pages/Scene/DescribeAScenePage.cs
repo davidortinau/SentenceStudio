@@ -2,18 +2,20 @@ using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Resources.Styles;
 using The49.Maui.BottomSheet;
+using System.Collections.Immutable;
 
 namespace SentenceStudio.Pages.Scene;
 
 class DescribeAScenePageState
 {
+    public int ID { get; set; }
     public string Description { get; set; }
     public Uri ImageUrl { get; set; } = new Uri("https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png");
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
-    public ObservableCollection<Sentence> Sentences { get; set; } = new();
-    public ObservableCollection<SceneImage> Images { get; set; } = new();
-    public ObservableCollection<SceneImage> SelectedImages { get; set; } = new();
+    public ImmutableList<Sentence> Sentences { get; set; } = ImmutableList<Sentence>.Empty;
+    public ImmutableList<SceneImage> Images { get; set; } = ImmutableList<SceneImage>.Empty;
+    public ImmutableList<SceneImage> SelectedImages { get; set; } = ImmutableList<SceneImage>.Empty;
     public SelectionMode SelectionMode { get; set; }
     public bool IsDeleteVisible { get; set; }
     public bool IsSelecting { get; set; }
@@ -158,17 +160,108 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
     private VisualNode RenderGalleryPopup()
     {
-        return new ImageGalleryPopup()
-            .State(State)
-            .OnClose(async result => 
-            {
-                SetState(s => s.IsGalleryVisible = false);
-                if (result)
-                {
-                    await LoadScene();
-                }
-            })
-            .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
+        return new PopupHost(r => _popup = r)
+        {
+            Grid("Auto,*,Auto", "",
+                RenderHeader(),
+                RenderGallery(),
+                Button("Close")
+                    .OnClicked(() => _popup.Close())
+                    .GridRow(2)
+            )
+                .Padding(ApplicationTheme.Size240)
+                .RowSpacing(ApplicationTheme.Size120)
+                .Margin(ApplicationTheme.Size240),
+        }
+        .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
+        // return new ImageGalleryPopup()
+        //     .State(State)
+        //     .OnClose(async result =>
+        //     {
+        //         SetState(s => s.IsGalleryVisible = false);
+        //         if (result)
+        //         {
+        //             await LoadScene();
+        //         }
+        //     })
+        //     .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
+    }
+
+    private VisualNode RenderHeader()
+    {
+        return Grid(
+            Label("Choose an image")
+                .Style((Style)Application.Current.Resources["Title1"])
+                .HStart(),
+
+            HStack(spacing: ApplicationTheme.Size60,
+                Button()
+                    .ImageSource(SegoeFluentIcons.ImageExport.ToImageSource())
+                    .Background(Colors.Transparent)
+                    .TextColor(Colors.Black)
+                    .Padding(0)
+                    .Margin(0)
+                    .VCenter()
+                    .IsVisible(!State.IsDeleteVisible),
+
+                Button()
+                    .ImageSource(SegoeFluentIcons.CheckboxCompositeReversed.ToImageSource())
+                    .Background(Colors.Transparent)
+                    .TextColor(Colors.Black)
+                    .Padding(0)
+                    .Margin(0)
+                    .VCenter(),
+
+                Button()
+                    .ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+                    .Background(Colors.Transparent)
+                    .TextColor(Colors.Black)
+                    .Padding(0)
+                    .Margin(0)
+                    .VCenter()
+                    .IsVisible(State.IsDeleteVisible)
+            )
+            .HEnd()
+        );
+    }
+
+    private VisualNode RenderGallery()
+    {
+        return CollectionView()
+            .ItemsSource(State.Images, RenderGalleryItem)
+            .SelectionMode(State.SelectionMode)
+            .SelectedItems(State.SelectedImages.Cast<object>().ToList())
+            .ItemsLayout(
+                new HorizontalGridItemsLayout(4)
+                    .VerticalItemSpacing(ApplicationTheme.Size240)
+                    .HorizontalItemSpacing(ApplicationTheme.Size240)
+            )
+            .GridRow(1);
+    }
+
+    private VisualNode RenderGalleryItem(SceneImage image)
+    {
+        return Grid(
+            Image()
+                .Source(image.Url)
+                .Aspect(Aspect.AspectFill)
+                .HeightRequest(100),
+                // .OnTapped(() => OnImageSelected(image)),
+
+            Image()
+                .Source(SegoeFluentIcons.Checkbox.ToFontImageSource())
+                .VEnd()
+                .HEnd()
+                .IsVisible(State.IsSelecting)
+                .Margin(4),
+
+            Image()
+                .Source(SegoeFluentIcons.CheckboxCompositeReversed.ToFontImageSource())
+                .VEnd()
+                .HEnd()
+                .IsVisible(image.IsSelected)
+                .Margin(4)
+        );
     }
 
     private VisualNode RenderLoadingOverlay()
@@ -196,6 +289,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 SetState(s =>
                 {
+                    s.ID = image.ID;
                     s.ImageUrl = new Uri(image.Url);
                     s.Description = image.Description;
                 });
@@ -215,7 +309,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     private async Task ManageImages()
     {
         var imgs = await _sceneImageService.ListAsync();
-        SetState(s => s.Images = new ObservableCollection<SceneImage>(imgs));
+        SetState(s => s.Images = ImmutableList.CreateRange(imgs));
 
         if (DeviceInfo.Idiom == DeviceIdiom.Phone)
         {
@@ -226,7 +320,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 {
                     sheet.HasBackdrop = true;
                     sheet.HasHandle = true;
-                    sheet.CornerRadius = (Double)Application.Current.Resources["size120"];
+                    sheet.CornerRadius = ApplicationTheme.Size120;
                     sheet.Detents = new Detent[]
                     {
                         new FullscreenDetent(),
@@ -277,11 +371,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RecommendedSentence = grade.GrammarNotes.RecommendedTranslation,
                 GrammarNotes = grade.GrammarNotes.Explanation
             };
-            // State.Sentences.Insert(0, sentence);
             SetState(s =>
             {
                 s.UserInput = string.Empty;
-                s.Sentences.Insert(0, sentence);
+                s.Sentences = s.Sentences.Insert(0, sentence);
             });
         }
         finally
@@ -298,8 +391,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         try
         {
             var translation = await _teacherService.Translate(State.UserInput);
-            State.Sentences.Insert(0, new Sentence { Answer = translation, Accuracy = 100 });
-            SetState(s => s.UserInput = string.Empty);
+            SetState(s => {
+                s.Sentences = s.Sentences.Insert(0, new Sentence { Answer = translation, Accuracy = 100 });
+                s.UserInput = string.Empty;
+            });
         }
         finally
         {
@@ -317,16 +412,23 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         SetState(s => s.IsBusy = true);
         try
         {
-            var prompt = string.Empty;     
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("DescribeThisImage.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(reader.ReadToEnd());
                 prompt = await template.RenderAsync();
             }
-            
-            var description = await _aiService.SendImage(State.ImageUrl.AbsolutePath, prompt);
+
+            var description = await _aiService.SendImage(State.ImageUrl.AbsoluteUri, prompt);
             SetState(s => s.Description = description);
+            
+            await _sceneImageService.SaveAsync(new SceneImage
+            {
+                ID = State.ID,
+                Url = State.ImageUrl.AbsoluteUri,
+                Description = State.Description
+            });
         }
         finally
         {
@@ -350,29 +452,31 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             SetState(s => 
             {
                 s.ImageUrl = new Uri(result);
-                s.Sentences?.Clear();
+                s.Sentences = ImmutableList<Sentence>.Empty;
             });
             var sceneImage = new SceneImage { Url = result };
-            State.Images.Add(sceneImage);
+            SetState(s => s.Images = s.Images.Add(sceneImage));
             await _sceneImageService.SaveAsync(sceneImage);
             await GetDescription();
         }
     }
 
-    private async void OnImageSelected(SceneImage image)
+    async void OnImageSelected(SceneImage image)
     {
         if (State.SelectionMode != SelectionMode.None)
         {             
-            if (State.SelectedImages.Contains(image))
-            {
-                State.SelectedImages.Remove(image);
-                image.IsSelected = false;
-            }
-            else
-            {
-                State.SelectedImages.Add(image);
-                image.IsSelected = true;
-            }
+            SetState(s => {
+                if (s.SelectedImages.Contains(image))
+                {
+                    s.SelectedImages = s.SelectedImages.Remove(image);
+                    image.IsSelected = false;
+                }
+                else
+                {
+                    s.SelectedImages = s.SelectedImages.Add(image);
+                    image.IsSelected = true;
+                }
+            });
         }
         else
         {
@@ -380,7 +484,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 s.ImageUrl = new Uri(image.Url);
                 s.Description = image.Description;
-                s.Sentences?.Clear();
+                s.Sentences = ImmutableList<Sentence>.Empty;
             });
             
             if(string.IsNullOrWhiteSpace(image.Description))
@@ -401,7 +505,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 img.IsSelected = false;
             }
-            s.SelectedImages.Clear();
+            s.SelectedImages = ImmutableList<SceneImage>.Empty;
         });
     }
 
@@ -413,9 +517,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         foreach(var img in State.SelectedImages)
         {
             await _sceneImageService.DeleteAsync(img);
-            State.Images.Remove(img);
+            SetState(s => s.Images = s.Images.Remove(img));
         }
-        SetState(s => s.SelectedImages.Clear());
+        SetState(s => s.SelectedImages = ImmutableList<SceneImage>.Empty);
     }
 
     private async Task ShowError()

@@ -33,7 +33,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                         )
                         .Style((Style)Application.Current.Resources["InputWrapper"])
                     )
-                    .Spacing((Double)Application.Current.Resources["size120"]),
+                    .Spacing(ApplicationTheme.Size120),
 
                     VStack(
                         Label("Skills Description").HStart(),
@@ -46,7 +46,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                         )
                         .Style((Style)Application.Current.Resources["InputWrapper"])
                     )
-                    .Spacing((Double)Application.Current.Resources["size120"]),
+                    .Spacing(ApplicationTheme.Size120),
 
                     Label($"Created: {State.Profile.CreatedAt:MM/dd/yyyy}"),
                     Label($"Updated: {State.Profile.UpdatedAt:MM/dd/yyyy}")

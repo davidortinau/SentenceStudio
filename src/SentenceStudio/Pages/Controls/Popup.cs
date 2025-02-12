@@ -98,6 +98,8 @@ class PopupHost : Component
             }
             .OnClosed(OnClosed)
             .CanBeDismissedByTappingOutsideOfPopup(true)
+            .HorizontalOptions(Microsoft.Maui.Primitives.LayoutAlignment.Fill)
+            .VerticalOptions(Microsoft.Maui.Primitives.LayoutAlignment.Fill)
             : null!;
     }
 

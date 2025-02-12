@@ -146,7 +146,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			)
 			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
 				new Thickness(16, 6) : 
-				new Thickness((double)Application.Current.Resources["size240"]))
+				new Thickness(ApplicationTheme.Size240))
 		)
 		.Orientation(ScrollOrientation.Horizontal)
 		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)

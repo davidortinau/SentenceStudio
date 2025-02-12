@@ -36,7 +36,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 
 	private VisualNode RenderInput()
 	{
-		return VStack(spacing: (double)Application.Current.Resources["size240"],
+		return VStack(spacing: ApplicationTheme.Size240,
 			ActivityIndicator()
 				.IsVisible(State.IsBusy)
 				.IsRunning(State.IsBusy),
@@ -55,7 +55,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Button("Submit")
 				.OnClicked(Submit)
 		)
-		.Padding((double)Application.Current.Resources["size240"]);
+		.Padding(ApplicationTheme.Size240);
 	}
 
 	private VisualNode RenderHistory()
@@ -64,15 +64,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			VStack(
 				State.StreamHistory.Select(item => RenderHistoryItem(item)).ToArray()
 			)
-			.Spacing((double)Application.Current.Resources["size240"])
-			.Padding((double)Application.Current.Resources["size240"])
+			.Spacing(ApplicationTheme.Size240)
+			.Padding(ApplicationTheme.Size240)
 		)
 		.GridRow(1);
 	}
 
 	private VisualNode RenderHistoryItem(StreamHistory item)
 	{
-		return HStack(spacing: (double)Application.Current.Resources["size120"],
+		return HStack(spacing: ApplicationTheme.Size120,
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => PlayAudio(item))

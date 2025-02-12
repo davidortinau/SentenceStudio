@@ -65,10 +65,10 @@ partial class ImageGalleryBottomSheet : Component
         return CollectionView()
             .ItemsSource(_state.Images, RenderGalleryItem)
             .SelectionMode(_state.SelectionMode)
-            .SelectedItems(_state.SelectedImages as IList<object>)
+            .SelectedItems(_state.SelectedImages.Cast<object>().ToList())
             .ItemsLayout(new VerticalGridItemsLayout(2)
-                .VerticalItemSpacing((Double)Application.Current.Resources["size240"])
-                .HorizontalItemSpacing((Double)Application.Current.Resources["size240"]))
+                .VerticalItemSpacing(ApplicationTheme.Size240)
+                .HorizontalItemSpacing(ApplicationTheme.Size240))
             .GridRow(1);
     }
 
