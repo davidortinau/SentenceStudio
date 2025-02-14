@@ -51,7 +51,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.OnTextChanged((s, e) => SetState(s => s.Phrase = e.NewTextValue))
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
-			.Stroke((Color)Application.Current.Resources["Gray300"]),
+			.Stroke(ApplicationTheme.Gray300),
 			Button("Submit")
 				.OnClicked(Submit)
 		)

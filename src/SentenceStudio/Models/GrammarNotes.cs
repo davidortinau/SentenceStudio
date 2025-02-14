@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 namespace SentenceStudio.Models;
+
 public class GrammarNotes
 {
     [JsonPropertyName("original_sentence")]

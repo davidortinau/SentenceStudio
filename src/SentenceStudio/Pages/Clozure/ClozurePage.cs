@@ -59,8 +59,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			Label("Thinking.....")
 				.FontSize(64)
 				.TextColor(Theme.IsLightTheme ? 
-					(Color)Application.Current.Resources["DarkOnLightBackground"] : 
-					(Color)Application.Current.Resources["LightOnDarkBackground"])
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
 				.Center()
 		)
 			.Background(Color.FromArgb("#80000000"))
@@ -71,8 +71,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
 				.TextColor(Theme.IsLightTheme ? 
-					(Color)Application.Current.Resources["DarkOnLightBackground"] : 
-					(Color)Application.Current.Resources["LightOnDarkBackground"])
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
 				.Background(Colors.Transparent)
 				.GridRow(1).GridColumn(4)
 				.OnClicked(GradeMe),
@@ -122,8 +122,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					.IsRunning(State.IsBuffering)
 					.IsVisible(State.IsBuffering)
 					.Color(Theme.IsLightTheme ? 
-						(Color)Application.Current.Resources["DarkOnLightBackground"] : 
-						(Color)Application.Current.Resources["LightOnDarkBackground"])
+						ApplicationTheme.DarkOnLightBackground : 
+						ApplicationTheme.LightOnDarkBackground)
 					.VCenter(),
 				HStack(spacing: 4,
 					State.Sentences.Select(sentence =>
@@ -140,7 +140,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.StrokeThickness(2)
 						.Stroke(sentence.IsCurrent ? 
 							(Color)Application.Current.Resources["Secondary"] : 
-							(Color)Application.Current.Resources["Gray200"])
+							ApplicationTheme.Gray200)
 					)					
 				)
 			)
@@ -188,7 +188,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
 		.Margin(0,0,0,12)
 		.Background(Colors.Transparent)
-		.Stroke((Color)Application.Current.Resources["Gray300"])
+		.Stroke(ApplicationTheme.Gray300)
 		.StrokeShape(new RoundRectangle().CornerRadius(4))
 		.StrokeThickness(1);
 

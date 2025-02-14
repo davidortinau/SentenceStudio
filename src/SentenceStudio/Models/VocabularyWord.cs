@@ -8,14 +8,12 @@ public class VocabularyWord
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
 
-    [JsonPropertyName("original")]
     public string NativeLanguageTerm { get; set; }
 
-    [JsonPropertyName("translation")]
     public string TargetLanguageTerm { get; set; } 
 
-    public double Fluency { get; set; }
-    public double Accuracy { get; set; }
+    // public double Fluency { get; set; }
+    // public double Accuracy { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

@@ -1,4 +1,3 @@
-
 using System.ComponentModel;
 using System.Text.Json.Serialization;
 using SQLite;
@@ -6,34 +5,33 @@ using SQLite;
 namespace SentenceStudio.Models;
 public partial class Challenge : INotifyPropertyChanged
 {
+    [JsonIgnore]
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
-    
-    [JsonPropertyName("sentence")]
     public string SentenceText { get; set; }
-
-    [JsonPropertyName("recommended_translation")]
     public string RecommendedTranslation { get; set; }
-
+    
+    [JsonIgnore]
     public DateTime CreatedAt { get; set; }
+    
+    [JsonIgnore]
     public DateTime UpdatedAt { get; set; }
-
-    [Ignore]
-    [JsonPropertyName("vocabulary")]
+    
+    [JsonIgnore]
+    [Ignore] 
     public List<VocabularyWord> Vocabulary { get; set; }
-
-    [JsonPropertyName("vocabulary_word")]
+    
     public string VocabularyWord {get;set;}
-
-    [JsonPropertyName("vocabulary_word_used")]
-    public string VocabularyWordAsUsed { get; set; } 
-
-    [JsonPropertyName("vocabulary_word_used_guesses")]
+    public string VocabularyWordAsUsed { get; set; }
+    
+    [JsonIgnore]
     public string VocabularyWordGuesses { get; set; }
-
+    
+    [JsonIgnore]
     private UserActivity _userActivity;
 
-    [Ignore]
+    [JsonIgnore]
+    [Ignore] 
     public UserActivity UserActivity
     {
         get{
@@ -48,8 +46,10 @@ public partial class Challenge : INotifyPropertyChanged
         }
     }
 
+    [JsonIgnore]
     private bool isCurrent;
 
+    [JsonIgnore]
     [Ignore]
     public bool IsCurrent
     {

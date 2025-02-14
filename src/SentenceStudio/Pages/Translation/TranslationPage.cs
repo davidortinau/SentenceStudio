@@ -30,7 +30,6 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     [Inject] TeacherService _teacherService;
     [Inject] VocabularyService _vocabularyService;
     [Inject] AiService _aiService;
-    [Inject] ISpeechToText _speechToText;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -41,72 +40,31 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             Grid(rows: "*,80", columns: "*",
                 ScrollView(
                     Grid("30,*,auto", "*",
-                        Label("Translation"),
-                    RenderSentenceContent(),
-                    RenderInputUI(),
-                    RenderProgress()
+                        RenderSentenceContent(),
+                        RenderInputUI(),
+                        RenderProgress()
                     )
                 ),
 
-                Grid(rows: "8,*", columns: "60,1,*,1,60,1,60",
-                    Button("GO")
-                        .TextColor(Theme.IsLightTheme ?
-                            (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                            (Color)Application.Current.Resources["LightOnDarkBackground"])
-                        .Background(Colors.Transparent)
-                        .GridRow(1).GridColumn(4)
-                        .OnClicked(GradeMe),
+                RenderBottomNavigation(),
 
-                    ImageButton()
-                        .Background(Colors.Transparent)
-                        .Source(SegoeFluentIcons.Previous.ToImageSource())
-                        .GridRow(1).GridColumn(0)
-                        .OnClicked(PreviousSentence),
-
-                    ImageButton()
-                        .Background(Colors.Transparent)
-                        .Source(SegoeFluentIcons.Next.ToImageSource())
-                        .GridRow(1).GridColumn(6)
-                        .OnClicked(NextSentence),
-
-                    BoxView()
-                        .Color(Theme.IsLightTheme ?
-                            (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                            (Color)Application.Current.Resources["LightOnDarkBackground"])
-                        .HeightRequest(1)
-                        .GridColumnSpan(7),
-
-                    BoxView()
-                        .Color(Theme.IsLightTheme ?
-                            (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                            (Color)Application.Current.Resources["LightOnDarkBackground"])
-                        .WidthRequest(1)
-                        .GridRow(1).GridColumn(1),
-
-                    BoxView()
-                        .Color(Theme.IsLightTheme ?
-                            (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                            (Color)Application.Current.Resources["LightOnDarkBackground"])
-                        .WidthRequest(1)
-                        .GridRow(1).GridColumn(3),
-
-                    BoxView()
-                        .Color(Theme.IsLightTheme ?
-                            (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                            (Color)Application.Current.Resources["LightOnDarkBackground"])
-                        .WidthRequest(1)
-                        .GridRow(1).GridColumn(5)
-                )
-                .GridRow(1)
-                .HorizontalOptions(LayoutOptions.Fill),
-
-                Grid()
-                    .BackgroundColor(Color.FromArgb("#80000000"))
-                    .IsVisible(State.IsBusy)
-                    .GridRowSpan(2)
+                RenderLoadingOverlay()
             )
 		)
 		.OnAppearing(LoadSentences);
+
+    private VisualNode RenderLoadingOverlay() =>
+		Grid(
+			Label("Thinking.....")
+				.FontSize(64)
+				.TextColor(Theme.IsLightTheme ? 
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
+				.Center()
+		)
+			.Background(Color.FromArgb("#80000000"))
+			.GridRowSpan(2)
+			.IsVisible(State.IsBusy);
 
     private VisualNode RenderSentenceContent()
         => Grid("*", DeviceInfo.Idiom == DeviceIdiom.Phone ? "*" : "6*, 3*",
@@ -114,8 +72,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .Text(State.CurrentSentence)
                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
                 .TextColor(Theme.IsLightTheme ?
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] :
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground :
+                    ApplicationTheme.LightOnDarkBackground)
                 .IsVisible(!State.HasFeedback)
                 .HorizontalOptions(LayoutOptions.Start),
 
@@ -149,7 +107,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .OnCompleted(GradeMe)
 		)
         .Background(Colors.Transparent)
-        .Stroke((Color)Application.Current.Resources["Gray300"])
+        .Stroke(ApplicationTheme.Gray300)
         .StrokeShape(new RoundRectangle().CornerRadius(6))
         .Padding(new Thickness(15, 0))
         .StrokeThickness(1)
@@ -162,12 +120,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 Button()
                     .Text(word)
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                    .Padding((double)Application.Current.Resources["size40"])
-                    .BackgroundColor((Color)Application.Current.Resources["Gray200"])
-                    .TextColor((Color)Application.Current.Resources["Gray900"])
+                    .Padding(ApplicationTheme.Size40)
+                    .BackgroundColor(ApplicationTheme.Gray200)
+                    .TextColor(ApplicationTheme.Gray900)
                     .OnClicked(() => UseVocab(word))
             )
-		)
+		).Background(Colors.Blue)
 		.Spacing(4)
         .GridRow(0)
         .GridColumnSpan(4);
@@ -181,16 +139,16 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .IsRunning(State.IsBuffering)
                 .IsVisible(State.IsBuffering)
                 .Color(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .VCenter(),
 
             Label()
                 .Text(State.Progress)
                 .VCenter()
                 .TextColor(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
 		)
 		.Spacing(8)
         .Padding(30)
@@ -201,9 +159,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     private VisualNode RenderBottomNavigation() =>
         Grid("1,*", "60,1,*,1,60,1,60",
             Button("GO")
-                .TextColor(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
                 .Background(Colors.Transparent)
                 .GridRow(1).GridColumn(4)
                 .OnClicked(GradeMe),
@@ -215,52 +171,48 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
             ImageButton()
                 .Background(Colors.Transparent)
+                .Aspect(Aspect.Center)
                 .Source(SegoeFluentIcons.Previous.ToImageSource())
                 .GridRow(1).GridColumn(0)
                 .OnClicked(PreviousSentence),
 
             ImageButton()
                 .Background(Colors.Transparent)
-                .Source(SegoeFluentIcons.Play.ToImageSource())
-                .GridRow(1).GridColumn(2)
-                .HorizontalOptions(LayoutOptions.End)
-                .OnClicked(PlayAudio),
-
-            ImageButton()
-                .Background(Colors.Transparent)
+                .Aspect(Aspect.Center)
                 .Source(SegoeFluentIcons.Next.ToImageSource())
                 .GridRow(1).GridColumn(6)
                 .OnClicked(NextSentence),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .HeightRequest(1)
                 .GridColumnSpan(7),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(1),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(3),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(5)
         ).GridRow(1);
 
+    // this is the label that should float over the screen near the cursor when over a text block
     private VisualNode RenderPopOverLabel() =>
         Label()
             .Padding(8)
@@ -270,17 +222,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             .FontSize(64)
             .HStart()
             .VStart()
-            .BackgroundColor(Theme.IsLightTheme ? 
-                (Color)Application.Current.Resources["LightBackground"] : 
-                (Color)Application.Current.Resources["DarkBackground"])
-            .TextColor(Theme.IsLightTheme ? 
-                (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                (Color)Application.Current.Resources["LightOnDarkBackground"]);
-
-    private VisualNode RenderLoadingOverlay() =>
-        Grid()
-            .BackgroundColor(Color.FromArgb("#80000000"))
-            .IsVisible(State.IsBusy);
+            .BackgroundColor(Theme.IsLightTheme ?
+                ApplicationTheme.LightBackground :
+                ApplicationTheme.DarkBackground)
+            .TextColor(Theme.IsLightTheme ?
+                ApplicationTheme.DarkOnLightBackground :
+                ApplicationTheme.LightOnDarkBackground);
 
     // Event handlers and methods
     private async Task LoadSentences()
@@ -396,73 +343,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     private void UseVocab(string word)
     {
         SetState(s => s.UserInput += word);
-    }
-
-    private async void StartListening()
-    {
-        SetState(s => {
-            s.CanListenExecute = false;
-            s.CanStartListenExecute = false;
-            s.CanStopListenExecute = true;
-        });
-
-        var isGranted = await _speechToText.RequestPermissions();
-        if (!isGranted)
-        {
-            await Application.Current.MainPage.DisplayAlert("Permission Required", "Speech recognition permission not granted", "OK");
-            return;
-        }
-
-        const string beginSpeakingPrompt = "Begin speaking...";
-        SetState(s => s.UserInput = beginSpeakingPrompt);
-
-        try 
-        {
-            _speechToText.RecognitionResultUpdated += HandleRecognitionResultUpdated;
-            await _speechToText.StartListenAsync(
-                new SpeechToTextOptions
-                { 
-                    Culture = new CultureInfo("ko-KR") 
-                }
-            );
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex.Message);
-            StopListening();
-        }
-    }
-
-    private void StopListening()
-    {
-        SetState(s => {
-            s.CanListenExecute = true;
-            s.CanStartListenExecute = true;
-            s.CanStopListenExecute = false;
-        });
-
-        _speechToText.RecognitionResultUpdated -= HandleRecognitionResultUpdated;
-        _speechToText.StopListenAsync();
-    }
-
-    private void HandleRecognitionResultUpdated(object sender, SpeechToTextRecognitionResultUpdatedEventArgs e)
-    {
-        SetState(s => s.UserInput += e.RecognitionResult);
-    }
-
-    private async void PlayAudio()
-    {
-        try
-        {
-            var stream = await _aiService.TextToSpeechAsync(State.RecommendedTranslation, "Nova");
-            var audioPlayer = AudioManager.Current.CreatePlayer(stream);
-            audioPlayer.Play();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex.Message);
-        }
-    }
+    }    
 
     protected override void OnMounted()
     {
@@ -483,13 +364,13 @@ partial class FeedbackPanel : Component
             Label()
                 .Text(Feedback)
                 .TextColor(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"] : 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"])
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
                 .FontSize(24)
 		)
         .Background(Theme.IsLightTheme ? 
-            (Color)Application.Current.Resources["LightBackground"] : 
-            (Color)Application.Current.Resources["DarkBackground"])
+            ApplicationTheme.LightBackground : 
+            ApplicationTheme.DarkBackground)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .Padding(20)
         .IsVisible(IsVisible);

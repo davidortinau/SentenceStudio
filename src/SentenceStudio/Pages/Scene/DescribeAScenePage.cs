@@ -147,7 +147,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     _popup?.Close();
                 })
             ).Padding(20)
-            .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
+            .BackgroundColor(ApplicationTheme.LightBackground)
         }
         .IsShown(State.IsExplanationShown);
     }
@@ -261,7 +261,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         return Grid(
             Label("Analyzing the image...")
                 .FontSize(64)
-                .TextColor((Color)Application.Current.Resources["DarkOnLightBackground"])
+                .TextColor(ApplicationTheme.DarkOnLightBackground)
                 .Center()
         )
         .BackgroundColor(Color.FromArgb("#80000000"))

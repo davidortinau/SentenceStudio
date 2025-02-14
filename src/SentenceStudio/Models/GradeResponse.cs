@@ -4,6 +4,7 @@ using SQLite;
 namespace SentenceStudio.Models;
 public class GradeResponse
 {
+    [JsonIgnore]
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
 
@@ -26,7 +27,9 @@ public class GradeResponse
     [JsonPropertyName("grammar_notes")]
     public GrammarNotes GrammarNotes { get; set; }
 
+    [JsonIgnore]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
+    [JsonIgnore]
     public int ChallengeID { get; set; }
 }

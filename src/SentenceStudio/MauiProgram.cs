@@ -103,7 +103,6 @@ public static class MauiProgram
 		
 
 #if DEBUG
-		// builder.EnableMauiReactorHotReload(); 
 		// builder.OnMauiReactorUnhandledException(ex =>
         // {
         //     System.Diagnostics.Debug.WriteLine(ex);

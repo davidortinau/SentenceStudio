@@ -88,8 +88,8 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                 .ImageSource(SegoeFluentIcons.Delete.ToImageSource())
                 .OnClicked(() => DeleteWord(word))
                 // .AppThemeColor(
-                //     (Color)Application.Current.Resources["DarkOnLightBackground"],
-                //     (Color)Application.Current.Resources["LightOnDarkBackground"]
+                //     ApplicationTheme.DarkOnLightBackground,
+                //     ApplicationTheme.LightOnDarkBackground
                 // )
         )
         .Padding(ApplicationTheme.Size240)
@@ -108,8 +108,8 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                     s.SearchText = string.Empty;
                 })),
                 // .AppThemeColor(
-                //     (Color)Application.Current.Resources["DarkOnLightBackground"],
-                //     (Color)Application.Current.Resources["LightOnDarkBackground"]
+                //     ApplicationTheme.DarkOnLightBackground,
+                //     ApplicationTheme.LightOnDarkBackground
                 // ),
 
             Border(
@@ -149,8 +149,8 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
                     .VCenter()
                     .OnClicked(() => NavigateSearch(true))
                     // .AppThemeColor(
-                    //     (Color)Application.Current.Resources["LightOnDarkBackground"],
-                    //     (Color)Application.Current.Resources["DarkOnLightBackground"]
+                    //     ApplicationTheme.LightOnDarkBackground,
+                    //     ApplicationTheme.DarkOnLightBackground
                     // )
             )
             .HEnd()
@@ -161,7 +161,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         .ColumnSpacing(4)
         // .AppThemeColor(
         //     (Color)Application.Current.Resources["Gray100"],
-        //     (Color)Application.Current.Resources["Gray900"]
+        //     ApplicationTheme.Gray900
         // )
         .VEnd()
         .IsVisible(State.IsSearchVisible);

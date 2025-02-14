@@ -80,7 +80,7 @@ partial class WarmupPage : Component<WarmupPageState>
 
                         Button("Close", ()=> _popup?.Close(false))
                     )
-                    .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
+                    .BackgroundColor(ApplicationTheme.LightBackground)
                 }
                 .GridRowSpan(2)                
                 .OnClosed(result => SetState(s =>
@@ -111,7 +111,7 @@ partial class WarmupPage : Component<WarmupPageState>
                         .GridRow(1)
                         .OnClicked(() => _onCloseClicked?.Invoke())
                     )
-                    .BackgroundColor((Color)Application.Current.Resources["LightBackground"])
+                    .BackgroundColor(ApplicationTheme.LightBackground)
                     .Padding(15)
                     .Margin(15)
                     .HorizontalOptions(LayoutOptions.Fill)
@@ -183,7 +183,7 @@ partial class WarmupPage : Component<WarmupPageState>
                     // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
             )
             .Background(Colors.Transparent)
-            .Stroke((Color)Application.Current.Resources["Gray300"])
+            .Stroke(ApplicationTheme.Gray300)
             .StrokeShape(new RoundRectangle().CornerRadius(6))
             .Padding(new Thickness(15, 0))
             .StrokeThickness(1)
@@ -193,7 +193,7 @@ partial class WarmupPage : Component<WarmupPageState>
                 .ImageSource(ApplicationTheme.IconAdd)
                 .Text("add")
                 // .IconSize(18)
-                // .AppThemeBinding(Button.TextColorProperty, (Color)Application.Current.Resources["DarkOnLightBackground"], (Color)Application.Current.Resources["LightOnDarkBackground"])
+                // .AppThemeBinding(Button.TextColorProperty, ApplicationTheme.DarkOnLightBackground, ApplicationTheme.LightOnDarkBackground)
                 .VCenter()
                 // .BindCommand(nameof(WarmupPageModel.GetPhraseCommand))
                 .GridColumn(1)

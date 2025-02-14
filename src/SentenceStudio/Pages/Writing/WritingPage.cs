@@ -84,16 +84,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     private VisualNode InputUI() =>
         Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
             ScrollView(
-                VStack(spacing: (double)Application.Current.Resources["size40"],
+                VStack(spacing: ApplicationTheme.Size40,
                     Label(_localize["ChooseAVocabularyWord"])
                         .Style((Style)Application.Current.Resources["Title3"]),
-                    HStack(spacing: (double)Application.Current.Resources["size40"],
+                    HStack(spacing: ApplicationTheme.Size40,
                         State.VocabBlocks.Select(word =>
                             Button(word.TargetLanguageTerm)
-                                .BackgroundColor((Color)Application.Current.Resources["Gray200"])
-                                .TextColor((Color)Application.Current.Resources["Gray900"])
+                                .BackgroundColor(ApplicationTheme.Gray200)
+                                .TextColor(ApplicationTheme.Gray900)
                                 .FontSize(18)
-                                .Padding((double)Application.Current.Resources["size40"])
+                                .Padding(ApplicationTheme.Size40)
                                 .VStart()
                                 .OnClicked(() => UseVocab(word.TargetLanguageTerm))
                         )
@@ -124,15 +124,15 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 
         ).GridRow(2)
         .Padding((double)Application.Current.Resources["size160"])
-        .RowSpacing((double)Application.Current.Resources["size40"]);
+        .RowSpacing(ApplicationTheme.Size40);
 
     private VisualNode LoadingOverlay() =>
         Grid(
             Label("Thinking...")
                 .FontSize(64)
                 .TextColor(Theme.IsLightTheme ? 
-                    (Color)Application.Current.Resources["LightOnDarkBackground"] : 
-                    (Color)Application.Current.Resources["DarkOnLightBackground"])
+                    ApplicationTheme.LightOnDarkBackground : 
+                    ApplicationTheme.DarkOnLightBackground)
                 .Center()
         )
         .BackgroundColor(Color.FromArgb("#80000000"))
@@ -233,15 +233,15 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 Button()
                     .BackgroundColor(Colors.Transparent)
                     .TextColor(Theme.IsLightTheme ? 
-                        (Color)Application.Current.Resources["LightOnDarkBackground"] :
-                        (Color)Application.Current.Resources["DarkOnLightBackground"])
+                        ApplicationTheme.LightOnDarkBackground :
+                        ApplicationTheme.DarkOnLightBackground)
                     .ImageSource(SegoeFluentIcons.Copy.ToImageSource())
                     .OnClicked(() => UseVocab(sentence.Answer)),
                 Button()
                     .BackgroundColor(Colors.Transparent)
                     .TextColor(Theme.IsLightTheme ? 
-                        (Color)Application.Current.Resources["LightOnDarkBackground"] :
-                        (Color)Application.Current.Resources["DarkOnLightBackground"])
+                        ApplicationTheme.LightOnDarkBackground :
+                        ApplicationTheme.DarkOnLightBackground)
                     .ImageSource(SegoeFluentIcons.Info.ToImageSource())
                     .OnClicked(() => ShowExplanation(sentence))
             ).Center().GridColumn(3)
