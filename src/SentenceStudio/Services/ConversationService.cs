@@ -73,7 +73,7 @@ namespace SentenceStudio.Services
                 var template = Template.Parse(reader.ReadToEnd());
                 prompt = await template.RenderAsync();
 
-                Debug.WriteLine(prompt);
+                // //Debug.WriteLine(prompt);
             }
 
             try
@@ -101,7 +101,7 @@ namespace SentenceStudio.Services
                 var template = Template.Parse(reader.ReadToEnd());
                 prompt = await template.RenderAsync(new { name = "김철수", chunks = chunks.Take(chunks.Count - 1) });
 
-                Debug.WriteLine(prompt);
+                // //Debug.WriteLine(prompt);
             }
             
             try
@@ -114,7 +114,7 @@ namespace SentenceStudio.Services
                 new OpenAIClient(_openAiApiKey)
                     .AsChatClient(modelId: "gpt-4o-mini");
 
-                var response = await client.CompleteAsync<Reply>(prompt);
+                var response = await client.GetResponseAsync<Reply>(prompt);
 
                 return response.Result;
             }

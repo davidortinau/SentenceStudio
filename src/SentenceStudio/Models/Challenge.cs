@@ -17,7 +17,7 @@ public partial class Challenge : INotifyPropertyChanged
     [JsonIgnore]
     public DateTime UpdatedAt { get; set; }
     
-    [JsonIgnore]
+    [Description("Includes all the English words to complete the full sentence, but only include the Korean if the word is necessary for a natural Korean sentence. Use the Korean dictionary form in the vocabulary array.")]
     [Ignore] 
     public List<VocabularyWord> Vocabulary { get; set; }
     

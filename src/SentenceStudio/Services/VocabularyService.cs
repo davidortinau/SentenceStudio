@@ -243,7 +243,7 @@ public class VocabularyService
                 var template = Template.Parse(reader.ReadToEnd());
                 prompt = await template.RenderAsync(new { native_language = nativeLanguage, target_language = targetLanguage});
 
-                Debug.WriteLine(prompt);
+                // //Debug.WriteLine(prompt);
             }
             
             try

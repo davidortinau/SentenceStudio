@@ -41,7 +41,7 @@ public class SyntacticAnalysisService
             prompt = await template.RenderAsync(new { terms = _words });
         }
 
-        Debug.WriteLine(prompt);
+        // //Debug.WriteLine(prompt);
         
         try
         {

@@ -1,8 +1,5 @@
 using MauiReactor.Shapes;
-using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Dashboard;
-using CommunityToolkit.Maui.Media;
-using System.Globalization;
 using SentenceStudio.Pages.Clozure;
 
 namespace SentenceStudio.Pages.Translation;
@@ -125,7 +122,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .TextColor(ApplicationTheme.Gray900)
                     .OnClicked(() => UseVocab(word))
             )
-		).Background(Colors.Blue)
+		)
 		.Spacing(4)
         .GridRow(0)
         .GridColumnSpan(4);

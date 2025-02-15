@@ -56,7 +56,7 @@ namespace SentenceStudio.Services
                 prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
             }
 
-            Debug.WriteLine(prompt);
+            // //Debug.WriteLine(prompt);
             try
             {
                 var response = await _aiService.SendPrompt<SentencesResponse>(prompt);
@@ -130,7 +130,7 @@ namespace SentenceStudio.Services
                     var template = Template.Parse(reader.ReadToEnd());
                     prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput});
 
-                    Debug.WriteLine(prompt);
+                    // //Debug.WriteLine(prompt);
                 }
 
                 var response = await _aiService.SendPrompt<GradeResponse>(prompt);
@@ -155,7 +155,7 @@ namespace SentenceStudio.Services
                     var template = Template.Parse(reader.ReadToEnd());
                     prompt = await template.RenderAsync(new { user_input = userInput});
 
-                    Debug.WriteLine(prompt);
+                    // //Debug.WriteLine(prompt);
                 }
 
                 var response = await _aiService.SendPrompt<string>(prompt);
@@ -177,7 +177,7 @@ namespace SentenceStudio.Services
                     var template = Template.Parse(reader.ReadToEnd());
                     prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning});
 
-                    Debug.WriteLine(prompt);
+                    // //Debug.WriteLine(prompt);
                 }
 
                 var response = await _aiService.SendPrompt<GradeResponse>(prompt);
@@ -202,7 +202,7 @@ namespace SentenceStudio.Services
                     var template = Template.Parse(reader.ReadToEnd());
                     prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription});
 
-                    Debug.WriteLine(prompt);
+                    // //Debug.WriteLine(prompt);
                 }
 
                 var response = await _aiService.SendPrompt<GradeResponse>(prompt);

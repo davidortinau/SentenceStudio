@@ -2,6 +2,7 @@
 using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Platform;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 #if ANDROID || IOS || MACCATALYST
 using Shiny;
 #endif
@@ -20,13 +21,9 @@ using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
-
-
-
-
-
-
-
+using OpenAI;
+using Microsoft.Extensions.AI;
+using OpenTelemetry.Trace;
 
 
 
@@ -104,31 +101,47 @@ public static class MauiProgram
 
 #if DEBUG
 		// builder.OnMauiReactorUnhandledException(ex =>
-        // {
-        //     System.Diagnostics.Debug.WriteLine(ex);
-        // });
+		// {
+		//     System.Diagnostics.Debug.WriteLine(ex);
+		// });
 		// builder.UseDebugRibbon(Colors.Black);
 #endif
 
 		RegisterRoutes();
 		RegisterServices(builder.Services);
 
-		// 		services.AddLogging(logging =>
-		// 			{
-		// #if WINDOWS
-		// 				logging.AddDebug();
-		// #else
-		// 				logging.AddConsole();
-		// #endif
+		var openAiApiKey = builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+		builder.Services.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini")).UseLogging();
 
-		// 				// Enable maximum logging for BlazorWebView
-		// 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
-		// 			});
+		builder.Services.AddLogging(logging =>
+					{
+		#if WINDOWS
+						logging.AddDebug();
+		#else
+						logging.AddConsole();
+		#endif
+
+			// Enable maximum logging for BlazorWebView
+			logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
+		});
+
+		// Configure OpenTelemetry
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracerProviderBuilder =>
+            {
+                tracerProviderBuilder
+                    .AddHttpClientInstrumentation() // Capture HttpClient requests
+                    // .AddSource("IChatClient") // Custom source for OpenAI API calls
+                    .AddConsoleExporter(); // Export traces to console for debugging
+            });
+
+        // Register HttpClient (this ensures OpenTelemetry can track it)
+        // builder.Services.AddHttpClient();
 
 
 		// PreLoadInit();
 
-		
+
 		return builder.Build();
 	}
 

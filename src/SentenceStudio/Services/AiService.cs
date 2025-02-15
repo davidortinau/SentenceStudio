@@ -12,11 +12,12 @@ public class AiService {
     private readonly IChatClient _client;
     private readonly AudioClient _audio;
     private readonly ImageClient _image;
-    public AiService(IConfiguration configuration)
+    public AiService(IConfiguration configuration, IChatClient client)
     {
+        _client = client;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
-        _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
+        // _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
         _audio = new("tts-1", _openAiApiKey);
         _image = new ImageClient("gpt-4o", _openAiApiKey);
     }
@@ -30,7 +31,7 @@ public class AiService {
 
         try
         {
-            var response = await _client.CompleteAsync<T>(prompt);
+            var response = await _client.GetResponseAsync<T>(prompt);
             return response.Result;            
         }
         catch (Exception ex)
@@ -52,10 +53,10 @@ public class AiService {
         {
             var message = new ChatMessage(ChatRole.User, prompt);
             message.Contents.Add(
-                new ImageContent(new Uri(imagePath))
+                new DataContent(new Uri(imagePath), mediaType: "image/jpeg")
             );
 
-            var response = await _client.CompleteAsync<string>(new List<ChatMessage> { message });
+            var response = await _client.GetResponseAsync<string>(new List<ChatMessage> { message });
             
             Debug.WriteLine($"Response: {response.Result}");
             return response.Result;
