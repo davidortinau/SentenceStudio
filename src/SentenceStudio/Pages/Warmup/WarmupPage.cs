@@ -129,8 +129,8 @@ partial class WarmupPage : Component<WarmupPageState>
             )
             .Margin(new Thickness(15, 5))
             .Padding(new Thickness(12, 4, 12, 8))
-            .Background((Color)Application.Current.Resources["Primary"])
-            .Stroke((Color)Application.Current.Resources["Primary"])
+            .Background(ApplicationTheme.Primary)
+            .Stroke(ApplicationTheme.Primary)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 10, 2, 10))
             .HorizontalOptions(LayoutOptions.Start);
         }

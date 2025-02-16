@@ -11,7 +11,7 @@ class ClozurePageState
 	public bool IsBuffering { get; set; }
 	public string UserInput { get; set; }
 	public string UserGuess { get; set; }
-	public string UserMode { get; set; } = "Text";
+	public string UserMode { get; set; } = InputMode.Text.ToString();
 	public string CurrentSentence { get; set; }
 	public string RecommendedTranslation { get; set; }
 	public double AutoTransitionProgress { get; set; }
@@ -51,7 +51,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			.Progress(State.AutoTransitionProgress)
 			.HeightRequest(4)
 			.BackgroundColor(Colors.Transparent)
-			.ProgressColor((Color)Application.Current.Resources["Primary"])
+			.ProgressColor(ApplicationTheme.Primary)
 			.VStart();
 
 	private VisualNode LoadingOverlay() =>
@@ -84,12 +84,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 			ImageButton()
 				.Background(Colors.Transparent)
+				.Aspect(Aspect.Center)
 				.Source(SegoeFluentIcons.Previous.ToImageSource())
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
 			ImageButton()
 				.Background(Colors.Transparent)
+				.Aspect(Aspect.Center)
 				.Source(SegoeFluentIcons.Next.ToImageSource())
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
@@ -164,7 +166,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	private VisualNode UserInput() =>
 		Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
-			State.UserMode == "MultipleChoice" ? 
+			State.UserMode == InputMode.MultipleChoice.ToString() ? 
 				RenderMultipleChoice() : 
 				RenderTextInput()
 		)
@@ -296,7 +298,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
 		if (currentChallenge == null) return;
 
-		var answer = State.UserMode == "MultipleChoice" ? State.UserGuess : State.UserInput;
+		var answer = State.UserMode == InputMode.MultipleChoice.ToString() ? State.UserGuess : State.UserInput;
 		if (string.IsNullOrWhiteSpace(answer)) return;
 
 		var activity = new UserActivity
@@ -352,7 +354,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	private async void NextSentence()
 	{
 		autoNextTimer?.Stop();
-		SetState(s => s.UserMode = "Text");
+		SetState(s => s.UserMode = InputMode.Text.ToString());
 
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
 		if (currentIndex == -1) currentIndex = State.Sentences.Count - 1; // Handle case where no sentence is current
@@ -416,7 +418,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	private async void PreviousSentence()
 	{
 		autoNextTimer?.Stop();
-		SetState(s => s.UserMode = "Text");
+		SetState(s => s.UserMode = InputMode.Text.ToString());
 
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
 		if (currentIndex == -1) return; // Handle case where no sentence is current

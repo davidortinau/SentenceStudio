@@ -25,8 +25,6 @@ using OpenAI;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 
-
-
 #if WINDOWS
 using System.Reflection;
 #endif
@@ -110,23 +108,20 @@ public static class MauiProgram
 		RegisterRoutes();
 		RegisterServices(builder.Services);
 
-		var openAiApiKey = builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
-		builder.Services.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini")).UseLogging();
-
 		builder.Services.AddLogging(logging =>
 					{
-		#if WINDOWS
+#if WINDOWS
 						logging.AddDebug();
-		#else
+#else
 						logging.AddConsole();
-		#endif
+#endif
 
-			// Enable maximum logging for BlazorWebView
-			logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
+						// Enable maximum logging for BlazorWebView
+						logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
+						logging.AddFilter("Microsoft.Extensions.AI", LogLevel.Trace);
 		});
 
-		// Configure OpenTelemetry
-        builder.Services.AddOpenTelemetry()
+		builder.Services.AddOpenTelemetry()
             .WithTracing(tracerProviderBuilder =>
             {
                 tracerProviderBuilder
@@ -134,6 +129,16 @@ public static class MauiProgram
                     // .AddSource("IChatClient") // Custom source for OpenAI API calls
                     .AddConsoleExporter(); // Export traces to console for debugging
             });
+
+		var openAiApiKey = builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+		builder.Services
+			.AddChatClient(new OpenAIClient(openAiApiKey)
+			.AsChatClient(modelId: "gpt-4o-mini"))
+			.UseLogging();
+			// .UseOpenTelemetry();
+
+		// Configure OpenTelemetry
+        
 
         // Register HttpClient (this ensures OpenTelemetry can track it)
         // builder.Services.AddHttpClient();

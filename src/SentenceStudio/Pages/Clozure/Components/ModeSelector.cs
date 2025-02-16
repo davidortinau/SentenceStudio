@@ -20,32 +20,30 @@ partial class ModeSelector : Component<ModeSelectorState>
 
     public override VisualNode Render()
     {
-        return HStack(spacing: 10,
-            ImageButton()
-                .Source(SegoeFluentIcons.KeyboardStandard.ToImageSource())
-                .Aspect(Aspect.Center)
-                .Background(State.SelectedMode == "Text" ? 
-                    (Color)Application.Current.Resources["Primary"] : 
-                    Colors.Transparent)
-                // .TextColor(State.SelectedMode == "Text" ? 
-                //     Colors.White : 
-                //     (Color)Application.Current.Resources["Primary"])
-                .OnClicked(() => 
-                {
-                    SetState(s => s.SelectedMode = "Text");
-                    _onSelectedModeChanged?.Invoke("Text");
-                }),
-            ImageButton()
-                .Source(SegoeFluentIcons.MultiSelect.ToImageSource())
-                .Aspect(Aspect.Center)
-                .Background(State.SelectedMode == "MultipleChoice" ? 
-                    (Color)Application.Current.Resources["Primary"] : 
-                    Colors.Transparent)
-                .OnClicked(() => 
-                {
-                    SetState(s => s.SelectedMode = "MultipleChoice");
-                    _onSelectedModeChanged?.Invoke("MultipleChoice");
+        return new SfSegmentedControl{
+                    new SfSegmentItem().ImageSource(SegoeFluentIcons.KeyboardStandard.ToImageSource()),
+                    new SfSegmentItem().ImageSource(SegoeFluentIcons.MultiSelect.ToImageSource())
+                }
+                .Background(Colors.Transparent)
+                .ShowSeparator(true)
+                .SegmentCornerRadius(0)
+                .Stroke(Theme.IsLightTheme ? ApplicationTheme.Black : ApplicationTheme.White)
+                .StrokeThickness(1)
+                .SelectedIndex(State.SelectedMode == "Text" ? 0 : 1)
+                .OnSelectionChanged((s, e) => {
+                    if(e.NewIndex == 0)
+                    {
+                        SetState(s => s.SelectedMode = "Text");
+                        _onSelectedModeChanged?.Invoke("Text");
+                    }
+                    else
+                    {
+                        SetState(s => s.SelectedMode = "MultipleChoice");
+                        _onSelectedModeChanged?.Invoke("MultipleChoice");
+                    }
                 })
-        ).HCenter();
+                .SegmentWidth(40)
+                .SegmentHeight(40)
+                .HCenter();
     }
 } 

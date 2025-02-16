@@ -84,11 +84,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         .GridRow(1)
         .Margin(30);
 
-    private VisualNode RenderInputUI() => Grid("*,*","*,auto,auto,auto",
-                State.UserMode == InputMode.MultipleChoice.ToString() ? 
-                    RenderVocabBlocks() : 
+    private VisualNode RenderInputUI() => Grid("*,*", "*,auto,auto,auto",
+                State.UserMode == InputMode.MultipleChoice.ToString() ?
+                    RenderVocabBlocks() : null,
                     RenderUserInput()
-            ).RowSpacing(0)
+            )
+            .RowSpacing(ApplicationTheme.Size40)
             .Padding(30)
             .ColumnSpacing(15)
             .GridRow(2);
@@ -357,13 +358,16 @@ partial class FeedbackPanel : Component
     public override VisualNode Render()
     {
         return Border(
-        
-            Label()
-                .Text(Feedback)
-                .TextColor(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
-                .FontSize(24)
+            VScrollView(
+                VStack(
+                    Label()
+                        .Text(Feedback)
+                        .TextColor(Theme.IsLightTheme ? 
+                            ApplicationTheme.DarkOnLightBackground : 
+                            ApplicationTheme.LightOnDarkBackground)
+                        .FontSize(24)
+                )
+            )
 		)
         .Background(Theme.IsLightTheme ? 
             ApplicationTheme.LightBackground : 

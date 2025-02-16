@@ -24,7 +24,7 @@ public partial class Challenge : INotifyPropertyChanged
     public string VocabularyWord {get;set;}
     public string VocabularyWordAsUsed { get; set; }
     
-    [JsonIgnore]
+    [Description("Five comma separated words from which the user can choose, including the correct vocabulary word.")]
     public string VocabularyWordGuesses { get; set; }
     
     [JsonIgnore]
