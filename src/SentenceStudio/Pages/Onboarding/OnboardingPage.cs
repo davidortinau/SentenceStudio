@@ -145,8 +145,6 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .OnTextChanged(text => SetState(s => s.Name = text))
                 }
                 .GridRow(1)
-                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                .ContainerBackground(Colors.White)
                 .Hint("Enter your name")
             )
             .RowSpacing(ApplicationTheme.Size160).ColumnSpacing(ApplicationTheme.Size160)
@@ -172,8 +170,6 @@ public partial class OnboardingPage : Component<OnboardingState>
                         })
                 }
                 .GridRow(1)
-                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                .ContainerBackground(Colors.White)
                 .Hint("Select language")
             )
             .RowSpacing(ApplicationTheme.Size160)
@@ -194,8 +190,6 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .Text(State.OpenAI_APIKey)
                         .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
                 }
-                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                .ContainerBackground(Colors.White)
                 .Hint("Enter your OpenAI API key"),
 
                 Label("Get an API key from OpenAI.com")

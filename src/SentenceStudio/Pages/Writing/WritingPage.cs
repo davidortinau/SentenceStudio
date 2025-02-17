@@ -118,7 +118,6 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     .OnClicked(TranslateInput)
             )
             .Hint(_localize["WhatDoYouWantToSay"].ToString())
-            .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
             .GridRow(1)
             .GridColumn(0)
 
@@ -218,10 +217,11 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             return;
 
         var translation = await _teacherService.Translate(State.UserInput);
-        await Application.Current.MainPage.DisplayAlert(
-            _localize["Translation"].ToString(),
-            translation,
-            "Okay");
+        await AppShell.DisplayToastAsync(translation);
+        // await Application.Current.MainPage.DisplayAlert(
+        //     _localize["Translation"].ToString(),
+        //     translation,
+        //     "Okay");
     }
 
     private VisualNode RenderDesktopSentence(Sentence sentence) =>

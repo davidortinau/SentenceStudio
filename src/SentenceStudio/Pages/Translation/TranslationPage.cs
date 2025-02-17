@@ -104,11 +104,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                 .OnCompleted(GradeMe)
 		)
-        .Background(Colors.Transparent)
-        .Stroke(ApplicationTheme.Gray300)
-        .StrokeShape(new RoundRectangle().CornerRadius(6))
+        // .Background(Colors.Transparent)
+        // .Stroke(ApplicationTheme.Gray300)
+        // .StrokeShape(new RoundRectangle().CornerRadius(6))
         .Padding(new Thickness(15, 0))
-        .StrokeThickness(1)
+        // .StrokeThickness(1)
         .GridRow(1)
         .GridColumnSpan(4);
 

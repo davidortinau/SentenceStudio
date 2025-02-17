@@ -23,8 +23,6 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                             .Text(State.Title)
                             .OnTextChanged(text => SetState(s => s.Title = text))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint("Title"),
 
                     new SfTextInputLayout
@@ -34,8 +32,6 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                             .OnTextChanged(text => SetState(s => s.Description = text))
                             .AutoSize(EditorAutoSizeOption.TextChanges)
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint("Skills Description")
                 )
                 .Spacing((Double)Application.Current.Resources["size320"])

@@ -176,23 +176,19 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridRow(2);
 
 	private VisualNode RenderTextInput() =>
-		Border(
+		new SfTextInputLayout(
 			Entry()
-				.Placeholder("Answer")
 				.FontSize(32)
 				.Text(State.UserInput)
 				.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
 				.ReturnType(ReturnType.Go)
 				.OnCompleted(GradeMe)
 		)
+		.Hint("Answer")
 		.GridRow(1)
 		.GridColumn(0)
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-		.Margin(0,0,0,12)
-		.Background(Colors.Transparent)
-		.Stroke(ApplicationTheme.Gray300)
-		.StrokeShape(new RoundRectangle().CornerRadius(4))
-		.StrokeThickness(1);
+		.Margin(0,0,0,12);
 
 	private VisualNode RenderMultipleChoice() =>
 		VStack(spacing: 4,
@@ -216,8 +212,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (activity == null) return null;
 		
 		return activity.Accuracy == 100 ? 
-			SegoeFluentIcons.StatusCircleCheckmark.ToFontImageSource() : 
-			SegoeFluentIcons.StatusErrorCircle7.ToFontImageSource();
+			SegoeFluentIcons.StatusCircleCheckmark.ToImageSource(iconSize:14) : 
+			SegoeFluentIcons.Cancel.ToImageSource(iconSize:14);
 	}
 
 	private async void JumpTo(Challenge challenge)
@@ -303,8 +299,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		var activity = new UserActivity
 		{
-						Activity = "Clozure",
-						Input = answer,
+			Activity = "Clozure",
+			Input = answer,
 			Accuracy = answer == currentChallenge.VocabularyWordAsUsed ? 100 : 0
 		};
 
@@ -313,10 +309,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		if (activity.Accuracy == 100)
 		{
+			SetState(s => s.UserInput = string.Empty);
 			TransitionToNextSentence();
-		}
-
-		SetState(s => s.UserInput = string.Empty);
+		}		
 	}
 
 	private System.Timers.Timer autoNextTimer;

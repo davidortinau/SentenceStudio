@@ -130,11 +130,11 @@
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.3" />
 		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.2" />
-		<PackageReference Include="Reactor.Maui" Version="3.0.22" />
+		<PackageReference Include="Reactor.Maui" Version="3.0.23" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.2" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.1" />
-		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25113.12" />		
-		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.3.0-preview.1.25113.12" />	
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		
+		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.3.0-preview.1.25114.11" />	
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />		
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />			
 	</ItemGroup>
@@ -150,6 +150,8 @@
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
 		
+		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />		
+		
 		<PackageReference Include="OpenTelemetry" Version="1.11.1" />		
 		
 		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.1" />		
@@ -158,7 +160,7 @@
 		
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.0" />		
 		
-		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.3" />
+		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />		
 	</ItemGroup>
 

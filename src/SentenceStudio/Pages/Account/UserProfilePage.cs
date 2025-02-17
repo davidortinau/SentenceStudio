@@ -34,8 +34,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Name)
                             .OnTextChanged(text => SetState(s => s.Name = text))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["Name"]}"),
 
                     new SfTextInputLayout
@@ -44,8 +42,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Email)
                             .OnTextChanged(text => SetState(s => s.Email = text))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["Email"]}"),
 
                     new SfTextInputLayout
@@ -55,8 +51,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .SelectedIndex(State.NativeLanguageIndex)
                             .OnSelectedIndexChanged(index => SetState(s => s.NativeLanguage = Languages[index]))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["NativeLanguage"]}"),
 
                     new SfTextInputLayout
@@ -66,8 +60,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .SelectedIndex(State.TargetLanguageIndex)
                             .OnSelectedIndexChanged(index => SetState(s => s.TargetLanguage = Languages[index]))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["TargetLanguage"]}"),
 
                     new SfTextInputLayout
@@ -77,8 +69,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .SelectedIndex(State.DisplayLanguageIndex)
                             .OnSelectedIndexChanged(index => SetState(s => s.DisplayLanguage = DisplayLanguages[index]))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["DisplayLanguage"]}"),
 
                     new SfTextInputLayout
@@ -88,8 +78,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.OpenAI_APIKey)
                             .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
                     }
-                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                    .ContainerBackground(Colors.White)
                     .Hint($"{_localize["OpenAI_APIKey"]}"),
 
                     Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")

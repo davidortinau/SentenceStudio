@@ -65,8 +65,6 @@ partial class DashboardPage : Component<DashboardPageState>
                                             _parameters.Set(p => p.SelectedVocabList = State.VocabLists[index]);
                                         })
                                 }
-                                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                                .ContainerBackground(Colors.White)
                                 .Hint("Vocabulary"),
                             new SfTextInputLayout
                                 {
@@ -79,8 +77,6 @@ partial class DashboardPage : Component<DashboardPageState>
                                             _parameters.Set(p => p.SelectedSkillProfile = State.SkillProfiles[index]);
                                         })
                                 }
-                                .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-                                .ContainerBackground(Colors.White)
                                 .Hint("Skills")
                                 .GridColumn(1)
                         ).Columns("*,*").ColumnSpacing(15),

@@ -35,8 +35,6 @@ partial class AddVocabularyPage : Component<AddVocabularyPageState>
 							.Text(State.VocabListName)
 							.OnTextChanged(text => SetState(s => s.VocabListName = text))
 						}
-						.ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-						.ContainerBackground(Colors.White)
 						.Hint($"{_localize["ListName"]}"),
 
 					new SfTextInputLayout{
@@ -46,8 +44,6 @@ partial class AddVocabularyPage : Component<AddVocabularyPageState>
 							.MinimumHeightRequest(400)
 							.MaximumHeightRequest(600)
 						}
-						.ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
-						.ContainerBackground(Colors.White)
 						.Hint($"{_localize["Vocabulary"]}"),
 
 					Button()

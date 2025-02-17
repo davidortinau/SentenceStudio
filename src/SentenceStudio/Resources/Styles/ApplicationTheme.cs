@@ -147,6 +147,11 @@ class ApplicationTheme : Theme
 
     protected override void OnApply()
     {
+        SfTextInputLayoutStyles.Default = _ => _
+            .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
+            .OutlineCornerRadius(0)
+            .ContainerBackground(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground);
+
         ActivityIndicatorStyles.Default = _ =>
             _.Color(IsLightTheme ? Primary : White);
 
