@@ -40,7 +40,7 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
         );
     }
 
-    private async Task SaveProfile()
+    async Task SaveProfile()
     {
         var profile = new SkillProfile
         {

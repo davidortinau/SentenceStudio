@@ -1,9 +1,4 @@
-using MauiReactor;
-using MauiReactor.Internals;
 using MauiReactor.Shapes;
-using SentenceStudio.Resources.Styles;
-using System.Collections.ObjectModel;
-using The49.Maui.BottomSheet;
 using VerticalGridItemsLayout = MauiReactor.VerticalGridItemsLayout;
 
 namespace SentenceStudio.Pages.Scene;
@@ -22,9 +17,8 @@ partial class ImageGalleryBottomSheet : Component
         .Margin(ApplicationTheme.Size240);
     }
 
-    private VisualNode RenderHeader()
-    {
-        return Grid(
+    VisualNode RenderHeader() =>
+        Grid(
             Label("Choose an image")
                 .Style((Style)Application.Current.Resources["Title1"])
                 .HStart(),
@@ -58,11 +52,9 @@ partial class ImageGalleryBottomSheet : Component
             )
             .HEnd()
         );
-    }
 
-    private VisualNode RenderGallery()
-    {
-        return CollectionView()
+    VisualNode RenderGallery() =>
+        CollectionView()
             .ItemsSource(_state.Images, RenderGalleryItem)
             .SelectionMode(_state.SelectionMode)
             .SelectedItems(_state.SelectedImages.Cast<object>().ToList())
@@ -70,16 +62,15 @@ partial class ImageGalleryBottomSheet : Component
                 .VerticalItemSpacing(ApplicationTheme.Size240)
                 .HorizontalItemSpacing(ApplicationTheme.Size240))
             .GridRow(1);
-    }
 
-    private VisualNode RenderGalleryItem(SceneImage image)
-    {
-        return Grid(
+    VisualNode RenderGalleryItem(SceneImage image) =>
+        Grid(
             Image()
                 .Source(new Uri(image.Url))
                 .Aspect(Aspect.AspectFit)
                 .HeightRequest(100)
-                .OnTapped(() => OnImageSelected(image)),
+                // .OnTapped(() => OnImageSelected(image))
+                ,
 
             Image()
                 .Source(SegoeFluentIcons.Checkbox.ToFontImageSource())
@@ -95,11 +86,9 @@ partial class ImageGalleryBottomSheet : Component
                 .IsVisible(image.IsSelected)
                 .Margin(4)
         );
-    }
 
-    private void OnImageSelected(SceneImage image)
-    {
-        // This would need to be handled by the parent component through a callback
-        // Similar to how the original handles it through the ViewModel
-    }
+    // void OnImageSelected(SceneImage image) =>
+    //      would need to be handled by the parent component through a callback
+    //     // Similar to how the original handles it through the ViewModel
+    // }
 } 

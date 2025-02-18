@@ -1,6 +1,4 @@
-using MauiReactor;
 using Microsoft.Extensions.Configuration;
-using SentenceStudio.Resources.Styles;
 
 namespace SentenceStudio.Pages.Onboarding;
 
@@ -49,7 +47,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         base.OnMounted();
     }
 
-    private void NavigateToPosition(int newPosition)
+    void NavigateToPosition(int newPosition)
     {
         var screens = GetScreens();
         var maxScreens = screens.Length - 1;
@@ -110,10 +108,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             );
     }
 
-    VisualNode RenderItemTemplate(VisualNode node)
-    {
-        return node;
-    }
+    VisualNode RenderItemTemplate(VisualNode node) => node;
 
     VisualNode RenderWelcomeStep() =>
         ContentView(
@@ -217,7 +212,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             .Margin(ApplicationTheme.Size160)
         );
 
-    private async Task End()
+    async Task End()
     {
         var profile = new UserProfile
         {
@@ -236,7 +231,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         // App.Current.Windows[0].Page = new AppShell(_service.GetService<AppShellModel>());
     }
 
-    private readonly string[] Languages = new[]
+    readonly string[] Languages = new[]
     {
         "English", "Spanish", "French", "German", "Italian", "Portuguese",
         "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"

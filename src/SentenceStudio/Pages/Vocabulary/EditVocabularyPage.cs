@@ -1,5 +1,3 @@
-using Fonts;
-
 namespace SentenceStudio.Pages.Vocabulary;
 
 class EditVocabularyPageState
@@ -37,7 +35,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
             ).OnAppearing(async () => await LoadList());
     }
 
-    private VisualNode RenderHeader() =>
+    VisualNode RenderHeader() =>
         VStack(
             VStack(
                 Label($"{_localize["ListName"]}").HStart(),
@@ -65,7 +63,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         .Spacing(ApplicationTheme.Size120)
         .Padding(ApplicationTheme.Size240);
 
-    private VisualNode RenderWordItem(VocabularyWord word) =>
+    VisualNode RenderWordItem(VocabularyWord word) =>
         Grid(
             Border(
                 Entry()
@@ -96,7 +94,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         .ColumnSpacing(ApplicationTheme.Size240)
         .Columns("*,*,auto");
 
-    private VisualNode RenderSearchBottomSheet() =>
+    VisualNode RenderSearchBottomSheet() =>
         Grid(
             Button($"{_localize["Done"]}")
                 .BackgroundColor(Colors.Transparent)
@@ -166,7 +164,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         .VEnd()
         .IsVisible(State.IsSearchVisible);
 
-    private async Task LoadList()
+    async Task LoadList()
     {
         var list = await _vocabService.GetListAsync(Props.ListID);
         SetState(s => 
@@ -177,7 +175,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         });
     }
 
-    private void SearchWords(string searchText)
+    void SearchWords(string searchText)
     {
         SetState(s =>
         {
@@ -193,7 +191,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         }
     }
 
-    private void NavigateSearch(bool forward)
+    void NavigateSearch(bool forward)
     {
         SetState(s =>
         {
@@ -210,13 +208,13 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         }
     }
 
-    private void ScrollToWord(VocabularyWord word)
+    void ScrollToWord(VocabularyWord word)
     {
         // Note: MauiReactor doesn't currently expose CollectionView.ScrollTo
         // This would need to be implemented via platform specific code or wait for MauiReactor support
     }
 
-    private async Task SaveVocab()
+    async Task SaveVocab()
     {
         var list = new VocabularyList
         {
@@ -229,7 +227,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         await MauiControls.Shell.Current.GoToAsync("..");
     }
 
-    private async Task DeleteList()
+    async Task DeleteList()
     {
         var list = new VocabularyList
         {
@@ -242,14 +240,14 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         await MauiControls.Shell.Current.GoToAsync("..");
     }
 
-    private async Task DeleteWord(VocabularyWord word)
+    async Task DeleteWord(VocabularyWord word)
     {
         SetState(s => s.Words = s.Words.Where(w => w != word).ToList());
         await _vocabService.DeleteWordAsync(word);
         await _vocabService.DeleteWordFromListAsync(word, State.ListId);
     }
 
-    private async Task AddVocab()
+    async Task AddVocab()
     {
         var word = new VocabularyWord();
         SetState(s => s.Words = new[] { word }.Concat(s.Words).ToList());

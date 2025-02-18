@@ -1,12 +1,5 @@
-using CommunityToolkit.Maui.Core;
-using CommunityToolkit.Maui.Views;
-using MauiReactor;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
-using SentenceStudio.Models;
-using SentenceStudio.Pages.Controls;
-using SentenceStudio.Resources.Styles;
-using SentenceStudio.Services;
 using System.Collections.ObjectModel;
 
 namespace SentenceStudio.Pages.Warmup;
@@ -32,12 +25,12 @@ partial class WarmupPage : Component<WarmupPageState>
     [Inject] ConversationService _conversationService;
     [Inject] AiService _aiService;
 
-    private Conversation _conversation;
+    Conversation _conversation;
 
-    private CommunityToolkit.Maui.Views.Popup? _popup, _phrasesPopup;
+    CommunityToolkit.Maui.Views.Popup? _popup, _phrasesPopup;
 
-    private Action<string>? _onItemTapped;
-    private Action? _onCloseClicked;
+    Action<string>? _onItemTapped;
+    Action? _onCloseClicked;
 
     string[] phrases = new[]
         {
@@ -65,58 +58,60 @@ partial class WarmupPage : Component<WarmupPageState>
         ).OnAppearing(ResumeConversation);
     }
 
-    VisualNode RenderMessageScroll() => ScrollView(
-                    VStack(
-                        State.Chunks.Select(c => RenderChunk(c)).ToArray()
-                    )
-                    .Spacing(15)
-                );
+    VisualNode RenderMessageScroll() =>
+        ScrollView(
+            VStack(
+                State.Chunks.Select(c => RenderChunk(c)).ToArray()
+            )
+            .Spacing(15)
+        );
 
-    VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
-                {
-                    VStack(spacing: 10,
-                    
-                        Label(State.Explanation),
+    VisualNode RenderExplanationPopup() =>
+        new PopupHost(r => _popup = r)
+        {
+            VStack(spacing: 10,
 
-                        Button("Close", ()=> _popup?.Close(false))
-                    )
-                    .BackgroundColor(ApplicationTheme.LightBackground)
-                }
-                .GridRowSpan(2)                
-                .OnClosed(result => SetState(s =>
-                {
-                    s.IsExplanationShown = false;
-                    s.PopupResult = (bool?)result;
-                }))
-                .IsShown(State.IsExplanationShown);
+                Label(State.Explanation),
 
-    VisualNode RenderPhrasesPopup() => new PopupHost(r => _phrasesPopup = r)
-                {
-                    Grid("*,Auto","",
-                    ScrollView(
-                        VStack(spacing: 20,
-                        phrases.Select(text =>
-                            Label()
-                            .Text(text)
-                            .OnTapped((sender, args) => {
-                                SetState(s=> s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text);
-                                _popup?.Close(true);
-                            }
-                                )
-                            )
-                        )
-                    ),
-                    Button()
-                        .Text("Cancel")
-                        .GridRow(1)
-                        .OnClicked(() => _onCloseClicked?.Invoke())
+                Button("Close", ()=> _popup?.Close(false))
+            )
+            .BackgroundColor(ApplicationTheme.LightBackground)
+        }
+        .OnClosed(result => SetState(s =>
+        {
+            s.IsExplanationShown = false;
+            s.PopupResult = (bool?)result;
+        }))
+        .GridRowSpan(2)       
+        .IsShown(State.IsExplanationShown);
+
+    VisualNode RenderPhrasesPopup() =>
+        new PopupHost(r => _phrasesPopup = r)
+        {
+            Grid("*,Auto","",
+            ScrollView(
+                VStack(spacing: 20,
+                    phrases.Select(text =>
+                        Label()
+                        .Text(text)
+                        .OnTapped((sender, args) => {
+                            SetState(s=> s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text);
+                            _phrasesPopup?.Close(true);
+                        })
                     )
-                    .BackgroundColor(ApplicationTheme.LightBackground)
-                    .Padding(15)
-                    .Margin(15)
-                    .HorizontalOptions(LayoutOptions.Fill)
-                    .MinimumWidthRequest(320)
-                }.IsShown(State.IsPhraseListShown);
+                )
+            ),
+            Button()
+                .Text("Cancel")
+                .GridRow(1)
+                .OnClicked(() => _onCloseClicked?.Invoke())
+            )
+            .BackgroundColor(ApplicationTheme.LightBackground)
+            .Padding(15)
+            .Margin(15)
+            .HorizontalOptions(LayoutOptions.Fill)
+            .MinimumWidthRequest(320)
+        }.IsShown(State.IsPhraseListShown);
 
     VisualNode RenderChunk(ConversationChunk chunk)
     {
@@ -152,7 +147,7 @@ partial class WarmupPage : Component<WarmupPageState>
         }
     }
 
-    private async Task ShowExplanation(ConversationChunk s)
+    async Task ShowExplanation(ConversationChunk s)
     {
         string explanation = $"Comprehension Score: {s.Comprehension}" + Environment.NewLine + Environment.NewLine;
         explanation += $"{s.ComprehensionNotes}" + Environment.NewLine + Environment.NewLine;
@@ -189,17 +184,13 @@ partial class WarmupPage : Component<WarmupPageState>
             .StrokeThickness(1)
             .VerticalOptions(LayoutOptions.End),
             Button()
-                .BackgroundColor(Colors.Red)
+                .BackgroundColor(ApplicationTheme.Gray300)
                 .ImageSource(ApplicationTheme.IconAdd)
                 .Text("add")
-                // .IconSize(18)
-                // .AppThemeBinding(Button.TextColorProperty, ApplicationTheme.DarkOnLightBackground, ApplicationTheme.LightOnDarkBackground)
                 .VCenter()
-                // .BindCommand(nameof(WarmupPageModel.GetPhraseCommand))
                 .GridColumn(1)
                 .OnPressed(async () =>
                 {
-                    // await GetPhrase();
                     SetState(s => s.IsPhraseListShown = true);
                 })
         )
@@ -208,18 +199,7 @@ partial class WarmupPage : Component<WarmupPageState>
         .ColumnSpacing(15)
         .VEnd();
 
-    private async Task GetPhrase()
-    {
-        // var result = await _popupService.ShowPopupAsync<PhraseClipboardViewModel>(CancellationToken.None);
-        // if(result is string phrase)
-        // {
-        //     UserInput = phrase;
-        // }
-
-        // ContainerPage.ShowPopup(_popup);
-    }
-
-    private async Task SendMessage()
+    async Task SendMessage()
     {
         if (!string.IsNullOrWhiteSpace(State.UserInput))
         {
@@ -244,7 +224,7 @@ partial class WarmupPage : Component<WarmupPageState>
         }
     }
 
-    private async Task ResumeConversation()
+    async Task ResumeConversation()
     {
         SetState(s => s.IsBusy = true);
 
@@ -269,7 +249,7 @@ partial class WarmupPage : Component<WarmupPageState>
         });
     }
 
-    private async Task StartConversation()
+    async Task StartConversation()
     {
         await Task.Delay(100);
         State.IsBusy = true;
@@ -287,7 +267,7 @@ partial class WarmupPage : Component<WarmupPageState>
         State.IsBusy = false;
     }
 
-    private async Task GetReply()
+    async Task GetReply()
     {
         State.IsBusy = true;
 
@@ -309,7 +289,7 @@ partial class WarmupPage : Component<WarmupPageState>
         await PlayAudio(response.Message);
     }
 
-    private async Task PlayAudio(string text)
+    async Task PlayAudio(string text)
     {
         var myStream = await _aiService.TextToSpeechAsync(text, "Nova");
         var audioPlayer = AudioManager.Current.CreatePlayer(myStream);

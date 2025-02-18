@@ -1,4 +1,3 @@
-using Fonts;
 using LukeMauiFilePicker;
 
 namespace SentenceStudio.Pages.Vocabulary;
@@ -82,7 +81,7 @@ partial class AddVocabularyPage : Component<AddVocabularyPageState>
 		);
     }
 
-    private async Task ChooseFile()
+    async Task ChooseFile()
     {
         var file = await _picker.PickFileAsync("Select a file", FileType);
 
@@ -95,7 +94,7 @@ partial class AddVocabularyPage : Component<AddVocabularyPageState>
         }
     }
 
-    private async Task SaveVocab()
+    async Task SaveVocab()
     {
         var list = new VocabularyList
         {

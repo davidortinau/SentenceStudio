@@ -1,4 +1,3 @@
-using CustomLayouts;
 using ReactorCustomLayouts;
 using MauiReactor.Shapes;
 
@@ -57,18 +56,18 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
         ).OnAppearing(LoadProfiles);
     }
 
-    private async Task LoadProfiles()
+    async Task LoadProfiles()
     {
         var profiles = await _skillsRepository.ListAsync();
         SetState(s => s.Profiles = profiles.ToList());
     }
 
-    private async Task AddProfile()
+    async Task AddProfile()
     {
         await MauiControls.Shell.Current.GoToAsync(nameof(AddSkillProfilePage));
     }
 
-    private async Task EditProfile(SkillProfile profile)
+    async Task EditProfile(SkillProfile profile)
     {
         await MauiControls.Shell.Current.GoToAsync<EditSkillProfileProps>(
             nameof(EditSkillProfilePage),

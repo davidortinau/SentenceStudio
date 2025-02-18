@@ -57,7 +57,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
         ).OnAppearing(LoadProfile);
     }
 
-    private async Task LoadProfile()
+    async Task LoadProfile()
     {
         if (Props.ProfileID > 0)
         {
@@ -71,7 +71,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
         }
     }
 
-    private async Task Save()
+    async Task Save()
     {
         State.Profile.Title = State.Title;
         State.Profile.Description = State.Description;
@@ -83,7 +83,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
         await MauiControls.Shell.Current.GoToAsync("..");
     }
 
-    private async Task Delete()
+    async Task Delete()
     {
         var result = await _skillsRepository.DeleteAsync(State.Profile);
         if (result > 0)

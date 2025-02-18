@@ -28,6 +28,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     [Inject] TeacherService _teacherService;
     [Inject] SceneImageService _sceneImageService;
     LocalizationManager _localize => LocalizationManager.Instance;
+    CommunityToolkit.Maui.Views.Popup? _popup;
 
     public override VisualNode Render()
     {
@@ -54,9 +55,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         ).OnAppearing(LoadScene);
     }
 
-    private VisualNode RenderMainContent()
-    {
-        return Grid("","*,*",
+    VisualNode RenderMainContent() => Grid("","*,*",
             Grid(
                 Image()
                     .Source(State.ImageUrl)
@@ -64,7 +63,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .HorizontalOptions(LayoutOptions.Fill)
                     .VerticalOptions(LayoutOptions.Start)
                     .Margin(ApplicationTheme.Size160)
-                    .Background(Colors.BlueViolet)
             ).GridColumn(0),
 
             CollectionView()
@@ -76,13 +74,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     )
                 )
                 .GridColumn(1)
-        ).Background(Colors.LightBlue)
+        )
         .GridRow(1);
-    }
 
-    private VisualNode RenderSentence(Sentence sentence)
-    {
-        return VStack(spacing: 2,
+    VisualNode RenderSentence(Sentence sentence) => VStack(spacing: 2,
             Label(sentence.Answer)
                 .FontSize(18),
             Label($"Accuracy: {sentence.Accuracy}")
@@ -90,54 +85,34 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         )
         .Padding((Double)Application.Current.Resources["size160"])
         .OnTapped(() => ShowExplanation(sentence));
-    }
 
-    private VisualNode RenderInput()
-    {
-        return Grid(
-                Grid("","*,Auto",
-                    Border(
-                        Entry()
-                            .Text(State.UserInput)
-                            .Placeholder($"{_localize["WhatDoYouSee"]}")
-                            .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                            .ReturnType(ReturnType.Next)
-                            .OnCompleted(GradeMyDescription)
-                            .GridColumn(0)
-                            .FontSize(18)
-		            )
-                    .GridColumn(0)
+    VisualNode RenderInput() => new SfTextInputLayout(
+            Entry()
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                .ReturnType(ReturnType.Next)
+                .OnCompleted(GradeMyDescription)
+                .GridColumn(0)
+                .FontSize(18)
+        )
+        .Hint($"{_localize["WhatDoYouSee"]}")
+        .TrailingView(
+            HStack(
+                Button()
                     .Background(Colors.Transparent)
-                    .Stroke(ApplicationTheme.Gray300)
-                    .StrokeShape(new RoundRectangle().CornerRadius(4))
-                    .StrokeThickness(1),                   
+                    .ImageSource(SegoeFluentIcons.LanguageKor.ToImageSource())
+                    .OnClicked(TranslateInput),
 
-                    Button()
-                        .Background(Colors.Transparent)
-                        .ImageSource(SegoeFluentIcons.LanguageKor.ToImageSource())
-                        .OnClicked(TranslateInput)
-                        .GridColumn(1),
-
-                    Button()
-                        .Background(Colors.Transparent)
-                        .ImageSource(SegoeFluentIcons.EraseTool.ToImageSource())
-                        .OnClicked(ClearInput)
-                        .GridColumn(0)
-                        .HEnd()
-                )
-                .ColumnSpacing(2)
-            )
-            
-        // )
+                Button()
+                    .Background(Colors.Transparent)
+                    .ImageSource(SegoeFluentIcons.EraseTool.ToImageSource())
+                    .OnClicked(ClearInput)
+            ).Spacing(ApplicationTheme.Size40).HStart()
+        )
         .GridRow(2)
         .Margin(ApplicationTheme.Size160);
-    }
 
-    private CommunityToolkit.Maui.Views.Popup? _popup;
-
-    private VisualNode RenderExplanationPopup()
-    {
-        return new PopupHost(r => _popup = r)
+    VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
         {
             VStack(spacing: 10,
                 Label()
@@ -150,11 +125,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             .BackgroundColor(ApplicationTheme.LightBackground)
         }
         .IsShown(State.IsExplanationShown);
-    }
 
-    private VisualNode RenderGalleryPopup()
-    {
-        return new PopupHost(r => _popup = r)
+    VisualNode RenderGalleryPopup() => new PopupHost(r => _popup = r)
         {
             Grid("Auto,*,Auto", "",
                 RenderHeader(),
@@ -168,22 +140,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .Margin(ApplicationTheme.Size240),
         }
         .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
-        // return new ImageGalleryPopup()
-        //     .State(State)
-        //     .OnClose(async result =>
-        //     {
-        //         SetState(s => s.IsGalleryVisible = false);
-        //         if (result)
-        //         {
-        //             await LoadScene();
-        //         }
-        //     })
-        //     .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
-    }
 
-    private VisualNode RenderHeader()
-    {
-        return Grid(
+    VisualNode RenderHeader() => Grid(
             Label("Choose an image")
                 .Style((Style)Application.Current.Resources["Title1"])
                 .HStart(),
@@ -215,11 +173,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             )
             .HEnd()
         );
-    }
 
-    private VisualNode RenderGallery()
-    {
-        return CollectionView()
+    VisualNode RenderGallery() => CollectionView()
             .ItemsSource(State.Images, RenderGalleryItem)
             .SelectionMode(State.SelectionMode)
             .SelectedItems(State.SelectedImages.Cast<object>().ToList())
@@ -229,11 +184,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .HorizontalItemSpacing(ApplicationTheme.Size240)
             )
             .GridRow(1);
-    }
+    
 
-    private VisualNode RenderGalleryItem(SceneImage image)
-    {
-        return Grid(
+    VisualNode RenderGalleryItem(SceneImage image) => Grid(
             Image()
                 .Source(new Uri(image.Url))
                 .Aspect(Aspect.AspectFit)
@@ -254,11 +207,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .IsVisible(image.IsSelected)
                 .Margin(4)
         );
-    }
 
-    private VisualNode RenderLoadingOverlay()
-    {
-        return Grid(
+    VisualNode RenderLoadingOverlay() => Grid(
             Label("Analyzing the image...")
                 .FontSize(64)
                 .TextColor(ApplicationTheme.DarkOnLightBackground)
@@ -267,10 +217,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         .BackgroundColor(Color.FromArgb("#80000000"))
         .IsVisible(State.IsBusy)
         .GridRowSpan(3);
-    }
 
     // Event handlers and other methods...
-    private async Task LoadScene()
+    async Task LoadScene()
     {
         SetState(s => s.IsBusy = true);
 
@@ -298,7 +247,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    private async Task ManageImages()
+    async Task ManageImages()
     {
         var imgs = await _sceneImageService.ListAsync();
         SetState(s => s.Images = ImmutableList.CreateRange(imgs));
@@ -327,12 +276,12 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    private async void ViewDescription()
+    async void ViewDescription()
     {
         SetState(s => s.IsExplanationShown = true);
     }
 
-    private void ShowExplanation(Sentence sentence)
+    void ShowExplanation(Sentence sentence)
     {
         SetState(s => 
         {
@@ -345,7 +294,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         });
     }
 
-    private async void GradeMyDescription()
+    async void GradeMyDescription()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
@@ -375,7 +324,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    private async void TranslateInput()
+    async void TranslateInput()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
@@ -394,12 +343,12 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    private void ClearInput()
+    void ClearInput()
     {
         SetState(s => s.UserInput = string.Empty);
     }
 
-    private async Task GetDescription()
+    async Task GetDescription()
     {
         SetState(s => s.IsBusy = true);
         try
@@ -429,7 +378,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     }
 
     [RelayCommand]
-    private async Task LoadImage()
+    async Task LoadImage()
     {
         var result = await Application.Current.MainPage.DisplayPromptAsync(
             "Enter Image URL", 
@@ -484,7 +433,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    private void ToggleSelection()
+    void ToggleSelection()
     {
         SetState(s => 
         {
@@ -501,7 +450,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         });
     }
 
-    private async Task DeleteImages()
+    async Task DeleteImages()
     {
         if(State.SelectedImages.Count == 0)
             return;
@@ -514,7 +463,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         SetState(s => s.SelectedImages = ImmutableList<SceneImage>.Empty);
     }
 
-    private async Task ShowError()
+    async Task ShowError()
     {
         await Application.Current.MainPage.DisplayAlert(
             "Error",
@@ -522,7 +471,4 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             "OK"
         );
     }
-
-    // Add other methods converted from the ViewModel...
-    // (ViewDescription, GradeMyDescription, TranslateInput, etc.)
 }

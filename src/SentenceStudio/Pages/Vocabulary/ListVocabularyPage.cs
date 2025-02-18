@@ -1,4 +1,3 @@
-using CustomLayouts;
 using MauiReactor.Shapes;
 using ReactorCustomLayouts;
 
@@ -64,18 +63,18 @@ partial class ListVocabularyPage : Component<ListVocabularyPageState>
 		).OnAppearing(LoadVocabLists);
 	}
 
-	private async Task LoadVocabLists()
+	async Task LoadVocabLists()
 	{
 		var lists = await _vocabService.GetAllListsWithWordsAsync();
 		SetState(s => s.VocabLists = lists);
 	}
 
-	private async Task AddVocabulary()
+	async Task AddVocabulary()
 	{
 		await MauiControls.Shell.Current.GoToAsync(nameof(AddVocabularyPage));
 	}
 
-	private async Task ViewList(int listID)
+	async Task ViewList(int listID)
 	{
 		await MauiControls.Shell.Current.GoToAsync<VocabProps>(
 			nameof(EditVocabularyPage),

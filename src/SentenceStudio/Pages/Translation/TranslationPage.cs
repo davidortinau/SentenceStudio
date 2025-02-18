@@ -30,7 +30,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
-    private int _currentSentenceIndex = 0;
+    int _currentSentenceIndex = 0;
 
     public override VisualNode Render() 
 		=> ContentPage(
@@ -50,7 +50,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 		)
 		.OnAppearing(LoadSentences);
 
-    private VisualNode RenderLoadingOverlay() =>
+    VisualNode RenderLoadingOverlay() =>
 		Grid(
 			Label("Thinking.....")
 				.FontSize(64)
@@ -63,8 +63,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 			.GridRowSpan(2)
 			.IsVisible(State.IsBusy);
 
-    private VisualNode RenderSentenceContent()
-        => Grid("*", DeviceInfo.Idiom == DeviceIdiom.Phone ? "*" : "6*, 3*",
+    VisualNode RenderSentenceContent() =>
+        Grid("*", DeviceInfo.Idiom == DeviceIdiom.Phone ? "*" : "6*, 3*",
             Label()
                 .Text(State.CurrentSentence)
                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
@@ -84,35 +84,31 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         .GridRow(1)
         .Margin(30);
 
-    private VisualNode RenderInputUI() => Grid("*,*", "*,auto,auto,auto",
-                State.UserMode == InputMode.MultipleChoice.ToString() ?
-                    RenderVocabBlocks() : null,
-                    RenderUserInput()
-            )
-            .RowSpacing(ApplicationTheme.Size40)
-            .Padding(30)
-            .ColumnSpacing(15)
-            .GridRow(2);
+    VisualNode RenderInputUI() =>
+        Grid("*,*", "*,auto,auto,auto",
+            State.UserMode == InputMode.MultipleChoice.ToString() ?
+                RenderVocabBlocks() : null,
+                RenderUserInput()
+        )
+        .RowSpacing(ApplicationTheme.Size40)
+        .Padding(30)
+        .ColumnSpacing(15)
+        .GridRow(2);
 
-    private VisualNode RenderUserInput() =>
-        Border(
+    VisualNode RenderUserInput() =>
+        new SfTextInputLayout(
             Entry()
-                .Placeholder("그건 한국어로 어떻게 말해요?")
                 .FontSize(32)
                 .ReturnType(ReturnType.Go)
                 .Text(State.UserInput)
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                 .OnCompleted(GradeMe)
 		)
-        // .Background(Colors.Transparent)
-        // .Stroke(ApplicationTheme.Gray300)
-        // .StrokeShape(new RoundRectangle().CornerRadius(6))
-        .Padding(new Thickness(15, 0))
-        // .StrokeThickness(1)
+        .Hint("그건 한국어로 어떻게 말해요?")
         .GridRow(1)
         .GridColumnSpan(4);
 
-    private VisualNode RenderVocabBlocks() =>
+    VisualNode RenderVocabBlocks() =>
         HStack(
             State.VocabBlocks.Select(word =>
                 Button()
@@ -126,13 +122,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 		)
 		.Spacing(4)
         .GridRow(0)
-        .GridColumnSpan(4);
+        .GridColumnSpan(4);    
 
-    
-
-    private VisualNode RenderProgress() =>
-        HStack(
-        
+    VisualNode RenderProgress() =>
+        HStack(        
             ActivityIndicator()
                 .IsRunning(State.IsBuffering)
                 .IsVisible(State.IsBuffering)
@@ -140,7 +133,6 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     ApplicationTheme.DarkOnLightBackground : 
                     ApplicationTheme.LightOnDarkBackground)
                 .VCenter(),
-
             Label()
                 .Text(State.Progress)
                 .VCenter()
@@ -154,7 +146,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         .VerticalOptions(LayoutOptions.Start)
         .GridRowSpan(2);
 
-    private VisualNode RenderBottomNavigation() =>
+    VisualNode RenderBottomNavigation() =>
         Grid("1,*", "60,1,*,1,60,1,60",
             Button("GO")
                 .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
@@ -211,7 +203,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         ).GridRow(1);
 
     // this is the label that should float over the screen near the cursor when over a text block
-    private VisualNode RenderPopOverLabel() =>
+    VisualNode RenderPopOverLabel() =>
         Label()
             .Padding(8)
             .LineHeight(1)
@@ -228,7 +220,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 ApplicationTheme.LightOnDarkBackground);
 
     // Event handlers and methods
-    private async Task LoadSentences()
+    async Task LoadSentences()
     {
         await Task.Delay(100);
         SetState(s => s.IsBusy = true);
@@ -261,7 +253,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    private void SetCurrentSentence()
+    void SetCurrentSentence()
     {
         if (State.Sentences != null && State.Sentences.Count > 0 && _currentSentenceIndex < State.Sentences.Count)
         {
@@ -282,7 +274,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    private async void GradeMe()
+    async void GradeMe()
     {
         SetState(s => {
             s.Feedback = string.Empty;
@@ -308,7 +300,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    private async Task<string> BuildGradePrompt()
+    async Task<string> BuildGradePrompt()
     {
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
         using StreamReader reader = new StreamReader(templateStream);
@@ -320,7 +312,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         });
     }
 
-    private void NextSentence()
+    void NextSentence()
     {
         if (_currentSentenceIndex < State.Sentences.Count - 1)
         {
@@ -329,7 +321,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    private void PreviousSentence()
+    void PreviousSentence()
     {
         if (_currentSentenceIndex > 0)
         {
@@ -338,7 +330,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    private void UseVocab(string word)
+    void UseVocab(string word)
     {
         SetState(s => s.UserInput += word);
     }    

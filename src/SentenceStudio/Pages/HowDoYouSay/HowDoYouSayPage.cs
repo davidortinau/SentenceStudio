@@ -1,14 +1,6 @@
-using CommunityToolkit.Maui.Core;
-using CommunityToolkit.Maui.Views;
-using MauiReactor;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
-using SentenceStudio.Models;
-using SentenceStudio.Pages.Controls;
-using SentenceStudio.Resources.Styles;
-using SentenceStudio.Services;
 using System.Collections.ObjectModel;
-using MauiIcons.Core;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -34,9 +26,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		);
 	}
 
-	private VisualNode RenderInput()
-	{
-		return VStack(spacing: ApplicationTheme.Size240,
+	VisualNode RenderInput() =>
+		VStack(spacing: ApplicationTheme.Size240,
 			ActivityIndicator()
 				.IsVisible(State.IsBusy)
 				.IsRunning(State.IsBusy),
@@ -56,11 +47,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.OnClicked(Submit)
 		)
 		.Padding(ApplicationTheme.Size240);
-	}
 
-	private VisualNode RenderHistory()
-	{
-		return ScrollView(
+	VisualNode RenderHistory() =>
+		ScrollView(
 			VStack(
 				State.StreamHistory.Select(item => RenderHistoryItem(item)).ToArray()
 			)
@@ -68,11 +57,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			.Padding(ApplicationTheme.Size240)
 		)
 		.GridRow(1);
-	}
 
-	private VisualNode RenderHistoryItem(StreamHistory item)
-	{
-		return HStack(spacing: ApplicationTheme.Size120,
+	VisualNode RenderHistoryItem(StreamHistory item) =>
+		HStack(spacing: ApplicationTheme.Size120,
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => PlayAudio(item))
@@ -81,9 +68,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Label(item.Phrase)
 				.FontSize(24)
 		);
-	}
 
-	private async Task Submit()
+	async Task Submit()
 	{
 		if (string.IsNullOrWhiteSpace(State.Phrase)) return;
 
@@ -107,7 +93,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 	}
 
-	private void PlayAudio(StreamHistory item)
+	void PlayAudio(StreamHistory item)
 	{
 		try
 		{

@@ -1,5 +1,3 @@
-using SentenceStudio.Resources.Styles;
-
 namespace SentenceStudio.Pages.Account;
 
 class UserProfilePageState
@@ -96,15 +94,15 @@ partial class UserProfilePage : Component<UserProfilePageState>
         ).OnAppearing(LoadProfile);
     }
 
-    private readonly string[] Languages = new[]
+    readonly string[] Languages = new[]
     {
         "English", "Spanish", "French", "German", "Italian", "Portuguese",
         "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
     };
 
-    private readonly string[] DisplayLanguages = new[] { "English", "Korean" };
+    readonly string[] DisplayLanguages = new[] { "English", "Korean" };
 
-    private async Task LoadProfile()
+    async Task LoadProfile()
     {
         var profile = await _userProfileRepository.GetAsync();
         SetState(s =>
@@ -122,7 +120,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
         });
     }
 
-    private async Task Save()
+    async Task Save()
     {
         var profile = new UserProfile
         {
@@ -148,7 +146,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
         }
     }
 
-    private async Task Reset()
+    async Task Reset()
     {
         var response = await Application.Current.MainPage.DisplayAlert("Reset", "Are you sure you want to reset your profile?", "Yes", "No");
         if(response)
@@ -158,6 +156,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
         }
     }
 
-    private async Task GoToOpenAI() => 
+    async Task GoToOpenAI() => 
         await Browser.OpenAsync("https://platform.openai.com/account/api-keys");
 }

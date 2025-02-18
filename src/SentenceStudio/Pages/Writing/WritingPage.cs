@@ -1,18 +1,4 @@
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
-using Fonts;
-using Microsoft.Maui.Platform;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
-using Plugin.Maui.DebugOverlay;
-using MauiReactor;
 using SentenceStudio.Pages.Dashboard;
-
-
-
-
 
 #if IOS
 using UIKit;
@@ -36,7 +22,6 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] TeacherService _teacherService;
     [Inject] VocabularyService _vocabService;
     [Inject] UserActivityRepository _userActivityRepository;
-
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -51,7 +36,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         ).OnAppearing(LoadVocabulary);
     }
 
-    private VisualNode SentencesHeader() =>
+    VisualNode SentencesHeader() =>
         Grid("", columns: "*,*,*,*",
             Label(_localize["Sentence"])
                 .Style((Style)Application.Current.Resources["Title3"])
@@ -70,7 +55,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 .GridColumn(3)
         ).Margin((double)Application.Current.Resources["size160"]);
 
-    private VisualNode SentencesScrollView() =>
+    VisualNode SentencesScrollView() =>
         ScrollView(
             VStack(spacing: 0,
                 State.Sentences.Select(sentence =>
@@ -81,7 +66,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             ).Margin(16, 0)
         ).GridRow(1);
 
-    private VisualNode InputUI() =>
+    VisualNode InputUI() =>
         Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
             ScrollView(
                 VStack(spacing: ApplicationTheme.Size40,
@@ -92,7 +77,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                             Button(word.TargetLanguageTerm)
                                 .BackgroundColor(ApplicationTheme.Gray200)
                                 .TextColor(ApplicationTheme.Gray900)
-                                .FontSize(18)
+                                .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
                                 .Padding(ApplicationTheme.Size40)
                                 .VStart()
                                 .OnClicked(() => UseVocab(word.TargetLanguageTerm))
@@ -125,7 +110,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         .Padding((double)Application.Current.Resources["size160"])
         .RowSpacing(ApplicationTheme.Size40);
 
-    private VisualNode LoadingOverlay() =>
+    VisualNode LoadingOverlay() =>
         Grid(
             Label("Thinking...")
                 .FontSize(64)
@@ -138,7 +123,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
 
-    private async void LoadVocabulary()
+    async void LoadVocabulary()
     {
         SetState(s => s.IsBusy = true);
         try 
@@ -160,12 +145,12 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         }
     }
 
-    private void UseVocab(string word)
+    void UseVocab(string word)
     {
         SetState(s => s.UserInput = (s.UserInput ?? "") + word);
     }
 
-    private async void GradeMe()
+    async void GradeMe()
     {
         if (State.ShowMore && string.IsNullOrWhiteSpace(State.UserMeaning))
             return;
@@ -211,7 +196,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         SetState(s => { }); // Force refresh
     }
 
-    private async void TranslateInput()
+    async void TranslateInput()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput))
             return;
@@ -224,7 +209,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         //     "Okay");
     }
 
-    private VisualNode RenderDesktopSentence(Sentence sentence) =>
+    VisualNode RenderDesktopSentence(Sentence sentence) =>
         Grid("",columns: "*,*,*,*",
             Label(sentence.Answer).GridColumn(0),
             Label(sentence.Accuracy.ToString()).Center().GridColumn(1),
@@ -247,7 +232,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             ).Center().GridColumn(3)
         );
 
-    private VisualNode RenderMobileSentence(Sentence sentence) =>
+    VisualNode RenderMobileSentence(Sentence sentence) =>
         SwipeView(
             SwipeItemView(
                 Grid(
@@ -268,7 +253,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 (Brush)Application.Current.Resources["DarkCardBackground"])
         );
 
-    private async void ShowExplanation(Sentence sentence)
+    async void ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +

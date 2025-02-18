@@ -1,10 +1,8 @@
-﻿using CustomLayouts;
-using MauiReactor.Parameters;
+﻿using MauiReactor.Parameters;
 using ReactorCustomLayouts;
 using SentenceStudio.Pages.Clozure;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.Translation;
-using SentenceStudio.Pages.Warmup;
 using SentenceStudio.Pages.Writing;
 
 namespace SentenceStudio.Pages.Dashboard;
@@ -33,15 +31,6 @@ partial class DashboardPage : Component<DashboardPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
-    protected override void OnMounted()
-    {
-        
-
-        base.OnMounted();
-    }
-
-
-    // ContentView scatterView;
     public override VisualNode Render()
 	{
         return ContentPage($"{_localize["Dashboard"]}",
@@ -101,7 +90,7 @@ partial class DashboardPage : Component<DashboardPageState>
         ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
     }
 
-    private async Task LoadOrRefreshDataAsync()
+    async Task LoadOrRefreshDataAsync()
     {
         var vocabLists = await _vocabService.GetListsAsync();
         var skills = await _skillService.ListAsync();
@@ -122,60 +111,48 @@ partial class DashboardPage : Component<DashboardPageState>
             // s.SelectedSkillProfileIndex = profileIndex;
         });
     }
-
-    private void NavToWarmup(object sender, EventArgs e)
-    {
-        // Microsoft.Maui.Controls.Shell.Current.GoToAsync<ActivityProps>(
-        //                 nameof(WarmupPage),
-        //                 props =>
-        //                 {
-        //                     props.Vocabulary = State.SelectedVocabList;
-        //                     props.Skill = State.SelectedSkillProfile;
-        //                 });
-    }
-
 }
 
 public partial class ActivityBorder : MauiReactor.Component
-    {
-        [Prop]
-        string _labelText;
+{
+    [Prop]
+    string _labelText;
 
-        [Prop]
-        string _route;
+    [Prop]
+    string _route;
 
-        [Param] IParameter<DashboardParameters> _parameters;
+    [Param] IParameter<DashboardParameters> _parameters;
 
 
-        public override VisualNode Render()
-        => Border(
+    public override VisualNode Render() =>
+        Border(
             Grid(
                 Label()
                             .VerticalOptions(LayoutOptions.Center)
                             .HorizontalOptions(LayoutOptions.Center)
                             .Text($"{_labelText}")
 
-                    )   
+                    )
                     .WidthRequest(300)
                     .HeightRequest(120)
             )
-            .StrokeShape( Rectangle())
+            .StrokeShape(Rectangle())
             .StrokeThickness(1)
             .HorizontalOptions(LayoutOptions.Start)
-            .OnTapped(async ()=>
+            .OnTapped(async () =>
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
-                _route, 
-                props => {
+                _route,
+                props =>
+                {
                     props.Vocabulary = _parameters.Value.SelectedVocabList;
                     props.Skill = _parameters.Value.SelectedSkillProfile;
-                    }
-                    )
-                    );
-    }
+                }
+            )
+        );
+}
 
 class ActivityProps
-{
-    public VocabularyList Vocabulary { get; set; }
-    
-    public SkillProfile Skill { get; set; }
-}
+    {
+        public VocabularyList Vocabulary { get; set; }
+        public SkillProfile Skill { get; set; }
+    }

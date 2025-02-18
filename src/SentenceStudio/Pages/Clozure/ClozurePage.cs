@@ -46,7 +46,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.OnAppearing(LoadSentences);
 	}
 
-	private VisualNode AutoTransitionBar() =>
+	VisualNode AutoTransitionBar() =>
 		ProgressBar()
 			.Progress(State.AutoTransitionProgress)
 			.HeightRequest(4)
@@ -54,7 +54,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			.ProgressColor(ApplicationTheme.Primary)
 			.VStart();
 
-	private VisualNode LoadingOverlay() =>
+	VisualNode LoadingOverlay() =>
 		Grid(
 			Label("Thinking.....")
 				.FontSize(64)
@@ -63,11 +63,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					ApplicationTheme.LightOnDarkBackground)
 				.Center()
 		)
-			.Background(Color.FromArgb("#80000000"))
-			.GridRowSpan(2)
-			.IsVisible(State.IsBusy);
+		.Background(Color.FromArgb("#80000000"))
+		.GridRowSpan(2)
+		.IsVisible(State.IsBusy);
 
-	private VisualNode NavigationFooter() =>
+	VisualNode NavigationFooter() =>
 		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
 				.TextColor(Theme.IsLightTheme ? 
@@ -117,7 +117,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.GridRow(1).GridColumn(5)
 		).GridRow(1);
 
-	private VisualNode SentenceScoreboard() =>
+	VisualNode SentenceScoreboard() =>
 		ScrollView(
 			HStack(spacing: 2,
 				ActivityIndicator()
@@ -155,7 +155,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridRow(0)
 		.VCenter();
 
-	private VisualNode SentenceDisplay() =>
+	VisualNode SentenceDisplay() =>
 		VStack(spacing: 16,
 			Label(State.CurrentSentence)
 				.FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32),
@@ -164,7 +164,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.Margin(30)
 		.GridRow(1);
 
-	private VisualNode UserInput() =>
+	VisualNode UserInput() =>
 		Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
 			State.UserMode == InputMode.MultipleChoice.ToString() ? 
 				RenderMultipleChoice() : 
@@ -175,7 +175,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
 		.GridRow(2);
 
-	private VisualNode RenderTextInput() =>
+	VisualNode RenderTextInput() =>
 		new SfTextInputLayout(
 			Entry()
 				.FontSize(32)
@@ -190,24 +190,24 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
 		.Margin(0,0,0,12);
 
-	private VisualNode RenderMultipleChoice() =>
+	VisualNode RenderMultipleChoice() =>
 		VStack(spacing: 4,
 			CollectionView()
 				.ItemsSource(State.GuessOptions, RenderOption)
 		)
 		.GridRow(0);
 
-    private VisualNode RenderOption(string option) =>
-			RadioButton()
-				.Content(option)
-				.Value(option)
-				.IsChecked(State.UserGuess == option)
-				.OnCheckedChanged(() => {
-					SetState(s => s.UserGuess = option);
-					GradeMe();
-				});
+    VisualNode RenderOption(string option) =>
+		RadioButton()
+			.Content(option)
+			.Value(option)
+			.IsChecked(State.UserGuess == option)
+			.OnCheckedChanged(() => {
+				SetState(s => s.UserGuess = option);
+				GradeMe();
+			});
 
-    private ImageSource UserActivityToImageSource(UserActivity activity)
+    ImageSource UserActivityToImageSource(UserActivity activity)
 	{
 		if (activity == null) return null;
 		
@@ -216,7 +216,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			SegoeFluentIcons.Cancel.ToImageSource(iconSize:14);
 	}
 
-	private async void JumpTo(Challenge challenge)
+	async void JumpTo(Challenge challenge)
 	{
 		var currentIndex = State.Sentences.IndexOf(challenge);
 		if (currentIndex < 0) return;
@@ -237,7 +237,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		});
 	}
 
-	private async void LoadSentences()
+	async void LoadSentences()
 	{
 		SetState(s => s.IsBusy = true);
 
@@ -289,7 +289,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}
 	}
 
-	private async void GradeMe()
+	async void GradeMe()
 	{
 		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
 		if (currentChallenge == null) return;
@@ -314,9 +314,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}		
 	}
 
-	private System.Timers.Timer autoNextTimer;
+	System.Timers.Timer autoNextTimer;
 
-	private async void TransitionToNextSentence()
+	async void TransitionToNextSentence()
 	{
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
 		if (currentIndex >= State.Sentences.Count - 1)
@@ -346,7 +346,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		autoNextTimer.Start();
 	}
 
-	private async void NextSentence()
+	async void NextSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = InputMode.Text.ToString());
@@ -410,7 +410,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		JumpTo(nextChallenge);
 	}
 
-	private async void PreviousSentence()
+	async void PreviousSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = InputMode.Text.ToString());
