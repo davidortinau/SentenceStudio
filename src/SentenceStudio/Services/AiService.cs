@@ -31,7 +31,7 @@ public class AiService {
 
         try
         {
-            var response = await _client.GetResponseAsync<T>(prompt);
+            var response = await _client.GetResponseAsync<T>(prompt, useNativeJsonSchema: typeof(T) != typeof(string));
             return response.Result;            
         }
         catch (Exception ex)

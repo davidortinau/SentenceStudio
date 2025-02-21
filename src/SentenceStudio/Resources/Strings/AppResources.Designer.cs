@@ -319,6 +319,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        internal static string Refresh {
+            get {
+                return ResourceManager.GetString("Refresh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Save.
         /// </summary>
         internal static string Save {

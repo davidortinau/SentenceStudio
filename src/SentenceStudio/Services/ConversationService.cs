@@ -15,12 +15,13 @@ namespace SentenceStudio.Services
         private SQLiteAsyncConnection Database;
         readonly IConfiguration configuration;
         private AiService _aiService;
-
+        private readonly IChatClient _client;
         private readonly string _openAiApiKey;
 
-        public ConversationService(IServiceProvider service, IConfiguration configuration)
+        public ConversationService(IServiceProvider service, IConfiguration configuration, IChatClient chatClient)
         {
             _aiService = service.GetRequiredService<AiService>();
+            _client = chatClient;
             this.configuration = configuration;
 
             _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
@@ -78,10 +79,9 @@ namespace SentenceStudio.Services
 
             try
             {
-                var key = this.configuration.GetValue<string>("OpenAI:ApiKey", "oops");
-                var aiClient = new AIClient(key);
-                var response = await aiClient.SendPrompt(prompt);
-                return response;
+                
+                var response = await _client.GetResponseAsync<string>(prompt);
+                return response.Result;
 
             }
             catch (Exception ex)
@@ -106,16 +106,7 @@ namespace SentenceStudio.Services
             
             try
             {
-                // string response = await _aiService.SendPrompt(prompt, true);
-
-                // var reply = JsonSerializer.Deserialize(response, JsonContext.Default.Reply);
-
-                IChatClient client =
-                new OpenAIClient(_openAiApiKey)
-                    .AsChatClient(modelId: "gpt-4o-mini");
-
-                var response = await client.GetResponseAsync<Reply>(prompt);
-
+                var response = await _client.GetResponseAsync<Reply>(prompt);
                 return response.Result;
             }
             catch (Exception ex)

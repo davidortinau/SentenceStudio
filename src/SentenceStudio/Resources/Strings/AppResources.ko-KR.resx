@@ -309,4 +309,8 @@
     <value>확인</value>
     <comment/>
   </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>새로고침</value>
+    <comment/>
+  </data>
 </root>

@@ -309,4 +309,8 @@
     <value>Okay</value>
     <comment/>
   </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+    <comment/>
+  </data>
 </root>

@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Maui;
-using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -12,7 +11,6 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using Plugin.Maui.Audio;
 using Fonts;
 using Syncfusion.Maui.Toolkit.Hosting;
-using MauiReactor.HotReload;
 using SentenceStudio.Pages.Warmup;
 using SentenceStudio.Pages.HowDoYouSay;
 using SentenceStudio.Pages.Clozure;
@@ -21,9 +19,9 @@ using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
-using OpenAI;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
+using OpenAI;
 
 #if WINDOWS
 using System.Reflection;
@@ -31,7 +29,6 @@ using System.Reflection;
 
 #if DEBUG
 #endif
-using Plugin.Maui.DebugOverlay;
 
 namespace SentenceStudio;
 
@@ -98,28 +95,11 @@ public static class MauiProgram
 		
 
 #if DEBUG
-		// builder.OnMauiReactorUnhandledException(ex =>
-		// {
-		//     System.Diagnostics.Debug.WriteLine(ex);
-		// });
-		// builder.UseDebugRibbon(Colors.Black);
+		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
 #endif
 
 		RegisterRoutes();
-		RegisterServices(builder.Services);
-
-		builder.Services.AddLogging(logging =>
-					{
-#if WINDOWS
-						logging.AddDebug();
-#else
-						logging.AddConsole();
-#endif
-
-						// Enable maximum logging for BlazorWebView
-						logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
-						logging.AddFilter("Microsoft.Extensions.AI", LogLevel.Trace);
-		});
+		RegisterServices(builder.Services);		
 
 		builder.Services.AddOpenTelemetry()
             .WithTracing(tracerProviderBuilder =>
@@ -130,22 +110,17 @@ public static class MauiProgram
                     .AddConsoleExporter(); // Export traces to console for debugging
             });
 
-		var openAiApiKey = builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+
+		var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
+			? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
+			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+
 		builder.Services
-			.AddChatClient(new OpenAIClient(openAiApiKey)
-			.AsChatClient(modelId: "gpt-4o-mini"))
+			// .AddChatClient(new OllamaChatClient("http://localhost:11434", "phi4"))
+			.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini"))
+			// .UseFunctionInvocation()
 			.UseLogging();
 			// .UseOpenTelemetry();
-
-		// Configure OpenTelemetry
-        
-
-        // Register HttpClient (this ensures OpenTelemetry can track it)
-        // builder.Services.AddHttpClient();
-
-
-		// PreLoadInit();
-
 
 		return builder.Build();
 	}
@@ -168,7 +143,7 @@ public static class MauiProgram
 		
 	}
 
-	[ComponentServices]
+	
 	static void RegisterServices(IServiceCollection services)
 	{
 		// #if DEBUG

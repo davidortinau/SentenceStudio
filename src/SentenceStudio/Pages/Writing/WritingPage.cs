@@ -27,6 +27,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["Writing"]}",
+            ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadVocabulary),
             Grid("Auto,*,Auto", "",
                 SentencesHeader(),
                 SentencesScrollView(),

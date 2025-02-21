@@ -135,6 +135,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.3.0-preview.1.25114.11" />	
+		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />		
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />			
 	</ItemGroup>
@@ -150,7 +151,11 @@
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
 		
-		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />		
+				
+		
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />		
+		
+				
 		
 		<PackageReference Include="OpenTelemetry" Version="1.11.1" />		
 		
@@ -186,16 +191,16 @@
 	</ItemGroup>
 
 	<!-- enable this to use Reveal for UI inspection -->
-	<ItemGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
+	<!-- <ItemGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
 		<NativeReference Include="$(HOME)\Library\Application Support\Reveal\RevealServer\RevealServer.xcframework">
 			<Kind>Framework</Kind>
 			<SmartLink>True</SmartLink>
 		</NativeReference>
-	</ItemGroup>
+	</ItemGroup> -->
 
-	<ItemGroup Condition="'$(Configuration)'=='Debug'">
+	<!-- <ItemGroup Condition="'$(Configuration)'=='Debug'">
 	<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
-	</ItemGroup>
+	</ItemGroup> -->
 
 
 	<!-- <ItemGroup>
