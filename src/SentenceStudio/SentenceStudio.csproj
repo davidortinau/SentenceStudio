@@ -199,13 +199,8 @@
 	</ItemGroup> -->
 
 	<!-- <ItemGroup Condition="'$(Configuration)'=='Debug'">
-	<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
-	</ItemGroup> -->
-
-
-	<!-- <ItemGroup>
-		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="true" />
-	</ItemGroup> -->
+		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
+	</ItemGroup>	 -->
 
 	<!-- <ItemGroup Condition="'$(Configuration)'=='Release'">
 		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="false" Trim="true" />

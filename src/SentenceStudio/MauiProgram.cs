@@ -116,7 +116,7 @@ public static class MauiProgram
 			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
 		builder.Services
-			// .AddChatClient(new OllamaChatClient("http://localhost:11434", "phi4"))
+			// .AddChatClient(new OllamaChatClient("http://localhost:11434", "deepseek-r1"))
 			.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini"))
 			// .UseFunctionInvocation()
 			.UseLogging();
