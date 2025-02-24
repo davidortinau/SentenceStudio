@@ -1,4 +1,5 @@
 using SentenceStudio.Pages.Dashboard;
+using SentenceStudio.Services;
 
 #if IOS
 using UIKit;
@@ -20,6 +21,7 @@ class WritingPageState
 partial class WritingPage : Component<WritingPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
+    [Inject] TranslationService _translationService;
     [Inject] VocabularyService _vocabService;
     [Inject] UserActivityRepository _userActivityRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
@@ -202,12 +204,8 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         if (string.IsNullOrWhiteSpace(State.UserInput))
             return;
 
-        var translation = await _teacherService.Translate(State.UserInput);
+        var translation = await _translationService.TranslateAsync(State.UserInput);
         await AppShell.DisplayToastAsync(translation);
-        // await Application.Current.MainPage.DisplayAlert(
-        //     _localize["Translation"].ToString(),
-        //     translation,
-        //     "Okay");
     }
 
     VisualNode RenderDesktopSentence(Sentence sentence) =>

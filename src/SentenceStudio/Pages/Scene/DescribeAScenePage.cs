@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using The49.Maui.BottomSheet;
 using System.Collections.Immutable;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Scene;
 
@@ -25,7 +26,8 @@ class DescribeAScenePageState
 partial class DescribeAScenePage : Component<DescribeAScenePageState>
 {
     [Inject] AiService _aiService;
-    [Inject] TeacherService _teacherService;
+    [Inject] TeacherService _teacherService; // still used for grading
+    [Inject] TranslationService _translationService; // added for translation
     [Inject] SceneImageService _sceneImageService;
     LocalizationManager _localize => LocalizationManager.Instance;
     CommunityToolkit.Maui.Views.Popup? _popup;
@@ -331,7 +333,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         SetState(s => s.IsBusy = true);
         try
         {
-            var translation = await _teacherService.Translate(State.UserInput);
+            var translation = await _translationService.TranslateAsync(State.UserInput);
+            await AppShell.DisplayToastAsync(translation);
             SetState(s => {
                 s.Sentences = s.Sentences.Insert(0, new Sentence { Answer = translation, Accuracy = 100 });
                 s.UserInput = string.Empty;

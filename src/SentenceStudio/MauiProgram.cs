@@ -158,6 +158,7 @@ public static class MauiProgram
 		services.AddSingleton<SceneImageService>();
 		services.AddSingleton<ClozureService>();
 		services.AddSingleton<StorytellerService>();
+		services.AddSingleton<TranslationService>();
 
 		// services.AddSingleton<AppShellModel>();
 
