@@ -3,26 +3,31 @@ using CommunityToolkit.Maui.Core;
 
 namespace SentenceStudio.Pages.Controls;
 
-public class SelectableLabel : Label
+partial class SelectableLabel : Component
 {
-	public SelectableLabel()
-	{
-		var tapGestureRecognizer = new TapGestureRecognizer();
-		tapGestureRecognizer.NumberOfTapsRequired = 1;
-		tapGestureRecognizer.Tapped += async (s, e) =>
-		{
-			if (Text != null)
-			{
-				await Clipboard.SetTextAsync(Text);
+	MauiControls.Label _labelRef;
 
-				CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-				string text = "Copied to clipboard!";
-				ToastDuration duration = ToastDuration.Short;
-				double fontSize = 14;
-				var toast = Toast.Make(text, duration, fontSize);
-				await toast.Show(cancellationTokenSource.Token);
-			}
-		};
-		this.GestureRecognizers.Add(tapGestureRecognizer);
-	}
+	[Prop]
+	string _text;
+
+	public override VisualNode Render() 
+		=> Label(labelRef => _labelRef = labelRef)
+			.Text(_text)
+			.Style((Style)Application.Current.Resources["Body1"])
+			.TextColor(Colors.White)
+			.OnTapped(async () =>
+			{
+				if (_labelRef.Text != null)
+				{
+					await Clipboard.SetTextAsync(_labelRef.Text);
+
+					CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+					string text = "Copied to clipboard!";
+					ToastDuration duration = ToastDuration.Short;
+					double fontSize = 14;
+					var toast = Toast.Make(text, duration, fontSize);
+					await toast.Show(cancellationTokenSource.Token);
+				}
+			});
+	
 }

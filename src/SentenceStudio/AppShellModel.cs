@@ -43,7 +43,7 @@ public partial class AppShellModel : ObservableObject
     [RelayCommand]
     async Task NavigateTo(string route)
     {
-        await Shell.Current.GoToAsync($"//{route}");
-        Shell.Current.FlyoutIsPresented = false;
+        // await Shell.Current.GoToAsync($"//{route}");
+        // Shell.Current.FlyoutIsPresented = false;
     }
 }

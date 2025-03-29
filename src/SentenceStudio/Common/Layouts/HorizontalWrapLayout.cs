@@ -2,7 +2,7 @@
 
 namespace CustomLayouts
 {
-    public class HorizontalWrapLayout : StackLayout
+    public class HorizontalWrapLayout : Microsoft.Maui.Controls.StackLayout
     {
         public HorizontalWrapLayout()
         {
@@ -13,4 +13,7 @@ namespace CustomLayouts
             return new HorizontalWrapLayoutManager(this);
         }
     }
+
+    
 }
+

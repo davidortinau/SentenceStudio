@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using SentenceStudio.Models;
 
+[JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(StorytellerResponse))]
 [JsonSerializable(typeof(Story))]
 [JsonSerializable(typeof(Question))]
@@ -11,6 +12,8 @@ using SentenceStudio.Models;
 [JsonSerializable(typeof(Challenge))]
 [JsonSerializable(typeof(SentencesResponse))]
 [JsonSerializable(typeof(SyntacticSentencesResponse))]
+[JsonSerializable(typeof(GradeResponse))]
+[JsonSerializable(typeof(SentencesResponse))]
 public partial class JsonContext : JsonSerializerContext
 {
 }

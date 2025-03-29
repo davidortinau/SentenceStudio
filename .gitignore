@@ -416,3 +416,13 @@ nuget.config
 _nuget.config
 src/SentenceStudio/Common/FluentResourceGenerator.cs
 src/SentenceStudio/packages.txt
+src/.github/prompts/prompts.prompt.md
+src/.github/prompts/dotnet/async.prompt.md
+src/.github/prompts/dotnet/codestyle.prompt.md
+src/.github/prompts/dotnet/testing.xunit.prompt.md
+src/.github/prompts/dotnet/maui/hybrid.prompt.md
+src/.github/prompts/dotnet/maui/maui-layouts.prompt.md
+src/.github/prompts/dotnet/maui/maui-memory-leaks.prompt.md
+src/.github/prompts/dotnet/maui/maui-upgrade.prompt.md
+src/.github/prompts/dotnet/maui/maui.prompt.md
+src/SentenceStudio/.vscode/settings.json

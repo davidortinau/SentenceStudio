@@ -40,7 +40,7 @@ public class SkillProfileRepository
         catch (Exception ex)
         {
             Debug.WriteLine($"{ex.Message}");
-            await Shell.Current.DisplayAlert("Error", ex.Message, "Fix it");
+            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
         }
 
         _hasBeenInitialized = true;

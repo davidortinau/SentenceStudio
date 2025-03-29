@@ -1,45 +1,54 @@
-using CommunityToolkit.Maui.Markup;
-using SentenceStudio.Pages.Controls;
-
 namespace SentenceStudio.Pages.Skills;
 
-public class AddSkillProfilePage : ContentPage
+class AddSkillProfilePageState
 {
-	public AddSkillProfilePage(AddSkillProfilePageModel model)
-	{
-		BindingContext = model;
-		Build();	
-	}
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
 
-	public void Build()
-	{
-		Title = "Add Skill Profile";
+partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
+{
+    [Inject] SkillProfileRepository _skillsRepository;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-		ToolbarItem saveButton = new ToolbarItem
-		{
-			Text = "Save"
-		}.BindCommand(nameof(AddSkillProfilePageModel.SaveCommand));
+    public override VisualNode Render()
+    {
+        return ContentPage("Add Skill Profile",
+			ToolbarItem("Save").OnClicked(SaveProfile),
+            VScrollView(
+                VStack(
+                    new SfTextInputLayout
+                    {
+                        Entry()
+                            .Text(State.Title)
+                            .OnTextChanged(text => SetState(s => s.Title = text))
+                    }
+                    .Hint("Title"),
 
-		ToolbarItems.Add(saveButton);
+                    new SfTextInputLayout
+                    {
+                        Editor()
+                            .Text(State.Description)
+                            .OnTextChanged(text => SetState(s => s.Description = text))
+                            .AutoSize(EditorAutoSizeOption.TextChanges)
+                    }
+                    .Hint("Skills Description")
+                )
+                .Spacing((Double)Application.Current.Resources["size320"])
+                .Margin((Double)Application.Current.Resources["size160"])
+            )
+        );
+    }
 
-		Content = new ScrollView
-		{
-			Content = new VerticalStackLayout{
-				Children = {
-					new FormField{ 
-						FieldLabel ="Title", 
-						Content = new Entry().Bind(Entry.TextProperty, nameof(AddSkillProfilePageModel.Title))
-					},
-					new FormField{ 
-						FieldLabel ="Skills Description", 
-						Content = new Editor{ 
-								AutoSize = EditorAutoSizeOption.TextChanges 
-							}
-							.Bind(Editor.TextProperty, nameof(AddSkillProfilePageModel.Description))
-					},
-				}
-			}
-			
-		}.Margins((double)Application.Current.Resources["size160"]);
-	}
+    async Task SaveProfile()
+    {
+        var profile = new SkillProfile
+        {
+            Title = State.Title,
+            Description = State.Description
+        };
+
+        await _skillsRepository.SaveAsync(profile);
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
 }

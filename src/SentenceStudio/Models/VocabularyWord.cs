@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 using SQLite;
 using SQLiteNetExtensions.Attributes;
@@ -5,20 +6,22 @@ using SQLiteNetExtensions.Attributes;
 namespace SentenceStudio.Models;
 public class VocabularyWord
 {
+    [JsonIgnore]
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
 
-    [JsonPropertyName("original")]
+    [Description("The word in the user's native language, usually English.")]
     public string NativeLanguageTerm { get; set; }
 
-    [JsonPropertyName("translation")]
+    [Description("The word in the language being learned, usually Korean.")]
     public string TargetLanguageTerm { get; set; } 
 
-    public double Fluency { get; set; }
-    public double Accuracy { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    // public double Fluency { get; set; }
+    // public double Accuracy { get; set; }
+    [JsonIgnore] public DateTime CreatedAt { get; set; }
+    [JsonIgnore] public DateTime UpdatedAt { get; set; }
 
+    [JsonIgnore]
     [ManyToMany(typeof(VocabularyWord))]
     public List<VocabularyList> VocabularyLists { get; set; }
     

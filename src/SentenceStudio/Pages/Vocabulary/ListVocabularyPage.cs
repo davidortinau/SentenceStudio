@@ -1,115 +1,88 @@
-using CommunityToolkit.Maui.Behaviors;
-using CustomLayouts;
+using MauiReactor.Shapes;
+using ReactorCustomLayouts;
 
 namespace SentenceStudio.Pages.Vocabulary;
 
-public class ListVocabularyPage : ContentPage
+class ListVocabularyPageState
 {
-	private readonly ListVocabularyPageModel _model;
-	public ListVocabularyPage(ListVocabularyPageModel model)
+    public List<VocabularyList> VocabLists { get; set; } = [];
+}
+
+partial class ListVocabularyPage : Component<ListVocabularyPageState>
+{
+	[Inject] VocabularyService _vocabService;
+	LocalizationManager _localize => LocalizationManager.Instance;
+
+	public override VisualNode Render()
 	{
-		BindingContext = _model = model;
-		InitBehaviors();
-		Build();
+		return ContentPage($"{_localize["VocabularyList"]}",
+			VScrollView(
+				VStack(
+					Label()
+						.Style((Style)Application.Current.Resources["Title1"])
+						.HStart()
+						.Text($"{_localize["VocabularyList"]}")
+						.IsVisible(DeviceInfo.Platform != DevicePlatform.WinUI),
+
+					new HWrap()
+					{
+						State.VocabLists.Select(list =>
+							Border(
+								Grid(
+									Label()
+										.VerticalOptions(LayoutOptions.Center)
+										.HorizontalOptions(LayoutOptions.Center)
+										.Text($"{list.Name} ({list.Words?.Count ?? 0})")
+								)
+								.WidthRequest(300)
+								.HeightRequest(120)
+								.OnTapped(() => ViewList(list.ID))
+							)
+							.StrokeShape(new Rectangle())
+							.StrokeThickness(1)
+						)
+					}
+					.Spacing((Double)Application.Current.Resources["size320"]),
+
+					Border(
+						Grid(
+							Label($"{_localize["Add"]}")
+								.Center()
+						)
+						.WidthRequest(300)
+						.HeightRequest(60)
+						.OnTapped(AddVocabulary)
+					)
+					.StrokeShape(new Rectangle())
+					.StrokeThickness(1)
+					.HStart()
+				)
+				.Padding((Double)Application.Current.Resources["size160"])
+				.Spacing(ApplicationTheme.Size240)
+			)
+		).OnAppearing(LoadVocabLists);
 	}
 
-	private void InitBehaviors()
-    {
-        this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.NavigatedTo),
-				Command = _model.NavigatedToCommand
-			}
-		);
-
-		this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.NavigatedFrom),
-				Command = _model.NavigatedFromCommand
-			}
-		);
-
-		this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.Appearing),
-				Command = _model.AppearingCommand
-			}
-		);
-    }
-
-	public void Build()
+	async Task LoadVocabLists()
 	{
-		this.Bind(Page.TitleProperty, "Localize[VocabularyList]");
-
-		Content = new ScrollView
-		{
-			Content = new VerticalStackLayout
-			{
-				Padding = (double)Application.Current.Resources["size160"],
-				Spacing = (double)Application.Current.Resources["size240"],
-				Children =
-				{
-					new Label
-						{
-							Style = (Style)Application.Current.Resources["Title1"],
-							IsVisible = Microsoft.Maui.Devices.DeviceInfo.Platform != DevicePlatform.WinUI
-						}
-						.Start()
-						.Bind(Label.TextProperty, "Localize[VocabularyList]"),
-					
-					new HorizontalWrapLayout
-						{
-							Spacing = (double)Application.Current.Resources["size320"]
-						}
-						.Bind(BindableLayout.ItemsSourceProperty, nameof(ListVocabularyPageModel.VocabLists))
-						.ItemTemplate(new DataTemplate(() =>
-							new Border
-							{
-								StrokeShape = new Rectangle(),
-								StrokeThickness = 1,
-								Content = new Grid
-								{
-									WidthRequest = 300,
-									HeightRequest = 120,
-									Children =
-									{
-										new Label
-										{
-											VerticalOptions = LayoutOptions.Center,
-											HorizontalOptions = LayoutOptions.Center
-										}
-										.FormattedText(new []
-										{
-										new Span().Bind(Span.TextProperty, "Name"),
-										new Span().Bind(Span.TextProperty, "Words.Count", stringFormat: " ({0}) ")
-										})
-									}
-								}.BindTapGesture(nameof(ListVocabularyPageModel.ViewListCommand), commandSource: _model, parameterPath: "ID")
-							})
-						),
-					new Border
-						{
-							StrokeShape = new Rectangle(),
-							StrokeThickness = 1,
-							HorizontalOptions = LayoutOptions.Start,
-							Content = new Grid
-							{
-								WidthRequest = 300,
-								HeightRequest = 60,
-								Children =
-								{
-									new Label{}
-										.Bind(Label.TextProperty, "Localize[Add]")
-										.Center(),
-								}
-							}
-							.BindTapGesture(nameof(ListVocabularyPageModel.AddVocabularyCommand))
-						}
-				}
-			}
-		};
+		var lists = await _vocabService.GetAllListsWithWordsAsync();
+		SetState(s => s.VocabLists = lists);
 	}
+
+	async Task AddVocabulary()
+	{
+		await MauiControls.Shell.Current.GoToAsync(nameof(AddVocabularyPage));
+	}
+
+	async Task ViewList(int listID)
+	{
+		await MauiControls.Shell.Current.GoToAsync<VocabProps>(
+			nameof(EditVocabularyPage),
+			props => props.ListID = listID);
+	}
+}
+
+class VocabProps
+{
+    public int ListID { get; set; }
 }

@@ -1,5 +1,3 @@
-
-
 namespace SentenceStudio.Services;
 
 public class VocabularyService
@@ -95,6 +93,22 @@ public class VocabularyService
         return await Database.Table<VocabularyWord>().Where(i => i.ID == id).FirstOrDefaultAsync();
     }
 
+    public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
+    {
+        await Init();
+        return await Database.Table<VocabularyWord>()
+            .Where(w => w.NativeLanguageTerm == nativeTerm)
+            .FirstOrDefaultAsync();
+    }
+    
+    public async Task<VocabularyWord> GetWordByTargetTermAsync(string targetTerm)
+    {
+        await Init();
+        return await Database.Table<VocabularyWord>()
+            .Where(w => w.TargetLanguageTerm == targetTerm)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<int> SaveListAsync(VocabularyList list)
     {
         await Init();
@@ -105,7 +119,7 @@ public class VocabularyService
             {
                 result = await Database.UpdateAsync(list);
                 result = await Database.UpdateAllAsync(list.Words);
-                
+
                 foreach (var term in list.Words)
                 {
                     await SaveWordToListAsync(term, list.ID);
@@ -123,7 +137,7 @@ public class VocabularyService
                 result = await Database.InsertAsync(list);
 
                 // list.Words = new List<Event> { event1 };                
-            
+
                 if (list.Words != null)
                 {
                     foreach (var term in list.Words)
@@ -243,12 +257,12 @@ public class VocabularyService
                 var template = Template.Parse(reader.ReadToEnd());
                 prompt = await template.RenderAsync(new { native_language = nativeLanguage, target_language = targetLanguage});
 
-                Debug.WriteLine(prompt);
+                // //Debug.WriteLine(prompt);
             }
             
             try
             {
-                string response = await _aiService.SendPrompt(prompt, false);
+                var response = await _aiService.SendPrompt<string>(prompt);
 
                 VocabularyList list = new();
                 list.Name = "Sentence Studio Starter Vocabulary";

@@ -10,26 +10,3 @@ Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language
 Prioritize creating sentences that emphasize these grammar skills: 
 {{ skills }}
 {{ end }}
-
-Here is an example response with properly structured sentences. Format the response as JSON exactly like this:
-
-```json
-{
-"sentences": [
- {
-"sentence": "저는 학생이에요.",
-"vocabulary_word": "학생",
-"vocabulary_word_used": "학생",
-"recommended_translation": "I am a student.",
-"vocabulary_word_used_guesses": "학생, 공부하다, 한국어, 책, 질문"
- },
- {
-"sentence": "왜 한국어를 공부해요?",
-"vocabulary_word": "공부하다",
-"vocabulary_word_used": "공부해요",
-"recommended_translation": "Why are you studying Korean?",
-"vocabulary_word_used_guesses": "공부해요, 배우다, 읽다, 쓰다, 연습하다"
- }
- ]
-}
-```

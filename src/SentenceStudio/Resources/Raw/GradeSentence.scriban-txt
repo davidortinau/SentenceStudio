@@ -8,9 +8,3 @@ Keep in mind these guidelines:
 
 * Use 존댓말
 * Use spoken form, not written
-
-Format your response as json with properties like this: {\"accuracy_score\": 100, \"accuracy_explanation\": \"\", \"fluency_score\": 100, \"fluency_explanation\": \"\", \"grammar_notes\": {\"original_sentence\": \"\", \"recommended_translation\": \"\", \"explanation\": \"\"}}. 
-
-recommended_translation should be a best version of the sentence based on what you best think I was trying to say.
-
-grammar_notes should be a break down of your recommendation as it compares to my sentence.

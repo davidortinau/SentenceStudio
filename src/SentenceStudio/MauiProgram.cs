@@ -1,49 +1,34 @@
 ﻿using CommunityToolkit.Maui;
-using SentenceStudio.Pages.Dashboard;
-using SentenceStudio.Pages.Lesson;
-using SentenceStudio.Pages.Vocabulary;
 using Microsoft.Maui.Platform;
-using MauiIcons.SegoeFluent;
-using Microsoft.Maui.Handlers;
-using SentenceStudio.Pages.Controls;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 #if ANDROID || IOS || MACCATALYST
 using Shiny;
 #endif
-using SentenceStudio.Pages.Scene;
-using SentenceStudio.Pages.Account;
-using SentenceStudio.Pages.Onboarding;
-using SentenceStudio.Pages.Translation;
 using CommunityToolkit.Maui.Media;
 using The49.Maui.BottomSheet;
-using SentenceStudio.Data;
 using SkiaSharp.Views.Maui.Controls.Hosting;
-using SentenceStudio.Pages.Clozure;
-using CommunityToolkit.Maui.Markup;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls.Hosting;
-using Microsoft.Maui.Hosting;
 using Plugin.Maui.Audio;
-using SentenceStudio.Pages.Skills;
-using SentenceStudio.Pages.Storyteller;
-using SentenceStudio.Pages.HowDoYouSay;
 using Fonts;
-using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Warmup;
 using Syncfusion.Maui.Toolkit.Hosting;
-
-
+using SentenceStudio.Pages.Warmup;
+using SentenceStudio.Pages.HowDoYouSay;
+using SentenceStudio.Pages.Clozure;
+using SentenceStudio.Pages.Translation;
+using SentenceStudio.Pages.Vocabulary;
+using SentenceStudio.Pages.Skills;
+using SentenceStudio.Pages.Writing;
+using SentenceStudio.Pages.Scene;
+using Microsoft.Extensions.AI;
+using OpenTelemetry.Trace;
+using OpenAI;
 
 #if WINDOWS
 using System.Reflection;
 #endif
 
-
-
 #if DEBUG
-using Common;
 #endif
-using Plugin.Maui.DebugOverlay;
 
 namespace SentenceStudio;
 
@@ -58,7 +43,6 @@ public static class MauiProgram
 			.UseShiny()
 			#endif
             .UseMauiCommunityToolkit()
-			.UseMauiCommunityToolkitMarkup()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
@@ -76,7 +60,7 @@ public static class MauiProgram
 					recordingOptions.Category = AVFoundation.AVAudioSessionCategory.Record;
 					recordingOptions.Mode = AVFoundation.AVAudioSessionMode.Default;
 					recordingOptions.CategoryOptions = AVFoundation.AVAudioSessionCategoryOptions.MixWithOthers;
-			#endif
+#endif
 			})
 			.ConfigureFonts(fonts =>
 			{
@@ -96,45 +80,6 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
             ;
 
-		builder.Services.AddSingleton<TeacherService>();
-		builder.Services.AddSingleton<VocabularyService>();
-		builder.Services.AddSingleton<ConversationService>();
-		builder.Services.AddSingleton<AiService>();
-		builder.Services.AddSingleton<SceneImageService>();
-		builder.Services.AddSingleton<ClozureService>();
-		builder.Services.AddSingleton<StorytellerService>();
-
-		builder.Services.AddSingleton<AppShellModel>();
-
-		builder.Services.AddSingleton<StoryRepository>();
-		builder.Services.AddSingleton<UserProfileRepository>();
-		builder.Services.AddSingleton<UserActivityRepository>();
-		builder.Services.AddSingleton<SkillProfileRepository>();
-
-		builder.Services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
-
-		builder.Services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
-
-		builder.Services.AddSingleton<OnboardingPageModel>();
-		builder.Services.AddSingleton<DashboardPageModel>();
-		builder.Services.AddSingleton<ListVocabularyPageModel>();
-		builder.Services.AddSingleton<LessonStartPageModel>();
-		builder.Services.AddSingleton<UserProfilePageModel>();
-		builder.Services.AddSingleton<ListSkillProfilesPageModel>();
-		
-		builder.Services.AddTransientWithShellRoute<TranslationPage, TranslationPageModel>("translation");		
-		builder.Services.AddTransientWithShellRoute<AddVocabularyPage, AddVocabularyPageModel>("addVocabulary");
-		builder.Services.AddTransientWithShellRoute<EditVocabularyPage, EditVocabularyPageModel>("editVocabulary");
-		builder.Services.AddTransientWithShellRoute<WritingPage, WritingPageModel>("writingLesson");
-		builder.Services.AddTransientWithShellRoute<WarmupPage, WarmupPageModel>("warmup");
-		builder.Services.AddTransientWithShellRoute<DescribeAScenePage, DescribeAScenePageModel>("describeScene");
-		builder.Services.AddTransientWithShellRoute<ClozurePage, ClozurePageModel>("clozures");
-		builder.Services.AddTransientWithShellRoute<EditSkillProfilePage, EditSkillProfilePageModel>("editSkillProfile");
-		builder.Services.AddTransientWithShellRoute<AddSkillProfilePage, AddSkillProfilePageModel>("addSkillProfile");
-		builder.Services.AddTransientWithShellRoute<StorytellerPage, StorytellerPageModel>("storyteller");
-		builder.Services.AddTransientWithShellRoute<HowDoYouSayPage, HowDoYouSayPageModel>("howDoYouSay");
-
-        
 #if ANDROID || IOS || MACCATALYST
         builder.Configuration.AddJsonPlatformBundle();
 #else
@@ -147,35 +92,100 @@ public static class MauiProgram
 
         builder.Configuration.AddConfiguration(config);
 #endif
-
-		builder.Services.AddSingleton<ISpeechToText>(SpeechToText.Default);
-        builder.Services.AddFilePicker();
-
-		builder.Services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
-		builder.Services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+		
 
 #if DEBUG
-		builder.UseDebugRibbon(Colors.Black);
-		builder.Services.AddSingleton<ICommunityToolkitHotReloadHandler, HotReloadHandler>();
+		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
 #endif
 
-// 		builder.Services.AddLogging(logging =>
-// 			{
-// #if WINDOWS
-// 				logging.AddDebug();
-// #else
-// 				logging.AddConsole();
-// #endif
+		RegisterRoutes();
+		RegisterServices(builder.Services);		
 
-// 				// Enable maximum logging for BlazorWebView
-// 				logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Trace);
-// 			});
+		builder.Services.AddOpenTelemetry()
+            .WithTracing(tracerProviderBuilder =>
+            {
+                tracerProviderBuilder
+                    .AddHttpClientInstrumentation() // Capture HttpClient requests
+                    // .AddSource("IChatClient") // Custom source for OpenAI API calls
+                    .AddConsoleExporter(); // Export traces to console for debugging
+            });
 
-	
 
-		
+		var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
+			? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
+			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+
+		builder.Services
+			// .AddChatClient(new OllamaChatClient("http://localhost:11434", "deepseek-r1"))
+			.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini"))
+			// .UseFunctionInvocation()
+			.UseLogging();
+			// .UseOpenTelemetry();
+
 		return builder.Build();
 	}
+
+    
+
+    private static void RegisterRoutes()
+	{
+		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
+		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
+		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
+		MauiReactor.Routing.RegisterRoute<TranslationPage>(nameof(TranslationPage));
+		MauiReactor.Routing.RegisterRoute<EditSkillProfilePage>(nameof(EditSkillProfilePage));
+		MauiReactor.Routing.RegisterRoute<AddSkillProfilePage>(nameof(AddSkillProfilePage));
+
+		MauiReactor.Routing.RegisterRoute<AddVocabularyPage>(nameof(AddVocabularyPage));
+		MauiReactor.Routing.RegisterRoute<EditVocabularyPage>(nameof(EditVocabularyPage));
+		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
+		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
+		
+	}
+
+	
+	static void RegisterServices(IServiceCollection services)
+	{
+		// #if DEBUG
+		//         services.AddLogging(configure => configure.AddDebug());
+		// #endif
+
+
+		services.AddSingleton<TeacherService>();
+		services.AddSingleton<VocabularyService>();
+		services.AddSingleton<ConversationService>();
+		services.AddSingleton<AiService>();
+		services.AddSingleton<SceneImageService>();
+		services.AddSingleton<ClozureService>();
+		services.AddSingleton<StorytellerService>();
+		services.AddSingleton<TranslationService>();
+
+		// services.AddSingleton<AppShellModel>();
+
+		services.AddSingleton<StoryRepository>();
+		services.AddSingleton<UserProfileRepository>();
+		services.AddSingleton<UserActivityRepository>();
+		services.AddSingleton<SkillProfileRepository>();
+
+		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
+
+		// services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
+
+		// services.AddSingleton<OnboardingPageModel>();
+		// services.AddSingleton<DashboardPageModel>();
+		// services.AddSingleton<ListVocabularyPageModel>();
+		// services.AddSingleton<LessonStartPageModel>();
+		// services.AddSingleton<UserProfilePageModel>();
+		// services.AddSingleton<ListSkillProfilesPageModel>();
+
+		services.AddSingleton<ISpeechToText>(SpeechToText.Default);
+		services.AddFilePicker();
+
+		// services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
+		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
+		
+		services.AddSingleton<IAppState, AppState>();
+    }
 
 	
 

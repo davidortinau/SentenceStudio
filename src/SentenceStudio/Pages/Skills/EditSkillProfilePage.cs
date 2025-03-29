@@ -1,56 +1,94 @@
-using CommunityToolkit.Maui.Markup;
-using SentenceStudio.Pages.Controls;
-
 namespace SentenceStudio.Pages.Skills;
 
-public class EditSkillProfilePage : ContentPage
+class EditSkillProfilePageState
 {
-	public EditSkillProfilePage(EditSkillProfilePageModel model)
-	{
-		BindingContext = model;
-		Build();	
-	}
+    public SkillProfile Profile { get; set; } = new();
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
 
-	public void Build()
-	{
-		Title = "Edit Skill Profile";
+class EditSkillProfileProps
+{
+    public int ProfileID { get; set; }
+}
 
-		ToolbarItem saveButton = new ToolbarItem
-		{
-			Text = "Save"
-		}.BindCommand(nameof(EditSkillProfilePageModel.SaveCommand));
+partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSkillProfileProps>
+{
+    [Inject] SkillProfileRepository _skillsRepository;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-		ToolbarItems.Add(saveButton);
+    public override VisualNode Render()
+    {
+        return ContentPage("Edit Skill Profile",
+            ToolbarItem("Save").OnClicked(Save),
+            ToolbarItem("Delete").OnClicked(Delete),
+            VScrollView(
+                VStack(
+                    VStack(
+                        Label("Title").HStart(),
+                        Border(
+                            Entry()
+                                .Text(State.Title)
+                                .OnTextChanged(text => SetState(s => s.Title = text))
+                        )
+                        .Style((Style)Application.Current.Resources["InputWrapper"])
+                    )
+                    .Spacing(ApplicationTheme.Size120),
 
-		var deleteButton = new ToolbarItem
-		{
-			Text = "Delete"
-		}.BindCommand(nameof(EditSkillProfilePageModel.DeleteCommand));
+                    VStack(
+                        Label("Skills Description").HStart(),
+                        Border(
+							Editor()
+								.Text(State.Description)
+								.MinimumHeightRequest(300)
+                                .AutoSize(EditorAutoSizeOption.TextChanges)
+                                .OnTextChanged(text => SetState(s => s.Description = text))
+                        )
+                        .Style((Style)Application.Current.Resources["InputWrapper"])
+                    )
+                    .Spacing(ApplicationTheme.Size120),
 
-		ToolbarItems.Add(deleteButton);
+                    Label($"Created: {State.Profile.CreatedAt:MM/dd/yyyy}"),
+                    Label($"Updated: {State.Profile.UpdatedAt:MM/dd/yyyy}")
+                )
+                .Spacing((Double)Application.Current.Resources["size160"])
+                .Padding((Double)Application.Current.Resources["size160"])
+            )
+        ).OnAppearing(LoadProfile);
+    }
 
-		Content = new ScrollView
-		{
-			Content = new VerticalStackLayout{
-				Children = {
-					new FormField{ 
-						FieldLabel ="Title", 
-						Content = new Entry().Bind(Entry.TextProperty, nameof(EditSkillProfilePageModel.Title))
-					},
-					new FormField{ 
-						FieldLabel ="Skills Description", 
-						Content = new Editor{ 
-								AutoSize = EditorAutoSizeOption.TextChanges 
-							}
-							.Bind(Editor.TextProperty, nameof(EditSkillProfilePageModel.Description))
-					},
-					new Label()
-						.Bind(Label.TextProperty, nameof(EditSkillProfilePageModel.Profile.CreatedAt), stringFormat: "Created: {0:MM/dd/yyyy}"),
-					new Label()
-						.Bind(Label.TextProperty, nameof(EditSkillProfilePageModel.Profile.UpdatedAt), stringFormat: "Updated: {0:MM/dd/yyyy}"),
-				}
-			}
-			
-		}.Margins((double)Application.Current.Resources["size160"]);
-	}
+    async Task LoadProfile()
+    {
+        if (Props.ProfileID > 0)
+        {
+            var profile = await _skillsRepository.GetSkillProfileAsync(Props.ProfileID);
+            SetState(s => 
+            {
+                s.Profile = profile;
+                s.Title = profile.Title;
+                s.Description = profile.Description;
+            });
+        }
+    }
+
+    async Task Save()
+    {
+        State.Profile.Title = State.Title;
+        State.Profile.Description = State.Description;
+        
+        var result = await _skillsRepository.SaveAsync(State.Profile);
+        if (result > 0)
+            await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
+            
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
+
+    async Task Delete()
+    {
+        var result = await _skillsRepository.DeleteAsync(State.Profile);
+        if (result > 0)
+            await AppShell.DisplayToastAsync(_localize["Deleted"].ToString());
+            
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
 }

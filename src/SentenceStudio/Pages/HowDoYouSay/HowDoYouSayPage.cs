@@ -1,90 +1,109 @@
-using CommunityToolkit.Maui.Converters;
+using MauiReactor.Shapes;
+using Plugin.Maui.Audio;
+using System.Collections.ObjectModel;
+
 namespace SentenceStudio.Pages.HowDoYouSay;
 
-
-public class HowDoYouSayPage : ContentPage
+class HowDoYouSayPageState
 {
-	private readonly HowDoYouSayPageModel _model;
+	public string Phrase { get; set; }
+	public bool IsBusy { get; set; }
+	public ObservableCollection<StreamHistory> StreamHistory { get; set; } = new();
+}
 
-	public HowDoYouSayPage(HowDoYouSayPageModel model)
+partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
+{
+	[Inject] AiService _aiService;
+	LocalizationManager _localize => LocalizationManager.Instance;
+
+	public override VisualNode Render()
 	{
-		BindingContext = _model = model;
-
-		Build();
+		return ContentPage($"{_localize["HowDoYouSay"]}",
+			Grid(rows: "Auto,*", "*",
+				RenderInput(),
+				RenderHistory()
+			)
+		);
 	}
 
-	public void Build()
+	VisualNode RenderInput() =>
+		VStack(spacing: ApplicationTheme.Size240,
+			ActivityIndicator()
+				.IsVisible(State.IsBusy)
+				.IsRunning(State.IsBusy),
+			Border(
+				Editor()
+					.Placeholder("Enter a word or phrase")
+					.FontSize(32)
+					.MinimumHeightRequest(200)
+					.MaximumHeightRequest(500)
+					.AutoSize(EditorAutoSizeOption.TextChanges)
+					.Text(State.Phrase)
+					.OnTextChanged((s, e) => SetState(s => s.Phrase = e.NewTextValue))
+			)
+			.StrokeShape(new RoundRectangle().CornerRadius(8))
+			.Stroke(ApplicationTheme.Gray300),
+			Button("Submit")
+				.OnClicked(Submit)
+		)
+		.Padding(ApplicationTheme.Size240);
+
+	VisualNode RenderHistory() =>
+		ScrollView(
+			VStack(
+				State.StreamHistory.Select(item => RenderHistoryItem(item)).ToArray()
+			)
+			.Spacing(ApplicationTheme.Size240)
+			.Padding(ApplicationTheme.Size240)
+		)
+		.GridRow(1);
+
+	VisualNode RenderHistoryItem(StreamHistory item) =>
+		HStack(spacing: ApplicationTheme.Size120,
+			Button()
+				.Background(Colors.Transparent)
+				.OnClicked(() => PlayAudio(item))
+				.ImageSource(SegoeFluentIcons.Play.ToFontImageSource())
+				.TextColor(Colors.Black),
+			Label(item.Phrase)
+				.FontSize(24)
+		);
+
+	async Task Submit()
 	{
-		Title = "How Do You Say";//LocalizationManager.Instance["Storyteller"]
+		if (string.IsNullOrWhiteSpace(State.Phrase)) return;
 
-		Shell.SetNavBarIsVisible(this, true);
+		SetState(s => s.IsBusy = true);
 
-		Content = new Grid
+		try
 		{
-			Padding = DeviceInfo.Idiom == DeviceIdiom.Phone ? new Thickness(16, 6) : new Thickness((Double)Application.Current.Resources["size240"]),
-			RowDefinitions = Rows.Define(Auto,Star),
-			RowSpacing = 12,
-			Children = {
-					
-							new VerticalStackLayout
-							{
-								Spacing = (Double)Application.Current.Resources["size240"],
-								Children = {
-									new ActivityIndicator{}
-										.Bind(ActivityIndicator.IsVisibleProperty, nameof(_model.IsBusy))
-										.Bind(ActivityIndicator.IsRunningProperty, nameof(_model.IsBusy)),
-									new FormField{
-										FieldLabel = "Enter a word or phrase",
-										Content = new Editor
-										{
-											Placeholder = "Enter a word or phrase",
-											FontSize = 32,
-											MinimumHeightRequest = 200,
-											MaximumHeightRequest = 500,
-											AutoSize = EditorAutoSizeOption.TextChanges
-										}.Bind(Editor.TextProperty, nameof(_model.Phrase)),
-									},
-									new Button
-									{
-										Text = "Submit"
-									}.BindCommand(nameof(_model.SubmitCommand))
-								}
-							},
-							new ScrollView
-							{
-								Content = 
-									new VerticalStackLayout
-									{
-										Spacing = (Double)Application.Current.Resources["size240"],
-									}
-									.Bind(BindableLayout.ItemsSourceProperty, nameof(HowDoYouSayPageModel.StreamHistory))
-									.ItemTemplate(() =>
-									new HorizontalStackLayout{
-										Spacing = (Double)Application.Current.Resources["size120"],
-										Children = {
-											new Button{
-												Background = Colors.Transparent
-											}
-												.Icon(SegoeFluentIcons.Play).IconSize(24).IconColor(Colors.Black)
-												.BindCommand(
-													path: nameof(HowDoYouSayPageModel.PlayCommand),
-													source: _model,
-													parameterPath: "."
-													),
-											new Label
-												{
-													FontSize = 24
-												}
-												.Bind(Label.TextProperty, nameof(StreamHistory.Phrase)),
+			var stream = await _aiService.TextToSpeechAsync(State.Phrase, "Nova");
+			
+			SetState(s =>
+			{
+				s.StreamHistory.Insert(0, new StreamHistory { Phrase = s.Phrase, Stream = stream });
+				s.Phrase = string.Empty;
+				s.IsBusy = false;
+			});
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine(ex.Message);
+			SetState(s => s.IsBusy = false);
+		}
+	}
 
-										}
-
-									})								
-							}.Row(1)// ScrollView
-						
-					
-				}
-		}; // Content Grid
-
+	void PlayAudio(StreamHistory item)
+	{
+		try
+		{
+			var player = AudioManager.Current.CreatePlayer(item.Stream);
+			player.PlaybackEnded += (s, e) => item.Stream.Position = 0;
+			player.Play();
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine(ex.Message);
+		}
 	}
 }

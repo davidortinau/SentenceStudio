@@ -1,122 +1,161 @@
-using SentenceStudio;
-
 namespace SentenceStudio.Pages.Account;
 
-public class UserProfilePage : ContentPage
+class UserProfilePageState
 {
-	public UserProfilePage(UserProfilePageModel model)
-	{
-		BindingContext = model;
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string NativeLanguage { get; set; } = string.Empty;
+    public string TargetLanguage { get; set; } = string.Empty;
+    public string DisplayLanguage { get; set; } = string.Empty;
+    public string OpenAI_APIKey { get; set; } = string.Empty;
+    public int NativeLanguageIndex { get; internal set; }
+    public int TargetLanguageIndex { get; internal set; }
+    public int DisplayLanguageIndex { get; internal set; }
+    public int ProfileID { get; internal set; }
+}
 
-        this.Bind(ContentPage.TitleProperty,"Localize[UserProfile]");
-		Build();
-	}
+partial class UserProfilePage : Component<UserProfilePageState>
+{
+    [Inject] UserProfileRepository _userProfileRepository;
+    [Inject] VocabularyService _vocabularyService;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-	public void Build()
-	{
-        this.Title = "User Profile";
-        // Shell.SetTabBarIsVisible(this, false); // Hide the tab bar - no clue why it's appearing here
+    public override VisualNode Render()
+    {
+        return ContentPage($"{_localize["UserProfile"]}",
+            ToolbarItem($"{_localize["Reset"]}").OnClicked(Reset),
+            VScrollView(
+                VStack(
+                    new SfTextInputLayout
+                    {
+                        Entry()
+                            .Text(State.Name)
+                            .OnTextChanged(text => SetState(s => s.Name = text))
+                    }
+                    .Hint($"{_localize["Name"]}"),
 
-        this.ToolbarItems.Add(
-            new ToolbarItem()
-                .Bind(ToolbarItem.TextProperty, "Localize[Reset]")
-                .BindCommand("ResetCommand")
-                // .Icon(SegoeFluentIcons.Delete).IconSize((double)Application.Current.Resources["IconSize"])
-        );
+                    new SfTextInputLayout
+                    {
+                        Entry()
+                            .Text(State.Email)
+                            .OnTextChanged(text => SetState(s => s.Email = text))
+                    }
+                    .Hint($"{_localize["Email"]}"),
 
-		Content = new ScrollView
+                    new SfTextInputLayout
+                    {
+                        Picker()
+                            .ItemsSource(Languages)
+                            .SelectedIndex(State.NativeLanguageIndex)
+                            .OnSelectedIndexChanged(index => SetState(s => s.NativeLanguage = Languages[index]))
+                    }
+                    .Hint($"{_localize["NativeLanguage"]}"),
+
+                    new SfTextInputLayout
+                    {
+                        Picker()
+                            .ItemsSource(Languages)
+                            .SelectedIndex(State.TargetLanguageIndex)
+                            .OnSelectedIndexChanged(index => SetState(s => s.TargetLanguage = Languages[index]))
+                    }
+                    .Hint($"{_localize["TargetLanguage"]}"),
+
+                    new SfTextInputLayout
+                    {
+                        Picker()
+                            .ItemsSource(DisplayLanguages)
+                            .SelectedIndex(State.DisplayLanguageIndex)
+                            .OnSelectedIndexChanged(index => SetState(s => s.DisplayLanguage = DisplayLanguages[index]))
+                    }
+                    .Hint($"{_localize["DisplayLanguage"]}"),
+
+                    new SfTextInputLayout
+                    {
+                        Entry()
+                            .IsPassword(true)
+                            .Text(State.OpenAI_APIKey)
+                            .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
+                    }
+                    .Hint($"{_localize["OpenAI_APIKey"]}"),
+
+                    Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
+                        .TextDecorations(TextDecorations.Underline)
+                        // .TextColor(Theme.IsLightTheme ? ApplicationTheme.Secondary : ApplicationTheme.SecondaryDark)
+                        .OnTapped(GoToOpenAI),
+
+                    Button($"{_localize["Save"]}")
+                        .OnClicked(Save)
+                        .HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill)
+                        .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1)
+                )
+                .Spacing((double)Application.Current.Resources["size320"])
+                .Padding(24)
+            )
+        ).OnAppearing(LoadProfile);
+    }
+
+    readonly string[] Languages = new[]
+    {
+        "English", "Spanish", "French", "German", "Italian", "Portuguese",
+        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
+    };
+
+    readonly string[] DisplayLanguages = new[] { "English", "Korean" };
+
+    async Task LoadProfile()
+    {
+        var profile = await _userProfileRepository.GetAsync();
+        SetState(s =>
         {
-            Content = new VerticalStackLayout
-            {
-                Spacing = (double)Application.Current.Resources["size320"],
-                Margin = new Thickness(24),
+            s.ProfileID = profile.ID;
+            s.Name = profile.Name;
+            s.Email = profile.Email;
+            s.NativeLanguage = profile.NativeLanguage;
+            s.TargetLanguage = profile.TargetLanguage;
+            s.DisplayLanguage = profile.DisplayLanguage;
+            s.OpenAI_APIKey = profile.OpenAI_APIKey;
 
-                Children =
-                {
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Entry().Bind(Entry.TextProperty, "Name", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[Name]"),
+            s.NativeLanguageIndex = Array.IndexOf(Languages, profile.NativeLanguage);
+            s.TargetLanguageIndex = Array.IndexOf(Languages, profile.TargetLanguage);
+        });
+    }
 
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Entry().Bind(Entry.TextProperty, "Email", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[Email]"),
-
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Picker
-                                {
-                                    ItemsSource = new string[]
-                                    {
-                                        "English", "Spanish", "French", "German", "Italian", "Portuguese",
-                                        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
-                                    }
-                                }
-                                .Bind(Picker.SelectedItemProperty, "NativeLanguage", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[NativeLanguage]"),
-
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Picker
-                                {
-                                    ItemsSource = new string[]
-                                    {
-                                        "English", "Spanish", "French", "German", "Italian", "Portuguese",
-                                        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
-                                    }
-                                }
-                                .Bind(Picker.SelectedItemProperty, "TargetLanguage", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[TargetLanguage]"),
-
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Picker
-                                {
-                                    ItemsSource = new string[]
-                                    {
-                                        "English", "Korean"
-                                    }
-                                }
-                                .Bind(Picker.SelectedItemProperty, "DisplayLanguage", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[DisplayLanguage]"),
-
-                    new FormField
-                        {
-                            ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                            Content = new Entry{ IsPassword = true }.Bind(Entry.TextProperty, "OpenAI_APIKey", BindingMode.TwoWay)
-                        }
-                        .Bind(FormField.FieldLabelProperty, "Localize[OpenAI_APIKey]"),
-
-                    new Label
-                        {
-                            Text = "Get an API key from OpenAI to use the AI features in Sentence Studio.",
-                            TextDecorations = TextDecorations.Underline
-                        }
-                        .AppThemeColorBinding(Label.TextColorProperty, 
-                            (Color)Application.Current.Resources["Secondary"],
-                            (Color)Application.Current.Resources["SecondaryDark"])
-                        .BindTapGesture(nameof(UserProfilePageModel.GoToOpenAICommand)),
-
-                    new Button
-                        {
-                            HorizontalOptions = (DeviceInfo.Idiom == DeviceIdiom.Desktop) ? LayoutOptions.Start : LayoutOptions.Fill,
-                            WidthRequest = (DeviceInfo.Idiom == DeviceIdiom.Desktop) ? 300 : -1
-                        }
-                        .Bind(Button.TextProperty, "Localize[Save]")
-                        .Bind(Button.CommandProperty, "SaveCommand")
-                }
-            }
+    async Task Save()
+    {
+        var profile = new UserProfile
+        {
+            ID = State.ProfileID,
+            Name = State.Name,
+            Email = State.Email,
+            NativeLanguage = State.NativeLanguage,
+            TargetLanguage = State.TargetLanguage,
+            DisplayLanguage = State.DisplayLanguage,
+            OpenAI_APIKey = State.OpenAI_APIKey
         };
-	}
+
+        await _userProfileRepository.SaveAsync(profile);
+        await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
+
+        var lists = await _vocabularyService.GetListsAsync();
+        if(lists.Count == 0)
+        {
+            var response = await Application.Current.MainPage.DisplayAlert("Vocabulary", 
+                "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
+            if(response)
+                await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+        }
+    }
+
+    async Task Reset()
+    {
+        var response = await Application.Current.MainPage.DisplayAlert("Reset", "Are you sure you want to reset your profile?", "Yes", "No");
+        if(response)
+        {
+            await _userProfileRepository.DeleteAsync();
+            await LoadProfile();
+        }
+    }
+
+    async Task GoToOpenAI() => 
+        await Browser.OpenAsync("https://platform.openai.com/account/api-keys");
 }

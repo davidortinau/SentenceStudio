@@ -1,104 +1,76 @@
-using CommunityToolkit.Maui.Behaviors;
-using CustomLayouts;
+using ReactorCustomLayouts;
+using MauiReactor.Shapes;
 
 namespace SentenceStudio.Pages.Skills;
 
-public class ListSkillProfilesPage : ContentPage
+class ListSkillProfilesPageState
 {
-	private ListSkillProfilesPageModel _model;
-	public ListSkillProfilesPage(ListSkillProfilesPageModel model)
-	{
-		BindingContext = _model = model;
-		InitBehaviors();
-		Build();	
-	}
+    public List<SkillProfile> Profiles { get; set; } = [];
+}
 
-    private void InitBehaviors()
+partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
+{
+    [Inject] SkillProfileRepository _skillsRepository;
+    LocalizationManager _localize => LocalizationManager.Instance;
+
+    public override VisualNode Render()
     {
-        this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.NavigatedTo),
-				Command = _model.NavigatedToCommand
-			}
-		);
+        return ContentPage("Skill Profiles",
+            VScrollView(
+                VStack(
+                    new HWrap()
+                    {
+                        State.Profiles.Select(profile =>
+                            Border(
+                                Grid(
+                                    Label()
+                                        .Center()
+                                        .Text(profile.Title)
+                                )
+                                .WidthRequest(300)
+                                .HeightRequest(120)
+                                .OnTapped(() => EditProfile(profile))
+                            )
+                            .StrokeShape(new Rectangle())
+                            .StrokeThickness(1)
+                        )
+                    }
+                    .Spacing((Double)Application.Current.Resources["size320"]),
 
-		this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.NavigatedFrom),
-				Command = _model.NavigatedFromCommand
-			}
-		);
-
-		this.Behaviors.Add(
-			new EventToCommandBehavior
-			{
-				EventName = nameof(ContentPage.Appearing),
-				Command = _model.AppearingCommand
-			}
-		);
+                    Border(
+                        Grid(
+                            Label("Add")
+                                .Center()
+                        )
+                        .WidthRequest(300)
+                        .HeightRequest(120)
+                        .OnTapped(AddProfile)
+                    )
+                    .StrokeShape(new Rectangle())
+                    .StrokeThickness(1)
+                    .HStart()
+                )
+                .Padding((Double)Application.Current.Resources["size160"])
+                .Spacing(ApplicationTheme.Size240)
+            )
+        ).OnAppearing(LoadProfiles);
     }
 
-    public void Build()
-	{
-		Title = "Skill Profiles";
-		// Shell.SetTabBarIsVisible(this, false); // Hide the tab bar - no clue why it's appearing here
-
-		
-
-		Content = new ScrollView { 
-			Content = new VerticalStackLayout
-			{
-				Padding = (double)Application.Current.Resources["size160"],
-				Spacing = (double)Application.Current.Resources["size240"],
-				Children = {
-					new HorizontalWrapLayout
-					{
-						Spacing = (double)Application.Current.Resources["size320"]	
-					}
-					.ItemTemplate(() =>
-						new Border
-						{
-							StrokeShape = new Rectangle(),
-							StrokeThickness = 1,
-							Content = new Grid
-								{
-									Children = {
-										new Label {  }.Bind(Label.TextProperty, nameof(SkillProfile.Title)).Center()
-									}
-								}
-								.Size(300,120)	
-								.BindTapGesture(
-									commandPath: nameof(ListSkillProfilesPageModel.EditProfileCommand),
-									commandSource: _model,
-									parameterPath: ".") // Grid
-						} // Border
-					)
-					.Bind(BindableLayout.ItemsSourceProperty, nameof(ListSkillProfilesPageModel.Profiles)),
-					AddButton()
-							.BindTapGesture(
-									commandPath: nameof(ListSkillProfilesPageModel.AddProfileCommand),
-									commandSource: _model)
-						.Start()
-
-				}
-			}
-		};
-	}
-
-    private Border AddButton()
+    async Task LoadProfiles()
     {
-        return 
-			new Border{
-				StrokeShape = new Rectangle(),
-				StrokeThickness = 1,
-					Content = new Grid
-					{
-						Children = {
-							new Label { Text = "Add" }.Center()
-						}
-					}.Size(300,120)
-			};
+        var profiles = await _skillsRepository.ListAsync();
+        SetState(s => s.Profiles = profiles.ToList());
+    }
+
+    async Task AddProfile()
+    {
+        await MauiControls.Shell.Current.GoToAsync(nameof(AddSkillProfilePage));
+    }
+
+    async Task EditProfile(SkillProfile profile)
+    {
+        await MauiControls.Shell.Current.GoToAsync<EditSkillProfileProps>(
+            nameof(EditSkillProfilePage),
+            props => props.ProfileID = profile.ID);
     }
 }

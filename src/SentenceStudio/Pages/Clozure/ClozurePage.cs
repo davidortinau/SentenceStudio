@@ -1,390 +1,437 @@
-
-using Border = Microsoft.Maui.Controls.Border;
+using MauiReactor.Shapes;
+using System.Collections.ObjectModel;
+using SentenceStudio.Pages.Dashboard;
+using System.Timers;
 
 namespace SentenceStudio.Pages.Clozure;
 
-public class ClozurePage : ContentPage
+class ClozurePageState
 {
-	ClozurePageModel _model;
-	Grid InputUI;
-	FormField UserInputField;
-	VerticalStackLayout VocabBlocks;
-	ModeSelector ModeSelector;
-	Grid LoadingOverlay;
+	public bool IsBusy { get; set; }
+	public bool IsBuffering { get; set; }
+	public string UserInput { get; set; }
+	public string UserGuess { get; set; }
+	public string UserMode { get; set; } = InputMode.Text.ToString();
+	public string CurrentSentence { get; set; }
+	public string RecommendedTranslation { get; set; }
+	public double AutoTransitionProgress { get; set; }
+	public ObservableCollection<Challenge> Sentences { get; set; } = new();
+	public string[] GuessOptions { get; set; }
+}
 
-	public ClozurePage(ClozurePageModel model)
+partial class ClozurePage : Component<ClozurePageState, ActivityProps>
+{
+	[Inject] ClozureService _clozureService;
+	[Inject] AiService _aiService;
+	[Inject] UserActivityRepository _userActivityRepository;
+
+	LocalizationManager _localize => LocalizationManager.Instance;
+
+	public override VisualNode Render()
 	{
-		BindingContext = _model = model;
-
-		var userActivityToFontImageSourceConverter = new UserActivityToFontImageSourceConverter();
-		var boolToColorConverter = new BoolToObjectConverter
-		{
-			TrueObject = (Color)Application.Current.Resources["Secondary"],
-			FalseObject = (Color)Application.Current.Resources["Gray200"]
-		};
-
-		Resources.Add("UserActivityToFontImageSourceConverter", userActivityToFontImageSourceConverter);
-		Resources.Add("BoolToColorConverter", boolToColorConverter);
-
-		_model.PropertyChanged += (sender, e) =>
-		{
-			if (e.PropertyName == nameof(ClozurePageModel.GuessOptions))
-			{
-				MainThread.BeginInvokeOnMainThread(() =>
-				{
-					foreach (var child in VocabBlocks.Children)
-					{
-						if (child is RadioButton radioButton)
-						{
-							radioButton.IsChecked = false;
-						}
-					}
-				});
-			}
-		};
-		
-		Build();
+		return ContentPage($"{_localize["Clozures"]}",
+			Grid(rows: "*, 80", columns: "*",
+				ScrollView(
+					Grid(rows: "60,*,Auto", columns: "*",
+						SentenceScoreboard(),
+						SentenceDisplay(),
+						UserInput()
+					).RowSpacing(8)
+				),
+				NavigationFooter(),
+				AutoTransitionBar(),
+				LoadingOverlay()
+			).RowSpacing(12)
+		)
+		.OnAppearing(LoadSentences);
 	}
 
-    private void ReloadUI(Type[] obj)
-    {
-		Debug.WriteLine("🔥 ReloadUI");
-        Build();
-    }
+	VisualNode AutoTransitionBar() =>
+		ProgressBar()
+			.Progress(State.AutoTransitionProgress)
+			.HeightRequest(4)
+			.BackgroundColor(Colors.Transparent)
+			.ProgressColor(ApplicationTheme.Primary)
+			.VStart();
 
-    private void Mode_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+	VisualNode LoadingOverlay() =>
+		Grid(
+			Label("Thinking.....")
+				.FontSize(64)
+				.TextColor(Theme.IsLightTheme ? 
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
+				.Center()
+		)
+		.Background(Color.FromArgb("#80000000"))
+		.GridRowSpan(2)
+		.IsVisible(State.IsBusy);
+
+	VisualNode NavigationFooter() =>
+		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
+			Button("GO")
+				.TextColor(Theme.IsLightTheme ? 
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
+				.Background(Colors.Transparent)
+				.GridRow(1).GridColumn(4)
+				.OnClicked(GradeMe),
+
+			new ModeSelector()
+				.SelectedMode(State.UserMode)
+				.OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
+				.GridRow(1).GridColumn(2),
+
+			ImageButton()
+				.Background(Colors.Transparent)
+				.Aspect(Aspect.Center)
+				.Source(SegoeFluentIcons.Previous.ToImageSource())
+				.GridRow(1).GridColumn(0)
+				.OnClicked(PreviousSentence),
+
+			ImageButton()
+				.Background(Colors.Transparent)
+				.Aspect(Aspect.Center)
+				.Source(SegoeFluentIcons.Next.ToImageSource())
+				.GridRow(1).GridColumn(6)
+				.OnClicked(NextSentence),
+
+			BoxView()
+				.Color(Colors.Black)
+				.HeightRequest(1)
+				.GridColumnSpan(7),
+
+			BoxView()
+				.Color(Colors.Black)
+				.WidthRequest(1)
+				.GridRow(1).GridColumn(1),
+
+			BoxView()
+				.Color(Colors.Black)
+				.WidthRequest(1)
+				.GridRow(1).GridColumn(3),
+
+			BoxView()
+				.Color(Colors.Black)
+				.WidthRequest(1)
+				.GridRow(1).GridColumn(5)
+		).GridRow(1);
+
+	VisualNode SentenceScoreboard() =>
+		ScrollView(
+			HStack(spacing: 2,
+				ActivityIndicator()
+					.IsRunning(State.IsBuffering)
+					.IsVisible(State.IsBuffering)
+					.Color(Theme.IsLightTheme ? 
+						ApplicationTheme.DarkOnLightBackground : 
+						ApplicationTheme.LightOnDarkBackground)
+					.VCenter(),
+				HStack(spacing: 4,
+					State.Sentences.Select(sentence =>
+						Border(
+							ImageButton()
+								.WidthRequest(18).HeightRequest(18)
+								.Center()
+								.Aspect(Aspect.Center)
+								.Source(UserActivityToImageSource(sentence.UserActivity))
+								.OnClicked(() => JumpTo(sentence))
+						)
+						.WidthRequest(20).HeightRequest(20)
+						.StrokeShape(new RoundRectangle().CornerRadius(10))
+						.StrokeThickness(2)
+						.Stroke(sentence.IsCurrent ? 
+							(Color)Application.Current.Resources["Secondary"] : 
+							ApplicationTheme.Gray200)
+					)					
+				)
+			)
+			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
+				new Thickness(16, 6) : 
+				new Thickness(ApplicationTheme.Size240))
+		)
+		.Orientation(ScrollOrientation.Horizontal)
+		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
+		.GridRow(0)
+		.VCenter();
+
+	VisualNode SentenceDisplay() =>
+		VStack(spacing: 16,
+			Label(State.CurrentSentence)
+				.FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32),
+			Label(State.RecommendedTranslation)
+		)
+		.Margin(30)
+		.GridRow(1);
+
+	VisualNode UserInput() =>
+		Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
+			State.UserMode == InputMode.MultipleChoice.ToString() ? 
+				RenderMultipleChoice() : 
+				RenderTextInput()
+		)
+		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
+		.Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0))
+		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
+		.GridRow(2);
+
+	VisualNode RenderTextInput() =>
+		new SfTextInputLayout(
+			Entry()
+				.FontSize(32)
+				.Text(State.UserInput)
+				.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+				.ReturnType(ReturnType.Go)
+				.OnCompleted(GradeMe)
+		)
+		.Hint("Answer")
+		.GridRow(1)
+		.GridColumn(0)
+		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
+		.Margin(0,0,0,12);
+
+	VisualNode RenderMultipleChoice() =>
+		VStack(spacing: 4,
+			CollectionView()
+				.ItemsSource(State.GuessOptions, RenderOption)
+		)
+		.GridRow(0);
+
+    VisualNode RenderOption(string option) =>
+		RadioButton()
+			.Content(option)
+			.Value(option)
+			.IsChecked(State.UserGuess == option)
+			.OnCheckedChanged(() => {
+				SetState(s => s.UserGuess = option);
+				GradeMe();
+			});
+
+    ImageSource UserActivityToImageSource(UserActivity activity)
 	{
-		if (e.PropertyName == "SelectedMode")
+		if (activity == null) return null;
+		
+		return activity.Accuracy == 100 ? 
+			SegoeFluentIcons.StatusCircleCheckmark.ToImageSource(iconSize:14) : 
+			SegoeFluentIcons.Cancel.ToImageSource(iconSize:14);
+	}
+
+	async void JumpTo(Challenge challenge)
+	{
+		var currentIndex = State.Sentences.IndexOf(challenge);
+		if (currentIndex < 0) return;
+
+		foreach (var sentence in State.Sentences)
 		{
-			// Do something when SelectedMode changes
-			// VisualStateManager.GoToState(InputUI, ModeSelector.SelectedMode);
+			sentence.IsCurrent = false;
+		}
+		challenge.IsCurrent = true;
+
+		SetState(s => 
+		{
+			s.CurrentSentence = challenge.SentenceText.Replace(challenge.VocabularyWordAsUsed, "__");
+			s.RecommendedTranslation = challenge.RecommendedTranslation;
+			s.GuessOptions = challenge.VocabularyWordGuesses?.Split(",").Select(x => x.Trim()).OrderBy(x => Guid.NewGuid()).ToArray();
+			s.UserInput = challenge.UserActivity?.Input ?? string.Empty;
+			s.UserGuess = null;
+		});
+	}
+
+	async void LoadSentences()
+	{
+		SetState(s => s.IsBusy = true);
+
+		try
+		{
+			var sentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 2, Props.Skill.ID);
+			
+			if (sentences.Any())
+			{
+				var first = sentences.First();
+				first.IsCurrent = true;
+
+				SetState(s =>
+				{
+					s.Sentences = new ObservableCollection<Challenge>(sentences);
+					s.CurrentSentence = first.SentenceText.Replace(first.VocabularyWordAsUsed, "__");
+					s.RecommendedTranslation = first.RecommendedTranslation;
+					s.GuessOptions = first.VocabularyWordGuesses?.Split(",")
+						.Select(x => x.Trim())
+						.OrderBy(x => Guid.NewGuid())
+						.ToArray();
+				});
+
+				if (sentences.Count < 10)
+				{
+					SetState(s => s.IsBuffering = true);
+					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					SetState(s =>
+					{
+						if (moreSentences != null && moreSentences.Any())
+						{
+							foreach (var sentence in moreSentences)
+							{
+								s.Sentences.Add(sentence);
+							}
+						}
+						s.IsBuffering = false;
+					});
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine(ex.Message);
+		}
+		finally
+		{
+			SetState(s => s.IsBusy = false);
 		}
 	}
 
-	public void Build()
+	async void GradeMe()
 	{
-		this.Bind(ContentPage.TitleProperty, "Localize[Clozures]");
+		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
+		if (currentChallenge == null) return;
 
-		Shell.SetNavBarIsVisible(this, true);
+		var answer = State.UserMode == InputMode.MultipleChoice.ToString() ? State.UserGuess : State.UserInput;
+		if (string.IsNullOrWhiteSpace(answer)) return;
 
-		Content = new Grid
+		var activity = new UserActivity
 		{
-			RowDefinitions = new RowDefinitionCollection
+			Activity = "Clozure",
+			Input = answer,
+			Accuracy = answer == currentChallenge.VocabularyWordAsUsed ? 100 : 0
+		};
+
+		currentChallenge.UserActivity = activity;
+		await _userActivityRepository.SaveAsync(activity);
+
+		if (activity.Accuracy == 100)
+		{
+			SetState(s => s.UserInput = string.Empty);
+			TransitionToNextSentence();
+		}		
+	}
+
+	System.Timers.Timer autoNextTimer;
+
+	async void TransitionToNextSentence()
+	{
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
+		if (currentIndex >= State.Sentences.Count - 1)
+		{
+			NextSentence();
+			return;
+		}
+
+		autoNextTimer = new System.Timers.Timer(100);
+		var startedTime = DateTime.Now;
+
+		ElapsedEventHandler handler = null;
+		handler = (sender, e) =>
+		{
+			SetState(s => s.AutoTransitionProgress = (e.SignalTime - startedTime).TotalMilliseconds / 5000);
+
+			if (State.AutoTransitionProgress >= 1)
+			{
+				autoNextTimer.Stop();
+				autoNextTimer.Elapsed -= handler; // Unsubscribe from the event
+				NextSentence();
+				SetState(s => s.AutoTransitionProgress = 0);
+			}
+		};
+
+		autoNextTimer.Elapsed += handler;
+		autoNextTimer.Start();
+	}
+
+	async void NextSentence()
+	{
+		autoNextTimer?.Stop();
+		SetState(s => s.UserMode = InputMode.Text.ToString());
+
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+		if (currentIndex == -1) currentIndex = State.Sentences.Count - 1; // Handle case where no sentence is current
+		
+		if (currentIndex >= State.Sentences.Count - 1)
+		{
+			var result = await Application.Current.MainPage.DisplayAlert(
+				_localize["End of Sentences"].ToString(),
+				_localize["Would you like to get more sentences?"].ToString(),
+				_localize["Yes"].ToString(),
+				_localize["No"].ToString()
+			);
+
+			if (result)
+			{
+				SetState(s => s.IsBuffering = true);
+				try 
 				{
-					new RowDefinition { Height = GridLength.Star },
-					new RowDefinition { Height = 80 }
-				},
-			RowSpacing = 12,
-			Children = {
-					new ScrollView
+					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					if (moreSentences?.Any() == true)
+					{
+						SetState(s =>
 						{
-							Content = new Grid
+							foreach (var sentence in moreSentences)
 							{
-								RowDefinitions = Rows.Define(60,Star,Auto),
-								RowSpacing = 8,
-								Children = {
-									SentenceDisplay().Row(1),
-									UserInput().Row(2).Assign(out InputUI),
-									SentenceScoreboard().Row(0).CenterVertical()
-								}
-							} // Grid
-						}, // ScrollView
-					NavigationFooter().Row(1),
-					AutoTransitionBar().Row(0).Top(),
-					LoadingOverlayView()
-						.RowSpan(2)
-						.Bind(Grid.IsVisibleProperty, nameof(ClozurePageModel.IsBusy))
-						.Assign(out LoadingOverlay)
+								s.Sentences.Add(sentence);
+							}
+						});
+						JumpTo(State.Sentences[currentIndex + 1]);
+					}
+					else 
+					{
+						await Application.Current.MainPage.DisplayAlert(
+							_localize["No More Sentences"].ToString(),
+							_localize["There are no more sentences available for this vocabulary."].ToString(),
+							_localize["OK"].ToString()
+						);
+					}
 				}
-		}; // Content Grid
-
-		RadioButtonGroup.SetGroupName(VocabBlocks, "GuessOptions");
-		// RadioButtonGroup.SetSelectedValue(VocabBlocks, nameof(ClozurePageModel.UserGuess));
-	}
-
-    private ProgressBar AutoTransitionBar()
-    {
-        return new ProgressBar
-		{
-			Progress = 0.5,
-			HeightRequest = 4,
-			BackgroundColor = Colors.Transparent,
-			ProgressColor = (Color)Application.Current.Resources["Primary"]
-		}.Bind(ProgressBar.ProgressProperty, nameof(ClozurePageModel.AutoTransitionProgress));
-    }
-
-    private Grid LoadingOverlayView()
-	{
-		return new Grid
-		{
-			Background = Color.FromArgb("#80000000"),
-			Children = {
-							new Label {
-								Text = "Thinking.....",
-							}
-							.Font(size: 64)
-							.AppThemeColorBinding(Label.TextColorProperty, light: (Color)Application.Current.Resources["DarkOnLightBackground"], dark: (Color)Application.Current.Resources["LightOnDarkBackground"])
-							.Center()
-						}
-		};
-	}
-
-	private Grid NavigationFooter()
-	{
-		return new Grid
-		{ // Navigation
-			RowDefinitions = Rows.Define(1, Star),
-			ColumnDefinitions = Columns.Define(60, 1, Star, 1, 60, 1, 60),
-			Children =
-			{
-				new Button{ Text = "GO" }
-					.AppThemeColorBinding(Button.TextColorProperty, light: (Color)Application.Current.Resources["DarkOnLightBackground"], dark: (Color)Application.Current.Resources["LightOnDarkBackground"])
-					.Background(Colors.Transparent)
-					.Row(1).Column(4)
-					.BindCommand(nameof(ClozurePageModel.GradeMeCommand)),
-				new ModeSelector{}
-					.Row(1).Column(2)
-					.Bind(ModeSelector.SelectedModeProperty, nameof(ClozurePageModel.UserMode))
-					.Center()
-					.Assign(out ModeSelector),
-				new Button{}
-					.Icon(SegoeFluentIcons.Previous).IconSize(24).IconColor(Colors.Black)
-					.Background(Colors.Transparent)
-					.Row(1).Column(0)
-					.BindCommand(nameof(ClozurePageModel.PreviousSentenceCommand)),
-				new Button{}
-					.Icon(SegoeFluentIcons.Next).IconSize(24).IconColor(Colors.Black)
-					.Background(Colors.Transparent)
-					.Row(1).Column(6)
-					.BindCommand(nameof(ClozurePageModel.NextSentenceCommand)),
-				new BoxView{ Color = Colors.Black, HeightRequest = 1 }
-					.ColumnSpan(7),
-				new BoxView{ Color = Colors.Black, WidthRequest = 1 }
-					.Row(1).Column(1),
-				new BoxView{ Color = Colors.Black, WidthRequest = 1 }
-					.Row(1).Column(3),
-				new BoxView{ Color = Colors.Black, WidthRequest = 1 }
-					.Row(1).Column(5)
-
-			} // Grid.Children
-		};
-	}
-
-	private ScrollView SentenceScoreboard()
-	{
-		return new ScrollView
-		{
-			Orientation = ScrollOrientation.Horizontal,
-			HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
-			Content = new HorizontalStackLayout
-			{
-				Padding = DeviceInfo.Idiom == DeviceIdiom.Phone ? new Thickness(16, 6) : new Thickness((Double)Application.Current.Resources["size240"]),
-				Spacing = 2,
-				Children = {
-												new ActivityIndicator()
-														.Bind(ActivityIndicator.IsRunningProperty, nameof(ClozurePageModel.IsBuffering))
-														.Bind(ActivityIndicator.IsVisibleProperty, nameof(ClozurePageModel.IsBuffering))
-														.CenterVertical()
-														.AppThemeBinding(ActivityIndicator.ColorProperty, (Color)Application.Current.Resources["DarkOnLightBackground"], (Color)Application.Current.Resources["LightOnDarkBackground"])
-											}
+				catch (Exception ex)
+				{
+					Debug.WriteLine(ex.Message);
+					await Application.Current.MainPage.DisplayAlert(
+						_localize["Error"].ToString(),
+						_localize["Unable to load more sentences."].ToString(),
+						_localize["OK"].ToString()
+					);
+				}
+				finally
+				{
+					SetState(s => s.IsBuffering = false);
+				}
 			}
-										.ItemTemplate(() =>
-											new Border
-											{
-												StrokeShape = new RoundRectangle { CornerRadius = 10 },
-												StrokeThickness = 2,
-												Content = new ImageButton
-												{
+			return;
+		}
 
-												}.Size(18, 18).Center().Aspect(Aspect.Center)
-													.Bind(ImageButton.SourceProperty, nameof(Challenge.UserActivity), converter: new UserActivityToFontImageSourceConverter())
-													.BindCommand(
-														path: nameof(ClozurePageModel.JumpToCommand),
-														source: _model,
-														parameterPath: "."
-														) // ImageButton
-											}
-											.Size(20, 20)
-											.Bind(Border.StrokeProperty, nameof(Challenge.IsCurrent), converter: new BoolToObjectConverter
-											{
-												TrueObject = (Color)Application.Current.Resources["Secondary"],
-												FalseObject = (Color)Application.Current.Resources["Gray200"]
-											}))
-										.Bind(BindableLayout.ItemsSourceProperty, nameof(ClozurePageModel.Sentences))
-
-		};
+		var nextChallenge = State.Sentences[currentIndex + 1];
+		JumpTo(nextChallenge);
 	}
 
-	private Grid UserInput()
+	async void PreviousSentence()
 	{
-		return new Grid
-		{
-			ColumnDefinitions = Columns.Define(Star, Auto, Auto, Auto),
-			RowDefinitions = Rows.Define(Star, Star),
-			RowSpacing = DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5,
-			Padding = DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0),
-			Children = {
-				new FormField
-					{
-						FieldLabel = "Answer",
-						Content = new Entry
-							{
-								ReturnType = ReturnType.Go,
-							}
+		autoNextTimer?.Stop();
+		SetState(s => s.UserMode = InputMode.Text.ToString());
 
-							.Font(size:32)
-							.Bind(Entry.TextProperty, nameof(ClozurePageModel.UserInput))
-							.Bind(Entry.ReturnCommandProperty, nameof(ClozurePageModel.GradeMeCommand))
-					}
-					.Bind(VisualElement.IsVisibleProperty, nameof(ClozurePageModel.UserMode), convert: (string text) => (text != "MultipleChoice"))
-					.Row(1).Column(0).ColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-					.Margins(bottom:12)
-					.Assign(out UserInputField), // FormField
-				new VerticalStackLayout
-					{
-						Spacing = 4,
-					}
-					.Bind(VisualElement.IsVisibleProperty, nameof(ClozurePageModel.UserMode), convert: (string text) => (text == "MultipleChoice"))
-					.ItemTemplate(()=> new RadioButton
-						{
-							// TODO - wrong and right colors, with the same icon usage as in the scoreboard, show correct answer when wrong
-							ControlTemplate = new ControlTemplate(() =>
-							{
-								return new Border
-								{
-									StrokeShape = new RoundRectangle { CornerRadius = 4 },
-									StrokeThickness = 1,
-									Stroke = Colors.Black,
-									WidthRequest = 180,
-									Content = new Microsoft.Maui.Controls.ContentPresenter().Center(),
-									Style = GuessStyle()
-								}
-								.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
-							})
-						}
-						.OnCheckChanged((RadioButton radioButton) => {
-							if(radioButton.IsChecked)
-								_model.UserGuess = radioButton.Content.ToString();
-							// radioButton.BackgroundColor = radioButton.IsChecked ? (Color)Application.Current.Resources["Primary"] : (Color)Application.Current.Resources["LightBackground"];
-						})
-						.Bind(RadioButton.ContentProperty, ".")
-						.Bind(RadioButton.ValueProperty, "."))
-					.Bind(BindableLayout.ItemsSourceProperty, nameof(ClozurePageModel.GuessOptions))
-					.Bind(RadioButtonGroup.SelectedValueProperty, nameof(ClozurePageModel.UserGuess))
-					.Row(0)
-					.Assign(out VocabBlocks) // VerticalStacklayout					
-			}
-		};
+		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+		if (currentIndex == -1) return; // Handle case where no sentence is current
+		if (currentIndex <= 0) return;
+
+		var previousChallenge = State.Sentences[currentIndex - 1];
+		JumpTo(previousChallenge);
 	}
 
-	private Style GuessStyle()
+	protected override void OnMounted()
 	{
-		VisualStateGroupList visualStateGroupList = new() { 
-			new VisualStateGroup { 
-				Name = "RadioButtonStates", 
-				States = { 
-					new VisualState { 
-						Name = RadioButton.CheckedVisualState, 
-						Setters = { 
-							new Setter { 
-								Property = BackgroundProperty, 
-								Value = (Color)Application.Current.Resources["Primary"] 
-							} 
-						} 
-					}, 
-					new VisualState { Name = RadioButton.UncheckedVisualState } 
-				} 
-			}
-		 };
-
-		return new(typeof(Border)) { 
-			Setters = { 
-				new Setter { 
-					Property = VisualStateGroupsProperty, 
-					Value = visualStateGroupList 
-				} 
-			} 
-		};
+		base.OnMounted();
+		LoadSentences();
 	}
 
-	private VerticalStackLayout SentenceDisplay()
+	protected override void OnWillUnmount()
 	{
-		return new VerticalStackLayout
-		{
-			Spacing = 16,
-			Margin = new Thickness(30),
-			Children = {
-												new Label()
-													.FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
-													.Bind(Label.TextProperty, nameof(ClozurePageModel.CurrentSentence)),
-												new Label()
-													.Bind(Label.TextProperty, nameof(ClozurePageModel.RecommendedTranslation))
-
-											}
-		};
+		autoNextTimer?.Dispose();
+		base.OnWillUnmount();
 	}
-
-	// IList<IView> BuildSentences()
-	// {
-	// 	var sentences = new List<IView>();
-
-	// 	foreach (var sentence in _model.Sentences)
-	// 	{
-	// 		var s = new Border{
-	// 			StrokeShape = new RoundRectangle{ CornerRadius = 10 },
-	// 			StrokeThickness = 2,
-	// 			Content = new ImageButton
-	// 				{
-
-	// 				}.Size(18,18).Center().Aspect(Aspect.Center)
-	// 				.Bind(ImageButton.SourceProperty, nameof(Challenge.UserActivity), converter: new UserActivityToFontImageSourceConverter
-	// 				{
-
-	// 				})
-	// 				.BindCommand(
-	// 					path: nameof(ClozurePageModel.JumpToCommand), 
-	// 					source: _model,
-	// 					parameterPath: "."
-	// 					) // ImageButton
-	// 		}.Size(20,20) 
-	// 		.Bind(Border.StrokeProperty, nameof(Challenge.IsCurrent), converter: new BoolToObjectConverter
-	// 		{
-	// 			TrueObject = (Color)Application.Current.Resources["Secondary"],
-	// 			FalseObject = (Color)Application.Current.Resources["Gray200"]
-	// 		});// Border
-
-	// 		sentences.Add(s);
-	// 	}
-
-	//     return sentences;
-	// }
-
-	// IList<IView> BuildVocabBlocks()
-	// {
-	// 	var vocabBlocks = new List<IView>();
-
-	// 	foreach (var option in _model.GuessOptions) // this needs to be done bindable since I may not have anything yet
-	// 	{
-	// 		var radioButton = new RadioButton
-	// 			{
-	// 				Content = option,
-	// 				Value = option,
-	// 				ControlTemplate = new ControlTemplate(() =>
-	// 				{
-	// 					return new Border
-	// 						{
-	// 							StrokeShape = new RoundRectangle{CornerRadius = 4},
-	// 							StrokeThickness = 1,
-	// 							Stroke = Colors.Black,
-	// 							WidthRequest = 180,								
-	// 							Content = new ContentPresenter().Center()
-	// 						}.AppThemeColorBinding(Border.BackgroundProperty, (Color)Application.Current.Resources["LightBackground"], (Color)Application.Current.Resources["DarkBackground"]);
-	// 				})
-	// 			};
-
-	// 		vocabBlocks.Add(radioButton);
-	// 	}
-
-	// 	return vocabBlocks;
-	// }
 }

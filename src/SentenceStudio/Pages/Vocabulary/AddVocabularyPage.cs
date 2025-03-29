@@ -1,96 +1,108 @@
-using Fonts;
-using SentenceStudio;
+using LukeMauiFilePicker;
 
 namespace SentenceStudio.Pages.Vocabulary;
 
-public class AddVocabularyPage : ContentPage
+class AddVocabularyPageState
 {
-    private readonly AddVocabularyPageModel _model;
+    public string VocabListName { get; set; } = string.Empty;
+    public string VocabList { get; set; } = string.Empty;
+    public string Delimiter { get; set; } = "comma";
+}
 
-    public AddVocabularyPage(AddVocabularyPageModel model)
-	{
-		BindingContext = _model = model;
+partial class AddVocabularyPage : Component<AddVocabularyPageState>
+{
+    [Inject] VocabularyService _vocabService;
+    [Inject] IFilePickerService _picker;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-		Build();
-	}
+    static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
+    {
+        { DevicePlatform.Android, new[] { "text/*" } },
+        { DevicePlatform.iOS, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.MacCatalyst, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.WinUI, new[] { ".txt", ".json" } }
+    };
 
-	public void Build()
-	{
-		this.Bind(Page.TitleProperty, "Localize[AddVocabularyList]");
+    public override VisualNode Render()
+    {
+        return ContentPage($"{_localize["AddVocabularyList"]}",
+			
+			VScrollView(
+				VStack(
+					new SfTextInputLayout{
+						Entry()
+							.Text(State.VocabListName)
+							.OnTextChanged(text => SetState(s => s.VocabListName = text))
+						}
+						.Hint($"{_localize["ListName"]}"),
 
-		ToolbarItems.Add(new ToolbarItem
-			{
-				IconImageSource = new FontImageSource()
-					{
-						Glyph = FluentUI.open_24_regular,
-						FontFamily = FluentUI.FontFamily
-					}.AppThemeColorBinding(
-						FontImageSource.ColorProperty,
-						(Color)Application.Current.Resources["DarkOnLightBackground"],
-						(Color)Application.Current.Resources["LightOnDarkBackground"]
+					new SfTextInputLayout{
+						Editor()
+							.Text(State.VocabList)
+							.OnTextChanged(text => SetState(s => s.VocabList = text))
+							.MinimumHeightRequest(400)
+							.MaximumHeightRequest(600)
+						}
+						.Hint($"{_localize["Vocabulary"]}"),
+
+					Button()
+						.ImageSource(SegoeFluentIcons.FileExplorer.ToImageSource())
+						.Background(Colors.Transparent)
+						.HEnd()
+						.OnClicked(ChooseFile)
+					,
+
+
+					HStack(
+						RadioButton()
+							.Content("Comma").Value("comma")
+							.IsChecked(State.Delimiter == "comma")
+							.OnCheckedChanged(e =>
+								{ if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+						RadioButton()
+							.Content("Tab").Value("tab")
+							.IsChecked(State.Delimiter == "tab")
+							.OnCheckedChanged(e =>
+								{ if (e.Value) SetState(s => s.Delimiter = "tab"); })
 					)
-			}
-			.BindCommand(nameof(AddVocabularyPageModel.ChooseFileCommand)));
+					.Spacing((Double)Application.Current.Resources["size320"]),
 
-		Content = new ScrollView
-		{
-			Content = new VerticalStackLayout
-			{
-				Spacing = (double)Application.Current.Resources["size320"],
-				Margin = 24,
-				Children =
-				{
-					new FormField
-					{
-						ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-						FieldLabel = "List Name",
-						Content = new Entry()
-							.Bind(Entry.TextProperty, nameof(AddVocabularyPageModel.VocabListName))
-					},
-					new FormField
-						{
-							ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-							FieldLabel = "Vocabulary",
-							Content = new Editor
-								{
-									MinimumHeightRequest = 400,
-									MaximumHeightRequest = 600
-								}
-								.Bind(Editor.TextProperty, nameof(AddVocabularyPageModel.VocabList))
-						}
-						.Bind(FormField.FieldLabelProperty, "Localize[Vocabulary]"),
-					new FormField
-					{
-						ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-						FieldLabel = "File Type",
-						Content = new HorizontalStackLayout
-							{
-								Spacing = (double)Application.Current.Resources["size320"],
-								Children =
-								{
-									new RadioButton
-										{
-											Content = "Comma",
-											Value = "comma"
-										},
-									new RadioButton
-										{
-											Content = "Tab",
-											Value = "tab"
-										}
-								}
-							}
-							.Bind(RadioButtonGroup.SelectedValueProperty, nameof(AddVocabularyPageModel.Delimiter))
-					},
-					new Button
-						{
-							HorizontalOptions = DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill,
-							WidthRequest = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1
-						}
-						.Bind(Button.TextProperty, "Localize[Save]")
-						.BindCommand(nameof(AddVocabularyPageModel.SaveVocabCommand))
-				}
-			}
-		};
-	}
+					Button($"{_localize["Save"]}")
+						.OnClicked(SaveVocab)
+						.HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ?
+							LayoutOptions.Start : LayoutOptions.Fill)
+						.WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1)
+				)
+				.HorizontalOptions(LayoutOptions.Fill)
+				.Spacing((Double)Application.Current.Resources["size320"])
+				.Margin(24)	
+			)
+			// ToolbarItem().IconImageSource(SegoeFluentIcons.FileExplorer.ToImageSource()).OnClicked(() => ChooseFile())
+		);
+    }
+
+    async Task ChooseFile()
+    {
+        var file = await _picker.PickFileAsync("Select a file", FileType);
+
+        if (file != null)
+        {
+            using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            SetState(s => s.VocabList = content);
+        }
+    }
+
+    async Task SaveVocab()
+    {
+        var list = new VocabularyList
+        {
+            Name = State.VocabListName,
+            Words = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter)
+        };
+
+        await _vocabService.SaveListAsync(list);
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
 }

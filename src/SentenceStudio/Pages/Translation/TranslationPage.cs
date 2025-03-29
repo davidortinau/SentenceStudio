@@ -1,447 +1,414 @@
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
-using CustomLayouts;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
+using MauiReactor.Shapes;
+using SentenceStudio.Pages.Dashboard;
+using SentenceStudio.Pages.Clozure;
+using System.Text;
+using System.Web;
 
 namespace SentenceStudio.Pages.Translation;
 
-public class TranslationPage : ContentPage
+class TranslationPageState
 {
-	TranslationPageModel _model;
+    public bool IsBusy { get; set; }
+    public bool IsBuffering { get; set; }
+    public string UserMode { get; set; } = InputMode.Text.ToString();
+    public string CurrentSentence { get; set; }
+    public string UserInput { get; set; }
+    public string Progress { get; set; }
+    public bool HasFeedback { get; set; }
+    public string Feedback { get; set; }
+    public bool CanListenExecute { get; set; } = true;
+    public bool CanStartListenExecute { get; set; } = true;
+    public bool CanStopListenExecute { get; set; }
+    public List<string> VocabBlocks { get; set; } = [];
+    public string RecommendedTranslation { get; set; }
+    public List<Challenge> Sentences { get; set; } = [];
+}
 
-	Grid inputUI;
-	FormField userInputField;
-	HorizontalWrapLayout vocabBlocks;
-	Button listenButton,cancelButton;
-	ModeSelector modeSelector;
-	Label popOverLabel;
-	Layout loadingOverlay;
+partial class TranslationPage : Component<TranslationPageState, ActivityProps>
+{
+    [Inject] TeacherService _teacherService;
+    [Inject] VocabularyService _vocabularyService;
+    [Inject] AiService _aiService;
 
-	public TranslationPage(TranslationPageModel model)
-	{
-		BindingContext = _model = model;
-		model.PropertyChanged += Model_PropertyChanged;
-		// ModeSelector.PropertyChanged += Mode_PropertyChanged;
-		Build();
-		// VisualStateManager.GoToState(InputUI, InputMode.Text.ToString());
-	}
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-    private void Build()
-    {
-        Content = CreateMainGrid();
-	}
+    int _currentSentenceIndex = 0;
 
-    private Grid CreateMainGrid()
-	{
-		return new Grid
-		{
-			RowDefinitions = Rows.Define(Star,80),
-			Children =
-			{
-				CreateScrollView(),
-				CreateBottomGrid().Row(1),
-				CreatePopOverLabel(),
-				CreateLoadingOverlay().RowSpan(2)
-			}
-		};
-	}
+    public override VisualNode Render() 
+		=> ContentPage(
+            Grid(rows: "*,80", columns: "*",
+                ScrollView(
+                    Grid("30,*,auto", "*",
+                        RenderSentenceContent(),
+                        RenderInputUI(),
+                        RenderProgress()
+                    )
+                ),
 
-	private ScrollView CreateScrollView()
-	{
-		return new ScrollView
-			{
-				Content = new Grid
-				{
-					RowDefinitions = Rows.Define(30,Star,Auto),
-					Children =
-					{
-						CreateSentenceGrid().Row(1),
-						CreateInputUIGrid().Row(2),
-						CreateProgressStackLayout().RowSpan(2)
-					}
-				}
-			};
-	}
+                RenderBottomNavigation(),
 
-	private Grid CreateSentenceGrid()
-	{
-		return new Grid
-		{
-			ColumnDefinitions = (DeviceInfo.Idiom == DeviceIdiom.Phone 
-				? Columns.Define(Stars(1)) 
-				: Columns.Define(Stars(6),Stars(3))
-			),
-			Margin = 30,
-			Children =
-			{
-				new Label
-					{
-						HorizontalOptions = LayoutOptions.Start,
-						LineBreakMode = LineBreakMode.WordWrap,
-						FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 32 : 64,
-						IsVisible = false
-					}
-					.Bind(Label.TextProperty, nameof(TranslationPageModel.CurrentSentence))
-					.AppThemeBinding(
-						Label.TextColorProperty, 
-						(Color)Application.Current.Resources["DarkOnLightBackground"],
-						(Color)Application.Current.Resources["LightOnDarkBackground"]
-					)
-					.Bind(Label.IsVisibleProperty, nameof(TranslationPageModel.HasFeedback), converter: new InvertedBoolConverter()),
-
-				new FeedbackPanel()
-					.Bind(FeedbackPanel.IsVisibleProperty, nameof(TranslationPageModel.HasFeedback))
-					.Bind(FeedbackPanel.FeedbackProperty, nameof(TranslationPageModel.Feedback))
-					.Column(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)
-			}
-		};
-	}
-
-	private Grid CreateInputUIGrid()
-	{
-		return new Grid
-		{
-			ColumnDefinitions = Columns.Define(Star,Auto,Auto,Auto),
-			RowDefinitions = Rows.Define(Star,Star),
-			RowSpacing = 0,
-			Padding = new Thickness(30),
-			ColumnSpacing = 15,
-			Children =
-			{
-				CreateUserInputField().Row(1).ColumnSpan(4),
-				CreateVocabBlocks().Row(0).ColumnSpan(4),
-				CreateListenButton().Row(0).Column(1),
-				CreateCancelButton().Row(0).Column(2)
-			}
-		}
-		.Assign(out inputUI);
-	}
-
-	private FormField CreateUserInputField()
-	{
-		return new FormField
-		{
-			ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-			FieldLabel = "Translation",
-			Content = new Entry
-				{
-					Placeholder = "그건 한국어로 어떻게 말해요?",
-					FontSize = 32,
-					ReturnType = ReturnType.Go
-				}
-				.Bind(Entry.TextProperty, nameof(TranslationPageModel.UserInput))
-				.Bind(Entry.ReturnCommandProperty, nameof(TranslationPageModel.GradeMeCommand))
-		}
-		.Assign(out userInputField);
-	}
-
-	private HorizontalWrapLayout CreateVocabBlocks()
-	{
-		return new HorizontalWrapLayout
-		{
-			Spacing = 4,
-			IsVisible = false
-		}
-		.ItemTemplate(()=> new Button
-			{
-				FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 18 : 24,
-				Padding = (double)Application.Current.Resources["size40"],
-				BackgroundColor = (Color)Application.Current.Resources["Gray200"],
-				TextColor = (Color)Application.Current.Resources["Gray900"]
-			}
-			.Bind(Button.TextProperty, ".")
-			.BindCommand(nameof(TranslationPageModel.UseVocabCommand), source: _model, parameterPath: ".")
-			// .BindTapGesture(
-			// 	commandPath: nameof(TranslationPageModel.UseVocabCommand), 
-			// 	commandSource: _model,
-			// 	parameterPath: "."
-			// )
+                RenderLoadingOverlay()
+            )
 		)
-		.Bind(BindableLayout.ItemsSourceProperty, nameof(TranslationPageModel.VocabBlocks))
-		.Assign(out vocabBlocks);
-	}
+		.OnAppearing(LoadSentences);
 
-	private Button CreateListenButton()
-	{
-		return new Button
-			{
-				BackgroundColor = Colors.Transparent,
-				IsVisible = false
-			}
-			.BindCommand(nameof(TranslationPageModel.StartListeningCommand))
-			.Icon(SegoeFluentIcons.Record2).IconSize(24)
-			// .IconColor((Color)Application.Current.Resources["DarkOnLightBackground"])
-			.AppThemeColorBinding(Button.TextColorProperty, 
-				(Color)Application.Current.Resources["DarkOnLightBackground"], 
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			)
-			.Assign(out listenButton);
-	}
+    VisualNode RenderLoadingOverlay() =>
+		Grid(
+			Label("Thinking.....")
+				.FontSize(64)
+				.TextColor(Theme.IsLightTheme ? 
+					ApplicationTheme.DarkOnLightBackground : 
+					ApplicationTheme.LightOnDarkBackground)
+				.Center()
+		)
+			.Background(Color.FromArgb("#80000000"))
+			.GridRowSpan(2)
+			.IsVisible(State.IsBusy);
 
-	private Button CreateCancelButton()
-	{
-		return new Button
-			{
-				BackgroundColor = Colors.Transparent,
-				IsVisible = false
-			}
-			.BindCommand(nameof(TranslationPageModel.StopListeningCommand))
-			.Icon(SegoeFluentIcons.Stop).IconSize(24)
-			.AppThemeColorBinding(Button.TextColorProperty, 
-				(Color)Application.Current.Resources["DarkOnLightBackground"], 
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			)
-			.Assign(out cancelButton);
-	}
+    VisualNode RenderSentenceContent() =>
+        Grid("*", DeviceInfo.Idiom == DeviceIdiom.Phone ? "*" : "6*, 3*",
+            Label()
+                .Text(State.CurrentSentence)
+                .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
+                .TextColor(Theme.IsLightTheme ?
+                    ApplicationTheme.DarkOnLightBackground :
+                    ApplicationTheme.LightOnDarkBackground)
+                .IsVisible(!State.HasFeedback)
+                .HStart(),
 
-	private HorizontalStackLayout CreateProgressStackLayout()
-	{
-		return new HorizontalStackLayout
-			{
-				Padding = new Thickness(30),
-				Spacing = 8,
-				HorizontalOptions = LayoutOptions.End,
-				VerticalOptions = LayoutOptions.Start,
-				Children =
-				{
-					new ActivityIndicator
-						{
-							VerticalOptions = LayoutOptions.Center
-						}
-						.Bind(ActivityIndicator.IsRunningProperty, nameof(TranslationPageModel.IsBuffering))
-						.Bind(ActivityIndicator.IsVisibleProperty, nameof(TranslationPageModel.IsBuffering))
-						.AppThemeBinding(
-							ActivityIndicator.ColorProperty, 
-							(Color)Application.Current.Resources["DarkOnLightBackground"], 
-							(Color)Application.Current.Resources["LightOnDarkBackground"]
-						),
+            Border(
+                WebView()
+                    .Source(BuildHtmlDocument(State.Feedback))
+            )
+                .IsVisible(State.HasFeedback)
+                .GridColumn(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)
+        )
+        .GridRow(1)
+        .Margin(30);
 
-					new Label {}
-						.CenterVertical()
-						.Bind(Label.TextProperty, "Progress")
-						.AppThemeBinding(
-							Label.TextColorProperty, 
-							(Color)Application.Current.Resources["DarkOnLightBackground"], 
-							(Color)Application.Current.Resources["LightOnDarkBackground"]
-						)
-				}
-			};
-	}
+    HtmlWebViewSource BuildHtmlDocument(string content) =>
+        new HtmlWebViewSource
+        {
+            Html = $@"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset=""UTF-8"">
+                <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 16px;
+                        color: {(Theme.IsLightTheme ? "#000000" : "#FFFFFF")};
+                        background-color: {(Theme.IsLightTheme ? "#E0E0E0" : "#222228")};
+                        margin: 0;
+                        padding: 16px;
+                    }}
+                </style>
+            </head>
+            <body>
+                {content}
+            </body>
+            </html>
+            "
+        };
 
-	private Grid CreateBottomGrid()
-	{
-		return new Grid
-		{
-			RowDefinitions = Rows.Define(1,Star),
-			ColumnDefinitions = Columns.Define(60,1,Star,1,60,1,60),
-			Children =
-			{
-				CreateGoButton().Row(1).Column(4),
-				CreateModeSelector().Row(1).Column(2),
-				CreatePreviousButton().Row(1).Column(0),
-				CreatePlayButton().Row(1).Column(2),
-				CreateNextButton().Row(1).Column(6),
-				new BoxView
-				{
-					HeightRequest = 1
-				}
-				.AppThemeColorBinding(BoxView.ColorProperty,
-					(Color)Application.Current.Resources["DarkOnLightBackground"], 
-					(Color)Application.Current.Resources["LightOnDarkBackground"]
-				)
-				.ColumnSpan(7),
+    VisualNode RenderInputUI() =>
+        Grid("*,*", "*,auto,auto,auto",
+            State.UserMode == InputMode.MultipleChoice.ToString() ?
+                RenderVocabBlocks() : null,
+                RenderUserInput()
+        )
+        .RowSpacing(ApplicationTheme.Size40)
+        .Padding(30)
+        .ColumnSpacing(15)
+        .GridRow(2);
 
-			new BoxView
-				{
-					WidthRequest = 1
-				}
-				.AppThemeColorBinding(BoxView.ColorProperty,
-					(Color)Application.Current.Resources["DarkOnLightBackground"], 
-					(Color)Application.Current.Resources["LightOnDarkBackground"]
-				)
-				.Row(1).Column(1),
+    VisualNode RenderUserInput() =>
+        new SfTextInputLayout(
+            Entry()
+                .FontSize(32)
+                .ReturnType(ReturnType.Go)
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                .OnCompleted(GradeMe)
+		)
+        .Hint("그건 한국어로 어떻게 말해요?")
+        .GridRow(1)
+        .GridColumnSpan(4);
 
-			new BoxView
-				{
-					WidthRequest = 1
-				}
-				.AppThemeColorBinding(BoxView.ColorProperty,
-					(Color)Application.Current.Resources["DarkOnLightBackground"], 
-					(Color)Application.Current.Resources["LightOnDarkBackground"]
-				)
-				.Row(1).Column(3),
+    VisualNode RenderVocabBlocks() =>
+        HStack(
+            State.VocabBlocks.Select(word =>
+                Button()
+                    .Text(word)
+                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
+                    .Padding(ApplicationTheme.Size40)
+                    .BackgroundColor(ApplicationTheme.Gray200)
+                    .TextColor(ApplicationTheme.Gray900)
+                    .OnClicked(() => UseVocab(word))
+            )
+		)
+		.Spacing(4)
+        .GridRow(0)
+        .GridColumnSpan(4);    
 
-			new BoxView
-				{
-					WidthRequest = 1
-				}
-				.AppThemeColorBinding(BoxView.ColorProperty,
-					(Color)Application.Current.Resources["DarkOnLightBackground"], 
-					(Color)Application.Current.Resources["LightOnDarkBackground"]
-				)
-				.Row(1).Column(5)
-				// CreateBottomGridLines()
-			}
-		};
-	}
+    VisualNode RenderProgress() =>
+        HStack(        
+            ActivityIndicator()
+                .IsRunning(State.IsBuffering)
+                .IsVisible(State.IsBuffering)
+                .Color(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+                .VCenter(),
+            Label()
+                .Text(State.Progress)
+                .VCenter()
+                .TextColor(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+		)
+		.Spacing(8)
+        .Padding(30)
+        .HorizontalOptions(LayoutOptions.End)
+        .VerticalOptions(LayoutOptions.Start)
+        .GridRowSpan(2);
 
-	private Button CreateGoButton()
-	{
-		return new Button
-			{
-				Text = "GO",
-				BackgroundColor = Colors.Transparent
-			}
-			.Bind(Button.CommandProperty, "GradeMeCommand")
-			.AppThemeBinding(Button.TextColorProperty,
-				(Color)Application.Current.Resources["DarkOnLightBackground"],
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			)
-			;
-	}
+    VisualNode RenderBottomNavigation() =>
+        Grid("1,*", "60,1,*,1,60,1,60",
+            Button("GO")
+                .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                .Background(Colors.Transparent)
+                .GridRow(1).GridColumn(4)
+                .OnClicked(GradeMe),
 
-	
+            new ModeSelector()
+                .SelectedMode(State.UserMode)
+                .OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
+                .GridRow(1).GridColumn(2),
 
-	private ModeSelector CreateModeSelector()
-	{
-		return new ModeSelector
-			{
-				HorizontalOptions = LayoutOptions.Center,
-				VerticalOptions = LayoutOptions.Center
-			}
-			.Bind(ModeSelector.SelectedModeProperty, "UserMode")
-			.Assign(out modeSelector);
-	}
+            ImageButton()
+                .Background(Colors.Transparent)
+                .Aspect(Aspect.Center)
+                .Source(SegoeFluentIcons.Previous.ToImageSource())
+                .GridRow(1).GridColumn(0)
+                .OnClicked(PreviousSentence),
 
-	private Button CreatePreviousButton()
-	{
-		return new Button
-			{
-				BackgroundColor = Colors.Transparent
-			}
-			.BindCommand(nameof(TranslationPageModel.PreviousSentenceCommand))
-			.Icon(SegoeFluentIcons.Previous).IconSize(24)
-			.AppThemeColorBinding(Button.TextColorProperty, 
-				(Color)Application.Current.Resources["DarkOnLightBackground"], 
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			)
-			;
-	}
+            ImageButton()
+                .Background(Colors.Transparent)
+                .Aspect(Aspect.Center)
+                .Source(SegoeFluentIcons.Next.ToImageSource())
+                .GridRow(1).GridColumn(6)
+                .OnClicked(NextSentence),
 
-	private Button CreatePlayButton()
-	{
-		return new Button
-			{
-				BackgroundColor = Colors.Transparent,
-				HorizontalOptions = LayoutOptions.End
-			}
-			.BindCommand(nameof(TranslationPageModel.PlayAudioCommand))
-			.Icon(SegoeFluentIcons.Play).IconSize(24)
-			.AppThemeColorBinding(Button.TextColorProperty, 
-				(Color)Application.Current.Resources["DarkOnLightBackground"], 
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			);
-	}
+            BoxView()
+                .Color(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+                .HeightRequest(1)
+                .GridColumnSpan(7),
 
-	private Button CreateNextButton()
-	{
-		return new Button
-			{
-				BackgroundColor = Colors.Transparent
-			}
-			.BindCommand(nameof(TranslationPageModel.NextSentenceCommand))
-			.Icon(SegoeFluentIcons.Next).IconSize(24)
-			.AppThemeColorBinding(Button.TextColorProperty, 
-				(Color)Application.Current.Resources["DarkOnLightBackground"], 
-				(Color)Application.Current.Resources["LightOnDarkBackground"]
-			);
-	}
+            BoxView()
+                .Color(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+                .WidthRequest(1)
+                .GridRow(1).GridColumn(1),
 
-	private Label CreatePopOverLabel()
-	{
-		return new Label
-			{
-				Padding = 8,
-				LineHeight = 1,
-				IsVisible = false,
-				ZIndex = 10,
-				FontSize = 64,
-				HorizontalOptions = LayoutOptions.Start,
-				VerticalOptions = LayoutOptions.Start
-			}
-			.AppThemeBinding(Label.BackgroundColorProperty, 
-				(Color)Application.Current.Resources["DarkBackground"],
-				(Color)Application.Current.Resources["LightBackground"]
-			)
-			.AppThemeBinding(Label.TextColorProperty, 
-				(Color)Application.Current.Resources["LightOnDarkBackground"],
-				(Color)Application.Current.Resources["DarkOnLightBackground"]
-			)
-			.Assign(out popOverLabel);
-	}
+            BoxView()
+                .Color(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+                .WidthRequest(1)
+                .GridRow(1).GridColumn(3),
 
-	private AbsoluteLayout CreateLoadingOverlay()
-	{
-		return new AbsoluteLayout
-			{
-				BackgroundColor = Color.FromArgb("#80000000"),
-				IsVisible = false
-			}
-			.Bind(AbsoluteLayout.IsVisibleProperty, "IsBusy")
-			.Assign(out loadingOverlay);
-	}		
+            BoxView()
+                .Color(Theme.IsLightTheme ? 
+                    ApplicationTheme.DarkOnLightBackground : 
+                    ApplicationTheme.LightOnDarkBackground)
+                .WidthRequest(1)
+                .GridRow(1).GridColumn(5)
+        ).GridRow(1);
 
-    private async void Model_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    // this is the label that should float over the screen near the cursor when over a text block
+    VisualNode RenderPopOverLabel() =>
+        Label()
+            .Padding(8)
+            .LineHeight(1)
+            .IsVisible(false)
+            .ZIndex(10)
+            .FontSize(64)
+            .HStart()
+            .VStart()
+            .BackgroundColor(Theme.IsLightTheme ?
+                ApplicationTheme.LightBackground :
+                ApplicationTheme.DarkBackground)
+            .TextColor(Theme.IsLightTheme ?
+                ApplicationTheme.DarkOnLightBackground :
+                ApplicationTheme.LightOnDarkBackground);
+
+    // Event handlers and methods
+    async Task LoadSentences()
     {
-		if (e.PropertyName == nameof(TranslationPageModel.UserMode))
-		{
-			Debug.WriteLine($"UserMode changed to {_model.UserMode}");
-			// VisualStateManager.GoToState(inputUI, _model.UserMode);
-			if(_model.UserMode == InputMode.MultipleChoice.ToString())
-			{
-				vocabBlocks.IsVisible = true;
-				// listenButton.IsVisible = false;
-				// cancelButton.IsVisible = false;
-			}else{
-				userInputField.IsVisible = true;
-				vocabBlocks.IsVisible = false;
-				// listenButton.IsVisible = false;
-				// cancelButton.IsVisible = false;
-			}
-		}
+        await Task.Delay(100);
+        SetState(s => s.IsBusy = true);
+        
+        var sentences = await _teacherService.GetChallenges(Props.Vocabulary.ID, 2, Props.Skill.ID);
+        await Task.Delay(100);
+        
+        SetState(s => {
+            foreach(var sentence in sentences)
+            {
+                s.Sentences.Add(sentence);
+            }
+        });
+        
+        SetState(s => s.IsBusy = false);
+        
+        SetCurrentSentence();
+
+        if(State.Sentences.Count < 10)
+        {
+            SetState(s => s.IsBuffering = true);
+            var moreSentences = await _teacherService.GetChallenges(Props.Vocabulary.ID, 8, Props.Skill.ID);
+            SetState(s => {
+                foreach(var sentence in moreSentences)
+                {
+                    s.Sentences.Add(sentence);
+                }
+                s.IsBuffering = false;
+            });
+        }
     }
 
-	void PointerGestureRecognizer_PointerEntered(System.Object sender, Microsoft.Maui.Controls.PointerEventArgs e)
-	{
-		// Assuming sender is of type that has TargetLanguageTerm property
-		if ((sender as Element).BindingContext is VocabularyWord obj)
-		{
-			popOverLabel.Text = obj.TargetLanguageTerm;
-			popOverLabel.IsVisible = true;
+    void SetCurrentSentence()
+    {
+        if (State.Sentences != null && State.Sentences.Count > 0 && _currentSentenceIndex < State.Sentences.Count)
+        {
+            SetState(s => {
+                s.UserMode = InputMode.Text.ToString();
+                s.HasFeedback = false;
+                s.Feedback = string.Empty;
+                s.CurrentSentence = State.Sentences[_currentSentenceIndex].RecommendedTranslation;
+                s.UserInput = string.Empty;
+                s.RecommendedTranslation = State.Sentences[_currentSentenceIndex].SentenceText;
+                s.Progress = $"{_currentSentenceIndex + 1} / {State.Sentences.Count}";
+                s.VocabBlocks = State.Sentences[_currentSentenceIndex].Vocabulary?
+                    .Select(v => v.TargetLanguageTerm)
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .OrderBy(_ => Random.Shared.Next())
+                    .ToList() ?? [];
+            });
+        }
+    }
 
-			var p = e.GetPosition(Content);
+    async void GradeMe()
+    {
+        SetState(s => {
+            s.Feedback = string.Empty;
+            s.IsBusy = true;
+        });
 
-			// Set the position of the label
-			popOverLabel.TranslationX = p.Value.X;
-			popOverLabel.TranslationY = p.Value.Y;
-		}
-	}
-		
-	void PointerGestureRecognizer_PointerExited(System.Object sender, Microsoft.Maui.Controls.PointerEventArgs e)
-	{
-		popOverLabel.Text = "";
-		popOverLabel.IsVisible = false;
-	}
+        var prompt = await BuildGradePrompt();
+        if (string.IsNullOrEmpty(prompt)) return;
 
-	void PointerGestureRecognizer_PointerMoved(System.Object sender, Microsoft.Maui.Controls.PointerEventArgs e)
-	{
-		var p = e.GetPosition(Content);
+        try 
+        {
+            var feedback = await _aiService.SendPrompt<GradeResponse>(prompt);
+            SetState(s => {
+                s.HasFeedback = true;
+                s.Feedback = FormatGradeResponse(feedback);
+                s.IsBusy = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+            SetState(s => s.IsBusy = false);
+        }
+    }
+    
+    private string FormatGradeResponse(GradeResponse gradeResponse)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendFormat("<p>{0}</p>", HttpUtility.HtmlEncode(State.CurrentSentence));
+        sb.AppendFormat("<p>Accuracy: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.Accuracy));
+        sb.AppendFormat("<p>Explanation: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.AccuracyExplanation));
+        sb.AppendFormat("<p>Fluency: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.Fluency));
+        sb.AppendFormat("<p>Explanation: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.FluencyExplanation));
+        sb.AppendFormat("<p>Recommended: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.GrammarNotes.RecommendedTranslation));
+        sb.AppendFormat("<p>Notes: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.GrammarNotes.Explanation));
 
-		// Set the position of the label
-		popOverLabel.TranslationX = p.Value.X;
-		popOverLabel.TranslationY = p.Value.Y;
-	}
+        return sb.ToString();
+    }
 
+    async Task<string> BuildGradePrompt()
+    {
+        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
+        using StreamReader reader = new StreamReader(templateStream);
+        var template = Template.Parse(reader.ReadToEnd());
+        return await template.RenderAsync(new {
+            original_sentence = State.CurrentSentence,
+            recommended_translation = State.RecommendedTranslation,
+            user_input = State.UserInput
+        });
+    }
+
+    void NextSentence()
+    {
+        if (_currentSentenceIndex < State.Sentences.Count - 1)
+        {
+            _currentSentenceIndex++;
+            SetCurrentSentence();
+        }
+    }
+
+    void PreviousSentence()
+    {
+        if (_currentSentenceIndex > 0)
+        {
+            _currentSentenceIndex--;
+            SetCurrentSentence();
+        }
+    }
+
+    void UseVocab(string word)
+    {
+        SetState(s => s.UserInput += word);
+    }    
+
+    protected override void OnMounted()
+    {
+        base.OnMounted();
+        LoadSentences();
+    }
+}
+
+partial class FeedbackPanel : Component
+{
+    public bool IsVisible { get; set; }
+    public string Feedback { get; set; }
+
+    public override VisualNode Render()
+    {
+        return Border(
+            VScrollView(
+                VStack(
+                    Label()
+                        .Text(Feedback)
+                        .TextColor(Theme.IsLightTheme ? 
+                            ApplicationTheme.DarkOnLightBackground : 
+                            ApplicationTheme.LightOnDarkBackground)
+                        .FontSize(24)
+                )
+            )
+		)
+        .Background(Theme.IsLightTheme ? 
+            ApplicationTheme.LightBackground : 
+            ApplicationTheme.DarkBackground)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .Padding(20)
+        .IsVisible(IsVisible);
+    }
 }

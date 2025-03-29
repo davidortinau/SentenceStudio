@@ -1,16 +1,5 @@
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
-using Fonts;
-using Microsoft.Maui.Platform;
-using SentenceStudio.Models;
+using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
-using Plugin.Maui.DebugOverlay;
-
-
-
-
 
 #if IOS
 using UIKit;
@@ -19,446 +8,261 @@ using Foundation;
 
 namespace SentenceStudio.Pages.Writing;
 
-public class WritingPage : ContentPage
+class WritingPageState
 {
-	WritingPageModel _model;
+    public bool IsBusy { get; set; }
+    public bool ShowMore { get; set; }
+    public string UserInput { get; set; }
+    public string UserMeaning { get; set; }
+    public List<Sentence> Sentences { get; set; } = [];
+    public List<VocabularyWord> VocabBlocks { get; set; } = [];
+}
 
-    ScrollView sentencesScrollView;
-    Entry userInputField, iMeanToSayField;
-    Grid inputUI, loadingOverlay;
-    Button TranslationBtn;
-    private AnswerTemplateSelector answerTemplateSelector;
+partial class WritingPage : Component<WritingPageState, ActivityProps>
+{
+    [Inject] TeacherService _teacherService;
+    [Inject] TranslationService _translationService;
+    [Inject] VocabularyService _vocabService;
+    [Inject] UserActivityRepository _userActivityRepository;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
-    public WritingPage(WritingPageModel model)
-	{
-		BindingContext = _model = model;
-		_model.Sentences.CollectionChanged += CollectionChanged;
-
-#if IOS
-		NSNotificationCenter.DefaultCenter.AddObserver(UIKeyboard.WillShowNotification, KeyboardWillShow);
-		NSNotificationCenter.DefaultCenter.AddObserver(UIKeyboard.WillHideNotification, KeyboardWillHide);
-#endif
-
-		Build();
-	}
-
-    private void Build()
+    public override VisualNode Render()
     {
-        
-
-        InitResources();
-
-        InitToolbarItems();
-
-        Content = new Grid
-            {
-                RowDefinitions = Rows.Define(Auto, Star, Auto),
-                Children =
-                {
-                    SentencesHeader(),
-
-                    SentencesScrollView(),
-
-                    InputUI(),
-
-                    LoadingOverlay()
-                }
-            };
+        return ContentPage($"{_localize["Writing"]}",
+            ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadVocabulary),
+            Grid("Auto,*,Auto", "",
+                SentencesHeader(),
+                SentencesScrollView(),
+                InputUI(),
+                LoadingOverlay()
+            )
+        ).OnAppearing(LoadVocabulary);
     }
 
-    private void InitToolbarItems()
-    {
-        ToolbarItems.Add(new ToolbarItem()
-            {
-                Text = "Refresh"
-            }
-            .BindCommand(nameof(WritingPageModel.RefreshVocabCommand))
-        );
-    }
+    VisualNode SentencesHeader() =>
+        Grid("", columns: "*,*,*,*",
+            Label(_localize["Sentence"])
+                .Style((Style)Application.Current.Resources["Title3"])
+                .GridColumn(0),
+            Label(_localize["Accuracy"])
+                .Style((Style)Application.Current.Resources["Title3"])
+                .Center()
+                .GridColumn(1),
+            Label(_localize["Fluency"])
+                .Style((Style)Application.Current.Resources["Title3"])
+                .Center()
+                .GridColumn(2),
+            Label(_localize["Actions"])
+                .Style((Style)Application.Current.Resources["Title3"])
+                .Center()
+                .GridColumn(3)
+        ).Margin((double)Application.Current.Resources["size160"]);
 
-    private void InitResources()
-    {
-        Resources.Add("DesktopTemplate", new DataTemplate(() =>
-            {
-                return new Grid
-                {
-                    ColumnDefinitions = Columns.Define(Star, Star, Star, Star),
-                    Children =
-                    {
-                        new Label().Bind(Label.TextProperty, nameof(Sentence.Answer)).Column(0),
-                        new Label().CenterHorizontal().Bind(Label.TextProperty, nameof(Sentence.Accuracy)).Column(1),
-                        new Label().CenterHorizontal().Bind(Label.TextProperty, nameof(Sentence.Fluency)).Column(2),
-                        new HorizontalStackLayout
-                            {
-                                Children =
-                                {
-                                    new Button
-                                    {
-                                        Padding = 0,
-                                        Margin = 0
-                                    }
-                                    .AppThemeColorBinding(Button.TextColorProperty,
-                                        (Color)Application.Current.Resources["LightOnDarkBackground"],
-                                        (Color)Application.Current.Resources["DarkOnLightBackground"]
-                                    )
-                                    .AppThemeColorBinding(Button.BackgroundColorProperty,
-                                        (Color)Application.Current.Resources["DarkBackground"],
-                                        (Color)Application.Current.Resources["LightBackground"]
-                                    )
-                                    .CenterVertical()
-                                    .BindCommand(nameof(WritingPageModel.UseVocabCommand), source: _model, parameterPath: nameof(Sentence.Answer))
-                                    .Icon(SegoeFluentIcons.Copy).IconSize(24),
+    VisualNode SentencesScrollView() =>
+        ScrollView(
+            VStack(spacing: 0,
+                State.Sentences.Select(sentence =>
+                    DeviceInfo.Idiom == DeviceIdiom.Desktop ?
+                        RenderDesktopSentence(sentence) :
+                        RenderMobileSentence(sentence)
+                )
+            ).Margin(16, 0)
+        ).GridRow(1);
 
-                                    new Button
-                                        {
-                                            BackgroundColor = Colors.Transparent,
-                                            TextColor = Colors.Black,
-                                            Padding = 0,
-                                            Margin = 0,
-                                            VerticalOptions = LayoutOptions.Center
-                                        }
-                                        .BindCommand(nameof(WritingPageModel.ShowExplanationCommand), source: _model, parameterPath: ".")
-                                        .Icon(SegoeFluentIcons.Info).IconSize(24),
-                                }
-                            }
-                            .CenterHorizontal()
-                            .Column(3)
-                    }
-                };
-            })
-        );
-
-        Resources.Add("MobileTemplate", new DataTemplate(() =>
-            {
-                var sw = new SwipeView();
-
-                return new SwipeView
-                {
-                    LeftItems = new SwipeItems
-                    {
-                        {
-                            new SwipeItemView
-                                {
-                                    Content = new Grid
-                                    {
-                                        WidthRequest = 60,
-                                        BackgroundColor = Colors.Red,
-                                        Children =
-                                        {
-                                            new Label()
-                                                .Center()
-                                                .Icon(SegoeFluentIcons.Copy).IconSize(24),
-                                        }
-                                    }
-                                }
-                                .BindCommand(nameof(WritingPageModel.UseVocabCommand), source:_model, parameterPath: nameof(Sentence.Answer))
-                        }
-                    },
-                    RightItems = new SwipeItems
-                    {
-                        {
-                            new SwipeItemView
-                                {
-                                    Content = new Grid
-                                    {
-                                        WidthRequest = 60,
-                                        BackgroundColor = Colors.Orange,
-                                        Children =
-                                        {
-                                            new Label()
-                                                .Center()
-                                                .Icon(SegoeFluentIcons.Info).IconSize(24),
-                                        }
-                                    }
-                                }
-                                .BindCommand(nameof(WritingPageModel.ShowExplanationCommand), source:_model, parameterPath: ".")
-                        }
-                    },
-                    Content = new Grid
-                        {
-                            ColumnDefinitions = Columns.Define(Star, Star),
-                            RowDefinitions = Rows.Define(Auto),
-                            Children =
-                            {
-                                new Label()
-                                    .CenterVertical()
-                                    .Bind(Label.TextProperty, nameof(Sentence.Answer))
-                                    .Column(0),
-
-                                new Label()
-                                    .Center()
-                                    .Bind(Label.TextProperty, nameof(Sentence.Accuracy))
-                                    .Column(1)
-                            }
-                        }
-                        .AppThemeColorBinding(Grid.BackgroundColorProperty,
-                            (Color)Application.Current.Resources["LightBackground"],
-                            (Color)Application.Current.Resources["DarkBackground"]
+    VisualNode InputUI() =>
+        Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
+            ScrollView(
+                VStack(spacing: ApplicationTheme.Size40,
+                    Label(_localize["ChooseAVocabularyWord"])
+                        .Style((Style)Application.Current.Resources["Title3"]),
+                    HStack(spacing: ApplicationTheme.Size40,
+                        State.VocabBlocks.Select(word =>
+                            Button(word.TargetLanguageTerm)
+                                .BackgroundColor(ApplicationTheme.Gray200)
+                                .TextColor(ApplicationTheme.Gray900)
+                                .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
+                                .Padding(ApplicationTheme.Size40)
+                                .VStart()
+                                .OnClicked(() => UseVocab(word.TargetLanguageTerm))
                         )
-                };
-            })
-        );
-
-        answerTemplateSelector = new AnswerTemplateSelector
-            {
-                DesktopTemplate = (DataTemplate)Resources["DesktopTemplate"],
-                MobileTemplate = (DataTemplate)Resources["MobileTemplate"]
-            };
-    }
-
-    private Grid SentencesHeader()
-    {
-        return new Grid
-        {
-            Margin = (double)Application.Current.Resources["size160"],
-            ColumnDefinitions = Columns.Define(Star, Star, Star, Star),
-            Children =
-            {
-                new Label
-                {
-                    Style = (Style)Application.Current.Resources["Title3"]
-                }
-                .Bind(Label.TextProperty, "Localize[Sentence]")
-                .Column(0),
-
-                new Label
-                {
-                    Style = (Style)Application.Current.Resources["Title3"],
-                    HorizontalOptions = LayoutOptions.Center
-                }
-                .Bind(Label.TextProperty, "Localize[Accuracy]")
-                .Column(1),
-
-                new Label
-                {
-                    Style = (Style)Application.Current.Resources["Title3"],
-                    HorizontalOptions = LayoutOptions.Center
-                }
-                .Bind(Label.TextProperty, "Localize[Fluency]")
-                .Column(2),
-
-                new Label
-                {
-                    Style = (Style)Application.Current.Resources["Title3"],
-                    HorizontalOptions = LayoutOptions.Center
-                }
-                .Bind(Label.TextProperty, "Localize[Actions]")
-                .Column(3)
-            }
-        };
-    }
-
-    private ScrollView SentencesScrollView()
-    {
-        return new ScrollView
-            {
-                Content = new VerticalStackLayout
-                {
-                    Margin = new Thickness(16, 0),
-                    Spacing = 0
-                }
-                .Bind(BindableLayout.ItemsSourceProperty, nameof(WritingPageModel.Sentences))
-                .ItemTemplateSelector(answerTemplateSelector)
-            }
-            .Row(1)
-            .Assign(out sentencesScrollView);
-    }
-
-    private Grid InputUI()
-    {
-        return new Grid
-        {
-            RowDefinitions = Rows.Define(Auto, Auto, Auto),
-            ColumnDefinitions = Columns.Define(Star, Auto),
-            RowSpacing = (double)Application.Current.Resources["size40"],
-            Padding = (double)Application.Current.Resources["size160"],
-            Children =
-            {
-                new ScrollView
-                    {
-                        Orientation = ScrollOrientation.Horizontal,
-                        Content = new VerticalStackLayout
-                        {
-                            Spacing = (double)Application.Current.Resources["size40"],
-                            Children =
-                            {
-                                new Label
-                                    {
-                                        Style = (Style)Application.Current.Resources["Title3"]
-                                    }
-                                    .Bind(Label.TextProperty, "Localize[ChooseAVocabularyWord]"),
-
-                                new HorizontalStackLayout
-                                    {
-                                        Spacing = (double)Application.Current.Resources["size40"]
-                                    }
-                                    .Bind(BindableLayout.ItemsSourceProperty, nameof(WritingPageModel.VocabBlocks))
-                                    .ItemTemplate(new DataTemplate(() =>
-                                        {
-                                            return new Button
-                                                {
-                                                    BackgroundColor = (Color)Application.Current.Resources["Gray200"],
-                                                    TextColor = (Color)Application.Current.Resources["Gray900"],
-                                                    FontSize = 18,
-                                                    Padding = (double)Application.Current.Resources["size40"],
-                                                    MinimumHeightRequest = -1,
-                                                    VerticalOptions = LayoutOptions.Start
-                                                }
-                                                .Bind(Button.TextProperty, nameof(VocabularyWord.TargetLanguageTerm))
-                                                .BindCommand(nameof(WritingPageModel.UseVocabCommand), source: _model, parameterPath: nameof(VocabularyWord.TargetLanguageTerm));
-                                        }))
-                            }
-                        }
-                    }
-                    .ColumnSpan(2),
-
-                new FormField
-                    {
-                        ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                        Content = new Grid
-                            {
-                                ColumnDefinitions = Columns.Define(Star, Auto),
-                                ColumnSpacing = 2,
-                                Children =
-                                {
-                                    new Entry
-                                        {
-                                            FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 16 : 32
-                                        }
-                                        .Bind(Entry.ReturnTypeProperty, nameof(WritingPageModel.ShowMore), converter: new BoolToReturnTypeConverter())
-                                        .Bind(Entry.ReturnCommandProperty,nameof(WritingPageModel.GradeMeCommand))
-                                        .Bind(Entry.TextProperty, nameof(WritingPageModel.UserInput))
-                                        .Bind(Entry.PlaceholderProperty, "Localize[UserInputPlaceholder]")
-                                        .Assign(out userInputField),
-
-                                    new Button
-                                        {
-                                            BackgroundColor = Colors.Transparent,
-                                            Padding = 0,
-                                            Margin = 0
-                                        }
-                                        .CenterVertical()
-                                        .End()
-                                        .Column(1)
-                                        .Icon(SegoeFluentIcons.Dictionary).IconSize(24)
-                                        .AppThemeColorBinding(Button.TextColorProperty,
-                                            (Color)Application.Current.Resources["DarkOnLightBackground"],
-                                            (Color)Application.Current.Resources["LightOnDarkBackground"]
-                                        )
-                                        .OnClicked((s,e)=>{
-                                            _model.TranslateInputCommand.Execute(TranslationBtn);
-                                        })
-                                        .Assign(out TranslationBtn),
-
-                                    new Button
-                                        {
-                                            BackgroundColor = Colors.Transparent,
-                                            Padding = 0,
-                                            Margin = 0
-                                        }
-                                        .CenterVertical()
-                                        .End()
-                                        .BindCommand(nameof(WritingPageModel.ClearInputCommand))
-                                        .Column(0)
-                                        .Icon(SegoeFluentIcons.Clear).IconSize(24)
-                                        .AppThemeColorBinding(Button.TextColorProperty,
-                                            (Color)Application.Current.Resources["DarkOnLightBackground"],
-                                            (Color)Application.Current.Resources["LightOnDarkBackground"]
-                                        )
-                                }
-                            }
-                    }
-                    .Bind(FormField.FieldLabelProperty, "Localize[WhatDoYouWantToSay]")
-                    .Row(1)
-                    .Column(0),
-
-                new Button
-                    {
-                        BackgroundColor = Colors.Transparent,
-                        Padding = 0,
-                        Margin = 0,
-                    }
-                    .CenterVertical()
-                    .Row(1)
-                    .Column(1)
-                    .End()
-                    .Icon(SegoeFluentIcons.More).IconSize(24)
-                    .AppThemeColorBinding(Button.TextColorProperty,
-                        (Color)Application.Current.Resources["LightOnDarkBackground"],
-                        (Color)Application.Current.Resources["DarkOnLightBackground"]
                     )
-                    .BindCommand(nameof(WritingPageModel.ToggleMoreCommand)),
+                )
+            ).GridColumnSpan(2),
 
-                new FormField
-                    {
-                        ControlTemplate = (ControlTemplate)Application.Current.Resources["FormFieldTemplate"],
-                        Content = new Entry
-                            {
-                                Placeholder = "What I mean to say is...",
-                                FontSize = (DeviceInfo.Idiom == DeviceIdiom.Phone) ? 16 : 32,
-                                ReturnType = ReturnType.Go
-                            }
-                            .Bind(Entry.ReturnCommandProperty, nameof(WritingPageModel.GradeMeCommand))
-                            .Bind(Entry.TextProperty, nameof(WritingPageModel.UserMeaning))
-                            .Assign(out iMeanToSayField)
-                    }
-                    .Bind(FormField.IsVisibleProperty, nameof(WritingPageModel.ShowMore))
-                    .Row(2)
-                    .ColumnSpan(2)
+            new SfTextInputLayout{
+                Entry()
+                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
+                    .Text(State.UserInput)
+                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                    .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
+                    .OnCompleted(GradeMe)
             }
-        }
-        .Row(2)
-        .Assign(out inputUI);
-    }
+            .TrailingView(
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .HEnd()
+                    .GridColumn(1)
+                    .ImageSource(SegoeFluentIcons.Dictionary.ToImageSource())
+                    .OnClicked(TranslateInput)
+            )
+            .Hint(_localize["WhatDoYouWantToSay"].ToString())
+            .GridRow(1)
+            .GridColumn(0)
 
-    private Grid LoadingOverlay()
-    {
-        return new Grid
-            {
-                BackgroundColor = Color.FromArgb("#80000000"),
-                Children =
-                {
-                    new Label
-                        {
-                            Text = "Thinking...",
-                            FontSize = 64                                        
-                        }
-                        .AppThemeColorBinding(Label.TextColorProperty,
-                            (Color)Application.Current.Resources["LightOnDarkBackground"],
-                            (Color)Application.Current.Resources["DarkOnLightBackground"]
-                        )
-                        .Center()
-                }
-            }
-            .Bind(Grid.IsVisibleProperty, nameof(WritingPageModel.IsBusy))
-            .RowSpan(2)
-            .Assign(out loadingOverlay);
-    }
+        ).GridRow(2)
+        .Padding((double)Application.Current.Resources["size160"])
+        .RowSpacing(ApplicationTheme.Size40);
 
-    private void CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+    VisualNode LoadingOverlay() =>
+        Grid(
+            Label("Thinking...")
+                .FontSize(64)
+                .TextColor(Theme.IsLightTheme ? 
+                    ApplicationTheme.LightOnDarkBackground : 
+                    ApplicationTheme.DarkOnLightBackground)
+                .Center()
+        )
+        .BackgroundColor(Color.FromArgb("#80000000"))
+        .GridRowSpan(2)
+        .IsVisible(State.IsBusy);
+
+    async void LoadVocabulary()
     {
-        if (e.Action == NotifyCollectionChangedAction.Add)
+        SetState(s => s.IsBusy = true);
+        try 
         {
-            this.Dispatcher.DispatchAsync(async () =>
+            var random = new Random();
+            var vocab = await _vocabService.GetListAsync(Props.Vocabulary.ID);
+            if (vocab != null)
             {
-                await Task.Delay(100); // Wait for the UI to finish updating
-                await sentencesScrollView.ScrollToAsync(0, sentencesScrollView.ContentSize.Height, animated: true);
-            });
+                SetState(s => s.VocabBlocks = vocab.Words
+                    .OrderBy(t => random.Next())
+                    .Take(4)
+                    .ToList()
+                );
+            }
+        }
+        finally
+        {
+            SetState(s => s.IsBusy = false);
         }
     }
 
-#if IOS
-	private void KeyboardWillShow(NSNotification notification)
-	{
-		// Handle keyboard will show event here
-		inputUI.Margin = new Thickness(0, 0, 0, 40);
-	}
+    void UseVocab(string word)
+    {
+        SetState(s => s.UserInput = (s.UserInput ?? "") + word);
+    }
 
-	private void KeyboardWillHide(NSNotification notification)
-	{
-		// Handle keyboard will hide event here
-		inputUI.Margin = new Thickness(0, 0, 0, 0);
-	}
-#endif
+    async void GradeMe()
+    {
+        if (State.ShowMore && string.IsNullOrWhiteSpace(State.UserMeaning))
+            return;
 
+        var sentence = new Sentence
+        {
+            Answer = State.UserInput,
+            Problem = State.UserMeaning
+        };
+        
+        SetState(s => {
+            s.Sentences.Add(sentence);
+            s.UserInput = string.Empty;
+            s.UserMeaning = string.Empty;
+        });
+
+        var grade = await _teacherService.GradeSentence(sentence.Answer, sentence.Problem);
+        if (grade == null)
+        {
+            await Application.Current.MainPage.DisplayAlert(
+                _localize["Error"].ToString(),
+                _localize["Something went wrong. Check the server."].ToString(),
+                _localize["OK"].ToString());
+            return;
+        }
+
+        sentence.Accuracy = grade.Accuracy;
+        sentence.Fluency = grade.Fluency;
+        sentence.FluencyExplanation = grade.FluencyExplanation;
+        sentence.AccuracyExplanation = grade.AccuracyExplanation;
+        sentence.RecommendedSentence = grade.GrammarNotes.RecommendedTranslation;
+        sentence.GrammarNotes = grade.GrammarNotes.Explanation;
+
+        await _userActivityRepository.SaveAsync(new UserActivity
+        {
+            Activity = Models.Activity.Writer.ToString(),
+            Input = $"{sentence.Answer} {sentence.Problem}",
+            Accuracy = sentence.Accuracy,
+            Fluency = sentence.Fluency,
+            CreatedAt = DateTime.Now
+        });
+
+        SetState(s => { }); // Force refresh
+    }
+
+    async void TranslateInput()
+    {
+        if (string.IsNullOrWhiteSpace(State.UserInput))
+            return;
+
+        var translation = await _translationService.TranslateAsync(State.UserInput);
+        await AppShell.DisplayToastAsync(translation);
+    }
+
+    VisualNode RenderDesktopSentence(Sentence sentence) =>
+        Grid("",columns: "*,*,*,*",
+            Label(sentence.Answer).GridColumn(0),
+            Label(sentence.Accuracy.ToString()).Center().GridColumn(1),
+            Label(sentence.Fluency.ToString()).Center().GridColumn(2),
+            HStack(spacing: 4,
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .TextColor(Theme.IsLightTheme ? 
+                        ApplicationTheme.LightOnDarkBackground :
+                        ApplicationTheme.DarkOnLightBackground)
+                    .ImageSource(SegoeFluentIcons.Copy.ToImageSource())
+                    .OnClicked(() => UseVocab(sentence.Answer)),
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .TextColor(Theme.IsLightTheme ? 
+                        ApplicationTheme.LightOnDarkBackground :
+                        ApplicationTheme.DarkOnLightBackground)
+                    .ImageSource(SegoeFluentIcons.Info.ToImageSource())
+                    .OnClicked(() => ShowExplanation(sentence))
+            ).Center().GridColumn(3)
+        );
+
+    VisualNode RenderMobileSentence(Sentence sentence) =>
+        SwipeView(
+            SwipeItemView(
+                Grid(
+                    Label().Text(SegoeFluentIcons.Copy.ToString()).FontSize(24).Center()
+                ).BackgroundColor(Colors.Red).WidthRequest(60)
+            ).OnInvoked(() => UseVocab(sentence.Answer)).HStart(),
+            SwipeItemView(
+                Grid(
+                    Label().Text(SegoeFluentIcons.Info.ToString()).FontSize(24).Center()
+                ).BackgroundColor(Colors.Orange).WidthRequest(60)
+            ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
+            Grid("",columns: "*,*",
+                Label(sentence.Answer).VCenter().GridColumn(0),
+                Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
+            )
+            .Background(Theme.IsLightTheme ? 
+                (Brush)Application.Current.Resources["LightCardBackground"] : 
+                (Brush)Application.Current.Resources["DarkCardBackground"])
+        );
+
+    async void ShowExplanation(Sentence sentence)
+    {
+        string explanation = $"Original: {sentence.Answer}\n\n" +
+            $"Recommended: {sentence.RecommendedSentence}\n\n" +
+            $"Accuracy: {sentence.AccuracyExplanation}\n\n" +
+            $"Fluency: {sentence.FluencyExplanation}\n\n" +
+            $"Additional Notes: {sentence.GrammarNotes}";
+
+        await Application.Current.MainPage.DisplayAlert(
+            _localize["Explanation"].ToString(),
+            explanation,
+            _localize["OK"].ToString());
+    }
 }

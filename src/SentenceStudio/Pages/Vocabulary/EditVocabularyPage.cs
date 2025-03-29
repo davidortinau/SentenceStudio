@@ -1,331 +1,257 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace SentenceStudio.Pages.Vocabulary;
 
-public class EditVocabularyPage : ContentPage, INotifyPropertyChanged
+class EditVocabularyPageState
 {
-    EditVocabularyPageModel _vm;
-    List<VocabularyWord> _searchResults;
-    CollectionView WordsList;
-    ContentView FindOnPageView;
-    Entry SearchEntry;
-    int _currentSearchIndex = 0;
+    public List<VocabularyWord> Words { get; set; } = [];
+    public string VocabListName { get; set; } = string.Empty;
+    public int ListId { get; set; }
+    public List<VocabularyWord> SearchResults { get; set; } = [];
+    public int CurrentSearchIndex { get; set; }
+    public bool IsSearchVisible { get; set; }
+    public string SearchText { get; set; } = string.Empty;
+}
 
-    string _searchResultsDisplay;
-    public string SearchResultsDisplay
+partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps>
+{
+    [Inject] VocabularyService _vocabService;
+    LocalizationManager _localize => LocalizationManager.Instance;
+
+    public override VisualNode Render()
     {
-        get => _searchResultsDisplay;
-        set {
-            if (_searchResultsDisplay != value)
-            {
-                _searchResultsDisplay = value;
-                OnPropertyChanged(nameof(SearchResultsDisplay));
-            }
+        return ContentPage(State.VocabListName,
+        ToolbarItem("Find").OnClicked(() => SetState(s => s.IsSearchVisible = true)),
+                ToolbarItem("Add").OnClicked(AddVocab),
+                ToolbarItem("Save").OnClicked(SaveVocab),
+                ToolbarItem("Delete").OnClicked(DeleteList),
+                Grid(
+                    CollectionView()
+                        .Header(RenderHeader())
+                        .ItemsSource(State.Words, RenderWordItem)
+                        .SelectionMode(Microsoft.Maui.Controls.SelectionMode.None),
+
+                    RenderSearchBottomSheet()
+                )
+                
+            ).OnAppearing(async () => await LoadList());
+    }
+
+    VisualNode RenderHeader() =>
+        VStack(
+            VStack(
+                Label($"{_localize["ListName"]}").HStart(),
+                Border(
+                    Entry()
+                        .Text(State.VocabListName)
+                        .OnTextChanged(text => SetState(s => s.VocabListName = text))
+                )
+                .Style((Style)Application.Current.Resources["InputWrapper"])
+            )
+            .Spacing(ApplicationTheme.Size120),
+
+            VStack(
+                Label($"{_localize["Vocabulary"]}").HStart(),
+                Grid(
+                    Label($"{_localize["Term"]}"),
+                    Label($"{_localize["Translation"]}").GridColumn(1)
+                )
+                .Columns("*,*")
+                .Padding(ApplicationTheme.Size240)
+                .ColumnSpacing(ApplicationTheme.Size240)
+            )
+            .Spacing(ApplicationTheme.Size120)
+        )
+        .Spacing(ApplicationTheme.Size120)
+        .Padding(ApplicationTheme.Size240);
+
+    VisualNode RenderWordItem(VocabularyWord word) =>
+        Grid(
+            Border(
+                Entry()
+                    .Text(word.TargetLanguageTerm)
+                    .OnTextChanged(text => word.TargetLanguageTerm = text)
+            ).Style((Style)Application.Current.Resources["InputWrapper"]),
+            
+            Border(
+                Entry()
+                    .Text(word.NativeLanguageTerm)
+                    .OnTextChanged(text => word.NativeLanguageTerm = text)
+            )
+            .Style((Style)Application.Current.Resources["InputWrapper"])
+            .GridColumn(1),
+            
+            Button()
+                .BackgroundColor(Colors.Transparent)
+                .GridColumn(2)
+                .VCenter()
+                .ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+                .OnClicked(() => DeleteWord(word))
+                // .AppThemeColor(
+                //     ApplicationTheme.DarkOnLightBackground,
+                //     ApplicationTheme.LightOnDarkBackground
+                // )
+        )
+        .Padding(ApplicationTheme.Size240)
+        .ColumnSpacing(ApplicationTheme.Size240)
+        .Columns("*,*,auto");
+
+    VisualNode RenderSearchBottomSheet() =>
+        Grid(
+            Button($"{_localize["Done"]}")
+                .BackgroundColor(Colors.Transparent)
+                .OnClicked(() => SetState(s => 
+                { 
+                    s.IsSearchVisible = false;
+                    s.SearchResults.Clear();
+                    s.CurrentSearchIndex = 0;
+                    s.SearchText = string.Empty;
+                })),
+                // .AppThemeColor(
+                //     ApplicationTheme.DarkOnLightBackground,
+                //     ApplicationTheme.LightOnDarkBackground
+                // ),
+
+            Border(
+                Grid(
+                    Entry()
+                        .Placeholder("Search...")
+                        .IsSpellCheckEnabled(false)
+                        .IsTextPredictionEnabled(false)
+                        .ReturnType(ReturnType.Search)
+                        .Text(State.SearchText)
+                        .OnTextChanged(SearchWords),
+
+                    Label($"{State.CurrentSearchIndex + 1} of {State.SearchResults.Count}")
+                        .FontSize(10)
+                        .Margin(new Thickness(0, 0, 8, 0))
+                        .GridColumn(1)
+                        .HEnd()
+                        .VCenter()
+                )
+                .Columns("*,auto")
+                .ColumnSpacing(4)
+            )
+            .GridColumn(1),
+
+            HStack(
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .ImageSource(SegoeFluentIcons.ChevronUp.ToImageSource())
+                    .VCenter()
+                    .HeightRequest(40).WidthRequest(40)
+                    .OnClicked(() => NavigateSearch(false)),
+
+                Button()
+                    .BackgroundColor(Colors.Transparent)
+                    .ImageSource(SegoeFluentIcons.ChevronDown.ToImageSource())
+                    .HeightRequest(40).WidthRequest(40)
+                    .VCenter()
+                    .OnClicked(() => NavigateSearch(true))
+                    // .AppThemeColor(
+                    //     ApplicationTheme.LightOnDarkBackground,
+                    //     ApplicationTheme.DarkOnLightBackground
+                    // )
+            )
+            .HEnd()
+            .GridColumn(2)
+        )
+        .Padding(new Thickness(4, 8))
+        .Columns("Auto,*,Auto")
+        .ColumnSpacing(4)
+        // .AppThemeColor(
+        //     (Color)Application.Current.Resources["Gray100"],
+        //     ApplicationTheme.Gray900
+        // )
+        .VEnd()
+        .IsVisible(State.IsSearchVisible);
+
+    async Task LoadList()
+    {
+        var list = await _vocabService.GetListAsync(Props.ListID);
+        SetState(s => 
+        {
+            s.ListId = list.ID;
+            s.VocabListName = list.Name;
+            s.Words = list.Words;
+        });
+    }
+
+    void SearchWords(string searchText)
+    {
+        SetState(s =>
+        {
+            s.SearchText = searchText;
+            s.SearchResults = s.Words.Where(w => 
+                w.TargetLanguageTerm.Contains(searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            s.CurrentSearchIndex = s.SearchResults.Any() ? 0 : -1;
+        });
+
+        if (State.SearchResults.Any())
+        {
+            ScrollToWord(State.SearchResults[0]);
         }
     }
 
-    public EditVocabularyPage(EditVocabularyPageModel pageModel)
+    void NavigateSearch(bool forward)
     {
-        BindingContext = _vm =   pageModel;
-
-        Build();
-    }
-
-    public void Build()
-    {
-        this.Bind(Page.TitleProperty, nameof(EditVocabularyPageModel.VocabListName));
-        this.HideSoftInputOnTapped = true;
-
-        this.ToolbarItems.Add(new ToolbarItem { Text = "Find" }.OnClicked(Find_Clicked));
-        this.ToolbarItems.Add(
-            new ToolbarItem { Text = "Add" }
-                .BindCommand(nameof(EditVocabularyPageModel.AddVocabCommand))
-        );
-        this.ToolbarItems.Add(
-            new ToolbarItem { Text = "Save" }
-                .BindCommand(nameof(EditVocabularyPageModel.SaveVocabCommand))
-        );
-        this.ToolbarItems.Add(
-            new ToolbarItem { Text = "Delete" }
-                .BindCommand(nameof(EditVocabularyPageModel.DeleteCommand))
-        );
-
-        Content = new Grid
+        SetState(s =>
         {
-            Children =
-            {
-                new CollectionView
-                    {                    
-                        Header = WordsListHeader()
-                    }
-                    .Assign(out WordsList)
-                    .Bind(CollectionView.ItemsSourceProperty, nameof(_vm.Words))
-                    .ItemTemplate(WorksListItemTemplate()),
+            if (forward)
+                s.CurrentSearchIndex = (s.CurrentSearchIndex + 1) % s.SearchResults.Count;
+            else
+                s.CurrentSearchIndex = s.CurrentSearchIndex == 0 ? 
+                    s.SearchResults.Count - 1 : s.CurrentSearchIndex - 1;
+        });
 
-                CreateBottomSheet()
-            }
-        };
-    }
-
-    void OnSearchTextChanged(object sender, TextChangedEventArgs e)
-    {
-        _searchResults = _vm.Words.Where(w => w.TargetLanguageTerm.Contains(e.NewTextValue)).ToList();
-        UpdateSearchResultsDisplay();
-
-        if (_searchResults.Count > 0)
+        if (State.SearchResults.Any())
         {
-            ScrollToWord(_searchResults[0]);
+            ScrollToWord(State.SearchResults[State.CurrentSearchIndex]);
         }
-
-    }
-
-    private void UpdateSearchResultsDisplay()
-    {
-        SearchResultsDisplay = $"{_currentSearchIndex + 1} of {_searchResults.Count}";
-    }
-
-    void Find_Clicked(object sender, EventArgs e)
-    {
-        FindOnPageView.IsVisible = true;
-        SearchEntry.Focus();
-    }
-
-    void OnDoneClicked(object sender, EventArgs e)
-    {
-        FindOnPageView.IsVisible = false;
-        SearchEntry.Unfocus();
-        _searchResults.Clear();
-        _currentSearchIndex = 0;
-        UpdateSearchResultsDisplay();
-    }
-
-    void OnUpClicked(object sender, EventArgs e)
-    {
-        _currentSearchIndex++;
-        if (_currentSearchIndex >= _searchResults.Count)
-        {
-            _currentSearchIndex = 0;
-        }
-
-        ScrollToWord(_searchResults[_currentSearchIndex]);
-        UpdateSearchResultsDisplay();
-    }
-
-    void OnDownClicked(object sender, EventArgs e)
-    {
-        _currentSearchIndex--;
-        if (_currentSearchIndex < 0)
-        {
-            _currentSearchIndex = _searchResults.Count - 1;
-        }
-
-        ScrollToWord(_searchResults[_currentSearchIndex]);
-        UpdateSearchResultsDisplay();
     }
 
     void ScrollToWord(VocabularyWord word)
     {
-        WordsList.ScrollTo(word, position: ScrollToPosition.Center, animate: true);
+        // Note: MauiReactor doesn't currently expose CollectionView.ScrollTo
+        // This would need to be implemented via platform specific code or wait for MauiReactor support
     }
 
-    private VerticalStackLayout WordsListHeader()
+    async Task SaveVocab()
     {
-        return new VerticalStackLayout
+        var list = new VocabularyList
         {
-            Spacing = (double)Application.Current.Resources["size120"], 
-            Padding = (double)Application.Current.Resources["size240"],
-            Children =
-            {
-                new VerticalStackLayout
-                {
-                    Spacing = (double)Application.Current.Resources["size120"],
-                    Children =
-                    {
-                        new Label { }
-                            .Start()
-                            .Bind(Label.TextProperty, "Localize[ListName]"),
-                        new Border
-                            {
-                                Style = (Style)Application.Current.Resources["InputWrapper"],
-                                Content = new Entry()
-                                            .Bind(Entry.TextProperty, nameof(EditVocabularyPageModel.VocabListName), BindingMode.TwoWay)
-                            }
-                    }
-                },
-                new VerticalStackLayout
-                {
-                    Spacing = (double)Application.Current.Resources["size120"],
-                    Children =
-                    {
-                        new Label { }
-                            .Start()
-                            .Bind(Label.TextProperty, "Localize[Vocabulary]"),
-                        new Grid
-                            {
-                                ColumnDefinitions = Columns.Define(Star,Star),
-                                Padding = (double)Application.Current.Resources["size240"],
-                                ColumnSpacing = (double)Application.Current.Resources["size240"],
-                                Children =
-                                {
-                                    new Label { }
-                                        .Bind(Label.TextProperty, "Localize[Term]"),
-                                    new Label { }
-                                        .Bind(Label.TextProperty, "Localize[Translation]")
-                                        .Column(1)
-                                }
-                            }
-                    }
-                }
-            }
+            ID = State.ListId,
+            Name = State.VocabListName,
+            Words = State.Words
         };
+        
+        await _vocabService.SaveListAsync(list);
+        await MauiControls.Shell.Current.GoToAsync("..");
     }
 
-    private DataTemplate WorksListItemTemplate()
+    async Task DeleteList()
     {
-        return new DataTemplate(() =>                    
-                new Grid
-                {
-                    Padding = (double)Application.Current.Resources["size240"],
-                    ColumnDefinitions = Columns.Define(Star,Star,Auto),
-                    ColumnSpacing = (double)Application.Current.Resources["size240"],
-                    Children = {
-                        new Border
-                            {
-                                Style = (Style)Application.Current.Resources["InputWrapper"],
-                                Content = new Entry().Bind(Entry.TextProperty, "TargetLanguageTerm")
-                            },
-                        new Border
-                            {
-                                Style = (Style)Application.Current.Resources["InputWrapper"],
-                                Content = new Entry().Bind(Entry.TextProperty, "NativeLanguageTerm")
-                            }
-                            .Column(1),
-                        new Button
-                            {
-                                BackgroundColor = Colors.Transparent,
-                            }
-                            .Column(2)
-                            .Center()
-                            .Icon(SegoeFluentIcons.Delete)
-                            .IconSize(24)
-                            .BindCommand(nameof(EditVocabularyPageModel.DeleteVocabCommand), source: _vm, parameterPath: ".")
-                            .AppThemeColorBinding(Button.TextColorProperty,
-                                (Color)Application.Current.Resources["DarkOnLightBackground"],
-                                (Color)Application.Current.Resources["LightOnDarkBackground"]
-                            )
-
-                    }
-                }
-            );
-    }
-
-    ContentView CreateBottomSheet()
-    {
-        return new ContentView
+        var list = new VocabularyList
         {
-            IsVisible = false,
-            Content = new Grid
-            {
-                Padding = new Thickness(4, 8),
-                
-                ColumnDefinitions = Columns.Define(Auto,Star,Auto),
-                ColumnSpacing = 4,
-                Children =
-                {
-                    new Button
-                        {
-                            BackgroundColor = Colors.Transparent
-                        }
-                        .Bind(Button.TextProperty, "Localize[Done]")
-                        .OnClicked(OnDoneClicked)
-                        .AppThemeColorBinding(Button.TextColorProperty,
-                            (Color)Application.Current.Resources["DarkOnLightBackground"],
-                            (Color)Application.Current.Resources["LightOnDarkBackground"]
-                        )
-                        .Column(0),
+            ID = State.ListId,
+            Name = State.VocabListName,
+            Words = State.Words
+        };
+        
+        await _vocabService.DeleteListAsync(list);
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
 
-                    new Border
-                    {
-                        Content = new Grid
-                        {
-                            ColumnDefinitions = Columns.Define(Star,Auto),
-                            ColumnSpacing = 4,
-                            Children =
-                            {
-                                new Entry
-                                    {
-                                        Placeholder = "Search...",
-                                        IsSpellCheckEnabled = false,
-                                        IsTextPredictionEnabled = false,
-                                        ReturnType = ReturnType.Search
-                                    }
-                                    .OnTextChanged(OnSearchTextChanged)
-                                    .Assign(out SearchEntry),
+    async Task DeleteWord(VocabularyWord word)
+    {
+        SetState(s => s.Words = s.Words.Where(w => w != word).ToList());
+        await _vocabService.DeleteWordAsync(word);
+        await _vocabService.DeleteWordFromListAsync(word, State.ListId);
+    }
 
-                                new Label
-                                    {
-                                        FontSize = 10,
-                                        Margin = new Thickness(0, 0, 8, 0)
-                                    }
-                                    .Column(1)
-                                    .End()
-                                    .CenterVertical()
-                                    .TextEnd()
-                                    .Bind(Label.TextProperty, nameof(EditVocabularyPage.SearchResultsDisplay), source: this)
-                            }
-                        }
-                    }.Column(1),
-
-                    new HorizontalStackLayout
-                        {
-                            Spacing = 0,
-                            Children =
-                            {
-                                new Button
-                                    {
-                                        BackgroundColor = Colors.Transparent
-                                    }
-                                    .Icon(SegoeFluentIcons.ChevronUp)
-                                    .IconSize(24)
-                                    .AppThemeColorBinding(Button.TextColorProperty,
-                                        (Color)Application.Current.Resources["LightOnDarkBackground"],
-                                        (Color)Application.Current.Resources["DarkOnLightBackground"]
-                                    )
-                                    .CenterVertical()
-                                    .Size(40, 40)
-                                    .OnClicked(OnDownClicked),
-
-                                new Button
-                                    {
-                                        BackgroundColor = Colors.Transparent
-                                    }
-                                    .Icon(SegoeFluentIcons.ChevronDown)
-                                    .IconSize(24)
-                                    .AppThemeColorBinding(Button.TextColorProperty,
-                                        (Color)Application.Current.Resources["LightOnDarkBackground"],
-                                        (Color)Application.Current.Resources["DarkOnLightBackground"]
-                                    )
-                                    .CenterVertical()
-                                    .Size(40, 40)
-                                    .OnClicked(OnUpClicked)
-                            }
-                        }
-                        .End()
-                        .Column(2)
-                }
-            }
-            .AppThemeColorBinding(BackgroundColorProperty,
-                (Color)Application.Current.Resources["Gray100"],
-                (Color)Application.Current.Resources["Gray900"]
-            )
-        }
-        .Bottom()
-        .Assign(out FindOnPageView);
+    async Task AddVocab()
+    {
+        var word = new VocabularyWord();
+        SetState(s => s.Words = new[] { word }.Concat(s.Words).ToList());
+        await _vocabService.SaveWordAsync(word);
+        await _vocabService.SaveWordToListAsync(word, State.ListId);
     }
 }

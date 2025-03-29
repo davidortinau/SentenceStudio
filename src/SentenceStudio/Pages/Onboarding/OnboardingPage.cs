@@ -1,241 +1,239 @@
-using SentenceStudio;
+using Microsoft.Extensions.Configuration;
 
 namespace SentenceStudio.Pages.Onboarding;
 
-public class OnboardingPage : ContentPage
+public class OnboardingState
 {
-    private readonly OnboardingPageModel _model;
+    public int CurrentPosition { get; set; }
+    public bool LastPositionReached { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string NativeLanguage { get; set; } = string.Empty;
+    public string TargetLanguage { get; set; } = string.Empty;
+    public string DisplayLanguage { get; set; } = string.Empty;
+    public string OpenAI_APIKey { get; set; } = string.Empty;
+    public bool NeedsApiKey { get; set; }
+}
 
-	public OnboardingPage(OnboardingPageModel model)
-	{
-		BindingContext = _model = model;
+public partial class OnboardingPage : Component<OnboardingState>
+{
+    [Inject] IServiceProvider _service;
+    [Inject] UserProfileRepository _userProfileRepository;
+    [Inject] VocabularyService _vocabularyService;
+    [Inject] IConfiguration _configuration;
 
-		Build();
-
-	}
-
-	public void Build()
-	{
-        this.Bind(ContentPage.TitleProperty,"Localize[MyProfile]");
-        Shell.SetFlyoutBehavior(this, FlyoutBehavior.Disabled);
-        Shell.SetNavBarIsVisible(this, false);
-             
-        Content = new Grid
-        {
-            Padding = (double)Application.Current.Resources["size160"],
-            RowDefinitions = new RowDefinitionCollection
-            {
-                new RowDefinition { Height = GridLength.Star },
-                new RowDefinition { Height = GridLength.Auto }
-            },
-
-            Children =
-            {
-                new CarouselView
-                {
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
-                    IsSwipeEnabled = false,
-                    Loop = false
-                }
-                .Bind(CarouselView.PositionProperty, "CurrentPosition")
-                .Row(0)
-                .ItemsSource(new List<ContentView>
-                {
-                    CreateContentView("Welcome to Sentence Studio!", "Strengthen your language skills with our fun and interactive sentence building activities."),
-                    CreateContentViewWithEntry("What should I call you?", "Name", "Enter your name"),
-                    CreateContentViewWithPicker("What is your primary language?", nameof(OnboardingPageModel.NativeLanguage), new string[]
-                    {
-                        "English", "Spanish", "French", "German", "Italian", "Portuguese",
-                        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
-                    }),
-                    CreateContentViewWithPicker("What language are you here to practice?", "TargetLanguage", new string[]
-                    {
-                        "Korean", "English", "Spanish", "French", "German", "Italian",
-                        "Portuguese", "Chinese", "Japanese", "Arabic", "Russian", "Other"
-                    }),
-                    ApiKeyStep().Bind(ContentView.IsVisibleProperty, nameof(OnboardingPageModel.NeedsApiKey), source: _model),
-                    CreateContentView("Let's begin!", "On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth.")
-                })
-                .ItemTemplate(new DataTemplate(() => new ContentView().Bind(ContentView.ContentProperty, "."))),
-
-                new Grid
-                    {
-                        ColumnDefinitions = Columns.Define(Star),
-                        RowDefinitions = Rows.Define(Auto,Auto),
-                        RowSpacing = 20,
-
-                        Children =
-                        {
-                            new Button
-                                {
-                                    Text = "Next"
-                                }
-                                .Bind(Button.CommandProperty, "NextCommand")
-                                .Bind(Button.IsVisibleProperty, "LastPositionReached", converter: (IValueConverter)Application.Current.Resources["InvertedBoolConverter"])
-                                .Row(0),
-
-                            new Button
-                                {
-                                    Text = "Continue"
-                                }
-                                .Bind(Button.CommandProperty, "EndCommand")
-                                .Bind(Button.IsVisibleProperty, "LastPositionReached")
-                                .Row(0),
-
-                            new IndicatorView
-                                {
-                                    HorizontalOptions = LayoutOptions.Center,
-                                    IndicatorColor = (Color)Application.Current.Resources["Gray200"],
-                                    SelectedIndicatorColor = (Color)Application.Current.Resources["Primary"],
-                                    IndicatorSize = (DeviceInfo.Platform == DevicePlatform.iOS) ? 6 : 8
-                                }
-                                .Row(1)
-                        }
-                    }
-                    .Row(1)
-            }
-        };
-    }
-
-    private ContentView CreateContentView(string title, string description)
+    LocalizationManager _localize => LocalizationManager.Instance;
+    
+    VisualNode[] GetScreens() => new[]
     {
-        return new ContentView
-        {
-            Content = new Grid
-            {
-                RowDefinitions = Rows.Define(Auto,Auto),
-                RowSpacing = (double)Application.Current.Resources["size160"],
-                Margin = (double)Application.Current.Resources["size160"],
+        RenderWelcomeStep(),
+        RenderNameStep(),
+        RenderLanguageStep(
+            "What is your primary language?", 
+            s => s.NativeLanguage,
+            (s, lang) => s.NativeLanguage = lang),
+        RenderLanguageStep(
+            "What language are you here to practice?", 
+            s => s.TargetLanguage,
+            (s, lang) => s.TargetLanguage = lang),
+        State.NeedsApiKey ? RenderApiKeyStep() : null,
+        RenderFinalStep()
+    }.Where(screen => screen != null).ToArray();
 
-                Children =
-                {
-                    new Label
-                        {
-                            Text = title,
-                            Style = (Style)Application.Current.Resources["Title1"]
-                        }
-                        .CenterHorizontal(),
-
-                    new Label
-                        {
-                            Text = description,
-                            Style = (Style)Application.Current.Resources["Title3"]
-                        }
-                        .CenterHorizontal()
-                        .Row(1)
-                }
-            }
-        };
-    }
-
-    private ContentView CreateContentViewWithEntry(string title, string bindingPath, string placeholder)
+    protected override void OnMounted()
     {
-        return new ContentView
-        {
-            Content = new Grid
-            {
-                RowDefinitions = Rows.Define(Auto,Auto),
-                RowSpacing = (double)Application.Current.Resources["size160"],
-                Margin = (double)Application.Current.Resources["size160"],
-
-                Children =
-                {
-                    new Label
-                        {
-                            Text = title,
-                            Style = (Style)Application.Current.Resources["Title1"]
-                        }
-                        .CenterHorizontal(),
-
-                    new FormField
-                        {
-                            Content = new Entry
-                                {
-                                    Placeholder = placeholder
-                                }
-                                .CenterHorizontal()
-                                .Bind(Entry.TextProperty, bindingPath, source: _model)
-                        }
-                        .Row(1)
-                }
-            }
-        };
+        var settings = _configuration.GetRequiredSection("Settings").Get<Settings>();
+        SetState(s => s.NeedsApiKey = string.IsNullOrEmpty(settings?.OpenAIKey));
+        base.OnMounted();
     }
 
-    private ContentView CreateContentViewWithPicker(string title, string bindingPath, string[] items)
+    void NavigateToPosition(int newPosition)
     {
-        return new ContentView
+        var screens = GetScreens();
+        var maxScreens = screens.Length - 1;
+        if (newPosition < 0 || newPosition > maxScreens) return;
+        
+        SetState(s => 
         {
-            Content = new Grid
-            {
-                RowDefinitions = Rows.Define(Auto,Auto),
-                RowSpacing = (double)Application.Current.Resources["size160"],
-                Margin = (double)Application.Current.Resources["size160"],
-
-                Children =
-                {
-                    new Label
-                        {
-                            Text = title,
-                            Style = (Style)Application.Current.Resources["Title1"]
-                        }.CenterHorizontal(),
-
-                    new FormField
-                        {
-                            Content = new Picker
-                                {
-                                    ItemsSource = items
-                                }
-                                .Bind(Picker.SelectedItemProperty, 
-                                    bindingPath, 
-                                    BindingMode.TwoWay, 
-                                    source: _model)
-                        }
-                        .Row(1)
-                }
-            }
-        };
+            s.CurrentPosition = newPosition;
+            s.LastPositionReached = newPosition == maxScreens;
+        });
     }
 
-    private ContentView ApiKeyStep()
+    public override VisualNode Render()
     {
-        return new ContentView
-        {
-            Content = new VerticalStackLayout
-            {
-                Spacing = (double)Application.Current.Resources["size160"],
-                Margin = (double)Application.Current.Resources["size160"],
+        var screens = GetScreens();
+        return ContentPage($"{_localize["MyProfile"]}",
+            
+                Grid(rows: "*, Auto", "",
+                    CarouselView()
+                        .HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
+                        .IsSwipeEnabled(false)
+                        .Loop(false)
+                        .Position(State.CurrentPosition)
+                        .ItemsSource(screens, RenderItemTemplate),
 
-                Children =
-                {
-                    new Label
-                        {
-                            Text = "Sentence Studio needs an API key from OpenAI to use the AI features in Sentence Studio.",
-                            Style = (Style)Application.Current.Resources["Title1"]
-                        }
-                        .CenterHorizontal(),
+                    Grid(rows: "Auto, Auto", columns: "1*, 3*", 
+                        Button("Back")
+                            .IsEnabled(State.CurrentPosition > 0)
+                            .OnClicked(() => NavigateToPosition(State.CurrentPosition - 1)),
 
-                    new FormField
-                        {
-                            Content = new Entry
-                                {
-                                    Placeholder = "Enter your OpenAI API key",
-                                    IsPassword = true
-                                }
-                                .CenterHorizontal()
-                                .Bind(Entry.TextProperty, nameof(OnboardingPageModel.OpenAI_APIKey), source: _model)
-                        },
-                    new Label
-                        {
-                            Text = "Get an API key from OpenAI.com.",
-                            TextDecorations = TextDecorations.Underline
-                        }
-                        .AppThemeColorBinding(Label.TextColorProperty, 
-                            (Color)Application.Current.Resources["Secondary"],
-                            (Color)Application.Current.Resources["SecondaryDark"])
-                        .BindTapGesture(nameof(OnboardingPageModel.GoToOpenAICommand)),
-                }
-            }
-        };
+                        Button("Next")
+                            .GridColumn(1)
+                            .IsVisible(!State.LastPositionReached)
+                            .OnClicked(() => NavigateToPosition(State.CurrentPosition + 1)),
+
+                        Button("Continue")
+                            .GridColumn(1)
+                            .IsVisible(State.LastPositionReached)
+                            .OnClicked(End),
+
+                        IndicatorView()
+                            .GridRow(1)
+                            .GridColumnSpan(2)
+                            .HCenter()
+                            .IndicatorColor(ApplicationTheme.Gray200)
+                            .SelectedIndicatorColor(ApplicationTheme.Primary)
+                            .IndicatorSize(DeviceInfo.Platform == DevicePlatform.iOS ? 6 : 8)
+                    )
+                        .GridRow(1)
+                        .RowSpacing(20),
+                    Label($"{State.CurrentPosition + 1} of {screens.Length}")
+                        .FontSize(64)
+                        .GridRow(0)
+                        .HCenter()
+                        .VCenter()
+                )
+                .Padding(ApplicationTheme.Size160)
+            );
     }
+
+    VisualNode RenderItemTemplate(VisualNode node) => node;
+
+    VisualNode RenderWelcomeStep() =>
+        ContentView(
+            Grid("Auto, Auto","",
+                Label("Welcome to Sentence Studio!")
+                    .Style((Style)Application.Current.Resources["Title1"])
+                    .HCenter(),
+
+                Label("Strengthen your language skills with our fun and interactive sentence building activities.")
+                    .Style((Style)Application.Current.Resources["Title3"])
+                    .HCenter()
+                    .GridRow(1)
+            )
+            .RowSpacing(ApplicationTheme.Size160)
+            .Margin(ApplicationTheme.Size160)
+        );
+
+    VisualNode RenderNameStep() =>
+        ContentView(
+            Grid("Auto, Auto","",
+                Label("What should I call you?")
+                    .Style((Style)Application.Current.Resources["Title1"])
+                    .HCenter(),
+
+                new SfTextInputLayout
+                {
+                    Entry()
+                        .Text(State.Name)
+                        .OnTextChanged(text => SetState(s => s.Name = text))
+                }
+                .GridRow(1)
+                .Hint("Enter your name")
+            )
+            .RowSpacing(ApplicationTheme.Size160).ColumnSpacing(ApplicationTheme.Size160)
+            .Margin(ApplicationTheme.Size160)
+        );
+
+    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<OnboardingState, string> setter) =>
+        ContentView(
+            Grid("Auto, Auto", "",
+                Label(title)
+                    .Style((Style)Application.Current.Resources["Title1"])
+                    .HCenter(),
+
+                new SfTextInputLayout
+                {
+                    Picker()
+                        .ItemsSource(Languages)
+                        .SelectedIndex(Array.IndexOf(Languages, getter(State)))
+                        .OnSelectedIndexChanged((index) =>
+                        {
+                            if (index >= 0 && index < Languages.Length)
+                                SetState(s => setter(s, Languages[index]));
+                        })
+                }
+                .GridRow(1)
+                .Hint("Select language")
+            )
+            .RowSpacing(ApplicationTheme.Size160)
+            .Margin(ApplicationTheme.Size160)
+        );
+
+    VisualNode RenderApiKeyStep() =>
+        ContentView(
+            VStack(
+                Label("Sentence Studio needs an API key from OpenAI to use the AI features.")
+                    .Style((Style)Application.Current.Resources["Title1"])
+                    .HCenter(),
+
+                new SfTextInputLayout
+                {
+                    Entry()
+                        .IsPassword(true)
+                        .Text(State.OpenAI_APIKey)
+                        .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
+                }
+                .Hint("Enter your OpenAI API key"),
+
+                Label("Get an API key from OpenAI.com")
+                    .TextDecorations(TextDecorations.Underline)
+                    .OnTapped(() => Browser.OpenAsync("https://platform.openai.com/account/api-keys"))
+            )
+            .Spacing(ApplicationTheme.Size160)
+            .Margin(ApplicationTheme.Size160)
+        )
+        .IsVisible(State.NeedsApiKey);
+
+    VisualNode RenderFinalStep() =>
+        ContentView(
+            Grid("Auto, Auto","",
+                Label("Let's begin!")
+                    .Style((Style)Application.Current.Resources["Title1"])
+                    .HCenter(),
+
+                Label("On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth.")
+                    .Style((Style)Application.Current.Resources["Title3"])
+                    .HCenter()
+                    .GridRow(1)
+            )
+            .RowSpacing(ApplicationTheme.Size160)
+            .Margin(ApplicationTheme.Size160)
+        );
+
+    async Task End()
+    {
+        var profile = new UserProfile
+        {
+            Name = State.Name,
+            Email = State.Email,
+            NativeLanguage = State.NativeLanguage,
+            TargetLanguage = State.TargetLanguage,
+            DisplayLanguage = State.DisplayLanguage,
+            OpenAI_APIKey = State.OpenAI_APIKey
+        };
+
+        await _userProfileRepository.SaveAsync(profile);
+        await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
+
+        Preferences.Default.Set("is_onboarded", true);
+        // App.Current.Windows[0].Page = new AppShell(_service.GetService<AppShellModel>());
+    }
+
+    readonly string[] Languages = new[]
+    {
+        "English", "Spanish", "French", "German", "Italian", "Portuguese",
+        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
+    };
 }
