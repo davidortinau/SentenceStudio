@@ -69,11 +69,6 @@ public class ClozureService
 
             var reply = await client.GetResponseAsync<SentencesResponse>(prompt);
             
-            // string response = await _aiService.SendPrompt(prompt, true, false);
-            // watch.Stop();
-            // Debug.WriteLine($"Received response in: {watch.Elapsed}");
-            // var reply = JsonSerializer.Deserialize(response, JsonContext.Default.SentencesResponse);
-            // return reply.Sentences;
             if (reply != null && reply.Result.Sentences != null)
             {
                 return reply.Result.Sentences;

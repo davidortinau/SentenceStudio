@@ -1,6 +1,8 @@
 using MauiReactor.Shapes;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Clozure;
+using System.Text;
+using System.Web;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -72,17 +74,44 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     ApplicationTheme.DarkOnLightBackground :
                     ApplicationTheme.LightOnDarkBackground)
                 .IsVisible(!State.HasFeedback)
-                .HorizontalOptions(LayoutOptions.Start),
+                .HStart(),
 
-            new FeedbackPanel()
-            {
-                IsVisible = State.HasFeedback,
-                Feedback = State.Feedback
-            }
+            Border(
+                WebView()
+                    .Source(BuildHtmlDocument(State.Feedback))
+            )
+                .IsVisible(State.HasFeedback)
                 .GridColumn(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)
         )
         .GridRow(1)
         .Margin(30);
+
+    HtmlWebViewSource BuildHtmlDocument(string content) =>
+        new HtmlWebViewSource
+        {
+            Html = $@"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset=""UTF-8"">
+                <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 16px;
+                        color: {(Theme.IsLightTheme ? "#000000" : "#FFFFFF")};
+                        background-color: {(Theme.IsLightTheme ? "#E0E0E0" : "#222228")};
+                        margin: 0;
+                        padding: 16px;
+                    }}
+                </style>
+            </head>
+            <body>
+                {content}
+            </body>
+            </html>
+            "
+        };
 
     VisualNode RenderInputUI() =>
         Grid("*,*", "*,auto,auto,auto",
@@ -286,10 +315,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
         try 
         {
-            var feedback = await _aiService.SendPrompt<string>(prompt);
+            var feedback = await _aiService.SendPrompt<GradeResponse>(prompt);
             SetState(s => {
                 s.HasFeedback = true;
-                s.Feedback = feedback;
+                s.Feedback = FormatGradeResponse(feedback);
                 s.IsBusy = false;
             });
         }
@@ -299,15 +328,29 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             SetState(s => s.IsBusy = false);
         }
     }
+    
+    private string FormatGradeResponse(GradeResponse gradeResponse)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendFormat("<p>{0}</p>", HttpUtility.HtmlEncode(State.CurrentSentence));
+        sb.AppendFormat("<p>Accuracy: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.Accuracy));
+        sb.AppendFormat("<p>Explanation: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.AccuracyExplanation));
+        sb.AppendFormat("<p>Fluency: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.Fluency));
+        sb.AppendFormat("<p>Explanation: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.FluencyExplanation));
+        sb.AppendFormat("<p>Recommended: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.GrammarNotes.RecommendedTranslation));
+        sb.AppendFormat("<p>Notes: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.GrammarNotes.Explanation));
+
+        return sb.ToString();
+    }
 
     async Task<string> BuildGradePrompt()
     {
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
         using StreamReader reader = new StreamReader(templateStream);
         var template = Template.Parse(reader.ReadToEnd());
-        return await template.RenderAsync(new { 
-            original_sentence = State.CurrentSentence, 
-            recommended_translation = State.RecommendedTranslation, 
+        return await template.RenderAsync(new {
+            original_sentence = State.CurrentSentence,
+            recommended_translation = State.RecommendedTranslation,
             user_input = State.UserInput
         });
     }

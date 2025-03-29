@@ -15,7 +15,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<MauiVersion>9.0.30</MauiVersion>
+		<MauiVersion>9.0.50</MauiVersion>
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -114,7 +114,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="11.1.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="11.2.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="3.0.1" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="4.0.0" />
@@ -122,22 +122,22 @@
 		<PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
-		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.3" />
-		<PackageReference Include="Scriban" Version="5.12.1" />
+		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
+		<PackageReference Include="Scriban" Version="6.0.0" />
 		<PackageReference Include="The49.Maui.BottomSheet" Version="8.0.3" />
-		<PackageReference Include="SkiaSharp.HarfBuzz" Version="2.88.8" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="2.88.8" />
+		<PackageReference Include="SkiaSharp.HarfBuzz" Version="3.116.1" />
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.116.1" />
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
-		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.3" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.2" />
-		<PackageReference Include="Reactor.Maui" Version="3.0.23" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.2" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
+		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.4" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.3" />
+		<PackageReference Include="Reactor.Maui" Version="3.0.25" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.3" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.3" />
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.3.0-preview.1.25114.11" />	
 		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />		
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />			
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.3" />		
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />			
 	</ItemGroup>
 
 	<!-- to override lower dependencies with vulerabilities -->
