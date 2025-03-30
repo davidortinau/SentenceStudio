@@ -313,4 +313,8 @@
     <value>새로고침</value>
     <comment/>
   </data>
+  <data name="Shadowing" xml:space="preserve">
+    <value>섀도잉</value>
+    <comment/>
+  </data>
 </root>

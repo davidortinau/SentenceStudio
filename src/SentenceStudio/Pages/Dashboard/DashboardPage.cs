@@ -79,6 +79,7 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
                             new ActivityBorder().LabelText($"{_localize["Clozures"]}").Route(nameof(ClozurePage)),
+                            new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")                                
                         }.Spacing(20)
                     )// vstack

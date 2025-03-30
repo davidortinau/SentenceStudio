@@ -355,6 +355,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Shadowing.
+        /// </summary>
+        internal static string Shadowing {
+            get {
+                return ResourceManager.GetString("Shadowing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Skill Profiles.
         /// </summary>
         internal static string SkillProfiles {

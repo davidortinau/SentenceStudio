@@ -140,6 +140,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<EditVocabularyPage>(nameof(EditVocabularyPage));
 		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
 		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
 		
 	}
 
@@ -159,6 +160,7 @@ public static class MauiProgram
 		services.AddSingleton<ClozureService>();
 		services.AddSingleton<StorytellerService>();
 		services.AddSingleton<TranslationService>();
+		services.AddSingleton<ShadowingService>();
 
 		// services.AddSingleton<AppShellModel>();
 

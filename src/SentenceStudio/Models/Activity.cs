@@ -7,5 +7,6 @@ public enum Activity
     SceneDescription,
     StoryTelling,
     SyntacticAnalysis,
-    Translation
+    Translation,
+    Shadowing
 }

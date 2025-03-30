@@ -313,4 +313,8 @@
     <value>Refresh</value>
     <comment/>
   </data>
+  <data name="Shadowing" xml:space="preserve">
+    <value>Shadowing</value>
+    <comment/>
+  </data>
 </root>
