@@ -21,6 +21,11 @@ public class StreamHistory
     public float[] WaveformData { get; set; }
 
     /// <summary>
+    /// The duration of the audio in seconds
+    /// </summary>
+    public double Duration { get; set; }
+
+    /// <summary>
     /// Whether the waveform data has been analyzed yet
     /// </summary>
     public bool IsWaveformAnalyzed => WaveformData != null && WaveformData.Length > 0;

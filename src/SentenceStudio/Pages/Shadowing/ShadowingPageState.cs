@@ -70,6 +70,12 @@ class ShadowingPageState
     public float[] WaveformData { get; set; }
 
     /// <summary>
+    /// Gets or sets the duration of the audio in seconds.
+    /// Used for time-based scaling of the waveform.
+    /// </summary>
+    public double AudioDuration { get; set; }
+
+    /// <summary>
     /// Gets or sets the playback mode.
     /// </summary>
     public ShadowingPlayMode PlayMode { get; set; } = ShadowingPlayMode.Normal;
@@ -78,6 +84,16 @@ class ShadowingPageState
     /// Gets or sets the current audio playback position (0 to 1).
     /// </summary>
     public float PlaybackPosition { get; set; } = 0f;
+
+    /// <summary>
+    /// Gets or sets the formatted current time display (MM:SS.MS).
+    /// </summary>
+    public string CurrentTimeDisplay { get; set; } = "--:--.---";
+
+    /// <summary>
+    /// Gets or sets the formatted duration display (MM:SS.MS).
+    /// </summary>
+    public string DurationDisplay { get; set; } = "--:--.---";
     
     /// <summary>
     /// Gets or sets whether the waveform is visible.
@@ -99,12 +115,12 @@ class ShadowingPageState
         Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
             ? Sentences[CurrentSentenceIndex].TargetLanguageText
             : string.Empty;
-            
+
     /// <summary>
     /// Gets the current sentence pronunciation notes, or an empty string if none is available.
     /// </summary>
-    public string CurrentSentencePronunciationNotes => 
+    public string CurrentSentencePronunciationNotes =>
         Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
-                ? Sentences[CurrentSentenceIndex].PronunciationNotes
-                : string.Empty;
+            ? Sentences[CurrentSentenceIndex].PronunciationNotes
+            : string.Empty;
 }

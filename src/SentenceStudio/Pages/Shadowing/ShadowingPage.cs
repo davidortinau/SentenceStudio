@@ -7,6 +7,32 @@ using System.Collections.ObjectModel;
 namespace SentenceStudio.Pages.Shadowing;
 
 /// <summary>
+/// Container class for cached audio data and its metadata.
+/// </summary>
+class AudioCacheEntry
+{
+    /// <summary>
+    /// Gets or sets the audio stream data.
+    /// </summary>
+    public Stream AudioStream { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the total audio duration in seconds.
+    /// </summary>
+    public double Duration { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the formatted duration display string.
+    /// </summary>
+    public string DurationDisplay { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the waveform data for visualization.
+    /// </summary>
+    public float[] WaveformData { get; set; }
+}
+
+/// <summary>
 /// Page for the Shadowing activity where users can listen to spoken sentences and practice pronunciation.
 /// </summary>
 partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
@@ -20,9 +46,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private IDispatcherTimer _playbackTimer;
 
     /// <summary>
-    /// Dictionary to cache audio streams by sentence text for reuse.
+    /// Dictionary to cache audio data by sentence text for reuse.
     /// </summary>
-    private readonly Dictionary<string, Stream> _audioStreamCache = new();
+    private readonly Dictionary<string, AudioCacheEntry> _audioCache = new();
 
     /// <summary>
     /// Renders the ShadowingPage component.
@@ -78,37 +104,44 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node for displaying the audio waveform.</returns>
     private VisualNode WaveformDisplay() =>
     VStack(
-        Label()
-        .Text("Visualization")
-        .HCenter(),
+        Grid("Auto", "Auto,*,Auto",
+            Label()
+                .Text("Visualization")
+                .HStart()
+                .GridColumn(0),
+            
+            Label()
+                .Text($"{State.CurrentTimeDisplay} / {State.DurationDisplay}")
+                .FontAttributes(FontAttributes.Bold)
+                .FontSize(14)
+                .HEnd()
+                .GridColumn(2)
+        ),
         Border(
-            State.WaveformData != null 
-                // If we have waveform data, create a component with the data
-                ? new WaveformWithData(
-                    Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f),
-                    Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed,
-                    State.PlaybackPosition,
-                    0.8f,
-                    State.WaveformData,
-                    80)
-                // Otherwise create the standard component without data
-                : new Waveform()
-                    .WaveColor(Theme.IsLightTheme ? Colors.DarkGreen.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-                    .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                    .Amplitude(0.8f)
-                    .PlaybackPosition(State.PlaybackPosition)
-                    .AutoGenerateWaveform(true)
-                    .SampleCount(400)
-                    .Height(80)
-                    .AudioId(State.CurrentSentenceIndex.ToString())
-        )        
+            // Use the Waveform component with proper AudioId for caching
+            new Waveform()
+                .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
+                .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
+                .Amplitude(0.8f)
+                .PlaybackPosition(State.PlaybackPosition)
+                .AutoGenerateWaveform(true) // Enable random waveform when no cached data exists
+                .SampleCount(400)
+                .Height(100)
+                .AudioId(State.CurrentSentenceIndex.ToString()) // Use the current index as the audio ID
+                .AudioDuration(State.AudioDuration) 
+                .PixelsPerSecond(120)
+                .UseScrollView(true)
+        )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
             .Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
             .HeightRequest(100)
+            .Padding(ApplicationTheme.Size160,0)
             .IsVisible(true)
-        ).Margin(20, 0)
-        .GridRow(1);
+        )
+            .Spacing(ApplicationTheme.Size160)
+            .Margin(20, 0)
+            .GridRow(1);
 
     /// <summary>
     /// Creates a visual node for the navigation footer containing controls for audio and navigation.
@@ -200,7 +233,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             });
             
             // Clear audio cache when loading new sentences
-            _audioStreamCache.Clear();
+            _audioCache.Clear();
             
             var sentences = await _shadowingService.GenerateSentencesAsync(
                 Props.Vocabulary.ID, 
@@ -248,9 +281,27 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentSentenceIndex--;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                s.WaveformData = null; // Clear waveform data so it regenerates for new sentence
+                
+                // Default time displays
+                s.CurrentTimeDisplay = "00:00.000";
+                s.DurationDisplay = "--:--.---";
+                
                 s.CurrentAudioStream = null; // Clear current audio stream
             });
+            
+            // Check if this sentence has cached audio info we can display right away
+            var currentSentence = State.Sentences[State.CurrentSentenceIndex];
+            if (_audioCache.TryGetValue(currentSentence.TargetLanguageText, out var cacheEntry))
+            {
+                // Restore cached duration display
+                SetState(s => {
+                    s.DurationDisplay = cacheEntry.DurationDisplay;
+                    s.AudioDuration = cacheEntry.Duration;
+                    s.WaveformData = cacheEntry.WaveformData;
+                });
+                
+                Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
+            }
         }
     }
 
@@ -267,9 +318,27 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentSentenceIndex++;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                s.WaveformData = null; // Clear waveform data so it regenerates for new sentence
+                
+                // Default time displays
+                s.CurrentTimeDisplay = "00:00.000";
+                s.DurationDisplay = "--:--.---";
+                
                 s.CurrentAudioStream = null; // Clear current audio stream
             });
+            
+            // Check if this sentence has cached audio info we can display right away
+            var currentSentence = State.Sentences[State.CurrentSentenceIndex];
+            if (_audioCache.TryGetValue(currentSentence.TargetLanguageText, out var cacheEntry))
+            {
+                // Restore cached duration display
+                SetState(s => {
+                    s.DurationDisplay = cacheEntry.DurationDisplay;
+                    s.AudioDuration = cacheEntry.Duration;
+                    s.WaveformData = cacheEntry.WaveformData;
+                });
+                
+                Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
+            }
         }
     }
 
@@ -305,65 +374,96 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             string sentenceText = sentence.TargetLanguageText;
             
             Stream audioStream = null;
+            AudioCacheEntry cacheEntry = null;
             
             // Check if audio is already in cache
-            if (_audioStreamCache.TryGetValue(sentenceText, out Stream cachedStream))
+            if (_audioCache.TryGetValue(sentenceText, out cacheEntry))
             {
                 // Use cached audio stream
-                cachedStream.Position = 0; // Reset position to beginning
-                audioStream = cachedStream;
-                Debug.WriteLine($"~~ Using cached audio for: {sentenceText}");
+                cacheEntry.AudioStream.Position = 0; // Reset position to beginning
+                audioStream = cacheEntry.AudioStream;
+                
+                // Immediately display cached duration info
+                SetState(s => {
+                    s.AudioDuration = cacheEntry.Duration;
+                    s.DurationDisplay = cacheEntry.DurationDisplay;
+                });
+                
+                Debug.WriteLine($"Using cached audio for: {sentenceText}");
             }
             else
             {
                 // Generate new audio stream if not in cache
                 audioStream = await _shadowingService.GenerateAudioAsync(sentenceText);
-                if (audioStream != null)
-                {
-                    // Add to cache for future use
-                    _audioStreamCache[sentenceText] = audioStream;
-                    Debug.WriteLine($"~~ Generated and cached new audio for: {sentenceText}");
-                }
-                else
+                if (audioStream == null)
                 {
                     SetState(s => s.IsBuffering = false);
                     return;
                 }
+                
+                Debug.WriteLine($"Generated new audio for: {sentenceText}");
             }
             
-            // Analyze the audio stream to extract waveform data
-            try
+            // Create the audio player
+            _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+            
+            // Capture audio duration for waveform scaling
+            double audioDuration = _audioPlayer.Duration;
+            string durationFormatted = FormatTimeDisplay(audioDuration);
+            Debug.WriteLine($"Audio duration: {audioDuration} seconds");
+            
+            // If this is a new audio stream, create a new cache entry
+            if (cacheEntry == null)
             {
-                // Clone the stream so we don't mess with the position of the original
-                MemoryStream memStream = new MemoryStream();
-                audioStream.Position = 0;
-                await audioStream.CopyToAsync(memStream);
-                memStream.Position = 0;
-                
-                // Extract waveform data from the audio stream
-                var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(memStream);
-                
-                // Reset the original stream position
-                audioStream.Position = 0;
-                
-                // Update state with the waveform data
-                SetState(s => 
+                cacheEntry = new AudioCacheEntry
                 {
-                    s.WaveformData = waveformData;
-                    s.CurrentAudioStream = audioStream;
-                });
-                
-                Debug.WriteLine($"~~ Extracted waveform data: {waveformData.Length} samples. Sample 200 is {waveformData[200]}");
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"~~ Error analyzing audio waveform: {ex.Message}");
-                // Continue even if waveform analysis fails
-                SetState(s => s.CurrentAudioStream = audioStream);
+                    AudioStream = audioStream,
+                    Duration = audioDuration,
+                    DurationDisplay = durationFormatted
+                };
+                _audioCache[sentenceText] = cacheEntry;
             }
             
-            // Play the audio using AudioManager.Current
-            _audioPlayer = AudioManager.Current.CreatePlayer(State.CurrentAudioStream);
+            // Analyze the audio stream to extract waveform data if not already cached
+            if (cacheEntry.WaveformData == null)
+            {
+                try
+                {
+                    // Clone the stream so we don't mess with the position of the original
+                    MemoryStream memStream = new MemoryStream();
+                    audioStream.Position = 0;
+                    await audioStream.CopyToAsync(memStream);
+                    memStream.Position = 0;
+                    
+                    // Extract waveform data from the audio stream
+                    var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(memStream);
+                    
+                    // Store waveform in cache
+                    cacheEntry.WaveformData = waveformData;
+                    
+                    // Reset the original stream position
+                    audioStream.Position = 0;
+                    
+                    Debug.WriteLine($"Extracted waveform data: {waveformData.Length} samples with duration {audioDuration}s");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error analyzing audio waveform: {ex.Message}");
+                    // Continue even if waveform analysis fails
+                }
+            }
+            
+            // Update state with audio info
+            SetState(s => 
+            {
+                s.WaveformData = cacheEntry.WaveformData;
+                s.CurrentAudioStream = audioStream;
+                s.AudioDuration = audioDuration;
+                s.DurationDisplay = durationFormatted;
+                s.CurrentTimeDisplay = "00:00.000"; // Reset current time display
+            });
+            
+            // Setup event handler and start playback
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
             
@@ -380,7 +480,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"~~ Error playing audio: {ex.Message}");
+            Debug.WriteLine($"Error playing audio: {ex.Message}");
             SetState(s => 
             {
                 s.IsAudioPlaying = false;
@@ -409,15 +509,39 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     private void UpdatePlaybackPosition()
     {
-        if (_audioPlayer == null || !_audioPlayer.IsPlaying)
+        if (_audioPlayer == null)
             return;
         
         // Update the position if we know the duration
         if (_audioPlayer.Duration > 0)
         {
+            // Calculate the position as a float between 0-1
             float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
-            SetState(s => s.PlaybackPosition = position);
+            
+            // Format time displays
+            string currentTime = FormatTimeDisplay(_audioPlayer.CurrentPosition);
+            string totalDuration = FormatTimeDisplay(_audioPlayer.Duration);
+            
+            SetState(s => {
+                s.PlaybackPosition = position;
+                s.CurrentTimeDisplay = currentTime;
+                s.DurationDisplay = totalDuration;
+            });
         }
+    }
+    
+    /// <summary>
+    /// Formats a time value in seconds to a mm:ss.ms display format.
+    /// </summary>
+    /// <param name="timeInSeconds">The time value in seconds.</param>
+    /// <returns>A formatted time string in mm:ss.ms format.</returns>
+    private string FormatTimeDisplay(double timeInSeconds)
+    {
+        if (timeInSeconds < 0)
+            return "--:--";
+            
+        TimeSpan time = TimeSpan.FromSeconds(timeInSeconds);
+        return $"{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
     }
 
     /// <summary>
@@ -484,11 +608,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         await StopAudio();
 
         // Clean up cached streams
-        foreach (var stream in _audioStreamCache.Values)
+        foreach (var entry in _audioCache.Values)
         {
-            stream?.Dispose();
+            entry.AudioStream?.Dispose();
         }
-        _audioStreamCache.Clear();
+        _audioCache.Clear();
 
         base.OnWillUnmount();
     }

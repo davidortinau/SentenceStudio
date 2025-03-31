@@ -71,6 +71,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.Height(80)
 					.AutoGenerateWaveform(false) // Don't auto-generate random data
 					.StreamHistoryItem(State.CurrentPlayingItem) // Use the real waveform data
+					.AudioDuration(_audioPlayer?.Duration ?? 0) // Use actual audio duration
+					.PixelsPerSecond(120) // 120 pixels per second gives good detail
+					.UseScrollView(true) // Enable horizontal scrolling
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
 			.StrokeThickness(1)
@@ -79,6 +82,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			.IsVisible(State.CurrentPlayingItem != null)
 		)
 		.Margin(20, 0)
+		.HStart() // Align the VStack to the left/start
 		.GridRow(1);
 
 	VisualNode RenderHistory() =>

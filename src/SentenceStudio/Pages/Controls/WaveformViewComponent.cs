@@ -1,3 +1,5 @@
+using MauiReactor.Compatibility;
+
 namespace SentenceStudio.Pages.Controls;
 
 /// <summary>
@@ -16,6 +18,9 @@ partial class Waveform : Component
     private string _audioId = string.Empty; // Used to track when audio source changes
     private StreamHistory _streamHistory;
     private bool _streamHistoryChanged;
+    private double _audioDuration = 0; // Duration of the audio in seconds
+    private double _pixelsPerSecond = 100; // Pixels per second of audio
+    private bool _useScrollView = true; // Whether to wrap in a ScrollView for long audio
 
     private MauiControls.GraphicsView _graphicsViewRef;
     
@@ -56,7 +61,7 @@ partial class Waveform : Component
     }
     
     /// <summary>
-    /// Sets whether to automatically generate a random waveform when mounted.
+    /// Sets whether to automatically generate a random waveform when no data is available.
     /// </summary>
     public Waveform AutoGenerateWaveform(bool autoGenerate)
     {
@@ -91,7 +96,8 @@ partial class Waveform : Component
         if (_audioId != audioId)
         {
             _audioId = audioId;
-            _drawable.Reset(); // Reset waveform when audio changes
+            // Don't reset waveform anymore, instead pass the ID to drawable
+            _drawable.AudioId = audioId;
         }
         return this;
     }
@@ -109,13 +115,70 @@ partial class Waveform : Component
         }
         return this;
     }
+    
+    /// <summary>
+    /// Sets the duration of the audio in seconds.
+    /// This is used to scale the waveform properly based on audio length.
+    /// </summary>
+    public Waveform AudioDuration(double duration)
+    {
+        _audioDuration = duration;
+        return this;
+    }
+    
+    /// <summary>
+    /// Sets how many pixels represent one second of audio.
+    /// Higher values mean more detailed but wider waveforms.
+    /// </summary>
+    public Waveform PixelsPerSecond(double pixelsPerSecond)
+    {
+        _pixelsPerSecond = pixelsPerSecond;
+        return this;
+    }
+    
+    /// <summary>
+    /// Sets whether to wrap the waveform in a ScrollView for horizontal scrolling.
+    /// </summary>
+    public Waveform UseScrollView(bool useScrollView)
+    {
+        _useScrollView = useScrollView;
+        return this;
+    }
 
     public override VisualNode Render()
     {
-        Debug.WriteLine($"~~ Waveform.Render() - Height: {_height}");
-        return new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
+        // Calculate the total width based on audio duration and pixels per second
+        float totalWidth = (float)(_audioDuration * _pixelsPerSecond);
+        
+        // If we have a valid duration and total width would be greater than usual,
+        // set explicit width to make the waveform scrollable
+        float widthRequest = (_audioDuration > 0) ? Math.Max(totalWidth, 300) : -1;
+        
+        var graphicsView = new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
             .Drawable(_drawable)
             .HeightRequest(_height);
+            
+        // Set width request if we have a valid audio duration
+        if (widthRequest > 0)
+        {
+            graphicsView = graphicsView.WidthRequest(widthRequest);
+        }
+        
+        // Wrap in scroll view if requested and we have a valid audio duration
+        if (_useScrollView && _audioDuration > 0)
+        {
+            return HScrollView(
+                    ContentView(graphicsView)
+                )
+                .Padding(0)
+                .HStart()
+                .HorizontalScrollBarVisibility(Microsoft.Maui.ScrollBarVisibility.Default)
+                .Orientation(Microsoft.Maui.ScrollOrientation.Horizontal);
+        }
+        else
+        {
+            return graphicsView;
+        }
     }
     
     protected override void OnMounted()
@@ -127,15 +190,18 @@ partial class Waveform : Component
         _drawable.PlayedColor = _playedColor;
         _drawable.Amplitude = _amplitude;
         _drawable.PlaybackPosition = _playbackPosition;
+        _drawable.AudioDuration = _audioDuration;
+        _drawable.PixelsPerSecond = _pixelsPerSecond;
         
         // Use StreamHistory waveform data if available
         if (_streamHistory != null && _streamHistory.IsWaveformAnalyzed)
         {
-            _drawable.UpdateWaveform(_streamHistory.WaveformData);
+            // Update waveform with data and duration if available
+            _drawable.UpdateWaveform(_streamHistory.WaveformData, _streamHistory.Duration);
             _streamHistoryChanged = false;
         }
-        // Generate a random waveform if requested and no StreamHistory data available
-        else if (_autoGenerate)
+        // Generate a random waveform if auto-generate is enabled and no data is available yet
+        else if (_autoGenerate && !_drawable.HasWaveformData)
         {
             _drawable.GenerateRandomWaveform(_sampleCount);
         }
@@ -156,11 +222,13 @@ partial class Waveform : Component
         _drawable.PlayedColor = _playedColor;
         _drawable.Amplitude = _amplitude;
         _drawable.PlaybackPosition = _playbackPosition;
+        _drawable.AudioDuration = _audioDuration;
+        _drawable.PixelsPerSecond = _pixelsPerSecond;
         
         // Update with StreamHistory data if it changed
         if (_streamHistoryChanged && _streamHistory != null && _streamHistory.IsWaveformAnalyzed)
         {
-            _drawable.UpdateWaveform(_streamHistory.WaveformData);
+            _drawable.UpdateWaveform(_streamHistory.WaveformData, _streamHistory.Duration);
             _streamHistoryChanged = false;
         }
         
@@ -178,9 +246,15 @@ partial class Waveform : Component
     /// Updates the waveform with the provided audio data.
     /// </summary>
     /// <param name="audioData">The audio sample data.</param>
-    public void UpdateWaveform(float[] audioData)
+    /// <param name="duration">The duration of the audio in seconds (optional).</param>
+    public void UpdateWaveform(float[] audioData, double duration = 0)
     {
-        _drawable.UpdateWaveform(audioData);
+        _drawable.UpdateWaveform(audioData, duration);
+        
+        if (duration > 0)
+        {
+            _audioDuration = duration;
+        }
         
         // Request a redraw
         if (MauiControls.Application.Current != null && _graphicsViewRef != null)
