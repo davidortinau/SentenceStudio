@@ -112,6 +112,7 @@ partial class Waveform : Component
 
     public override VisualNode Render()
     {
+        Debug.WriteLine($"~~ Waveform.Render() - Height: {_height}");
         return new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
             .Drawable(_drawable)
             .HeightRequest(_height);

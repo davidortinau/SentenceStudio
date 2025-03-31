@@ -46,6 +46,7 @@ partial class WaveformWithData : Component
 
     public override VisualNode Render()
     {
+        Debug.WriteLine($"~~ WaveformWithData.Render() - Height: {_height}");
         return new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
             .Drawable(_drawable)
             .HeightRequest(_height);

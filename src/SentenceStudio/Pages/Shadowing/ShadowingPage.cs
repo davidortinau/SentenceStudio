@@ -93,12 +93,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     80)
                 // Otherwise create the standard component without data
                 : new Waveform()
-                    .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
+                    .WaveColor(Theme.IsLightTheme ? Colors.DarkGreen.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                     .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
                     .Amplitude(0.8f)
                     .PlaybackPosition(State.PlaybackPosition)
                     .AutoGenerateWaveform(true)
-                    .SampleCount(150)
+                    .SampleCount(400)
                     .Height(80)
                     .AudioId(State.CurrentSentenceIndex.ToString())
         )        
@@ -312,7 +312,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Use cached audio stream
                 cachedStream.Position = 0; // Reset position to beginning
                 audioStream = cachedStream;
-                Debug.WriteLine($"Using cached audio for: {sentenceText}");
+                Debug.WriteLine($"~~ Using cached audio for: {sentenceText}");
             }
             else
             {
@@ -322,7 +322,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 {
                     // Add to cache for future use
                     _audioStreamCache[sentenceText] = audioStream;
-                    Debug.WriteLine($"Generated and cached new audio for: {sentenceText}");
+                    Debug.WriteLine($"~~ Generated and cached new audio for: {sentenceText}");
                 }
                 else
                 {
@@ -353,11 +353,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     s.CurrentAudioStream = audioStream;
                 });
                 
-                Debug.WriteLine($"Extracted waveform data: {waveformData.Length} samples");
+                Debug.WriteLine($"~~ Extracted waveform data: {waveformData.Length} samples. Sample 200 is {waveformData[200]}");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error analyzing audio waveform: {ex.Message}");
+                Debug.WriteLine($"~~ Error analyzing audio waveform: {ex.Message}");
                 // Continue even if waveform analysis fails
                 SetState(s => s.CurrentAudioStream = audioStream);
             }
@@ -380,7 +380,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error playing audio: {ex.Message}");
+            Debug.WriteLine($"~~ Error playing audio: {ex.Message}");
             SetState(s => 
             {
                 s.IsAudioPlaying = false;
