@@ -58,7 +58,7 @@ public class WaveformDrawable : IDrawable
     /// Used for preview purposes until actual audio data is processed.
     /// </summary>
     /// <param name="sampleCount">Number of samples to generate.</param>
-    public void GenerateRandomWaveform(int sampleCount = 100)
+    public void GenerateRandomWaveform(int sampleCount = 400)
     {
         // Only generate samples if we haven't already
         if (_randomSamplesGenerated && _audioSamples.Count > 0)
@@ -94,6 +94,7 @@ public class WaveformDrawable : IDrawable
     /// <param name="audioData">The audio sample data.</param>
     public void UpdateWaveform(float[] audioData)
     {
+        Debug.WriteLine($"Updating waveform with {audioData.Length} samples");
         if (audioData == null || audioData.Length == 0)
             return;
             
@@ -123,7 +124,7 @@ public class WaveformDrawable : IDrawable
         if (_audioSamples.Count == 0 && !_randomSamplesGenerated)
         {
             Debug.WriteLine("No audio samples available, generating random samples for preview");
-            GenerateRandomWaveform(100);
+            GenerateRandomWaveform();
             if (_audioSamples.Count == 0)
             {
                 return; // Safety check

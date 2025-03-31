@@ -11,7 +11,7 @@ partial class Waveform : Component
     private Color _playedColor = Colors.Orange;
     private float _playbackPosition = 0;
     private bool _autoGenerate = true;
-    private int _sampleCount = 100;
+    private int _sampleCount = 400;
     private int _height = 80;
     private string _audioId = string.Empty; // Used to track when audio source changes
     private StreamHistory _streamHistory;
@@ -190,7 +190,26 @@ partial class Waveform : Component
             });
         }
     }
-    
+
+    /// <summary>
+    /// Updates the playback position without recreating the whole waveform.
+    /// This is more efficient for frequent position updates during playback.
+    /// </summary>
+    /// <param name="position">The new playback position (0-1).</param>
+    public void UpdatePlaybackPosition(float position)
+    {
+        _drawable.PlaybackPosition = Math.Clamp(position, 0f, 1f);
+        
+        // Request a redraw on the UI thread
+        if (MauiControls.Application.Current != null && _graphicsViewRef != null)
+        {
+            MauiControls.Application.Current.Dispatcher.Dispatch(() => 
+            {
+                _graphicsViewRef?.Invalidate();
+            });
+        }
+    }
+
     /// <summary>
     /// Resets the waveform to generate new samples on next draw.
     /// Call this when switching to a different audio source.

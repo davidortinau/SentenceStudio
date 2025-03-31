@@ -63,6 +63,11 @@ class ShadowingPageState
     /// Gets or sets the URL or data for the current audio being played.
     /// </summary>
     public Stream CurrentAudioStream { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the waveform data for the current audio.
+    /// </summary>
+    public float[] WaveformData { get; set; }
 
     /// <summary>
     /// Gets or sets the playback mode.

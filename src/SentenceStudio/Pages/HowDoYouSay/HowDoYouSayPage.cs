@@ -232,7 +232,20 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// Update UI on main thread
 			MainThread.BeginInvokeOnMainThread(() =>
 			{
-				SetState(s => s.PlaybackPosition = position);
+				// First update the waveform directly for smooth animation
+				// var waveformComponent = FindByType<Waveform>();
+				// if (waveformComponent != null)
+				// {
+				// 	// Use the direct update method for smoother animation
+				// 	waveformComponent.UpdatePlaybackPosition(position);
+				// }
+				
+				// Also update state but less frequently to avoid excessive re-renders
+				// Only update state if position changed by at least 1%
+				// if (Math.Abs(State.PlaybackPosition - position) >= 0.01f)
+				// {
+					SetState(s => s.PlaybackPosition = position);
+				// }
 			});
 		}
 	}

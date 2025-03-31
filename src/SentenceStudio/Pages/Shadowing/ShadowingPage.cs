@@ -13,11 +13,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 {
     [Inject] ShadowingService _shadowingService;
     [Inject] UserActivityRepository _userActivityRepository;
-    
+    [Inject] AudioAnalyzer _audioAnalyzer;
+
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
     private IDispatcherTimer _playbackTimer;
-    
+
     /// <summary>
     /// Dictionary to cache audio streams by sentence text for reuse.
     /// </summary>
@@ -81,14 +82,25 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         .Text("Visualization")
         .HCenter(),
         Border(
-            new Waveform()
-                .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-                .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                .Amplitude(0.8f)
-                .PlaybackPosition(State.PlaybackPosition)
-                .AutoGenerateWaveform(true)
-                .SampleCount(150)
-                .Height(80)
+            State.WaveformData != null 
+                // If we have waveform data, create a component with the data
+                ? new WaveformWithData(
+                    Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f),
+                    Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed,
+                    State.PlaybackPosition,
+                    0.8f,
+                    State.WaveformData,
+                    80)
+                // Otherwise create the standard component without data
+                : new Waveform()
+                    .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
+                    .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
+                    .Amplitude(0.8f)
+                    .PlaybackPosition(State.PlaybackPosition)
+                    .AutoGenerateWaveform(true)
+                    .SampleCount(150)
+                    .Height(80)
+                    .AudioId(State.CurrentSentenceIndex.ToString())
         )        
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
@@ -236,7 +248,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentSentenceIndex--;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                // Don't clear the audio stream, it will be retrieved from cache if available
+                s.WaveformData = null; // Clear waveform data so it regenerates for new sentence
+                s.CurrentAudioStream = null; // Clear current audio stream
             });
         }
     }
@@ -254,7 +267,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentSentenceIndex++;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                // Don't clear the audio stream, it will be retrieved from cache if available
+                s.WaveformData = null; // Clear waveform data so it regenerates for new sentence
+                s.CurrentAudioStream = null; // Clear current audio stream
             });
         }
     }
@@ -290,23 +304,24 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             var sentence = State.Sentences[State.CurrentSentenceIndex];
             string sentenceText = sentence.TargetLanguageText;
             
+            Stream audioStream = null;
+            
             // Check if audio is already in cache
             if (_audioStreamCache.TryGetValue(sentenceText, out Stream cachedStream))
             {
                 // Use cached audio stream
                 cachedStream.Position = 0; // Reset position to beginning
-                SetState(s => s.CurrentAudioStream = cachedStream);
+                audioStream = cachedStream;
                 Debug.WriteLine($"Using cached audio for: {sentenceText}");
             }
             else
             {
                 // Generate new audio stream if not in cache
-                var stream = await _shadowingService.GenerateAudioAsync(sentenceText);
-                if (stream != null)
+                audioStream = await _shadowingService.GenerateAudioAsync(sentenceText);
+                if (audioStream != null)
                 {
                     // Add to cache for future use
-                    _audioStreamCache[sentenceText] = stream;
-                    SetState(s => s.CurrentAudioStream = stream);
+                    _audioStreamCache[sentenceText] = audioStream;
                     Debug.WriteLine($"Generated and cached new audio for: {sentenceText}");
                 }
                 else
@@ -316,7 +331,38 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 }
             }
             
-            // Play the audio using AudioManager.Current, just like HowDoYouSayPage
+            // Analyze the audio stream to extract waveform data
+            try
+            {
+                // Clone the stream so we don't mess with the position of the original
+                MemoryStream memStream = new MemoryStream();
+                audioStream.Position = 0;
+                await audioStream.CopyToAsync(memStream);
+                memStream.Position = 0;
+                
+                // Extract waveform data from the audio stream
+                var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(memStream);
+                
+                // Reset the original stream position
+                audioStream.Position = 0;
+                
+                // Update state with the waveform data
+                SetState(s => 
+                {
+                    s.WaveformData = waveformData;
+                    s.CurrentAudioStream = audioStream;
+                });
+                
+                Debug.WriteLine($"Extracted waveform data: {waveformData.Length} samples");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error analyzing audio waveform: {ex.Message}");
+                // Continue even if waveform analysis fails
+                SetState(s => s.CurrentAudioStream = audioStream);
+            }
+            
+            // Play the audio using AudioManager.Current
             _audioPlayer = AudioManager.Current.CreatePlayer(State.CurrentAudioStream);
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
