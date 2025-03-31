@@ -68,6 +68,16 @@ class ShadowingPageState
     /// Gets or sets the playback mode.
     /// </summary>
     public ShadowingPlayMode PlayMode { get; set; } = ShadowingPlayMode.Normal;
+    
+    /// <summary>
+    /// Gets or sets the current audio playback position (0 to 1).
+    /// </summary>
+    public float PlaybackPosition { get; set; } = 0f;
+    
+    /// <summary>
+    /// Gets or sets whether the waveform is visible.
+    /// </summary>
+    public bool ShowWaveform { get; set; } = true;
 
     /// <summary>
     /// Gets the current sentence text, or an empty string if none is available.
@@ -85,8 +95,11 @@ class ShadowingPageState
             ? Sentences[CurrentSentenceIndex].TargetLanguageText
             : string.Empty;
             
-public string CurrentSentencePronunciationNotes => 
-    Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
-            ? Sentences[CurrentSentenceIndex].PronunciationNotes
-            : string.Empty;
+    /// <summary>
+    /// Gets the current sentence pronunciation notes, or an empty string if none is available.
+    /// </summary>
+    public string CurrentSentencePronunciationNotes => 
+        Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
+                ? Sentences[CurrentSentenceIndex].PronunciationNotes
+                : string.Empty;
 }

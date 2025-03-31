@@ -161,6 +161,7 @@ public static class MauiProgram
 		services.AddSingleton<StorytellerService>();
 		services.AddSingleton<TranslationService>();
 		services.AddSingleton<ShadowingService>();
+		services.AddSingleton<AudioAnalyzer>();
 
 		// services.AddSingleton<AppShellModel>();
 

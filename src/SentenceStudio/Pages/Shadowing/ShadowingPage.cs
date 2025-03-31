@@ -1,5 +1,6 @@
 using MauiReactor.Shapes;
 using SentenceStudio.Pages.Dashboard;
+using SentenceStudio.Pages.Controls;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
 
@@ -15,6 +16,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
+    private IDispatcherTimer _playbackTimer;
     
     /// <summary>
     /// Dictionary to cache audio streams by sentence text for reuse.
@@ -29,8 +31,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         return ContentPage($"{_localize["Shadowing"]}",
             ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadSentences),
-            Grid(rows: "*, 80", columns: "*",
+            Grid(rows: "*, Auto, 80", columns: "*",
                 SentenceDisplay(),
+                WaveformDisplay(),
                 NavigationFooter(),
                 LoadingOverlay()
             )
@@ -60,13 +63,40 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
                 Label(State.CurrentSentencePronunciationNotes)
                     .Style((Style)Application.Current.Resources["Title3"])
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
+                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 20)
                     .HCenter()
-                    .TextColor(Colors.Gray)
+                    .TextColor(Colors.DarkGray)
                     .Margin(ApplicationTheme.Size160)
             )
             .Padding(ApplicationTheme.Size160)
         ).GridRow(0);
+
+    /// <summary>
+    /// Creates a visual node for the waveform visualization display.
+    /// </summary>
+    /// <returns>A visual node for displaying the audio waveform.</returns>
+    private VisualNode WaveformDisplay() =>
+    VStack(
+        Label()
+        .Text("Visualization")
+        .HCenter(),
+        Border(
+            new Waveform()
+                .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
+                .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
+                .Amplitude(0.8f)
+                .PlaybackPosition(State.PlaybackPosition)
+                .AutoGenerateWaveform(true)
+                .SampleCount(150)
+                .Height(80)
+        )        
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .StrokeThickness(1)
+            .Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
+            .HeightRequest(100)
+            .IsVisible(true)
+        ).Margin(20, 0)
+        .GridRow(1);
 
     /// <summary>
     /// Creates a visual node for the navigation footer containing controls for audio and navigation.
@@ -117,7 +147,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .Color(Colors.Black)
                 .WidthRequest(1)
                 .GridRow(0).GridColumn(5)
-        ).GridRow(1);
+        ).GridRow(2);
 
     /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
@@ -133,7 +163,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
-        .GridRowSpan(2)
+        .GridRowSpan(3)
         .IsVisible(State.IsBusy);
 
     /// <summary>
@@ -154,6 +184,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.Sentences.Clear();
                 s.CurrentSentenceIndex = 0;
                 s.CurrentAudioStream = null;
+                s.PlaybackPosition = 0;
             });
             
             // Clear audio cache when loading new sentences
@@ -204,6 +235,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             {
                 s.CurrentSentenceIndex--;
                 s.IsAudioPlaying = false;
+                s.PlaybackPosition = 0;
                 // Don't clear the audio stream, it will be retrieved from cache if available
             });
         }
@@ -221,6 +253,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             {
                 s.CurrentSentenceIndex++;
                 s.IsAudioPlaying = false;
+                s.PlaybackPosition = 0;
                 // Don't clear the audio stream, it will be retrieved from cache if available
             });
         }
@@ -288,11 +321,15 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
             
+            // Start playback tracking timer
+            StartPlaybackTimer();
+            
             // Update state
             SetState(s => 
             {
                 s.IsAudioPlaying = true;
                 s.IsBuffering = false;
+                s.PlaybackPosition = 0;
             });
         }
         catch (Exception ex)
@@ -305,13 +342,50 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             });
         }
     }
+    
+    /// <summary>
+    /// Starts the timer to track audio playback position.
+    /// </summary>
+    private void StartPlaybackTimer()
+    {
+        // Stop any existing timer
+        _playbackTimer?.Stop();
+        
+        // Create a new timer that ticks 10 times per second
+        _playbackTimer = Application.Current.Dispatcher.CreateTimer();
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(100);
+        _playbackTimer.Tick += (s, e) => UpdatePlaybackPosition();
+        _playbackTimer.Start();
+    }
+    
+    /// <summary>
+    /// Updates the playback position for the waveform display.
+    /// </summary>
+    private void UpdatePlaybackPosition()
+    {
+        if (_audioPlayer == null || !_audioPlayer.IsPlaying)
+            return;
+        
+        // Update the position if we know the duration
+        if (_audioPlayer.Duration > 0)
+        {
+            float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
+            SetState(s => s.PlaybackPosition = position);
+        }
+    }
 
     /// <summary>
     /// Event handler for when audio playback ends.
     /// </summary>
     private void OnAudioPlaybackEnded(object sender, EventArgs e)
     {
-        SetState(s => s.IsAudioPlaying = false);
+        _playbackTimer?.Stop();
+        
+        SetState(s => {
+            s.IsAudioPlaying = false;
+            s.PlaybackPosition = 1.0f; // Show as fully played
+        });
+        
         RewindAudioStream();
     }
 
@@ -331,6 +405,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     async Task StopAudio()
     {
+        _playbackTimer?.Stop();
+        
         if (_audioPlayer != null)
         {
             if (_audioPlayer.IsPlaying)
@@ -348,22 +424,26 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         
         await Task.CompletedTask;
     }
-    
+
     /// <summary>
     /// Performs cleanup when the component is unmounted.
     /// </summary>
-    // protected override async void OnUnmount()
-    // {
-    //     // Clean up audio resources when navigating away from the page
-    //     await StopAudio();
-        
-    //     // Clean up cached streams
-    //     foreach (var stream in _audioStreamCache.Values)
-    //     {
-    //         stream?.Dispose();
-    //     }
-    //     _audioStreamCache.Clear();
-        
-    //     base.OnUnmount();
-    // }
+    protected override async void OnWillUnmount()
+    {
+        // Stop and dispose the playback timer
+        _playbackTimer?.Stop();
+        _playbackTimer = null;
+
+        // Clean up audio resources when navigating away from the page
+        await StopAudio();
+
+        // Clean up cached streams
+        foreach (var stream in _audioStreamCache.Values)
+        {
+            stream?.Dispose();
+        }
+        _audioStreamCache.Clear();
+
+        base.OnWillUnmount();
+    }
 }
