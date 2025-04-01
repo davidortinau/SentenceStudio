@@ -3,7 +3,7 @@ using MauiReactor.Compatibility;
 namespace SentenceStudio.Pages.Controls;
 
 /// <summary>
-/// MauiReactor component for audio waveform visualization using GraphicsView.
+/// MauiReactor component for audio waveform visualization with integrated timescale using GraphicsView.
 /// </summary>
 partial class Waveform : Component
 {
@@ -11,6 +11,8 @@ partial class Waveform : Component
     private float _amplitude = 0.7f;
     private Color _waveColor = Colors.SteelBlue;
     private Color _playedColor = Colors.Orange;
+    private Color _tickColor = Colors.Gray;
+    private Color _textColor = Colors.Gray;
     private float _playbackPosition = 0;
     private bool _autoGenerate = true;
     private int _sampleCount = 400;
@@ -20,11 +22,14 @@ partial class Waveform : Component
     private bool _streamHistoryChanged;
     private double _audioDuration = 0; // Duration of the audio in seconds
     private double _pixelsPerSecond = 100; // Pixels per second of audio
+    private bool _showTimeScale = false; // Whether to show the timescale
 
     private MauiControls.GraphicsView _graphicsViewRef;
     
+    // === Waveform Properties ===
+    
     /// <summary>
-    /// Gets or sets the amplitude multiplier for the waveform.
+    /// Sets the amplitude multiplier for the waveform.
     /// </summary>
     public Waveform Amplitude(float amplitude)
     {
@@ -33,7 +38,7 @@ partial class Waveform : Component
     }
     
     /// <summary>
-    /// Gets or sets the color of the waveform.
+    /// Sets the color of the waveform.
     /// </summary>
     public Waveform WaveColor(Color color)
     {
@@ -42,7 +47,7 @@ partial class Waveform : Component
     }
     
     /// <summary>
-    /// Gets or sets the color of the played portion of the waveform.
+    /// Sets the color of the played portion of the waveform.
     /// </summary>
     public Waveform PlayedColor(Color color)
     {
@@ -51,7 +56,7 @@ partial class Waveform : Component
     }
     
     /// <summary>
-    /// Gets or sets the current playback position as a value between 0 and 1.
+    /// Sets the current playback position as a value between 0 and 1.
     /// </summary>
     public Waveform PlaybackPosition(float position)
     {
@@ -134,11 +139,41 @@ partial class Waveform : Component
         _pixelsPerSecond = pixelsPerSecond;
         return this;
     }
+    
+    // === TimeScale Properties ===
+    
+    /// <summary>
+    /// Sets whether to show the timescale.
+    /// </summary>
+    public Waveform ShowTimeScale(bool show)
+    {
+        _showTimeScale = show;
+        return this;
+    }
+    
+    /// <summary>
+    /// Sets the color of tick marks on the time scale.
+    /// </summary>
+    public Waveform TickColor(Color color)
+    {
+        _tickColor = color;
+        return this;
+    }
+    
+    /// <summary>
+    /// Sets the color of text labels on the time scale.
+    /// </summary>
+    public Waveform TextColor(Color color)
+    {
+        _textColor = color;
+        return this;
+    }
 
     public override VisualNode Render()
     {
         // Calculate the total width based on audio duration and pixels per second
-        float totalWidth = (float)(_audioDuration * _pixelsPerSecond);
+        // This ensures a minimum of 60 seconds (1 minute) is shown
+        float totalWidth = _drawable.TotalWidth;
         
         // If we have a valid duration and total width would be greater than usual,
         // set explicit width to make the waveform scrollable
@@ -172,6 +207,9 @@ partial class Waveform : Component
         _drawable.PixelsPerSecond = _pixelsPerSecond;
         _drawable.AutoGenerateWaveform = _autoGenerate;
         _drawable.SampleCount = _sampleCount;
+        _drawable.ShowTimeScale = _showTimeScale;
+        _drawable.TickColor = _tickColor;
+        _drawable.TextColor = _textColor;
         
         // Use StreamHistory waveform data if available
         if (_streamHistory != null && _streamHistory.IsWaveformAnalyzed)
@@ -206,6 +244,9 @@ partial class Waveform : Component
         _drawable.PixelsPerSecond = _pixelsPerSecond;
         _drawable.AutoGenerateWaveform = _autoGenerate;
         _drawable.SampleCount = _sampleCount;
+        _drawable.ShowTimeScale = _showTimeScale;
+        _drawable.TickColor = _tickColor;
+        _drawable.TextColor = _textColor;
         
         // Update with StreamHistory data if it changed
         if (_streamHistoryChanged && _streamHistory != null && _streamHistory.IsWaveformAnalyzed)

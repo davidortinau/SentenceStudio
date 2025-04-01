@@ -6,10 +6,11 @@ using System.Diagnostics;
 namespace SentenceStudio.Pages.Controls;
 
 /// <summary>
-/// A custom drawable that renders an audio waveform visualization.
+/// A custom drawable that renders an audio waveform visualization with timescale.
 /// </summary>
 public class WaveformDrawable : IDrawable
 {
+    // Waveform properties
     private readonly List<float> _audioSamples = new();
     private float _playbackPosition = 0;
     private readonly Random _random = new(42); // Use fixed seed for consistent random generation
@@ -22,6 +23,11 @@ public class WaveformDrawable : IDrawable
     private string _currentAudioId = string.Empty; // ID for the current audio being displayed
     private bool _autoGenerateWaveform = true; // Default to auto-generating waveform
     private int _sampleCount = 400; // Default sample count for random waveforms
+    
+    // TimeScale properties
+    private Color _tickColor = Colors.Gray;
+    private Color _textColor = Colors.Gray;
+    private bool _showTimeScale = false; // Whether to show timescale
 
     // Cache for storing waveform data by audio ID
     private readonly Dictionary<string, (float[] Samples, double Duration)> _waveformCache = new();
@@ -51,6 +57,33 @@ public class WaveformDrawable : IDrawable
     { 
         get => _amplitude;
         set => _amplitude = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the color of tick marks on the time scale.
+    /// </summary>
+    public Color TickColor
+    {
+        get => _tickColor;
+        set => _tickColor = value;
+    }
+    
+    /// <summary>
+    /// Gets or sets the color of text labels on the time scale.
+    /// </summary>
+    public Color TextColor
+    {
+        get => _textColor;
+        set => _textColor = value;
+    }
+    
+    /// <summary>
+    /// Gets or sets whether to show the time scale.
+    /// </summary>
+    public bool ShowTimeScale
+    {
+        get => _showTimeScale;
+        set => _showTimeScale = value;
     }
 
     /// <summary>
@@ -117,8 +150,9 @@ public class WaveformDrawable : IDrawable
 
     /// <summary>
     /// Calculates the total width of the waveform based on audio duration and scale.
+    /// Ensures a minimum of 60 seconds (1 minute) is shown.
     /// </summary>
-    public float TotalWidth => (float)(_audioDuration * _pixelsPerSecond);
+    public float TotalWidth => (float)(Math.Max(_audioDuration, 60) * _pixelsPerSecond);
 
     /// <summary>
     /// Loads cached waveform data for the current audio ID if available.
@@ -252,6 +286,31 @@ public class WaveformDrawable : IDrawable
     /// <param name="dirtyRect">The region that needs to be redrawn.</param>
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
+        float height = dirtyRect.Height;
+        float width = dirtyRect.Width;
+        
+        // Determine time scale height - about 30% of total height when enabled, or 0 if disabled
+        float timeScaleHeight = _showTimeScale ? Math.Min(30, height * 0.3f) : 0;
+        
+        // If time scale is enabled, draw it first
+        if (_showTimeScale)
+        {
+            DrawTimeScale(canvas, new RectF(dirtyRect.X, dirtyRect.Y, dirtyRect.Width, timeScaleHeight));
+        }
+
+        // Calculate the waveform area
+        float waveformHeight = height;// - timeScaleHeight;
+        float waveformY = dirtyRect.Y;// + timeScaleHeight;
+        
+        // Draw the waveform in the remaining space
+        DrawWaveform(canvas, new RectF(dirtyRect.X, waveformY, dirtyRect.Width, waveformHeight));
+    }
+    
+    /// <summary>
+    /// Draws just the waveform part of the visualization.
+    /// </summary>
+    private void DrawWaveform(ICanvas canvas, RectF dirtyRect)
+    {
         // If we have no samples and auto-generation is enabled, generate random ones
         if (_audioSamples.Count == 0 && !_randomSamplesGenerated && _autoGenerateWaveform)
         {
@@ -270,7 +329,7 @@ public class WaveformDrawable : IDrawable
 
         float height = dirtyRect.Height;
         float width = dirtyRect.Width;
-        float centerY = height / 2;
+        float centerY = dirtyRect.Y + (height / 2);
         
         // Calculate total width based on audio duration and scale
         float audioWidth;
@@ -289,7 +348,7 @@ public class WaveformDrawable : IDrawable
         // Always draw the midline across the entire container/dirtyRect width
         canvas.StrokeColor = Colors.Gray.WithAlpha(0.3f);
         canvas.StrokeSize = 1;
-        canvas.DrawLine(0, centerY, width, centerY);
+        canvas.DrawLine(dirtyRect.X, centerY, dirtyRect.X + width, centerY);
         
         // Calculate bar width based on available samples
         float barWidth = audioWidth / _audioSamples.Count;
@@ -304,15 +363,15 @@ public class WaveformDrawable : IDrawable
 
         for (int i = 0; i < _audioSamples.Count; i++)
         {
-            float x = i * (barWidth + barSpacing);
-            float amplitude = _audioSamples[i] * centerY * _amplitude;
+            float x = dirtyRect.X + (i * (barWidth + barSpacing));
+            float amplitude = _audioSamples[i] * (height / 2) * _amplitude;
             
             // Skip rendering bars outside the visible area
             if (x > dirtyRect.Width + dirtyRect.X || x + barWidth < dirtyRect.X)
                 continue;
                 
             // Set bar color based on playback position - compare with the sample position
-            bool hasBeenPlayed = x <= playbackX;
+            bool hasBeenPlayed = x <= playbackX + dirtyRect.X;
             canvas.FillColor = hasBeenPlayed ? _playedColor : _waveColor;
             
             // Draw top bar (mirror of bottom bar)
@@ -321,6 +380,73 @@ public class WaveformDrawable : IDrawable
             
             // Draw bottom bar
             canvas.FillRectangle(x, centerY, barWidth, barHeight);
+        }
+    }
+    
+    /// <summary>
+    /// Draws the time scale portion of the visualization.
+    /// </summary>
+    private void DrawTimeScale(ICanvas canvas, RectF dirtyRect)
+    {
+        float height = dirtyRect.Height;
+        float width = dirtyRect.Width;
+        
+        // Calculate how many seconds to display based on the visible width
+        int secondsToShow = (int)Math.Ceiling(width / _pixelsPerSecond);
+        
+        // Ensure we show at least the full audio duration or 60 seconds (1 minute), whichever is larger
+        secondsToShow = Math.Max(secondsToShow, (int)Math.Ceiling(Math.Max(_audioDuration, 60)));
+        
+        // For each full second
+        for (int second = 0; second <= secondsToShow; second++)
+        {
+            float x = dirtyRect.X + (float)(second * _pixelsPerSecond);
+            
+            // Skip if outside visible area
+            if (x < dirtyRect.X - 50 || x > dirtyRect.Right + 50)
+                continue;
+                
+            // Draw second marker (full height tick + text)
+            canvas.StrokeColor = _tickColor;
+            canvas.StrokeSize = 2;
+            canvas.DrawLine(x, dirtyRect.Y, x, dirtyRect.Y + height * 0.5f);
+            
+            // Add text label for seconds
+            canvas.FontSize = 10;
+            canvas.FontColor = _textColor;
+            canvas.DrawString(second.ToString(), x + 3, dirtyRect.Y + height * 0.3f, HorizontalAlignment.Left);
+            
+            // Draw half-second marker
+            if (second < secondsToShow)
+            {
+                float halfSecondX = dirtyRect.X + (float)((second + 0.5) * _pixelsPerSecond);
+                
+                // Skip if outside visible area
+                if (halfSecondX < dirtyRect.X - 10 || halfSecondX > dirtyRect.Right + 10)
+                    continue;
+                    
+                canvas.StrokeColor = _tickColor.WithAlpha(0.8f);
+                canvas.StrokeSize = 1.5f;
+                canvas.DrawLine(halfSecondX, dirtyRect.Y, halfSecondX, dirtyRect.Y + height * 0.4f);
+            }
+            
+            // Draw 1/10 second markers
+            for (int tenth = 1; tenth <= 9; tenth++)
+            {
+                // Skip the half-second mark as we already drew it
+                if (tenth == 5)
+                    continue;
+                    
+                float tenthSecondX = dirtyRect.X + (float)((second + tenth * 0.1) * _pixelsPerSecond);
+                
+                // Skip if outside visible area
+                if (tenthSecondX < dirtyRect.X - 10 || tenthSecondX > dirtyRect.Right + 10)
+                    continue;
+                    
+                canvas.StrokeColor = _tickColor.WithAlpha(0.5f);
+                canvas.StrokeSize = 1;
+                canvas.DrawLine(tenthSecondX, dirtyRect.Y, tenthSecondX, dirtyRect.Y + height * 0.25f);
+            }
         }
     }
 

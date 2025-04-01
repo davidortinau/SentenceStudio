@@ -119,15 +119,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Border(
             HScrollView(
 
-                Grid("100", "*", // Row definitions: 30px for TimeScale, 70px for Waveform
-                                   // Time scale showing 1/10 second increments, half seconds, and full seconds
-                    new TimeScale()
-                        .TickColor(Theme.IsLightTheme ? Colors.Gray : Colors.Silver)
-                        .TextColor(Theme.IsLightTheme ? Colors.DarkSlateGray : Colors.Silver)
-                        .AudioDuration(State.AudioDuration)
-                        .PixelsPerSecond(120),
+                Grid("100", "*", 
 
-                    // Use the Waveform component with proper AudioId for caching
                     new Waveform()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                         .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
@@ -138,6 +131,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .AudioId(State.CurrentSentenceIndex.ToString()) // Use the current index as the audio ID
                         .AudioDuration(State.AudioDuration)
                         .PixelsPerSecond(120)
+                        .ShowTimeScale(true)
                 )
                 // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
 
