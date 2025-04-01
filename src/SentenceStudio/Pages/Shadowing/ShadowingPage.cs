@@ -75,21 +75,18 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         ScrollView(
             VStack(spacing: ApplicationTheme.Size160,
                 Label(State.CurrentSentenceTranslation)
-                    .Style((Style)Application.Current.Resources["Title2"])
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 24 : 32)
+                    .ThemeKey("LargeTitle")
                     .HCenter()
                     .Margin(ApplicationTheme.Size160),
                     
                 Label(State.CurrentSentenceText)
-                    .Style((Style)Application.Current.Resources["Title3"])
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
+                    .ThemeKey("Title3")
                     .HCenter()
                     .TextColor(Colors.Gray)
                     .Margin(ApplicationTheme.Size160),
 
                 Label(State.CurrentSentencePronunciationNotes)
-                    .Style((Style)Application.Current.Resources["Title3"])
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 20)
+                    .ThemeKey("Title3")
                     .HCenter()
                     .TextColor(Colors.DarkGray)
                     .Margin(ApplicationTheme.Size160)
@@ -105,15 +102,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     VStack(
         Grid("Auto", "Auto,*,Auto",
             Label()
-                .Text("Visualization")
-                .HStart()
-                .GridColumn(0),
-            
-            Label()
                 .Text($"{State.CurrentTimeDisplay} / {State.DurationDisplay}")
                 .FontAttributes(FontAttributes.Bold)
                 .FontSize(14)
-                .HEnd()
+                .HStart()
                 .GridColumn(2)
         ),
         Border(
@@ -214,22 +206,27 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .HEnd()
                     .Background(Colors.Transparent)
                     .ShowSeparator(true)
-                    .SegmentCornerRadius(8)
+                    .SegmentCornerRadius(0)
                     .Stroke(ApplicationTheme.Gray300)
                     .SegmentWidth(40)
                     .SegmentHeight(44)
-                    .SelectedIndex(GetPlaybackSpeedIndex())
-                    // .Margin(new Thickness(0, 8, 0, 0))
+                    .Margin(0,0,12,0)
+                    .SelectionIndicatorSettings(
+                        new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
+                        {
+                            SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
+                        }
+                    )
                     .SelectedIndex(State.SelectedSpeedIndex)
                     .OnSelectionChanged((s, e) => {
                         State.SelectedSpeedIndex = e.NewIndex;
                         switch (e.NewIndex)
                         {
                             case 0:
-                                SetState(s => s.PlaybackSpeed = 0.5f);
+                                SetState(s => s.PlaybackSpeed = 0.6f);
                                 break;
                             case 1:
-                                SetState(s => s.PlaybackSpeed = 0.75f);
+                                SetState(s => s.PlaybackSpeed = 0.8f);
                                 break;
                             case 2:
                                 SetState(s => s.PlaybackSpeed = 1.0f);
@@ -438,7 +435,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             string sentenceText = sentence.TargetLanguageText;
             
             // Create a cache key that includes the sentence and the speed multiplier
-            string cacheKey = $"{sentenceText}_{State.PlaybackSpeed}";
+            string cacheKey = $"{sentenceText}";
             
             Stream audioStream = null;
             AudioCacheEntry cacheEntry = null;
@@ -463,8 +460,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Generate new audio stream if not in cache, passing the current speed multiplier
                 audioStream = await _shadowingService.GenerateAudioAsync(
                     sentenceText, 
-                    "echo", // Default voice
-                    State.PlaybackSpeed); // Pass the selected speed
+                    "echo" // Default voice
+                    ); // Pass the selected speed
                 
                 if (audioStream == null)
                 {
@@ -476,6 +473,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             
             // Create the audio player
             _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+            _audioPlayer.Speed = State.PlaybackSpeed; // Set the playback speed based on the selected speed
             
             // Capture audio duration for waveform scaling
             double audioDuration = _audioPlayer.Duration;

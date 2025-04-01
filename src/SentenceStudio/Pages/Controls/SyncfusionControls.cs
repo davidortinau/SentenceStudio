@@ -198,6 +198,24 @@ partial class SfSegmentItem
 
 }
 
+// [Scaffold(typeof(Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings))]
+// partial class SelectionIndicatorSettings
+// {
+
+// }
+
+// [Scaffold(typeof(Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement))]
+// partial class SelectionIndicatorPlacement
+// {
+
+// }
+
+// [Scaffold(typeof(Syncfusion.Maui.Toolkit.SegmentedControl.SfSegmentedControlStyles))]
+// partial class SfSegmentedControlStyles
+// {
+
+// }
+
 [Scaffold(typeof(Syncfusion.Maui.Toolkit.Charts.ChartBase))]
 partial class ChartBase
 {
