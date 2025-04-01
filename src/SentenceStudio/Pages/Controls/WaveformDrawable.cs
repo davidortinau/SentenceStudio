@@ -1,6 +1,7 @@
 using Microsoft.Maui.Graphics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -19,6 +20,8 @@ public class WaveformDrawable : IDrawable
     private double _audioDuration = 0; // Duration of audio in seconds
     private double _pixelsPerSecond = 100; // Default scale: 100 pixels per second
     private string _currentAudioId = string.Empty; // ID for the current audio being displayed
+    private bool _autoGenerateWaveform = true; // Default to auto-generating waveform
+    private int _sampleCount = 400; // Default sample count for random waveforms
 
     // Cache for storing waveform data by audio ID
     private readonly Dictionary<string, (float[] Samples, double Duration)> _waveformCache = new();
@@ -95,6 +98,24 @@ public class WaveformDrawable : IDrawable
     }
 
     /// <summary>
+    /// Gets or sets whether the waveform should be automatically generated when no data is available.
+    /// </summary>
+    public bool AutoGenerateWaveform
+    {
+        get => _autoGenerateWaveform;
+        set => _autoGenerateWaveform = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the number of samples to generate for random waveforms.
+    /// </summary>
+    public int SampleCount
+    {
+        get => _sampleCount;
+        set => _sampleCount = Math.Max(10, value); // Ensure at least 10 samples
+    }
+
+    /// <summary>
     /// Calculates the total width of the waveform based on audio duration and scale.
     /// </summary>
     public float TotalWidth => (float)(_audioDuration * _pixelsPerSecond);
@@ -127,9 +148,15 @@ public class WaveformDrawable : IDrawable
     /// Generates a random waveform with the specified number of samples.
     /// Used for preview purposes until actual audio data is processed.
     /// </summary>
-    /// <param name="sampleCount">Number of samples to generate.</param>
-    public void GenerateRandomWaveform(int sampleCount = 400)
+    /// <param name="sampleCount">Number of samples to generate. Defaults to the SampleCount property value.</param>
+    public void GenerateRandomWaveform(int sampleCount = 0)
     {
+        // If no sample count is provided, use the property value
+        if (sampleCount <= 0)
+        {
+            sampleCount = _sampleCount;
+        }
+        
         // If we have a valid audio ID, try to load from cache first
         if (!string.IsNullOrEmpty(_currentAudioId) && _waveformCache.ContainsKey(_currentAudioId))
         {
@@ -225,15 +252,20 @@ public class WaveformDrawable : IDrawable
     /// <param name="dirtyRect">The region that needs to be redrawn.</param>
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
-        // If we have no samples, generate some random ones so something is visible
-        if (_audioSamples.Count == 0 && !_randomSamplesGenerated)
+        // If we have no samples and auto-generation is enabled, generate random ones
+        if (_audioSamples.Count == 0 && !_randomSamplesGenerated && _autoGenerateWaveform)
         {
             Debug.WriteLine("No audio samples available, generating random samples for preview");
-            GenerateRandomWaveform();
+            GenerateRandomWaveform(_sampleCount);
             if (_audioSamples.Count == 0)
             {
                 return; // Safety check
             }
+        }
+        else if (_audioSamples.Count == 0)
+        {
+            // No samples and auto-generation is disabled, nothing to draw
+            return;
         }
 
         float height = dirtyRect.Height;

@@ -14,13 +14,12 @@ partial class Waveform : Component
     private float _playbackPosition = 0;
     private bool _autoGenerate = true;
     private int _sampleCount = 400;
-    private int _height = 80;
+    private int _height = 100;
     private string _audioId = string.Empty; // Used to track when audio source changes
     private StreamHistory _streamHistory;
     private bool _streamHistoryChanged;
     private double _audioDuration = 0; // Duration of the audio in seconds
     private double _pixelsPerSecond = 100; // Pixels per second of audio
-    private bool _useScrollView = true; // Whether to wrap in a ScrollView for long audio
 
     private MauiControls.GraphicsView _graphicsViewRef;
     
@@ -135,15 +134,6 @@ partial class Waveform : Component
         _pixelsPerSecond = pixelsPerSecond;
         return this;
     }
-    
-    /// <summary>
-    /// Sets whether to wrap the waveform in a ScrollView for horizontal scrolling.
-    /// </summary>
-    public Waveform UseScrollView(bool useScrollView)
-    {
-        _useScrollView = useScrollView;
-        return this;
-    }
 
     public override VisualNode Render()
     {
@@ -153,10 +143,12 @@ partial class Waveform : Component
         // If we have a valid duration and total width would be greater than usual,
         // set explicit width to make the waveform scrollable
         float widthRequest = (_audioDuration > 0) ? Math.Max(totalWidth, 300) : -1;
-        
+
         var graphicsView = new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
             .Drawable(_drawable)
-            .HeightRequest(_height);
+            .HeightRequest(_height)
+            .HStart()
+            .VCenter();
             
         // Set width request if we have a valid audio duration
         if (widthRequest > 0)
@@ -164,21 +156,7 @@ partial class Waveform : Component
             graphicsView = graphicsView.WidthRequest(widthRequest);
         }
         
-        // Wrap in scroll view if requested and we have a valid audio duration
-        if (_useScrollView && _audioDuration > 0)
-        {
-            return HScrollView(
-                    ContentView(graphicsView)
-                )
-                .Padding(0)
-                .HStart()
-                .HorizontalScrollBarVisibility(Microsoft.Maui.ScrollBarVisibility.Default)
-                .Orientation(Microsoft.Maui.ScrollOrientation.Horizontal);
-        }
-        else
-        {
-            return graphicsView;
-        }
+        return graphicsView;
     }
     
     protected override void OnMounted()
@@ -192,6 +170,8 @@ partial class Waveform : Component
         _drawable.PlaybackPosition = _playbackPosition;
         _drawable.AudioDuration = _audioDuration;
         _drawable.PixelsPerSecond = _pixelsPerSecond;
+        _drawable.AutoGenerateWaveform = _autoGenerate;
+        _drawable.SampleCount = _sampleCount;
         
         // Use StreamHistory waveform data if available
         if (_streamHistory != null && _streamHistory.IsWaveformAnalyzed)
@@ -224,6 +204,8 @@ partial class Waveform : Component
         _drawable.PlaybackPosition = _playbackPosition;
         _drawable.AudioDuration = _audioDuration;
         _drawable.PixelsPerSecond = _pixelsPerSecond;
+        _drawable.AutoGenerateWaveform = _autoGenerate;
+        _drawable.SampleCount = _sampleCount;
         
         // Update with StreamHistory data if it changed
         if (_streamHistoryChanged && _streamHistory != null && _streamHistory.IsWaveformAnalyzed)

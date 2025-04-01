@@ -1,8 +1,7 @@
 using MauiReactor.Shapes;
 using SentenceStudio.Pages.Dashboard;
-using SentenceStudio.Pages.Controls;
 using Plugin.Maui.Audio;
-using System.Collections.ObjectModel;
+using MauiReactor.Compatibility;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -118,25 +117,39 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .GridColumn(2)
         ),
         Border(
-            // Use the Waveform component with proper AudioId for caching
-            new Waveform()
-                .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-                .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                .Amplitude(0.8f)
-                .PlaybackPosition(State.PlaybackPosition)
-                .AutoGenerateWaveform(true) // Enable random waveform when no cached data exists
-                .SampleCount(400)
-                .Height(100)
-                .AudioId(State.CurrentSentenceIndex.ToString()) // Use the current index as the audio ID
-                .AudioDuration(State.AudioDuration) 
-                .PixelsPerSecond(120)
-                .UseScrollView(true)
+            HScrollView(
+
+                Grid("100", "*", // Row definitions: 30px for TimeScale, 70px for Waveform
+                                   // Time scale showing 1/10 second increments, half seconds, and full seconds
+                    new TimeScale()
+                        .TickColor(Theme.IsLightTheme ? Colors.Gray : Colors.Silver)
+                        .TextColor(Theme.IsLightTheme ? Colors.DarkSlateGray : Colors.Silver)
+                        .AudioDuration(State.AudioDuration)
+                        .PixelsPerSecond(120),
+
+                    // Use the Waveform component with proper AudioId for caching
+                    new Waveform()
+                        .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
+                        .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
+                        .Amplitude(0.8f)
+                        .PlaybackPosition(State.PlaybackPosition)
+                        .AutoGenerateWaveform(true) // Enable random waveform when no cached data exists
+                        .SampleCount(400)
+                        .AudioId(State.CurrentSentenceIndex.ToString()) // Use the current index as the audio ID
+                        .AudioDuration(State.AudioDuration)
+                        .PixelsPerSecond(120)
+                )
+                // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
+
+            )
+            .Padding(0)
+            .VerticalScrollBarVisibility(ScrollBarVisibility.Never)
         )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
             .Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
             .HeightRequest(100)
-            .Padding(ApplicationTheme.Size160,0)
+            .Padding(ApplicationTheme.Size160, 0)
             .IsVisible(true)
         )
             .Spacing(ApplicationTheme.Size160)

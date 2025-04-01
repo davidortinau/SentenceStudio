@@ -73,7 +73,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.StreamHistoryItem(State.CurrentPlayingItem) // Use the real waveform data
 					.AudioDuration(_audioPlayer?.Duration ?? 0) // Use actual audio duration
 					.PixelsPerSecond(120) // 120 pixels per second gives good detail
-					.UseScrollView(true) // Enable horizontal scrolling
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
 			.StrokeThickness(1)
