@@ -100,13 +100,13 @@ public class ShadowingService
     /// <param name="voice">The voice to use for the audio (default is "echo").</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An audio stream.</returns>
-    public async Task<Stream> GenerateAudioAsync(string text, string voice = "echo", CancellationToken cancellationToken = default)
+    public async Task<Stream> GenerateAudioAsync(string text, string voice = "echo", float speed = 1.0f, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
         try
         {
-            return await _aiService.TextToSpeechAsync(text, voice);
+            return await _aiService.TextToSpeechAsync(text, voice, speed);
         }
         catch (Exception ex)
         {

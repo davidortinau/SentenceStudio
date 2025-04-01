@@ -145,6 +145,30 @@ class ApplicationTheme : Theme
 		Size = Size240
 	};
 
+	public static FontImageSource IconSpeedVerySlow { get; } = new FontImageSource
+	{
+		Glyph = FluentUI.animal_turtle_24_regular,
+		FontFamily = FluentUI.FontFamily,
+		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+		Size = IconSize
+	};
+
+	public static FontImageSource IconSpeedSlow { get; } = new FontImageSource
+	{
+		Glyph = FluentUI.animal_rabbit_24_regular,
+		FontFamily = FluentUI.FontFamily,
+		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+		Size = IconSize
+	};
+
+	public static FontImageSource IconSpeedNormal { get; } = new FontImageSource
+	{
+		Glyph = FluentUI.animal_cat_24_regular,
+		FontFamily = FluentUI.FontFamily,
+		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+		Size = IconSize
+	};
+
     protected override void OnApply()
     {
         SfTextInputLayoutStyles.Default = _ => _

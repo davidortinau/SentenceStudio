@@ -20,13 +20,13 @@ public class AIClient
         _image = new ImageClient("gpt-4o", _apiKey);
     }
 
-    public async Task<Stream> TextToSpeechAsync(string text, string voice)
+    public async Task<Stream> TextToSpeechAsync(string text, string voice, float speed = 1.0f)
     {
         text = text.Trim();
         try
         {
             BinaryData speech = await _audio.GenerateSpeechAsync(text, GeneratedSpeechVoice.Echo, new SpeechGenerationOptions{
-                 SpeedRatio = 1.0f
+                 SpeedRatio = speed
             });
 
             // using FileStream stream = File.OpenWrite($"{Guid.NewGuid()}.mp3");

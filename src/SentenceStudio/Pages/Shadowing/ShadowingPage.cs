@@ -74,13 +74,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private VisualNode SentenceDisplay() =>
         ScrollView(
             VStack(spacing: ApplicationTheme.Size160,
-                Label(State.CurrentSentenceText)
+                Label(State.CurrentSentenceTranslation)
                     .Style((Style)Application.Current.Resources["Title2"])
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 24 : 32)
                     .HCenter()
                     .Margin(ApplicationTheme.Size160),
                     
-                Label(State.CurrentSentenceTranslation)
+                Label(State.CurrentSentenceText)
                     .Style((Style)Application.Current.Resources["Title3"])
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
                     .HCenter()
@@ -119,7 +119,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Border(
             HScrollView(
 
-                Grid("100", "*", 
+                Grid("100", "*",
 
                     new Waveform()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
@@ -133,11 +133,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .PixelsPerSecond(120)
                         .ShowTimeScale(true)
                 )
-                // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
+            // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
 
             )
             .Padding(0)
             .VerticalScrollBarVisibility(ScrollBarVisibility.Never)
+            .HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
+            .Orientation(ScrollOrientation.Horizontal)
         )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
@@ -155,51 +157,91 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     /// <returns>A visual node representing the navigation footer.</returns>
     private VisualNode NavigationFooter() =>
-        Grid(rows: "*", columns: "60,1,*,1,60,1,60",
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Previous.ToImageSource())
-                .GridRow(0).GridColumn(0)
-                .OnClicked(PreviousSentence),
+            Grid(rows: "*", columns: "60,1,*,1,60,1,60",
+                ImageButton()
+                    .Background(Colors.Transparent)
+                    .Aspect(Aspect.Center)
+                    .Source(SegoeFluentIcons.Previous.ToImageSource())
+                    .GridRow(0).GridColumn(0)
+                    .OnClicked(PreviousSentence),
 
-            Button()
-                .ImageSource(State.IsAudioPlaying ?
-                    SegoeFluentIcons.Pause.ToImageSource() :
-                    SegoeFluentIcons.Play.ToImageSource())
-                .Background(Colors.Transparent)
-                .GridRow(0).GridColumn(2)
-                .HCenter()
-                .OnClicked(ToggleAudioPlayback),
+                Button()
+                    .ImageSource(State.IsAudioPlaying ?
+                        SegoeFluentIcons.Pause.ToImageSource() :
+                        SegoeFluentIcons.Play.ToImageSource())
+                    .Background(Colors.Transparent)
+                    .GridRow(0).GridColumn(2)
+                    .HCenter()
+                    .OnClicked(ToggleAudioPlayback),
 
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Next.ToImageSource())
-                .GridRow(0).GridColumn(4)
-                .OnClicked(NextSentence),
+                ImageButton()
+                    .Background(Colors.Transparent)
+                    .Aspect(Aspect.Center)
+                    .Source(SegoeFluentIcons.Next.ToImageSource())
+                    .GridRow(0).GridColumn(4)
+                    .OnClicked(NextSentence),
 
-            BoxView()
-                .Color(Colors.Black)
-                .HeightRequest(1)
-                .GridColumnSpan(7)
-                .VStart(),
+                BoxView()
+                    .Color(Colors.Black)
+                    .HeightRequest(1)
+                    .GridColumnSpan(7)
+                    .VStart(),
 
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(0).GridColumn(1),
+                BoxView()
+                    .Color(Colors.Black)
+                    .WidthRequest(1)
+                    .GridRow(0).GridColumn(1),
 
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(0).GridColumn(3),
+                BoxView()
+                    .Color(Colors.Black)
+                    .WidthRequest(1)
+                    .GridRow(0).GridColumn(3),
 
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(0).GridColumn(5)
-        ).GridRow(2);
+                BoxView()
+                    .Color(Colors.Black)
+                    .WidthRequest(1)
+                    .GridRow(0).GridColumn(5),
+
+                new SfSegmentedControl(
+                    new SfSegmentItem()
+                            .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                        new SfSegmentItem()
+                            .ImageSource(ApplicationTheme.IconSpeedSlow),
+                        new SfSegmentItem()
+                            .ImageSource(ApplicationTheme.IconSpeedNormal)
+                )
+                    .GridColumn(2)
+                    .HEnd()
+                    .Background(Colors.Transparent)
+                    .ShowSeparator(true)
+                    .SegmentCornerRadius(8)
+                    .Stroke(ApplicationTheme.Gray300)
+                    .SegmentWidth(40)
+                    .SegmentHeight(44)
+                    .SelectedIndex(GetPlaybackSpeedIndex())
+                    // .Margin(new Thickness(0, 8, 0, 0))
+                    .SelectedIndex(State.SelectedSpeedIndex)
+                    .OnSelectionChanged((s, e) => {
+                        State.SelectedSpeedIndex = e.NewIndex;
+                        switch (e.NewIndex)
+                        {
+                            case 0:
+                                SetState(s => s.PlaybackSpeed = 0.5f);
+                                break;
+                            case 1:
+                                SetState(s => s.PlaybackSpeed = 0.75f);
+                                break;
+                            case 2:
+                                SetState(s => s.PlaybackSpeed = 1.0f);
+                                break;
+                        }
+                        
+                    })
+            )
+
+            
+        
+        .GridRow(2);
 
     /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
@@ -365,6 +407,21 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     }
 
     /// <summary>
+    /// Gets the selected index for the playback speed control based on the current PlayMode
+    /// </summary>
+    /// <returns>The index of the currently selected playback speed</returns>
+    private int GetPlaybackSpeedIndex()
+    {
+        return State.PlayMode switch
+        {
+            ShadowingPlayMode.VerySlow => 0, // Very Slow (0.5f)
+            ShadowingPlayMode.Slow => 1,     // Slow (0.75f)
+            ShadowingPlayMode.Normal => 2,   // Normal (1.0f)
+            _ => 2                           // Default to Normal
+        };
+    }
+
+    /// <summary>
     /// Plays the audio for the current sentence.
     /// </summary>
     async Task PlayAudio()
@@ -380,11 +437,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             var sentence = State.Sentences[State.CurrentSentenceIndex];
             string sentenceText = sentence.TargetLanguageText;
             
+            // Create a cache key that includes the sentence and the speed multiplier
+            string cacheKey = $"{sentenceText}_{State.PlaybackSpeed}";
+            
             Stream audioStream = null;
             AudioCacheEntry cacheEntry = null;
             
             // Check if audio is already in cache
-            if (_audioCache.TryGetValue(sentenceText, out cacheEntry))
+            if (_audioCache.TryGetValue(cacheKey, out cacheEntry))
             {
                 // Use cached audio stream
                 cacheEntry.AudioStream.Position = 0; // Reset position to beginning
@@ -396,19 +456,22 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     s.DurationDisplay = cacheEntry.DurationDisplay;
                 });
                 
-                Debug.WriteLine($"Using cached audio for: {sentenceText}");
+                Debug.WriteLine($"Using cached audio for: {cacheKey}");
             }
             else
             {
-                // Generate new audio stream if not in cache
-                audioStream = await _shadowingService.GenerateAudioAsync(sentenceText);
+                // Generate new audio stream if not in cache, passing the current speed multiplier
+                audioStream = await _shadowingService.GenerateAudioAsync(
+                    sentenceText, 
+                    "echo", // Default voice
+                    State.PlaybackSpeed); // Pass the selected speed
+                
                 if (audioStream == null)
                 {
                     SetState(s => s.IsBuffering = false);
                     return;
                 }
                 
-                Debug.WriteLine($"Generated new audio for: {sentenceText}");
             }
             
             // Create the audio player
@@ -428,7 +491,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     Duration = audioDuration,
                     DurationDisplay = durationFormatted
                 };
-                _audioCache[sentenceText] = cacheEntry;
+                _audioCache[cacheKey] = cacheEntry;
             }
             
             // Analyze the audio stream to extract waveform data if not already cached

@@ -55,11 +55,6 @@ class ShadowingPageState
     public bool IsAudioPlaying { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the current speed multiplier for audio playback.
-    /// </summary>
-    public float SpeedMultiplier { get; set; } = 1.0f;
-
-    /// <summary>
     /// Gets or sets the URL or data for the current audio being played.
     /// </summary>
     public Stream CurrentAudioStream { get; set; }
@@ -99,6 +94,10 @@ class ShadowingPageState
     /// Gets or sets whether the waveform is visible.
     /// </summary>
     public bool ShowWaveform { get; set; } = true;
+
+    public int? SelectedSpeedIndex { get; set; } = 0;
+
+    public float PlaybackSpeed { get; set; } = 1.0f;
 
     /// <summary>
     /// Gets the current sentence text, or an empty string if none is available.

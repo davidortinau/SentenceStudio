@@ -70,7 +70,7 @@ public class AiService {
         }
     }
 
-    public async Task<Stream> TextToSpeechAsync(string text, string voice)
+    public async Task<Stream> TextToSpeechAsync(string text, string voice, float speed = 1.0f)
     {
         if(Connectivity.NetworkAccess != NetworkAccess.Internet){
             WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
@@ -78,7 +78,7 @@ public class AiService {
         }
 
         var aiClient = new AIClient(_openAiApiKey);
-        return await aiClient.TextToSpeechAsync(text, voice);
+        return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
 }
     
