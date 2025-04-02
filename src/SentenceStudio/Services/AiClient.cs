@@ -25,8 +25,11 @@ public class AIClient
         text = text.Trim();
         try
         {
-            BinaryData speech = await _audio.GenerateSpeechAsync(text, GeneratedSpeechVoice.Echo, new SpeechGenerationOptions{
-                 SpeedRatio = speed
+            BinaryData speech = await _audio.GenerateSpeechAsync(text, GeneratedSpeechVoice.Echo,
+            new SpeechGenerationOptions
+            {
+                SpeedRatio = speed,
+                ResponseFormat = GeneratedSpeechFormat.Wav
             });
 
             // using FileStream stream = File.OpenWrite($"{Guid.NewGuid()}.mp3");

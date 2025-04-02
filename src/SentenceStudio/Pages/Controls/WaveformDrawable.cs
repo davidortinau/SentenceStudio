@@ -21,7 +21,7 @@ public class WaveformDrawable : IDrawable
     private double _audioDuration = 0; // Duration of audio in seconds
     private double _pixelsPerSecond = 100; // Default scale: 100 pixels per second
     private string _currentAudioId = string.Empty; // ID for the current audio being displayed
-    private bool _autoGenerateWaveform = true; // Default to auto-generating waveform
+    private bool _autoGenerateWaveform = false; // Default to auto-generating waveform
     private int _sampleCount = 400; // Default sample count for random waveforms
     
     // TimeScale properties
@@ -103,6 +103,8 @@ public class WaveformDrawable : IDrawable
         get => _audioDuration;
         set => _audioDuration = Math.Max(0, value);
     }
+    
+    
 
     /// <summary>
     /// Gets or sets how many pixels represent one second of audio.

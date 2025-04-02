@@ -95,7 +95,7 @@ class ShadowingPageState
     /// </summary>
     public bool ShowWaveform { get; set; } = true;
 
-    public int? SelectedSpeedIndex { get; set; } = 0;
+    public int? SelectedSpeedIndex { get; set; } = 2;
 
     public float PlaybackSpeed { get; set; } = 1.0f;
 

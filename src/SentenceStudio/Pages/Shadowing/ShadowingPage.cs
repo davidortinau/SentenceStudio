@@ -113,17 +113,15 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
                 Grid("100", "*",
 
-                    new Waveform()
+                    new WaveformView()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                         .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
                         .Amplitude(0.8f)
                         .PlaybackPosition(State.PlaybackPosition)
-                        .AutoGenerateWaveform(true) // Enable random waveform when no cached data exists
-                        .SampleCount(400)
-                        .AudioId(State.CurrentSentenceIndex.ToString()) // Use the current index as the audio ID
+                        .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}") // Create a unique ID that combines sentence index and text to force refresh when either changes
                         .AudioDuration(State.AudioDuration)
-                        .PixelsPerSecond(120)
                         .ShowTimeScale(true)
+                        .WaveformData(State.WaveformData)
                 )
             // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
 
@@ -333,6 +331,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.DurationDisplay = "--:--.---";
                 
                 s.CurrentAudioStream = null; // Clear current audio stream
+                s.WaveformData = null; // Clear waveform data to force regeneration
             });
             
             // Check if this sentence has cached audio info we can display right away
@@ -370,6 +369,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.DurationDisplay = "--:--.---";
                 
                 s.CurrentAudioStream = null; // Clear current audio stream
+                s.WaveformData = null; // Clear waveform data to force regeneration
             });
             
             // Check if this sentence has cached audio info we can display right away
@@ -622,6 +622,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         SetState(s => {
             s.IsAudioPlaying = false;
             s.PlaybackPosition = 1.0f; // Show as fully played
+            s.CurrentTimeDisplay = s.DurationDisplay; // Set current time to total duration
         });
         
         RewindAudioStream();

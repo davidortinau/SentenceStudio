@@ -5,16 +5,15 @@ namespace SentenceStudio.Pages.Controls;
 /// <summary>
 /// MauiReactor component for audio waveform visualization with integrated timescale using GraphicsView.
 /// </summary>
-partial class Waveform : Component
+partial class WaveformView : Component
 {
-    private readonly WaveformDrawable _drawable = new();
+    private WaveformDrawable _drawable;
     private float _amplitude = 0.7f;
     private Color _waveColor = Colors.SteelBlue;
     private Color _playedColor = Colors.Orange;
     private Color _tickColor = Colors.Gray;
     private Color _textColor = Colors.Gray;
     private float _playbackPosition = 0;
-    private bool _autoGenerate = true;
     private int _sampleCount = 400;
     private int _height = 100;
     private string _audioId = string.Empty; // Used to track when audio source changes
@@ -23,24 +22,38 @@ partial class Waveform : Component
     private double _audioDuration = 0; // Duration of the audio in seconds
     private double _pixelsPerSecond = 100; // Pixels per second of audio
     private bool _showTimeScale = false; // Whether to show the timescale
+    private float[] _waveformData;
 
     private MauiControls.GraphicsView _graphicsViewRef;
+    
+    // Constructor to ensure drawable is initialized
+    public WaveformView()
+    {
+        
+    }
     
     // === Waveform Properties ===
     
     /// <summary>
     /// Sets the amplitude multiplier for the waveform.
     /// </summary>
-    public Waveform Amplitude(float amplitude)
+    public WaveformView Amplitude(float amplitude)
     {
         _amplitude = amplitude;
+        return this;
+    }
+
+    public WaveformView WaveformData(float[] samples)
+    {
+        _waveformData = samples;
+        ConfigureDrawable();
         return this;
     }
     
     /// <summary>
     /// Sets the color of the waveform.
     /// </summary>
-    public Waveform WaveColor(Color color)
+    public WaveformView WaveColor(Color color)
     {
         _waveColor = color;
         return this;
@@ -49,7 +62,7 @@ partial class Waveform : Component
     /// <summary>
     /// Sets the color of the played portion of the waveform.
     /// </summary>
-    public Waveform PlayedColor(Color color)
+    public WaveformView PlayedColor(Color color)
     {
         _playedColor = color;
         return this;
@@ -58,25 +71,16 @@ partial class Waveform : Component
     /// <summary>
     /// Sets the current playback position as a value between 0 and 1.
     /// </summary>
-    public Waveform PlaybackPosition(float position)
+    public WaveformView PlaybackPosition(float position)
     {
         _playbackPosition = Math.Clamp(position, 0f, 1f);
         return this;
     }
     
     /// <summary>
-    /// Sets whether to automatically generate a random waveform when no data is available.
-    /// </summary>
-    public Waveform AutoGenerateWaveform(bool autoGenerate)
-    {
-        _autoGenerate = autoGenerate;
-        return this;
-    }
-    
-    /// <summary>
     /// Sets the number of samples to generate for the random waveform.
     /// </summary>
-    public Waveform SampleCount(int sampleCount)
+    public WaveformView SampleCount(int sampleCount)
     {
         _sampleCount = sampleCount;
         return this;
@@ -85,7 +89,7 @@ partial class Waveform : Component
     /// <summary>
     /// Sets the height of the waveform component.
     /// </summary>
-    public Waveform Height(int height)
+    public WaveformView Height(int height)
     {
         _height = height;
         return this;
@@ -95,13 +99,14 @@ partial class Waveform : Component
     /// Sets the audio ID to track when the audio source has changed.
     /// Use this to reset the waveform when playing a different audio source.
     /// </summary>
-    public Waveform AudioId(string audioId)
+    public WaveformView AudioId(string audioId)
     {
         if (_audioId != audioId)
         {
             _audioId = audioId;
-            // Don't reset waveform anymore, instead pass the ID to drawable
-            _drawable.AudioId = audioId;
+            
+            // Configure the new drawable with current settings
+            ConfigureDrawable();
         }
         return this;
     }
@@ -110,7 +115,7 @@ partial class Waveform : Component
     /// Sets the StreamHistory item to display its waveform data.
     /// This overrides the auto-generation of random data.
     /// </summary>
-    public Waveform StreamHistoryItem(StreamHistory streamHistory)
+    public WaveformView StreamHistoryItem(StreamHistory streamHistory)
     {
         if (_streamHistory != streamHistory)
         {
@@ -124,7 +129,7 @@ partial class Waveform : Component
     /// Sets the duration of the audio in seconds.
     /// This is used to scale the waveform properly based on audio length.
     /// </summary>
-    public Waveform AudioDuration(double duration)
+    public WaveformView AudioDuration(double duration)
     {
         _audioDuration = duration;
         return this;
@@ -134,7 +139,7 @@ partial class Waveform : Component
     /// Sets how many pixels represent one second of audio.
     /// Higher values mean more detailed but wider waveforms.
     /// </summary>
-    public Waveform PixelsPerSecond(double pixelsPerSecond)
+    public WaveformView PixelsPerSecond(double pixelsPerSecond)
     {
         _pixelsPerSecond = pixelsPerSecond;
         return this;
@@ -145,7 +150,7 @@ partial class Waveform : Component
     /// <summary>
     /// Sets whether to show the timescale.
     /// </summary>
-    public Waveform ShowTimeScale(bool show)
+    public WaveformView ShowTimeScale(bool show)
     {
         _showTimeScale = show;
         return this;
@@ -154,7 +159,7 @@ partial class Waveform : Component
     /// <summary>
     /// Sets the color of tick marks on the time scale.
     /// </summary>
-    public Waveform TickColor(Color color)
+    public WaveformView TickColor(Color color)
     {
         _tickColor = color;
         return this;
@@ -163,7 +168,7 @@ partial class Waveform : Component
     /// <summary>
     /// Sets the color of text labels on the time scale.
     /// </summary>
-    public Waveform TextColor(Color color)
+    public WaveformView TextColor(Color color)
     {
         _textColor = color;
         return this;
@@ -193,23 +198,33 @@ partial class Waveform : Component
         
         return graphicsView;
     }
-    
-    protected override void OnMounted()
+
+    /// <summary>
+    /// Configure the drawable with the current settings
+    /// </summary>
+    private void ConfigureDrawable()
     {
-        base.OnMounted();
-        
-        // Configure the drawable
+        _drawable = new WaveformDrawable();
+        _drawable.AudioId = _audioId; // Ensure the drawable has the correct audio ID
         _drawable.WaveColor = _waveColor;
         _drawable.PlayedColor = _playedColor;
         _drawable.Amplitude = _amplitude;
         _drawable.PlaybackPosition = _playbackPosition;
         _drawable.AudioDuration = _audioDuration;
         _drawable.PixelsPerSecond = _pixelsPerSecond;
-        _drawable.AutoGenerateWaveform = _autoGenerate;
         _drawable.SampleCount = _sampleCount;
         _drawable.ShowTimeScale = _showTimeScale;
         _drawable.TickColor = _tickColor;
         _drawable.TextColor = _textColor;
+        _drawable.UpdateWaveform(_waveformData, _audioDuration);
+    }
+    
+    protected override void OnMounted()
+    {
+        base.OnMounted();
+        
+        // Configure the drawable
+        ConfigureDrawable();
         
         // Use StreamHistory waveform data if available
         if (_streamHistory != null && _streamHistory.IsWaveformAnalyzed)
@@ -218,10 +233,10 @@ partial class Waveform : Component
             _drawable.UpdateWaveform(_streamHistory.WaveformData, _streamHistory.Duration);
             _streamHistoryChanged = false;
         }
-        // Generate a random waveform if auto-generate is enabled and no data is available yet
-        else if (_autoGenerate && !_drawable.HasWaveformData)
+        
+        if (_waveformData != null && _waveformData.Length > 0)
         {
-            _drawable.GenerateRandomWaveform(_sampleCount);
+            _drawable.UpdateWaveform(_waveformData);
         }
         
         // Force an initial draw
@@ -236,17 +251,7 @@ partial class Waveform : Component
         base.OnPropsChanged();
         
         // Update the drawable properties when they change
-        _drawable.WaveColor = _waveColor;
-        _drawable.PlayedColor = _playedColor;
-        _drawable.Amplitude = _amplitude;
-        _drawable.PlaybackPosition = _playbackPosition;
-        _drawable.AudioDuration = _audioDuration;
-        _drawable.PixelsPerSecond = _pixelsPerSecond;
-        _drawable.AutoGenerateWaveform = _autoGenerate;
-        _drawable.SampleCount = _sampleCount;
-        _drawable.ShowTimeScale = _showTimeScale;
-        _drawable.TickColor = _tickColor;
-        _drawable.TextColor = _textColor;
+        ConfigureDrawable();
         
         // Update with StreamHistory data if it changed
         if (_streamHistoryChanged && _streamHistory != null && _streamHistory.IsWaveformAnalyzed)

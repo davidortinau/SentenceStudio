@@ -63,13 +63,12 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.HCenter()
 				.IsVisible(State.CurrentPlayingItem != null),
 			Border(
-				new Waveform()
+				new WaveformView()
 					.WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
 					.PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
 					.Amplitude(0.8f)
 					.PlaybackPosition(State.PlaybackPosition)
 					.Height(80)
-					.AutoGenerateWaveform(false) // Don't auto-generate random data
 					.StreamHistoryItem(State.CurrentPlayingItem) // Use the real waveform data
 					.AudioDuration(_audioPlayer?.Duration ?? 0) // Use actual audio duration
 					.PixelsPerSecond(120) // 120 pixels per second gives good detail
