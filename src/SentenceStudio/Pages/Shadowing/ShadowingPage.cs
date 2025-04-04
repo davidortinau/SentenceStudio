@@ -122,6 +122,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .AudioDuration(State.AudioDuration)
                         .ShowTimeScale(true)
                         .WaveformData(State.WaveformData)
+                        .OnInteractionStarted(OnWaveformInteractionStarted)
+                        .OnPositionSelected(OnWaveformPositionSelected)
                 )
             // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
 
@@ -141,6 +143,133 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .Spacing(ApplicationTheme.Size160)
             .Margin(20, 0)
             .GridRow(1);
+
+    private void OnWaveformInteractionStarted()
+    {
+        PauseAudio();
+    }
+
+    /// <summary>
+    /// Handles when the user selects a position on the waveform.
+    /// </summary>
+    /// <param name="normalizedPosition">The position as a value from 0 to 1.</param>
+    private async void OnWaveformPositionSelected(float normalizedPosition)
+    {
+        Debug.WriteLine($"Waveform position selected: {normalizedPosition:F2}");
+        
+        if (State.IsAudioPlaying)
+        {
+            // If audio is already playing, pause it first
+            await PauseAudio();
+            
+            // Then seek to the new position and resume
+            await SeekAndResumeAudio(normalizedPosition);
+        }
+        else if (State.IsPaused)
+        {
+            // If audio is paused, seek to new position and resume
+            SeekAudio(normalizedPosition);
+        }
+        else
+        {
+            // If audio is not playing at all, start playback from the selected position
+            await PlayAudioFromPosition(normalizedPosition);
+        }
+    }
+    
+    /// <summary>
+    /// Seeks to a specific position in the audio and resumes playback.
+    /// </summary>
+    /// <param name="normalizedPosition">The position to seek to (0-1).</param>
+    private async Task SeekAndResumeAudio(float normalizedPosition)
+    {
+        if (_audioPlayer == null)
+        {
+            // If there's no player, we need to start fresh
+            await PlayAudioFromPosition(normalizedPosition);
+            return;
+        }
+        
+        SeekAudio(normalizedPosition);
+        
+        // Resume playback
+        _audioPlayer.Play();
+        
+        // Start the timer to track progress
+        StartPlaybackTimer();
+        
+        // Update state
+        SetState(s => 
+        {
+            s.IsAudioPlaying = true;
+            s.IsPaused = false;
+        });
+        
+        Debug.WriteLine($"Seeked to position {normalizedPosition:F2} and resumed playback");
+    }
+    
+    /// <summary>
+    /// Seeks the audio to a specific position without resuming playback.
+    /// </summary>
+    /// <param name="normalizedPosition">The position to seek to (0-1).</param>
+    private void SeekAudio(float normalizedPosition)
+    {
+        if (_audioPlayer == null || _audioPlayer.Duration <= 0)
+            return;
+
+        // Seek to the requested position
+        double seekPosition = _audioPlayer.Duration * normalizedPosition;
+        _audioPlayer.Seek(seekPosition);
+
+        // Update the position in the state
+        SetState(s =>
+        {
+            s.PlaybackPosition = normalizedPosition;
+            s.CurrentTimeDisplay = FormatTimeDisplay(seekPosition);
+        });
+
+        Debug.WriteLine($"Audio seeked to position {normalizedPosition:F2}");
+    }
+    
+    /// <summary>
+    /// Starts playing the audio from a specific position.
+    /// </summary>
+    /// <param name="normalizedPosition">The position to start from (0-1).</param>
+    private async Task PlayAudioFromPosition(float normalizedPosition)
+    {
+        // First ensure we have audio loaded
+        if (_audioPlayer == null)
+        {
+            // If no audio player exists, we need to create it first
+            await PlayAudio();
+
+            // If we still don't have a player after trying to create one, exit
+            if (_audioPlayer == null)
+                return;
+        }
+
+        // Now seek to the position and play
+        double seekPosition = _audioPlayer.Duration * normalizedPosition;
+        _audioPlayer.Seek(seekPosition);
+
+        // Update the position in the state
+        SetState(s => s.PlaybackPosition = normalizedPosition);
+
+        // Resume playback
+        _audioPlayer.Play();
+
+        // Start the timer to track progress
+        StartPlaybackTimer();
+
+        // Update state
+        SetState(s =>
+        {
+            s.IsAudioPlaying = true;
+            s.IsPaused = false;
+        });
+
+        Debug.WriteLine($"Started playback from position {normalizedPosition:F2}");
+    }
 
     /// <summary>
     /// Creates a visual node for the navigation footer containing controls for audio and navigation.

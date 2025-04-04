@@ -1,5 +1,3 @@
-using MauiReactor.Compatibility;
-
 namespace SentenceStudio.Pages.Controls;
 
 /// <summary>
@@ -25,11 +23,14 @@ partial class WaveformView : Component
     private float[] _waveformData;
 
     private MauiControls.GraphicsView _graphicsViewRef;
+    private Action<float> _onPositionSelected;
+    private Action _onInteractionStarted;
+    
     
     // Constructor to ensure drawable is initialized
     public WaveformView()
     {
-        
+
     }
     
     // === Waveform Properties ===
@@ -174,12 +175,27 @@ partial class WaveformView : Component
         return this;
     }
 
+    /// <summary>
+    /// Sets the callback to be invoked when the user selects a position on the waveform.
+    /// </summary>
+    public WaveformView OnPositionSelected(Action<float> callback)
+    {
+        _onPositionSelected = callback;
+        return this;
+    }
+    
+    public WaveformView OnInteractionStarted(Action callback)
+    {
+        _onInteractionStarted = callback;
+        return this;
+    }
+
     public override VisualNode Render()
     {
         // Calculate the total width based on audio duration and pixels per second
         // This ensures a minimum of 60 seconds (1 minute) is shown
         float totalWidth = _drawable.TotalWidth;
-        
+
         // If we have a valid duration and total width would be greater than usual,
         // set explicit width to make the waveform scrollable
         float widthRequest = (_audioDuration > 0) ? Math.Max(totalWidth, 300) : -1;
@@ -188,15 +204,70 @@ partial class WaveformView : Component
             .Drawable(_drawable)
             .HeightRequest(_height)
             .HStart()
-            .VCenter();
-            
+            .VCenter()
+            .OnStartInteraction(OnWaveformStartInteraction)
+            .OnEndInteraction(OnWaveformEndInteraction);
+
         // Set width request if we have a valid audio duration
         if (widthRequest > 0)
         {
             graphicsView = graphicsView.WidthRequest(widthRequest);
         }
-        
+
         return graphicsView;
+    }
+
+    private void OnWaveformStartInteraction(object sender, TouchEventArgs args)
+    {
+        _onInteractionStarted();
+    }
+
+    private void OnWaveformEndInteraction(object sender, TouchEventArgs args)
+    {
+        if (_onPositionSelected == null || args == null)
+            return;
+
+        // Calculate the position as a value between 0 and 1 based on tap location
+        if (sender is MauiControls.GraphicsView graphicsView && 
+            graphicsView.Width > 0)
+        {
+            var position = args.Touches[0];
+            
+            // Get the total waveform width which may be different from the view width
+            float totalWidth = _drawable?.TotalWidth ?? (float)graphicsView.Width;
+            
+            // Get the X position, accounting for scrolling in a scroll view parent
+            float touchX = (float)position.X;
+            
+            // Calculate normalized position based on the total audio width, not just the visible width
+            float normalizedPosition;
+            
+            if (_audioDuration > 0)
+            {
+                // If we have a valid duration, calculate position based on the total audio duration
+                float pixelsPerSecond = (float)_pixelsPerSecond;
+                normalizedPosition = touchX / (float)(_audioDuration * pixelsPerSecond);
+            }
+            else
+            {
+                // Fallback to using the view width if no duration is available
+                normalizedPosition = touchX / (float)graphicsView.Width;
+            }
+            
+            // Clamp the value between 0 and 1
+            normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
+            
+            Debug.WriteLine($"Tap position: X={touchX}, Normalized={normalizedPosition:F2}, TotalWidth={totalWidth}");
+            
+            // Update the drawable's position directly for immediate visual feedback
+            _drawable.PlaybackPosition = normalizedPosition;
+            
+            // Request a redraw
+            graphicsView.Invalidate();
+            
+            // Invoke the callback with the selected position
+            _onPositionSelected(normalizedPosition);
+        }
     }
 
     /// <summary>
