@@ -171,18 +171,18 @@ class ApplicationTheme : Theme
     
     public static FontImageSource IconPlay { get; } = new FontImageSource
 	{
-		Glyph = FluentUI.play_24_regular, // Replace with actual glyph
+		Glyph = FluentUI.play_32_regular, // Replace with actual glyph
 		FontFamily = FluentUI.FontFamily,
 		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
+		Size = Size280
 	};
 
      public static FontImageSource IconPause { get; } = new FontImageSource
 	{
-		Glyph = FluentUI.pause_24_regular, // Replace with actual glyph
+		Glyph = FluentUI.pause_32_regular, // Replace with actual glyph
 		FontFamily = FluentUI.FontFamily,
 		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
+		Size = Size280
 	};
 
     protected override void OnApply()

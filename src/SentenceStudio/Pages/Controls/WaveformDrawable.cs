@@ -292,7 +292,7 @@ public class WaveformDrawable : IDrawable
         float width = dirtyRect.Width;
         
         // Determine time scale height - about 30% of total height when enabled, or 0 if disabled
-        float timeScaleHeight = _showTimeScale ? Math.Min(30, height * 0.3f) : 0;
+        float timeScaleHeight = _showTimeScale ? Math.Min(20, height * 0.2f) : 0;
         
         // If time scale is enabled, draw it first
         if (_showTimeScale)
@@ -332,7 +332,7 @@ public class WaveformDrawable : IDrawable
         canvas.DrawLine(x, y, x, y + height);
         
         // Draw a triangle at the top of the playhead pointing downward
-        float triangleSize = 12f;
+        float triangleSize = 18f;
         var trianglePath = new PathF();
         trianglePath.MoveTo(x, y + triangleSize);
         trianglePath.LineTo(x - triangleSize/2, y);
@@ -429,6 +429,9 @@ public class WaveformDrawable : IDrawable
     {
         float height = dirtyRect.Height;
         float width = dirtyRect.Width;
+
+        // canvas.FillColor = Colors.Red;
+        // canvas.FillRectangle(dirtyRect.X, dirtyRect.Y, width, height);
         
         // Calculate how many seconds to display based on the visible width
         int secondsToShow = (int)Math.Ceiling(width / _pixelsPerSecond);
@@ -448,7 +451,7 @@ public class WaveformDrawable : IDrawable
             // Draw second marker (full height tick + text)
             canvas.StrokeColor = _tickColor;
             canvas.StrokeSize = 2;
-            canvas.DrawLine(x, dirtyRect.Y, x, dirtyRect.Y + height * 0.5f);
+            canvas.DrawLine(x, dirtyRect.Y, x, dirtyRect.Y + height);//* 0.5f
             
             // Add text label for seconds
             canvas.FontSize = 10;
@@ -466,7 +469,7 @@ public class WaveformDrawable : IDrawable
                     
                 canvas.StrokeColor = _tickColor.WithAlpha(0.8f);
                 canvas.StrokeSize = 1.5f;
-                canvas.DrawLine(halfSecondX, dirtyRect.Y, halfSecondX, dirtyRect.Y + height * 0.4f);
+                canvas.DrawLine(halfSecondX, dirtyRect.Y, halfSecondX, dirtyRect.Y + height * 0.75f);
             }
             
             // Draw 1/10 second markers
@@ -484,7 +487,7 @@ public class WaveformDrawable : IDrawable
                     
                 canvas.StrokeColor = _tickColor.WithAlpha(0.5f);
                 canvas.StrokeSize = 1;
-                canvas.DrawLine(tenthSecondX, dirtyRect.Y, tenthSecondX, dirtyRect.Y + height * 0.25f);
+                canvas.DrawLine(tenthSecondX, dirtyRect.Y, tenthSecondX, dirtyRect.Y + height * 0.5f);
             }
         }
     }

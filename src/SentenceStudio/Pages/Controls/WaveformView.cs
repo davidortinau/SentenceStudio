@@ -209,7 +209,8 @@ partial class WaveformView : Component
             .HStart()
             .VCenter()
             .OnStartInteraction(OnWaveformStartInteraction)
-            .OnEndInteraction(OnWaveformEndInteraction);
+            .OnEndInteraction(OnWaveformEndInteraction)
+            .OnDragInteraction(OnWaveformDragInteraction);
 
         // Set width request if we have a valid audio duration
         if (widthRequest > 0)
@@ -218,6 +219,54 @@ partial class WaveformView : Component
         }
 
         return graphicsView;
+    }
+
+    private void OnWaveformDragInteraction(object sender, TouchEventArgs args)
+    {
+        if (_onPositionSelected == null || args == null)
+            return;
+
+        // Calculate the position as a value between 0 and 1 based on drag location
+        if (sender is MauiControls.GraphicsView graphicsView && 
+            graphicsView.Width > 0)
+        {
+            var position = args.Touches[0];
+            
+            // Get the total waveform width which may be different from the view width
+            float totalWidth = _drawable?.TotalWidth ?? (float)graphicsView.Width;
+            
+            // Get the X position, accounting for scrolling in a scroll view parent
+            float touchX = (float)position.X;
+            
+            // Calculate normalized position based on the total audio width, not just the visible width
+            float normalizedPosition;
+            
+            if (_audioDuration > 0)
+            {
+                // If we have a valid duration, calculate position based on the total audio duration
+                float pixelsPerSecond = (float)_pixelsPerSecond;
+                normalizedPosition = touchX / (float)(_audioDuration * pixelsPerSecond);
+            }
+            else
+            {
+                // Fallback to using the view width if no duration is available
+                normalizedPosition = touchX / (float)graphicsView.Width;
+            }
+            
+            // Clamp the value between 0 and 1
+            normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
+            
+            Debug.WriteLine($"Drag position: X={touchX}, Normalized={normalizedPosition}");
+            
+            // Update the drawable's position directly for immediate visual feedback
+            _drawable.PlaybackPosition = normalizedPosition;
+            
+            // Request a redraw
+            graphicsView.Invalidate();
+            
+            // Invoke the callback with the selected position
+            _onPositionSelected(normalizedPosition);
+        }
     }
 
     private void OnWaveformStartInteraction(object sender, TouchEventArgs args)

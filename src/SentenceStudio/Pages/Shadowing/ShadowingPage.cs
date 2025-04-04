@@ -166,16 +166,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             // Then seek to the new position and resume
             await SeekAndResumeAudio(normalizedPosition);
         }
-        else if (State.IsPaused)
+        else // if (State.IsPaused)
         {
             // If audio is paused, seek to new position and resume
             SeekAudio(normalizedPosition);
         }
-        else
-        {
-            // If audio is not playing at all, start playback from the selected position
-            await PlayAudioFromPosition(normalizedPosition);
-        }
+        // else
+        // {
+        //     // If audio is not playing at all, start playback from the selected position
+        //     await PlayAudioFromPosition(normalizedPosition);
+        // }
     }
     
     /// <summary>
@@ -859,6 +859,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         
         SetState(s => {
             s.IsAudioPlaying = false;
+            s.IsPaused = true; // Reset the pause state
             s.PlaybackPosition = 1.0f; // Show as fully played
             s.CurrentTimeDisplay = s.DurationDisplay; // Set current time to total duration
         });
