@@ -29,8 +29,8 @@ partial class WarmupPage : Component<WarmupPageState>
 
     CommunityToolkit.Maui.Views.Popup? _popup, _phrasesPopup;
 
-    Action<string>? _onItemTapped;
-    Action? _onCloseClicked;
+    // Action<string>? _onItemTapped;
+    // Action? _onCloseClicked;
 
     string[] phrases = new[]
         {
@@ -104,7 +104,7 @@ partial class WarmupPage : Component<WarmupPageState>
             Button()
                 .Text("Cancel")
                 .GridRow(1)
-                .OnClicked(() => _onCloseClicked?.Invoke())
+                // .OnClicked(() => _onCloseClicked?.Invoke())
             )
             .BackgroundColor(ApplicationTheme.LightBackground)
             .Padding(15)

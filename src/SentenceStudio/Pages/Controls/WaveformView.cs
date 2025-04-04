@@ -184,6 +184,9 @@ partial class WaveformView : Component
         return this;
     }
     
+    /// <summary>
+    /// Sets the callback to be invoked when the user starts interacting with the waveform.
+    /// </summary>
     public WaveformView OnInteractionStarted(Action callback)
     {
         _onInteractionStarted = callback;

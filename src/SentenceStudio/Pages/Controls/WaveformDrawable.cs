@@ -301,11 +301,48 @@ public class WaveformDrawable : IDrawable
         }
 
         // Calculate the waveform area
-        float waveformHeight = height;// - timeScaleHeight;
-        float waveformY = dirtyRect.Y;// + timeScaleHeight;
+        float waveformHeight = height - timeScaleHeight;
+        float waveformY = dirtyRect.Y + timeScaleHeight;
         
         // Draw the waveform in the remaining space
         DrawWaveform(canvas, new RectF(dirtyRect.X, waveformY, dirtyRect.Width, waveformHeight));
+        
+        // Calculate playhead position
+        if (_audioDuration > 0)
+        {
+            float audioWidth = (float)(_audioDuration * _pixelsPerSecond);
+            float playheadX = dirtyRect.X + (audioWidth * _playbackPosition);
+            
+            // Draw vertical playhead line across the entire height (timescale + waveform)
+            DrawPlayhead(canvas, playheadX, dirtyRect.Y, height);
+        }
+    }
+    
+    /// <summary>
+    /// Draws the playhead indicator at the current position.
+    /// </summary>
+    private void DrawPlayhead(ICanvas canvas, float x, float y, float height)
+    {
+        // Use the same color as the played part of the waveform for consistency
+        Color playheadColor = _playedColor;
+        
+        // Draw a vertical line for the playhead
+        canvas.StrokeColor = playheadColor.WithAlpha(0.8f);
+        canvas.StrokeSize = 2f;
+        canvas.DrawLine(x, y, x, y + height);
+        
+        // Draw a triangle at the top of the playhead pointing downward
+        float triangleSize = 12f;
+        var trianglePath = new PathF();
+        trianglePath.MoveTo(x, y + triangleSize);
+        trianglePath.LineTo(x - triangleSize/2, y);
+        trianglePath.LineTo(x + triangleSize/2, y);
+        trianglePath.Close();
+        
+        canvas.FillColor = playheadColor;
+        canvas.FillPath(trianglePath);
+        
+        // No circle at the bottom as requested
     }
     
     /// <summary>

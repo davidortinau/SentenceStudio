@@ -43,6 +43,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
     private IDispatcherTimer _playbackTimer;
+    private MauiControls.ScrollView _waveformScrollView;
 
     /// <summary>
     /// Dictionary to cache audio data by sentence text for reuse.
@@ -109,7 +110,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .GridColumn(2)
         ),
         Border(
-            HScrollView(
+            HScrollView(hscroll => _waveformScrollView = hscroll,
 
                 Grid("100", "*",
 
@@ -783,8 +784,57 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentTimeDisplay = currentTime;
                 s.DurationDisplay = totalDuration;
             });
+            
+            // Auto-scroll the waveform to keep the playhead visible
+            EnsurePlayheadIsVisible(position);
         }
     }
+    
+    /// <summary>
+    /// Ensures the playhead is visible by scrolling the waveform view if necessary.
+    /// </summary>
+    private void EnsurePlayheadIsVisible(float position)
+    {
+        // Only scroll if we have a valid duration
+        if (_audioPlayer == null || _audioPlayer.Duration <= 0)
+            return;
+            
+            
+        // Calculate the total width of the waveform based on duration and pixels per second
+        double pixelsPerSecond = 100; // Should match the value used in WaveformView
+        double totalWidth = _audioPlayer.Duration * pixelsPerSecond;
+        
+        // Calculate the target X position of the playhead
+        double playheadX = totalWidth * position;
+        
+        // Get the current visible region
+        double scrollViewWidth = _waveformScrollView.Width;
+        double currentScrollX = _waveformScrollView.ScrollX;
+        
+        // Define margins to keep the playhead within visible area (% of view width)
+        double leadingMargin = 0.1;  // 10% from the left edge
+        double trailingMargin = 0.8; // 80% from the left edge (20% from right edge)
+        
+        // Calculate visible range
+        double visibleStart = currentScrollX;
+        double visibleEnd = currentScrollX + scrollViewWidth;
+        
+        // Check if playhead is outside the desired visible region
+        if (playheadX < visibleStart + (scrollViewWidth * leadingMargin) ||
+            playheadX > visibleStart + (scrollViewWidth * trailingMargin))
+        {
+            // Calculate new scroll position to center playhead with slight lead
+            double newScrollX = playheadX - (scrollViewWidth * 0.3); // 30% from the left
+            
+            // Ensure we don't scroll past the edges
+            newScrollX = Math.Max(0, Math.Min(newScrollX, totalWidth - scrollViewWidth));
+            
+            // Scroll to the new position
+            _waveformScrollView.ScrollToAsync(newScrollX, 0, false);
+        }
+    }
+    
+    
     
     /// <summary>
     /// Formats a time value in seconds to a mm:ss.ms display format.

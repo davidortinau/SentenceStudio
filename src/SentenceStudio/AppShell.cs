@@ -47,7 +47,7 @@ public partial class AppShell : Component
     // }
     
         private bool _initialized = false;
-        private UserProfile _currentUserProfile;
+        // private UserProfile _currentUserProfile;
 
         [Inject] UserProfileRepository _userProfileRepository;
 
