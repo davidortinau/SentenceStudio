@@ -130,7 +130,7 @@
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.4" />
 		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.3" />
-		<PackageReference Include="Reactor.Maui" Version="3.0.25" />
+		<PackageReference Include="Reactor.Maui" Version="3.0.27" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.3" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.3" />
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		
@@ -153,6 +153,10 @@
 		
 				
 		
+		<PackageReference Include="FFmpeg.Net" Version="1.1.0" />		
+		
+				
+		
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />		
 		
 				
@@ -166,7 +170,8 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.0" />		
 		
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
-		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />		
+		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
+		<PackageReference Include="YoutubeExplode" Version="6.5.4" />		
 	</ItemGroup>
 
 	<ItemGroup>

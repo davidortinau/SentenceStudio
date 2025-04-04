@@ -141,6 +141,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
 		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
+		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 		
 	}
 
@@ -162,6 +163,7 @@ public static class MauiProgram
 		services.AddSingleton<TranslationService>();
 		services.AddSingleton<ShadowingService>();
 		services.AddSingleton<AudioAnalyzer>();
+		services.AddSingleton<YouTubeImportService>();
 
 		// services.AddSingleton<AppShellModel>();
 

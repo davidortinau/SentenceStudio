@@ -168,6 +168,22 @@ class ApplicationTheme : Theme
 		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
 		Size = IconSize
 	};
+    
+    public static FontImageSource IconPlay { get; } = new FontImageSource
+	{
+		Glyph = FluentUI.play_24_regular, // Replace with actual glyph
+		FontFamily = FluentUI.FontFamily,
+		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+		Size = IconSize
+	};
+
+     public static FontImageSource IconPause { get; } = new FontImageSource
+	{
+		Glyph = FluentUI.pause_24_regular, // Replace with actual glyph
+		FontFamily = FluentUI.FontFamily,
+		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+		Size = IconSize
+	};
 
     protected override void OnApply()
     {
@@ -264,7 +280,7 @@ class ApplicationTheme : Theme
             .BackgroundColor(Colors.Transparent)
             .FontFamily("OpenSansRegular")
             .FontSize(17)
-			.LineHeight(1.29)
+            .LineHeight(1.29)
             .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes["Headline"] = _ => _
@@ -273,92 +289,92 @@ class ApplicationTheme : Theme
             .HorizontalOptions(LayoutOptions.Center)
             .HorizontalTextAlignment(TextAlignment.Center);
 
-		LabelStyles.Themes["SubHeadline"] = _ => _
+        LabelStyles.Themes["SubHeadline"] = _ => _
             .TextColor(IsLightTheme ? MidnightBlue : White)
             .FontSize(24)
             .HorizontalOptions(LayoutOptions.Center)
             .HorizontalTextAlignment(TextAlignment.Center);
 
-		LabelStyles.Themes["Caption2"] = _ => _
-			.FontSize(12)
-			.LineHeight(1.33);
+        LabelStyles.Themes["Caption2"] = _ => _
+            .FontSize(12)
+            .LineHeight(1.33);
 
-		LabelStyles.Themes["Caption1"] = _ => _
-			.FontSize(13)
-			.LineHeight(1.38);
+        LabelStyles.Themes["Caption1"] = _ => _
+            .FontSize(13)
+            .LineHeight(1.38);
 
-		LabelStyles.Themes["Caption1Strong"] = _ => _
-			.FontSize(13)
-			.LineHeight(1.38)
-			.FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+        LabelStyles.Themes["Caption1Strong"] = _ => _
+            .FontSize(13)
+            .LineHeight(1.38)
+            .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-		LabelStyles.Themes["Body2"] = _ => _
-			.FontSize(15)
-			.LineHeight(1.33);
+        LabelStyles.Themes["Body2"] = _ => _
+            .FontSize(15)
+            .LineHeight(1.33);
 
-		LabelStyles.Themes["Body2Strong"] = _ => _
-			.FontSize(15)
-			.LineHeight(1.33)
-			.FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+        LabelStyles.Themes["Body2Strong"] = _ => _
+            .FontSize(15)
+            .LineHeight(1.33)
+            .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-		LabelStyles.Themes["Body1"] = _ => _
-			.FontSize(17)
-			.LineHeight(1.29);
+        LabelStyles.Themes["Body1"] = _ => _
+            .FontSize(17)
+            .LineHeight(1.29);
 
-		LabelStyles.Themes["Body1Strong"] = _ => _
-			.FontSize(17)
-			.LineHeight(1.29)
-			.FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+        LabelStyles.Themes["Body1Strong"] = _ => _
+            .FontSize(17)
+            .LineHeight(1.29)
+            .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-		LabelStyles.Themes["Title3"] = _ => _
-			.FontSize(20)
-			.LineHeight(1.25)
-			.FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+        LabelStyles.Themes["Title3"] = _ => _
+            .FontSize(20)
+            .LineHeight(1.25)
+            .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-		LabelStyles.Themes["Title2"] = _ => _
-			.FontSize(22)
-			.LineHeight(1.27)
-			.FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+        LabelStyles.Themes["Title2"] = _ => _
+            .FontSize(22)
+            .LineHeight(1.27)
+            .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-		LabelStyles.Themes["Title1"] = _ => _
-			.FontSize(28)
-			.LineHeight(1.21)
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+        LabelStyles.Themes["Title1"] = _ => _
+            .FontSize(28)
+            .LineHeight(1.21)
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
 
-		LabelStyles.Themes["LargeTitle"] = _ => _
-			.FontSize(34)
-			.LineHeight(1.21)
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+        LabelStyles.Themes["LargeTitle"] = _ => _
+            .FontSize(34)
+            .LineHeight(1.21)
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
 
-		LabelStyles.Themes["Display"] = _ => _
-			.FontSize(60)
-			.LineHeight(1.17)
-			.FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+        LabelStyles.Themes["Display"] = _ => _
+            .FontSize(60)
+            .LineHeight(1.17)
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
 
-		BorderStyles.Themes["Default"] = _ => _
-			.StrokeShape(new RoundRectangle().CornerRadius(20))
-			.Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
-			.StrokeThickness(0)
-			.Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
+        BorderStyles.Themes["Default"] = _ => _
+            .StrokeShape(new RoundRectangle().CornerRadius(20))
+            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .StrokeThickness(0)
+            .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
-		BorderStyles.Themes["CardStyle"] = _ => _
-			.StrokeShape(new RoundRectangle().CornerRadius(20))
-			.Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
-			.StrokeThickness(0)
-			.Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
+        BorderStyles.Themes["CardStyle"] = _ => _
+            .StrokeShape(new RoundRectangle().CornerRadius(20))
+            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .StrokeThickness(0)
+            .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
-		BoxViewStyles.Themes["ShimmerCustomViewStyle"] = _ => _
-			.BackgroundColor(Colors.Gray)
-			.HorizontalOptions(LayoutOptions.Fill)
-			.VerticalOptions(LayoutOptions.Center);
+        BoxViewStyles.Themes["ShimmerCustomViewStyle"] = _ => _
+            .BackgroundColor(Colors.Gray)
+            .HorizontalOptions(LayoutOptions.Fill)
+            .VerticalOptions(LayoutOptions.Center);
 
-		ImageButtonStyles.Default = _ => _
-			.BackgroundColor(Colors.Transparent);
+        ImageButtonStyles.Default = _ => _
+            .BackgroundColor(Colors.Transparent);
 
         ListViewStyles.Default = _ => _
             .SeparatorColor(IsLightTheme ? Gray200 : Gray500)

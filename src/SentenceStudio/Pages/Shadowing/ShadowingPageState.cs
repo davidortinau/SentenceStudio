@@ -55,6 +55,11 @@ class ShadowingPageState
     public bool IsAudioPlaying { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets a value indicating whether audio is paused.
+    /// </summary>
+    public bool IsPaused { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets the URL or data for the current audio being played.
     /// </summary>
     public Stream CurrentAudioStream { get; set; }

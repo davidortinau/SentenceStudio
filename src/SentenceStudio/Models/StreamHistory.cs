@@ -29,4 +29,9 @@ public class StreamHistory
     /// Whether the waveform data has been analyzed yet
     /// </summary>
     public bool IsWaveformAnalyzed => WaveformData != null && WaveformData.Length > 0;
+
+    public string FileName { get; internal set; }
+    public string Title { get; internal set; }
+    public string Source { get; internal set; }
+    public string SourceUrl { get; internal set; }
 }

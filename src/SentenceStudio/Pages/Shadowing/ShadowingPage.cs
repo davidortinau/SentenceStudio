@@ -154,16 +154,22 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .Source(SegoeFluentIcons.Previous.ToImageSource())
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
-
-                Button()
-                    .ImageSource(State.IsAudioPlaying ?
-                        SegoeFluentIcons.Pause.ToImageSource() :
-                        SegoeFluentIcons.Play.ToImageSource())
+            State.IsAudioPlaying ?
+                ImageButton()
+                    .Source(ApplicationTheme.IconPause)
+                    .Aspect(Aspect.Center)
                     .Background(Colors.Transparent)
                     .GridRow(0).GridColumn(2)
                     .HCenter()
-                    .OnClicked(ToggleAudioPlayback),
-
+                    .OnClicked(ToggleAudioPlayback)
+                :
+                Button()
+                    .ImageSource(ApplicationTheme.IconPlay)
+                    .Background(Colors.Transparent)
+                    .GridRow(0).GridColumn(2)
+                    .HCenter()
+                    .OnClicked(ToggleAudioPlayback)
+                ,
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
@@ -208,7 +214,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .Stroke(ApplicationTheme.Gray300)
                     .SegmentWidth(40)
                     .SegmentHeight(44)
-                    .Margin(0,0,12,0)
+                    .Margin(0, 0, 12, 0)
                     .SelectionIndicatorSettings(
                         new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
                         {
@@ -230,7 +236,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                                 SetState(s => s.PlaybackSpeed = 1.0f);
                                 break;
                         }
-                        
+
                     })
             )
 
@@ -395,12 +401,65 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (State.IsAudioPlaying)
         {
-            await StopAudio();
+            // Pause instead of stopping if we're currently playing
+            await PauseAudio();
+        }
+        else if (State.IsPaused)
+        {
+            // Resume if we're paused
+            await ResumeAudio();
         }
         else
         {
+            // Start fresh playback if neither playing nor paused
             await PlayAudio();
         }
+    }
+    
+    /// <summary>
+    /// Pauses the currently playing audio.
+    /// </summary>
+    async Task PauseAudio()
+    {
+        if (_audioPlayer != null && _audioPlayer.IsPlaying)
+        {
+            _playbackTimer?.Stop();
+            _audioPlayer.Pause();
+            
+            SetState(s => 
+            {
+                s.IsAudioPlaying = false;
+                s.IsPaused = true;
+            });
+            
+            Debug.WriteLine("Audio playback paused");
+        }
+        
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Resumes playback from the paused position.
+    /// </summary>
+    async Task ResumeAudio()
+    {
+        if (_audioPlayer != null && !_audioPlayer.IsPlaying)
+        {
+            _audioPlayer.Play();
+            
+            // Restart the playback timer
+            StartPlaybackTimer();
+            
+            SetState(s => 
+            {
+                s.IsAudioPlaying = true;
+                s.IsPaused = false;
+            });
+            
+            Debug.WriteLine("Audio playback resumed");
+        }
+        
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -658,7 +717,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             _audioPlayer = null;
         }
         
-        SetState(s => s.IsAudioPlaying = false);
+        SetState(s => 
+        {
+            s.IsAudioPlaying = false;
+            s.IsPaused = false; // Reset the pause state as well
+            s.PlaybackPosition = 0; // Reset position to beginning
+        });
+        
         RewindAudioStream();
         
         await Task.CompletedTask;

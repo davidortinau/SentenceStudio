@@ -6,6 +6,7 @@ using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Vocabulary;
+using SentenceStudio.Pages.YouTube;
 
 namespace SentenceStudio;
 
@@ -89,6 +90,12 @@ public partial class AppShell : Component
                         .Title("Skills")
                         .RenderContent(() => new ListSkillProfilesPage())
                         .Route(nameof(ListSkillProfilesPage))
+                ),
+                FlyoutItem("Import",
+                    ShellContent()
+                        .Title("Import")
+                        .RenderContent(() => new YouTubeImportPage())
+                        .Route(nameof(YouTubeImportPage))
                 ),
                 FlyoutItem("Profile",
                     ShellContent()
