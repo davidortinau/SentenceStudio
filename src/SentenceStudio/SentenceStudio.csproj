@@ -115,7 +115,7 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="11.2.0" />
-		<PackageReference Include="Plugin.Maui.Audio" Version="3.1.0" />
+		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0-preview1" />
 		<PackageReference Include="Sharpnado.TaskMonitor" Version="1.0.2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="4.0.0" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
@@ -138,6 +138,7 @@
 		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.3" />		
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />			
+		<PackageReference Include="ElevenLabs-DotNet" Version="3.5.0" />
 	</ItemGroup>
 
 	<!-- to override lower dependencies with vulerabilities -->

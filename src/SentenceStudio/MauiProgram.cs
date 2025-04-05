@@ -22,6 +22,7 @@ using SentenceStudio.Pages.Scene;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
+using ElevenLabs;
 
 #if WINDOWS
 using System.Reflection;
@@ -120,7 +121,16 @@ public static class MauiProgram
 			.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini"))
 			// .UseFunctionInvocation()
 			.UseLogging();
-			// .UseOpenTelemetry();
+		// .UseOpenTelemetry();
+
+		// Debug.WriteLine($"ElevenLabs from Env: {Environment.GetEnvironmentVariable("ElevenLabsKey")}");
+		// Debug.WriteLine($"ElevenLabs from Config: {builder.Configuration.GetRequiredSection("Settings").Get<Settings>().ElevenLabsKey}");
+			
+		var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
+			? Environment.GetEnvironmentVariable("ElevenLabsKey")!
+			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().ElevenLabsKey;
+
+		builder.Services.AddSingleton<ElevenLabsClient>(new ElevenLabsClient(elevenLabsKey));
 
 		return builder.Build();
 	}
@@ -164,6 +174,7 @@ public static class MauiProgram
 		services.AddSingleton<ShadowingService>();
 		services.AddSingleton<AudioAnalyzer>();
 		services.AddSingleton<YouTubeImportService>();
+		services.AddSingleton<ElevenLabsSpeechService>();
 
 		// services.AddSingleton<AppShellModel>();
 

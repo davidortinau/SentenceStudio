@@ -17,6 +17,7 @@ namespace SentenceStudio.Services;
 public class ShadowingService
 {
     private readonly AiService _aiService;
+    private readonly ElevenLabsSpeechService _speechService;
     private readonly VocabularyService _vocabularyService;
     private readonly SkillProfileRepository _skillRepository;
     private readonly UserProfileRepository _userProfileRepository;
@@ -34,6 +35,7 @@ public class ShadowingService
     public ShadowingService(IServiceProvider service)
     {
         _aiService = service.GetRequiredService<AiService>();
+        _speechService = service.GetRequiredService<ElevenLabsSpeechService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
@@ -94,24 +96,55 @@ public class ShadowingService
     }
 
     /// <summary>
-    /// Generates audio for the given text using the AI service.
+    /// Generates audio for the given text using ElevenLabs API.
     /// </summary>
     /// <param name="text">The text to convert to audio.</param>
-    /// <param name="voice">The voice to use for the audio (default is "echo").</param>
+    /// <param name="voice">The voice ID or name to use (from ElevenLabsSpeechService.VoiceOptions).</param>
+    /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An audio stream.</returns>
-    public async Task<Stream> GenerateAudioAsync(string text, string voice = "echo", float speed = 1.0f, CancellationToken cancellationToken = default)
+    public async Task<Stream> GenerateAudioAsync(
+        string text, 
+        string voice = "echo", 
+        float speed = 1.0f, 
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
         try
         {
-            return await _aiService.TextToSpeechAsync(text, voice, speed);
+            // Map from the legacy "echo" voice name if needed
+            var mappedVoice = voice;
+            
+            // Set appropriate stability and similarity boost based on the voice and content type
+            float stability = 0.5f;       // Default mid-level stability
+            float similarityBoost = 0.75f; // Default high similarity to original voice
+            
+            // Use ElevenLabs for higher quality text-to-speech
+            return await _speechService.TextToSpeechAsync(
+                text: text,
+                voiceId: mappedVoice,
+                stability: stability,
+                similarityBoost: similarityBoost,
+                speed: speed,
+                cancellationToken: cancellationToken
+            );
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred in GenerateAudioAsync: {ex.Message}");
-            return null;
+            Debug.WriteLine($"Error in ElevenLabs speech generation: {ex.Message}");
+            
+            // Fallback to OpenAI TTS if ElevenLabs fails
+            try
+            {
+                Debug.WriteLine("Falling back to OpenAI TTS");
+                return await _aiService.TextToSpeechAsync(text, voice, speed);
+            }
+            catch (Exception fallbackEx)
+            {
+                Debug.WriteLine($"Fallback also failed: {fallbackEx.Message}");
+                return null;
+            }
         }
     }
 }
