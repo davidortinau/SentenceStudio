@@ -103,6 +103,29 @@ class ShadowingPageState
     public int? SelectedSpeedIndex { get; set; } = 2;
 
     public float PlaybackSpeed { get; set; } = 1.0f;
+    
+    /// <summary>
+    /// Gets or sets the currently selected voice ID.
+    /// </summary>
+    public string SelectedVoiceId { get; set; } = "echo";
+    
+    /// <summary>
+    /// Gets or sets whether the voice selection bottom sheet is visible.
+    /// </summary>
+    public bool IsVoiceSelectionVisible { get; set; } = false;
+    
+    /// <summary>
+    /// Gets or sets the voice display name dictionary populated from ElevenLabsSpeechService
+    /// </summary>
+    public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
+    
+    /// <summary>
+    /// Gets the display name for the currently selected voice.
+    /// </summary>
+    public string SelectedVoiceDisplayName => 
+        VoiceDisplayNames.ContainsKey(SelectedVoiceId) ? 
+        VoiceDisplayNames[SelectedVoiceId] : 
+        "Rachel (English)"; // Default to Rachel if not found
 
     /// <summary>
     /// Gets the current sentence text, or an empty string if none is available.

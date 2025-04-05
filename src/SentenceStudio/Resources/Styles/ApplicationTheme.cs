@@ -223,6 +223,19 @@ class ApplicationTheme : Theme
             .VisualState("CommonStates", "Disable", MauiControls.Button.TextColorProperty, IsLightTheme ? Gray950 : Gray200)
             .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray200 : Gray600);
 
+        ButtonStyles.Themes["Secondary"] = _ => _
+            .TextColor(IsLightTheme ? Primary : White)
+            .BackgroundColor(IsLightTheme ? White : Black)
+            .FontFamily("OpenSansRegular")
+            .FontSize(14)
+            .BorderWidth(0)
+            .CornerRadius(8)
+            .Padding(14, 10)
+            .MinimumHeightRequest(44)
+            .MinimumWidthRequest(44)
+            .VisualState("CommonStates", "Disable", MauiControls.Button.TextColorProperty, IsLightTheme ? Gray200 : Gray500)
+            .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray300 : Gray600);
+
         CheckBoxStyles.Default = _ => _
             .Color(IsLightTheme ? Primary : White)
             .MinimumHeightRequest(44)

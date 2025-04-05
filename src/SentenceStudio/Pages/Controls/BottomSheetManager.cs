@@ -2,6 +2,7 @@ using MauiReactor;
 using System;
 using System.Threading.Tasks;
 using The49.Maui.BottomSheet;
+using BottomSheet = The49.Maui.BottomSheet.BottomSheet;
 
 namespace SentenceStudio.Pages;
 

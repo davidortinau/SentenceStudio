@@ -2,6 +2,7 @@ using MauiReactor.Shapes;
 using SentenceStudio.Pages.Dashboard;
 using Plugin.Maui.Audio;
 using MauiReactor.Compatibility;
+using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -39,6 +40,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] ShadowingService _shadowingService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] AudioAnalyzer _audioAnalyzer;
+    [Inject] ElevenLabsSpeechService _speechService;
 
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
@@ -62,10 +64,114 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 SentenceDisplay(),
                 WaveformDisplay(),
                 NavigationFooter(),
-                LoadingOverlay()
+                LoadingOverlay(),
+                RenderVoiceSelectionBottomSheet()
             )
             .RowSpacing(12)
-        ).OnAppearing(LoadSentences);
+        ).OnAppearing(OnPageAppearing);
+    }
+    
+    /// <summary>
+    /// Initializes the page and loads content when appearing
+    /// </summary>
+    private async void OnPageAppearing()
+    {
+        // Initialize voice display names from the service
+        SetState(s => s.VoiceDisplayNames = _speechService.VoiceDisplayNames);
+        
+        // Load sentences if needed
+        await Task.Delay(100); // Small delay to ensure UI is ready
+        if (State.Sentences.Count == 0)
+        {
+            LoadSentences();
+        }
+    }
+
+    /// <summary>
+    /// Renders the voice selection bottom sheet.
+    /// </summary>
+    private VisualNode RenderVoiceSelectionBottomSheet() =>
+        new SfBottomSheet(
+                Grid("*", "*",
+                    ScrollView(
+                        VStack(
+                            Label("Korean Voices")
+                                .FontAttributes(FontAttributes.Bold)
+                                .FontSize(18)
+                                .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                                .HCenter()
+                                .Margin(0, 0, 0, 10),
+                            CreateVoiceOption("yuna", "Yuna", "Female - Young, cheerful"),
+                            CreateVoiceOption("jiyoung", "Ji-Young", "Female - Warm, clear"),
+                            CreateVoiceOption("jina", "Jina", "Female - Mid-aged, news broadcaster"),
+                            CreateVoiceOption("jennie", "Jennie", "Female - Youthful, professional"),
+                            CreateVoiceOption("hyunbin", "Hyun-Bin", "Male - Cool, professional"),
+                            CreateVoiceOption("dohyeon", "Do-Hyeon", "Male - Older, mature"),
+                            CreateVoiceOption("yohankoo", "Yohan Koo", "Male - Confident, authoritative")
+                        )
+                        .Spacing(15)
+                        .Padding(20, 10)
+                    )
+                )
+
+        )
+            .IsOpen(State.IsVoiceSelectionVisible);
+
+    /// <summary>
+    /// Creates a voice option item for the bottom sheet.
+    /// </summary>
+    private VisualNode CreateVoiceOption(string voiceId, string displayName, string description) =>
+        Grid("*", "Auto,*",
+            RadioButton()
+                .IsChecked(State.SelectedVoiceId == voiceId)
+                .GroupName("VoiceOptions")
+                .OnCheckedChanged((sender, args) =>
+                {
+                    if (args.Value)
+                    {
+                        SelectVoice(voiceId);
+                    }
+                })
+                .GridColumn(0),
+            VStack(spacing: 0,
+                Label(displayName)
+                    .FontAttributes(FontAttributes.Bold)
+                    .FontSize(16),
+                Label(description)
+                    .FontSize(14)
+                    .TextColor(Colors.Gray)
+            )
+            .HStart()
+            .GridColumn(1)
+        )
+        .OnTapped(() => SelectVoice(voiceId))
+        ;
+    
+    /// <summary>
+    /// Handles voice selection.
+    /// </summary>
+    private void SelectVoice(string voiceId)
+    {
+        // Update the selected voice
+        SetState(s => {
+            s.SelectedVoiceId = voiceId;
+            
+            // Reset audio cache when voice changes
+            _audioCache.Clear();
+            
+            // Close the bottom sheet after selection
+            s.IsVoiceSelectionVisible = false;
+        });
+        
+        Debug.WriteLine($"Selected voice: {voiceId}");
+    }
+    
+    /// <summary>
+    /// Handles the bottom sheet closing event.
+    /// </summary>
+    private void OnVoiceSelectionBottomSheetClosing(object sender, EventArgs e)
+    {
+        SetState(s => s.IsVoiceSelectionVisible = false);
     }
 
     /// <summary>
@@ -277,7 +383,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     /// <returns>A visual node representing the navigation footer.</returns>
     private VisualNode NavigationFooter() =>
-            Grid(rows: "*", columns: "60,1,*,1,60,1,60",
+            Grid(rows: "*", columns: "60,1,*,1,60",
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
@@ -310,7 +416,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 BoxView()
                     .Color(Colors.Black)
                     .HeightRequest(1)
-                    .GridColumnSpan(7)
+                    .GridColumnSpan(9)
                     .VStart(),
 
                 BoxView()
@@ -323,56 +429,77 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .WidthRequest(1)
                     .GridRow(0).GridColumn(3),
 
-                BoxView()
-                    .Color(Colors.Black)
-                    .WidthRequest(1)
-                    .GridRow(0).GridColumn(5),
+                
 
-                new SfSegmentedControl(
-                    new SfSegmentItem()
-                            .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                HStack(
+                    new SfSegmentedControl(
                         new SfSegmentItem()
-                            .ImageSource(ApplicationTheme.IconSpeedSlow),
-                        new SfSegmentItem()
-                            .ImageSource(ApplicationTheme.IconSpeedNormal)
-                )
-                    .GridColumn(2)
-                    .HEnd()
-                    .Background(Colors.Transparent)
-                    .ShowSeparator(true)
-                    .SegmentCornerRadius(0)
-                    .Stroke(ApplicationTheme.Gray300)
-                    .SegmentWidth(40)
-                    .SegmentHeight(44)
-                    .Margin(0, 0, 12, 0)
-                    .SelectionIndicatorSettings(
-                        new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
-                        {
-                            SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
-                        }
+                                .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                            new SfSegmentItem()
+                                .ImageSource(ApplicationTheme.IconSpeedSlow),
+                            new SfSegmentItem()
+                                .ImageSource(ApplicationTheme.IconSpeedNormal)
                     )
-                    .SelectedIndex(State.SelectedSpeedIndex)
-                    .OnSelectionChanged((s, e) => {
-                        State.SelectedSpeedIndex = e.NewIndex;
-                        switch (e.NewIndex)
+                        .Background(Colors.Transparent)
+                        .ShowSeparator(true)
+                        .SegmentCornerRadius(0)
+                        .Stroke(ApplicationTheme.Gray300)
+                        .SegmentWidth(40)
+                        .SegmentHeight(44)
+                        .Margin(0, 0, 12, 0)
+                        .SelectionIndicatorSettings(
+                            new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
+                            {
+                                SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
+                            }
+                        )
+                        .SelectedIndex(State.SelectedSpeedIndex)
+                        .OnSelectionChanged((s, e) =>
                         {
-                            case 0:
-                                SetState(s => s.PlaybackSpeed = 0.6f);
-                                break;
-                            case 1:
-                                SetState(s => s.PlaybackSpeed = 0.8f);
-                                break;
-                            case 2:
-                                SetState(s => s.PlaybackSpeed = 1.0f);
-                                break;
-                        }
+                            State.SelectedSpeedIndex = e.NewIndex;
+                            switch (e.NewIndex)
+                            {
+                                case 0:
+                                    SetState(s => s.PlaybackSpeed = 0.6f);
+                                    break;
+                                case 1:
+                                    SetState(s => s.PlaybackSpeed = 0.8f);
+                                    break;
+                                case 2:
+                                    SetState(s => s.PlaybackSpeed = 1.0f);
+                                    break;
+                            }
 
-                    })
+                        }),
+                        Button(State.SelectedVoiceDisplayName)
+                            .ThemeKey("Secondary")
+                            // .FontSize(14)
+                            // .CornerRadius(15)
+                            // .BackgroundColor(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
+                            // .TextColor(Theme.IsLightTheme ? Colors.Black : Colors.White)
+                            // .Padding(10, 5)
+                            .VCenter()
+                            // .HeightRequest(30)
+                            .OnClicked(ShowVoiceSelection)
+
+                )
+                .Margin(0,0,10,0)
+                .GridColumn(2).HEnd()
+
+                
             )
 
             
         
         .GridRow(2);
+
+    /// <summary>
+    /// Shows the voice selection bottom sheet.
+    /// </summary>
+    private void ShowVoiceSelection()
+    {
+        SetState(s => s.IsVoiceSelectionVisible = true);
+    }
 
     /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
@@ -623,8 +750,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             var sentence = State.Sentences[State.CurrentSentenceIndex];
             string sentenceText = sentence.TargetLanguageText;
             
-            // Create a cache key that includes the sentence and the speed multiplier
-            string cacheKey = $"{sentenceText}";
+            // Create a cache key that includes the sentence and the selected voice
+            string cacheKey = $"{sentenceText}_{State.SelectedVoiceId}";
             
             Stream audioStream = null;
             AudioCacheEntry cacheEntry = null;
@@ -646,18 +773,17 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             }
             else
             {
-                // Generate new audio stream if not in cache, passing the current speed multiplier
+                // Generate new audio stream if not in cache, passing the selected voice ID and speed
                 audioStream = await _shadowingService.GenerateAudioAsync(
                     sentenceText, 
-                    "echo" // Default voice
-                    ); // Pass the selected speed
+                    State.SelectedVoiceId,  // Use the selected voice ID
+                    State.PlaybackSpeed); 
                 
                 if (audioStream == null)
                 {
                     SetState(s => s.IsBuffering = false);
                     return;
                 }
-                
             }
             
             // Create the audio player

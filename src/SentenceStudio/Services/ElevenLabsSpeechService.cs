@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
@@ -6,18 +7,26 @@ using ElevenLabs.Voices;
 namespace SentenceStudio.Services;
 
 /// <summary>
-    /// Mapping of simple voice names to ElevenLabs voice IDs.
-    /// </summary>
-    public static class Voices
-    {
-        public const string HyunBin = "s07IwTCOrCDCaETjUVjx"; // Cool Korean male voice. Great for Professional corporate PR narration.
-        public const string DoHyeon = "FQ3MuLxZh0jHcZmA5vW1"; // Older male
-        public const string YohanKoo = "4JJwo477JUAx3HV0T7n7"; // Conversational - The voice of a confident, authoritative man in his 30s.
-        public const string Jina = "sSoVF9lUgTGJz0Xz3J9y"; // A mid-aged Korean female voice. Works well for News broadcasting
-        public const string JiYoung = "AW5wrnG1jVizOYY7R1Oo"; // A warm and clear Korean female voice with a friendly and natural tone. Suitable for narration, tutorials, and conversational content.
-        public const string Jennie = "z6Kj0hecH20CdetSElRT"; // Informative and youthful, exuding professionalism with a friendly, engaging tone that captivates listeners. It’s perfect for podcasts, tutorials, and content creation, delivering clarity and enthusiasm that keeps audiences connected and informed.
-        public const string Yuna = "xi3rF0t7dg7uN2M0WUhr"; // Young Korean female voice with soft/cheerful voice specialized in narrative and storytelling.
-    }
+/// Mapping of simple voice names to ElevenLabs voice IDs.
+/// </summary>
+public static class Voices
+{
+    // Korean voices
+    public const string HyunBin = "s07IwTCOrCDCaETjUVjx"; // Cool Korean male voice. Great for Professional corporate PR narration.
+    public const string DoHyeon = "FQ3MuLxZh0jHcZmA5vW1"; // Older male
+    public const string YohanKoo = "4JJwo477JUAx3HV0T7n7"; // Conversational - The voice of a confident, authoritative man in his 30s.
+    public const string Jina = "sSoVF9lUgTGJz0Xz3J9y"; // A mid-aged Korean female voice. Works well for News broadcasting
+    public const string JiYoung = "AW5wrnG1jVizOYY7R1Oo"; // A warm and clear Korean female voice with a friendly and natural tone. Suitable for narration, tutorials, and conversational content.
+    public const string Jennie = "z6Kj0hecH20CdetSElRT"; // Informative and youthful, exuding professionalism with a friendly, engaging tone that captivates listeners. It's perfect for podcasts, tutorials, and content creation, delivering clarity and enthusiasm that keeps audiences connected and informed.
+    public const string Yuna = "xi3rF0t7dg7uN2M0WUhr"; // Young Korean female voice with soft/cheerful voice specialized in narrative and storytelling.
+    
+    // English voices
+    public const string Rachel = "21m00Tcm4TlvDq8ikWAM"; // Female - American (default)
+    public const string Antoni = "ED0k6LqFEfpMua5GXpMG"; // Male - American
+    public const string Elli = "jsCqWAovK2LkecY7zXl4"; // Female - American
+    public const string Adam = "kgG8YXSrynzpPIncHKrx"; // Male - American
+    public const string Dorothy = "5Q0t7uMcjvnagumLfvZi"; // Female - British
+}
 
 /// <summary>
 /// Service for handling text-to-speech conversion using the ElevenLabs API.
@@ -28,7 +37,46 @@ public class ElevenLabsSpeechService
     private readonly Dictionary<string, Voice> _cachedVoices = new();
     private bool _voicesInitialized = false;
 
+    /// <summary>
+    /// Mapping of simple voice names to ElevenLabs voice IDs.
+    /// </summary>
+    public Dictionary<string, string> VoiceOptions { get; private set; } = new()
+    {
+        // English voices with friendly names
+        { "echo", Voices.Rachel }, // Default - English female
+        { "onyx", Voices.Antoni }, // English male
+        { "nova", Voices.Elli },   // English female
+        { "shimmer", Voices.Adam }, // English male
+        { "fable", Voices.Dorothy }, // English female - British
+        
+        // Korean voices
+        { "yuna", Voices.Yuna },   // Korean female - young, cheerful
+        { "jiyoung", Voices.JiYoung }, // Korean female - warm, clear
+        { "hyunbin", Voices.HyunBin }, // Korean male - cool, professional
+        { "jennie", Voices.Jennie },  // Korean female - informative, youthful
+        { "jina", Voices.Jina },  // Korean female - mid-aged, news broadcaster
+        { "dohyeon", Voices.DoHyeon }, // Korean male - older, mature
+        { "yohankoo", Voices.YohanKoo } // Korean male - confident, authoritative
+    };
 
+    /// <summary>
+    /// Gets a dictionary mapping friendly voice names to display names
+    /// </summary>
+    public Dictionary<string, string> VoiceDisplayNames { get; } = new()
+    {
+        { "echo", "Rachel (English)" },
+        { "onyx", "Antoni (English)" },
+        { "nova", "Elli (English)" },
+        { "shimmer", "Adam (English)" },
+        { "fable", "Dorothy (English)" },
+        { "yuna", "Yuna (Korean)" },
+        { "jiyoung", "Ji-Young (Korean)" },
+        { "hyunbin", "Hyun-Bin (Korean)" },
+        { "jennie", "Jennie (Korean)" },
+        { "jina", "Jina (Korean)" },
+        { "dohyeon", "Do-Hyeon (Korean)" },
+        { "yohankoo", "Yohan Koo (Korean)" }
+    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ElevenLabsSpeechService"/> class.
@@ -46,12 +94,12 @@ public class ElevenLabsSpeechService
     {
         if (_voicesInitialized)
             return;
-
+        
         try
         {
             // Get available voices from ElevenLabs API
             var voices = await _client.VoicesEndpoint.GetAllVoicesAsync();
-
+            
             if (voices != null)
             {
                 foreach (var voice in voices)
@@ -59,7 +107,7 @@ public class ElevenLabsSpeechService
                     _cachedVoices[voice.Id] = voice;
                     // Optionally populate VoiceOptions with actual voice names
                 }
-
+                
                 _voicesInitialized = true;
                 Debug.WriteLine($"Initialized {voices.Count} voices from ElevenLabs");
             }
@@ -93,29 +141,32 @@ public class ElevenLabsSpeechService
         try
         {
             // Map simple voice names to actual ElevenLabs voice IDs if needed
-            // if (VoiceOptions.ContainsKey(voiceId))
-            // {
-            //     voiceId = VoiceOptions[voiceId];
-            // }
+            if (VoiceOptions.ContainsKey(voiceId))
+            {
+                voiceId = VoiceOptions[voiceId];
+            }
 
-            // Set generation parameters
-            // var voiceSettings = new VoiceSettings(
-            //     stability: stability, 
-            //     similarityBoost: similarityBoost);
-
-            // await GetVoicesAsync();
-
+            // Create the voice settings
+            var voiceSettings = new VoiceSettings(
+                stability: stability, 
+                similarityBoost: similarityBoost);
+                
             var voice = await _client.VoicesEndpoint
-                .GetVoiceAsync(Voices.Yuna, withSettings: true, cancellationToken: cancellationToken);
+                .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
 
             // Create audio generation options
             var request = new TextToSpeechRequest(voice, text, model: Model.MultiLingualV2);//eleven_multilingual_v2
-            var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(request,
+
+            // Generate the speech using the proper API call
+            var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
+                request, 
                 cancellationToken: cancellationToken);
 
             // Create a memory stream from the audio bytes
             var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
-
+            
+            // Debug.WriteLine($"Generated speech audio: {audioBytes.ClipData.Length} bytes using voice ID {voiceId}");
+            
             return audioStream;
         }
         catch (Exception ex)
@@ -124,79 +175,6 @@ public class ElevenLabsSpeechService
             return Stream.Null;
         }
     }
-
-    /// <summary>
-    /// Streams text to speech using ElevenLabs API in a non-blocking way.
-    /// </summary>
-    /// <param name="text">The text to convert to speech.</param>
-    /// <param name="voiceId">The voice ID or name to use (from VoiceOptions).</param>
-    /// <param name="stability">Voice stability (0.0 to 1.0).</param>
-    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0).</param>
-    /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
-    /// <param name="bufferReceived">Action that will be called when audio buffers are received.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    // public async Task StreamTextToSpeechAsync(
-    //     string text,
-    //     string voiceId = "echo",
-    //     float stability = 0.5f,
-    //     float similarityBoost = 0.75f,
-    //     float speed = 1.0f,
-    //     Action<Stream> bufferReceived = null,
-    //     CancellationToken cancellationToken = default)
-    // {
-    //     cancellationToken.ThrowIfCancellationRequested();
-
-    //     try
-    //     {
-    //         // Map simple voice names to actual ElevenLabs voice IDs if needed
-    //         if (VoiceOptions.ContainsKey(voiceId))
-    //         {
-    //             voiceId = VoiceOptions[voiceId];
-    //         }
-
-    //         // Set generation parameters
-    //         var voiceSettings = new VoiceSettings(
-    //             stability: stability, 
-    //             similarityBoost: similarityBoost);
-
-    //         // Create audio stream options
-    //         var options = new TextToSpeechRequest(text)
-    //         {
-    //             VoiceId = voiceId,
-    //             VoiceSettings = voiceSettings,
-    //             ModelId = "eleven_turbo_v2",
-    //             OutputFormat = OutputFormat.Mp3_44100_128
-    //         };
-
-    //         // Add speed adjustment if not default
-    //         if (Math.Abs(speed - 1.0f) > 0.01f)
-    //         {
-    //             options.Speed = Math.Max(0.5f, Math.Min(2.0f, speed));
-    //         }
-
-    //         // Create a callback for handling streaming audio chunks
-    //         Action<byte[]> handleAudioChunk = (byte[] audioChunk) =>
-    //         {
-    //             if (audioChunk.Length > 0 && bufferReceived != null)
-    //             {
-    //                 var chunkStream = new MemoryStream(audioChunk);
-    //                 bufferReceived(chunkStream);
-    //             }
-    //         };
-
-    //         // Stream the speech
-    //         await _client.TextToSpeechEndpoint.TextToSpeechStreamAsync(
-    //             options, 
-    //             handleAudioChunk, 
-    //             cancellationToken);
-
-    //         Debug.WriteLine($"Completed streaming speech audio using voice ID {voiceId}");
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         Debug.WriteLine($"Error in StreamTextToSpeechAsync: {ex.Message}");
-    //     }
-    // }
 
     /// <summary>
     /// Gets available voices from ElevenLabs.
