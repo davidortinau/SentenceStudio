@@ -153,6 +153,10 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 		
+		// Register Learning Resources pages
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.ListLearningResourcesPage>(nameof(SentenceStudio.Pages.LearningResources.ListLearningResourcesPage));
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.AddLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.AddLearningResourcePage));
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.EditLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.EditLearningResourcePage));
 	}
 
 	
@@ -182,6 +186,7 @@ public static class MauiProgram
 		services.AddSingleton<UserProfileRepository>();
 		services.AddSingleton<UserActivityRepository>();
 		services.AddSingleton<SkillProfileRepository>();
+		services.AddSingleton<LearningResourceRepository>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 
