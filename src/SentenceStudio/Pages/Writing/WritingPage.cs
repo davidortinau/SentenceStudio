@@ -132,14 +132,23 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         try 
         {
             var random = new Random();
-            var vocab = await _vocabService.GetListAsync(Props.Vocabulary.ID);
-            if (vocab != null)
+            
+            // Use the Resource's Vocabulary directly instead of loading from VocabularyList
+            if (Props.Resource?.Vocabulary != null && Props.Resource.Vocabulary.Any())
             {
-                SetState(s => s.VocabBlocks = vocab.Words
+                SetState(s => s.VocabBlocks = Props.Resource.Vocabulary
                     .OrderBy(t => random.Next())
                     .Take(4)
                     .ToList()
                 );
+            }
+            else
+            {
+                // Fallback to empty list if no vocabulary available
+                SetState(s => s.VocabBlocks = new List<VocabularyWord>());
+                
+                // Show message to user
+                await AppShell.DisplayToastAsync("No vocabulary available in the selected resource");
             }
         }
         finally

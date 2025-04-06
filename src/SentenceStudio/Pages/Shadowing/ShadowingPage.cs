@@ -519,7 +519,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         .IsVisible(State.IsBusy);
 
     /// <summary>
-    /// Loads sentences for shadowing practice using the selected vocabulary and skill.
+    /// Loads sentences for shadowing practice using the selected resource and skill.
     /// </summary>
     async void LoadSentences()
     {
@@ -542,8 +542,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             // Clear audio cache when loading new sentences
             _audioCache.Clear();
             
+            // Use resource ID instead of vocabulary ID
+            var resourceId = Props.Resource?.ID ?? 0;
+            
             var sentences = await _shadowingService.GenerateSentencesAsync(
-                Props.Vocabulary.ID, 
+                resourceId, 
                 10,
                 Props.Skill?.ID ?? 0);
                 
@@ -554,7 +557,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             });
             
             // Record this activity
-            if (Props.Vocabulary != null && Props.Skill != null)
+            if (Props.Resource != null && Props.Skill != null)
             {
                 await _userActivityRepository.SaveAsync(new UserActivity
                 {
@@ -562,8 +565,6 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     Input = sentences.Any() ? sentences[0].TargetLanguageText : string.Empty,
                     Accuracy = 100, // Default to 100 for shadowing as it's practice-based
                     Fluency = 100,  // Default to 100 for shadowing as it's practice-based
-                    // VocabularyID = Props.Vocabulary.ID,
-                    // SkillID = Props.Skill?.ID ?? 0,
                     CreatedAt = DateTime.Now
                 });
             }

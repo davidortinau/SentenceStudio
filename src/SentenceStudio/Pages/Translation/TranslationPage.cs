@@ -254,7 +254,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         await Task.Delay(100);
         SetState(s => s.IsBusy = true);
         
-        var sentences = await _teacherService.GetChallenges(Props.Vocabulary.ID, 2, Props.Skill.ID);
+        // Use the resource ID if available, or fallback to null
+        var resourceId = Props.Resource?.ID ?? 0;
+        
+        var sentences = await _teacherService.GetChallenges(resourceId, 2, Props.Skill.ID);
         await Task.Delay(100);
         
         SetState(s => {
@@ -271,7 +274,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         if(State.Sentences.Count < 10)
         {
             SetState(s => s.IsBuffering = true);
-            var moreSentences = await _teacherService.GetChallenges(Props.Vocabulary.ID, 8, Props.Skill.ID);
+            var moreSentences = await _teacherService.GetChallenges(resourceId, 8, Props.Skill.ID);
             SetState(s => {
                 foreach(var sentence in moreSentences)
                 {

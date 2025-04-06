@@ -18,7 +18,7 @@ public class ShadowingService
 {
     private readonly AiService _aiService;
     private readonly ElevenLabsSpeechService _speechService;
-    private readonly VocabularyService _vocabularyService;
+    private readonly LearningResourceRepository _resourceRepository;
     private readonly SkillProfileRepository _skillRepository;
     private readonly UserProfileRepository _userProfileRepository;
     private List<VocabularyWord> _words = new();
@@ -36,35 +36,38 @@ public class ShadowingService
     {
         _aiService = service.GetRequiredService<AiService>();
         _speechService = service.GetRequiredService<ElevenLabsSpeechService>();
-        _vocabularyService = service.GetRequiredService<VocabularyService>();
+        _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
     }
 
     /// <summary>
-    /// Generates sentences for shadowing practice based on vocabulary and skill level.
+    /// Generates sentences for shadowing practice based on learning resource and skill level.
     /// </summary>
-    /// <param name="vocabularyListID">The ID of the vocabulary list to use.</param>
+    /// <param name="resourceId">The ID of the learning resource to use.</param>
     /// <param name="numberOfSentences">The number of sentences to generate.</param>
     /// <param name="skillID">The ID of the skill profile to use.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A list of sentences for shadowing practice.</returns>
     public async Task<List<ShadowingSentence>> GenerateSentencesAsync(
-        int vocabularyListID, 
+        int resourceId, 
         int numberOfSentences = 10, 
         int skillID = 0, 
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
+        // Get the learning resource with vocabulary
+        LearningResource resource = await _resourceRepository.GetResourceAsync(resourceId);
 
-        if (vocab is null || vocab.Words is null)
+        // If no resource found or no vocabulary available, return empty list
+        if (resource == null || resource.Vocabulary == null || !resource.Vocabulary.Any())
             return new List<ShadowingSentence>();
 
         var random = new Random();
         
-        _words = vocab.Words.OrderBy(t => random.Next()).Take(10).ToList();
+        // Take a random selection of vocabulary words
+        _words = resource.Vocabulary.OrderBy(t => random.Next()).Take(10).ToList();
         
         // Get the user's native and target languages
         var userProfile = await _userProfileRepository.GetAsync();

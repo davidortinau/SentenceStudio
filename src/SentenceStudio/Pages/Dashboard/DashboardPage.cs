@@ -9,22 +9,22 @@ namespace SentenceStudio.Pages.Dashboard;
 
 class DashboardParameters
 {
-    public VocabularyList SelectedVocabList { get; set; }
+    public LearningResource SelectedResource { get; set; }
     public SkillProfile SelectedSkillProfile { get; set; }
 }
 
 class DashboardPageState
 {
-    public List<VocabularyList> VocabLists { get; set; } = [];
+    public List<LearningResource> Resources { get; set; } = [];
     public List<SkillProfile> SkillProfiles { get; set; } = [];
     
-    public int SelectedVocabListIndex { get; set; }
+    public int SelectedResourceIndex { get; set; }
     public int SelectedSkillProfileIndex { get; set; }
 }
 
 partial class DashboardPage : Component<DashboardPageState>
 {
-    [Inject] VocabularyService _vocabService;
+    [Inject] LearningResourceRepository _resourceRepository;
     [Inject] SkillProfileRepository _skillService;
 
     [Param] IParameter<DashboardParameters> _parameters;
@@ -46,15 +46,15 @@ partial class DashboardPage : Component<DashboardPageState>
                             new SfTextInputLayout
                                 {
                                     Picker()
-                                        .ItemsSource(State.VocabLists.Select(_ => _.Name).ToList())
-                                        .SelectedIndex(State.SelectedVocabListIndex)
+                                        .ItemsSource(State.Resources.Select(_ => _.Title).ToList())
+                                        .SelectedIndex(State.SelectedResourceIndex)
                                         .OnSelectedIndexChanged(index => 
                                         {
-                                            State.SelectedVocabListIndex = index;
-                                            _parameters.Set(p => p.SelectedVocabList = State.VocabLists[index]);
+                                            State.SelectedResourceIndex = index;
+                                            _parameters.Set(p => p.SelectedResource = State.Resources[index]);
                                         })
                                 }
-                                .Hint("Vocabulary"),
+                                .Hint("Learning Resources"),
                             new SfTextInputLayout
                                 {
                                     Picker()
@@ -93,23 +93,18 @@ partial class DashboardPage : Component<DashboardPageState>
 
     async Task LoadOrRefreshDataAsync()
     {
-        var vocabLists = await _vocabService.GetListsAsync();
+        var resources = await _resourceRepository.GetAllResourcesAsync();
         var skills = await _skillService.ListAsync();
 
-        // var listIndex = State.VocabLists.FirstOrDefault(p => p.ID == Props.Task.ProjectID);
-        // var profileIndex = State.SkillProfiles.IndexOf(State.SelectedSkillProfile);
-
         _parameters.Set(p =>{
-            p.SelectedVocabList = vocabLists.FirstOrDefault();
+            p.SelectedResource = resources.FirstOrDefault();
             p.SelectedSkillProfile = skills.FirstOrDefault();
         });
 
         SetState(s => 
         {
-            s.VocabLists = vocabLists;
+            s.Resources = resources;
             s.SkillProfiles = skills;
-            // s.SelectedVocabListIndex = listIndex;
-            // s.SelectedSkillProfileIndex = profileIndex;
         });
     }
 }
@@ -124,36 +119,34 @@ public partial class ActivityBorder : MauiReactor.Component
 
     [Param] IParameter<DashboardParameters> _parameters;
 
-
     public override VisualNode Render() =>
         Border(
             Grid(
                 Label()
-                            .VerticalOptions(LayoutOptions.Center)
-                            .HorizontalOptions(LayoutOptions.Center)
-                            .Text($"{_labelText}")
-
-                    )
-                    .WidthRequest(300)
-                    .HeightRequest(120)
+                    .VerticalOptions(LayoutOptions.Center)
+                    .HorizontalOptions(LayoutOptions.Center)
+                    .Text($"{_labelText}")
             )
-            .StrokeShape(Rectangle())
-            .StrokeThickness(1)
-            .HorizontalOptions(LayoutOptions.Start)
-            .OnTapped(async () =>
-            await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
-                _route,
-                props =>
-                {
-                    props.Vocabulary = _parameters.Value.SelectedVocabList;
-                    props.Skill = _parameters.Value.SelectedSkillProfile;
-                }
-            )
-        );
+            .WidthRequest(300)
+            .HeightRequest(120)
+        )
+        .StrokeShape(Rectangle())
+        .StrokeThickness(1)
+        .HorizontalOptions(LayoutOptions.Start)
+        .OnTapped(async () =>
+        await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
+            _route,
+            props =>
+            {
+                props.Resource = _parameters.Value.SelectedResource;
+                props.Skill = _parameters.Value.SelectedSkillProfile;
+            }
+        )
+    );
 }
 
 class ActivityProps
-    {
-        public VocabularyList Vocabulary { get; set; }
-        public SkillProfile Skill { get; set; }
-    }
+{
+    public LearningResource Resource { get; set; }
+    public SkillProfile Skill { get; set; }
+}

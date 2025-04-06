@@ -243,7 +243,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		try
 		{
-			var sentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 2, Props.Skill.ID);
+			// Use the resource ID if available, or fallback to 0
+			var resourceId = Props.Resource?.ID ?? 0;
+			
+			var sentences = await _clozureService.GetSentences(resourceId, 2, Props.Skill.ID);
 			
 			if (sentences.Any())
 			{
@@ -264,7 +267,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				if (sentences.Count < 10)
 				{
 					SetState(s => s.IsBuffering = true);
-					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.ID);
 					SetState(s =>
 					{
 						if (moreSentences != null && moreSentences.Any())
@@ -368,7 +371,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				SetState(s => s.IsBuffering = true);
 				try 
 				{
-					var moreSentences = await _clozureService.GetSentences(Props.Vocabulary.ID, 8, Props.Skill.ID);
+					// Use resource ID instead of vocabulary ID
+					var resourceId = Props.Resource?.ID ?? 0;
+					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.ID);
+					
 					if (moreSentences?.Any() == true)
 					{
 						SetState(s =>
@@ -384,7 +390,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					{
 						await Application.Current.MainPage.DisplayAlert(
 							_localize["No More Sentences"].ToString(),
-							_localize["There are no more sentences available for this vocabulary."].ToString(),
+							_localize["There are no more sentences available for this resource."].ToString(),
 							_localize["OK"].ToString()
 						);
 					}
