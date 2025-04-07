@@ -3,6 +3,10 @@ using SentenceStudio.Pages.Dashboard;
 using Plugin.Maui.Audio;
 using MauiReactor.Compatibility;
 using SentenceStudio.Pages.Controls;
+using System.Text.RegularExpressions;
+using CommunityToolkit.Maui.Storage;
+using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Core;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -41,6 +45,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] AudioAnalyzer _audioAnalyzer;
     [Inject] ElevenLabsSpeechService _speechService;
+    [Inject] IFileSaver _fileSaver;
 
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
@@ -65,7 +70,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 WaveformDisplay(),
                 NavigationFooter(),
                 LoadingOverlay(),
-                RenderVoiceSelectionBottomSheet()
+                RenderVoiceSelectionBottomSheet(),
+                RenderExportBottomSheet()
             )
             .RowSpacing(12)
         ).OnAppearing(OnPageAppearing);
@@ -115,6 +121,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 )
 
         )
+            .GridRowSpan(3)
             .IsOpen(State.IsVoiceSelectionVisible);
 
     /// <summary>
@@ -432,6 +439,15 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 
 
                 HStack(
+                    Button()
+                        .ImageSource(SegoeFluentIcons.Save.ToImageSource())
+                        .ThemeKey("Secondary")
+                        .HeightRequest(35)
+                        .WidthRequest(35)
+                        .Padding(0)
+                        .Margin(0, 0, 12, 0)
+                        .OnClicked(SaveAudioAsMp3),
+                        
                     new SfSegmentedControl(
                         new SfSegmentItem()
                                 .ImageSource(ApplicationTheme.IconSpeedVerySlow),
@@ -473,13 +489,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         }),
                         Button(State.SelectedVoiceDisplayName)
                             .ThemeKey("Secondary")
-                            // .FontSize(14)
-                            // .CornerRadius(15)
-                            // .BackgroundColor(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
-                            // .TextColor(Theme.IsLightTheme ? Colors.Black : Colors.White)
-                            // .Padding(10, 5)
                             .VCenter()
-                            // .HeightRequest(30)
                             .OnClicked(ShowVoiceSelection)
 
                 )
@@ -502,6 +512,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     }
 
     /// <summary>
+    /// Shows the export menu bottom sheet.
+    /// </summary>
+    private void ShowExportMenu()
+    {
+        SetState(s => s.IsExportMenuVisible = true);
+    }
+
+    /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
     /// </summary>
     /// <returns>A visual node representing the loading overlay.</returns>
@@ -517,6 +535,57 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         .Background(Color.FromArgb("#80000000"))
         .GridRowSpan(3)
         .IsVisible(State.IsBusy);
+
+    /// <summary>
+    /// Renders the export options bottom sheet.
+    /// </summary>
+    private VisualNode RenderExportBottomSheet() =>
+        new SfBottomSheet(
+            Grid("*", "*",
+                VStack(
+                    Label("Export Audio")
+                        .FontAttributes(FontAttributes.Bold)
+                        .FontSize(20)
+                        .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                        .HCenter()
+                        .Margin(0, 0, 0, 20),
+                    
+                    State.IsSavingAudio ? 
+                    VStack(
+                        ActivityIndicator()
+                            .IsRunning(true)
+                            .HCenter()
+                            .HeightRequest(50)
+                            .WidthRequest(50)
+                            .Margin(0, 0, 0, 10),
+                        Label(State.ExportProgressMessage)
+                            .FontSize(16)
+                            .HCenter()
+                    ) :
+                    VStack(
+                        Button("Save as MP3")
+                            .ThemeKey("Primary")
+                            .OnClicked(SaveAudioAsMp3)
+                            .Margin(0, 0, 0, 10),
+                        
+                        !string.IsNullOrEmpty(State.LastSavedFilePath) ?
+                        VStack(
+                            Label("Last Saved:")
+                                .FontSize(14)
+                                .TextColor(Colors.Gray)
+                                .HCenter(),
+                            Label(State.LastSavedFilePath)
+                                .FontSize(14)
+                                .TextColor(Colors.Gray)
+                                .HCenter()
+                        ) : null
+                    )
+                )
+                .Padding(20)
+                .HCenter()
+            )
+        )
+        .IsOpen(State.IsExportMenuVisible);
 
     /// <summary>
     /// Loads sentences for shadowing practice using the selected resource and skill.
@@ -1034,6 +1103,102 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         RewindAudioStream();
         
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Saves the current audio to an MP3 file using the FileSaver service.
+    /// </summary>
+    private async void SaveAudioAsMp3()
+    {
+        if (State.CurrentAudioStream == null) 
+        {
+            await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
+            return;
+        }
+
+        try
+        {
+            SetState(s => {
+                s.IsSavingAudio = true;
+                s.ExportProgressMessage = "Preparing audio for export...";
+            });
+            
+            // Create a unique filename based on text and timestamp
+            string safeFilename = MakeSafeFileName(State.CurrentSentenceText);
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string fileName = $"{safeFilename}_{timestamp}.mp3";
+            
+            SetState(s => s.ExportProgressMessage = "Saving audio file...");
+            
+            // Clone the stream to a memory stream to avoid position issues
+            MemoryStream memoryStream = new MemoryStream();
+            State.CurrentAudioStream.Position = 0;
+            await State.CurrentAudioStream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+            
+            // Reset original stream position
+            State.CurrentAudioStream.Position = 0;
+            
+            // Use the FileSaver to save the audio
+            var fileSaverResult = await _fileSaver.SaveAsync(fileName, memoryStream, new CancellationToken());
+            
+            // Check if the save was successful
+            if (fileSaverResult.IsSuccessful)
+            {
+                SetState(s => {
+                    s.IsSavingAudio = false;
+                    s.LastSavedFilePath = fileSaverResult.FilePath;
+                    s.ExportProgressMessage = "File saved successfully!";
+                });
+
+                // Show success message
+                await Toast.Make("Audio saved successfully!").Show();
+                
+                // Close the export menu after successful save
+                SetState(s => s.IsExportMenuVisible = false);
+            }
+            else
+            {
+                // Show error if save was canceled or failed
+                if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
+                {
+                    await App.Current.MainPage.DisplayAlert("Error", 
+                        $"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
+                }
+                
+                SetState(s => s.IsSavingAudio = false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error saving audio: {ex.Message}");
+            SetState(s => { 
+                s.IsSavingAudio = false;
+                s.ExportProgressMessage = $"Error: {ex.Message}";
+            });
+            
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+        }
+    }
+
+    /// <summary>
+    /// Creates a safe filename from a text string by removing invalid characters.
+    /// </summary>
+    private string MakeSafeFileName(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "audio";
+            
+        // Replace invalid filename characters with underscores
+        string invalidChars = new string(System.IO.Path.GetInvalidFileNameChars());
+        string invalidRegStr = string.Format(@"[{0}]", Regex.Escape(invalidChars));
+        string safe = Regex.Replace(text, invalidRegStr, "_");
+        
+        // Trim to reasonable length
+        if (safe.Length > 50)
+            safe = safe.Substring(0, 50);
+            
+        return safe;
     }
 
     /// <summary>

@@ -150,4 +150,9 @@ class ShadowingPageState
         Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
             ? Sentences[CurrentSentenceIndex].PronunciationNotes
             : string.Empty;
+
+    public bool IsExportMenuVisible { get; set; } = false;
+    public bool IsSavingAudio { get; set; } = false;
+    public string ExportProgressMessage { get; set; } = string.Empty;
+    public string LastSavedFilePath { get; set; } = string.Empty;
 }

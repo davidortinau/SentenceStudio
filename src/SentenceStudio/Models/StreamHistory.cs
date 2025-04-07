@@ -30,6 +30,11 @@ public class StreamHistory
     /// </summary>
     public bool IsWaveformAnalyzed => WaveformData != null && WaveformData.Length > 0;
 
+    /// <summary>
+    /// The ID of the voice used to generate this audio
+    /// </summary>
+    public string VoiceId { get; set; }
+
     public string FileName { get; internal set; }
     public string Title { get; internal set; }
     public string Source { get; internal set; }

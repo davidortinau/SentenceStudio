@@ -23,6 +23,7 @@ using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
 using ElevenLabs;
+using CommunityToolkit.Maui.Storage;
 
 #if WINDOWS
 using System.Reflection;
@@ -201,6 +202,7 @@ public static class MauiProgram
 
 		services.AddSingleton<ISpeechToText>(SpeechToText.Default);
 		services.AddFilePicker();
+		services.AddSingleton<IFileSaver>(FileSaver.Default);
 
 		// services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();

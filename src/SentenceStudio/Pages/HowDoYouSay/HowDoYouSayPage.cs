@@ -1,6 +1,9 @@
+using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Storage;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -11,12 +14,25 @@ class HowDoYouSayPageState
 	public ObservableCollection<StreamHistory> StreamHistory { get; set; } = new();
 	public float PlaybackPosition { get; set; } = 0f;
 	public StreamHistory CurrentPlayingItem { get; set; }
+	public string SelectedVoiceId { get; set; } = "jiyoung"; // Default voice
+	public bool IsVoiceSelectionVisible { get; set; } = false;
+	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
+	
+	public string SelectedVoiceDisplayName => 
+		VoiceDisplayNames.ContainsKey(SelectedVoiceId) ? 
+		VoiceDisplayNames[SelectedVoiceId] : "Ji-Young";
+		
+	// Export-related properties
+	public bool IsSavingAudio { get; set; } = false;
+	public string ExportProgressMessage { get; set; } = string.Empty;
+	public StreamHistory ItemToExport { get; set; }
 }
 
 partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 {
-	[Inject] AiService _aiService;
+	[Inject] ElevenLabsSpeechService _speechService;
 	[Inject] AudioAnalyzer _audioAnalyzer;
+	[Inject] IFileSaver _fileSaver;
 	LocalizationManager _localize => LocalizationManager.Instance;
 	
 	private IAudioPlayer _audioPlayer;
@@ -28,9 +44,16 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Grid(rows: "Auto,Auto,*", "*",
 				RenderInput(),
 				WaveformDisplay(),
-				RenderHistory()
+				RenderHistory(),
+				RenderVoiceSelectionBottomSheet()
 			)
-		);
+		).OnAppearing(OnPageAppearing);
+	}
+	
+	private void OnPageAppearing()
+	{
+		// Initialize voice display names from the service
+		SetState(s => s.VoiceDisplayNames = _speechService.VoiceDisplayNames);
 	}
 
 	VisualNode RenderInput() =>
@@ -50,8 +73,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
 			.Stroke(ApplicationTheme.Gray300),
-			Button("Submit")
-				.OnClicked(Submit)
+			HStack(
+				Button("Submit")
+					.HorizontalOptions(LayoutOptions.Fill)
+					.OnClicked(Submit),
+				Button(State.SelectedVoiceDisplayName)
+					.ThemeKey("Secondary")
+					.HEnd()
+					.OnClicked(ShowVoiceSelection)
+			).Spacing(ApplicationTheme.Size240)
 		)
 		.Padding(ApplicationTheme.Size240);
 		
@@ -94,14 +124,24 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		.GridRow(2);
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
-		HStack(spacing: ApplicationTheme.Size120,
+		Grid("*", "Auto,*,Auto",
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => PlayAudio(item))
-				.ImageSource(SegoeFluentIcons.Play.ToFontImageSource())
-				.TextColor(Colors.Black),
+				.ImageSource(SegoeFluentIcons.Play.ToImageSource())
+				.TextColor(Colors.Black)
+				.GridColumn(0),
 			Label(item.Phrase)
 				.FontSize(24)
+				.LineBreakMode(LineBreakMode.TailTruncation)
+				.GridColumn(1),
+			Button()
+				.Background(Colors.Transparent)
+				.OnClicked(() => SaveAudioAsMp3(item))
+				.ImageSource(SegoeFluentIcons.Save.ToImageSource())
+				.TextColor(Colors.Black)
+				.GridColumn(2)
+				.HEnd()
 		);
 
 	async Task Submit()
@@ -112,10 +152,16 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 
 		try
 		{
-			var stream = await _aiService.TextToSpeechAsync(State.Phrase, "Nova");
+			var stream = await _speechService.TextToSpeechAsync(
+				State.Phrase, 
+				State.SelectedVoiceId); // Use the selected voice ID
 			
 			// Create new StreamHistory item
-			var historyItem = new StreamHistory { Phrase = State.Phrase, Stream = stream };
+			var historyItem = new StreamHistory { 
+				Phrase = State.Phrase, 
+				Stream = stream,
+				VoiceId = State.SelectedVoiceId // Store the voice ID with the history item
+			};
 			
 			// Analyze the audio stream to extract waveform data
 			historyItem.WaveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(stream);
@@ -257,5 +303,174 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	{
 		StopPlayback();
 		base.OnWillUnmount();
+	}
+	
+	/// <summary>
+	/// Renders the voice selection bottom sheet.
+	/// </summary>
+	private VisualNode RenderVoiceSelectionBottomSheet() =>
+		new SfBottomSheet(
+				Grid("*", "*",
+					ScrollView(
+						VStack(
+							Label("Korean Voices")
+								.FontAttributes(FontAttributes.Bold)
+								.FontSize(18)
+								.TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+								.HCenter()
+								.Margin(0, 0, 0, 10),
+							CreateVoiceOption("yuna", "Yuna", "Female - Young, cheerful"),
+							CreateVoiceOption("jiyoung", "Ji-Young", "Female - Warm, clear"),
+							CreateVoiceOption("jina", "Jina", "Female - Mid-aged, news broadcaster"),
+							CreateVoiceOption("jennie", "Jennie", "Female - Youthful, professional"),
+							CreateVoiceOption("hyunbin", "Hyun-Bin", "Male - Cool, professional"),
+							CreateVoiceOption("dohyeon", "Do-Hyeon", "Male - Older, mature"),
+							CreateVoiceOption("yohankoo", "Yohan Koo", "Male - Confident, authoritative")
+						)
+						.Spacing(15)
+						.Padding(20, 10)
+					)
+				)
+
+		)
+			.GridRowSpan(4)
+			.IsOpen(State.IsVoiceSelectionVisible);
+
+	/// <summary>
+	/// Creates a voice option item for the bottom sheet.
+	/// </summary>
+	private VisualNode CreateVoiceOption(string voiceId, string displayName, string description) =>
+		Grid("*", "Auto,*",
+			RadioButton()
+				.IsChecked(State.SelectedVoiceId == voiceId)
+				.GroupName("VoiceOptions")
+				.OnCheckedChanged((sender, args) =>
+				{
+					if (args.Value)
+					{
+						SelectVoice(voiceId);
+					}
+				})
+				.GridColumn(0),
+			VStack(spacing: 0,
+				Label(displayName)
+					.FontAttributes(FontAttributes.Bold)
+					.FontSize(16),
+				Label(description)
+					.FontSize(14)
+					.TextColor(Colors.Gray)
+			)
+			.HStart()
+			.GridColumn(1)
+		)
+		.OnTapped(() => SelectVoice(voiceId))
+		;
+	
+	/// <summary>
+	/// Handles voice selection.
+	/// </summary>
+	private void SelectVoice(string voiceId)
+	{
+		// Update the selected voice
+		SetState(s => {
+			s.SelectedVoiceId = voiceId;
+			
+			// Close the bottom sheet after selection
+			s.IsVoiceSelectionVisible = false;
+		});
+		
+		Debug.WriteLine($"Selected voice: {voiceId}");
+	}
+	
+	/// <summary>
+	/// Shows the voice selection bottom sheet.
+	/// </summary>
+	private void ShowVoiceSelection()
+	{
+		SetState(s => s.IsVoiceSelectionVisible = true);
+	}
+
+	/// <summary>
+	/// Saves the selected audio to an MP3 file using the FileSaver service.
+	/// </summary>
+	async void SaveAudioAsMp3(StreamHistory item)
+	{
+		Debug.WriteLine($"Saving audio for: {item.Phrase}");
+		// if (item?.Stream == null) 
+		// {
+		// 	await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
+		// 	return;
+		// }
+
+		try
+		{
+			SetState(s => {
+				s.IsSavingAudio = true;
+				s.ItemToExport = item;
+			});
+
+		// 	// Create a unique filename based on text and timestamp
+			string safeFilename = MakeSafeFileName(item.Phrase);
+			string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+			string fileName = $"{safeFilename}_{timestamp}.mp3";
+
+		// 	// Clone the stream to a memory stream to avoid position issues
+			MemoryStream memoryStream = new MemoryStream();
+			item.Stream.Position = 0;
+			await item.Stream.CopyToAsync(memoryStream);
+			memoryStream.Position = 0;
+
+		// 	// Reset original stream position
+			item.Stream.Position = 0;
+
+		// 	// Use the FileSaver to save the audio
+			var fileSaverResult = await _fileSaver.SaveAsync(fileName, memoryStream, new CancellationToken());
+
+			// 	// Check if the save was successful
+			if (fileSaverResult.IsSuccessful)
+			{
+				// Show success message
+				await Toast.Make("Audio saved successfully!").Show();
+				// await App.Current.MainPage.DisplayAlert("Success", $"Audio saved to: {fileSaverResult.FilePath}", "OK");
+			}
+			else
+			{
+				// Show error if save was canceled or failed
+				if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
+				{
+					await App.Current.MainPage.DisplayAlert("Error",
+						$"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
+				}
+			}
+
+			SetState(s => s.IsSavingAudio = false);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"Error saving audio: {ex.Message}");
+			SetState(s => s.IsSavingAudio = false);
+
+			await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+		}
+	}
+	
+	/// <summary>
+	/// Creates a safe filename from a text string by removing invalid characters.
+	/// </summary>
+	private string MakeSafeFileName(string text)
+	{
+		if (string.IsNullOrEmpty(text))
+			return "audio";
+			
+		// Replace invalid filename characters with underscores
+		string invalidChars = new string(System.IO.Path.GetInvalidFileNameChars());
+		string invalidRegStr = string.Format(@"[{0}]", Regex.Escape(invalidChars));
+		string safe = Regex.Replace(text, invalidRegStr, "_");
+		
+		// Trim to reasonable length
+		if (safe.Length > 50)
+			safe = safe.Substring(0, 50);
+			
+		return safe;
 	}
 }
