@@ -133,15 +133,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     
                                 Button("Add Your First Resource")
                                     .OnClicked(AddResource)
-                                    .BackgroundColor(Colors.Blue)
-                                    .TextColor(Colors.White)
                                     .HCenter()
                                     .WidthRequest(200),
-                                    
+
                                 Button("Import from Vocabulary Lists")
                                     .OnClicked(MigrateVocabularyLists)
-                                    .BackgroundColor(Colors.Green)
-                                    .TextColor(Colors.White)
+                                    .ThemeKey("Secondary")
                                     .HCenter()
                                     .WidthRequest(200)
                             )
@@ -160,7 +157,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             Grid(rows: "Auto, Auto", columns: "Auto, *, Auto",
                 // Icon based on media type
                 Image()
-                .Source(GetIconForMediaType(resource.MediaType))
+                .Source(ApplicationTheme.GetIconForMediaType(resource.MediaType))
                     .VCenter()
                     .HCenter()
                     .GridColumn(0)
@@ -303,20 +300,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             props => props.ResourceID = resourceId);
     }
     
-    // Helper method to get icon based on media type
-    private ImageSource GetIconForMediaType(string mediaType)
-    {
-        return mediaType switch
-        {
-            "Video" => SegoeFluentIcons.Video.ToImageSource(),
-            "Podcast" => SegoeFluentIcons.Microphone.ToImageSource(),
-            "Image" => SegoeFluentIcons.Photo.ToImageSource(),
-            "Vocabulary List" => SegoeFluentIcons.ReadingList.ToImageSource(),
-            "Article" => SegoeFluentIcons.Document.ToImageSource(),
-            _ => SegoeFluentIcons.Document.ToImageSource()
-        };
-    }
-
     async Task MigrateVocabularyLists()
     {
         // Check if there are vocabulary lists to migrate

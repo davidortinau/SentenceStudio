@@ -95,7 +95,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 
             // Metadata
             Border(
-                Grid(rows: "Auto, Auto, Auto, Auto", columns: "Auto, *",
+                Grid(rows: "Auto, Auto, Auto, Auto, Auto", columns: "Auto, *",
                     Label("Type:")
                         .FontAttributes(FontAttributes.Bold)
                         .GridRow(0)
@@ -103,7 +103,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Label(State.Resource.MediaType ?? string.Empty)
                         .GridRow(0)
                         .GridColumn(1),
-                        
+
                     Label("Language:")
                         .FontAttributes(FontAttributes.Bold)
                         .GridRow(1)
@@ -111,21 +111,37 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Label(State.Resource.Language ?? string.Empty)
                         .GridRow(1)
                         .GridColumn(1),
-                        
+
+                    Label("Url:")
+                        .FontAttributes(FontAttributes.Bold)
+                        .GridRow(2)
+                        .GridColumn(0),
+                    Label(State.Resource.MediaUrl ?? string.Empty)
+                        .GridRow(2)
+                        .GridColumn(1)
+                        .TextDecorations(TextDecorations.Underline)
+                        .OnTapped(() => 
+                            {
+                                if (!string.IsNullOrEmpty(State.Resource.MediaUrl))
+                                {
+                                    Launcher.OpenAsync(State.Resource.MediaUrl);
+                                }
+                            }),
+
                     Label("Created:")
                         .FontAttributes(FontAttributes.Bold)
-                        .GridRow(2)
+                        .GridRow(3)
                         .GridColumn(0),
                     Label(State.Resource.CreatedAt.ToString("g"))
-                        .GridRow(2)
+                        .GridRow(3)
                         .GridColumn(1),
-                        
+
                     Label("Updated:")
                         .FontAttributes(FontAttributes.Bold)
-                        .GridRow(3)
+                        .GridRow(4)
                         .GridColumn(0),
                     Label(State.Resource.UpdatedAt.ToString("g"))
-                        .GridRow(3)
+                        .GridRow(4)
                         .GridColumn(1)
                 )
                 .RowSpacing(5)
@@ -176,9 +192,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             
                         HStack(
                             Button("Generate")
+                                .ThemeKey("Secondary")
                                 .OnClicked(GenerateVocabulary)
-                                .BackgroundColor(Colors.LightGreen)
-                                .TextColor(Colors.Black)
                                 .IsEnabled(!State.IsGeneratingVocabulary)
                                 .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
                                 
@@ -226,9 +241,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             
                         HStack(
                             Button("Generate")
+                                .ThemeKey("Secondary")
                                 .OnClicked(GenerateVocabulary)
-                                .BackgroundColor(Colors.LightGreen)
-                                .TextColor(Colors.Black)
                                 .IsEnabled(!State.IsGeneratingVocabulary)
                                 .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
                                 
@@ -393,12 +407,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         
                     HStack(
                         Button("+ Add Word")
+                            .ThemeKey("Secondary")
                             .OnClicked(AddVocabularyWord),
-                            
+
                         Button("Generate")
+                            .ThemeKey("Secondary")
                             .OnClicked(GenerateVocabulary)
-                            .BackgroundColor(Colors.LightGreen)
-                            .TextColor(Colors.Black)
                             .IsEnabled(!State.IsGeneratingVocabulary)
                             .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
                             
@@ -432,13 +446,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                 HStack(
                                     Button("Edit")
                                         .OnClicked(() => EditVocabularyWord(word))
-                                        .BackgroundColor(Colors.Blue)
-                                        .TextColor(Colors.White),
-                                        
+                                        .ThemeKey("Secondary"),
+
                                     Button("Delete")
                                         .OnClicked(() => DeleteVocabularyWord(word))
-                                        .BackgroundColor(Colors.Red)
-                                        .TextColor(Colors.White)
+                                        .ThemeKey("Secondary")
                                 )
                                 .GridColumn(1)
                                 .HEnd()
@@ -664,19 +676,5 @@ Transcript:
             SetState(s => s.IsGeneratingVocabulary = false);
             await App.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
         }
-    }
-    
-    // Helper method to get icon based on media type
-    private string GetIconForMediaType(string mediaType)
-    {
-        return mediaType switch
-        {
-            "Video" => SegoeFluentIcons.Video.ToString(),
-            "Podcast" => SegoeFluentIcons.Microphone.ToString(),
-            "Image" => SegoeFluentIcons.Photo.ToString(),
-            "Vocabulary List" => SegoeFluentIcons.ReadingList.ToString(),
-            "Article" => SegoeFluentIcons.Document.ToString(),
-            _ => SegoeFluentIcons.Document.ToString()
-        };
     }
 }

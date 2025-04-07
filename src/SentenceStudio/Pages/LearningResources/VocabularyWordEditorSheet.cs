@@ -72,13 +72,10 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                     
                     HStack(
                         Button("Save")
-                            .BackgroundColor(Colors.Green)
-                            .TextColor(Colors.White)
                             .OnClicked(SaveWord),
-                            
+
                         Button("Cancel")
-                            .BackgroundColor(Colors.Gray)
-                            .TextColor(Colors.White)
+                            .ThemeKey("Secondary")
                             .OnClicked(Cancel)
                     )
                     .Spacing(10)

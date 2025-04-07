@@ -28,12 +28,12 @@ class ApplicationTheme : Theme
     public static Color Gray900 { get; } = Color.FromRgba(33, 33, 33, 255); // #212121
     public static Color Gray950 { get; } = Color.FromRgba(20, 20, 20, 255); // #141414
 
-	public static Color DarkBackground { get; } = Color.FromRgba(23, 23, 26, 255); // #17171a
-	public static Color LightOnDarkBackground { get; } = Color.FromRgba(195, 195, 195, 255); // #C3C3C3
-	public static Color LightBackground { get; } = Color.FromRgba(242, 242, 242, 255); // #F2F2F2
-	public static Color DarkOnLightBackground { get; } = Color.FromRgba(13, 13, 13, 255); // #0D0D0D
-	public static Color LightSecondaryBackground { get; } = Color.FromRgba(224, 224, 224, 255); // #E0E0E0
-	public static Color DarkSecondaryBackground { get; } = Color.FromRgba(34, 34, 40, 255); // #222228
+    public static Color DarkBackground { get; } = Color.FromRgba(23, 23, 26, 255); // #17171a
+    public static Color LightOnDarkBackground { get; } = Color.FromRgba(195, 195, 195, 255); // #C3C3C3
+    public static Color LightBackground { get; } = Color.FromRgba(242, 242, 242, 255); // #F2F2F2
+    public static Color DarkOnLightBackground { get; } = Color.FromRgba(13, 13, 13, 255); // #0D0D0D
+    public static Color LightSecondaryBackground { get; } = Color.FromRgba(224, 224, 224, 255); // #E0E0E0
+    public static Color DarkSecondaryBackground { get; } = Color.FromRgba(34, 34, 40, 255); // #222228
 
     public static Brush PrimaryBrush { get; } = new SolidColorBrush(Primary);
     public static Brush SecondaryBrush { get; } = new SolidColorBrush(Secondary);
@@ -49,141 +49,141 @@ class ApplicationTheme : Theme
     public static Brush Gray900Brush { get; } = new SolidColorBrush(Gray900);
     public static Brush Gray950Brush { get; } = new SolidColorBrush(Gray950);
 
-	public static double SizeNone { get; } = 0;
-	public static double Size20 { get; } = 2;
-	public static double Size40 { get; } = 4;
-	public static double Size60 { get; } = 6;
-	public static double Size80 { get; } = 8;
-	public static double Size100 { get; } = 10;
-	public static double Size120 { get; } = 12;
-	public static double Size160 { get; } = 16;
-	public static double Size200 { get; } = 20;
-	public static double Size240 { get; } = 24;
-	public static double Size280 { get; } = 28;
-	public static double Size320 { get; } = 32;
-	public static double Size360 { get; } = 36;
-	public static double Size400 { get; } = 40;
-	public static double Size480 { get; } = 48;
-	public static double Size520 { get; } = 52;
-	public static double Size560 { get; } = 56;
+    public static double SizeNone { get; } = 0;
+    public static double Size20 { get; } = 2;
+    public static double Size40 { get; } = 4;
+    public static double Size60 { get; } = 6;
+    public static double Size80 { get; } = 8;
+    public static double Size100 { get; } = 10;
+    public static double Size120 { get; } = 12;
+    public static double Size160 { get; } = 16;
+    public static double Size200 { get; } = 20;
+    public static double Size240 { get; } = 24;
+    public static double Size280 { get; } = 28;
+    public static double Size320 { get; } = 32;
+    public static double Size360 { get; } = 36;
+    public static double Size400 { get; } = 40;
+    public static double Size480 { get; } = 48;
+    public static double Size520 { get; } = 52;
+    public static double Size560 { get; } = 56;
 
-	public static double IconSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 32 : 20;
-	public static double IconSizeSmall { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 18 : 12;
-	public static Thickness LayoutPadding { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15);
-	public static double LayoutSpacing { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 15 : 5;
-	public static double ButtonMinimumSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 60 : 44;
+    public static double IconSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 32 : 20;
+    public static double IconSizeSmall { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 18 : 12;
+    public static Thickness LayoutPadding { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15);
+    public static double LayoutSpacing { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 15 : 5;
+    public static double ButtonMinimumSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 60 : 44;
 
-	public static FontImageSource IconDashboard { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.diagram_24_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconDashboard { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.diagram_24_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconProjects { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.list_24_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconProjects { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.list_24_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconMeta { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.info_24_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconMeta { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.info_24_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconRibbon { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.ribbon_20_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconRibbon { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.ribbon_20_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconAdd { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.add_32_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? White : Black,
-		Size = IconSize
-	};
+    public static FontImageSource IconAdd { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.add_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? White : Black,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconDelete { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.delete_32_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconDelete { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.delete_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconClean { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.broom_32_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = Size240
-	};
+    public static FontImageSource IconClean { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.broom_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size240
+    };
 
-	public static FontImageSource IconLight { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.weather_sunny_28_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = Size240
-	};
+    public static FontImageSource IconLight { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.weather_sunny_28_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size240
+    };
 
-	public static FontImageSource IconDark { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.weather_moon_28_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = Size240
-	};
+    public static FontImageSource IconDark { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.weather_moon_28_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size240
+    };
 
-	public static FontImageSource IconSpeedVerySlow { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.animal_turtle_24_regular,
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconSpeedVerySlow { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.animal_turtle_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconSpeedSlow { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.animal_rabbit_24_regular,
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
+    public static FontImageSource IconSpeedSlow { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.animal_rabbit_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
 
-	public static FontImageSource IconSpeedNormal { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.animal_cat_24_regular,
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = IconSize
-	};
-    
+    public static FontImageSource IconSpeedNormal { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.animal_cat_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconPlay { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.play_32_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = Size280
-	};
+    {
+        Glyph = FluentUI.play_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
 
-     public static FontImageSource IconPause { get; } = new FontImageSource
-	{
-		Glyph = FluentUI.pause_32_regular, // Replace with actual glyph
-		FontFamily = FluentUI.FontFamily,
-		Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
-		Size = Size280
-	};
+    public static FontImageSource IconPause { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.pause_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
 
     protected override void OnApply()
     {
@@ -224,8 +224,8 @@ class ApplicationTheme : Theme
             .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray200 : Gray600);
 
         ButtonStyles.Themes["Secondary"] = _ => _
-            .TextColor(IsLightTheme ? Primary : White)
-            .BackgroundColor(IsLightTheme ? White : Black)
+            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
+            .BackgroundColor(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
             .FontFamily("OpenSansRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -510,5 +510,19 @@ class ApplicationTheme : Theme
             .Set(MauiControls.TabbedPage.BarTextColorProperty, IsLightTheme ? Magenta : White)
             .Set(MauiControls.TabbedPage.UnselectedTabColorProperty, IsLightTheme ? Gray200 : Gray950)
             .Set(MauiControls.TabbedPage.SelectedTabColorProperty, IsLightTheme ? Gray950 : Gray200);
+
+
     }
+    public static ImageSource GetIconForMediaType(string mediaType)
+        {
+            return mediaType switch
+            {
+                "Video" => SegoeFluentIcons.Video.ToImageSource(),
+                "Podcast" => SegoeFluentIcons.Microphone.ToImageSource(),
+                "Image" => SegoeFluentIcons.Photo.ToImageSource(),
+                "Vocabulary List" => SegoeFluentIcons.ReadingList.ToImageSource(),
+                "Article" => SegoeFluentIcons.Document.ToImageSource(),
+                _ => SegoeFluentIcons.Document.ToImageSource()
+            };
+        }
 }

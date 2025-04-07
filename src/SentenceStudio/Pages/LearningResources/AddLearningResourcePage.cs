@@ -161,8 +161,6 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                             
                             Button($"{_localize["SaveResource"]}")
                                 .OnClicked(SaveResource)
-                                .BackgroundColor(Colors.Green)
-                                .TextColor(Colors.White)
                                 .HorizontalOptions(LayoutOptions.Fill)
                         )
                         .Padding(new Thickness(15))
