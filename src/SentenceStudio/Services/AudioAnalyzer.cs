@@ -334,4 +334,34 @@ public class AudioAnalyzer
             }
         }
     }
+
+    internal async Task<double> GetAudioDurationAsync(Stream stream)
+    {
+        if (stream == null || !stream.CanRead || stream.Length <= WAV_HEADER_SIZE)
+            return 0;
+
+        try
+        {
+            // Save original position
+            var originalPosition = stream.Position;
+
+            // Move to start of audio data
+            stream.Position = WAV_HEADER_SIZE;
+
+            // Calculate audio duration
+            long dataSize = stream.Length - WAV_HEADER_SIZE;
+            long totalSamples = dataSize / BYTES_PER_SAMPLE;
+            double durationSeconds = (double)totalSamples / 44100; // Assuming default sample rate of 44100 Hz
+
+            // Restore original position
+            stream.Position = originalPosition;
+
+            return durationSeconds;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error calculating audio duration: {ex.Message}");
+            return 0;
+        }
+    }
 }

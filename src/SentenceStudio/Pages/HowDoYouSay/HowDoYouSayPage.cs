@@ -26,6 +26,9 @@ class HowDoYouSayPageState
 	public bool IsSavingAudio { get; set; } = false;
 	public string ExportProgressMessage { get; set; } = string.Empty;
 	public StreamHistory ItemToExport { get; set; }
+	
+	// Is loading from repository
+	public bool IsLoading { get; set; } = true;
 }
 
 partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
@@ -33,6 +36,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] ElevenLabsSpeechService _speechService;
 	[Inject] AudioAnalyzer _audioAnalyzer;
 	[Inject] IFileSaver _fileSaver;
+	[Inject] StreamHistoryRepository _streamHistoryRepository;
 	LocalizationManager _localize => LocalizationManager.Instance;
 	
 	private IAudioPlayer _audioPlayer;
@@ -50,10 +54,38 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		).OnAppearing(OnPageAppearing);
 	}
 	
-	private void OnPageAppearing()
+	private async void OnPageAppearing()
 	{
 		// Initialize voice display names from the service
-		SetState(s => s.VoiceDisplayNames = _speechService.VoiceDisplayNames);
+		SetState(s => {
+			s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
+			s.IsLoading = true;
+		});
+		
+		// Load history from the repository
+		await LoadHistoryAsync();
+	}
+	
+	private async Task LoadHistoryAsync()
+	{
+		try
+		{
+			// Get all history from the repository
+			var history = await _streamHistoryRepository.GetAllStreamHistoryAsync();
+			
+			// Create a new ObservableCollection with the loaded items
+			SetState(s => {
+				s.StreamHistory = new ObservableCollection<StreamHistory>(history);
+				s.IsLoading = false;
+			});
+			
+			Debug.WriteLine($"Loaded {history.Count} history items");
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"Error loading history: {ex.Message}");
+			SetState(s => s.IsLoading = false);
+		}
 	}
 
 	VisualNode RenderInput() =>
@@ -124,7 +156,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		.GridRow(2);
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
-		Grid("*", "Auto,*,Auto",
+		Grid("*", "Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => PlayAudio(item))
@@ -141,6 +173,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.ImageSource(SegoeFluentIcons.Save.ToImageSource())
 				.TextColor(Colors.Black)
 				.GridColumn(2)
+				.HEnd(),
+			Button()
+				.Background(Colors.Transparent)
+				.OnClicked(() => DeleteHistoryItem(item))
+				.ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+				.TextColor(Colors.Red)
+				.GridColumn(3)
 				.HEnd()
 		);
 
@@ -160,11 +199,38 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			var historyItem = new StreamHistory { 
 				Phrase = State.Phrase, 
 				Stream = stream,
-				VoiceId = State.SelectedVoiceId // Store the voice ID with the history item
+				VoiceId = State.SelectedVoiceId, // Store the voice ID with the history item
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+				Duration = await _audioAnalyzer.GetAudioDurationAsync(stream)
 			};
 			
-			// Analyze the audio stream to extract waveform data
+			// First save to repository to get an ID
+			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
+			
+			// Now use the ID for the filename
+			string fileName = $"phrase_{historyItem.ID}.mp3";
+			historyItem.FileName = fileName;
+			string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
+			
+			// Save the audio stream to a file
+			using (var fileStream = File.Create(audioFilePath))
+			{
+				stream.Position = 0;
+				await stream.CopyToAsync(fileStream);
+			}
+			
+			// Reset stream position
+			stream.Position = 0;
+			
+			// Store the file path in the history item
+			historyItem.AudioFilePath = audioFilePath;
+			
+				// Analyze the audio stream to extract waveform data
 			historyItem.WaveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(stream);
+			
+			// Update the history item with the file path
+			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
 			
 			SetState(s =>
 			{
@@ -183,18 +249,62 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 	}
 
-	async void PlayAudio(StreamHistory item)
+	async Task PlayAudio(StreamHistory item)
 	{
 		try
 		{
 			// Stop any currently playing audio
 			StopPlayback();
 			
-			// Reset stream position
-			item.Stream.Position = 0;
+			Stream audioStream = null;
+			
+			// Check if we have a local file to use
+			if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+			{
+				Debug.WriteLine($"Using cached audio file: {item.AudioFilePath}");
+				audioStream = File.OpenRead(item.AudioFilePath);
+				item.Stream = audioStream;
+			}
+			// If no local file or stream exists, fetch from the service
+			else if (item.Stream == null)
+			{
+				Debug.WriteLine($"Fetching audio from service for: {item.Phrase}");
+				audioStream = await _speechService.TextToSpeechAsync(item.Phrase, item.VoiceId);
+				item.Stream = audioStream;
+				
+				// Save the stream to disk for future use if we have an ID
+				if (item.ID > 0)
+				{
+					string fileName = $"phrase_{item.ID}.mp3";
+					string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
+					
+					// Save the audio stream to a file
+					using (var fileStream = File.Create(audioFilePath))
+					{
+						audioStream.Position = 0;
+						await audioStream.CopyToAsync(fileStream);
+					}
+					
+					// Reset stream position
+					audioStream.Position = 0;
+					
+					// Update the file path
+					item.AudioFilePath = audioFilePath;
+					item.FileName = fileName;
+					
+					// Update in repository
+					await _streamHistoryRepository.SaveStreamHistoryAsync(item);
+				}
+			}
+			// Otherwise use the existing stream
+			else
+			{
+				audioStream = item.Stream;
+				audioStream.Position = 0;
+			}
 			
 			// Create and play audio
-			_audioPlayer = AudioManager.Current.CreatePlayer(item.Stream);
+			_audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
 			_audioPlayer.PlaybackEnded += OnPlaybackEnded;
 			_audioPlayer.Play();
 			
@@ -208,7 +318,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// If the waveform hasn't been analyzed yet, analyze it now
 			if (!item.IsWaveformAnalyzed)
 			{
-				var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(item.Stream);
+				var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(audioStream);
 				SetState(s => 
 				{
 					// Find the item and update its waveform data
@@ -225,7 +335,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine(ex.Message);
+			Debug.WriteLine($"Error playing audio: {ex.Message}");
+			await App.Current.MainPage.DisplayAlert("Error", $"Failed to play audio: {ex.Message}", "OK");
 		}
 	}
 	
@@ -472,5 +583,55 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			safe = safe.Substring(0, 50);
 			
 		return safe;
+	}
+
+	/// <summary>
+	/// Deletes a history item from the list and the repository.
+	/// </summary>
+	async Task DeleteHistoryItem(StreamHistory item)
+	{
+		bool confirm = await App.Current.MainPage.DisplayAlert(
+			"Confirm Deletion",
+			$"Are ye sure ye want to delete this phrase: \"{item.Phrase}\"?",
+			"Aye", "Nay");
+			
+		if (!confirm) return;
+		
+		try
+		{
+			// Stop playback if this is the item being played
+			if (State.CurrentPlayingItem == item)
+			{
+				StopPlayback();
+				SetState(s => s.CurrentPlayingItem = null);
+			}
+			
+			// Delete from repository
+			await _streamHistoryRepository.DeleteStreamHistoryAsync(item);
+			
+			// Delete audio file from disk if it exists
+			if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+			{
+				try
+				{
+					File.Delete(item.AudioFilePath);
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"Error deleting audio file: {ex.Message}");
+				}
+			}
+			
+			// Remove from UI list
+			SetState(s => s.StreamHistory.Remove(item));
+			
+			// Show toast notification
+			await Toast.Make("Phrase deleted successfully!").Show();
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"Error deleting history item: {ex.Message}");
+			await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
+		}
 	}
 }

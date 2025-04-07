@@ -182,12 +182,12 @@ public static class MauiProgram
 		services.AddSingleton<ElevenLabsSpeechService>();
 
 		// services.AddSingleton<AppShellModel>();
-
 		services.AddSingleton<StoryRepository>();
 		services.AddSingleton<UserProfileRepository>();
 		services.AddSingleton<UserActivityRepository>();
 		services.AddSingleton<SkillProfileRepository>();
 		services.AddSingleton<LearningResourceRepository>();
+		services.AddSingleton<StreamHistoryRepository>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 
