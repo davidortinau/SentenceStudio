@@ -21,9 +21,6 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
     [Inject] LearningResourceRepository _resourceRepo;
     LocalizationManager _localize => LocalizationManager.Instance;
 
-    readonly string[] MediaTypes = new[] { "Video", "Podcast", "Image", "Vocabulary List", "Article", "Other" };
-    readonly string[] Languages = new[] { "Korean", "Spanish", "Japanese", "Chinese", "French", "German", "Italian", "Portuguese", "Russian", "Other" };
-
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["AddResource"]}",
@@ -71,11 +68,11 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     .HStart(),
                                 new SfTextInputLayout(
                                     Picker()
-                                        .ItemsSource(MediaTypes)
+                                        .ItemsSource(Constants.MediaTypes)
                                         .SelectedIndex(State.MediaTypeIndex)
                                         .OnSelectedIndexChanged(index => SetState(s => {
                                             s.MediaTypeIndex = index;
-                                            s.Resource.MediaType = MediaTypes[index];
+                                            s.Resource.MediaType = Constants.MediaTypes[index];
                                         }))
                                 )
                                 .Hint("Media Type")
@@ -89,11 +86,11 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     .HStart(),
                                 new SfTextInputLayout(
                                     Picker()
-                                        .ItemsSource(Languages)
+                                        .ItemsSource(Constants.Languages)
                                         .SelectedIndex(State.LanguageIndex)
                                         .OnSelectedIndexChanged(index => SetState(s => {
                                             s.LanguageIndex = index;
-                                            s.Resource.Language = Languages[index];
+                                            s.Resource.Language = Constants.Languages[index];
                                         }))
                                 )
                                 .Hint("Language")
@@ -159,7 +156,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                             )
                             .Spacing(5),
                             
-                            Button($"{_localize["SaveResource"]}")
+                            Button($"{_localize["Save"]}")
                                 .OnClicked(SaveResource)
                                 .HorizontalOptions(LayoutOptions.Fill)
                         )

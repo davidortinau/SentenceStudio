@@ -45,18 +45,18 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     new SfTextInputLayout
                     {
                         Picker()
-                            .ItemsSource(Languages)
+                            .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.NativeLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => s.NativeLanguage = Languages[index]))
+                            .OnSelectedIndexChanged(index => SetState(s => s.NativeLanguage = Constants.Languages[index]))
                     }
                     .Hint($"{_localize["NativeLanguage"]}"),
 
                     new SfTextInputLayout
                     {
                         Picker()
-                            .ItemsSource(Languages)
+                            .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.TargetLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => s.TargetLanguage = Languages[index]))
+                            .OnSelectedIndexChanged(index => SetState(s => s.TargetLanguage = Constants.Languages[index]))
                     }
                     .Hint($"{_localize["TargetLanguage"]}"),
 
@@ -94,12 +94,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
         ).OnAppearing(LoadProfile);
     }
 
-    readonly string[] Languages = new[]
-    {
-        "English", "Spanish", "French", "German", "Italian", "Portuguese",
-        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
-    };
-
     readonly string[] DisplayLanguages = new[] { "English", "Korean" };
 
     async Task LoadProfile()
@@ -115,8 +109,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
             s.DisplayLanguage = profile.DisplayLanguage;
             s.OpenAI_APIKey = profile.OpenAI_APIKey;
 
-            s.NativeLanguageIndex = Array.IndexOf(Languages, profile.NativeLanguage);
-            s.TargetLanguageIndex = Array.IndexOf(Languages, profile.TargetLanguage);
+            s.NativeLanguageIndex = Array.IndexOf(Constants.Languages, profile.NativeLanguage);
+            s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
         });
     }
 

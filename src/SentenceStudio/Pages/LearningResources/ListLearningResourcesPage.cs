@@ -1,8 +1,4 @@
 using MauiReactor.Shapes;
-using ReactorCustomLayouts;
-using SentenceStudio.Data;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -29,9 +25,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     [Inject] VocabularyService _vocabService;
     
     LocalizationManager _localize => LocalizationManager.Instance;
+    
+    List<string> _mediaTypes = new() { "All" };
+    List<string> _languages = new() { "All" };
 
-    readonly string[] MediaTypes = new[] { "All", "Video", "Podcast", "Image", "Vocabulary List", "Article", "Other" };
-    readonly string[] Languages = new[] { "All", "Korean", "Spanish", "Japanese", "Chinese", "French", "German", "Italian", "Portuguese", "Russian" };
+
+    
 
     public override VisualNode Render()
     {
@@ -39,7 +38,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             ToolbarItem("Search").OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
             ToolbarItem("Add").OnClicked(AddResource),
             ToolbarItem("Migrate").OnClicked(MigrateVocabularyLists),
-            
+
             Grid(
                 VStack(
                     // Search bar
@@ -48,11 +47,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                             Entry()
                                 .Placeholder($"{_localize["Search"]}...")
                                 .Text(State.SearchText)
-                                .OnTextChanged(text => {
+                                .OnTextChanged(text =>
+                                {
                                     SetState(s => s.SearchText = text);
                                     SearchResources();
                                 }),
-                                
+
                             Button()
                                 .ImageSource(SegoeFluentIcons.Search.ToImageSource())
                                 .BackgroundColor(Colors.Transparent)
@@ -65,34 +65,38 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     )
                     .Style((Style)Application.Current.Resources["InputWrapper"])
                     .Margin(new Thickness(10, 10, 10, 5)),
-                    
+
                     // Filters
                     Grid(
                         // Type filter
                         new SfTextInputLayout(
                             Picker()
-                                .ItemsSource(MediaTypes)
+                                .ItemsSource(_mediaTypes)
                                 .SelectedIndex(State.FilterTypeIndex)
-                                .OnSelectedIndexChanged(index => {
-                                    SetState(s => {
+                                .OnSelectedIndexChanged(index =>
+                                {
+                                    SetState(s =>
+                                    {
                                         s.FilterTypeIndex = index;
-                                        s.FilterType = MediaTypes[index];
+                                        s.FilterType = _mediaTypes[index];
                                     });
                                     FilterResources();
                                 })
                         )
                         .Hint("Type")
                         .GridColumn(0),
-                        
+
                         // Language filter
                         new SfTextInputLayout(
                             Picker()
-                                .ItemsSource(Languages)
+                                .ItemsSource(_languages)
                                 .SelectedIndex(State.FilterLanguageIndex)
-                                .OnSelectedIndexChanged(index => {
-                                    SetState(s => {
+                                .OnSelectedIndexChanged(index =>
+                                {
+                                    SetState(s =>
+                                    {
                                         s.FilterLanguageIndex = index;
-                                        s.FilterLanguage = Languages[index];
+                                        s.FilterLanguage = _languages[index];
                                     });
                                     FilterResources();
                                 })
@@ -103,15 +107,15 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .Columns("*, *")
                     .ColumnSpacing(10)
                     .Margin(new Thickness(10, 5, 10, 10)),
-                    
+
                     // Migration Banner (only show when there might be lists to migrate)
-                    State.IsMigrating ? 
+                    State.IsMigrating ?
                         Border(
                             VStack(
                                 Label("Migrating vocabulary lists...")
                                     .FontAttributes(FontAttributes.Bold)
                                     .HCenter(),
-                                    
+
                                 ActivityIndicator()
                                     .IsRunning(true)
                                     .HCenter()
@@ -121,16 +125,16 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         )
                         .BackgroundColor(Colors.LightBlue.WithAlpha(0.2f))
                         .Stroke(Colors.Blue)
-                        .Margin(new Thickness(10, 0, 10, 10)) : 
+                        .Margin(new Thickness(10, 0, 10, 10)) :
                         null,
-                    
+
                     State.IsLoading ?
                         ActivityIndicator().IsRunning(true).VCenter().HCenter() :
                         State.Resources.Count == 0 ?
                             VStack(
                                 Label($"{_localize["NoResourcesFound"]}")
                                     .VCenter().HCenter(),
-                                    
+
                                 Button("Add Your First Resource")
                                     .OnClicked(AddResource)
                                     .HCenter()
@@ -215,6 +219,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     async Task LoadResources()
     {
         SetState(s => s.IsLoading = true);
+
+        _mediaTypes = new List<string> { "All" };
+        _mediaTypes.AddRange(Constants.MediaTypes);
+
+        _languages = new List<string> { "All" };
+        _languages.AddRange(Constants.Languages);       
         
         var resources = await _resourceRepo.GetAllResourcesAsync();
         

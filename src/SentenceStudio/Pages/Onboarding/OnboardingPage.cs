@@ -156,12 +156,12 @@ public partial class OnboardingPage : Component<OnboardingState>
                 new SfTextInputLayout
                 {
                     Picker()
-                        .ItemsSource(Languages)
-                        .SelectedIndex(Array.IndexOf(Languages, getter(State)))
+                        .ItemsSource(Constants.Languages)
+                        .SelectedIndex(Array.IndexOf(Constants.Languages, getter(State)))
                         .OnSelectedIndexChanged((index) =>
                         {
-                            if (index >= 0 && index < Languages.Length)
-                                SetState(s => setter(s, Languages[index]));
+                            if (index >= 0 && index < Constants.Languages.Length)
+                                SetState(s => setter(s, Constants.Languages[index]));
                         })
                 }
                 .GridRow(1)
@@ -231,9 +231,5 @@ public partial class OnboardingPage : Component<OnboardingState>
         // App.Current.Windows[0].Page = new AppShell(_service.GetService<AppShellModel>());
     }
 
-    readonly string[] Languages = new[]
-    {
-        "English", "Spanish", "French", "German", "Italian", "Portuguese",
-        "Chinese", "Japanese", "Korean", "Arabic", "Russian", "Other"
-    };
+    
 }
