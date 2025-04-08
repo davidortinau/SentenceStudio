@@ -155,7 +155,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		Grid("*", "Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
-				.OnClicked(() => {
+				.OnClicked(() =>
+				{
 					// If this is the current item, toggle playback
 					if (State.CurrentPlayingItem == item)
 					{
@@ -169,7 +170,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				})
 				.ImageSource(GetPlayButtonIcon(item))
 				.TextColor(Colors.Black)
-				.GridColumn(0),
+				.GridColumn(0)
+				.VCenter(),
 			Label(item.Phrase)
 				.FontSize(24)
 				.LineBreakMode(LineBreakMode.TailTruncation)
@@ -702,17 +704,17 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// <summary>
 	/// Returns the appropriate icon for the play/pause button based on current state
 	/// </summary>
-	private string GetPlayButtonIcon(StreamHistory item)
+	private ImageSource GetPlayButtonIcon(StreamHistory item)
 	{
 		// If this is the current playing item and audio is playing, show pause
 		if (State.CurrentPlayingItem == item && _audioPlayer != null && _audioPlayer.IsPlaying)
 		{
-			return "pause.png"; //SegoeFluentIcons.Pause.ToImageSource();
+			return ApplicationTheme.IconPause;
 		}
 		// Otherwise show play
 		else
 		{
-			return "play.png";  //SegoeFluentIcons.Play.ToImageSource();
+			return ApplicationTheme.IconPlay;
 		}
 	}
 }

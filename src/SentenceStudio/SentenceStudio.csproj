@@ -130,7 +130,7 @@
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.4" />
 		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.3" />
-		<PackageReference Include="Reactor.Maui" Version="3.0.27" />
+		<PackageReference Include="Reactor.Maui" Version="3.0.28" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.3" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.3" />
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		

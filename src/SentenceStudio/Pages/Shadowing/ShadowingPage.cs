@@ -397,22 +397,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .Source(SegoeFluentIcons.Previous.ToImageSource())
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
-            State.IsAudioPlaying ?
+            
                 ImageButton()
-                    .Source(ApplicationTheme.IconPause)
+                    .Source(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
                     .Aspect(Aspect.Center)
                     .Background(Colors.Transparent)
                     .GridRow(0).GridColumn(2)
                     .HCenter()
-                    .OnClicked(ToggleAudioPlayback)
-                :
-                Button()
-                    .ImageSource(ApplicationTheme.IconPlay)
-                    .Background(Colors.Transparent)
-                    .GridRow(0).GridColumn(2)
-                    .HCenter()
-                    .OnClicked(ToggleAudioPlayback)
-                ,
+                    .OnClicked(ToggleAudioPlayback),
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
