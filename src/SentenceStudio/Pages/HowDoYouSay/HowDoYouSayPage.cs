@@ -17,6 +17,7 @@ class HowDoYouSayPageState
 	public string SelectedVoiceId { get; set; } = "jiyoung"; // Default voice
 	public bool IsVoiceSelectionVisible { get; set; } = false;
 	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
+	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
 	
 	public string SelectedVoiceDisplayName => 
 		VoiceDisplayNames.ContainsKey(SelectedVoiceId) ? 
@@ -113,17 +114,12 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.ThemeKey("Secondary")
 					.HEnd()
 					.OnClicked(ShowVoiceSelection)
-			).Spacing(ApplicationTheme.Size240)
+			).Spacing(ApplicationTheme.Size240).HEnd()
 		)
 		.Padding(ApplicationTheme.Size240);
 		
 	private VisualNode WaveformDisplay() =>
 		VStack(
-			Label("Audio Waveform")
-				.FontSize(16)
-				.TextColor(Colors.Gray)
-				.HCenter()
-				.IsVisible(State.CurrentPlayingItem != null),
 			Border(
 				new WaveformView()
 					.WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
@@ -159,8 +155,19 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		Grid("*", "Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
-				.OnClicked(() => PlayAudio(item))
-				.ImageSource(SegoeFluentIcons.Play.ToImageSource())
+				.OnClicked(() => {
+					// If this is the current item, toggle playback
+					if (State.CurrentPlayingItem == item)
+					{
+						TogglePlayback();
+					}
+					// Otherwise play this new item
+					else
+					{
+						PlayAudio(item);
+					}
+				})
+				.ImageSource(GetPlayButtonIcon(item))
 				.TextColor(Colors.Black)
 				.GridColumn(0),
 			Label(item.Phrase)
@@ -632,6 +639,80 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		{
 			Debug.WriteLine($"Error deleting history item: {ex.Message}");
 			await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
+		}
+	}
+	
+	/// <summary>
+	/// Pauses the current audio playback
+	/// </summary>
+	private void PausePlayback()
+	{
+		if (_audioPlayer != null && _audioPlayer.IsPlaying)
+		{
+			_audioPlayer.Pause();
+			
+			// Stop the timer but don't reset it
+			if (_playbackTimer != null)
+			{
+				_playbackTimer.Stop();
+			}
+			
+			// Update the playing state
+			SetState(s => s.IsPlaying = false);
+		}
+	}
+	
+	/// <summary>
+	/// Resumes playback from the current position
+	/// </summary>
+	private void ResumePlayback()
+	{
+		if (_audioPlayer != null && !_audioPlayer.IsPlaying)
+		{
+			_audioPlayer.Play();
+			
+			// Restart the timer
+			if (_playbackTimer != null)
+			{
+				_playbackTimer.Start();
+			}
+			
+			// Update the playing state
+			SetState(s => s.IsPlaying = true);
+		}
+	}
+	
+	/// <summary>
+	/// Toggles between play and pause
+	/// </summary>
+	private void TogglePlayback()
+	{
+		if (_audioPlayer == null) return;
+		
+		if (_audioPlayer.IsPlaying)
+		{
+			PausePlayback();
+		}
+		else
+		{
+			ResumePlayback();
+		}
+	}
+
+	/// <summary>
+	/// Returns the appropriate icon for the play/pause button based on current state
+	/// </summary>
+	private string GetPlayButtonIcon(StreamHistory item)
+	{
+		// If this is the current playing item and audio is playing, show pause
+		if (State.CurrentPlayingItem == item && _audioPlayer != null && _audioPlayer.IsPlaying)
+		{
+			return "pause.png"; //SegoeFluentIcons.Pause.ToImageSource();
+		}
+		// Otherwise show play
+		else
+		{
+			return "play.png";  //SegoeFluentIcons.Play.ToImageSource();
 		}
 	}
 }
