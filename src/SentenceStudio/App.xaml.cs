@@ -8,12 +8,15 @@ namespace SentenceStudio;
 public partial class App : MauiReactorApplication
 {
 	private readonly ILogger<App> _logger;
+	private readonly UserProfileRepository _userProfileRepository;
+	
 	public App(IServiceProvider serviceProvider, ILogger<App> logger)
 		: base(serviceProvider)
 	{
 		InitializeComponent();
 
 		_logger = logger;
+        _userProfileRepository = serviceProvider.GetRequiredService<UserProfileRepository>();
         
         _logger.LogInformation("Ahoy! The app be starting! 🏴‍☠️");
         _logger.LogDebug("Debug logging enabled");
@@ -34,36 +37,32 @@ public partial class App : MauiReactorApplication
 		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Styles());
 		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Converters());
 
-		// Application.Current.Resources.MergedDictionaries.Add(mergedResources);
-
-		// CultureInfo.CurrentUICulture = new CultureInfo( "ko-KR", false );
-
-		// Debug.WriteLine($"New Culture: {CultureInfo.CurrentUICulture.Name}");
-
-
-
-		// Register a message in some module
-		// WeakReferenceMessenger.Default.Register<ConnectivityChangedMessage>(this, async (r, m) =>
-		// {
-		// 	if(!m.Value)
-		// 		await Shell.Current.CurrentPage.DisplayAlert("No Internet Connection", "Please connect to the internet to use this feature", "OK");
-		// });
-
+		 // Set the initial culture from user profile (will run asynchronously)
+		InitializeUserCulture();
 	}
-    
-    // protected override Window CreateWindow(IActivationState? activationState)
-	// {
-	// 	bool isOnboarded = Preferences.Default.ContainsKey("is_onboarded");
-        
-    //     if (!isOnboarded)
-    //     {
-    //         return new Window( new OnboardingPage(activationState.Context.Services.GetService<OnboardingPageModel>()) );
-    //     }
-	// 	else
-	// 	{
-	// 		return new Window( new AppShell(activationState.Context.Services.GetService<AppShellModel>()) );
-	// 	}
-	// }
+	
+	private async void InitializeUserCulture()
+	{
+		try
+		{
+			var profile = await _userProfileRepository.GetAsync();
+			if (profile != null && !string.IsNullOrEmpty(profile.DisplayLanguage))
+			{
+				// Convert display language name to culture code
+				string cultureCode = profile.DisplayLanguage == "Korean" ? "ko-KR" : "en-US";
+				var culture = new CultureInfo(cultureCode);
+				
+				// Set the culture using the LocalizationManager
+				LocalizationManager.Instance.SetCulture(culture);
+				
+				_logger.LogInformation($"App culture set to {culture.Name} from user profile");
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to initialize user culture");
+		}
+	}
 }
 
 public abstract class MauiReactorApplication : ReactorApplication<AppShell>

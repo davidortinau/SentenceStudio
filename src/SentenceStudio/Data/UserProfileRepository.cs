@@ -2,6 +2,7 @@ using System.Diagnostics;
 using SentenceStudio.Models;
 using SQLite;
 using SentenceStudio.Common;
+using System.Globalization;
 
 namespace SentenceStudio.Data;
 
@@ -44,7 +45,29 @@ public class UserProfileRepository
     public async Task<UserProfile> GetAsync()
     {
         await Init();
-        return await Database.Table<UserProfile>().FirstOrDefaultAsync();
+        var profile = await Database.Table<UserProfile>().FirstOrDefaultAsync();
+        
+        // Provide defaults for a new or invalid profile
+        if (profile == null)
+        {
+            profile = new UserProfile 
+            { 
+                Name = string.Empty,
+                Email = string.Empty,
+                NativeLanguage = "English",
+                TargetLanguage = "Korean",
+                DisplayLanguage = "English",
+                OpenAI_APIKey = string.Empty
+            };
+        }
+        
+        // Ensure DisplayLanguage is never null or empty
+        if (string.IsNullOrEmpty(profile.DisplayLanguage))
+        {
+            profile.DisplayLanguage = "English";
+        }
+        
+        return profile;
     }
 
     public async Task<int> SaveAsync(UserProfile item)
@@ -91,21 +114,25 @@ public class UserProfileRepository
 
     public async Task SaveDisplayCultureAsync(string culture)
     {
-        culture = (culture == "en") ? "English" : "Korean";
+        // Map culture code to display language
+        string displayLanguage = culture.StartsWith("en") ? "English" : "Korean";
 
         var profile = await GetAsync();
         if (profile is null)
         {
             profile = new UserProfile
             {
-                DisplayLanguage = culture
+                DisplayLanguage = displayLanguage
             };
         }
         else
         {
-            profile.DisplayLanguage = culture;
+            profile.DisplayLanguage = displayLanguage;
         }
 
         await SaveAsync(profile);
+        
+        // Also update the LocalizationManager to reflect changes immediately
+        LocalizationManager.Instance.SetCulture(new CultureInfo(culture));
     }
 }

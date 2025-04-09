@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SentenceStudio.Pages.Account;
 
 class UserProfilePageState
@@ -40,14 +42,15 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Email)
                             .OnTextChanged(text => SetState(s => s.Email = text))
                     }
-                    .Hint($"{_localize["Email"]}"),
-
-                    new SfTextInputLayout
+                    .Hint($"{_localize["Email"]}"),                    new SfTextInputLayout
                     {
                         Picker()
                             .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.NativeLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => s.NativeLanguage = Constants.Languages[index]))
+                            .OnSelectedIndexChanged(index => SetState(s => {
+                                s.NativeLanguage = Constants.Languages[index];
+                                s.NativeLanguageIndex = index; // Save the index too!
+                            }))
                     }
                     .Hint($"{_localize["NativeLanguage"]}"),
 
@@ -56,7 +59,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         Picker()
                             .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.TargetLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => s.TargetLanguage = Constants.Languages[index]))
+                            .OnSelectedIndexChanged(index => SetState(s => {
+                                s.TargetLanguage = Constants.Languages[index];
+                                s.TargetLanguageIndex = index; // Save the index too!
+                            }))
                     }
                     .Hint($"{_localize["TargetLanguage"]}"),
 
@@ -65,7 +71,17 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         Picker()
                             .ItemsSource(DisplayLanguages)
                             .SelectedIndex(State.DisplayLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => s.DisplayLanguage = DisplayLanguages[index]))
+                            .OnSelectedIndexChanged(index => {
+                                string newDisplayLanguage = DisplayLanguages[index];
+                                SetState(s => {
+                                    s.DisplayLanguage = newDisplayLanguage;
+                                    s.DisplayLanguageIndex = index; // Save the index too!
+                                });
+                                
+                                // Set culture based on display language selection
+                                var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
+                                _localize.SetCulture(culture);
+                            })
                     }
                     .Hint($"{_localize["DisplayLanguage"]}"),
 
@@ -111,10 +127,9 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
             s.NativeLanguageIndex = Array.IndexOf(Constants.Languages, profile.NativeLanguage);
             s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
+            s.DisplayLanguageIndex = Array.IndexOf(DisplayLanguages, profile.DisplayLanguage);
         });
-    }
-
-    async Task Save()
+    }    async Task Save()
     {
         var profile = new UserProfile
         {
@@ -128,25 +143,45 @@ partial class UserProfilePage : Component<UserProfilePageState>
         };
 
         await _userProfileRepository.SaveAsync(profile);
+        
+        // Make sure to call SaveDisplayCultureAsync to properly update the culture
+        string cultureCode = State.DisplayLanguage == "English" ? "en-US" : "ko-KR";
+        await _userProfileRepository.SaveDisplayCultureAsync(cultureCode);
+        
         await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
 
         var lists = await _vocabularyService.GetListsAsync();
         if(lists.Count == 0)
         {
             var response = await Application.Current.MainPage.DisplayAlert("Vocabulary", 
-                "Would you like me to create a starter vocabulary list for you?", "Yes", "No, I'll do it myself");
+                _localize["CreateStarterVocabPrompt"].ToString(), 
+                _localize["Yes"].ToString(), 
+                _localize["NoVocabPromptResponse"].ToString());
             if(response)
                 await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
         }
-    }
-
-    async Task Reset()
+    }    async Task Reset()
     {
-        var response = await Application.Current.MainPage.DisplayAlert("Reset", "Are you sure you want to reset your profile?", "Yes", "No");
+        var response = await Application.Current.MainPage.DisplayAlert(
+            _localize["Reset"].ToString(), 
+            _localize["ResetProfileConfirmation"].ToString() ?? "Are you sure you want to reset your profile?", 
+            _localize["Yes"].ToString(), 
+            _localize["No"].ToString());
+            
         if(response)
         {
             await _userProfileRepository.DeleteAsync();
+            
+            // Set culture back to English after reset
+            _localize.SetCulture(new CultureInfo("en-US"));
+            
+            // Now reload the profile (which will create a new default one)
             await LoadProfile();
+            
+            // Update the UI to reflect the change
+            SetState(s => s.DisplayLanguageIndex = Array.IndexOf(DisplayLanguages, "English"));
+            
+            await AppShell.DisplayToastAsync(_localize["ProfileReset"].ToString() ?? "Profile reset");
         }
     }
 
