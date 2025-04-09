@@ -317,4 +317,136 @@
     <value>섀도잉</value>
     <comment/>
   </data>
+  <data name="Welcome" xml:space="preserve">
+    <value>작가의 스튜디오에 오신 것을 환영합니다!</value>
+    <comment/>
+  </data>
+  <data name="WelcomeDescription" xml:space="preserve">
+    <value>재미있고 대화형 문장 만들기 활동으로 언어 능력을 강화하세요.</value>
+    <comment/>
+  </data>
+  <data name="NameQuestion" xml:space="preserve">
+    <value>이름이 뭐예요?</value>
+    <comment/>
+  </data>
+  <data name="EnterName" xml:space="preserve">
+    <value>이름을 입력하세요</value>
+    <comment/>
+  </data>
+  <data name="SelectLanguage" xml:space="preserve">
+    <value>언어 선택</value>
+    <comment/>
+  </data>
+  <data name="NextScreenDescription" xml:space="preserve">
+    <value>다음 화면에서 언어 능력을 연습하기 위한 다양한 활동 중에서 선택할 수 있습니다. 작가의 스튜디오는 여러분의 발전을 추적하고 성장을 보고합니다.</value>
+    <comment/>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>뒤로</value>
+    <comment/>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>다음</value>
+    <comment/>
+  </data>
+  <data name="Continue" xml:space="preserve">
+    <value>계속하기</value>
+    <comment/>
+  </data>
+  <data name="Of" xml:space="preserve">
+    <value>중</value>
+    <comment/>
+  </data>
+  <data name="ChooseImage" xml:space="preserve">
+    <value>이미지 선택</value>
+    <comment/>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>제목</value>
+    <comment/>
+  </data>
+  <data name="Description" xml:space="preserve">
+    <value>설명</value>
+    <comment/>
+  </data>
+  <data name="MediaType" xml:space="preserve">
+    <value>미디어 유형</value>
+    <comment/>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>언어</value>
+    <comment/>
+  </data>
+  <data name="MediaURL" xml:space="preserve">
+    <value>미디어 URL</value>
+    <comment/>
+  </data>
+  <data name="Transcript" xml:space="preserve">
+    <value>대본</value>
+    <comment/>
+  </data>
+  <data name="Tags" xml:space="preserve">
+    <value>태그 (쉼표로 구분)</value>
+    <comment/>
+  </data>
+  <data name="AddWord" xml:space="preserve">
+    <value>+ 단어 추가</value>
+    <comment/>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>편집</value>
+    <comment/>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>취소</value>
+    <comment/>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>삭제</value>
+    <comment/>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>유형:</value>
+    <comment/>
+  </data>
+  <data name="Url" xml:space="preserve">
+    <value>URL:</value>
+    <comment/>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>생성됨:</value>
+    <comment/>
+  </data>
+  <data name="Updated" xml:space="preserve">
+    <value>업데이트됨:</value>
+    <comment/>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>상세 정보 ></value>
+    <comment/>
+  </data>
+  <data name="LearningResources" xml:space="preserve">
+    <value>학습 자료</value>
+    <comment/>
+  </data>
+  <data name="Resource" xml:space="preserve">
+    <value>자료</value>
+    <comment/>
+  </data>
+  <data name="AddResource" xml:space="preserve">
+    <value>자료 추가</value>
+    <comment/>
+  </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>클립보드에 복사되었습니다!</value>
+    <comment/>
+  </data>
+  <data name="UserProfile" xml:space="preserve">
+    <value>사용자 프로필</value>
+    <comment/>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>초기화</value>
+    <comment/>
+  </data>
 </root>

@@ -317,4 +317,136 @@
     <value>Shadowing</value>
     <comment/>
   </data>
+  <data name="Welcome" xml:space="preserve">
+    <value>Welcome to Sentence Studio!</value>
+    <comment/>
+  </data>
+  <data name="WelcomeDescription" xml:space="preserve">
+    <value>Strengthen your language skills with our fun and interactive sentence building activities.</value>
+    <comment/>
+  </data>
+  <data name="NameQuestion" xml:space="preserve">
+    <value>What should I call you?</value>
+    <comment/>
+  </data>
+  <data name="EnterName" xml:space="preserve">
+    <value>Enter your name</value>
+    <comment/>
+  </data>
+  <data name="SelectLanguage" xml:space="preserve">
+    <value>Select language</value>
+    <comment/>
+  </data>
+  <data name="NextScreenDescription" xml:space="preserve">
+    <value>On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth.</value>
+    <comment/>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Back</value>
+    <comment/>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Next</value>
+    <comment/>
+  </data>
+  <data name="Continue" xml:space="preserve">
+    <value>Continue</value>
+    <comment/>
+  </data>
+  <data name="Of" xml:space="preserve">
+    <value>of</value>
+    <comment/>
+  </data>
+  <data name="ChooseImage" xml:space="preserve">
+    <value>Choose an image</value>
+    <comment/>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>Title</value>
+    <comment/>
+  </data>
+  <data name="Description" xml:space="preserve">
+    <value>Description</value>
+    <comment/>
+  </data>
+  <data name="MediaType" xml:space="preserve">
+    <value>Media Type</value>
+    <comment/>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+    <comment/>
+  </data>
+  <data name="MediaURL" xml:space="preserve">
+    <value>Media URL</value>
+    <comment/>
+  </data>
+  <data name="Transcript" xml:space="preserve">
+    <value>Transcript</value>
+    <comment/>
+  </data>
+  <data name="Tags" xml:space="preserve">
+    <value>Tags (comma separated)</value>
+    <comment/>
+  </data>
+  <data name="AddWord" xml:space="preserve">
+    <value>+ Add Word</value>
+    <comment/>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Edit</value>
+    <comment/>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment/>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+    <comment/>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>Type:</value>
+    <comment/>
+  </data>
+  <data name="Url" xml:space="preserve">
+    <value>Url:</value>
+    <comment/>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>Created:</value>
+    <comment/>
+  </data>
+  <data name="Updated" xml:space="preserve">
+    <value>Updated:</value>
+    <comment/>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>Details ></value>
+    <comment/>
+  </data>
+  <data name="LearningResources" xml:space="preserve">
+    <value>Learning Resources</value>
+    <comment/>
+  </data>
+  <data name="Resource" xml:space="preserve">
+    <value>Resource</value>
+    <comment/>
+  </data>
+  <data name="AddResource" xml:space="preserve">
+    <value>Add Resource</value>
+    <comment/>
+  </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>Copied to clipboard!</value>
+    <comment/>
+  </data>
+  <data name="UserProfile" xml:space="preserve">
+    <value>User Profile</value>
+    <comment/>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>Reset</value>
+    <comment/>
+  </data>
 </root>

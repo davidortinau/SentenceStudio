@@ -1,7 +1,6 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
 using SentenceStudio.Services;
-using Sharpnado.Tasks;
 
 namespace SentenceStudio;
 
@@ -25,7 +24,6 @@ public partial class AppShellModel : ObservableObject
     public AppShellModel(IServiceProvider serviceProvider)
     {
         _userProfileRepository = serviceProvider.GetRequiredService<UserProfileRepository>();
-        // TaskMonitor.Create(LoadProfile);
     }
 
     public async Task LoadProfile()
