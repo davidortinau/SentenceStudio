@@ -69,7 +69,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     new WaveformView()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                         .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                        .Amplitude(0.8f)
+                        .Amplitude(Constants.Amplitude)
                         .ShowTimeScale(true)
                         .WaveformData(State.ImportedClip?.WaveformData)
                         .AudioDuration(State.ImportedClip?.Duration ?? 0)

@@ -64,11 +64,6 @@ public class ElevenLabsSpeechService
     /// </summary>
     public Dictionary<string, string> VoiceDisplayNames { get; } = new()
     {
-        { "echo", "Rachel (English)" },
-        { "onyx", "Antoni (English)" },
-        { "nova", "Elli (English)" },
-        { "shimmer", "Adam (English)" },
-        { "fable", "Dorothy (English)" },
         { "yuna", "Yuna (Korean)" },
         { "jiyoung", "Ji-Young (Korean)" },
         { "hyunbin", "Hyun-Bin (Korean)" },
@@ -77,6 +72,7 @@ public class ElevenLabsSpeechService
         { "dohyeon", "Do-Hyeon (Korean)" },
         { "yohankoo", "Yohan Koo (Korean)" }
     };
+    public string DefaultVoiceId { get; } = Voices.HyunBin; // Default voice ID
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ElevenLabsSpeechService"/> class.

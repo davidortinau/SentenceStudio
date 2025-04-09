@@ -125,7 +125,7 @@ class ShadowingPageState
     public string SelectedVoiceDisplayName => 
         VoiceDisplayNames.ContainsKey(SelectedVoiceId) ? 
         VoiceDisplayNames[SelectedVoiceId] : 
-        "Rachel (English)"; // Default to Rachel if not found
+        "Hyun-Bin"; // Default to HyunBin if not found
 
     /// <summary>
     /// Gets the current sentence text, or an empty string if none is available.

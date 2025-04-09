@@ -81,7 +81,7 @@ public class YouTubeImportService
             fullAudioStream.Position = 0;
             
             // Analyze the waveform
-            var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(fullAudioStream);
+            var waveformData = await _audioAnalyzer.GetWaveformAsync(fullAudioStream, 1200);
             
             // Reset stream position again
             fullAudioStream.Position = 0;

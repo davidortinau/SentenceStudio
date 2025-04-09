@@ -83,7 +83,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private async void OnPageAppearing()
     {
         // Initialize voice display names from the service
-        SetState(s => s.VoiceDisplayNames = _speechService.VoiceDisplayNames);
+        SetState(s =>
+        {
+            s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
+            s.SelectedVoiceId = _speechService.DefaultVoiceId;
+        });
         
         // Load sentences if needed
         await Task.Delay(100); // Small delay to ensure UI is ready
@@ -230,7 +234,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     new WaveformView()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                         .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                        .Amplitude(0.8f)
+                        .Amplitude(Constants.Amplitude)
                         .PlaybackPosition(State.PlaybackPosition)
                         .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}") // Create a unique ID that combines sentence index and text to force refresh when either changes
                         .AudioDuration(State.AudioDuration)
@@ -879,9 +883,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     audioStream.Position = 0;
                     await audioStream.CopyToAsync(memStream);
                     memStream.Position = 0;
+
+                    var audioWidth = _audioPlayer.Duration * Constants.PixelsPerSecond;
                     
                     // Extract waveform data from the audio stream
-                    var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(memStream);
+                    var waveformData = await _audioAnalyzer.GetWaveformAsync(memStream, (int)audioWidth);
                     
                     // Store waveform in cache
                     cacheEntry.WaveformData = waveformData;
@@ -986,11 +992,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         // Only scroll if we have a valid duration
         if (_audioPlayer == null || _audioPlayer.Duration <= 0)
             return;
-            
-            
+
+
         // Calculate the total width of the waveform based on duration and pixels per second
-        double pixelsPerSecond = 100; // Should match the value used in WaveformView
-        double totalWidth = _audioPlayer.Duration * pixelsPerSecond;
+        double totalWidth = _audioPlayer.Duration * Constants.PixelsPerSecond;
         
         // Calculate the target X position of the playhead
         double playheadX = totalWidth * position;

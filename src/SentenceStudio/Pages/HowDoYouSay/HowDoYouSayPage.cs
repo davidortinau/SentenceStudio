@@ -14,7 +14,7 @@ class HowDoYouSayPageState
 	public ObservableCollection<StreamHistory> StreamHistory { get; set; } = new();
 	public float PlaybackPosition { get; set; } = 0f;
 	public StreamHistory CurrentPlayingItem { get; set; }
-	public string SelectedVoiceId { get; set; } = "jiyoung"; // Default voice
+	public string SelectedVoiceId { get; set; } = Voices.JiYoung; // Default voice
 	public bool IsVoiceSelectionVisible { get; set; } = false;
 	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
 	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
@@ -48,7 +48,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		return ContentPage($"{_localize["HowDoYouSay"]}",
 			Grid(rows: "Auto,Auto,*", "*",
 				RenderInput(),
-				WaveformDisplay(),
 				RenderHistory(),
 				RenderVoiceSelectionBottomSheet()
 			)
@@ -118,29 +117,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		)
 		.Padding(ApplicationTheme.Size240);
 		
-	private VisualNode WaveformDisplay() =>
-		VStack(
-			Border(
-				new WaveformView()
-					.WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-					.PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-					.Amplitude(0.8f)
-					.PlaybackPosition(State.PlaybackPosition)
-					.Height(80)
-					.StreamHistoryItem(State.CurrentPlayingItem) // Use the real waveform data
-					.AudioDuration(_audioPlayer?.Duration ?? 0) // Use actual audio duration
-					.PixelsPerSecond(120) // 120 pixels per second gives good detail
-			)
-			.StrokeShape(new RoundRectangle().CornerRadius(8))
-			.StrokeThickness(1)
-			.Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
-			.HeightRequest(100)
-			.IsVisible(State.CurrentPlayingItem != null)
-		)
-		.Margin(20, 0)
-		.HStart() // Align the VStack to the left/start
-		.GridRow(1);
-
+	
 	VisualNode RenderHistory() =>
 		ScrollView(
 			VStack(
@@ -211,7 +188,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				VoiceId = State.SelectedVoiceId, // Store the voice ID with the history item
 				CreatedAt = DateTime.UtcNow,
 				UpdatedAt = DateTime.UtcNow,
-				Duration = await _audioAnalyzer.GetAudioDurationAsync(stream)
+				Duration = await _audioAnalyzer.GetDurationAsync(stream)
 			};
 			
 			// First save to repository to get an ID
@@ -235,9 +212,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// Store the file path in the history item
 			historyItem.AudioFilePath = audioFilePath;
 			
-				// Analyze the audio stream to extract waveform data
-			historyItem.WaveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(stream);
-			
 			// Update the history item with the file path
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
 			
@@ -246,8 +220,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				s.StreamHistory.Insert(0, historyItem);
 				s.Phrase = string.Empty;
 				s.IsBusy = false;
-				
-				// Set as current playing item so we can see the waveform immediately
 				s.CurrentPlayingItem = historyItem;
 			});
 		}
@@ -324,21 +296,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				s.PlaybackPosition = 0f;
 			});
 			
-			// If the waveform hasn't been analyzed yet, analyze it now
-			if (!item.IsWaveformAnalyzed)
-			{
-				var waveformData = await _audioAnalyzer.AnalyzeAudioStreamAsync(audioStream);
-				SetState(s => 
-				{
-					// Find the item and update its waveform data
-					var historyItem = s.StreamHistory.FirstOrDefault(h => h == item);
-					if (historyItem != null)
-					{
-						historyItem.WaveformData = waveformData;
-					}
-				});
-			}
-			
 			// Start the playback timer to update position
 			StartPlaybackTimer();
 		}
@@ -396,25 +353,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		{
 			// Calculate position ratio (0-1)
 			float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
+
+			SetState(s => s.PlaybackPosition = position);
 			
-			// Update UI on main thread
-			MainThread.BeginInvokeOnMainThread(() =>
-			{
-				// First update the waveform directly for smooth animation
-				// var waveformComponent = FindByType<Waveform>();
-				// if (waveformComponent != null)
-				// {
-				// 	// Use the direct update method for smoother animation
-				// 	waveformComponent.UpdatePlaybackPosition(position);
-				// }
-				
-				// Also update state but less frequently to avoid excessive re-renders
-				// Only update state if position changed by at least 1%
-				// if (Math.Abs(State.PlaybackPosition - position) >= 0.01f)
-				// {
-					SetState(s => s.PlaybackPosition = position);
-				// }
-			});
 		}
 	}
 	

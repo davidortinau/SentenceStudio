@@ -139,6 +139,9 @@
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.3" />		
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />			
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.5.0" />
+		<PackageReference Include="NAudio" Version="2.2.1" />		
+		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />		
+		<PackageReference Include="YoutubeExplode" Version="6.5.4" />	
 	</ItemGroup>
 
 	<!-- to override lower dependencies with vulerabilities -->
@@ -151,28 +154,14 @@
 	</ItemGroup> -->
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
-		
-				
-		
-		<PackageReference Include="FFmpeg.Net" Version="1.1.0" />		
-		
-				
-		
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />		
-		
-				
-		
 		<PackageReference Include="OpenTelemetry" Version="1.11.1" />		
-		
 		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.1" />		
-		
 		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.1" />		
-		
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.0" />		
-		
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
-		<PackageReference Include="YoutubeExplode" Version="6.5.4" />		
+			
 	</ItemGroup>
 
 	<ItemGroup>

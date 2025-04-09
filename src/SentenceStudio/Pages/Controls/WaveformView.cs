@@ -18,7 +18,7 @@ partial class WaveformView : Component
     private StreamHistory _streamHistory;
     private bool _streamHistoryChanged;
     private double _audioDuration = 0; // Duration of the audio in seconds
-    private double _pixelsPerSecond = 100; // Pixels per second of audio
+    private double _pixelsPerSecond = Constants.PixelsPerSecond; // Pixels per second of audio
     private bool _showTimeScale = false; // Whether to show the timescale
     private float[] _waveformData;
 
