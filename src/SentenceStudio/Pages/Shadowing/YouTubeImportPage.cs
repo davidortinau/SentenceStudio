@@ -85,7 +85,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
         );
     }
     
-    async void ImportClipAsync()
+    async Task ImportClipAsync()
     {
         try
         {
@@ -115,7 +115,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
         }
     }
     
-    async void AddClipToLibrary()
+    async Task AddClipToLibrary()
     {
         // Add code to save this clip to your app's library
         // This would depend on how you're managing audio in your app

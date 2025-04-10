@@ -54,7 +54,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		).OnAppearing(OnPageAppearing);
 	}
 	
-	private async void OnPageAppearing()
+	private async Task OnPageAppearing()
 	{
 		// Initialize voice display names from the service
 		SetState(s => {
@@ -454,7 +454,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// <summary>
 	/// Saves the selected audio to an MP3 file using the FileSaver service.
 	/// </summary>
-	async void SaveAudioAsMp3(StreamHistory item)
+	async Task SaveAudioAsMp3(StreamHistory item)
 	{
 		Debug.WriteLine($"Saving audio for: {item.Phrase}");
 		// if (item?.Stream == null) 

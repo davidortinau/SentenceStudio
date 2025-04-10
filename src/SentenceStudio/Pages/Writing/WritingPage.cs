@@ -126,7 +126,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
 
-    async void LoadVocabulary()
+    async Task LoadVocabulary()
     {
         SetState(s => s.IsBusy = true);
         try 
@@ -162,7 +162,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         SetState(s => s.UserInput = (s.UserInput ?? "") + word);
     }
 
-    async void GradeMe()
+    async Task GradeMe()
     {
         if (State.ShowMore && string.IsNullOrWhiteSpace(State.UserMeaning))
             return;
@@ -208,7 +208,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         SetState(s => { }); // Force refresh
     }
 
-    async void TranslateInput()
+    async Task TranslateInput()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput))
             return;
@@ -261,7 +261,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 (Brush)Application.Current.Resources["DarkCardBackground"])
         );
 
-    async void ShowExplanation(Sentence sentence)
+    async Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +

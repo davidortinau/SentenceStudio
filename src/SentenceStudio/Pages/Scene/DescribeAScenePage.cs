@@ -278,7 +278,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    async void ViewDescription()
+    async Task ViewDescription()
     {
         SetState(s => s.IsExplanationShown = true);
     }
@@ -296,7 +296,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         });
     }
 
-    async void GradeMyDescription()
+    async Task GradeMyDescription()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
@@ -326,7 +326,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    async void TranslateInput()
+    async Task TranslateInput()
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
@@ -405,7 +405,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
     }
 
-    async void OnImageSelected(SceneImage image)
+    async Task OnImageSelected(SceneImage image)
     {
         if (State.SelectionMode != SelectionMode.None)
         {             

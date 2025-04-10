@@ -80,7 +80,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Initializes the page and loads content when appearing
     /// </summary>
-    private async void OnPageAppearing()
+    private async Task OnPageAppearing()
     {
         // Initialize voice display names from the service
         SetState(s =>
@@ -586,7 +586,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Loads sentences for shadowing practice using the selected resource and skill.
     /// </summary>
-    async void LoadSentences()
+    async Task LoadSentences()
     {
         if (State.IsBusy)
             return;
@@ -644,7 +644,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Moves to the previous sentence in the list.
     /// </summary>
-    async void PreviousSentence()
+    async Task PreviousSentence()
     {
         if (State.CurrentSentenceIndex > 0)
         {
@@ -682,7 +682,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Moves to the next sentence in the list.
     /// </summary>
-    async void NextSentence()
+    async Task NextSentence()
     {
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
@@ -720,7 +720,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Toggles audio playback between playing and paused states.
     /// </summary>
-    async void ToggleAudioPlayback()
+    async Task ToggleAudioPlayback()
     {
         if (State.IsAudioPlaying)
         {
@@ -1105,7 +1105,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Saves the current audio to an MP3 file using the FileSaver service.
     /// </summary>
-    private async void SaveAudioAsMp3()
+    private async Task SaveAudioAsMp3()
     {
         if (State.CurrentAudioStream == null) 
         {

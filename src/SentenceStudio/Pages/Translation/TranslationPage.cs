@@ -306,7 +306,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
     }
 
-    async void GradeMe()
+    async Task GradeMe()
     {
         SetState(s => {
             s.Feedback = string.Empty;

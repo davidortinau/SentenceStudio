@@ -216,7 +216,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			SegoeFluentIcons.Cancel.ToImageSource(iconSize:14);
 	}
 
-	async void JumpTo(Challenge challenge)
+	async Task JumpTo(Challenge challenge)
 	{
 		var currentIndex = State.Sentences.IndexOf(challenge);
 		if (currentIndex < 0) return;
@@ -237,7 +237,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		});
 	}
 
-	async void LoadSentences()
+	async Task LoadSentences()
 	{
 		SetState(s => s.IsBusy = true);
 
@@ -292,7 +292,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}
 	}
 
-	async void GradeMe()
+	async Task GradeMe()
 	{
 		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
 		if (currentChallenge == null) return;
@@ -319,7 +319,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	System.Timers.Timer autoNextTimer;
 
-	async void TransitionToNextSentence()
+	async Task TransitionToNextSentence()
 	{
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.First(s => s.IsCurrent));
 		if (currentIndex >= State.Sentences.Count - 1)
@@ -349,7 +349,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		autoNextTimer.Start();
 	}
 
-	async void NextSentence()
+	async Task NextSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = InputMode.Text.ToString());
@@ -416,7 +416,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		JumpTo(nextChallenge);
 	}
 
-	async void PreviousSentence()
+	async Task PreviousSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = InputMode.Text.ToString());

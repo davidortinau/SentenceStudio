@@ -41,7 +41,7 @@ public partial class App : MauiReactorApplication
 		InitializeUserCulture();
 	}
 	
-	private async void InitializeUserCulture()
+	private async Task InitializeUserCulture()
 	{
 		try
 		{
