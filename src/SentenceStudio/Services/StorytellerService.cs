@@ -50,7 +50,7 @@ namespace SentenceStudio.Services
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("TellAStory.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync(new { terms = _words, skills = skillProfile?.Description}); 
             }
 

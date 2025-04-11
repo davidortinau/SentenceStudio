@@ -239,14 +239,5 @@
         <Setter Property="FontAttributes"
                 Value="{OnPlatform WinUI=None, Default=Bold}" />
     </Style>
-    <ControlTemplate x:Key="FormFieldTemplate">
-        <VerticalStackLayout Spacing="{StaticResource size120}"
-                             CompressedLayout.IsHeadless="true">
-            <Label Text="{TemplateBinding FieldLabel}"
-                   HorizontalOptions="Start" />
-            <Border Style="{StaticResource InputWrapper}">
-                <ContentPresenter />
-            </Border>
-        </VerticalStackLayout>
-    </ControlTemplate>
+    
 </ResourceDictionary>

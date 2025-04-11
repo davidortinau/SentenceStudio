@@ -52,7 +52,7 @@ namespace SentenceStudio.Services
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetChallenges.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
             }
 
@@ -127,7 +127,7 @@ namespace SentenceStudio.Services
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
-                    var template = Template.Parse(reader.ReadToEnd());
+                    var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput});
 
                     // //Debug.WriteLine(prompt);
@@ -152,7 +152,7 @@ namespace SentenceStudio.Services
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Translate.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
-                    var template = Template.Parse(reader.ReadToEnd());
+                    var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { user_input = userInput});
 
                     // //Debug.WriteLine(prompt);
@@ -174,7 +174,7 @@ namespace SentenceStudio.Services
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
-                    var template = Template.Parse(reader.ReadToEnd());
+                    var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning});
 
                     // //Debug.WriteLine(prompt);
@@ -199,7 +199,7 @@ namespace SentenceStudio.Services
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
-                    var template = Template.Parse(reader.ReadToEnd());
+                    var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription});
 
                     // //Debug.WriteLine(prompt);

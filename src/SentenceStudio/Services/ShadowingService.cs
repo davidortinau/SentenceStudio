@@ -78,7 +78,7 @@ public class ShadowingService
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
-            var template = Template.Parse(reader.ReadToEnd());
+            var template = Template.Parse(await reader.ReadToEndAsync());
             prompt = await template.RenderAsync(new { 
                 terms = _words,
                 native_language = nativeLanguage,

@@ -69,14 +69,14 @@ partial class ListVocabularyPage : Component<ListVocabularyPageState>
 		SetState(s => s.VocabLists = lists);
 	}
 
-	async Task AddVocabulary()
+	Task AddVocabulary()
 	{
-		await MauiControls.Shell.Current.GoToAsync(nameof(AddVocabularyPage));
+		return MauiControls.Shell.Current.GoToAsync(nameof(AddVocabularyPage));
 	}
 
-	async Task ViewList(int listID)
+	Task ViewList(int listID)
 	{
-		await MauiControls.Shell.Current.GoToAsync<VocabProps>(
+		return MauiControls.Shell.Current.GoToAsync<VocabProps>(
 			nameof(EditVocabularyPage),
 			props => props.ListID = listID);
 	}

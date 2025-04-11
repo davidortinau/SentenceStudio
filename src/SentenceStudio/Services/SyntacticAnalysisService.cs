@@ -37,7 +37,7 @@ public class SyntacticAnalysisService
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetSentences.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
-            var template = Template.Parse(reader.ReadToEnd());
+            var template = Template.Parse(await reader.ReadToEndAsync());
             prompt = await template.RenderAsync(new { terms = _words });
         }
 

@@ -71,7 +71,7 @@ namespace SentenceStudio.Services
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync();
 
                 // //Debug.WriteLine(prompt);
@@ -98,7 +98,7 @@ namespace SentenceStudio.Services
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync(new { name = "김철수", chunks = chunks.Take(chunks.Count - 1) });
 
                 // //Debug.WriteLine(prompt);

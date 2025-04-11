@@ -68,50 +68,50 @@ public partial class AppShell : Component
             // State.CurrentAppTheme = Application.Current.UserAppTheme;
         }
 
-        public override VisualNode Render() {
+    public override VisualNode Render() {
 
-            if (state.Value.CurrentUserProfile == null)
-                return new OnboardingPage();
+        if (state.Value.CurrentUserProfile == null)
+            return new OnboardingPage();
 
-            return Shell(
-                FlyoutItem("Dashboard",
-                    ShellContent()
-                        .Title("Dashboard")
-                        .RenderContent(() => new DashboardPage())
-                        .Route("dashboard")
-                ),
-                FlyoutItem("Learning Resources",
-                    ShellContent()
-                        .Title("Learning Resources")
-                        .RenderContent(() => new ListLearningResourcesPage())
-                        .Route(nameof(ListLearningResourcesPage))
-                ),
-                FlyoutItem("Vocabulary",
-                    ShellContent()
-                        .Title("Vocabulary")
-                        .RenderContent(() => new ListVocabularyPage())
-                        .Route(nameof(ListVocabularyPage))
-                ),
-                FlyoutItem("Skills",
-                    ShellContent()
-                        .Title("Skills")
-                        .RenderContent(() => new ListSkillProfilesPage())
-                        .Route(nameof(ListSkillProfilesPage))
-                ),
-                FlyoutItem("Import",
-                    ShellContent()
-                        .Title("Import")
-                        .RenderContent(() => new YouTubeImportPage())
-                        .Route(nameof(YouTubeImportPage))
-                ),
-                FlyoutItem("Profile",
-                    ShellContent()
-                        .Title("Profile")
-                        .RenderContent(() => new UserProfilePage())
-                        .Route(nameof(UserProfilePage))
-                )
-            );
-        }
+        return Shell(
+            FlyoutItem("Dashboard",
+                ShellContent()
+                    .Title("Dashboard")
+                    .RenderContent(() => new DashboardPage())
+                    .Route("dashboard")
+            ),
+            FlyoutItem("Learning Resources",
+                ShellContent()
+                    .Title("Learning Resources")
+                    .RenderContent(() => new ListLearningResourcesPage())
+                    .Route(nameof(ListLearningResourcesPage))
+            ),
+            FlyoutItem("Vocabulary",
+                ShellContent()
+                    .Title("Vocabulary")
+                    .RenderContent(() => new ListVocabularyPage())
+                    .Route(nameof(ListVocabularyPage))
+            ),
+            FlyoutItem("Skills",
+                ShellContent()
+                    .Title("Skills")
+                    .RenderContent(() => new ListSkillProfilesPage())
+                    .Route(nameof(ListSkillProfilesPage))
+            ),
+            FlyoutItem("Import",
+                ShellContent()
+                    .Title("Import")
+                    .RenderContent(() => new YouTubeImportPage())
+                    .Route(nameof(YouTubeImportPage))
+            ),
+            FlyoutItem("Profile",
+                ShellContent()
+                    .Title("Profile")
+                    .RenderContent(() => new UserProfilePage())
+                    .Route(nameof(UserProfilePage))
+            )
+        );
+    }
         // .FlyoutFooter(
         //     Grid(            
         //         new SfSegmentedControl{
@@ -130,15 +130,13 @@ public partial class AppShell : Component
 
         //     )
         //     .Padding(15)
-        // );
-
-
-        public static async Task DisplayToastAsync(string message)
+        
+        public static Task DisplayToastAsync(string message)
         {
             ToastDuration duration = ToastDuration.Long;
             double fontSize = 14;
             var toast = Toast.Make(message, duration, fontSize);
             CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            await toast.Show(cancellationTokenSource.Token);
+            return toast.Show(cancellationTokenSource.Token);
         }
     }

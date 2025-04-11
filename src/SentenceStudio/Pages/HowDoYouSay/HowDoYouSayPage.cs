@@ -54,7 +54,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		).OnAppearing(OnPageAppearing);
 	}
 	
-	private async Task OnPageAppearing()
+	private Task OnPageAppearing()
 	{
 		// Initialize voice display names from the service
 		SetState(s => {
@@ -63,7 +63,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		});
 		
 		// Load history from the repository
-		await LoadHistoryAsync();
+		return LoadHistoryAsync();
 	}
 	
 	private async Task LoadHistoryAsync()

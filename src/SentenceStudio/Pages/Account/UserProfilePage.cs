@@ -185,6 +185,6 @@ partial class UserProfilePage : Component<UserProfilePageState>
         }
     }
 
-    async Task GoToOpenAI() => 
-        await Browser.OpenAsync("https://platform.openai.com/account/api-keys");
+    Task GoToOpenAI() => 
+        Browser.OpenAsync("https://platform.openai.com/account/api-keys");
 }

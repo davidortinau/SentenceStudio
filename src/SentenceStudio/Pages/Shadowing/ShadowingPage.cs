@@ -271,17 +271,18 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// Handles when the user selects a position on the waveform.
     /// </summary>
     /// <param name="normalizedPosition">The position as a value from 0 to 1.</param>
-    private async void OnWaveformPositionSelected(float normalizedPosition)
+    private void OnWaveformPositionSelected(float normalizedPosition)
     {
         Debug.WriteLine($"Waveform position selected: {normalizedPosition:F2}");
         
         if (State.IsAudioPlaying)
         {
             // If audio is already playing, pause it first
-            await PauseAudio();
-            
-            // Then seek to the new position and resume
-            await SeekAndResumeAudio(normalizedPosition);
+            PauseAudio().ContinueWith(async t => 
+            {
+                // Then seek to the new position and resume
+                await SeekAndResumeAudio(normalizedPosition);
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
         else // if (State.IsPaused)
         {
@@ -742,7 +743,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Pauses the currently playing audio.
     /// </summary>
-    async Task PauseAudio()
+    Task PauseAudio()
     {
         if (_audioPlayer != null && _audioPlayer.IsPlaying)
         {
@@ -758,13 +759,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             Debug.WriteLine("Audio playback paused");
         }
         
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>
     /// Resumes playback from the paused position.
     /// </summary>
-    async Task ResumeAudio()
+    Task ResumeAudio()
     {
         if (_audioPlayer != null && !_audioPlayer.IsPlaying)
         {
@@ -782,7 +783,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             Debug.WriteLine("Audio playback resumed");
         }
         
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1074,7 +1075,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Stops the currently playing audio.
     /// </summary>
-    async Task StopAudio()
+    Task StopAudio()
     {
         _playbackTimer?.Stop();
         
@@ -1099,7 +1100,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         
         RewindAudioStream();
         
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1201,14 +1202,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Performs cleanup when the component is unmounted.
     /// </summary>
-    protected override async void OnWillUnmount()
+    protected override void OnWillUnmount()
     {
         // Stop and dispose the playback timer
         _playbackTimer?.Stop();
         _playbackTimer = null;
 
         // Clean up audio resources when navigating away from the page
-        await StopAudio();
+        StopAudio().ConfigureAwait(false);
 
         // Clean up cached streams
         foreach (var entry in _audioCache.Values)

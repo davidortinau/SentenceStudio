@@ -254,7 +254,7 @@ public class VocabularyService
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetStarterVocabulary.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync(new { native_language = nativeLanguage, target_language = targetLanguage});
 
                 // //Debug.WriteLine(prompt);

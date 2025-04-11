@@ -360,7 +360,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("DescribeThisImage.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
-                var template = Template.Parse(reader.ReadToEnd());
+                var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync();
             }
 
@@ -464,11 +464,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             SetState(s => s.Images = s.Images.Remove(img));
         }
         SetState(s => s.SelectedImages = ImmutableList<SceneImage>.Empty);
-    }
-
-    async Task ShowError()
+    }    Task ShowError()
     {
-        await Application.Current.MainPage.DisplayAlert(
+        return Application.Current.MainPage.DisplayAlert(
             "Error",
             "Something went wrong. Check the server.",
             "OK"

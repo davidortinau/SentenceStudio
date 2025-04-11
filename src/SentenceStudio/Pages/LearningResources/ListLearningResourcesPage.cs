@@ -298,14 +298,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return resources;
     }
 
-    async Task AddResource()
+    Task AddResource()
     {
-        await MauiControls.Shell.Current.GoToAsync(nameof(AddLearningResourcePage));
+        return MauiControls.Shell.Current.GoToAsync(nameof(AddLearningResourcePage));
     }
 
-    async Task ViewResource(int resourceId)
+    Task ViewResource(int resourceId)
     {
-        await MauiControls.Shell.Current.GoToAsync<ResourceProps>(
+        return MauiControls.Shell.Current.GoToAsync<ResourceProps>(
             nameof(EditLearningResourcePage),
             props => props.ResourceID = resourceId);
     }

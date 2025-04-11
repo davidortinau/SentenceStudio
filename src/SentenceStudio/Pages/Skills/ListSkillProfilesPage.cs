@@ -60,16 +60,14 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
     {
         var profiles = await _skillsRepository.ListAsync();
         SetState(s => s.Profiles = profiles.ToList());
+    }    Task AddProfile()
+    {
+        return MauiControls.Shell.Current.GoToAsync(nameof(AddSkillProfilePage));
     }
 
-    async Task AddProfile()
+    Task EditProfile(SkillProfile profile)
     {
-        await MauiControls.Shell.Current.GoToAsync(nameof(AddSkillProfilePage));
-    }
-
-    async Task EditProfile(SkillProfile profile)
-    {
-        await MauiControls.Shell.Current.GoToAsync<EditSkillProfileProps>(
+        return MauiControls.Shell.Current.GoToAsync<EditSkillProfileProps>(
             nameof(EditSkillProfilePage),
             props => props.ProfileID = profile.ID);
     }

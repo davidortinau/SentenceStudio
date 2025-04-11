@@ -87,7 +87,7 @@ public class LearningResourceRepository
         resource.UpdatedAt = DateTime.UtcNow;
         
         // Begin a transaction to ensure both the resource and its vocabulary mappings are saved
-        await Database.RunInTransactionAsync(async (connection) => {
+        await Database.RunInTransactionAsync(connection => {
             if (resource.ID != 0)
             {
                 result = connection.Update(resource);
@@ -110,7 +110,8 @@ public class LearningResourceRepository
                     // Save the vocabulary word if it doesn't exist
                     if (word.ID == 0)
                     {
-                        await _vocabularyService.SaveWordAsync(word);
+                        // Do not use await inside a synchronous delegate - save first
+                        _vocabularyService.SaveWordAsync(word);
                     }
                     
                     // Create a mapping
@@ -160,9 +161,9 @@ public class LearningResourceRepository
     }
     
     // Get all vocabulary lists
-    public async Task<List<LearningResource>> GetVocabularyListsAsync()
+    public Task<List<LearningResource>> GetVocabularyListsAsync()
     {
-        return await GetResourcesByTypeAsync("Vocabulary List");
+        return GetResourcesByTypeAsync("Vocabulary List");
     }
     
     // Get resources by language

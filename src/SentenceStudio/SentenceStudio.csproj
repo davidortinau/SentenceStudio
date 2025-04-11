@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 		
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -15,7 +15,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<MauiVersion>9.0.50</MauiVersion>
+		<!-- <MauiVersion>9.0.50</MauiVersion> -->
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -44,7 +44,7 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-ios|AnyCPU'">
 		<CreatePackage>false</CreatePackage>
 		<EnableCodeSigning>true</EnableCodeSigning>
 		<CodesignRequireProvisioningProfile>true</CodesignRequireProvisioningProfile>
@@ -62,13 +62,13 @@
 		<EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer> 
 	</PropertyGroup> -->
 
-	<!-- <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
+	<!-- <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-ios|AnyCPU'">
 	  <CreatePackage>false</CreatePackage>
 	  <CodesignProvision>Automatic</CodesignProvision>
 	  <CodesignKey>Mac Developer: Created via API (Y7P75477YN)</CodesignKey>
 	</PropertyGroup> -->
 
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net9.0-ios|AnyCPU'">
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net10.0-ios|AnyCPU'">
 	  <CreatePackage>false</CreatePackage>
 	  <!-- <MtouchUseLlvm>false</MtouchUseLlvm> -->
 	</PropertyGroup>
@@ -114,11 +114,11 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="11.2.0" />
-		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0-preview1" />
+		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0-preview2" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="4.0.0" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
-		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
 		<PackageReference Include="Scriban" Version="6.0.0" />
@@ -127,15 +127,14 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.116.1" />
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.4" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.3" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.4" />
 		<PackageReference Include="Reactor.Maui" Version="3.0.28" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.3" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.3" />
-		<PackageReference Include="Microsoft.Extensions.AI" Version="9.3.0-preview.1.25114.11" />		
-		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.3.0-preview.1.25114.11" />	
-		<PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.3.0-preview.1.25114.11" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.3" />		
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />			
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-preview.3.25171.5" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-preview.3.25171.5" />
+		<PackageReference Include="Microsoft.Extensions.AI" Version="9.4.0-preview.1.25207.5" />		
+		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.4.0-preview.1.25207.5" />	
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-preview.3.25171.5" />		
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-preview.3.25171.5" />			
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.5.0" />
 		<PackageReference Include="NAudio" Version="2.2.1" />		
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />		
@@ -144,14 +143,18 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="OpenTelemetry" Version="1.11.2" />		
+		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.2" />		
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.2" />		
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
 	</ItemGroup>
 
 	
 
 	<!-- to override lower dependencies with vulerabilities -->
-	<ItemGroup>
+	<!-- <ItemGroup>
 		<PackageReference Include="System.Text.Json" Version="9.0.2" />
-	</ItemGroup>
+	</ItemGroup> -->
 
 	<!-- <ItemGroup>
 		<ProjectReference Include="..\..\..\Plugin.Maui.DebugOverlay\src\Plugin.Maui.DebugOverlay\Plugin.Maui.DebugOverlay.csproj" />
@@ -159,10 +162,7 @@
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />		
-		<PackageReference Include="OpenTelemetry" Version="1.11.1" />		
-		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.1" />		
-		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.1" />		
-		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.0" />		
+				
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 			
@@ -177,7 +177,6 @@
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 		<EmbeddedResource Include="appsettings.json" />
 	</ItemGroup>
-
 	<ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
 			<Generator>ResXFileCodeGenerator</Generator>
@@ -188,9 +187,13 @@
 			<StronglyTypedClassName>AppResources</StronglyTypedClassName>
 		</EmbeddedResource>
 	</ItemGroup>
+	
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);CS2002</NoWarn>
+	</PropertyGroup>
 
 	<!-- enable this to use Reveal for UI inspection -->
-	<!-- <ItemGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-ios|AnyCPU'">
+	<!-- <ItemGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-ios|AnyCPU'">
 		<NativeReference Include="$(HOME)\Library\Application Support\Reveal\RevealServer\RevealServer.xcframework">
 			<Kind>Framework</Kind>
 			<SmartLink>True</SmartLink>

@@ -259,9 +259,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             .Background(Theme.IsLightTheme ? 
                 (Brush)Application.Current.Resources["LightCardBackground"] : 
                 (Brush)Application.Current.Resources["DarkCardBackground"])
-        );
-
-    async Task ShowExplanation(Sentence sentence)
+        );    Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +
@@ -269,7 +267,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             $"Fluency: {sentence.FluencyExplanation}\n\n" +
             $"Additional Notes: {sentence.GrammarNotes}";
 
-        await Application.Current.MainPage.DisplayAlert(
+        return Application.Current.MainPage.DisplayAlert(
             _localize["Explanation"].ToString(),
             explanation,
             _localize["OK"].ToString());

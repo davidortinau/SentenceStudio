@@ -39,7 +39,7 @@ namespace SentenceStudio.Services
                 using (Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Translate.scriban-txt"))
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
-                    var template = Template.Parse(reader.ReadToEnd());
+                    var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { user_input = text });
                 }
 

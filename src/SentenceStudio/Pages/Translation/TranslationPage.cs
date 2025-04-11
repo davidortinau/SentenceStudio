@@ -344,13 +344,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         sb.AppendFormat("<p>Notes: {0}</p>", HttpUtility.HtmlEncode(gradeResponse.GrammarNotes.Explanation));
 
         return sb.ToString();
-    }
-
-    async Task<string> BuildGradePrompt()
+    }    async Task<string> BuildGradePrompt()
     {
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
         using StreamReader reader = new StreamReader(templateStream);
-        var template = Template.Parse(reader.ReadToEnd());
+        var template = Template.Parse(await reader.ReadToEndAsync());
         return await template.RenderAsync(new {
             original_sentence = State.CurrentSentence,
             recommended_translation = State.RecommendedTranslation,
