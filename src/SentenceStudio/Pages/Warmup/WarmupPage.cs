@@ -23,7 +23,7 @@ class WarmupPageState
 partial class WarmupPage : Component<WarmupPageState>
 {    [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
-    [Inject] AiService _aiService;
+    [Inject] ElevenLabsSpeechService _speechService;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
 
@@ -319,8 +319,22 @@ partial class WarmupPage : Component<WarmupPageState>
 
     async Task PlayAudio(string text)
     {
-        var myStream = await _aiService.TextToSpeechAsync(text, "Nova");
-        var audioPlayer = AudioManager.Current.CreatePlayer(myStream);
-        audioPlayer.Play();
+        try
+        {
+            // Use ElevenLabsSpeechService to generate audio with Korean voice
+            var audioStream = await _speechService.TextToSpeechAsync(
+                text,
+                _speechService.DefaultVoiceId);
+
+            if (audioStream != null)
+            {
+                var audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+                audioPlayer.Play();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error playing audio: {ex.Message}");
+        }
     }
 }
