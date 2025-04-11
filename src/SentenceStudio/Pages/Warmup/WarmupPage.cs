@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
+using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.Warmup;
 
@@ -23,14 +24,7 @@ partial class WarmupPage : Component<WarmupPageState>
 {
     [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
-    [Inject] AiService _aiService;
-
-    Conversation _conversation;
-
-    CommunityToolkit.Maui.Views.Popup? _popup, _phrasesPopup;
-
-    // Action<string>? _onItemTapped;
-    // Action? _onCloseClicked;
+    [Inject] AiService _aiService;    Conversation _conversation;
 
     string[] phrases = new[]
         {
@@ -67,51 +61,54 @@ partial class WarmupPage : Component<WarmupPageState>
         );
 
     VisualNode RenderExplanationPopup() =>
-        new PopupHost(r => _popup = r)
-        {
-            VStack(spacing: 10,
+        new SfBottomSheet(
+            Grid("*", "*",
+                VStack(spacing: 10,
+                    Label(State.Explanation),
 
-                Label(State.Explanation),
-
-                Button("Close", ()=> _popup?.Close(false))
+                    Button("Close")
+                        .OnClicked(() => SetState(s => {
+                            s.IsExplanationShown = false;
+                            s.PopupResult = false;
+                        }))
+                )
+                .BackgroundColor(ApplicationTheme.LightBackground)
+                .Padding(20)
             )
-            .BackgroundColor(ApplicationTheme.LightBackground)
-        }
-        .OnClosed(result => SetState(s =>
-        {
-            s.IsExplanationShown = false;
-            s.PopupResult = (bool?)result;
-        }))
+        )
         .GridRowSpan(2)       
-        .IsShown(State.IsExplanationShown);
+        .IsOpen(State.IsExplanationShown);
 
     VisualNode RenderPhrasesPopup() =>
-        new PopupHost(r => _phrasesPopup = r)
-        {
-            Grid("*,Auto","",
-            ScrollView(
-                VStack(spacing: 20,
-                    phrases.Select(text =>
-                        Label()
-                        .Text(text)
-                        .OnTapped((sender, args) => {
-                            SetState(s=> s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text);
-                            _phrasesPopup?.Close(true);
-                        })
-                    )
+        new SfBottomSheet(
+            Grid("*,Auto", "*",
+                ScrollView(
+                    VStack(
+                        phrases.Select(text =>
+                            Label()
+                            .Text(text)
+                            .OnTapped((sender, args) => {
+                                SetState(s =>
+                                {
+                                    s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text;
+                                    s.IsPhraseListShown = false;
+                                });
+                            })
+                        )
+                    ).Spacing(20)
                 )
-            ),
-            Button()
-                .Text("Cancel")
-                .GridRow(1)
-                // .OnClicked(() => _onCloseClicked?.Invoke())
+                .GridRow(0),
+                Button("Cancel")
+                    .GridRow(1)
+                    .OnClicked(() => SetState(s => s.IsPhraseListShown = false))
             )
             .BackgroundColor(ApplicationTheme.LightBackground)
             .Padding(15)
             .Margin(15)
             .HorizontalOptions(LayoutOptions.Fill)
             .MinimumWidthRequest(320)
-        }.IsShown(State.IsPhraseListShown);
+        )
+        .IsOpen(State.IsPhraseListShown);
 
     VisualNode RenderChunk(ConversationChunk chunk)
     {
