@@ -26,6 +26,10 @@ partial class WarmupPage : Component<WarmupPageState>
     [Inject] ElevenLabsSpeechService _speechService;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
+    
+    private IAudioPlayer _audioPlayer;
+    private FloatingAudioPlayer _floatingPlayer;
+    private IDispatcherTimer _playbackTimer;
 
     string[] phrases = new[]
         {
@@ -39,9 +43,7 @@ partial class WarmupPage : Component<WarmupPageState>
             "한국어로 말해 주세요.",
             "한국어로 쓰세요.",
             "한국어로 번역해 주세요."
-        };
-
-    public override VisualNode Render()
+        };    public override VisualNode Render()
     {
         return ContentPage("Warmup",
             ToolbarItem($"{_localize["New Conversation"]}").OnClicked(StartNewConversation),
@@ -49,10 +51,20 @@ partial class WarmupPage : Component<WarmupPageState>
                 RenderMessageScroll(),
                 RenderInput(),
                 RenderExplanationPopup(),
-                RenderPhrasesPopup()
+                RenderPhrasesPopup(),
+                CreateFloatingAudioPlayer()
             )
         ).OnAppearing(ResumeConversation);
     }
+    
+    VisualNode CreateFloatingAudioPlayer() =>
+        _floatingPlayer = new FloatingAudioPlayer(
+            _audioPlayer,
+            onPlay: ResumeAudio,
+            onPause: PauseAudio,
+            onRewind: RewindAudio,
+            onStop: StopAudio
+        );
 
     VisualNode RenderMessageScroll() =>
         ScrollView(
@@ -315,12 +327,13 @@ partial class WarmupPage : Component<WarmupPageState>
         SetState(s => s.IsBusy = false);
 
         // await PlayAudio(response.Message);
-    }
-
-    async Task PlayAudio(string text)
+    }    async Task PlayAudio(string text)
     {
         try
         {
+            // Stop any currently playing audio
+            StopAudio();
+            
             // Use ElevenLabsSpeechService to generate audio with Korean voice
             var audioStream = await _speechService.TextToSpeechAsync(
                 text,
@@ -328,13 +341,141 @@ partial class WarmupPage : Component<WarmupPageState>
 
             if (audioStream != null)
             {
-                var audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
-                audioPlayer.Play();
+                // Create the audio player
+                _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+                
+                // Set up the floating player
+                if (_floatingPlayer != null)
+                {
+                    _floatingPlayer.SetTitle($"Playing: {(text.Length > 15 ? text.Substring(0, 15) + "..." : text)}");
+                    _floatingPlayer.Show();
+                    _floatingPlayer.SetPlaying();
+                }
+                
+                // Start playback
+                _audioPlayer.Play();
+                
+                // Start tracking playback position
+                StartPlaybackTimer();
+                
+                // Set up auto-hide when audio finishes
+                _audioPlayer.PlaybackEnded += (s, e) => {
+                    if (_floatingPlayer != null)
+                    {
+                        _floatingPlayer.Hide();
+                    }
+                };
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error playing audio: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Pauses the currently playing audio.
+    /// </summary>
+    private void PauseAudio()
+    {
+        if (_audioPlayer != null && _audioPlayer.IsPlaying)
+        {
+            _audioPlayer.Pause();
+            _playbackTimer?.Stop();
+            
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.SetPaused();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Resumes playback from the paused position.
+    /// </summary>
+    private void ResumeAudio()
+    {
+        if (_audioPlayer != null && !_audioPlayer.IsPlaying)
+        {
+            _audioPlayer.Play();
+            StartPlaybackTimer();
+            
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.SetPlaying();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Rewinds the audio to the beginning.
+    /// </summary>
+    private void RewindAudio()
+    {
+        if (_audioPlayer != null)
+        {
+            _audioPlayer.Seek(0);
+            
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.UpdatePosition(0f);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Stops and disposes the audio playback.
+    /// </summary>
+    private void StopAudio()
+    {
+        if (_audioPlayer != null)
+        {
+            _playbackTimer?.Stop();
+            
+            if (_audioPlayer.IsPlaying)
+            {
+                _audioPlayer.Stop();
+            }
+            
+            _audioPlayer.Dispose();
+            _audioPlayer = null;
+            
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.Hide();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Starts a timer to track audio playback progress.
+    /// </summary>
+    private void StartPlaybackTimer()
+    {
+        // Stop any existing timer
+        _playbackTimer?.Stop();
+        
+        // Create a new timer that ticks 10 times per second
+        _playbackTimer = Application.Current.Dispatcher.CreateTimer();
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(100);
+        _playbackTimer.Tick += (s, e) => UpdatePlaybackPosition();
+        _playbackTimer.Start();
+    }
+    
+    /// <summary>
+    /// Updates the playback position for the floating player.
+    /// </summary>
+    private void UpdatePlaybackPosition()
+    {
+        if (_audioPlayer == null || _floatingPlayer == null)
+            return;
+            
+        // Only update if we have a valid duration
+        if (_audioPlayer.Duration > 0)
+        {
+            // Calculate the position as a float between 0-1
+            float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
+            _floatingPlayer.UpdatePosition(position);
         }
     }
 }

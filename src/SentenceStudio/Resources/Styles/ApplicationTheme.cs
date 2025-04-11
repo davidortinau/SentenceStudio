@@ -185,6 +185,54 @@ class ApplicationTheme : Theme
         Size = Size280
     };
 
+    public static FontImageSource IconStop { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.record_stop_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
+
+    public static FontImageSource IconRewind { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.skip_back_10_32_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
+
+    public static FontImageSource IconPlaySm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.play_20_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
+    public static FontImageSource IconPauseSm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.pause_20_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
+    public static FontImageSource IconStopSm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.stop_20_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
+    public static FontImageSource IconRewindSm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.previous_20_regular, // Replace with actual glyph
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
     protected override void OnApply()
     {
         SfTextInputLayoutStyles.Default = _ => _
