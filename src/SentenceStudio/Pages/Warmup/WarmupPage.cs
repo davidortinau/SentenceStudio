@@ -118,7 +118,10 @@ partial class WarmupPage : Component<WarmupPageState>
         {
             return Border(
                 new SelectableLabel()
-                    .Text(chunk.Text)
+                    .Text(chunk.Text),
+                     MenuFlyout(
+                        MenuFlyoutItem("Play Audio").OnClicked(() => PlayAudio(chunk.Text))
+                    )
 
             )
             .Margin(new Thickness(15, 5))

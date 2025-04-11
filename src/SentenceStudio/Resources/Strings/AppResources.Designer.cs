@@ -436,6 +436,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to New Conversation.
+        /// </summary>
+        internal static string NewConversation {
+            get {
+                return ResourceManager.GetString("NewConversation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Next.
         /// </summary>
         internal static string Next {
