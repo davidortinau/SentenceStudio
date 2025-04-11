@@ -334,6 +334,13 @@ partial class WarmupPage : Component<WarmupPageState>
             // Stop any currently playing audio
             StopAudio();
             
+            // Show the loading state immediately
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.SetTitle($"Loading: {(text.Length > 15 ? text.Substring(0, 15) + "..." : text)}");
+                _floatingPlayer.ShowLoading();
+            }
+            
             // Use ElevenLabsSpeechService to generate audio with Korean voice
             var audioStream = await _speechService.TextToSpeechAsync(
                 text,
@@ -348,7 +355,7 @@ partial class WarmupPage : Component<WarmupPageState>
                 if (_floatingPlayer != null)
                 {
                     _floatingPlayer.SetTitle($"Playing: {(text.Length > 15 ? text.Substring(0, 15) + "..." : text)}");
-                    _floatingPlayer.Show();
+                    _floatingPlayer.SetReady(); // Switch from loading to ready state
                     _floatingPlayer.SetPlaying();
                 }
                 
@@ -366,10 +373,24 @@ partial class WarmupPage : Component<WarmupPageState>
                     }
                 };
             }
+            else
+            {
+                // Hide the player if audio generation failed
+                if (_floatingPlayer != null)
+                {
+                    _floatingPlayer.Hide();
+                }
+            }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error playing audio: {ex.Message}");
+            
+            // Hide the player on error
+            if (_floatingPlayer != null)
+            {
+                _floatingPlayer.Hide();
+            }
         }
     }
     

@@ -17,6 +17,11 @@ public class FloatingAudioPlayerState
     /// Gets or sets whether audio is currently playing.
     /// </summary>
     public bool IsPlaying { get; set; } = false;
+    
+    /// <summary>
+    /// Gets or sets whether the player is in loading state.
+    /// </summary>
+    public bool IsLoading { get; set; } = false;
 
     /// <summary>
     /// Gets or sets the current playback position as a normalized value (0-1).
@@ -68,68 +73,79 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     {
         return Border(
             Grid(rows: "0, 3, Auto", columns: "*",
-                new LinearProgressBar()
-                    .Progress(State.PlaybackPosition)
-                    .ProgressColor(Colors.Orange)
-                    .TrackColor(Colors.Gray)
-                    .HeightRequest(3)
-                    .Margin(8, 0, 8, 0)
-                    .GridRow(1),
+                State.IsLoading ? 
+                    null : 
+                    new LinearProgressBar()
+                        .Progress(State.PlaybackPosition)
+                        .ProgressColor(Colors.Orange)
+                        .TrackColor(Colors.Gray)
+                        .HeightRequest(3)
+                        .Margin(8, 0, 8, 0)
+                        .GridRow(1),
 
-                HStack(
-                    ImageButton()
-                        .Source(ApplicationTheme.IconRewindSm)
-                        .BackgroundColor(Colors.Transparent)
-                        .WidthRequest(18)
-                        .HeightRequest(18)
-                        .Padding(4)
-                        .OnClicked(() =>
-                        {
-                            SetState(s => s.PlaybackPosition = 0f);
-                            _onRewind?.Invoke();
-                        }),
+                State.IsLoading ?
+                    ActivityIndicator()
+                        .IsRunning(true)
+                        .HeightRequest(24).WidthRequest(24)
+                        .GridRowSpan(3)
+                        .Margin(8)
+                        .HCenter().VCenter()
+                    :
+                    
+                    HStack(
+                        ImageButton()
+                            .Source(ApplicationTheme.IconRewindSm)
+                            .BackgroundColor(Colors.Transparent)
+                            .WidthRequest(18)
+                            .HeightRequest(18)
+                            .Padding(4)
+                            .OnClicked(() =>
+                            {
+                                SetState(s => s.PlaybackPosition = 0f);
+                                _onRewind?.Invoke();
+                            }),
 
-                    ImageButton()
-                        .Source(State.IsPlaying ? ApplicationTheme.IconPauseSm : ApplicationTheme.IconPlaySm)
-                        .BackgroundColor(Colors.Transparent)
-                        .WidthRequest(18)
-                        .HeightRequest(18)
-                        .Padding(4)
-                        .OnClicked(() =>
-                        {
-                            if (State.IsPlaying)
+                        ImageButton()
+                            .Source(State.IsPlaying ? ApplicationTheme.IconPauseSm : ApplicationTheme.IconPlaySm)
+                            .BackgroundColor(Colors.Transparent)
+                            .WidthRequest(18)
+                            .HeightRequest(18)
+                            .Padding(4)
+                            .OnClicked(() =>
                             {
-                                SetState(s => s.IsPlaying = false);
-                                _onPause?.Invoke();
-                            }
-                            else
-                            {
-                                SetState(s => s.IsPlaying = true);
-                                _onPlay?.Invoke();
-                            }
-                        }),
+                                if (State.IsPlaying)
+                                {
+                                    SetState(s => s.IsPlaying = false);
+                                    _onPause?.Invoke();
+                                }
+                                else
+                                {
+                                    SetState(s => s.IsPlaying = true);
+                                    _onPlay?.Invoke();
+                                }
+                            }),
 
-                    ImageButton()
-                        .Source(ApplicationTheme.IconStopSm)
-                        .BackgroundColor(Colors.Transparent)
-                        .WidthRequest(18)
-                        .HeightRequest(18)
-                        .Padding(4)
-                        .OnClicked(() =>
-                        {
-                            SetState(s =>
+                        ImageButton()
+                            .Source(ApplicationTheme.IconStopSm)
+                            .BackgroundColor(Colors.Transparent)
+                            .WidthRequest(18)
+                            .HeightRequest(18)
+                            .Padding(4)
+                            .OnClicked(() =>
                             {
-                                s.IsPlaying = false;
-                                s.IsVisible = false;
-                                s.PlaybackPosition = 0f;
-                            });
-                            _onStop?.Invoke();
-                        })
-                )
-                .HCenter()
-                .Spacing(4)
-                .Padding(4, 0, 8, 0)
-                .GridRow(2)
+                                SetState(s =>
+                                {
+                                    s.IsPlaying = false;
+                                    s.IsVisible = false;
+                                    s.PlaybackPosition = 0f;
+                                });
+                                _onStop?.Invoke();
+                            })
+                    )
+                    .HCenter()
+                    .Spacing(4)
+                    .Padding(4, 0, 8, 0)
+                    .GridRow(2)
             )
             .RowSpacing(4)
         )
@@ -159,6 +175,17 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     {
         SetState(s => s.IsVisible = true);
     }
+    
+    /// <summary>
+    /// Shows the audio player in loading state.
+    /// </summary>
+    public void ShowLoading()
+    {
+        SetState(s => {
+            s.IsVisible = true;
+            s.IsLoading = true;
+        });
+    }
 
     /// <summary>
     /// Hides the audio player.
@@ -168,7 +195,16 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
         SetState(s => {
             s.IsVisible = false;
             s.IsPlaying = false;
+            s.IsLoading = false;
         });
+    }
+    
+    /// <summary>
+    /// Sets the component to ready state (not loading).
+    /// </summary>
+    public void SetReady()
+    {
+        SetState(s => s.IsLoading = false);
     }
 
     /// <summary>
