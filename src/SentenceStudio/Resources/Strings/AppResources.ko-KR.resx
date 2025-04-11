@@ -449,4 +449,8 @@
     <value>초기화</value>
     <comment/>
   </data>
+  <data name="NewConversation" xml:space="preserve">
+    <value>새로운 대화</value>
+    <comment/>
+  </data>
 </root>

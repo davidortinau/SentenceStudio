@@ -21,10 +21,11 @@ class WarmupPageState
 }
 
 partial class WarmupPage : Component<WarmupPageState>
-{
-    [Inject] TeacherService _teacherService;
+{    [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
-    [Inject] AiService _aiService;    Conversation _conversation;
+    [Inject] AiService _aiService;
+    LocalizationManager _localize => LocalizationManager.Instance;
+    Conversation _conversation;
 
     string[] phrases = new[]
         {
@@ -43,7 +44,8 @@ partial class WarmupPage : Component<WarmupPageState>
     public override VisualNode Render()
     {
         return ContentPage("Warmup",
-            Grid(rows: "*, Auto","*",
+            ToolbarItem($"{_localize["New Conversation"]}").OnClicked(StartNewConversation),
+            Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),
                 RenderExplanationPopup(),
@@ -117,7 +119,7 @@ partial class WarmupPage : Component<WarmupPageState>
             return Border(
                 new SelectableLabel()
                     .Text(chunk.Text)
-                    
+
             )
             .Margin(new Thickness(15, 5))
             .Padding(new Thickness(12, 4, 12, 8))
@@ -246,30 +248,56 @@ partial class WarmupPage : Component<WarmupPageState>
         });
     }
 
+    /// <summary>
+    /// Starts a new conversation thread, clearing the current one.
+    /// </summary>
+    async Task StartNewConversation()
+    {
+        // Show a confirmation dialog
+        bool shouldStart = await Application.Current.MainPage.DisplayAlert(
+            "Start New Conversation", 
+            "This will clear the current conversation. Are you sure?",
+            "Yes", "No");
+            
+        if (!shouldStart)
+            return;
+            
+        // Clear the current conversation and chunks
+        SetState(s => {
+            s.Chunks.Clear();
+            s.UserInput = string.Empty;
+        });
+        
+        // Start a fresh conversation
+        await StartConversation();
+    }
+
     async Task StartConversation()
     {
         await Task.Delay(100);
-        State.IsBusy = true;
+        
+        SetState(s => s.IsBusy = true);
 
         _conversation = new Conversation();
         await _conversationService.SaveConversation(_conversation);
 
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
-        State.Chunks.Add(chunk);
+
+        SetState(s => s.Chunks.Add(chunk));
 
         await Task.Delay(1000);
         chunk.Text = "안녕하세요. 이름이 뭐예요?";
         await _conversationService.SaveConversationChunk(chunk);
 
-        State.IsBusy = false;
+        SetState(s => s.IsBusy = false);
     }
 
     async Task GetReply()
     {
-        State.IsBusy = true;
+        SetState(s => s.IsBusy = true);
 
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
-        State.Chunks.Add(chunk);
+        SetState(s => s.Chunks.Add(chunk));
 
         Reply response = await _conversationService.ContinueConveration(State.Chunks.ToList());
         chunk.Text = response.Message;
@@ -281,9 +309,9 @@ partial class WarmupPage : Component<WarmupPageState>
         await _conversationService.SaveConversationChunk(previousChunk);
         await _conversationService.SaveConversationChunk(chunk);
 
-        State.IsBusy = false;
+        SetState(s => s.IsBusy = false);
 
-        await PlayAudio(response.Message);
+        // await PlayAudio(response.Message);
     }
 
     async Task PlayAudio(string text)
