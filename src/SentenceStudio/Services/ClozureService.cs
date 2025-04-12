@@ -16,6 +16,7 @@ public class ClozureService
     private AiService _aiService;
     private VocabularyService _vocabularyService;
     private SkillProfileRepository _skillRepository;
+    private LearningResourceRepository _resourceRepository;
     private SQLiteAsyncConnection Database;
     
     private List<VocabularyWord> _words;
@@ -34,21 +35,22 @@ public class ClozureService
         _aiService = service.GetRequiredService<AiService>();
         _vocabularyService = service.GetRequiredService<VocabularyService>();
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
+        _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
     }
 
-    public async Task<List<Challenge>> GetSentences(int vocabularyListID, int numberOfSentences, int skillID)
+    public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
     {
         var watch = new Stopwatch();
         watch.Start();
 
-        VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
+        var resource = await _resourceRepository.GetResourceAsync(resourceID);
 
-        if (vocab is null || vocab.Words is null)
+        if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
             return null;
 
         // List<Challenge> challenges = await Database.Table<Challenge>().Where(c => vocab.Words.Contains(c.Vocabulary)).ToListAsync();
 
-        _words = vocab.Words.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences).ToList();
+        _words = resource.Vocabulary.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences).ToList();
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
         
