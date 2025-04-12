@@ -1,10 +1,7 @@
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
 
-#if IOS
-using UIKit;
-using Foundation;
-#endif
+
 
 namespace SentenceStudio.Pages.Writing;
 
@@ -24,6 +21,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] TranslationService _translationService;
     [Inject] VocabularyService _vocabService;
     [Inject] UserActivityRepository _userActivityRepository;
+    [Inject] LearningResourceRepository _learningResourceRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -124,8 +122,8 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         )
         .BackgroundColor(Color.FromArgb("#80000000"))
         .GridRowSpan(2)
-        .IsVisible(State.IsBusy);
-
+        .IsVisible(State.IsBusy);    
+    
     async Task LoadVocabulary()
     {
         SetState(s => s.IsBusy = true);
@@ -133,22 +131,38 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         {
             var random = new Random();
             
-            // Use the Resource's Vocabulary directly instead of loading from VocabularyList
-            if (Props.Resource?.Vocabulary != null && Props.Resource.Vocabulary.Any())
+            // First make sure we have the resource with all its vocabulary
+            if (Props.Resource != null && Props.Resource.ID != 0)
             {
-                SetState(s => s.VocabBlocks = Props.Resource.Vocabulary
-                    .OrderBy(t => random.Next())
-                    .Take(4)
-                    .ToList()
-                );
+                // Fetch the complete resource with vocabulary
+                var fullResource = await _learningResourceRepository.GetResourceAsync(Props.Resource.ID);
+                
+                // Update our props resource with the fetched vocabulary
+                if (fullResource?.Vocabulary != null && fullResource.Vocabulary.Any())
+                {
+                    // Update the Props.Resource with the fetched vocabulary
+                    Props.Resource.Vocabulary = fullResource.Vocabulary;
+                    
+                    SetState(s => s.VocabBlocks = Props.Resource.Vocabulary
+                        .OrderBy(t => random.Next())
+                        .Take(4)
+                        .ToList()
+                    );
+                }
+                else
+                {
+                    // Fallback to empty list if no vocabulary available
+                    SetState(s => s.VocabBlocks = new List<VocabularyWord>());
+                    
+                    // Show message to user
+                    await AppShell.DisplayToastAsync("No vocabulary available in the selected resource");
+                }
             }
             else
             {
-                // Fallback to empty list if no vocabulary available
+                // No resource selected or invalid ID
                 SetState(s => s.VocabBlocks = new List<VocabularyWord>());
-                
-                // Show message to user
-                await AppShell.DisplayToastAsync("No vocabulary available in the selected resource");
+                await AppShell.DisplayToastAsync("Please select a valid learning resource");
             }
         }
         finally

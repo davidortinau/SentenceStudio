@@ -91,7 +91,6 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
                         .Margin(8)
                         .HCenter().VCenter()
                     :
-                    
                     HStack(
                         ImageButton()
                             .Source(ApplicationTheme.IconRewindSm)
