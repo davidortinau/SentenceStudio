@@ -213,6 +213,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			
 			// Update the history item with the file path
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
+
+			PlayAudio(historyItem);
 			
 			SetState(s =>
 			{
@@ -309,8 +311,11 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	{
 		StopPlayback();
 		
-		// Reset position to start
-		SetState(s => s.PlaybackPosition = 0f);
+		// Reset position to start and update playing state
+		SetState(s => {
+			s.PlaybackPosition = 0f;
+			s.IsPlaying = false;
+		});
 	}
 	
 	private void StopPlayback()
@@ -612,6 +617,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	{
 		if (_audioPlayer != null && !_audioPlayer.IsPlaying)
 		{
+			_audioPlayer.PlaybackEnded += OnPlaybackEnded;
 			_audioPlayer.Play();
 			
 			// Restart the timer
