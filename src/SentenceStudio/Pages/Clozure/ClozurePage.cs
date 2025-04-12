@@ -291,7 +291,6 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			SetState(s => s.IsBusy = false);
 		}
 	}
-
 	async Task GradeMe()
 	{
 		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
@@ -312,7 +311,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		if (activity.Accuracy == 100)
 		{
-			SetState(s => s.UserInput = string.Empty);
+			// Fill in the blank space with the correct answer
+			SetState(s => {
+				s.UserInput = string.Empty;
+				s.CurrentSentence = currentChallenge.SentenceText;
+			});
+			
 			TransitionToNextSentence();
 		}		
 	}
