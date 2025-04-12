@@ -187,8 +187,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				Stream = stream,
 				VoiceId = State.SelectedVoiceId, // Store the voice ID with the history item
 				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow,
-				Duration = await _audioAnalyzer.GetDurationAsync(stream)
+				UpdatedAt = DateTime.UtcNow
 			};
 			
 			// First save to repository to get an ID
@@ -325,8 +324,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			{
 				_audioPlayer.Stop();
 			}
-			_audioPlayer.Dispose();
-			_audioPlayer = null;
+			// Don't dispose the player immediately - it can cause crashes
+			// _audioPlayer.Dispose();
+			// _audioPlayer = null;
 		}
 		
 		// Stop playback timer
