@@ -129,7 +129,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		.GridRow(2);
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
-		Grid("*", "Auto,*,Auto,Auto",
+		Grid(rows:"*", columns:"Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() =>
@@ -148,10 +148,10 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.ImageSource(GetPlayButtonIcon(item))
 				.TextColor(Colors.Black)
 				.GridColumn(0)
-				.VCenter(),
+				.VStart(),
 			Label(item.Phrase)
 				.FontSize(24)
-				.LineBreakMode(LineBreakMode.TailTruncation)
+				.LineBreakMode(LineBreakMode.WordWrap)
 				.GridColumn(1),
 			Button()
 				.Background(Colors.Transparent)
