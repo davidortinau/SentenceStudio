@@ -120,6 +120,36 @@ class ShadowingPageState
     public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
     
     /// <summary>
+    /// Gets or sets whether the export menu bottom sheet is visible.
+    /// </summary>
+    public bool IsExportMenuVisible { get; set; } = false;
+    
+    /// <summary>
+    /// Gets or sets whether we are saving audio to a file.
+    /// </summary>
+    public bool IsSavingAudio { get; set; } = false;
+    
+    /// <summary>
+    /// Gets or sets the progress message during export.
+    /// </summary>
+    public string ExportProgressMessage { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Gets or sets the path of the last saved file.
+    /// </summary>
+    public string LastSavedFilePath { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Gets or sets whether the screen is in narrow mode (e.g., phone portrait).
+    /// </summary>
+    public bool IsNarrowScreen { get; set; } = false;
+    
+    /// <summary>
+    /// Gets or sets whether the narrow screen menu is visible.
+    /// </summary>
+    public bool IsNarrowScreenMenuVisible { get; set; } = false;
+    
+    /// <summary>
     /// Gets the display name for the currently selected voice.
     /// </summary>
     public string SelectedVoiceDisplayName => 
@@ -151,8 +181,8 @@ class ShadowingPageState
             ? Sentences[CurrentSentenceIndex].PronunciationNotes
             : string.Empty;
 
-    public bool IsExportMenuVisible { get; set; } = false;
-    public bool IsSavingAudio { get; set; } = false;
-    public string ExportProgressMessage { get; set; } = string.Empty;
-    public string LastSavedFilePath { get; set; } = string.Empty;
+    // public bool IsExportMenuVisible { get; set; } = false;
+    // public bool IsSavingAudio { get; set; } = false;
+    // public string ExportProgressMessage { get; set; } = string.Empty;
+    // public string LastSavedFilePath { get; set; } = string.Empty;
 }

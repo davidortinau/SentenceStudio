@@ -71,10 +71,21 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 NavigationFooter(),
                 LoadingOverlay(),
                 RenderVoiceSelectionBottomSheet(),
-                RenderExportBottomSheet()
+                RenderExportBottomSheet(),
+                RenderNarrowScreenMenu()
             )
             .RowSpacing(12)
-        ).OnAppearing(OnPageAppearing);
+        ).OnAppearing(OnPageAppearing)
+        .OnSizeChanged((size) => {
+                    double width = size.Width;
+                    bool isNarrow = width < 500; // Threshold for narrow screens
+                    
+                    // Only update state if the layout mode changes
+                    if (State.IsNarrowScreen != isNarrow)
+                    {
+                        SetState(s => s.IsNarrowScreen = isNarrow);
+                    }
+                });
     }
     
     /// <summary>
@@ -396,6 +407,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node representing the navigation footer.</returns>
     private VisualNode NavigationFooter() =>
             Grid(rows: "*", columns: "60,1,*,1,60",
+                
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
@@ -410,6 +422,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .GridRow(0).GridColumn(2)
                     .HCenter()
                     .OnClicked(ToggleAudioPlayback),
+                
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
@@ -435,6 +448,21 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
                 
 
+                // Different layout based on screen width
+                State.IsNarrowScreen ?
+                // Narrow layout - just show a menu button that opens bottom sheet with all controls
+                Button()
+                    .ImageSource(SegoeFluentIcons.More.ToImageSource())
+                    .ThemeKey("Secondary")
+                    .HeightRequest(35)
+                    .WidthRequest(35)
+                    .Padding(0)
+                    .GridColumn(2)
+                    .HEnd()
+                    .Margin(0, 0, 10, 0)
+                    .OnClicked(ShowNarrowScreenMenu)
+                :
+                // Wide layout - show all controls
                 HStack(
                     Button()
                         .ImageSource(SegoeFluentIcons.Save.ToImageSource())
@@ -496,9 +524,15 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 
             )
 
-            
-        
-        .GridRow(2);
+                  .GridRow(2);
+
+    /// <summary>
+    /// Shows the narrow screen menu bottom sheet with additional controls.
+    /// </summary>
+    private void ShowNarrowScreenMenu()
+    {
+        SetState(s => s.IsNarrowScreenMenuVisible = true);
+    }
 
     /// <summary>
     /// Shows the voice selection bottom sheet.
@@ -515,6 +549,123 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         SetState(s => s.IsExportMenuVisible = true);
     }
+    
+    /// <summary>
+    /// Renders the bottom sheet menu for narrow screens.
+    /// </summary>
+    private VisualNode RenderNarrowScreenMenu() =>
+        new SfBottomSheet(
+            Grid("*", "*",
+                VStack(
+                    Label("Shadowing Options")
+                        .FontAttributes(FontAttributes.Bold)
+                        .FontSize(20)
+                        .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                        .HCenter()
+                        .Margin(0, 0, 0, 20),
+
+                    // Playback Speed Section
+                    VStack(
+                        Label("Playback Speed")
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(16)
+                            .HStart(),
+
+                        new SfSegmentedControl(
+                            new SfSegmentItem()
+                                // .Text("Very Slow")
+                                .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                            new SfSegmentItem()
+                                // .Text("Slow")
+                                .ImageSource(ApplicationTheme.IconSpeedSlow),
+                            new SfSegmentItem()
+                                // .Text("Normal")
+                                .ImageSource(ApplicationTheme.IconSpeedNormal)
+                        )
+                            .Background(Colors.Transparent)
+                            .ShowSeparator(true)
+                            .SegmentCornerRadius(4)
+                            .Stroke(ApplicationTheme.Gray300)
+                            .SegmentHeight(44)
+                            .Margin(0, 5, 0, 0)
+                            .SelectionIndicatorSettings(
+                                new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
+                                {
+                                    SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
+                                }
+                            )
+                            .SelectedIndex(State.SelectedSpeedIndex)
+                            .OnSelectionChanged((s, e) =>
+                            {
+                                State.SelectedSpeedIndex = e.NewIndex;
+                                switch (e.NewIndex)
+                                {
+                                    case 0:
+                                        SetState(s => s.PlaybackSpeed = 0.6f);
+                                        break;
+                                    case 1:
+                                        SetState(s => s.PlaybackSpeed = 0.8f);
+                                        break;
+                                    case 2:
+                                        SetState(s => s.PlaybackSpeed = 1.0f);
+                                        break;
+                                }
+                            })
+                    )
+                    .Margin(0, 0, 0, 20),
+
+                    // Voice Selection Section
+                    VStack(
+                        Label("Voice")
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(16)
+                            .HStart(),
+
+                        Button(State.SelectedVoiceDisplayName)
+                            .ThemeKey("Secondary")
+                            .OnClicked(() =>
+                            {
+                                // Close this menu and open voice selection
+                                SetState(s =>
+                                {
+                                    s.IsNarrowScreenMenuVisible = false;
+                                    s.IsVoiceSelectionVisible = true;
+                                });
+                            })
+                            .Margin(0, 5, 0, 0)
+                    )
+                    .Margin(0, 0, 0, 20),
+
+                    // Export Section
+                    VStack(
+                        Label("Export")
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(16)
+                            .HStart(),
+
+                        Button("Save as MP3")
+                            .ThemeKey("Secondary")
+                            .OnClicked(() =>
+                            {
+                                // Close this menu and save audio
+                                SetState(s => s.IsNarrowScreenMenuVisible = false);
+                                SaveAudioAsMp3();
+                            })
+                            .Margin(0, 5, 0, 0)
+                    )
+                )
+                .Padding(20)
+            )
+        )
+        .IsOpen(State.IsNarrowScreenMenuVisible)
+        .OnStateChanged((sender, args) =>
+        {
+            if (args.NewState == Syncfusion.Maui.Toolkit.BottomSheet.BottomSheetState.Hidden)
+            {
+                SetState(s => s.IsNarrowScreenMenuVisible = false);
+            }
+        })
+        .GridRowSpan(3);
 
     /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
