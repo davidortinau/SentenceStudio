@@ -119,14 +119,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		
 	
 	VisualNode RenderHistory() =>
-		ScrollView(
-			VStack(
-				State.StreamHistory.Select(item => RenderHistoryItem(item)).ToArray()
-			)
-			.Spacing(ApplicationTheme.Size240)
-			.Padding(ApplicationTheme.Size240)
-		)
-		.GridRow(2);
+
+		CollectionView()
+			.Header(Label("History")
+				.FontSize(24)
+				.FontAttributes(FontAttributes.Bold)
+				.Padding(ApplicationTheme.Size240))
+			.ItemsSource(State.StreamHistory, RenderHistoryItem)
+			.Margin(ApplicationTheme.Size240)
+			.GridRow(2); 
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
 		Grid(rows:"*", columns:"Auto,*,Auto,Auto",
