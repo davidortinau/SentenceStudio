@@ -39,7 +39,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             ToolbarItem("Add").OnClicked(AddResource),
             ToolbarItem("Migrate").OnClicked(MigrateVocabularyLists),
 
-            Grid(
+            Grid(rows: "Auto, *", columns: "*",
                 VStack(
                     // Search bar
                     Border(
@@ -106,30 +106,10 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     )
                     .Columns("*, *")
                     .ColumnSpacing(10)
-                    .Margin(new Thickness(10, 5, 10, 10)),
-
-                    // Migration Banner (only show when there might be lists to migrate)
-                    State.IsMigrating ?
-                        Border(
-                            VStack(
-                                Label("Migrating vocabulary lists...")
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HCenter(),
-
-                                ActivityIndicator()
-                                    .IsRunning(true)
-                                    .HCenter()
-                            )
-                            .Padding(10)
-                            .Spacing(10)
-                        )
-                        .BackgroundColor(Colors.LightBlue.WithAlpha(0.2f))
-                        .Stroke(Colors.Blue)
-                        .Margin(new Thickness(10, 0, 10, 10)) :
-                        null,
-
-                    State.IsLoading ?
-                        ActivityIndicator().IsRunning(true).VCenter().HCenter() :
+                    .Margin(new Thickness(10, 5, 10, 10))
+                ),
+                State.IsLoading ?
+                        ActivityIndicator().IsRunning(true).VCenter().HCenter().GridRow(1) :
                         State.Resources.Count == 0 ?
                             VStack(
                                 Label($"{_localize["NoResourcesFound"]}")
@@ -146,12 +126,13 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     .HCenter()
                                     .WidthRequest(200)
                             )
+                            .GridRow(1)
                             .Spacing(15)
                             .VCenter() :
                             CollectionView()
+                                .GridRow(1)
                                 .SelectionMode(SelectionMode.None)
                                 .ItemsSource(State.Resources, RenderResourceItem)
-                )
             )
         ).OnAppearing(LoadResources);
     }

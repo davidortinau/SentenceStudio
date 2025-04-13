@@ -86,45 +86,54 @@ public class LearningResourceRepository
             
         resource.UpdatedAt = DateTime.UtcNow;
         
-        // Begin a transaction to ensure both the resource and its vocabulary mappings are saved
-        await Database.RunInTransactionAsync(connection => {
-            if (resource.ID != 0)
+        // First save the resource to get an ID
+        if (resource.ID != 0)
+        {
+            result = await Database.UpdateAsync(resource);
+        }
+        else
+        {
+            result = await Database.InsertAsync(resource);
+        }
+
+        // Save the vocabulary words first to ensure they have IDs
+        if (resource.Vocabulary != null && resource.Vocabulary.Count > 0 && _vocabularyService != null)
+        {
+            List<VocabularyWord> updatedWords = new List<VocabularyWord>();
+
+            // Save all vocabulary words to ensure they have IDs
+            foreach (var word in resource.Vocabulary)
             {
-                result = connection.Update(resource);
+                if (word.ID == 0)
+                {
+                    await _vocabularyService.SaveWordAsync(word);
+                }
+                updatedWords.Add(word);
             }
-            else
-            {
-                result = connection.Insert(resource);
-            }
-            
-            // Save the vocabulary mappings if this has vocabulary
-            if (resource.Vocabulary != null && resource.Vocabulary.Count > 0 && _vocabularyService != null)
+
+            resource.Vocabulary = updatedWords;
+
+            // Now handle the mappings in a transaction
+            await Database.RunInTransactionAsync(connection =>
             {
                 // First delete all existing mappings
                 connection.Table<ResourceVocabularyMapping>()
                     .Delete(m => m.ResourceID == resource.ID);
-                    
-                // Then save all vocabulary words and create new mappings
+
+                // Create new mappings with the saved vocabulary words
                 foreach (var word in resource.Vocabulary)
                 {
-                    // Save the vocabulary word if it doesn't exist
-                    if (word.ID == 0)
-                    {
-                        // Do not use await inside a synchronous delegate - save first
-                        _vocabularyService.SaveWordAsync(word);
-                    }
-                    
                     // Create a mapping
                     var mapping = new ResourceVocabularyMapping
                     {
                         ResourceID = resource.ID,
                         VocabularyWordID = word.ID
                     };
-                    
+
                     connection.Insert(mapping);
                 }
-            }
-        });
+            });
+        }
 
         return result;
     }    

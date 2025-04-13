@@ -1,6 +1,7 @@
 using SentenceStudio.Data;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
+using LukeMauiFilePicker;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -14,12 +15,24 @@ class AddLearningResourceState
     public bool IsLoading { get; set; } = false;
     public int MediaTypeIndex { get; set; } = 0;
     public int LanguageIndex { get; set; } = 0;
+    public string VocabList { get; set; } = string.Empty;
+    public string Delimiter { get; set; } = "comma";
 }
 
 partial class AddLearningResourcePage : Component<AddLearningResourceState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] IFilePickerService _picker;
+    [Inject] VocabularyService _vocabService;
     LocalizationManager _localize => LocalizationManager.Instance;
+    
+    static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
+    {
+        { DevicePlatform.Android, new[] { "text/*" } },
+        { DevicePlatform.iOS, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.MacCatalyst, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.WinUI, new[] { ".txt", ".json" } }
+    };
 
     public override VisualNode Render()
     {
@@ -97,50 +110,97 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                             )
                             .Spacing(5),
                             
-                            // Media URL
-                            VStack(
-                                Label("Media URL")
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Entry()
-                                        .Text(State.Resource.MediaUrl)
-                                        .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
-                                        .Keyboard(Keyboard.Url)
-                                )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
-                            )
-                            .Spacing(5),
+                            // Only show vocabulary input if Media Type is Vocabulary List
+                            State.Resource.MediaType == "Vocabulary List" ?
+                                VStack(
+                                    // Vocabulary List Input
+                                    VStack(
+                                        Label("Vocabulary Words")
+                                            .FontAttributes(FontAttributes.Bold)
+                                            .HStart(),
+                                        new SfTextInputLayout{
+                                            Editor()
+                                                .Text(State.VocabList)
+                                                .OnTextChanged(text => SetState(s => s.VocabList = text))
+                                                .MinimumHeightRequest(300)
+                                                .MaximumHeightRequest(500)
+                                            }
+                                            .Hint($"{_localize["Vocabulary"]}"),
+
+                                        Button()
+                                            .ImageSource(SegoeFluentIcons.FileExplorer.ToImageSource())
+                                            .Background(Colors.Transparent)
+                                            .HEnd()
+                                            .OnClicked(ChooseFile),
+
+                                        HStack(
+                                            RadioButton()
+                                                .Content("Comma").Value("comma")
+                                                .IsChecked(State.Delimiter == "comma")
+                                                .OnCheckedChanged(e =>
+                                                    { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                                            RadioButton()
+                                                .Content("Tab").Value("tab")
+                                                .IsChecked(State.Delimiter == "tab")
+                                                .OnCheckedChanged(e =>
+                                                    { if (e.Value) SetState(s => s.Delimiter = "tab"); })
+                                        )
+                                        .Spacing((Double)Application.Current.Resources["size320"])
+                                    )
+                                    .Spacing(5)
+                                ) : 
+                                null,
                             
-                            // Transcript
-                            VStack(
-                                Label("Transcript")
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Editor()
-                                        .Text(State.Resource.Transcript)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
-                                        .HeightRequest(150)
+                            // Media URL - only show if not vocabulary
+                            State.Resource.MediaType != "Vocabulary" ?
+                                VStack(
+                                    Label("Media URL")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Entry()
+                                            .Text(State.Resource.MediaUrl)
+                                            .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
+                                            .Keyboard(Keyboard.Url)
+                                    )
+                                    .Style((Style)Application.Current.Resources["InputWrapper"])
                                 )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
-                            )
-                            .Spacing(5),
+                                .Spacing(5) : 
+                                null,
                             
-                            // Translation
-                            VStack(
-                                Label("Translation")
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Editor()
-                                        .Text(State.Resource.Translation)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
-                                        .HeightRequest(150)
+                            // Transcript - only show if not vocabulary
+                            State.Resource.MediaType != "Vocabulary" ?
+                                VStack(
+                                    Label("Transcript")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Editor()
+                                            .Text(State.Resource.Transcript)
+                                            .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
+                                            .HeightRequest(150)
+                                    )
+                                    .Style((Style)Application.Current.Resources["InputWrapper"])
                                 )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
-                            )
-                            .Spacing(5),
+                                .Spacing(5) : 
+                                null,
+                            
+                            // Translation - only show if not vocabulary
+                            State.Resource.MediaType != "Vocabulary" ?
+                                VStack(
+                                    Label("Translation")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Editor()
+                                            .Text(State.Resource.Translation)
+                                            .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
+                                            .HeightRequest(150)
+                                    )
+                                    .Style((Style)Application.Current.Resources["InputWrapper"])
+                                )
+                                .Spacing(5) : 
+                                null,
                             
                             // Tags
                             VStack(
@@ -188,6 +248,13 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         
         SetState(s => s.IsLoading = true);
         
+        // If this is a vocabulary resource, create the vocabulary words
+        if (State.Resource.MediaType == "Vocabulary List" && !string.IsNullOrWhiteSpace(State.VocabList))
+        {
+            // Parse vocabulary words from the input and add to the resource
+            State.Resource.Vocabulary = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
+        }
+        
         // Save the resource
         await _resourceRepo.SaveResourceAsync(State.Resource);
         
@@ -195,5 +262,18 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         
         // Navigate back to list
         await MauiControls.Shell.Current.GoToAsync("..");
+    }
+    
+    async Task ChooseFile()
+    {
+        var file = await _picker.PickFileAsync("Select a file", FileType);
+
+        if (file != null)
+        {
+            using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            SetState(s => s.VocabList = content);
+        }
     }
 }
