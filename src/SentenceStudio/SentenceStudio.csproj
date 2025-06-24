@@ -112,7 +112,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="11.2.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="12.0.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<PackageReference Include="AathifMahir.Maui.MauiIcons.SegoeFluent" Version="4.0.0" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.10.196-beta" />
@@ -126,15 +126,15 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.0" />
 		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.5" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.5" />
-		<PackageReference Include="Reactor.Maui" Version="3.0.29" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.6" />
+		<PackageReference Include="Reactor.Maui" Version="3.0.31" />
 		<!-- <PackageReference Include="MauiReactor.HotReload" Version="3.0.29" /> -->
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-preview.4.25258.110" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-preview.4.25258.110" />
-		<PackageReference Include="Microsoft.Extensions.AI" Version="9.5.0" />		
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-preview.5.25277.114" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-preview.5.25277.114" />
+		<PackageReference Include="Microsoft.Extensions.AI" Version="9.6.0" />		
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.4.0-preview.1.25207.5" />	
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-preview.4.25258.110" />		
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-preview.4.25258.110" />			
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-preview.5.25277.114" />		
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-preview.5.25277.114" />			
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.5.0" />
 		<PackageReference Include="NAudio" Version="2.2.1" />		
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />		

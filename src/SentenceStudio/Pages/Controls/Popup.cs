@@ -1,6 +1,6 @@
-using CommunityToolkit.Maui.Core;
+using CommunityToolkit.Maui;
+using CommunityToolkit.Maui.Extensions;
 using MauiReactor.Internals;
-using CommunityToolkit.Maui.Views;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -79,7 +79,11 @@ class PopupHost : Component
                     return;
                 }
 
-                ContainerPage.ShowPopup(_popup);
+                ContainerPage.ShowPopup(_popup,
+                    new PopupOptions
+                    {
+                        CanBeDismissedByTappingOutsideOfPopup = true
+                    });
             });
         }
     }
@@ -96,15 +100,13 @@ class PopupHost : Component
             {
                 children[0]
             }
-            .OnClosed(OnClosed)
-            .CanBeDismissedByTappingOutsideOfPopup(true)
-            .HorizontalOptions(Microsoft.Maui.Primitives.LayoutAlignment.Fill)
-            .VerticalOptions(Microsoft.Maui.Primitives.LayoutAlignment.Fill)
+            .OnClosed(args =>
+            {
+                _onCloseAction?.Invoke(args);
+                _popup = null;
+            })
+            .HorizontalOptions(LayoutOptions.Fill)
+            .VerticalOptions(LayoutOptions.Fill)
             : null!;
-    }
-
-    void OnClosed(object? sender, PopupClosedEventArgs args)
-    {
-        _onCloseAction?.Invoke(args.Result);
     }
 }

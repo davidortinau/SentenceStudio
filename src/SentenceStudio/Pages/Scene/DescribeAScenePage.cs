@@ -121,7 +121,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .Text(State.Description),
                 Button("Close", () => {
                     SetState(s => s.IsExplanationShown = false);
-                    _popup?.Close();
+                    _ = _popup?.CloseAsync();
                 })
             ).Padding(20)
             .BackgroundColor(ApplicationTheme.LightBackground)
@@ -134,7 +134,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RenderHeader(),
                 RenderGallery(),
                 Button("Close")
-                    .OnClicked(() => _popup.Close())
+                    .OnClicked(() => _ = _popup.CloseAsync())
                     .GridRow(2)
             )
                 .Padding(ApplicationTheme.Size240)
