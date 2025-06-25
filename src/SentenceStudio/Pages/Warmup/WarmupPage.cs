@@ -314,7 +314,7 @@ partial class WarmupPage : Component<WarmupPageState>
         var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         SetState(s => s.Chunks.Add(chunk));
 
-        Reply response = await _conversationService.ContinueConveration(State.Chunks.ToList());
+        Reply response = await _conversationService.ContinueConversation(State.Chunks.ToList());
         chunk.Text = response.Message;
 
         var previousChunk = State.Chunks[State.Chunks.Count - 2];
