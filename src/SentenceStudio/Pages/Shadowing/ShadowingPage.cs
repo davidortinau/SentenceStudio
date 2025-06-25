@@ -1189,7 +1189,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private string FormatTimeDisplay(double timeInSeconds)
     {
         if (timeInSeconds < 0)
-            return "--:--";
+            return "--:--.---";
             
         TimeSpan time = TimeSpan.FromSeconds(timeInSeconds);
         return $"{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
