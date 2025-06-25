@@ -51,7 +51,7 @@ public class SyntacticAnalysisService
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred GetChallenges: {ex.Message}");
+            Debug.WriteLine($"An error occurred GetSentences: {ex.Message}");
             return null;
         }
     }
