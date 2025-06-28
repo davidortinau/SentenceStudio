@@ -28,6 +28,7 @@ class VocabularyMatchingPageState
 partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, ActivityProps>
 {
     [Inject] VocabularyService _vocabularyService;
+    [Inject] UserActivityRepository _userActivityRepository;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -213,8 +214,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 };
             }
 
-            // Take only first 6 words max for playability
-            words = words.Take(6).ToList();
+            // Take only first 8 words max for playability, but ensure we have at least 1 for a game
+            words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
+                                   !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                         .Take(8)
+                         .ToList();
             
             if (words.Count == 0)
             {
@@ -253,25 +257,31 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         // Create tiles for native language terms
         foreach (var word in words)
         {
-            tiles.Add(new MatchingTile
+            if (!string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
             {
-                Id = tileId++,
-                Text = word.NativeLanguageTerm,
-                Language = "native",
-                VocabularyWordId = word.ID
-            });
+                tiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.NativeLanguageTerm.Trim(),
+                    Language = "native",
+                    VocabularyWordId = word.ID
+                });
+            }
         }
 
         // Create tiles for target language terms
         foreach (var word in words)
         {
-            tiles.Add(new MatchingTile
+            if (!string.IsNullOrWhiteSpace(word.TargetLanguageTerm))
             {
-                Id = tileId++,
-                Text = word.TargetLanguageTerm,
-                Language = "target",
-                VocabularyWordId = word.ID
-            });
+                tiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.TargetLanguageTerm.Trim(),
+                    Language = "target",
+                    VocabularyWordId = word.ID
+                });
+            }
         }
 
         // Shuffle the tiles
@@ -376,6 +386,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     s.GameMessage = "";
                 }
             });
+            
+            // Record successful match activity
+            await RecordMatchActivity(true);
         }
         else
         {
@@ -390,6 +403,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.GameMessage = "Not a match. Try again!";
             });
+            
+            // Record unsuccessful match activity
+            await RecordMatchActivity(false);
+        }
+        
+        // If game is complete, record overall game completion
+        if (State.IsGameComplete)
+        {
+            await RecordGameCompletion();
         }
     }
 
@@ -410,5 +432,51 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     async Task NavigateBack()
     {
         await MauiControls.Shell.Current.GoToAsync("..");
+    }
+
+    async Task RecordMatchActivity(bool isCorrect)
+    {
+        try
+        {
+            var activity = new UserActivity
+            {
+                Activity = "VocabularyMatching",
+                Input = "match_attempt",
+                Accuracy = isCorrect ? 100 : 0,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+
+            await _userActivityRepository.SaveAsync(activity);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't break game flow
+            System.Diagnostics.Debug.WriteLine($"Error recording match activity: {ex.Message}");
+        }
+    }
+
+    async Task RecordGameCompletion()
+    {
+        try
+        {
+            var accuracy = State.TotalPairs > 0 ? (double)State.MatchedPairs / State.TotalPairs * 100 : 0;
+            
+            var activity = new UserActivity
+            {
+                Activity = "VocabularyMatching",
+                Input = $"game_completed_{State.TotalPairs}_pairs",
+                Accuracy = accuracy,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+
+            await _userActivityRepository.SaveAsync(activity);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't break game flow
+            System.Diagnostics.Debug.WriteLine($"Error recording game completion: {ex.Message}");
+        }
     }
 }
