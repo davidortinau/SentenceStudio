@@ -1,5 +1,6 @@
 using SentenceStudio.Pages.Dashboard;
 using System.Collections.ObjectModel;
+using MauiReactor.Shapes;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
@@ -106,10 +107,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             CollectionView()
                 .ItemsSource(State.Tiles, RenderTile)
                 .SelectionMode(SelectionMode.None)
-                .ItemsLayout(new GridItemsLayout(4, ItemsLayoutOrientation.Vertical)
-                    .Span(4)
-                    .HorizontalItemSpacing(8)
-                    .VerticalItemSpacing(8))
+                .ItemsLayout(
+                    new HorizontalGridItemsLayout(4)
+                        .VerticalItemSpacing(8)
+                        .HorizontalItemSpacing(8)
+                )
         )
         .Padding(ApplicationTheme.Size160);
 
@@ -152,7 +154,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (tile.IsSelected)
             return ApplicationTheme.Primary;
         if (tile.Language == "native")
-            return ApplicationTheme.Light;
+            return ApplicationTheme.LightBackground;
         return ApplicationTheme.Secondary;
     }
 
@@ -160,7 +162,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         if (tile.IsSelected)
             return Colors.White;
-        return ApplicationTheme.OnSurface;
+        return Colors.Black;
     }
 
     Color GetTileBorderColor(MatchingTile tile)
@@ -183,24 +185,31 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         try
         {
-            // Get vocabulary from the selected resource/list
-            var vocabularyList = Props.Resource?.VocabularyListId > 0 ? 
-                await _vocabularyService.GetListAsync(Props.Resource.VocabularyListId) :
-                null;
-
-            var words = vocabularyList?.Words ?? new List<VocabularyWord>();
+            List<VocabularyWord> words = new List<VocabularyWord>();
             
-            // If no words from resource, get some default words
+            // Try to get vocabulary from the resource first
+            if (Props.Resource?.Vocabulary?.Count > 0)
+            {
+                words = Props.Resource.Vocabulary;
+            }
+            // Try to get from old vocabulary list ID if available
+            else if (Props.Resource?.OldVocabularyListID > 0)
+            {
+                var vocabularyList = await _vocabularyService.GetListAsync(Props.Resource.OldVocabularyListID.Value);
+                words = vocabularyList?.Words ?? new List<VocabularyWord>();
+            }
+            
+            // If no words from resource, get some default words for demo
             if (words.Count == 0)
             {
-                // For demo purposes, create some sample vocabulary
+                // For demo purposes, create some sample vocabulary with unique IDs
                 words = new List<VocabularyWord>
                 {
-                    new VocabularyWord { ID = 1, NativeLanguageTerm = "Hello", TargetLanguageTerm = "안녕하세요" },
-                    new VocabularyWord { ID = 2, NativeLanguageTerm = "Thank you", TargetLanguageTerm = "감사합니다" },
-                    new VocabularyWord { ID = 3, NativeLanguageTerm = "Good morning", TargetLanguageTerm = "좋은 아침" },
-                    new VocabularyWord { ID = 4, NativeLanguageTerm = "Water", TargetLanguageTerm = "물" },
-                    new VocabularyWord { ID = 5, NativeLanguageTerm = "Food", TargetLanguageTerm = "음식" }
+                    new VocabularyWord { ID = 1001, NativeLanguageTerm = "Hello", TargetLanguageTerm = "안녕하세요" },
+                    new VocabularyWord { ID = 1002, NativeLanguageTerm = "Thank you", TargetLanguageTerm = "감사합니다" },
+                    new VocabularyWord { ID = 1003, NativeLanguageTerm = "Good morning", TargetLanguageTerm = "좋은 아침" },
+                    new VocabularyWord { ID = 1004, NativeLanguageTerm = "Water", TargetLanguageTerm = "물" },
+                    new VocabularyWord { ID = 1005, NativeLanguageTerm = "Food", TargetLanguageTerm = "음식" }
                 };
             }
 
