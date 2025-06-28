@@ -1,6 +1,7 @@
 using SentenceStudio.Pages.Dashboard;
 using System.Collections.ObjectModel;
 using MauiReactor.Shapes;
+using ReactorCustomLayouts;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
@@ -62,12 +63,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .HCenter(),
             
             Label($"Matched: {State.MatchedPairs} / {State.TotalPairs}")
-                .Style((Style)Application.Current.Resources["Body"])
                 .HCenter(),
                 
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
-                    .Style((Style)Application.Current.Resources["Caption"])
+                    .Style((Style)Application.Current.Resources["Caption1"])
                     .HCenter()
                     .TextColor(ApplicationTheme.Primary) :
                 null
@@ -76,7 +76,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderLoading() =>
         VStack(spacing: 16,
-            new ActivityIndicator()
+            ActivityIndicator()
                 .IsRunning(true)
                 .HCenter(),
             Label("Loading vocabulary...")
@@ -92,7 +92,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .HCenter(),
             
             Label("You matched all vocabulary pairs!")
-                .Style((Style)Application.Current.Resources["Body"])
                 .HCenter(),
                 
             Button("Play Again")
@@ -105,14 +104,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderGameBoard() =>
         Grid(
-            CollectionView()
-                .ItemsSource(State.Tiles, RenderTile)
-                .SelectionMode(SelectionMode.None)
-                .ItemsLayout(
-                    new HorizontalGridItemsLayout(4)
-                        .VerticalItemSpacing(8)
-                        .HorizontalItemSpacing(8)
-                )
+            new HWrap()
+            {
+                    State.Tiles.Select(RenderTile)
+            }.Spacing(8)
+             
         )
         .Padding(ApplicationTheme.Size160);
 
@@ -352,7 +348,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         });
     }
 
-    void CheckForMatch()
+    async void CheckForMatch()
     {
         if (State.SelectedTiles.Count != 2)
             return;
