@@ -8,5 +8,6 @@ public enum Activity
     StoryTelling,
     SyntacticAnalysis,
     Translation,
-    Shadowing
+    Shadowing,
+    VocabularyMatching
 }

@@ -19,6 +19,7 @@ using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
+using SentenceStudio.Pages.VocabularyMatching;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
@@ -151,6 +152,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<EditVocabularyPage>(nameof(EditVocabularyPage));
 		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
 		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
+		MauiReactor.Routing.RegisterRoute<VocabularyMatchingPage>(nameof(VocabularyMatchingPage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 		
