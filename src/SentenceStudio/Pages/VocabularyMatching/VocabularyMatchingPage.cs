@@ -37,7 +37,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     public override VisualNode Render()
     {
         return ContentPage(_localize["VocabularyMatchingTitle"].ToString(),
-            Grid(rows: "Auto, *, Auto", columns: "*",
+            ToolbarItem(_localize["NewGame"].ToString())
+                .OnClicked(RestartGame),
+            Grid(rows: "Auto, *", columns: "*",
                 // Header with progress
                 RenderHeader(),
                 
@@ -48,10 +50,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                         State.IsGameComplete ? 
                             RenderGameComplete() :
                             RenderGameBoard()
-                ).GridRow(1),
-                
-                // Footer with navigation
-                RenderFooter()
+                ).GridRow(1)
             ).RowSpacing(12)
         )
         .OnAppearing(LoadVocabulary);
@@ -109,37 +108,54 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         )
         .Padding(ApplicationTheme.Size160);
 
-    VisualNode RenderTile(MatchingTile tile) =>
-        Border(
+    // Tile size be fixed for all, so it don't change when selected!
+    double GetTileFontSize()
+    {
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+            return 13;
+        return 16;
+    }
+
+    double GetTileHeight()
+    {
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+            return 56;
+        return 80;
+    }
+
+    double GetTileWidth()
+    {
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+            return 120;
+        return 150;
+    }
+
+    VisualNode RenderTile(MatchingTile tile)
+    {
+        double fontSize = GetTileFontSize();
+        double height = GetTileHeight();
+        double width = GetTileWidth();
+
+        return Border(
             Grid(
                 Label(tile.Text)
-                    .FontSize(16)
+                    .FontSize(fontSize)
                     .HCenter()
                     .VCenter()
                     .TextColor(GetTileTextColor(tile))
             )
-            .HeightRequest(80)
-            .WidthRequest(150)
+            .HeightRequest(height)
+            .WidthRequest(width)
         )
         .BackgroundColor(GetTileBackgroundColor(tile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .StrokeThickness(tile.IsSelected ? 3 : 1)
+        .StrokeThickness(1)
         .Stroke(GetTileBorderColor(tile))
         .OnTapped(() => OnTileTapped(tile))
         .Opacity(tile.IsMatched ? 0.3 : 1.0);
+    }
 
-    VisualNode RenderFooter() =>
-        HStack(spacing: 12,
-            Button(_localize["NewGame"].ToString())
-                .OnClicked(RestartGame)
-                .ThemeKey("Secondary"),
-                
-            Button(_localize["Back"].ToString())
-                .OnClicked(NavigateBack)
-                .HEnd()
-        )
-        .Padding(ApplicationTheme.Size160)
-        .GridRow(2);
+    // Footer removed; actions moved to ToolbarItems, arrr!
 
     Color GetTileBackgroundColor(MatchingTile tile)
     {
@@ -156,7 +172,21 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         if (tile.IsSelected)
             return Colors.White;
-        return Colors.Black;
+
+        // Arrr, make sure the text be visible in both light and dark seas!
+        // If tile is matched, use a more muted color
+        if (tile.IsMatched)
+        {
+            return Theme.IsLightTheme ? ApplicationTheme.Gray500 : ApplicationTheme.Gray300;
+        }
+
+        // For native tiles, use the right contrast for the background
+        if (tile.Language == "native")
+        {
+            return Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
+        }
+        // For target tiles, use the right contrast for secondary background
+        return Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
     }
 
     Color GetTileBorderColor(MatchingTile tile)
