@@ -210,9 +210,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 };
             }
 
-            // Take only first 8 words max for playability, but ensure we have at least 1 for a game
+            // Shuffle the words so each game gets a new random set
             words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
                                    !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                         .OrderBy(_ => Guid.NewGuid())
                          .Take(8)
                          .ToList();
             
