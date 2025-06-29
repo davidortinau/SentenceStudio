@@ -44,7 +44,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 RenderHeader(),
                 
                 // Game area
-                ScrollView(
+                ContentView(
                     State.IsBusy ? 
                         RenderLoading() :
                         State.IsGameComplete ? 
@@ -57,7 +57,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     }
 
     VisualNode RenderHeader() =>
-        VStack(spacing: 8,
+        VStack(spacing: 2,
             Label(string.Format(_localize["MatchedAndMisses"].ToString(), State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
                 .HCenter(),
 
@@ -68,7 +68,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     .TextColor(ApplicationTheme.Primary) :
                 null
         )
-        .Padding(ApplicationTheme.Size160);
+        .Padding(ApplicationTheme.Size60);
 
     VisualNode RenderLoading() =>
         VStack(spacing: 16,
@@ -98,15 +98,67 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         .HCenter()
         .Padding(40);
 
-    VisualNode RenderGameBoard() =>
-        Grid(
-            new HWrap()
+
+    VisualNode RenderGameBoard()
+    {
+        // Arrr, fill the available space with a responsive grid!
+        int tileCount = State.Tiles.Count;
+        if (tileCount == 0)
+            return Grid();
+
+        // Determine columns based on device/orientation
+        int columns = 4;
+        int rows = 4;
+
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone)
+        {
+            if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
             {
-                    State.Tiles.Select(RenderTile)
-            }.Spacing(8)
-             
+                columns = 2;
+            }
+            else
+            {
+                columns = 4;
+            }
+        }
+        else // Desktop/tablet
+        {
+            if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+            {
+                columns = 3;
+            }
+            else
+            {
+                columns = 4;
+            }
+        }
+
+        // Calculate rows needed
+        rows = (int)Math.Ceiling((double)tileCount / columns);
+
+        // Build row/column definitions
+        string rowDef = string.Join(",", Enumerable.Repeat("*", rows));
+        string colDef = string.Join(",", Enumerable.Repeat("*", columns));
+
+        var gridChildren = new List<VisualNode>();
+        for (int i = 0; i < tileCount; i++)
+        {
+            int row = i / columns;
+            int col = i % columns;
+            gridChildren.Add(
+                RenderTile(State.Tiles[i], row, col)
+            );
+        }
+
+        return Grid(rows: rowDef, columns: colDef,
+            gridChildren.ToArray()
         )
-        .Padding(ApplicationTheme.Size160);
+        .RowSpacing(8)
+        .ColumnSpacing(8)
+        .Padding(ApplicationTheme.Size160)
+        .VFill()
+        .HFill();
+    }
 
     // Tile size be fixed for all, so it don't change when selected!
     double GetTileFontSize()
@@ -130,29 +182,31 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         return 150;
     }
 
-    VisualNode RenderTile(MatchingTile tile)
+    VisualNode RenderTile(MatchingTile tile, int row, int col)
     {
         double fontSize = GetTileFontSize();
         double height = GetTileHeight();
         double width = GetTileWidth();
 
         return Border(
-            Grid(
+            // Grid(
                 Label(tile.Text)
                     .FontSize(fontSize)
                     .HCenter()
                     .VCenter()
                     .TextColor(GetTileTextColor(tile))
-            )
-            .HeightRequest(height)
-            .WidthRequest(width)
+            // )
+            // .HeightRequest(height)
+            // .WidthRequest(width)
         )
         .BackgroundColor(GetTileBackgroundColor(tile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(1)
         .Stroke(GetTileBorderColor(tile))
         .OnTapped(() => OnTileTapped(tile))
-        .Opacity(tile.IsMatched ? 0.3 : 1.0);
+        .Opacity(tile.IsMatched ? 0.3 : 1.0)
+        .GridRow(row)
+        .GridColumn(col);
     }
 
     // Footer removed; actions moved to ToolbarItems, arrr!
