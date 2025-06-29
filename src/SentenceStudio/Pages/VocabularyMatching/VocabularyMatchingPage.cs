@@ -22,6 +22,7 @@ class VocabularyMatchingPageState
     public List<MatchingTile> SelectedTiles { get; set; } = new();
     public int MatchedPairs { get; set; }
     public int TotalPairs { get; set; }
+    public int IncorrectGuesses { get; set; }
     public bool IsGameComplete { get; set; }
     public string GameMessage { get; set; } = "";
 }
@@ -35,7 +36,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     public override VisualNode Render()
     {
-        return ContentPage("Vocabulary Matching",
+        return ContentPage(_localize["VocabularyMatchingTitle"].ToString(),
             Grid(rows: "Auto, *, Auto", columns: "*",
                 // Header with progress
                 RenderHeader(),
@@ -58,13 +59,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderHeader() =>
         VStack(spacing: 8,
-            Label("Vocabulary Matching")
-                .Style((Style)Application.Current.Resources["Title1"])
+            Label(string.Format(_localize["MatchedAndMisses"].ToString(), State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
                 .HCenter(),
-            
-            Label($"Matched: {State.MatchedPairs} / {State.TotalPairs}")
-                .HCenter(),
-                
+
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
                     .Style((Style)Application.Current.Resources["Caption1"])
@@ -79,7 +76,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             ActivityIndicator()
                 .IsRunning(true)
                 .HCenter(),
-            Label("Loading vocabulary...")
+            Label(_localize["LoadingVocabulary"].ToString())
                 .HCenter()
         )
         .VCenter()
@@ -87,14 +84,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderGameComplete() =>
         VStack(spacing: 20,
-            Label("🎉 Congratulations!")
+            Label(_localize["Congratulations"].ToString())
                 .Style((Style)Application.Current.Resources["Title1"])
                 .HCenter(),
             
-            Label("You matched all vocabulary pairs!")
+            Label(_localize["AllPairsMatched"].ToString())
                 .HCenter(),
                 
-            Button("Play Again")
+            Button(_localize["PlayAgain"].ToString())
                 .OnClicked(RestartGame)
                 .HCenter()
         )
@@ -133,11 +130,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderFooter() =>
         HStack(spacing: 12,
-            Button("New Game")
+            Button(_localize["NewGame"].ToString())
                 .OnClicked(RestartGame)
                 .ThemeKey("Secondary"),
                 
-            Button("Back")
+            Button(_localize["Back"].ToString())
                 .OnClicked(NavigateBack)
                 .HEnd()
         )
@@ -199,15 +196,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             // If no words from resource, get some default words for demo
             if (words.Count == 0)
             {
-                // For demo purposes, create some sample vocabulary with unique IDs
-                words = new List<VocabularyWord>
-                {
-                    new VocabularyWord { ID = 1001, NativeLanguageTerm = "Hello", TargetLanguageTerm = "안녕하세요" },
-                    new VocabularyWord { ID = 1002, NativeLanguageTerm = "Thank you", TargetLanguageTerm = "감사합니다" },
-                    new VocabularyWord { ID = 1003, NativeLanguageTerm = "Good morning", TargetLanguageTerm = "좋은 아침" },
-                    new VocabularyWord { ID = 1004, NativeLanguageTerm = "Water", TargetLanguageTerm = "물" },
-                    new VocabularyWord { ID = 1005, NativeLanguageTerm = "Food", TargetLanguageTerm = "음식" }
-                };
+                SetState(s => {
+                    s.IsBusy = false;
+                    s.GameMessage = _localize["NoVocabularyAvailable"].ToString();
+                });
+                return;
             }
 
             // Shuffle the words so each game gets a new random set
@@ -234,14 +227,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.MatchedPairs = 0;
                 s.IsBusy = false;
                 s.IsGameComplete = false;
-                s.GameMessage = "Match the vocabulary pairs!";
+                s.GameMessage = _localize["MatchPairs"].ToString();
             });
         }
         catch (Exception ex)
         {
             SetState(s => {
                 s.IsBusy = false;
-                s.GameMessage = "Error loading vocabulary. Please try again.";
+                s.GameMessage = _localize["ErrorLoadingVocabulary"].ToString();
             });
         }
     }
@@ -307,7 +300,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (State.SelectedTiles.Count >= 2)
         {
             // Already have 2 tiles selected, ignore tap
-            SetState(s => s.GameMessage = "Please wait while checking your match...");
+            SetState(s => s.GameMessage = _localize["WaitCheckingMatch"].ToString());
             return;
         }
 
@@ -333,9 +326,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.SelectedTiles.Add(tileToUpdate);
             
             if (s.SelectedTiles.Count == 1)
-                s.GameMessage = "Select another tile to make a match!";
+                s.GameMessage = _localize["SelectAnotherTile"].ToString();
             else if (s.SelectedTiles.Count == 2)
-                s.GameMessage = "Checking match...";
+                s.GameMessage = _localize["CheckingMatch"].ToString();
         });
     }
 
@@ -345,7 +338,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             var tileToUpdate = s.Tiles.First(t => t.Id == tile.Id);
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
-            s.GameMessage = "Match the vocabulary pairs!";
+            s.GameMessage = _localize["MatchPairs"].ToString();
         });
     }
 
@@ -366,16 +359,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
                 var tileToUpdate2 = s.Tiles.First(t => t.Id == tile2.Id);
-                
                 tileToUpdate1.IsMatched = true;
                 tileToUpdate1.IsSelected = false;
                 tileToUpdate2.IsMatched = true;
                 tileToUpdate2.IsSelected = false;
-                
                 s.SelectedTiles.Clear();
                 s.MatchedPairs++;
-                s.GameMessage = "Great match! 🎉";
-
+                s.GameMessage = _localize["GreatMatch"].ToString();
                 // Check if game is complete
                 if (s.MatchedPairs >= s.TotalPairs)
                 {
@@ -383,7 +373,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     s.GameMessage = "";
                 }
             });
-            
             // Record successful match activity
             await RecordMatchActivity(true);
         }
@@ -393,14 +382,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
                 var tileToUpdate2 = s.Tiles.First(t => t.Id == tile2.Id);
-                
                 tileToUpdate1.IsSelected = false;
                 tileToUpdate2.IsSelected = false;
-                
                 s.SelectedTiles.Clear();
-                s.GameMessage = "Not a match. Try again!";
+                s.IncorrectGuesses++;
+                s.GameMessage = _localize["NotAMatch"].ToString();
             });
-            
             // Record unsuccessful match activity
             await RecordMatchActivity(false);
         }
@@ -419,10 +406,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.SelectedTiles.Clear();
             s.MatchedPairs = 0;
             s.TotalPairs = 0;
+            s.IncorrectGuesses = 0;
             s.IsGameComplete = false;
             s.GameMessage = "";
         });
-        
         LoadVocabulary();
     }
 

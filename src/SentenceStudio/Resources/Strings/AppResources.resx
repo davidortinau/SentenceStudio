@@ -453,4 +453,128 @@
     <value>New Conversation</value>
     <comment/>
   </data>
+  <data name="KoreanVoices" xml:space="preserve">
+    <value>Korean Voices</value>
+    <comment>Header for voice selection</comment>
+  </data>
+  <data name="VoiceYuna" xml:space="preserve">
+    <value>Yuna</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceYunaDesc" xml:space="preserve">
+    <value>Female - Young, cheerful</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJiyoung" xml:space="preserve">
+    <value>Ji-Young</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJiyoungDesc" xml:space="preserve">
+    <value>Female - Warm, clear</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJina" xml:space="preserve">
+    <value>Jina</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJinaDesc" xml:space="preserve">
+    <value>Female - Mid-aged, news broadcaster</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJennie" xml:space="preserve">
+    <value>Jennie</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJennieDesc" xml:space="preserve">
+    <value>Female - Youthful, professional</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceHyunbin" xml:space="preserve">
+    <value>Hyun-Bin</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceHyunbinDesc" xml:space="preserve">
+    <value>Male - Cool, professional</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceDohyeon" xml:space="preserve">
+    <value>Do-Hyeon</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceDohyeonDesc" xml:space="preserve">
+    <value>Male - Older, mature</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceYohankoo" xml:space="preserve">
+    <value>Yohan Koo</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceYohankooDesc" xml:space="preserve">
+    <value>Male - Confident, authoritative</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="AudioTime" xml:space="preserve">
+    <value>Time</value>
+    <comment>Audio time label</comment>
+  </data>
+  <data name="VocabularyMatchingTitle" xml:space="preserve">
+    <value>Vocabulary Matching</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="MatchedAndMisses" xml:space="preserve">
+    <value>Matched: {0} / {1}    Misses: {2}</value>
+    <comment>Header for matched and missed pairs</comment>
+  </data>
+  <data name="LoadingVocabulary" xml:space="preserve">
+    <value>Loading vocabulary...</value>
+    <comment>Loading message</comment>
+  </data>
+  <data name="Congratulations" xml:space="preserve">
+    <value>🎉 Congratulations!</value>
+    <comment>Game complete message</comment>
+  </data>
+  <data name="AllPairsMatched" xml:space="preserve">
+    <value>You matched all vocabulary pairs!</value>
+    <comment>Game complete sub-message</comment>
+  </data>
+  <data name="PlayAgain" xml:space="preserve">
+    <value>Play Again</value>
+    <comment>Button to play again</comment>
+  </data>
+  <data name="NewGame" xml:space="preserve">
+    <value>New Game</value>
+    <comment>Button to start a new game</comment>
+  </data>
+  <data name="NoVocabularyAvailable" xml:space="preserve">
+    <value>No vocabulary available. Please add words to your vocabulary list.</value>
+    <comment>No vocab message</comment>
+  </data>
+  <data name="MatchPairs" xml:space="preserve">
+    <value>Match the vocabulary pairs!</value>
+    <comment>Game message</comment>
+  </data>
+  <data name="ErrorLoadingVocabulary" xml:space="preserve">
+    <value>Error loading vocabulary. Please try again.</value>
+    <comment>Error message</comment>
+  </data>
+  <data name="SelectAnotherTile" xml:space="preserve">
+    <value>Select another tile to make a match!</value>
+    <comment>Prompt to select another tile</comment>
+  </data>
+  <data name="CheckingMatch" xml:space="preserve">
+    <value>Checking match...</value>
+    <comment>Checking match message</comment>
+  </data>
+  <data name="WaitCheckingMatch" xml:space="preserve">
+    <value>Please wait while checking your match...</value>
+    <comment>Wait message</comment>
+  </data>
+  <data name="GreatMatch" xml:space="preserve">
+    <value>Great match! 🎉</value>
+    <comment>Correct match message</comment>
+  </data>
+  <data name="NotAMatch" xml:space="preserve">
+    <value>Not a match. Try again!</value>
+    <comment>Incorrect match message</comment>
+  </data>
 </root>

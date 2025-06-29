@@ -453,4 +453,128 @@
     <value>새로운 대화</value>
     <comment/>
   </data>
+  <data name="KoreanVoices" xml:space="preserve">
+    <value>한국어 목소리</value>
+    <comment>Header for voice selection</comment>
+  </data>
+  <data name="VoiceYuna" xml:space="preserve">
+    <value>유나</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceYunaDesc" xml:space="preserve">
+    <value>여성 - 젊고 명랑함</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJiyoung" xml:space="preserve">
+    <value>지영</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJiyoungDesc" xml:space="preserve">
+    <value>여성 - 따뜻하고 맑음</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJina" xml:space="preserve">
+    <value>지나</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJinaDesc" xml:space="preserve">
+    <value>여성 - 중년, 뉴스 아나운서</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceJennie" xml:space="preserve">
+    <value>제니</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceJennieDesc" xml:space="preserve">
+    <value>여성 - 젊고 전문적임</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceHyunbin" xml:space="preserve">
+    <value>현빈</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceHyunbinDesc" xml:space="preserve">
+    <value>남성 - 시원하고 전문적임</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceDohyeon" xml:space="preserve">
+    <value>도현</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceDohyeonDesc" xml:space="preserve">
+    <value>남성 - 나이 많고 성숙함</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="VoiceYohankoo" xml:space="preserve">
+    <value>요한 구</value>
+    <comment>Voice name</comment>
+  </data>
+  <data name="VoiceYohankooDesc" xml:space="preserve">
+    <value>남성 - 자신감 있고 권위적임</value>
+    <comment>Voice description</comment>
+  </data>
+  <data name="AudioTime" xml:space="preserve">
+    <value>시간</value>
+    <comment>Audio time label</comment>
+  </data>
+  <data name="VocabularyMatchingTitle" xml:space="preserve">
+    <value>어휘 매칭</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="MatchedAndMisses" xml:space="preserve">
+    <value>정답: {0} / {1}    오답: {2}</value>
+    <comment>Header for matched and missed pairs</comment>
+  </data>
+  <data name="LoadingVocabulary" xml:space="preserve">
+    <value>어휘를 불러오는 중...</value>
+    <comment>Loading message</comment>
+  </data>
+  <data name="Congratulations" xml:space="preserve">
+    <value>🎉 축하합니다!</value>
+    <comment>Game complete message</comment>
+  </data>
+  <data name="AllPairsMatched" xml:space="preserve">
+    <value>모든 어휘 쌍을 맞췄어요!</value>
+    <comment>Game complete sub-message</comment>
+  </data>
+  <data name="PlayAgain" xml:space="preserve">
+    <value>다시 하기</value>
+    <comment>Button to play again</comment>
+  </data>
+  <data name="NewGame" xml:space="preserve">
+    <value>새 게임</value>
+    <comment>Button to start a new game</comment>
+  </data>
+  <data name="NoVocabularyAvailable" xml:space="preserve">
+    <value>사용 가능한 어휘가 없습니다. 어휘 목록에 단어를 추가하세요.</value>
+    <comment>No vocab message</comment>
+  </data>
+  <data name="MatchPairs" xml:space="preserve">
+    <value>어휘 쌍을 맞춰보세요!</value>
+    <comment>Game message</comment>
+  </data>
+  <data name="ErrorLoadingVocabulary" xml:space="preserve">
+    <value>어휘를 불러오는 중 오류가 발생했습니다. 다시 시도하세요.</value>
+    <comment>Error message</comment>
+  </data>
+  <data name="SelectAnotherTile" xml:space="preserve">
+    <value>다른 타일을 선택해보세요!</value>
+    <comment>Prompt to select another tile</comment>
+  </data>
+  <data name="CheckingMatch" xml:space="preserve">
+    <value>정답 확인 중...</value>
+    <comment>Checking match message</comment>
+  </data>
+  <data name="WaitCheckingMatch" xml:space="preserve">
+    <value>정답 확인 중입니다. 잠시만 기다려주세요...</value>
+    <comment>Wait message</comment>
+  </data>
+  <data name="GreatMatch" xml:space="preserve">
+    <value>정답입니다! 🎉</value>
+    <comment>Correct match message</comment>
+  </data>
+  <data name="NotAMatch" xml:space="preserve">
+    <value>오답입니다. 다시 시도하세요!</value>
+    <comment>Incorrect match message</comment>
+  </data>
 </root>

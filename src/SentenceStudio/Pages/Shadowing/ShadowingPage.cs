@@ -77,15 +77,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .RowSpacing(12)
         ).OnAppearing(OnPageAppearing)
         .OnSizeChanged((size) => {
-                    double width = size.Width;
-                    bool isNarrow = width < 500; // Threshold for narrow screens
-                    
-                    // Only update state if the layout mode changes
-                    if (State.IsNarrowScreen != isNarrow)
-                    {
-                        SetState(s => s.IsNarrowScreen = isNarrow);
-                    }
-                });
+            double width = size.Width;
+            bool isNarrow = width < 500; // Threshold for narrow screens
+            // Only update state if the layout mode changes
+            if (State.IsNarrowScreen != isNarrow)
+            {
+                SetState(s => s.IsNarrowScreen = isNarrow);
+            }
+        });
     }
     
     /// <summary>
@@ -113,31 +112,30 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     private VisualNode RenderVoiceSelectionBottomSheet() =>
         new SfBottomSheet(
-                Grid("*", "*",
-                    ScrollView(
-                        VStack(
-                            Label("Korean Voices")
-                                .FontAttributes(FontAttributes.Bold)
-                                .FontSize(18)
-                                .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
-                                .HCenter()
-                                .Margin(0, 0, 0, 10),
-                            CreateVoiceOption("yuna", "Yuna", "Female - Young, cheerful"),
-                            CreateVoiceOption("jiyoung", "Ji-Young", "Female - Warm, clear"),
-                            CreateVoiceOption("jina", "Jina", "Female - Mid-aged, news broadcaster"),
-                            CreateVoiceOption("jennie", "Jennie", "Female - Youthful, professional"),
-                            CreateVoiceOption("hyunbin", "Hyun-Bin", "Male - Cool, professional"),
-                            CreateVoiceOption("dohyeon", "Do-Hyeon", "Male - Older, mature"),
-                            CreateVoiceOption("yohankoo", "Yohan Koo", "Male - Confident, authoritative")
-                        )
-                        .Spacing(15)
-                        .Padding(20, 10)
+            Grid("*", "*",
+                ScrollView(
+                    VStack(
+                        Label(_localize["KoreanVoices"].ToString())
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(18)
+                            .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                            .HCenter()
+                            .Margin(0, 0, 0, 10),
+                        CreateVoiceOption("yuna", _localize["VoiceYuna"].ToString(), _localize["VoiceYunaDesc"].ToString()),
+                        CreateVoiceOption("jiyoung", _localize["VoiceJiyoung"].ToString(), _localize["VoiceJiyoungDesc"].ToString()),
+                        CreateVoiceOption("jina", _localize["VoiceJina"].ToString(), _localize["VoiceJinaDesc"].ToString()),
+                        CreateVoiceOption("jennie", _localize["VoiceJennie"].ToString(), _localize["VoiceJennieDesc"].ToString()),
+                        CreateVoiceOption("hyunbin", _localize["VoiceHyunbin"].ToString(), _localize["VoiceHyunbinDesc"].ToString()),
+                        CreateVoiceOption("dohyeon", _localize["VoiceDohyeon"].ToString(), _localize["VoiceDohyeonDesc"].ToString()),
+                        CreateVoiceOption("yohankoo", _localize["VoiceYohankoo"].ToString(), _localize["VoiceYohankooDesc"].ToString())
                     )
+                    .Spacing(15)
+                    .Padding(20, 10)
                 )
-
+            )
         )
-            .GridRowSpan(3)
-            .IsOpen(State.IsVoiceSelectionVisible);
+        .GridRowSpan(3)
+        .IsOpen(State.IsVoiceSelectionVisible);
 
     /// <summary>
     /// Creates a voice option item for the bottom sheet.
@@ -166,8 +164,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .HStart()
             .GridColumn(1)
         )
-        .OnTapped(() => SelectVoice(voiceId))
-        ;
+        .OnTapped(() => SelectVoice(voiceId));
     
     /// <summary>
     /// Handles voice selection.
@@ -207,7 +204,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .ThemeKey("LargeTitle")
                     .HCenter()
                     .Margin(ApplicationTheme.Size160),
-                    
+
                 Label(State.CurrentSentenceText)
                     .ThemeKey("Title3")
                     .HCenter()
@@ -231,7 +228,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     VStack(
         Grid("Auto", "Auto,*,Auto",
             Label()
-                .Text($"{State.CurrentTimeDisplay} / {State.DurationDisplay}")
+                .Text($"{_localize["AudioTime"]}: {State.CurrentTimeDisplay} / {State.DurationDisplay}")
                 .FontAttributes(FontAttributes.Bold)
                 .FontSize(14)
                 .HStart()
@@ -239,23 +236,19 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         ),
         Border(
             HScrollView(hscroll => _waveformScrollView = hscroll,
-
                 Grid("100", "*",
-
                     new WaveformView()
                         .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
                         .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
                         .Amplitude(Constants.Amplitude)
                         .PlaybackPosition(State.PlaybackPosition)
-                        .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}") // Create a unique ID that combines sentence index and text to force refresh when either changes
+                        .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}")
                         .AudioDuration(State.AudioDuration)
                         .ShowTimeScale(true)
                         .WaveformData(State.WaveformData)
                         .OnInteractionStarted(OnWaveformInteractionStarted)
                         .OnPositionSelected(OnWaveformPositionSelected)
                 )
-            // .WidthRequest(State.AudioDuration > 0 ? Math.Max((float)(State.AudioDuration * 120), 300) : 300)
-
             )
             .Padding(0)
             .VerticalScrollBarVisibility(ScrollBarVisibility.Never)

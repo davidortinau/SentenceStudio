@@ -121,11 +121,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to You matched all vocabulary pairs!.
+        /// </summary>
+        internal static string AllPairsMatched {
+            get {
+                return ResourceManager.GetString("AllPairsMatched", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Sentence Studio.
         /// </summary>
         internal static string AppTitle {
             get {
                 return ResourceManager.GetString("AppTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Time.
+        /// </summary>
+        internal static string AudioTime {
+            get {
+                return ResourceManager.GetString("AudioTime", resourceCulture);
             }
         }
         
@@ -157,6 +175,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Checking match....
+        /// </summary>
+        internal static string CheckingMatch {
+            get {
+                return ResourceManager.GetString("CheckingMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Choose a vocabulary word.
         /// </summary>
         internal static string ChooseAVocabularyWord {
@@ -180,6 +207,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Clozures {
             get {
                 return ResourceManager.GetString("Clozures", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎉 Congratulations!.
+        /// </summary>
+        internal static string Congratulations {
+            get {
+                return ResourceManager.GetString("Congratulations", resourceCulture);
             }
         }
         
@@ -319,6 +355,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Error loading vocabulary. Please try again..
+        /// </summary>
+        internal static string ErrorLoadingVocabulary {
+            get {
+                return ResourceManager.GetString("ErrorLoadingVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to File Type.
         /// </summary>
         internal static string FileType {
@@ -337,6 +382,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Great match! 🎉.
+        /// </summary>
+        internal static string GreatMatch {
+            get {
+                return ResourceManager.GetString("GreatMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to How Do You Say.
         /// </summary>
         internal static string HowDoYouSay {
@@ -351,6 +405,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ISee {
             get {
                 return ResourceManager.GetString("ISee", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Korean Voices.
+        /// </summary>
+        internal static string KoreanVoices {
+            get {
+                return ResourceManager.GetString("KoreanVoices", resourceCulture);
             }
         }
         
@@ -378,6 +441,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ListName {
             get {
                 return ResourceManager.GetString("ListName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Loading vocabulary....
+        /// </summary>
+        internal static string LoadingVocabulary {
+            get {
+                return ResourceManager.GetString("LoadingVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Matched: {0} / {1}    Misses: {2}.
+        /// </summary>
+        internal static string MatchedAndMisses {
+            get {
+                return ResourceManager.GetString("MatchedAndMisses", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Match the vocabulary pairs!.
+        /// </summary>
+        internal static string MatchPairs {
+            get {
+                return ResourceManager.GetString("MatchPairs", resourceCulture);
             }
         }
         
@@ -445,6 +535,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to New Game.
+        /// </summary>
+        internal static string NewGame {
+            get {
+                return ResourceManager.GetString("NewGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Next.
         /// </summary>
         internal static string Next {
@@ -463,11 +562,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Not a match. Try again!.
+        /// </summary>
+        internal static string NotAMatch {
+            get {
+                return ResourceManager.GetString("NotAMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No, I&apos;ll do it myself.
         /// </summary>
         internal static string NoVocabPromptResponse {
             get {
                 return ResourceManager.GetString("NoVocabPromptResponse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary available. Please add words to your vocabulary list..
+        /// </summary>
+        internal static string NoVocabularyAvailable {
+            get {
+                return ResourceManager.GetString("NoVocabularyAvailable", resourceCulture);
             }
         }
         
@@ -504,6 +621,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ParseASentence {
             get {
                 return ResourceManager.GetString("ParseASentence", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Play Again.
+        /// </summary>
+        internal static string PlayAgain {
+            get {
+                return ResourceManager.GetString("PlayAgain", resourceCulture);
             }
         }
         
@@ -558,6 +684,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Saved {
             get {
                 return ResourceManager.GetString("Saved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select another tile to make a match!.
+        /// </summary>
+        internal static string SelectAnotherTile {
+            get {
+                return ResourceManager.GetString("SelectAnotherTile", resourceCulture);
             }
         }
         
@@ -747,6 +882,150 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabularyList {
             get {
                 return ResourceManager.GetString("VocabularyList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Matching.
+        /// </summary>
+        internal static string VocabularyMatchingTitle {
+            get {
+                return ResourceManager.GetString("VocabularyMatchingTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Do-Hyeon.
+        /// </summary>
+        internal static string VoiceDohyeon {
+            get {
+                return ResourceManager.GetString("VoiceDohyeon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Male - Older, mature.
+        /// </summary>
+        internal static string VoiceDohyeonDesc {
+            get {
+                return ResourceManager.GetString("VoiceDohyeonDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hyun-Bin.
+        /// </summary>
+        internal static string VoiceHyunbin {
+            get {
+                return ResourceManager.GetString("VoiceHyunbin", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Male - Cool, professional.
+        /// </summary>
+        internal static string VoiceHyunbinDesc {
+            get {
+                return ResourceManager.GetString("VoiceHyunbinDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Jennie.
+        /// </summary>
+        internal static string VoiceJennie {
+            get {
+                return ResourceManager.GetString("VoiceJennie", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Female - Youthful, professional.
+        /// </summary>
+        internal static string VoiceJennieDesc {
+            get {
+                return ResourceManager.GetString("VoiceJennieDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Jina.
+        /// </summary>
+        internal static string VoiceJina {
+            get {
+                return ResourceManager.GetString("VoiceJina", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Female - Mid-aged, news broadcaster.
+        /// </summary>
+        internal static string VoiceJinaDesc {
+            get {
+                return ResourceManager.GetString("VoiceJinaDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ji-Young.
+        /// </summary>
+        internal static string VoiceJiyoung {
+            get {
+                return ResourceManager.GetString("VoiceJiyoung", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Female - Warm, clear.
+        /// </summary>
+        internal static string VoiceJiyoungDesc {
+            get {
+                return ResourceManager.GetString("VoiceJiyoungDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Yohan Koo.
+        /// </summary>
+        internal static string VoiceYohankoo {
+            get {
+                return ResourceManager.GetString("VoiceYohankoo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Male - Confident, authoritative.
+        /// </summary>
+        internal static string VoiceYohankooDesc {
+            get {
+                return ResourceManager.GetString("VoiceYohankooDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Yuna.
+        /// </summary>
+        internal static string VoiceYuna {
+            get {
+                return ResourceManager.GetString("VoiceYuna", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Female - Young, cheerful.
+        /// </summary>
+        internal static string VoiceYunaDesc {
+            get {
+                return ResourceManager.GetString("VoiceYunaDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please wait while checking your match....
+        /// </summary>
+        internal static string WaitCheckingMatch {
+            get {
+                return ResourceManager.GetString("WaitCheckingMatch", resourceCulture);
             }
         }
         
