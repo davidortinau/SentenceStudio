@@ -11,7 +11,6 @@ namespace SentenceStudio.Services
     public class TeacherService
     {
         private AiService _aiService;
-        private VocabularyService _vocabularyService;
         private SkillProfileRepository _skillRepository;
         private LearningResourceRepository _resourceRepository;
         private SQLiteAsyncConnection Database;
@@ -27,7 +26,6 @@ namespace SentenceStudio.Services
         public TeacherService(IServiceProvider service)
         {
             _aiService = service.GetRequiredService<AiService>();
-            _vocabularyService = service.GetRequiredService<VocabularyService>();
             _skillRepository = service.GetRequiredService<SkillProfileRepository>();
             _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
         }

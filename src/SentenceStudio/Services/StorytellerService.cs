@@ -11,7 +11,7 @@ namespace SentenceStudio.Services
     public class StorytellerService
     {
         private AiService _aiService;
-        private VocabularyService _vocabularyService;
+        private LearningResourceRepository _resourceRepo;
         private SkillProfileRepository _skillRepository;
         private StoryRepository _storyRepository;
         private SQLiteAsyncConnection Database;
@@ -27,31 +27,34 @@ namespace SentenceStudio.Services
         public StorytellerService(IServiceProvider service)
         {
             _aiService = service.GetRequiredService<AiService>();
-            _vocabularyService = service.GetRequiredService<VocabularyService>();
+            _resourceRepo = service.GetRequiredService<LearningResourceRepository>();
             _skillRepository = service.GetRequiredService<SkillProfileRepository>();
             _storyRepository = service.GetRequiredService<StoryRepository>();
         }
 
-        public async Task<Story> TellAStory(int vocabularyListID, int numberOfWords, int skillID)
+        public async Task<Story> TellAStory(int resourceId, int numberOfWords, int skillID)
         {
             var watch = new Stopwatch();
             watch.Start();
 
-            VocabularyList vocab = await _vocabularyService.GetListAsync(vocabularyListID);
-
-            if (vocab is null || vocab.Words is null)
+            var resource = await _resourceRepo.GetResourceAsync(resourceId);
+            if (resource is null || resource.Vocabulary is null)
                 return null;
 
-            _words = vocab.Words.ToList();//.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences)
+            _words = resource.Vocabulary
+                .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                .OrderBy(_ => Guid.NewGuid())
+                .Take(numberOfWords)
+                .ToList();
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
-            
-            var prompt = string.Empty;     
+
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("TellAStory.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { terms = _words, skills = skillProfile?.Description}); 
+                prompt = await template.RenderAsync(new { terms = _words, skills = skillProfile?.Description });
             }
 
             //Debug.WriteLine(prompt);
@@ -61,8 +64,8 @@ namespace SentenceStudio.Services
                 var response = await _aiService.SendPrompt<StorytellerResponse>(prompt);
                 watch.Stop();
                 Debug.WriteLine($"Received response in: {watch.Elapsed}");
-                
-                response.Story.ListID = vocabularyListID;
+
+                response.Story.ListID = resourceId;
                 response.Story.SkillID = skillID;
 
                 await _storyRepository.SaveAsync(response.Story);

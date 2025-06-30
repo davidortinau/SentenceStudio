@@ -29,7 +29,7 @@ class VocabularyMatchingPageState
 
 partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, ActivityProps>
 {
-    [Inject] VocabularyService _vocabularyService;
+    [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserActivityRepository _userActivityRepository;
 
     LocalizationManager _localize => LocalizationManager.Instance;
@@ -264,17 +264,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         try
         {
             List<VocabularyWord> words = new List<VocabularyWord>();
-            
+
             // Try to get vocabulary from the resource first
-            if (Props.Resource?.Vocabulary?.Count > 0)
+            if (Props.Resource?.ID != -1)
             {
-                words = Props.Resource.Vocabulary;
-            }
-            // Try to get from old vocabulary list ID if available
-            else if (Props.Resource?.OldVocabularyListID > 0)
-            {
-                var vocabularyList = await _vocabularyService.GetListAsync(Props.Resource.OldVocabularyListID.Value);
-                words = vocabularyList?.Words ?? new List<VocabularyWord>();
+                var resource = await _resourceRepo.GetResourceAsync(Props.Resource.ID);
+                words = resource.Vocabulary;
             }
             
             // If no words from resource, get some default words for demo

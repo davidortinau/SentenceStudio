@@ -14,7 +14,6 @@ namespace SentenceStudio.Services;
 public class ClozureService
 {
     private AiService _aiService;
-    private VocabularyService _vocabularyService;
     private SkillProfileRepository _skillRepository;
     private LearningResourceRepository _resourceRepository;
     private SQLiteAsyncConnection Database;
@@ -33,7 +32,6 @@ public class ClozureService
     {
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         _aiService = service.GetRequiredService<AiService>();
-        _vocabularyService = service.GetRequiredService<VocabularyService>();
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
     }

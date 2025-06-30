@@ -14,9 +14,53 @@ public class LearningResourceRepository
     public LearningResourceRepository(IServiceProvider serviceProvider = null)
     {
         if (serviceProvider != null)
-        {
             _vocabularyService = serviceProvider.GetService<VocabularyService>();
+    }
+
+    // --- Added for VocabularyService replacement ---
+    public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
+    {
+        await Init();
+        return await Database.Table<VocabularyWord>()
+            .Where(w => w.NativeLanguageTerm == nativeTerm)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<VocabularyWord> GetWordByTargetTermAsync(string targetTerm)
+    {
+        await Init();
+        return await Database.Table<VocabularyWord>()
+            .Where(w => w.TargetLanguageTerm == targetTerm)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<int> SaveWordAsync(VocabularyWord word)
+    {
+        await Init();
+        int result = -1;
+        if (word.ID != 0)
+        {
+            try
+            {
+                result = await Database.UpdateAsync(word);
+            }
+            catch (Exception ex)
+            {
+                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            }
         }
+        else
+        {
+            try
+            {
+                result = await Database.InsertAsync(word);
+            }
+            catch (Exception ex)
+            {
+                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            }
+        }
+        return result;
     }
 
     async Task Init()

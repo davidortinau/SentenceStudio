@@ -1,9 +1,4 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
 using Microsoft.Data.Sqlite;
-using Foundation;
 
 namespace SentenceStudio.Data;
 

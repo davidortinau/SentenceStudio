@@ -27,7 +27,6 @@ class TranslationPageState
 partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
-    [Inject] VocabularyService _vocabularyService;
     [Inject] AiService _aiService;
 
     LocalizationManager _localize => LocalizationManager.Instance;

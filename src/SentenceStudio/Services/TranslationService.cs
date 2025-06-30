@@ -10,24 +10,24 @@ namespace SentenceStudio.Services
     public class TranslationService
     {
         private readonly AiService _aiService;
-        private readonly VocabularyService _vocabularyService;
+        private readonly LearningResourceRepository _resourceRepo;
 
         public TranslationService(IServiceProvider service)
         {
             _aiService = service.GetRequiredService<AiService>();
-            _vocabularyService = service.GetRequiredService<VocabularyService>();
+            _resourceRepo = service.GetRequiredService<LearningResourceRepository>();
         }
 
         public async Task<string> TranslateAsync(string text)
         {
             // Attempt to find an existing translation in the local database
-            var existingWord = await _vocabularyService.GetWordByTargetTermAsync(text);
+            var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.NativeLanguageTerm))
             {
                 return existingWord.NativeLanguageTerm;
             }
 
-            existingWord = await _vocabularyService.GetWordByNativeTermAsync(text);   
+            existingWord = await _resourceRepo.GetWordByNativeTermAsync(text);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.TargetLanguageTerm))
             {
                 return existingWord.TargetLanguageTerm;
@@ -54,7 +54,7 @@ namespace SentenceStudio.Services
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now
                 };
-                await _vocabularyService.SaveWordAsync(vocabWord);
+                await _resourceRepo.SaveWordAsync(vocabWord);
 
                 return translation;
             }
