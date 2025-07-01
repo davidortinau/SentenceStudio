@@ -10,6 +10,8 @@ string databasePath = Path.Combine(dbFolder, "sentencestudio.db");
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 builder.Services.AddDataServices(databasePath);
 builder.Services.AddSyncServices(databasePath);
 

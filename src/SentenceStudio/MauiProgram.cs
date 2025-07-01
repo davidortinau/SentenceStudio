@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Maui;
 using Microsoft.Maui.Platform;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 #if ANDROID || IOS || MACCATALYST
 using Shiny;
@@ -84,8 +85,19 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
 			;
 
+		builder.AddServiceDefaults();
+
+        // TODO replace with the service that you use to communicate with the web app
+        // TODO then inject the HttpClient into your service through the constructor
+        builder.Services.AddHttpClient<AiService>(client =>
+		{
+            // This URL uses "https+http://" to indicate HTTPS is preferred over HTTP.
+            // Learn more about service discovery scheme resolution at https://aka.ms/dotnet/sdschemes.
+            client.BaseAddress = new("https+http://webapp");
+        });
+
 #if ANDROID || IOS || MACCATALYST
-		builder.Configuration.AddJsonPlatformBundle();
+        builder.Configuration.AddJsonPlatformBundle();
 #else
 		var a = Assembly.GetExecutingAssembly();
 		using var stream = a.GetManifestResourceStream("SentenceStudio.appsettings.json");
@@ -98,7 +110,7 @@ public static class MauiProgram
 #endif
 		
 
-#if DEBUG
+#if DEBUG && !WINDOWS
 		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
 #endif
 
