@@ -147,6 +147,8 @@
 		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.2" />		
 		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.2" />		
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
+		<PackageReference Include="CoreSync.Http.Client" Version="0.1.113" />
+    	<PackageReference Include="CoreSync.Sqlite" Version="0.1.113" />
 	</ItemGroup>
 
 	
@@ -176,6 +178,10 @@
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 		<EmbeddedResource Include="appsettings.json" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>
 	<ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
