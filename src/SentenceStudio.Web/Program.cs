@@ -10,12 +10,15 @@ string databasePath = Path.Combine(dbFolder, "sentencestudio.db");
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 builder.Services.AddDataServices(databasePath);
 builder.Services.AddSyncServices(databasePath);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
 
 var app = builder.Build();
 

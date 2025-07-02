@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
+    <ProjectReference Include="../SentenceStudio.WebServiceDefaults/SentenceStudio.WebServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

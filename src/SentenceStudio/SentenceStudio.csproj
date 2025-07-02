@@ -181,8 +181,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" />
 	  <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>
+	
 	<ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
 			<Generator>ResXFileCodeGenerator</Generator>

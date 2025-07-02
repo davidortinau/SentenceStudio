@@ -29,6 +29,7 @@ using ElevenLabs;
 using CommunityToolkit.Maui.Storage;
 using CoreSync;
 using CoreSync.Http.Client;
+using Microsoft.Extensions.Hosting;
 
 #if WINDOWS
 using System.Reflection;
@@ -46,6 +47,7 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.AddServiceDefaults()
 			#if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 			#endif
