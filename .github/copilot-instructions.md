@@ -8,3 +8,5 @@ When converting code from C# Markup to MauiReactor, keep these details in mind:
 - use `VStart()` instead of `Top()`
 - use `VEnd()` instead of `Bottom()`
 - use `HStart()` and `HEnd()` instead of `Start()` and `End()`
+
+For doing CoreSync work, refer to https://github.com/adospace/mauireactor-core-sync

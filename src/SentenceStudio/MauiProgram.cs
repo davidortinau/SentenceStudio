@@ -20,11 +20,16 @@ using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
+using SentenceStudio.Services;
+using SentenceStudio.Data;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
 using ElevenLabs;
 using CommunityToolkit.Maui.Storage;
+using CoreSync;
+using CoreSync.Http.Client;
+using Microsoft.Extensions.Hosting;
 
 #if WINDOWS
 using System.Reflection;
@@ -42,10 +47,11 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
-            #if ANDROID || IOS || MACCATALYST
+			.AddServiceDefaults()
+			#if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 			#endif
-            .UseMauiCommunityToolkit()
+			.UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
@@ -81,10 +87,10 @@ public static class MauiProgram
 				ModifyPicker();
 			})
 			.ConfigureFilePicker(100)
-            ;
+			;
 
 #if ANDROID || IOS || MACCATALYST
-        builder.Configuration.AddJsonPlatformBundle();
+		builder.Configuration.AddJsonPlatformBundle();
 #else
 		var a = Assembly.GetExecutingAssembly();
 		using var stream = a.GetManifestResourceStream("SentenceStudio.appsettings.json");
@@ -93,7 +99,7 @@ public static class MauiProgram
 			.AddJsonStream(stream)
 			.Build();
 
-        builder.Configuration.AddConfiguration(config);
+		builder.Configuration.AddConfiguration(config);
 #endif
 		
 
@@ -105,13 +111,13 @@ public static class MauiProgram
 		RegisterServices(builder.Services);		
 
 		builder.Services.AddOpenTelemetry()
-            .WithTracing(tracerProviderBuilder =>
-            {
-                tracerProviderBuilder
-                    .AddHttpClientInstrumentation() // Capture HttpClient requests
-                    // .AddSource("IChatClient") // Custom source for OpenAI API calls
-                    .AddConsoleExporter(); // Export traces to console for debugging
-            });
+			.WithTracing(tracerProviderBuilder =>
+			{
+				tracerProviderBuilder
+					.AddHttpClientInstrumentation() // Capture HttpClient requests
+					// .AddSource("IChatClient") // Custom source for OpenAI API calls
+					.AddConsoleExporter(); // Export traces to console for debugging
+			});
 
 
 		var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
@@ -134,12 +140,70 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton<ElevenLabsClient>(new ElevenLabsClient(elevenLabsKey));
 
-		return builder.Build();
+
+		// --- CoreSync setup ---
+		var dbFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "sentencestudio", "mobile");
+		Directory.CreateDirectory(dbFolder);
+		var dbPath = Path.Combine(dbFolder, "sentencestudio.db");
+
+		// Register CoreSync data and sync services
+		builder.Services.AddDataServices(dbPath);
+		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+		
+		// Register SyncAgent with proper factory method
+		builder.Services.AddSingleton<CoreSync.SyncAgent>(serviceProvider =>
+		{
+			var localSyncProvider = serviceProvider.GetRequiredService<ISyncProvider>();
+			var remoteSyncProvider = serviceProvider.GetRequiredService<ISyncProviderHttpClient>();
+			return new CoreSync.SyncAgent(localSyncProvider, remoteSyncProvider);
+		});
+		
+		// Register ISyncService for use in repositories
+		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
+
+        var app = builder.Build();
+
+		// Trigger sync on startup using proper DI pattern
+		var syncAgent = app.Services.GetRequiredService<CoreSync.SyncAgent>();
+		Task.Run(async () =>
+		{
+			try
+			{
+				await syncAgent.SynchronizeAsync();
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup sync completed successfully");
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on startup failed: {ex.Message}");
+			}
+		});
+
+		// Listen for connectivity changes to trigger sync when online
+		Connectivity.Current.ConnectivityChanged += (s, e) =>
+		{
+			if (e.NetworkAccess == NetworkAccess.Internet)
+			{
+				Task.Run(async () =>
+				{
+					try
+					{
+						await syncAgent.SynchronizeAsync();
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
+					}
+				});
+			}
+		};
+
+		return app;
 	}
 
-    
+	
 
-    private static void RegisterRoutes()
+	private static void RegisterRoutes()
 	{
 		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
 		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
@@ -210,38 +274,38 @@ public static class MauiProgram
 		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
 		
 		services.AddSingleton<IAppState, AppState>();
-    }
+	}
 
 	
 
-    private static void ModifyPicker()
-    {
+	private static void ModifyPicker()
+	{
 		
 
 		Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
 		{
 			#if ANDROID
-            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);			
+			handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);			
 			#elif IOS || MACCATALYST
 			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
 			#endif
 		});
-    }
+	}
 
-    public static void ModifyEntry()
-    {
-        Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoMoreBorders", (handler, view) =>
-        {
+	public static void ModifyEntry()
+	{
+		Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoMoreBorders", (handler, view) =>
+		{
 #if ANDROID
 			handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
-            handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
+			handler.PlatformView.SetBackgroundColor(Colors.Transparent.ToPlatform());
 #elif IOS || MACCATALYST
-            handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
+			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
 			// (handler.PlatformView as UITextField).InlinePredictionType = UITextInlinePredictionType.Yes;
 #elif WINDOWS
-            handler.PlatformView.FontWeight = Microsoft.UI.Text.FontWeights.Thin;
-            handler.PlatformView.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+			handler.PlatformView.FontWeight = Microsoft.UI.Text.FontWeights.Thin;
+			handler.PlatformView.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
 #endif
-        });
-    }
+		});
+	}
 }
