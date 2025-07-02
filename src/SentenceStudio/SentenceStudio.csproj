@@ -206,12 +206,12 @@
 		</NativeReference>
 	</ItemGroup> -->
 
-	<ItemGroup Condition="'$(Configuration)'=='Debug'">
+	<!-- <ItemGroup Condition="'$(Configuration)'=='Debug'">
 		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(Configuration)'=='Release'">
 		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="false" Trim="true" />
-	</ItemGroup>
+	</ItemGroup> -->
 
 
 </Project>

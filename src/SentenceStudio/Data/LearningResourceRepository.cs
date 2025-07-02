@@ -10,11 +10,15 @@ public class LearningResourceRepository
 {
     private SQLiteAsyncConnection Database;
     private VocabularyService _vocabularyService;
+    private ISyncService _syncService;
 
     public LearningResourceRepository(IServiceProvider serviceProvider = null)
     {
         if (serviceProvider != null)
+        {
             _vocabularyService = serviceProvider.GetService<VocabularyService>();
+            _syncService = serviceProvider.GetService<ISyncService>();
+        }
     }
 
     // --- Added for VocabularyService replacement ---
@@ -43,6 +47,8 @@ public class LearningResourceRepository
             try
             {
                 result = await Database.UpdateAsync(word);
+                // Trigger sync after successful update
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -54,6 +60,8 @@ public class LearningResourceRepository
             try
             {
                 result = await Database.InsertAsync(word);
+                // Trigger sync after successful insert
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {

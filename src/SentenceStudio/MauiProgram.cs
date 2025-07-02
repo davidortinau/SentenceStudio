@@ -20,12 +20,15 @@ using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
+using SentenceStudio.Services;
+using SentenceStudio.Data;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
 using ElevenLabs;
 using CommunityToolkit.Maui.Storage;
 using CoreSync;
+using CoreSync.Http.Client;
 
 #if WINDOWS
 using System.Reflection;
@@ -143,42 +146,53 @@ public static class MauiProgram
 
 		// Register CoreSync data and sync services
 		builder.Services.AddDataServices(dbPath);
-		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5065"));
-
-		var app = builder.Build();
-
-		// Trigger sync on startup
-		var syncProvider = app.Services.GetService<ISyncProvider>();
-		if (syncProvider != null)
+		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+		
+		// Register SyncAgent with proper factory method
+		builder.Services.AddSingleton<CoreSync.SyncAgent>(serviceProvider =>
 		{
-			Task.Run(async () =>
+			var localSyncProvider = serviceProvider.GetRequiredService<ISyncProvider>();
+			var remoteSyncProvider = serviceProvider.GetRequiredService<ISyncProviderHttpClient>();
+			return new CoreSync.SyncAgent(localSyncProvider, remoteSyncProvider);
+		});
+		
+		// Register ISyncService for use in repositories
+		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
+
+        var app = builder.Build();
+
+		// Trigger sync on startup using proper DI pattern
+		var syncAgent = app.Services.GetRequiredService<CoreSync.SyncAgent>();
+		Task.Run(async () =>
+		{
+			try
 			{
-				try
-				{
-					// TODO: Fix sync method call - await syncProvider.SynchronizeAsync();
-					System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync provider available");
-				}
-				catch (Exception ex)
-				{
-					System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on startup failed: {ex.Message}");
-				}
-			});
-		}
+				await syncAgent.SynchronizeAsync();
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup sync completed successfully");
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on startup failed: {ex.Message}");
+			}
+		});
 
 		// Listen for connectivity changes to trigger sync when online
-		Connectivity.Current.ConnectivityChanged += async (s, e) =>
+		Connectivity.Current.ConnectivityChanged += (s, e) =>
 		{
-			if (e.NetworkAccess == NetworkAccess.Internet && syncProvider != null)
+			if (e.NetworkAccess == NetworkAccess.Internet)
 			{
-				try
+				Task.Run(async () =>
 				{
-					// TODO: Fix sync method call - await syncProvider.SynchronizeAsync();
-					System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity changed, sync available");
-				}
-				catch (Exception ex)
-				{
-					System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
-				}
+					try
+					{
+						await syncAgent.SynchronizeAsync();
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
+					}
+				});
 			}
 		};
 
