@@ -10,7 +10,7 @@ public static class SqliteDataReaderExtensions
         try{
             p = new SkillProfile
             {
-                ID = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                Id = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
                 Title = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                 Description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
                 Language = reader.IsDBNull(3) ? string.Empty : reader.GetString(3)

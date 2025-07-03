@@ -566,7 +566,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         SetState(s => {
             s.CurrentVocabularyWord = new VocabularyWord 
             {
-                ID = word.ID,
+                Id = word.Id,
                 TargetLanguageTerm = word.TargetLanguageTerm,
                 NativeLanguageTerm = word.NativeLanguageTerm
             };
@@ -590,7 +590,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             else
             {
                 // Update existing word
-                var index = s.Resource.Vocabulary.FindIndex(w => w.ID == word.ID);
+                var index = s.Resource.Vocabulary.FindIndex(w => w.Id == word.Id);
                 if (index >= 0)
                 {
                     s.Resource.Vocabulary[index] = word;

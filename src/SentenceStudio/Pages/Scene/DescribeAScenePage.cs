@@ -7,7 +7,7 @@ namespace SentenceStudio.Pages.Scene;
 
 class DescribeAScenePageState
 {
-    public int ID { get; set; }
+    public int Id { get; set; }
     public string Description { get; set; }
     public Uri ImageUrl { get; set; } = new Uri("https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png");
     public string UserInput { get; set; }
@@ -232,7 +232,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 SetState(s =>
                 {
-                    s.ID = image.ID;
+                    s.Id = image.Id;
                     s.ImageUrl = new Uri(image.Url);
                     s.Description = image.Description;
                 });
@@ -369,7 +369,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             
             await _sceneImageService.SaveAsync(new SceneImage
             {
-                ID = State.ID,
+                Id = State.Id,
                 Url = State.ImageUrl.AbsoluteUri,
                 Description = State.Description
             });

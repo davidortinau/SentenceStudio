@@ -1,16 +1,14 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using SQLite;
-using SQLiteNetExtensions.Attributes;
+using System.ComponentModel.DataAnnotations.Schema;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("VocabularyWords")]
 public partial class VocabularyWord : ObservableObject
 {
-    [JsonIgnore]
-    [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int Id { get; set; }
 
     [Description("The word in the user's native language, usually English.")]
     [ObservableProperty]
@@ -26,7 +24,7 @@ public partial class VocabularyWord : ObservableObject
     [JsonIgnore] public DateTime UpdatedAt { get; set; }
 
     [JsonIgnore]
-    [ManyToMany(typeof(VocabularyWord))]
+    [NotMapped]
     public List<VocabularyList>? VocabularyLists { get; set; }
     
     public static List<VocabularyWord> ParseVocabularyWords(string vocabList, string delimiter = "comma")

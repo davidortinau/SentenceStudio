@@ -36,7 +36,7 @@ partial class ListVocabularyPage : Component<ListVocabularyPageState>
 								)
 								.WidthRequest(300)
 								.HeightRequest(120)
-								.OnTapped(() => ViewList(list.ID))
+								.OnTapped(() => ViewList(list.Id))
 							)
 							.StrokeShape(new Rectangle())
 							.StrokeThickness(1)

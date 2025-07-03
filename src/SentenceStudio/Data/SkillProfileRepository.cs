@@ -23,7 +23,7 @@ public class SkillProfileRepository
 			var createTableCmd = connection.CreateCommand();
 			createTableCmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS SkillProfile (
-                    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     Title TEXT NOT NULL,
                     Description TEXT NOT NULL,
                     Language TEXT NOT NULL,
@@ -88,7 +88,7 @@ public class SkillProfileRepository
 		await connection.OpenAsync();
 
 		var saveCmd = connection.CreateCommand();
-		if (item.ID == 0)
+		if (item.Id == 0)
 		{
 			saveCmd.CommandText = @"
                 INSERT INTO SkillProfile (Title, Description, Language)
@@ -100,8 +100,8 @@ public class SkillProfileRepository
 			saveCmd.CommandText = @"
                 UPDATE SkillProfile
                 SET Title = @Title, Description = @Description, Language = @Language
-                WHERE ID = @ID";
-			saveCmd.Parameters.AddWithValue("@ID", item.ID);
+                WHERE Id = @ID";
+			saveCmd.Parameters.AddWithValue("@ID", item.Id);
 		}
 
 		saveCmd.Parameters.AddWithValue("@Title", item.Title);
@@ -119,13 +119,13 @@ public class SkillProfileRepository
             Debug.WriteLine($"{ex.Message}");
         }
 
-        if (item.ID == 0)
+        if (item.Id == 0)
         {
-            item.ID = Convert.ToInt32(result);
+            item.Id = Convert.ToInt32(result);
         }
 		
 
-		return item.ID;
+		return item.Id;
     }
     
 
@@ -136,8 +136,8 @@ public class SkillProfileRepository
 		await connection.OpenAsync();
 
 		var deleteCmd = connection.CreateCommand();
-		deleteCmd.CommandText = "DELETE FROM SkillProfile WHERE ID = @ID";
-		deleteCmd.Parameters.AddWithValue("@ID", item.ID);
+		deleteCmd.CommandText = "DELETE FROM SkillProfile WHERE Id = @ID";
+		deleteCmd.Parameters.AddWithValue("@ID", item.Id);
 
 		return await deleteCmd.ExecuteNonQueryAsync();
     }
@@ -149,7 +149,7 @@ public class SkillProfileRepository
 		await connection.OpenAsync();
 
 		var selectCmd = connection.CreateCommand();
-		selectCmd.CommandText = "SELECT * FROM SkillProfile WHERE ID = @id";
+		selectCmd.CommandText = "SELECT * FROM SkillProfile WHERE Id = @id";
 		selectCmd.Parameters.AddWithValue("@id", skillID);
 
 		await using var reader = await selectCmd.ExecuteReaderAsync();

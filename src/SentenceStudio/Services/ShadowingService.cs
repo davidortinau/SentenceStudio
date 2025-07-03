@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text.Json;
 using SentenceStudio.Shared.Models;
 using Scriban;
-using SQLite;
 using SentenceStudio.Common;
 using SentenceStudio.Data;
 using Microsoft.Extensions.AI;
@@ -44,9 +43,9 @@ public class ShadowingService
     /// <summary>
     /// Generates sentences for shadowing practice based on learning resource and skill level.
     /// </summary>
-    /// <param name="resourceId">The ID of the learning resource to use.</param>
+    /// <param name="resourceId">The Id of the learning resource to use.</param>
     /// <param name="numberOfSentences">The number of sentences to generate.</param>
-    /// <param name="skillID">The ID of the skill profile to use.</param>
+    /// <param name="skillID">The Id of the skill profile to use.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A list of sentences for shadowing practice.</returns>
     public async Task<List<ShadowingSentence>> GenerateSentencesAsync(
@@ -102,7 +101,7 @@ public class ShadowingService
     /// Generates audio for the given text using ElevenLabs API.
     /// </summary>
     /// <param name="text">The text to convert to audio.</param>
-    /// <param name="voice">The voice ID or name to use (from ElevenLabsSpeechService.VoiceOptions).</param>
+    /// <param name="voice">The voice Id or name to use (from ElevenLabsSpeechService.VoiceOptions).</param>
     /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An audio stream.</returns>

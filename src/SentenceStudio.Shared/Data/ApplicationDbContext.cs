@@ -30,20 +30,19 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Configure table names to match CoreSync expectations (singular)
-        modelBuilder.Entity<LearningResource>().ToTable("LearningResource").HasKey(e => e.ID);
-        modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.ID);
-        modelBuilder.Entity<VocabularyWord>().ToTable("VocabularyWord").HasKey(e => e.ID);
-        modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.ID);
-        modelBuilder.Entity<SkillProfile>().ToTable("SkillProfile").HasKey(e => e.ID);
-        modelBuilder.Entity<UserProfile>().ToTable("UserProfile").HasKey(e => e.ID);
-        modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.ID);
-        modelBuilder.Entity<Challenge>().ToTable("Challenge").HasKey(e => e.ID);
-        modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.ID);
-        modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.ID);
-        modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.ID);
-        modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.ID);
-        modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.ID);
-        modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.ID);
+        modelBuilder.Entity<LearningResource>().ToTable("LearningResource").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyWord>().ToTable("VocabularyWord").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.Id);
+        modelBuilder.Entity<SkillProfile>().ToTable("SkillProfile").HasKey(e => e.Id);
+        modelBuilder.Entity<UserProfile>().ToTable("UserProfile").HasKey(e => e.Id);
+        modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
+        modelBuilder.Entity<Challenge>().ToTable("Challenge").HasKey(e => e.Id);
+        modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
+        modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.Id);
+        modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
+        modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
+        modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
 
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
@@ -59,7 +58,6 @@ public class ApplicationDbContext : DbContext
 
 
     public DbSet<LearningResource> LearningResources => Set<LearningResource>();
-    public DbSet<ResourceVocabularyMapping> ResourceVocabularyMappings => Set<ResourceVocabularyMapping>();
     public DbSet<VocabularyWord> VocabularyWords => Set<VocabularyWord>();
     public DbSet<VocabularyList> VocabularyLists => Set<VocabularyList>();
     public DbSet<SkillProfile> SkillProfiles => Set<SkillProfile>();

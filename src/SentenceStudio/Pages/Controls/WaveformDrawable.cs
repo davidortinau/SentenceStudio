@@ -20,7 +20,7 @@ public class WaveformDrawable : IDrawable
     private bool _randomSamplesGenerated = false;
     private double _audioDuration = 0; // Duration of audio in seconds
     private double _pixelsPerSecond = Constants.PixelsPerSecond; // Default scale: 100 pixels per second
-    private string _currentAudioId = string.Empty; // ID for the current audio being displayed
+    private string _currentAudioId = string.Empty; // Id for the current audio being displayed
     private bool _autoGenerateWaveform = false; // Default to auto-generating waveform
     private int _sampleCount = 400; // Default sample count for random waveforms
     
@@ -116,7 +116,7 @@ public class WaveformDrawable : IDrawable
     }
 
     /// <summary>
-    /// Gets or sets the ID of the current audio being displayed.
+    /// Gets or sets the Id of the current audio being displayed.
     /// Used to retrieve cached waveform data.
     /// </summary>
     public string AudioId
@@ -157,7 +157,7 @@ public class WaveformDrawable : IDrawable
     public float TotalWidth => (float)(Math.Max(_audioDuration, 60) * _pixelsPerSecond);
 
     /// <summary>
-    /// Loads cached waveform data for the current audio ID if available.
+    /// Loads cached waveform data for the current audio Id if available.
     /// </summary>
     private void LoadCachedWaveform()
     {
@@ -249,7 +249,7 @@ public class WaveformDrawable : IDrawable
             _audioDuration = duration;
         }
         
-        // Cache the waveform data by audio ID if we have a valid ID
+        // Cache the waveform data by audio Id if we have a valid ID
         if (!string.IsNullOrEmpty(_currentAudioId))
         {
             // Create a copy of the audio data to store in cache

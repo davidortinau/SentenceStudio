@@ -1,6 +1,7 @@
 using CoreSync;
 using CoreSync.Http.Client;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SentenceStudio.Services;
 
@@ -15,17 +16,20 @@ public class SyncService : ISyncService
     private readonly ISyncProvider _localSyncProvider;
     private readonly ISyncProviderHttpClient _remoteSyncProvider;
     private readonly ILogger<SyncService> _logger;
+    private readonly IServiceProvider _serviceProvider;
     private readonly SemaphoreSlim _syncSemaphore = new(1, 1);
     private bool _isInitialized = false;
 
     public SyncService(
         ISyncProvider localSyncProvider, 
         ISyncProviderHttpClient remoteSyncProvider,
-        ILogger<SyncService> logger)
+        ILogger<SyncService> logger,
+        IServiceProvider serviceProvider)
     {
         _localSyncProvider = localSyncProvider;
         _remoteSyncProvider = remoteSyncProvider;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task InitializeDatabaseAsync()
@@ -36,7 +40,13 @@ public class SyncService : ISyncService
         {
             _logger.LogInformation("Initializing CoreSync provider...");
 
-            // Apply CoreSync provisioning to create sync tracking tables
+            // First: Ensure EF Core creates all application tables
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await dbContext.Database.EnsureCreatedAsync();
+            _logger.LogInformation("EF Core database and tables created");
+
+            // Then: Apply CoreSync provisioning to create sync tracking tables
             await _localSyncProvider.ApplyProvisionAsync();
             _logger.LogInformation("CoreSync provisioning applied");
 

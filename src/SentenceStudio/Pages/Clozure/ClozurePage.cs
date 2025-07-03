@@ -243,10 +243,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		try
 		{
-			// Use the resource ID if available, or fallback to 0
-			var resourceId = Props.Resource?.ID ?? 0;
+			// Use the resource Id if available, or fallback to 0
+			var resourceId = Props.Resource?.Id ?? 0;
 			
-			var sentences = await _clozureService.GetSentences(resourceId, 2, Props.Skill.ID);
+			var sentences = await _clozureService.GetSentences(resourceId, 2, Props.Skill.Id);
 			
 			if (sentences.Any())
 			{
@@ -267,7 +267,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				if (sentences.Count < 10)
 				{
 					SetState(s => s.IsBuffering = true);
-					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.ID);
+					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
 					SetState(s =>
 					{
 						if (moreSentences != null && moreSentences.Any())
@@ -375,9 +375,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				SetState(s => s.IsBuffering = true);
 				try 
 				{
-					// Use resource ID instead of vocabulary ID
-					var resourceId = Props.Resource?.ID ?? 0;
-					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.ID);
+					// Use resource Id instead of vocabulary ID
+					var resourceId = Props.Resource?.Id ?? 0;
+					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
 					
 					if (moreSentences?.Any() == true)
 					{

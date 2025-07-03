@@ -1,82 +1,102 @@
 using System.Diagnostics;
 using SentenceStudio.Common;
 using SentenceStudio.Shared.Models;
-using SQLite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Data;
 
 public class StreamHistoryRepository
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ISyncService? _syncService;
 
-    public StreamHistoryRepository()
+    public StreamHistoryRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
     {
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        try
-        {
-            await Database.CreateTableAsync<StreamHistory>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _syncService = syncService;
     }
 
     public async Task<List<StreamHistory>> GetAllStreamHistoryAsync()
     {
-        await Init();
-        return await Database.Table<StreamHistory>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.StreamHistories
             .OrderByDescending(h => h.CreatedAt)
             .ToListAsync();
     }
 
     public async Task<StreamHistory> GetStreamHistoryAsync(int id)
     {
-        await Init();
-        return await Database.Table<StreamHistory>()
-            .Where(h => h.ID == id)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.StreamHistories
+            .Where(h => h.Id == id)
             .FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveStreamHistoryAsync(StreamHistory streamHistory)
     {
-        await Init();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
-        // Set timestamps
-        if (streamHistory.CreatedAt == default)
-            streamHistory.CreatedAt = DateTime.UtcNow;
+        try
+        {
+            // Set timestamps
+            if (streamHistory.CreatedAt == default)
+                streamHistory.CreatedAt = DateTime.UtcNow;
+                
+            streamHistory.UpdatedAt = DateTime.UtcNow;
             
-        streamHistory.UpdatedAt = DateTime.UtcNow;
-        
-        if (streamHistory.ID != 0)
-        {
-            return await Database.UpdateAsync(streamHistory);
+            if (streamHistory.Id != 0)
+            {
+                db.StreamHistories.Update(streamHistory);
+            }
+            else
+            {
+                db.StreamHistories.Add(streamHistory);
+            }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            return await Database.InsertAsync(streamHistory);
+            Debug.WriteLine($"An error occurred SaveStreamHistoryAsync: {ex.Message}");
+            return -1;
         }
     }
 
     public async Task<int> DeleteStreamHistoryAsync(StreamHistory streamHistory)
     {
-        await Init();
-        return await Database.DeleteAsync(streamHistory);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.StreamHistories.Remove(streamHistory);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteStreamHistoryAsync: {ex.Message}");
+            return -1;
+        }
     }
     
     public async Task<List<StreamHistory>> SearchStreamHistoryAsync(string query)
     {
-        await Init();
-        return await Database.Table<StreamHistory>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.StreamHistories
             .Where(h => h.Phrase.Contains(query))
             .OrderByDescending(h => h.CreatedAt)
             .ToListAsync();
@@ -84,8 +104,9 @@ public class StreamHistoryRepository
     
     public async Task<List<StreamHistory>> GetStreamHistoryByVoiceAsync(string voiceId)
     {
-        await Init();
-        return await Database.Table<StreamHistory>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.StreamHistories
             .Where(h => h.VoiceId == voiceId)
             .OrderByDescending(h => h.CreatedAt)
             .ToListAsync();

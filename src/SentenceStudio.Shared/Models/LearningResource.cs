@@ -1,15 +1,14 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using SQLite;
-using SQLiteNetExtensions.Attributes;
+using System.ComponentModel.DataAnnotations.Schema;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("LearningResources")]
 public partial class LearningResource : ObservableObject
 {
-    [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int Id { get; set; }
 
     [ObservableProperty]
     private string? title;
@@ -54,23 +53,10 @@ public partial class LearningResource : ObservableObject
     public DateTime UpdatedAt { get; set; }
 
     // The vocabulary words associated with this resource
-    [Ignore]
+    [NotMapped]
     public List<VocabularyWord> Vocabulary { get; set; } = new List<VocabularyWord>();
 
     // Helper property to determine if this is a vocabulary list
-    [Ignore]
+    [NotMapped]
     public bool IsVocabularyList => MediaType == "Vocabulary List";
-}
-
-// Mapping table to connect resources and vocabulary words (many-to-many relationship)
-public class ResourceVocabularyMapping
-{
-    [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
-    
-    [Indexed]
-    public int ResourceID { get; set; }
-    
-    [Indexed]
-    public int VocabularyWordID { get; set; }
 }

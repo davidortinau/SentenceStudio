@@ -1,39 +1,26 @@
+using Microsoft.EntityFrameworkCore;
+using SentenceStudio.Data;
+
 namespace SentenceStudio.Services;
 
 public class VocabularyService
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
     private AiService _aiService;
+    private ISyncService _syncService;
 
-    public VocabularyService(IServiceProvider service)
+    public VocabularyService(IServiceProvider serviceProvider)
     {
-        _aiService = service.GetRequiredService<AiService>();
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTablesResult result;
-        
-        try
-        {
-            result = await Database.CreateTablesAsync<VocabularyList, VocabularyWord, VocabularyListVocabularyWord>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _aiService = serviceProvider.GetRequiredService<AiService>();
+        _syncService = serviceProvider.GetService<ISyncService>();
     }
 
     public async Task<List<VocabularyList>> GetListsAsync()
     {
-        await Init();
-        return await Database.Table<VocabularyList>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyLists.ToListAsync();
     }
 
     /// <summary>
@@ -41,25 +28,21 @@ public class VocabularyService
     /// </summary>
     /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see cref="VocabularyList"/> objects.</returns>
     public async Task<List<VocabularyList>> GetAllListsWithWordsAsync()
-{
-    await Init();
-    
-    var vocabularyLists = await Database.Table<VocabularyList>().ToListAsync();
-    
-    foreach (var vocabularyList in vocabularyLists)
     {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
-        vocabularyList.Words = await Database.QueryAsync<VocabularyWord>(@"
-            SELECT vw.*
-            FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
-			WHERE vw.ID = vlvw.VocabularyWordId
-			AND vlvw.VocabularyListId = ?", vocabularyList.ID);
-
-        Debug.WriteLine($"List {vocabularyList.Name} has {vocabularyList.Words.Count} words");
+        var vocabularyLists = await db.VocabularyLists
+            .Include(vl => vl.Words)
+            .ToListAsync();
+        
+        foreach (var vocabularyList in vocabularyLists)
+        {
+            Debug.WriteLine($"List {vocabularyList.Name} has {vocabularyList.Words.Count} words");
+        }
+        
+        return vocabularyLists;
     }
-    
-    return vocabularyLists;
-}
 
     /// <summary>
     /// Retrieves a list of vocabulary words asynchronously.
@@ -67,120 +50,132 @@ public class VocabularyService
     /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see cref="VocabularyWord"/>.</returns>
     public async Task<List<VocabularyWord>> GetWordsAsync()
     {
-        await Init();
-        return await Database.Table<VocabularyWord>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords.ToListAsync();
     }
 
     public async Task<VocabularyList> GetListAsync(int id)
     {
-        await Init();    
-        var vocabularyList = await Database.Table<VocabularyList>().Where(i => i.ID == id).FirstOrDefaultAsync();
-        if (vocabularyList != null)
-        {
-            vocabularyList.Words = await Database.QueryAsync<VocabularyWord>(@"
-                SELECT vw.*
-                FROM VocabularyWord vw, VocabularyListVocabularyWord vlvw
-                WHERE vw.ID = vlvw.VocabularyWordId
-                AND vlvw.VocabularyListId = ?", vocabularyList.ID);          
-        }
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var vocabularyList = await db.VocabularyLists
+            .Include(vl => vl.Words)
+            .Where(i => i.Id == id)
+            .FirstOrDefaultAsync();
         
         return vocabularyList;
     }
 
     public async Task<VocabularyWord> GetWordAsync(int id)
     {
-        await Init();
-        return await Database.Table<VocabularyWord>().Where(i => i.ID == id).FirstOrDefaultAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords.Where(i => i.Id == id).FirstOrDefaultAsync();
     }
 
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
     {
-        await Init();
-        return await Database.Table<VocabularyWord>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords
             .Where(w => w.NativeLanguageTerm == nativeTerm)
             .FirstOrDefaultAsync();
     }
     
     public async Task<VocabularyWord> GetWordByTargetTermAsync(string targetTerm)
     {
-        await Init();
-        return await Database.Table<VocabularyWord>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords
             .Where(w => w.TargetLanguageTerm == targetTerm)
             .FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveListAsync(VocabularyList list)
     {
-        await Init();
-        int result = -1;
-        if (list.ID != 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Set timestamps
+        if (list.CreatedAt == default)
+            list.CreatedAt = DateTime.UtcNow;
+            
+        list.UpdatedAt = DateTime.UtcNow;
+        
+        try
         {
-            try
+            if (list.Id != 0)
             {
-                result = await Database.UpdateAsync(list);
-                result = await Database.UpdateAllAsync(list.Words);
-
-                foreach (var term in list.Words)
-                {
-                    await SaveWordToListAsync(term, list.ID);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"{ex.Message}");
-            }
-        }
-        else
-        {
-            try
-            {
-                result = await Database.InsertAsync(list);
-
-                // list.Words = new List<Event> { event1 };                
-
+                // Update existing list
+                db.VocabularyLists.Update(list);
+                
+                // Handle vocabulary words - EF Core will manage the many-to-many relationship
                 if (list.Words != null)
                 {
-                    foreach (var term in list.Words)
+                    foreach (var word in list.Words)
                     {
-                        // term.VocabularyListId = list.ID;
-                        await SaveWordAsync(term);
-                        await SaveWordToListAsync(term, list.ID);
+                        if (word.CreatedAt == default)
+                            word.CreatedAt = DateTime.UtcNow;
+                        word.UpdatedAt = DateTime.UtcNow;
+                        
+                        if (word.Id == 0)
+                        {
+                            db.VocabularyWords.Add(word);
+                        }
+                        else
+                        {
+                            db.VocabularyWords.Update(word);
+                        }
                     }
                 }
             }
-            catch (Exception ex)
+            else
             {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                // Create new list
+                db.VocabularyLists.Add(list);
+                
+                if (list.Words != null)
+                {
+                    foreach (var word in list.Words)
+                    {
+                        if (word.CreatedAt == default)
+                            word.CreatedAt = DateTime.UtcNow;
+                        word.UpdatedAt = DateTime.UtcNow;
+                        
+                        if (word.Id == 0)
+                        {
+                            db.VocabularyWords.Add(word);
+                        }
+                    }
+                }
             }
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
-
-        return list.ID;
-    }
-
-    public async Task SaveWordToListAsync(VocabularyWord term, int listID)
-    {
-        await Init();
-        VocabularyListVocabularyWord listWord = new VocabularyListVocabularyWord();
-        listWord.VocabularyListId = listID;
-        listWord.VocabularyWordId = term.ID;
-
-        var existingListWord = await Database.Table<VocabularyListVocabularyWord>()
-            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == term.ID)
-            .FirstOrDefaultAsync();
-
-        if (existingListWord is null)
+        catch (Exception ex)
         {
-            await Database.InsertAsync(listWord);
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
         }
+
+        return list.Id;
     }
 
     public async Task<bool> DeleteListAsync(VocabularyList list)
     {
-        await Init();
-        try{
-            await Database.DeleteAsync(list);
-            await Database.ExecuteAsync("DELETE FROM VocabularyListVocabularyWord WHERE VocabularyListId = ?", list.ID);
-            await Database.ExecuteAsync("DELETE FROM VocabularyWord WHERE ID NOT IN (SELECT VocabularyWordId FROM VocabularyListVocabularyWord)");
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            // EF Core will handle the cascade delete of the many-to-many relationships
+            db.VocabularyLists.Remove(list);
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -192,49 +187,89 @@ public class VocabularyService
 
     public async Task<int> SaveWordAsync(VocabularyWord word)
     {
-        await Init();
-        int result = -1;
-        if (word.ID != 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Set timestamps
+        if (word.CreatedAt == default)
+            word.CreatedAt = DateTime.UtcNow;
+            
+        word.UpdatedAt = DateTime.UtcNow;
+        
+        try
         {
-            try
+            if (word.Id != 0)
             {
-                result = await Database.UpdateAsync(word);
-            }catch(Exception ex)
-            {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                db.VocabularyWords.Update(word);
             }
+            else
+            {
+                db.VocabularyWords.Add(word);
+            }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            try
-            {
-                result = await Database.InsertAsync(word);
-            }
-            catch (Exception ex)
-            {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-            }
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
         }
-
-        return result;
     }
 
     public async Task<int> DeleteWordAsync(VocabularyWord word)
     {
-        await Init();
-        return await Database.DeleteAsync(word);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.VocabularyWords.Remove(word);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
+        }
     }
 
-    public async Task<int> DeleteWordFromListAsync(VocabularyWord word, int listID)
+    public async Task<int> DeleteWordFromListAsync(VocabularyWord word, int listId)
     {
-        await Init();
-        var listWord = await Database.Table<VocabularyListVocabularyWord>()
-            .Where(lw => lw.VocabularyListId == listID && lw.VocabularyWordId == word.ID)
-            .FirstOrDefaultAsync();
-        if(listWord is not null)
-            return await Database.DeleteAsync(listWord);
-        else
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var list = await db.VocabularyLists
+                .Include(vl => vl.Words)
+                .Where(vl => vl.Id == listId)
+                .FirstOrDefaultAsync();
+                
+            if (list != null && list.Words.Contains(word))
+            {
+                list.Words.Remove(word);
+                int result = await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                
+                return result;
+            }
+            
             return 0;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
+        }
     }
 
 

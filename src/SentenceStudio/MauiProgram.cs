@@ -156,41 +156,41 @@ public static class MauiProgram
         var app = builder.Build();
 
 		// Initialize database and sync on startup using proper initialization pattern
-		Task.Run(async () =>
-		{
-			try
-			{
-				var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-				await syncService.InitializeDatabaseAsync();
-				await syncService.TriggerSyncAsync();
-				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
-			}
-			catch (Exception ex)
-			{
-				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization failed: {ex.Message}");
-			}
-		});
+		// Task.Run(async () =>
+		// {
+		// 	try
+		// 	{
+		// 		var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+		// 		await syncService.InitializeDatabaseAsync();
+		// 		await syncService.TriggerSyncAsync();
+		// 		System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
+		// 	}
+		// 	catch (Exception ex)
+		// 	{
+		// 		System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization failed: {ex.Message}");
+		// 	}
+		// });
 
 		// Listen for connectivity changes to trigger sync when online
-		Connectivity.Current.ConnectivityChanged += (s, e) =>
-		{
-			if (e.NetworkAccess == NetworkAccess.Internet)
-			{
-				Task.Run(async () =>
-				{
-					try
-					{
-						var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-						await syncService.TriggerSyncAsync();
-						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
-					}
-					catch (Exception ex)
-					{
-						System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
-					}
-				});
-			}
-		};
+		// Connectivity.Current.ConnectivityChanged += (s, e) =>
+		// {
+		// 	if (e.NetworkAccess == NetworkAccess.Internet)
+		// 	{
+		// 		Task.Run(async () =>
+		// 		{
+		// 			try
+		// 			{
+		// 				var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+		// 				await syncService.TriggerSyncAsync();
+		// 				System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
+		// 			}
+		// 			catch (Exception ex)
+		// 			{
+		// 				System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
+		// 			}
+		// 		});
+		// 	}
+		// };
 
 		return app;
 	}

@@ -118,7 +118,7 @@ public class ElevenLabsSpeechService
     /// Converts text to speech using ElevenLabs API and returns the audio as a stream.
     /// </summary>
     /// <param name="text">The text to convert to speech.</param>
-    /// <param name="voiceId">The voice ID or name to use (from VoiceOptions).</param>
+    /// <param name="voiceId">The voice Id or name to use (from VoiceOptions).</param>
     /// <param name="stability">Voice stability (0.0 to 1.0) - higher values make voice more consistent but less expressive.</param>
     /// <param name="similarityBoost">Similarity boost (0.0 to 1.0) - higher values make voice more like original but may sound metallic.</param>
     /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
@@ -161,7 +161,7 @@ public class ElevenLabsSpeechService
             // Create a memory stream from the audio bytes
             var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
             
-            // Debug.WriteLine($"Generated speech audio: {audioBytes.ClipData.Length} bytes using voice ID {voiceId}");
+            // Debug.WriteLine($"Generated speech audio: {audioBytes.ClipData.Length} bytes using voice Id {voiceId}");
             
             return audioStream;
         }

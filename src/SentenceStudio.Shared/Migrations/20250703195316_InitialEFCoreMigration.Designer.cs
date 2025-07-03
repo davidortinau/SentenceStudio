@@ -11,8 +11,8 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250701143213_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20250703195316_InitialEFCoreMigration")]
+    partial class InitialEFCoreMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -22,15 +22,12 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Challenge", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsCurrent")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RecommendedTranslation")
                         .HasColumnType("TEXT");
@@ -41,9 +38,6 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("UserActivityID")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("VocabularyWord")
                         .HasColumnType("TEXT");
 
@@ -53,55 +47,57 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("VocabularyWordGuesses")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.HasIndex("UserActivityID");
-
-                    b.ToTable("Challenges");
+                    b.ToTable("Challenge", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("Conversations");
+                    b.ToTable("Conversation", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Content")
+                    b.Property<string>("Author")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("ConversationID")
+                    b.Property<double>("Comprehension")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ComprehensionNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConversationId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("SentTime")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Participant")
+                    b.Property<string>("Text")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.HasIndex("ConversationID");
-
-                    b.ToTable("ConversationChunks");
+                    b.ToTable("ConversationChunk", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.GradeResponse", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -126,14 +122,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("RecommendedTranslation")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("GradeResponses");
+                    b.ToTable("GradeResponse", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.LearningResource", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -173,31 +169,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("LearningResources");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.ResourceVocabularyMapping", b =>
-                {
-                    b.Property<int>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ResourceID")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("VocabularyWordID")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("ID");
-
-                    b.ToTable("ResourceVocabularyMappings");
+                    b.ToTable("LearningResource", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SceneImage", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -210,14 +189,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("SceneImages");
+                    b.ToTable("SceneImage", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SkillProfile", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -237,14 +216,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("SkillProfiles");
+                    b.ToTable("SkillProfile", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Story", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -263,14 +242,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("Stories");
+                    b.ToTable("Story", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.StreamHistory", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -304,14 +283,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("VoiceId")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("StreamHistories");
+                    b.ToTable("StreamHistory", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.UserActivity", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -333,14 +312,14 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("UserActivities");
+                    b.ToTable("UserActivity", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.UserProfile", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -367,14 +346,14 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("UserProfiles");
+                    b.ToTable("UserProfile", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyList", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -387,39 +366,21 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("ID");
+                    b.HasKey("Id");
 
-                    b.ToTable("VocabularyLists");
+                    b.ToTable("VocabularyList", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyWord", b =>
                 {
-                    b.Property<int>("ID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("ChallengeID")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ExampleSentence")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ExampleTranslation")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("NativeLanguageTerm")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PartOfSpeech")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Tags")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TargetLanguageTerm")
@@ -428,60 +389,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("VocabularyListID")
-                        .HasColumnType("INTEGER");
+                    b.HasKey("Id");
 
-                    b.HasKey("ID");
-
-                    b.HasIndex("ChallengeID");
-
-                    b.HasIndex("VocabularyListID");
-
-                    b.ToTable("VocabularyWords");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Challenge", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.UserActivity", "UserActivity")
-                        .WithMany()
-                        .HasForeignKey("UserActivityID");
-
-                    b.Navigation("UserActivity");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.Conversation", null)
-                        .WithMany("Chunks")
-                        .HasForeignKey("ConversationID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyWord", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.Challenge", null)
-                        .WithMany("Vocabulary")
-                        .HasForeignKey("ChallengeID");
-
-                    b.HasOne("SentenceStudio.Shared.Models.VocabularyList", null)
-                        .WithMany("Words")
-                        .HasForeignKey("VocabularyListID");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Challenge", b =>
-                {
-                    b.Navigation("Vocabulary");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
-                {
-                    b.Navigation("Chunks");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyList", b =>
-                {
-                    b.Navigation("Words");
+                    b.ToTable("VocabularyWord", (string)null);
                 });
 #pragma warning restore 612, 618
         }

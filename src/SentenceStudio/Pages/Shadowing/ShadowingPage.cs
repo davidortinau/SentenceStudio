@@ -752,13 +752,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             // Clear audio cache when loading new sentences
             _audioCache.Clear();
             
-            // Use resource ID instead of vocabulary ID
-            var resourceId = Props.Resource?.ID ?? 0;
+            // Use resource Id instead of vocabulary ID
+            var resourceId = Props.Resource?.Id ?? 0;
             
             var sentences = await _shadowingService.GenerateSentencesAsync(
                 resourceId, 
                 10,
-                Props.Skill?.ID ?? 0);
+                Props.Skill?.Id ?? 0);
                 
             SetState(s => 
             {
@@ -984,7 +984,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             }
             else
             {
-                // Generate new audio stream if not in cache, passing the selected voice ID and speed
+                // Generate new audio stream if not in cache, passing the selected voice Id and speed
                 audioStream = await _shadowingService.GenerateAudioAsync(
                     sentenceText, 
                     State.SelectedVoiceId,  // Use the selected voice ID

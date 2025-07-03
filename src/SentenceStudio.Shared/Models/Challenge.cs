@@ -1,15 +1,15 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using SQLite;
+using System.ComponentModel.DataAnnotations.Schema;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("Challenges")]
 public partial class Challenge : ObservableObject
 {
     [JsonIgnore]
-    [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int Id { get; set; }
     
     [ObservableProperty]
     private string? sentenceText;
@@ -24,7 +24,7 @@ public partial class Challenge : ObservableObject
     public DateTime UpdatedAt { get; set; }
     
     [Description("Includes all the English words to complete the full sentence, but only include the Korean if the word is necessary for a natural Korean sentence. Use the Korean dictionary form in the vocabulary array.")]
-    [Ignore] 
+    [NotMapped] 
     public List<VocabularyWord>? Vocabulary { get; set; }
     
     [ObservableProperty]
@@ -38,10 +38,10 @@ public partial class Challenge : ObservableObject
     private string? vocabularyWordGuesses;
     
     [JsonIgnore]
-    [Ignore]
+    [NotMapped]
     public UserActivity? UserActivity { get; set; }
 
     [JsonIgnore]
-    [Ignore]
+    [NotMapped]
     public bool IsCurrent { get; set; }
 }

@@ -169,7 +169,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
         var list = await _vocabService.GetListAsync(Props.ListID);
         SetState(s => 
         {
-            s.ListId = list.ID;
+            s.ListId = list.Id;
             s.VocabListName = list.Name;
             s.Words = list.Words;
         });
@@ -218,7 +218,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
     {
         var list = new VocabularyList
         {
-            ID = State.ListId,
+            Id = State.ListId,
             Name = State.VocabListName,
             Words = State.Words
         };
@@ -231,7 +231,7 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
     {
         var list = new VocabularyList
         {
-            ID = State.ListId,
+            Id = State.ListId,
             Name = State.VocabListName,
             Words = State.Words
         };
@@ -251,7 +251,19 @@ partial class EditVocabularyPage : Component<EditVocabularyPageState, VocabProps
     {
         var word = new VocabularyWord();
         SetState(s => s.Words = new[] { word }.Concat(s.Words).ToList());
+        
+        // Save the word first
         await _vocabService.SaveWordAsync(word);
-        await _vocabService.SaveWordToListAsync(word, State.ListId);
+        
+        // Get the list and add the word to it
+        var list = await _vocabService.GetListAsync(State.ListId);
+        if (list != null)
+        {
+            if (list.Words == null)
+                list.Words = new List<VocabularyWord>();
+            if (!list.Words.Contains(word))
+                list.Words.Add(word);
+            await _vocabService.SaveListAsync(list);
+        }
     }
 }

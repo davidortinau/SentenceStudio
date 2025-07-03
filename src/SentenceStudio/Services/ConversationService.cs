@@ -2,67 +2,76 @@ using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using SentenceStudio.Common;
 using SentenceStudio.Shared.Models;
-using SQLite;
+using SentenceStudio.Data;
 using Scriban;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 using OpenAI;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services
 {
     public class ConversationService
     {
-        private SQLiteAsyncConnection Database;
+        private readonly IServiceProvider _serviceProvider;
         readonly IConfiguration configuration;
         private AiService _aiService;
         private readonly IChatClient _client;
         private readonly string _openAiApiKey;
+        private ISyncService _syncService;
 
-        public ConversationService(IServiceProvider service, IConfiguration configuration, IChatClient chatClient)
+        public ConversationService(IServiceProvider serviceProvider, IConfiguration configuration, IChatClient chatClient)
         {
-            _aiService = service.GetRequiredService<AiService>();
+            _serviceProvider = serviceProvider;
+            _aiService = serviceProvider.GetRequiredService<AiService>();
             _client = chatClient;
             this.configuration = configuration;
+            _syncService = serviceProvider.GetService<ISyncService>();
 
             _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         }
 
-        async Task Init()
-        {
-            if (Database is not null)
-                return;
-
-            Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-            CreateTablesResult result;
-            
-            try
-            {
-                result = await Database.CreateTablesAsync<Conversation,ConversationChunk>();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"{ex.Message}");
-                await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-            }
-        }
-        
         public async Task<Conversation> ResumeConversation()
         {
-            await Init();
-            var mostRecentConversation = await Database.Table<Conversation>().OrderByDescending(c => c.ID).FirstOrDefaultAsync();
-            if (mostRecentConversation != null)
-            {
-                var conversationChunks = await Database.Table<ConversationChunk>().Where(cc => cc.ConversationId == mostRecentConversation.ID).ToListAsync();
-                mostRecentConversation.Chunks = conversationChunks;
-            }
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            var mostRecentConversation = await db.Conversations
+                .Include(c => c.Chunks)
+                .OrderByDescending(c => c.Id)
+                .FirstOrDefaultAsync();
+            
             return mostRecentConversation;
         }
 
         public async Task SaveConversationChunk(ConversationChunk chunk)
         {
-            await Init();
-            await Database.InsertAsync(chunk);
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            // Set timestamps
+            if (chunk.CreatedAt == default)
+                chunk.CreatedAt = DateTime.UtcNow;
+            
+            try
+            {
+                if (chunk.Id != 0)
+                {
+                    db.ConversationChunks.Update(chunk);
+                }
+                else
+                {
+                    db.ConversationChunks.Add(chunk);
+                }
+                
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"An error occurred SaveConversationChunk: {ex.Message}");
+            }
         }
 
         public async Task<string> StartConversation()
@@ -119,18 +128,86 @@ namespace SentenceStudio.Services
 
         public async Task<int> SaveConversation(Conversation conversation)
         {
-            await Init();
-            await Database.InsertAsync(conversation);
-            return conversation.ID;
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            // Set timestamps
+            if (conversation.CreatedAt == default)
+                conversation.CreatedAt = DateTime.UtcNow;
+            
+            try
+            {
+                if (conversation.Id != 0)
+                {
+                    db.Conversations.Update(conversation);
+                }
+                else
+                {
+                    db.Conversations.Add(conversation);
+                }
+                
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"An error occurred SaveConversation: {ex.Message}");
+            }
+            
+            return conversation.Id;
         }
 
         public async Task DeleteConversation(Conversation conversation)
         {
-            await Init();
-            await Database.Table<ConversationChunk>().DeleteAsync(cc => cc.ConversationId == conversation.ID);
-            await Database.DeleteAsync(conversation);
-
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             
+            try
+            {
+                // EF Core will handle cascade delete of chunks automatically if configured
+                db.Conversations.Remove(conversation);
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"An error occurred DeleteConversation: {ex.Message}");
+            }
+        }
+
+        public async Task<List<Conversation>> GetAllConversationsAsync()
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            return await db.Conversations
+                .Include(c => c.Chunks)
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<Conversation> GetConversationAsync(int id)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            return await db.Conversations
+                .Include(c => c.Chunks)
+                .Where(c => c.Id == id)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            return await db.ConversationChunks
+                .Where(cc => cc.ConversationId == conversationId)
+                .OrderBy(cc => cc.CreatedAt)
+                .ToListAsync();
         }
     }
 }

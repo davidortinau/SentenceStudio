@@ -1,20 +1,25 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("ConversationChunks")]
 public partial class ConversationChunk : ObservableObject
 {
-    // ID property for CoreSync (Entity Framework/Database)
-    public int ID { get; set; }
+    // Id property for CoreSync (Entity Framework/Database)
+    public int Id { get; set; }
     
     // Original properties with ObservableProperty for UI binding
     [ObservableProperty]
+    [NotMapped]
     private string? _text;
 
     [ObservableProperty]
+    [NotMapped]
     private double _comprehension;
 
     [ObservableProperty]
+    [NotMapped]
     private string? _comprehensionNotes;
 
     // Other properties
@@ -23,24 +28,28 @@ public partial class ConversationChunk : ObservableObject
     public int ConversationId { get; set; }
     
     // Additional properties for CoreSync compatibility
+    [NotMapped]
     public int ConversationID 
     { 
         get => ConversationId; 
         set => ConversationId = value; 
     }
     
+    [NotMapped]
     public string? Content 
     { 
         get => Text; 
         set => Text = value; 
     }
     
+    [NotMapped]
     public string? Participant 
     { 
         get => Author; 
         set => Author = value; 
     }
     
+    [NotMapped]
     public DateTime CreatedAt 
     { 
         get => SentTime; 

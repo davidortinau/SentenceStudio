@@ -2,9 +2,10 @@ using System.Diagnostics;
 using System.Text.Json;
 using SentenceStudio.Shared.Models;
 using Scriban;
-using SQLite;
 using SentenceStudio.Common;
 using SentenceStudio.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SentenceStudio.Services
 {
@@ -13,7 +14,8 @@ namespace SentenceStudio.Services
         private AiService _aiService;
         private SkillProfileRepository _skillRepository;
         private LearningResourceRepository _resourceRepository;
-        private SQLiteAsyncConnection Database;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ISyncService? _syncService;
         
         private List<VocabularyWord> _words;
 
@@ -23,11 +25,13 @@ namespace SentenceStudio.Services
             }
         }
 
-        public TeacherService(IServiceProvider service)
+        public TeacherService(IServiceProvider service, ISyncService? syncService = null)
         {
             _aiService = service.GetRequiredService<AiService>();
             _skillRepository = service.GetRequiredService<SkillProfileRepository>();
             _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
+            _serviceProvider = service;
+            _syncService = syncService;
         }
 
         public async Task<List<Challenge>> GetChallenges(int resourceID, int numberOfSentences, int skillProfileID)
@@ -39,8 +43,6 @@ namespace SentenceStudio.Services
 
             if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
                 return null;
-
-            // List<Challenge> challenges = await Database.Table<Challenge>().Where(c => vocab.Words.Contains(c.Vocabulary)).ToListAsync();
 
             var random = new Random();
             
@@ -81,42 +83,46 @@ namespace SentenceStudio.Services
             }
         }
 
-        async Task Init()
+        public async Task<int> SaveChallenges(Challenge item)
         {
-            if (Database is not null)
-                return;
-
-            Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-            CreateTablesResult result;
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             
             try
             {
-                result = await Database.CreateTablesAsync<Challenge, GradeResponse>();
+                db.Challenges.Add(item);
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                
+                return item.Id;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"{ex.Message}");
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-            }
-        }
-
-        public async Task<int> SaveChallenges(Challenge item)
-        {
-            await Init();
-            try{
-                await Database.InsertAsync(item);
-            }catch(Exception ex){
                 Debug.WriteLine($"An error occurred SaveChallenges: {ex.Message}");
+                return -1;
             }
-            return item.ID;
         }
 
         public async Task<int> SaveGrade(GradeResponse item)
         {
-            await Init();
-            await Database.InsertAsync(item);
-            return item.ID;
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            try
+            {
+                db.GradeResponses.Add(item);
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                
+                return item.Id;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"An error occurred SaveGrade: {ex.Message}");
+                return -1;
+            }
         }
 
         public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation)

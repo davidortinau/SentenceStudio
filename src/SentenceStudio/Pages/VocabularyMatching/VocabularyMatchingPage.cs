@@ -266,9 +266,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             List<VocabularyWord> words = new List<VocabularyWord>();
 
             // Try to get vocabulary from the resource first
-            if (Props.Resource?.ID != -1)
+            if (Props.Resource?.Id != -1)
             {
-                var resource = await _resourceRepo.GetResourceAsync(Props.Resource.ID);
+                var resource = await _resourceRepo.GetResourceAsync(Props.Resource.Id);
                 words = resource.Vocabulary;
             }
             
@@ -333,7 +333,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     Id = tileId++,
                     Text = word.NativeLanguageTerm.Trim(),
                     Language = "native",
-                    VocabularyWordId = word.ID
+                    VocabularyWordId = word.Id
                 });
             }
         }
@@ -348,7 +348,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     Id = tileId++,
                     Text = word.TargetLanguageTerm.Trim(),
                     Language = "target",
-                    VocabularyWordId = word.ID
+                    VocabularyWordId = word.Id
                 });
             }
         }

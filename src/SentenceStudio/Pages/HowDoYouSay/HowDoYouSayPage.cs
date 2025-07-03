@@ -186,7 +186,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			var historyItem = new StreamHistory { 
 				Phrase = State.Phrase, 
 				Stream = stream,
-				VoiceId = State.SelectedVoiceId, // Store the voice ID with the history item
+				VoiceId = State.SelectedVoiceId, // Store the voice Id with the history item
 				CreatedAt = DateTime.UtcNow,
 				UpdatedAt = DateTime.UtcNow
 			};
@@ -194,8 +194,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// First save to repository to get an ID
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
 			
-			// Now use the ID for the filename
-			string fileName = $"phrase_{historyItem.ID}.mp3";
+			// Now use the Id for the filename
+			string fileName = $"phrase_{historyItem.Id}.mp3";
 			historyItem.FileName = fileName;
 			string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
 			
@@ -256,9 +256,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				item.Stream = audioStream;
 				
 				// Save the stream to disk for future use if we have an ID
-				if (item.ID > 0)
+				if (item.Id > 0)
 				{
-					string fileName = $"phrase_{item.ID}.mp3";
+					string fileName = $"phrase_{item.Id}.mp3";
 					string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
 					
 					// Save the audio stream to a file

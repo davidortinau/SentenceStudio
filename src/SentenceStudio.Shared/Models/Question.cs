@@ -8,7 +8,7 @@ namespace SentenceStudio.Shared.Models;
 public partial class Question : ObservableObject
 {
     [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
+    public int Id { get; set; }
     
     [JsonPropertyName("question")]
     [ObservableProperty]

@@ -117,7 +117,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
         var profile = await _userProfileRepository.GetAsync();
         SetState(s =>
         {
-            s.ProfileID = profile.ID;
+            s.ProfileID = profile.Id;
             s.Name = profile.Name;
             s.Email = profile.Email;
             s.NativeLanguage = profile.NativeLanguage;
@@ -133,7 +133,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
     {
         var profile = new UserProfile
         {
-            ID = State.ProfileID,
+            Id = State.ProfileID,
             Name = State.Name,
             Email = State.Email,
             NativeLanguage = State.NativeLanguage,

@@ -1,10 +1,12 @@
 using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("UserProfiles")]
 public class UserProfile
 {
-    public int ID { get; set; }
+    public int Id { get; set; }
     public string? Name { get; set; }
     public string NativeLanguage { get; set; } = "English";
     public string TargetLanguage { get; set; } = "Korean";
@@ -12,6 +14,8 @@ public class UserProfile
     public string? Email { get; set; }
     public string? OpenAI_APIKey { get; set; }
     public DateTime CreatedAt { get; set; }
+    
+    [NotMapped]
     public string DisplayCulture => DisplayLanguage switch
     {
         "English" => "en",

@@ -97,7 +97,7 @@ partial class WaveformView : Component
     }
     
     /// <summary>
-    /// Sets the audio ID to track when the audio source has changed.
+    /// Sets the audio Id to track when the audio source has changed.
     /// Use this to reset the waveform when playing a different audio source.
     /// </summary>
     public WaveformView AudioId(string audioId)

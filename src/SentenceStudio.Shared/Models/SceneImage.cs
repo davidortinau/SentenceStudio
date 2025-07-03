@@ -1,11 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SentenceStudio.Shared.Models;
 
+[Table("SceneImages")]
 public partial class SceneImage : ObservableObject
 {
-    // ID property for CoreSync (Entity Framework/Database)
-    public int ID { get; set; }
+    // Id property for CoreSync (Entity Framework/Database)
+    public int Id { get; set; }
     
     // Original properties 
     public string? Url { get; set; }
@@ -13,6 +15,7 @@ public partial class SceneImage : ObservableObject
     
     // Observable property for UI binding
     [ObservableProperty]
+    [NotMapped]
     private bool _isSelected;
 
     // Constructors
