@@ -1,11 +1,10 @@
 using SQLite;
 using SQLiteNetExtensions.Attributes;
 
-namespace SentenceStudio.Models;
+namespace SentenceStudio.Shared.Models;
 
 public class VocabularyListVocabularyWord
 {
-
     [ForeignKey(typeof(VocabularyList))]
     public int VocabularyListId { get; set; }
 

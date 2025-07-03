@@ -1,4 +1,4 @@
-namespace SentenceStudio.Models;
+namespace SentenceStudio.Shared.Models;
 
 public class ConversationParticipant
 {

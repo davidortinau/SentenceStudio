@@ -212,7 +212,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 
         await _userActivityRepository.SaveAsync(new UserActivity
         {
-            Activity = Models.Activity.Writer.ToString(),
+            Activity = SentenceStudio.Shared.Models.Activity.Writer.ToString(),
             Input = $"{sentence.Answer} {sentence.Problem}",
             Accuracy = sentence.Accuracy,
             Fluency = sentence.Fluency,

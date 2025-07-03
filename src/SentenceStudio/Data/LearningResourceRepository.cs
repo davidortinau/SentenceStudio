@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using SentenceStudio.Common;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SQLite;
 using SentenceStudio.Services;
 
@@ -47,8 +47,6 @@ public class LearningResourceRepository
             try
             {
                 result = await Database.UpdateAsync(word);
-                // Trigger sync after successful update
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -60,8 +58,6 @@ public class LearningResourceRepository
             try
             {
                 result = await Database.InsertAsync(word);
-                // Trigger sync after successful insert
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -158,7 +154,7 @@ public class LearningResourceRepository
             {
                 if (word.ID == 0)
                 {
-                    await _vocabularyService.SaveWordAsync(word);
+                    await SaveWordAsync(word);
                 }
                 updatedWords.Add(word);
             }
@@ -187,20 +183,25 @@ public class LearningResourceRepository
             });
         }
 
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
         return result;
-    }    
+    }
 
     public async Task<int> DeleteResourceAsync(LearningResource resource)
     {
         await Init();
-        
+
         // First delete all vocabulary mappings
         await Database.Table<ResourceVocabularyMapping>()
             .Where(m => m.ResourceID == resource.ID)
             .DeleteAsync();
-            
+
         // Then delete the resource
-        return await Database.DeleteAsync(resource);
+        int id = await Database.DeleteAsync(resource);
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+        return id;
     }
     
     public async Task<List<LearningResource>> SearchResourcesAsync(string query)

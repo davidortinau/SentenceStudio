@@ -5,7 +5,7 @@ global using MauiIcons.Core;
 global using MauiIcons.SegoeFluent;
 global using Scriban;
 global using SentenceStudio.Messages;
-global using SentenceStudio.Models;
+global using SentenceStudio.Shared.Models;
 global using SentenceStudio.Services;
 global using SentenceStudio.Data;
 global using SentenceStudio.Resources.Styles;

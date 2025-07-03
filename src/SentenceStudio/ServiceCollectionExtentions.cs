@@ -16,14 +16,14 @@ public static class ServiceCollectionExtentions
             var connectionString = $"Data Source={databasePath}";
             var configurationBuilder =
                 new SqliteSyncConfigurationBuilder(connectionString)
-                    .Table<SentenceStudio.Shared.Models.LearningResource>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.VocabularyWord>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.Challenge>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.Conversation>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.ConversationChunk>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.UserProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.SkillProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.VocabularyList>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<LearningResource>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyWord>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<Challenge>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<Conversation>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<ConversationChunk>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<UserProfile>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SkillProfile>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyList>(syncDirection: SyncDirection.UploadAndDownload)
                     ;
 
             return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Local, new SyncLogger(serviceProvider.GetRequiredService<ILogger<SyncLogger>>()));

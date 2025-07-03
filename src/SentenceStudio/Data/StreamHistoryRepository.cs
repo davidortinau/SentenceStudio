@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using SentenceStudio.Common;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SQLite;
 
 namespace SentenceStudio.Data;

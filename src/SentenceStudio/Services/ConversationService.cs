@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using SentenceStudio.Common;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SQLite;
 using Scriban;
 using System.Text.Json;

@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Scriban;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services
 {

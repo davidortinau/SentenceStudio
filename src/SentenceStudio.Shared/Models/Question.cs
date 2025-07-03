@@ -1,7 +1,25 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
+using SQLite;
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace SentenceStudio.Shared.Models;
 
-public class Question
+public partial class Question : ObservableObject
 {
-    public string? Text { get; set; }
-    public string? Answer { get; set; }
+    [PrimaryKey, AutoIncrement]
+    public int ID { get; set; }
+    
+    [JsonPropertyName("question")]
+    [ObservableProperty]
+    private string? body;
+
+    [JsonPropertyName("answer")]
+    [ObservableProperty]
+    private string? answer;
+
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+
+    public int StoryID { get; set; }     
 }

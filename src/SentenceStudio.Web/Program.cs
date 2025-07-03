@@ -12,6 +12,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Configure HTTPS for development
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(5241, listenOptions =>
+    {
+        listenOptions.UseHttps();
+    });
+});
+
 builder.Services.AddDataServices(databasePath);
 builder.Services.AddSyncServices(databasePath);
 

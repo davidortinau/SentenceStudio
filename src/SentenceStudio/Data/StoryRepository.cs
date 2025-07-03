@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SQLite;
 using SentenceStudio.Common;
 

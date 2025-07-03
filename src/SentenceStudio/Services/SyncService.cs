@@ -6,6 +6,7 @@ namespace SentenceStudio.Services;
 
 public interface ISyncService
 {
+    Task InitializeDatabaseAsync();
     Task TriggerSyncAsync();
 }
 
@@ -15,6 +16,7 @@ public class SyncService : ISyncService
     private readonly ISyncProviderHttpClient _remoteSyncProvider;
     private readonly ILogger<SyncService> _logger;
     private readonly SemaphoreSlim _syncSemaphore = new(1, 1);
+    private bool _isInitialized = false;
 
     public SyncService(
         ISyncProvider localSyncProvider, 
@@ -26,8 +28,31 @@ public class SyncService : ISyncService
         _logger = logger;
     }
 
+    public async Task InitializeDatabaseAsync()
+    {
+        if (_isInitialized) return;
+
+        try
+        {
+            _logger.LogInformation("Initializing CoreSync provider...");
+
+            // Apply CoreSync provisioning to create sync tracking tables
+            await _localSyncProvider.ApplyProvisionAsync();
+            _logger.LogInformation("CoreSync provisioning applied");
+
+            _isInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize CoreSync: {Message}", ex.Message);
+            throw;
+        }
+    }
+
     public async Task TriggerSyncAsync()
     {
+        await InitializeDatabaseAsync();
+
         // Only allow one sync operation at a time
         if (!await _syncSemaphore.WaitAsync(100)) // Quick timeout to prevent blocking
         {

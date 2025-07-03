@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using Scriban;
 using SQLite;
 using SentenceStudio.Common;

@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SQLite;
 using SentenceStudio.Common;
 
@@ -40,7 +40,7 @@ public class UserActivityRepository
         return await Database.Table<UserActivity>().ToListAsync();
     }
 
-    public async Task<List<UserActivity>> GetAsync(Models.Activity activity)
+    public async Task<List<UserActivity>> GetAsync(SentenceStudio.Shared.Models.Activity activity)
     {
         await Init();
         return await Database.Table<UserActivity>().Where(i => i.Activity == activity.ToString()).ToListAsync();

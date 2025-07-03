@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SentenceStudio.Services;
 
 namespace SentenceStudio.Data;

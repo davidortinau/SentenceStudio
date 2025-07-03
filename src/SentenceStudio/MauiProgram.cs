@@ -22,6 +22,7 @@ using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Services;
 using SentenceStudio.Data;
+using SentenceStudio.Common;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
@@ -142,39 +143,31 @@ public static class MauiProgram
 
 
 		// --- CoreSync setup ---
-		var dbFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "sentencestudio", "mobile");
-		Directory.CreateDirectory(dbFolder);
-		var dbPath = Path.Combine(dbFolder, "sentencestudio.db");
+		// Use the existing database path that already contains data
+		var dbPath = Constants.DatabasePath; // This points to the existing sstudio.db3
 
 		// Register CoreSync data and sync services
 		builder.Services.AddDataServices(dbPath);
-		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
-		
-		// Register SyncAgent with proper factory method
-		builder.Services.AddSingleton<CoreSync.SyncAgent>(serviceProvider =>
-		{
-			var localSyncProvider = serviceProvider.GetRequiredService<ISyncProvider>();
-			var remoteSyncProvider = serviceProvider.GetRequiredService<ISyncProviderHttpClient>();
-			return new CoreSync.SyncAgent(localSyncProvider, remoteSyncProvider);
-		});
+		builder.Services.AddSyncServices(dbPath, new Uri($"https://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5241"));
 		
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
         var app = builder.Build();
 
-		// Trigger sync on startup using proper DI pattern
-		var syncAgent = app.Services.GetRequiredService<CoreSync.SyncAgent>();
+		// Initialize database and sync on startup using proper initialization pattern
 		Task.Run(async () =>
 		{
 			try
 			{
-				await syncAgent.SynchronizeAsync();
-				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup sync completed successfully");
+				var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+				await syncService.InitializeDatabaseAsync();
+				await syncService.TriggerSyncAsync();
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
 			}
 			catch (Exception ex)
 			{
-				System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on startup failed: {ex.Message}");
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization failed: {ex.Message}");
 			}
 		});
 
@@ -187,7 +180,8 @@ public static class MauiProgram
 				{
 					try
 					{
-						await syncAgent.SynchronizeAsync();
+						var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+						await syncService.TriggerSyncAsync();
 						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
 					}
 					catch (Exception ex)

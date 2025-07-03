@@ -1,5 +1,5 @@
 using SentenceStudio.Data;
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using SentenceStudio.Services;
 using LukeMauiFilePicker;
 

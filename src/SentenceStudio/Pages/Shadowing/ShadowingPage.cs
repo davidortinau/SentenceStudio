@@ -771,7 +771,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             {
                 await _userActivityRepository.SaveAsync(new UserActivity
                 {
-                    Activity = Models.Activity.Shadowing.ToString(),
+                    Activity = SentenceStudio.Shared.Models.Activity.Shadowing.ToString(),
                     Input = sentences.Any() ? sentences[0].TargetLanguageText : string.Empty,
                     Accuracy = 100, // Default to 100 for shadowing as it's practice-based
                     Fluency = 100,  // Default to 100 for shadowing as it's practice-based

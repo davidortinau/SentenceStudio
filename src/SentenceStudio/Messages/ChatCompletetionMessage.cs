@@ -2,7 +2,7 @@
 namespace SentenceStudio.Messages
 {
     using CommunityToolkit.Mvvm.Messaging.Messages;
-    using SentenceStudio.Models;
+    using SentenceStudio.Shared.Models;
 
     public class ChatCompletionMessage : ValueChangedMessage<string>
     {
