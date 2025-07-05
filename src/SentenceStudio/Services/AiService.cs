@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
-using OpenAI;
 using OpenAI.Images;
 
 namespace SentenceStudio.Services;

@@ -1,8 +1,3 @@
-using System.Diagnostics;
-using SentenceStudio.Common;
-using SentenceStudio.Shared.Models;
-using SentenceStudio.Services;
-using SentenceStudio.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Data;

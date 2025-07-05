@@ -1,12 +1,5 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
-using SentenceStudio.Common;
-using SentenceStudio.Shared.Models;
-using SentenceStudio.Data;
-using Scriban;
-using System.Text.Json;
 using Microsoft.Extensions.AI;
-using OpenAI;
 using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services

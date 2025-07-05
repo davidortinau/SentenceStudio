@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SentenceStudio.Data;
 
 namespace SentenceStudio.Services;
 

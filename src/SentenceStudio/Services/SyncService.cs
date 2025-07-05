@@ -1,7 +1,6 @@
 using CoreSync;
 using CoreSync.Http.Client;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace SentenceStudio.Services;
 

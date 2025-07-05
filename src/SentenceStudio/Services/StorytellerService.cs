@@ -1,12 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json;
-using SentenceStudio.Shared.Models;
-using Scriban;
-using SentenceStudio.Common;
-using SentenceStudio.Data;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace SentenceStudio.Services
 {
     public class StorytellerService

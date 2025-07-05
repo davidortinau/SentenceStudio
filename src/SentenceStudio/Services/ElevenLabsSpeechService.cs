@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
