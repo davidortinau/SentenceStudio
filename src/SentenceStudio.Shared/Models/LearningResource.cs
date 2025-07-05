@@ -52,9 +52,13 @@ public partial class LearningResource : ObservableObject
     [JsonIgnore]
     public DateTime UpdatedAt { get; set; }
 
-    // The vocabulary words associated with this resource
+    // The vocabulary words associated with this resource (skip navigation)
     [NotMapped]
     public List<VocabularyWord> Vocabulary { get; set; } = new List<VocabularyWord>();
+
+    // Navigation to join entity for more control
+    [JsonIgnore]
+    public List<ResourceVocabularyMapping> VocabularyMappings { get; set; } = new List<ResourceVocabularyMapping>();
 
     // Helper property to determine if this is a vocabulary list
     [NotMapped]

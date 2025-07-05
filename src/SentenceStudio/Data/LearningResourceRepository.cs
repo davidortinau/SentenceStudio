@@ -76,16 +76,9 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         var resource = await db.LearningResources
+            .Include(r => r.Vocabulary) // This uses the skip navigation to load vocabulary
             .Where(r => r.Id == resourceId)
             .FirstOrDefaultAsync();
-        
-        // Load associated vocabulary - since we removed many-to-many mapping,
-        // we'll need to implement this differently or remove it for now
-        if (resource != null)
-        {
-            // For now, we'll just return the resource without vocabulary
-            // This can be re-implemented when the vocabulary relationship is properly defined
-        }
         
         return resource;
     }
@@ -112,18 +105,8 @@ public class LearningResourceRepository
                 db.LearningResources.Add(resource);
             }
 
-            // Save the vocabulary words first to ensure they have IDs
-            if (resource.Vocabulary != null && resource.Vocabulary.Count > 0)
-            {
-                foreach (var word in resource.Vocabulary)
-                {
-                    if (word.Id == 0)
-                    {
-                        await SaveWordAsync(word);
-                    }
-                }
-            }
-
+            // EF Core will handle the many-to-many relationship automatically
+            // when we add/update vocabulary words to the resource.Vocabulary collection
             int result = await db.SaveChangesAsync();
             
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
@@ -195,5 +178,74 @@ public class LearningResourceRepository
         return await db.LearningResources
             .Where(r => r.Language == language)
             .ToListAsync();
+    }
+
+    // Add vocabulary word to a learning resource
+    public async Task<bool> AddVocabularyToResourceAsync(int resourceId, int vocabularyWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var resource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                
+            var vocabularyWord = await db.VocabularyWords
+                .FirstOrDefaultAsync(v => v.Id == vocabularyWordId);
+                
+            if (resource != null && vocabularyWord != null && !resource.Vocabulary.Contains(vocabularyWord))
+            {
+                resource.Vocabulary.Add(vocabularyWord);
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                
+                return true;
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    // Remove vocabulary word from a learning resource
+    public async Task<bool> RemoveVocabularyFromResourceAsync(int resourceId, int vocabularyWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var resource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                
+            if (resource != null)
+            {
+                var vocabularyToRemove = resource.Vocabulary.FirstOrDefault(v => v.Id == vocabularyWordId);
+                if (vocabularyToRemove != null)
+                {
+                    resource.Vocabulary.Remove(vocabularyToRemove);
+                    await db.SaveChangesAsync();
+                    
+                    _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                    
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
     }
 }

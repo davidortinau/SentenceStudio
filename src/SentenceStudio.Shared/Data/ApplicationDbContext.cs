@@ -43,6 +43,15 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
         modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
+        modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
+
+        // Configure many-to-many relationship between LearningResource and VocabularyWord
+        modelBuilder.Entity<LearningResource>()
+            .HasMany(lr => lr.Vocabulary)
+            .WithMany(vw => vw.LearningResources)
+            .UsingEntity<ResourceVocabularyMapping>(
+                j => j.HasOne(rvm => rvm.VocabularyWord).WithMany(vw => vw.ResourceMappings),
+                j => j.HasOne(rvm => rvm.Resource).WithMany(lr => lr.VocabularyMappings));
 
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
@@ -70,5 +79,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<SceneImage> SceneImages => Set<SceneImage>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationChunk> ConversationChunks => Set<ConversationChunk>();
+    public DbSet<ResourceVocabularyMapping> ResourceVocabularyMappings => Set<ResourceVocabularyMapping>();
 
 }

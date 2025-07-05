@@ -27,6 +27,13 @@ public partial class VocabularyWord : ObservableObject
     [NotMapped]
     public List<VocabularyList>? VocabularyLists { get; set; }
     
+    // Navigation properties for many-to-many with LearningResource
+    [JsonIgnore]
+    public List<LearningResource> LearningResources { get; set; } = new List<LearningResource>();
+    
+    [JsonIgnore]
+    public List<ResourceVocabularyMapping> ResourceMappings { get; set; } = new List<ResourceVocabularyMapping>();
+    
     public static List<VocabularyWord> ParseVocabularyWords(string vocabList, string delimiter = "comma")
     {
         string _delimiter = delimiter == "tab" ? "\t" : ",";

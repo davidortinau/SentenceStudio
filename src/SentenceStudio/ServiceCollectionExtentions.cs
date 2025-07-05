@@ -18,6 +18,7 @@ public static class ServiceCollectionExtentions
                 new SqliteSyncConfigurationBuilder(connectionString)
                     .Table<LearningResource>(syncDirection: SyncDirection.UploadAndDownload)
                     .Table<VocabularyWord>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<ResourceVocabularyMapping>(syncDirection: SyncDirection.UploadAndDownload)
                     .Table<Challenge>(syncDirection: SyncDirection.UploadAndDownload)
                     .Table<Conversation>(syncDirection: SyncDirection.UploadAndDownload)
                     .Table<ConversationChunk>(syncDirection: SyncDirection.UploadAndDownload)
