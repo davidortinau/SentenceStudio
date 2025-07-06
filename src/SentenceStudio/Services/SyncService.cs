@@ -56,13 +56,13 @@ public class SyncService : ISyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize CoreSync: {Message}", ex.Message);
-            throw;
+            // throw;
         }
     }
 
     public async Task TriggerSyncAsync()
     {
-        await InitializeDatabaseAsync();
+        // await InitializeDatabaseAsync();
 
         // Only allow one sync operation at a time
         if (!await _syncSemaphore.WaitAsync(100)) // Quick timeout to prevent blocking
@@ -73,8 +73,9 @@ public class SyncService : ISyncService
 
         try
         {
+            await _localSyncProvider.ApplyProvisionAsync();
             var syncAgent = new SyncAgent(_localSyncProvider, _remoteSyncProvider);
-            await syncAgent.SynchronizeAsync();
+            await syncAgent.SynchronizeAsync(conflictResolutionOnLocalStore: ConflictResolution.ForceWrite);
             _logger.LogInformation("Sync completed successfully");
         }
         catch (Exception ex)

@@ -147,7 +147,13 @@ public static class MauiProgram
 
 		// Register CoreSync data and sync services
 		builder.Services.AddDataServices(dbPath);
-		builder.Services.AddSyncServices(dbPath, new Uri($"https://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5241"));
+		// #if DEBUG
+		// 		// Around line 151 - change the server URI to HTTP
+		// 		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+		// #else
+		// 		builder.Services.AddSyncServices(dbPath, new Uri($"https://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+		// #endif
+		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
 		
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
@@ -155,41 +161,36 @@ public static class MauiProgram
         var app = builder.Build();
 
 		// Initialize database and sync on startup using proper initialization pattern
-		// Task.Run(async () =>
-		// {
-		// 	try
-		// 	{
-		// 		var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-		// 		await syncService.InitializeDatabaseAsync();
-		// 		await syncService.TriggerSyncAsync();
-		// 		System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
-		// 	}
-		// 	catch (Exception ex)
-		// 	{
-		// 		System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization failed: {ex.Message}");
-		// 	}
-		// });
+		Task.Run(async () =>
+		{
+			
+			var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+			await syncService.InitializeDatabaseAsync();
+			await syncService.TriggerSyncAsync();
+			System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
+		
+		});
 
 		// Listen for connectivity changes to trigger sync when online
-		// Connectivity.Current.ConnectivityChanged += (s, e) =>
-		// {
-		// 	if (e.NetworkAccess == NetworkAccess.Internet)
-		// 	{
-		// 		Task.Run(async () =>
-		// 		{
-		// 			try
-		// 			{
-		// 				var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-		// 				await syncService.TriggerSyncAsync();
-		// 				System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
-		// 			}
-		// 			catch (Exception ex)
-		// 			{
-		// 				System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
-		// 			}
-		// 		});
-		// 	}
-		// };
+		Connectivity.Current.ConnectivityChanged += (s, e) =>
+		{
+			if (e.NetworkAccess == NetworkAccess.Internet)
+			{
+				Task.Run(async () =>
+				{
+					try
+					{
+						var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+						await syncService.TriggerSyncAsync();
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
+					}
+				});
+			}
+		};
 
 		return app;
 	}
