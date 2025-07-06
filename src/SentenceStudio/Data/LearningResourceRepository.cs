@@ -54,6 +54,9 @@ public class LearningResourceRepository
             }
             
             int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
             return result;
         }
         catch (Exception ex)
