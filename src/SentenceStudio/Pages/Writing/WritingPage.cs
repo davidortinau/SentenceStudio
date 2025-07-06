@@ -132,10 +132,10 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             var random = new Random();
             
             // First make sure we have the resource with all its vocabulary
-            if (Props.Resource != null && Props.Resource.ID != 0)
+            if (Props.Resource != null && Props.Resource.Id != 0)
             {
                 // Fetch the complete resource with vocabulary
-                var fullResource = await _learningResourceRepository.GetResourceAsync(Props.Resource.ID);
+                var fullResource = await _learningResourceRepository.GetResourceAsync(Props.Resource.Id);
                 
                 // Update our props resource with the fetched vocabulary
                 if (fullResource?.Vocabulary != null && fullResource.Vocabulary.Any())
@@ -212,7 +212,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 
         await _userActivityRepository.SaveAsync(new UserActivity
         {
-            Activity = Models.Activity.Writer.ToString(),
+            Activity = SentenceStudio.Shared.Models.Activity.Writer.ToString(),
             Input = $"{sentence.Answer} {sentence.Problem}",
             Accuracy = sentence.Accuracy,
             Fluency = sentence.Fluency,

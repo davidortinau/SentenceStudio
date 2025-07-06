@@ -1,85 +1,83 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Data;
 
 public class UserActivityRepository
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ISyncService? _syncService;
 
-    public UserActivityRepository()
+    public UserActivityRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
     {
-        
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTableResult result;
-        
-        try
-        {
-            result = await Database.CreateTableAsync<UserActivity>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _syncService = syncService;
     }
 
     public async Task<List<UserActivity>> ListAsync()
     {
-        await Init();
-        return await Database.Table<UserActivity>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserActivities.ToListAsync();
     }
 
-    public async Task<List<UserActivity>> GetAsync(Models.Activity activity)
+    public async Task<List<UserActivity>> GetAsync(SentenceStudio.Shared.Models.Activity activity)
     {
-        await Init();
-        return await Database.Table<UserActivity>().Where(i => i.Activity == activity.ToString()).ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserActivities.Where(i => i.Activity == activity.ToString()).ToListAsync();
     }
 
     public async Task<int> SaveAsync(UserActivity item)
     {
-        await Init();
-        int result = -1;
-        if (item.ID != 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
         {
-            try
+            if (item.Id != 0)
             {
-                result = await Database.UpdateAsync(item);
+                db.UserActivities.Update(item);
             }
-            catch (Exception ex)
+            else
             {
-                Debug.WriteLine($"{ex.Message}");
+                db.UserActivities.Add(item);
             }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            try
-            {
-                result = await Database.InsertAsync(item);
-            }
-            catch (Exception ex)
+            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            if (item.Id == 0)
             {
                 await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
             }
+            return -1;
         }
-
-        return result;
     }
-    
 
     public async Task<int> DeleteAsync(UserActivity item)
     {
-        await Init();
-        return await Database.DeleteAsync(item);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.UserActivities.Remove(item);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            return -1;
+        }
     }
 }

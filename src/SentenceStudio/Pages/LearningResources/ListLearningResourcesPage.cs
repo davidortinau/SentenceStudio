@@ -190,7 +190,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             )
             .Padding(10)
             .ColumnSpacing(20).RowSpacing(5)
-            .OnTapped(() => ViewResource(resource.ID))
+            .OnTapped(() => ViewResource(resource.Id))
         )
         .Stroke(Colors.LightGray)
         .StrokeThickness(1)

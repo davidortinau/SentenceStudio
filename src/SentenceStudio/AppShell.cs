@@ -5,7 +5,6 @@ using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Skills;
-using SentenceStudio.Pages.Vocabulary;
 using SentenceStudio.Pages.YouTube;
 using SentenceStudio.Pages.LearningResources;
 
@@ -85,12 +84,6 @@ public partial class AppShell : Component
                     .Title("Learning Resources")
                     .RenderContent(() => new ListLearningResourcesPage())
                     .Route(nameof(ListLearningResourcesPage))
-            ),
-            FlyoutItem("Vocabulary",
-                ShellContent()
-                    .Title("Vocabulary")
-                    .RenderContent(() => new ListVocabularyPage())
-                    .Route(nameof(ListVocabularyPage))
             ),
             FlyoutItem("Skills",
                 ShellContent()

@@ -69,6 +69,6 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
     {
         return MauiControls.Shell.Current.GoToAsync<EditSkillProfileProps>(
             nameof(EditSkillProfilePage),
-            props => props.ProfileID = profile.ID);
+            props => props.ProfileID = profile.Id);
     }
 }

@@ -1,4 +1,4 @@
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 using MauiReactor.Shapes;
 
 namespace SentenceStudio.Pages.LearningResources;

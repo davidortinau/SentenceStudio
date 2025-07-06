@@ -1,99 +1,101 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services;
 
 public class SceneImageService
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
+    private ISyncService _syncService;
 
-    public SceneImageService()
+    public SceneImageService(IServiceProvider serviceProvider)
     {
-        
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTableResult result;
-        
-        try
-        {
-            result = await Database.CreateTableAsync<SceneImage>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _syncService = serviceProvider.GetService<ISyncService>();
     }
 
     public async Task<List<SceneImage>> ListAsync()
     {
-        await Init();
-        return await Database.Table<SceneImage>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.SceneImages.ToListAsync();
     }
 
     public async Task<SceneImage> GetAsync(string url)
     {
-        await Init();
-        return await Database.Table<SceneImage>().Where(i => i.Url == url).FirstOrDefaultAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.SceneImages.Where(i => i.Url == url).FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveAsync(SceneImage item)
     {
-        await Init();
-        int result = -1;
-        if (item.ID != 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
         {
-            try
+            if (item.Id != 0)
             {
-                result = await Database.UpdateAsync(item);
+                db.SceneImages.Update(item);
             }
-            catch (Exception ex)
+            else
             {
-                Debug.WriteLine($"{ex.Message}");
+                db.SceneImages.Add(item);
             }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            try
-            {
-                result = await Database.InsertAsync(item);
-            }
-            catch (Exception ex)
+            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            if (item.Id == 0)
             {
                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
+            return -1;
         }
-
-        return result;
     }
     
-
     public async Task<int> DeleteAsync(SceneImage item)
     {
-        await Init();
-        return await Database.DeleteAsync(item);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.SceneImages.Remove(item);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            return -1;
+        }
     }
 
     public async Task<SceneImage> GetRandomAsync()
     {
-        await Init();
-        var images = await Database.Table<SceneImage>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var images = await db.SceneImages.ToListAsync();
         if (images.Count > 0)
         {
             var random = new Random();
             var index = random.Next(0, images.Count);
             var image = images[index];
             return image;
-        }else{
+        }
+        else
+        {
             return null;
         }
     }

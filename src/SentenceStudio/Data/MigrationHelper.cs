@@ -1,7 +1,3 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SentenceStudio.Services;
-
 namespace SentenceStudio.Data;
 
 public static class MigrationHelper
@@ -26,9 +22,9 @@ public static class MigrationHelper
             {
                 // Check if a learning resource already exists for this vocabulary list
                 var existingResources = await resourceRepo.GetAllResourcesAsync();
-                if (existingResources.Any(r => r.OldVocabularyListID == list.ID))
+                if (existingResources.Any(r => r.OldVocabularyListID == list.Id))
                 {
-                    Debug.WriteLine($"Vocabulary list {list.Name} (ID: {list.ID}) already migrated. Skipping...");
+                    Debug.WriteLine($"Vocabulary list {list.Name} (ID: {list.Id}) already migrated. Skipping...");
                     continue;
                 }
                 
@@ -38,7 +34,7 @@ public static class MigrationHelper
                     Title = list.Name,
                     Description = $"Migrated vocabulary list from {list.CreatedAt:d}",
                     MediaType = "Vocabulary List",
-                    OldVocabularyListID = list.ID,
+                    OldVocabularyListID = list.Id,
                     CreatedAt = list.CreatedAt,
                     UpdatedAt = DateTime.UtcNow,
                     Language = list.Words?.FirstOrDefault()?.TargetLanguageTerm?.Length > 0 ? 
@@ -46,7 +42,7 @@ public static class MigrationHelper
                 };
                 
                 // Get the vocabulary words from the old list
-                var vocabularyList = await vocabService.GetListAsync(list.ID);
+                var vocabularyList = await vocabService.GetListAsync(list.Id);
                 if (vocabularyList?.Words != null)
                 {
                     resource.Vocabulary = vocabularyList.Words;

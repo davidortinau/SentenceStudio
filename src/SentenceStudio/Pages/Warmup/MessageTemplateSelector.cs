@@ -1,4 +1,4 @@
-using SentenceStudio.Models;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Pages.Warmup;
 

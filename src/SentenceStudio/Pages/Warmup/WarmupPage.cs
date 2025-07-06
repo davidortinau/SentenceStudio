@@ -218,7 +218,7 @@ partial class WarmupPage : Component<WarmupPageState>
         if (!string.IsNullOrWhiteSpace(State.UserInput))
         {
             var chunk = new ConversationChunk(
-                _conversation.ID,
+                _conversation.Id,
                 DateTime.Now, 
                 $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}", 
                 State.UserInput
@@ -296,7 +296,7 @@ partial class WarmupPage : Component<WarmupPageState>
         _conversation = new Conversation();
         await _conversationService.SaveConversation(_conversation);
 
-        var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
 
         SetState(s => s.Chunks.Add(chunk));
 
@@ -311,7 +311,7 @@ partial class WarmupPage : Component<WarmupPageState>
     {
         SetState(s => s.IsBusy = true);
 
-        var chunk = new ConversationChunk(_conversation.ID, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
         SetState(s => s.Chunks.Add(chunk));
 
         Reply response = await _conversationService.ContinueConveration(State.Chunks.ToList());

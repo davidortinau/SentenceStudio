@@ -1,128 +1,95 @@
-using System.Diagnostics;
-using SentenceStudio.Common;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Data;
 
 public class LearningResourceRepository
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
     private VocabularyService _vocabularyService;
+    private ISyncService _syncService;
 
     public LearningResourceRepository(IServiceProvider serviceProvider = null)
     {
+        _serviceProvider = serviceProvider;
         if (serviceProvider != null)
+        {
             _vocabularyService = serviceProvider.GetService<VocabularyService>();
+            _syncService = serviceProvider.GetService<ISyncService>();
+        }
     }
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
     {
-        await Init();
-        return await Database.Table<VocabularyWord>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords
             .Where(w => w.NativeLanguageTerm == nativeTerm)
             .FirstOrDefaultAsync();
     }
 
     public async Task<VocabularyWord> GetWordByTargetTermAsync(string targetTerm)
     {
-        await Init();
-        return await Database.Table<VocabularyWord>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords
             .Where(w => w.TargetLanguageTerm == targetTerm)
             .FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveWordAsync(VocabularyWord word)
     {
-        await Init();
-        int result = -1;
-        if (word.ID != 0)
-        {
-            try
-            {
-                result = await Database.UpdateAsync(word);
-            }
-            catch (Exception ex)
-            {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-            }
-        }
-        else
-        {
-            try
-            {
-                result = await Database.InsertAsync(word);
-            }
-            catch (Exception ex)
-            {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-            }
-        }
-        return result;
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
         try
         {
-            await Database.CreateTablesAsync<LearningResource, ResourceVocabularyMapping>();
+            if (word.Id != 0)
+            {
+                db.VocabularyWords.Update(word);
+            }
+            else
+            {
+                db.VocabularyWords.Add(word);
+            }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
         }
     }
 
     public async Task<List<LearningResource>> GetAllResourcesAsync()
     {
-        await Init();
-        return await Database.Table<LearningResource>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.LearningResources.ToListAsync();
     }
 
     public async Task<LearningResource> GetResourceAsync(int resourceId)
     {
-        await Init();
-        var resource = await Database.Table<LearningResource>().Where(r => r.ID == resourceId).FirstOrDefaultAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
-        // Load associated vocabulary
-        if (resource != null)
-        {
-            // Get all vocabulary mappings for this resource
-            var mappings = await Database.Table<ResourceVocabularyMapping>()
-                .Where(m => m.ResourceID == resourceId)
-                .ToListAsync();
-                
-            // Get the vocabulary words
-            if (mappings.Any() && _vocabularyService != null)
-            {
-                List<VocabularyWord> vocabularyWords = new List<VocabularyWord>();
-                foreach(var mapping in mappings)
-                {
-                    var word = await _vocabularyService.GetWordAsync(mapping.VocabularyWordID);
-                    if (word != null)
-                    {
-                        vocabularyWords.Add(word);
-                    }
-                }
-                resource.Vocabulary = vocabularyWords;
-            }
-        }
+        var resource = await db.LearningResources
+            .Include(r => r.Vocabulary) // This uses the skip navigation to load vocabulary
+            .Where(r => r.Id == resourceId)
+            .FirstOrDefaultAsync();
         
         return resource;
     }
 
     public async Task<int> SaveResourceAsync(LearningResource resource)
     {
-        await Init();
-        int result = -1;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         // Set timestamps
         if (resource.CreatedAt == default)
@@ -130,75 +97,59 @@ public class LearningResourceRepository
             
         resource.UpdatedAt = DateTime.UtcNow;
         
-        // First save the resource to get an ID
-        if (resource.ID != 0)
+        try
         {
-            result = await Database.UpdateAsync(resource);
-        }
-        else
-        {
-            result = await Database.InsertAsync(resource);
-        }
-
-        // Save the vocabulary words first to ensure they have IDs
-        if (resource.Vocabulary != null && resource.Vocabulary.Count > 0 && _vocabularyService != null)
-        {
-            List<VocabularyWord> updatedWords = new List<VocabularyWord>();
-
-            // Save all vocabulary words to ensure they have IDs
-            foreach (var word in resource.Vocabulary)
+            if (resource.Id != 0)
             {
-                if (word.ID == 0)
-                {
-                    await _vocabularyService.SaveWordAsync(word);
-                }
-                updatedWords.Add(word);
+                db.LearningResources.Update(resource);
+            }
+            else
+            {
+                db.LearningResources.Add(resource);
             }
 
-            resource.Vocabulary = updatedWords;
-
-            // Now handle the mappings in a transaction
-            await Database.RunInTransactionAsync(connection =>
-            {
-                // First delete all existing mappings
-                connection.Table<ResourceVocabularyMapping>()
-                    .Delete(m => m.ResourceID == resource.ID);
-
-                // Create new mappings with the saved vocabulary words
-                foreach (var word in resource.Vocabulary)
-                {
-                    // Create a mapping
-                    var mapping = new ResourceVocabularyMapping
-                    {
-                        ResourceID = resource.ID,
-                        VocabularyWordID = word.ID
-                    };
-
-                    connection.Insert(mapping);
-                }
-            });
+            // EF Core will handle the many-to-many relationship automatically
+            // when we add/update vocabulary words to the resource.Vocabulary collection
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-
-        return result;
-    }    
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
+        }
+    }
 
     public async Task<int> DeleteResourceAsync(LearningResource resource)
     {
-        await Init();
-        
-        // First delete all vocabulary mappings
-        await Database.Table<ResourceVocabularyMapping>()
-            .Where(m => m.ResourceID == resource.ID)
-            .DeleteAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            db.LearningResources.Remove(resource);
+            int result = await db.SaveChangesAsync();
             
-        // Then delete the resource
-        return await Database.DeleteAsync(resource);
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return -1;
+        }
     }
     
     public async Task<List<LearningResource>> SearchResourcesAsync(string query)
     {
-        await Init();
-        return await Database.Table<LearningResource>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.LearningResources
             .Where(r => r.Title.Contains(query) || r.Description.Contains(query) || 
                    r.Tags.Contains(query) || r.Language.Contains(query))
             .ToListAsync();
@@ -207,8 +158,10 @@ public class LearningResourceRepository
     // Get resources of a specific type
     public async Task<List<LearningResource>> GetResourcesByTypeAsync(string mediaType)
     {
-        await Init();
-        return await Database.Table<LearningResource>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.LearningResources
             .Where(r => r.MediaType == mediaType)
             .ToListAsync();
     }
@@ -222,9 +175,80 @@ public class LearningResourceRepository
     // Get resources by language
     public async Task<List<LearningResource>> GetResourcesByLanguageAsync(string language)
     {
-        await Init();
-        return await Database.Table<LearningResource>()
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.LearningResources
             .Where(r => r.Language == language)
             .ToListAsync();
+    }
+
+    // Add vocabulary word to a learning resource
+    public async Task<bool> AddVocabularyToResourceAsync(int resourceId, int vocabularyWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var resource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                
+            var vocabularyWord = await db.VocabularyWords
+                .FirstOrDefaultAsync(v => v.Id == vocabularyWordId);
+                
+            if (resource != null && vocabularyWord != null && !resource.Vocabulary.Contains(vocabularyWord))
+            {
+                resource.Vocabulary.Add(vocabularyWord);
+                await db.SaveChangesAsync();
+                
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                
+                return true;
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    // Remove vocabulary word from a learning resource
+    public async Task<bool> RemoveVocabularyFromResourceAsync(int resourceId, int vocabularyWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var resource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                
+            if (resource != null)
+            {
+                var vocabularyToRemove = resource.Vocabulary.FirstOrDefault(v => v.Id == vocabularyWordId);
+                if (vocabularyToRemove != null)
+                {
+                    resource.Vocabulary.Remove(vocabularyToRemove);
+                    await db.SaveChangesAsync();
+                    
+                    _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                    
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
     }
 }

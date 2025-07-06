@@ -1,51 +1,32 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
 using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Data;
 
 public class UserProfileRepository
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
+    private ISyncService _syncService;
 
-    public UserProfileRepository
-()
+    public UserProfileRepository(IServiceProvider serviceProvider)
     {
-        
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTableResult result;
-        
-        try
-        {
-            result = await Database.CreateTableAsync<UserProfile>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _syncService = serviceProvider.GetService<ISyncService>();
     }
 
     public async Task<List<UserProfile>> ListAsync()
     {
-        await Init();
-        return await Database.Table<UserProfile>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserProfiles.ToListAsync();
     }
 
     public async Task<UserProfile> GetAsync()
     {
-        await Init();
-        var profile = await Database.Table<UserProfile>().FirstOrDefaultAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.EnsureCreatedAsync(); // TODO find a more reliable place to call this, if needed. It is one of the first data calls in every app run right now
+        var profile = await db.UserProfiles.FirstOrDefaultAsync();
         
         // Provide defaults for a new or invalid profile
         if (profile == null)
@@ -72,44 +53,82 @@ public class UserProfileRepository
 
     public async Task<int> SaveAsync(UserProfile item)
     {
-        await Init();
-        int result = 0;
-        if (item.ID > 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Set timestamps
+        if (item.CreatedAt == default)
+            item.CreatedAt = DateTime.UtcNow;
+        
+        try
         {
-            try
+            if (item.Id > 0)
             {
-                result = await Database.UpdateAsync(item);
+                db.UserProfiles.Update(item);
             }
-            catch (Exception ex)
+            else
             {
-                Debug.WriteLine($"{ex.Message}");
+                db.UserProfiles.Add(item);
             }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            try
-            {
-                result = await Database.InsertAsync(item);
-            }
-            catch (Exception ex)
+            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            if (item.Id == 0)
             {
                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
+            return -1;
         }
-
-        return result;
     }
     
     public async Task<int> DeleteAsync()
     {
-        await Init();
-        return await Database.DeleteAllAsync<UserProfile>();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var profiles = await db.UserProfiles.ToListAsync();
+            db.UserProfiles.RemoveRange(profiles);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            return -1;
+        }
     }
     
     public async Task<int> DeleteAsync(UserProfile item)
     {
-        await Init();
-        return await Database.DeleteAsync(item);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.UserProfiles.Remove(item);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            return -1;
+        }
     }
 
     public async Task SaveDisplayCultureAsync(string culture)

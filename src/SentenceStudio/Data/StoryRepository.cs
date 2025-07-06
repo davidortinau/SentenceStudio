@@ -1,106 +1,86 @@
-using System.Diagnostics;
-using SentenceStudio.Models;
-using SQLite;
-using SentenceStudio.Common;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Data;
 
 public class StoryRepository
 {
-    private SQLiteAsyncConnection Database;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ISyncService? _syncService;
 
-    public StoryRepository()
+    public StoryRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
     {
-        
-    }
-
-    async Task Init()
-    {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTablesResult result;
-        
-        try
-        {
-            result = await Database.CreateTablesAsync<Story,Question>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-        }
+        _serviceProvider = serviceProvider;
+        _syncService = syncService;
     }
 
     public async Task<List<Story>> ListAsync()
     {
-        await Init();
-        return await Database.Table<Story>().ToListAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.Stories.Include(s => s.Questions).ToListAsync();
     }
 
     public async Task<Story> GetStory(int storyID)
     {
-        await Init();
-        Story s = await Database.Table<Story>().Where(i => i.ID == storyID).FirstOrDefaultAsync();
-        if (s != null)
-        {
-            s.Questions = await Database.Table<Question>().Where(i => i.StoryID == storyID).ToListAsync();
-        }
-        return s;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.Stories
+            .Include(s => s.Questions)
+            .Where(s => s.Id == storyID)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveAsync(Story item)
     {
-        await Init();
-        int result = -1;
-        if (item.ID != 0)
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
         {
-            try
+            if (item.Id != 0)
             {
-                result = await Database.UpdateAsync(item);
+                db.Stories.Update(item);
             }
-            catch (Exception ex)
+            else
             {
-                Debug.WriteLine($"{ex.Message}");
+                db.Stories.Add(item);
             }
+            
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
         }
-        else
+        catch (Exception ex)
         {
-            try
-            {
-                result = await Database.InsertAsync(item);
-
-                if (item.Questions != null)
-                {
-                    foreach (var question in item.Questions)
-                    {
-                        try
-                        {
-                            question.StoryID = item.ID;
-                            await Database.InsertAsync(question);
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"{ex.Message}");
-                            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
+            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            if (item.Id == 0)
             {
                 await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
             }
-        }       
-
-        return result;
-    }    
+            return -1;
+        }
+    }
 
     public async Task<int> DeleteAsync(Story item)
     {
-        await Init();
-        return await Database.DeleteAsync(item);
-    }    
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            db.Stories.Remove(item);
+            int result = await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            return -1;
+        }
+    }
 }

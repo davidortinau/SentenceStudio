@@ -1,22 +1,17 @@
-using System.Diagnostics;
-using System.Text.Json;
-using SentenceStudio.Models;
-using Scriban;
-using SQLite;
-using SentenceStudio.Common;
-using SentenceStudio.Data;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services;
 
 public class ClozureService
 {
+    private readonly IServiceProvider _serviceProvider;
     private AiService _aiService;
     private SkillProfileRepository _skillRepository;
     private LearningResourceRepository _resourceRepository;
-    private SQLiteAsyncConnection Database;
+    private ISyncService _syncService;
     
     private List<VocabularyWord> _words;
 
@@ -28,12 +23,14 @@ public class ClozureService
 
     private readonly string _openAiApiKey;
 
-    public ClozureService(IServiceProvider service, IConfiguration configuration)
+    public ClozureService(IServiceProvider serviceProvider, IConfiguration configuration)
     {
+        _serviceProvider = serviceProvider;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
-        _aiService = service.GetRequiredService<AiService>();
-        _skillRepository = service.GetRequiredService<SkillProfileRepository>();
-        _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
+        _aiService = serviceProvider.GetRequiredService<AiService>();
+        _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
+        _resourceRepository = serviceProvider.GetRequiredService<LearningResourceRepository>();
+        _syncService = serviceProvider.GetService<ISyncService>();
     }
 
     public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
@@ -45,8 +42,6 @@ public class ClozureService
 
         if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
             return null;
-
-        // List<Challenge> challenges = await Database.Table<Challenge>().Where(c => vocab.Words.Contains(c.Vocabulary)).ToListAsync();
 
         _words = resource.Vocabulary.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences).ToList();
 
@@ -87,42 +82,104 @@ public class ClozureService
         }
     }
 
-    async Task Init()
+    public async Task<int> SaveChallenges(Challenge item)
     {
-        if (Database is not null)
-            return;
-
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-
-        CreateTablesResult result;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Set timestamps
+        if (item.CreatedAt == default)
+            item.CreatedAt = DateTime.UtcNow;
+            
+        item.UpdatedAt = DateTime.UtcNow;
         
         try
         {
-            result = await Database.CreateTablesAsync<Challenge, GradeResponse>();
+            if (item.Id != 0)
+            {
+                db.Challenges.Update(item);
+            }
+            else
+            {
+                db.Challenges.Add(item);
+            }
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"{ex.Message}");
-            await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
-        }
-    }
-
-    public async Task<int> SaveChallenges(Challenge item)
-    {
-        await Init();
-        try{
-            await Database.InsertAsync(item);
-        }catch(Exception ex){
             Debug.WriteLine($"An error occurred SaveChallenges: {ex.Message}");
         }
-        return item.ID;
+        return item.Id;
     }
 
     public async Task<int> SaveGrade(GradeResponse item)
     {
-        await Init();
-        await Database.InsertAsync(item);
-        return item.ID;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Set timestamps
+        if (item.CreatedAt == default)
+            item.CreatedAt = DateTime.UtcNow;
+        
+        try
+        {
+            if (item.Id != 0)
+            {
+                db.GradeResponses.Update(item);
+            }
+            else
+            {
+                db.GradeResponses.Add(item);
+            }
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred SaveGrade: {ex.Message}");
+        }
+        
+        return item.Id;
+    }
+
+    public async Task<List<Challenge>> GetChallengesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.Challenges.ToListAsync();
+    }
+
+    public async Task<Challenge> GetChallengeAsync(int id)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.Challenges.Where(c => c.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<GradeResponse>> GetGradeResponsesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.GradeResponses.ToListAsync();
+    }
+
+    public async Task<GradeResponse> GetGradeResponseAsync(int id)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.GradeResponses.Where(gr => gr.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<GradeResponse>> GetGradeResponsesForChallengeAsync(int challengeId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.GradeResponses.Where(gr => gr.ChallengeID == challengeId).ToListAsync();
     }
 
     public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation)
