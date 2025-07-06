@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SentenceStudio.Shared.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialEFCoreMigration : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -242,6 +242,42 @@ namespace SentenceStudio.Shared.Migrations
                 {
                     table.PrimaryKey("PK_VocabularyWord", x => x.Id);
                 });
+
+            migrationBuilder.CreateTable(
+                name: "ResourceVocabularyMapping",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    ResourceId = table.Column<int>(type: "INTEGER", nullable: false),
+                    VocabularyWordId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ResourceVocabularyMapping", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ResourceVocabularyMapping_LearningResource_ResourceId",
+                        column: x => x.ResourceId,
+                        principalTable: "LearningResource",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ResourceVocabularyMapping_VocabularyWord_VocabularyWordId",
+                        column: x => x.VocabularyWordId,
+                        principalTable: "VocabularyWord",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ResourceVocabularyMapping_ResourceId",
+                table: "ResourceVocabularyMapping",
+                column: "ResourceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ResourceVocabularyMapping_VocabularyWordId",
+                table: "ResourceVocabularyMapping",
+                column: "VocabularyWordId");
         }
 
         /// <inheritdoc />
@@ -260,7 +296,7 @@ namespace SentenceStudio.Shared.Migrations
                 name: "GradeResponse");
 
             migrationBuilder.DropTable(
-                name: "LearningResource");
+                name: "ResourceVocabularyMapping");
 
             migrationBuilder.DropTable(
                 name: "SceneImage");
@@ -282,6 +318,9 @@ namespace SentenceStudio.Shared.Migrations
 
             migrationBuilder.DropTable(
                 name: "VocabularyList");
+
+            migrationBuilder.DropTable(
+                name: "LearningResource");
 
             migrationBuilder.DropTable(
                 name: "VocabularyWord");

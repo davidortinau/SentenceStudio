@@ -1,6 +1,8 @@
 using CoreSync;
 using CoreSync.Http.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Data;
 
 namespace SentenceStudio.Services;
 
@@ -39,11 +41,11 @@ public class SyncService : ISyncService
         {
             _logger.LogInformation("Initializing CoreSync provider...");
 
-            // First: Ensure EF Core creates all application tables
+            // First: Ensure EF Core applies all migrations
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await dbContext.Database.EnsureCreatedAsync();
-            _logger.LogInformation("EF Core database and tables created");
+            await dbContext.Database.MigrateAsync();
+            _logger.LogInformation("EF Core database migrated");
 
             // Then: Apply CoreSync provisioning to create sync tracking tables
             await _localSyncProvider.ApplyProvisionAsync();

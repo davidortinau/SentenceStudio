@@ -11,8 +11,8 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250703195316_InitialEFCoreMigration")]
-    partial class InitialEFCoreMigration
+    [Migration("20250705235134_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -172,6 +172,27 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("LearningResource", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.ResourceVocabularyMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ResourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VocabularyWordId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResourceId");
+
+                    b.HasIndex("VocabularyWordId");
+
+                    b.ToTable("ResourceVocabularyMapping", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SceneImage", b =>
@@ -392,6 +413,35 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("VocabularyWord", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.ResourceVocabularyMapping", b =>
+                {
+                    b.HasOne("SentenceStudio.Shared.Models.LearningResource", "Resource")
+                        .WithMany("VocabularyMappings")
+                        .HasForeignKey("ResourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SentenceStudio.Shared.Models.VocabularyWord", "VocabularyWord")
+                        .WithMany("ResourceMappings")
+                        .HasForeignKey("VocabularyWordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Resource");
+
+                    b.Navigation("VocabularyWord");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.LearningResource", b =>
+                {
+                    b.Navigation("VocabularyMappings");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyWord", b =>
+                {
+                    b.Navigation("ResourceMappings");
                 });
 #pragma warning restore 612, 618
         }

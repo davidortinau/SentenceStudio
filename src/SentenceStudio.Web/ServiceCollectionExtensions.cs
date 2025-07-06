@@ -19,16 +19,17 @@ namespace SentenceStudio.Web
                 var connectionString = $"Data Source={databasePath}";
                 var configurationBuilder = new SqliteSyncConfigurationBuilder(connectionString);
                 
-                // Register all the same entities as the client
+                // Register all the same entities as the client - using singular table names to match EF Core
                 configurationBuilder
-                    .Table<SentenceStudio.Shared.Models.LearningResource>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.VocabularyWord>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.Challenge>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.Conversation>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.ConversationChunk>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.UserProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.SkillProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SentenceStudio.Shared.Models.VocabularyList>(syncDirection: SyncDirection.UploadAndDownload);
+                    .Table<SentenceStudio.Shared.Models.LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.VocabularyWord>("VocabularyWord", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload);
 
                 return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote, new ServerSyncLogger(serviceProvider.GetRequiredService<ILogger<ServerSyncLogger>>()));
             });

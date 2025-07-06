@@ -16,15 +16,15 @@ public static class ServiceCollectionExtentions
             var connectionString = $"Data Source={databasePath}";
             var configurationBuilder =
                 new SqliteSyncConfigurationBuilder(connectionString)
-                    .Table<LearningResource>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<VocabularyWord>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<ResourceVocabularyMapping>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<Challenge>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<Conversation>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<ConversationChunk>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<UserProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<SkillProfile>(syncDirection: SyncDirection.UploadAndDownload)
-                    .Table<VocabularyList>(syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyWord>("VocabularyWord", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
                     ;
 
             return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Local, new SyncLogger(serviceProvider.GetRequiredService<ILogger<SyncLogger>>()));
