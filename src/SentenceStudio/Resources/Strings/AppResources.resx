@@ -237,6 +237,30 @@
     <value>Saved</value>
     <comment/>
   </data>
+  <data name="ExportData" xml:space="preserve">
+    <value>Export Data</value>
+    <comment/>
+  </data>
+  <data name="ExportDataDescription" xml:space="preserve">
+    <value>Export all your learning data as CSV files in a ZIP archive. This includes vocabulary, progress, and settings.</value>
+    <comment/>
+  </data>
+  <data name="SaveToDevice" xml:space="preserve">
+    <value>Save to Device</value>
+    <comment/>
+  </data>
+  <data name="Share" xml:space="preserve">
+    <value>Share</value>
+    <comment/>
+  </data>
+  <data name="ExportCompleted" xml:space="preserve">
+    <value>Data exported successfully!</value>
+    <comment/>
+  </data>
+  <data name="ExportError" xml:space="preserve">
+    <value>Export Error</value>
+    <comment/>
+  </data>
   <data name="CreateStarterVocabPrompt" xml:space="preserve">
     <value>Would you like me to create a starter vocabulary list for you?</value>
     <comment/>

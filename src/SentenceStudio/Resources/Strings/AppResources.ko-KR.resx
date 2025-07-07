@@ -237,6 +237,30 @@
     <value>저장되었습니다</value>
     <comment/>
   </data>
+  <data name="ExportData" xml:space="preserve">
+    <value>데이터 내보내기</value>
+    <comment/>
+  </data>
+  <data name="ExportDataDescription" xml:space="preserve">
+    <value>모든 학습 데이터를 ZIP 파일의 CSV 형식으로 내보냅니다. 어휘, 진행 상황, 설정이 포함됩니다.</value>
+    <comment/>
+  </data>
+  <data name="SaveToDevice" xml:space="preserve">
+    <value>기기에 저장</value>
+    <comment/>
+  </data>
+  <data name="Share" xml:space="preserve">
+    <value>공유</value>
+    <comment/>
+  </data>
+  <data name="ExportCompleted" xml:space="preserve">
+    <value>데이터가 성공적으로 내보내졌습니다!</value>
+    <comment/>
+  </data>
+  <data name="ExportError" xml:space="preserve">
+    <value>내보내기 오류</value>
+    <comment/>
+  </data>
   <data name="ParseASentence" xml:space="preserve">
     <value>문장 분석하기</value>
     <comment/>

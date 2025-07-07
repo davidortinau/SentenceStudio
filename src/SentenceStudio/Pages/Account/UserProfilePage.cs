@@ -1,4 +1,5 @@
 using System.Globalization;
+using CommunityToolkit.Maui.Storage;
 
 namespace SentenceStudio.Pages.Account;
 
@@ -14,12 +15,19 @@ class UserProfilePageState
     public int TargetLanguageIndex { get; internal set; }
     public int DisplayLanguageIndex { get; internal set; }
     public int ProfileID { get; internal set; }
+    
+    // Export-related properties
+    public bool IsExporting { get; set; } = false;
+    public string ExportProgressMessage { get; set; } = string.Empty;
+    public string LastExportFilePath { get; set; } = string.Empty;
 }
 
 partial class UserProfilePage : Component<UserProfilePageState>
 {
     [Inject] UserProfileRepository _userProfileRepository;
     [Inject] VocabularyService _vocabularyService;
+    [Inject] DataExportService _dataExportService;
+    [Inject] IFileSaver _fileSaver;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -102,7 +110,53 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     Button($"{_localize["Save"]}")
                         .OnClicked(Save)
                         .HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill)
-                        .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1)
+                        .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1),
+
+                    // Export Data Section
+                    VStack(
+                        Label($"{_localize["ExportData"]}")
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(18)
+                            .Margin(0, 20, 0, 10),
+
+                        Label($"{_localize["ExportDataDescription"]}")
+                            .FontSize(14)
+                            .TextColor(Colors.Gray)
+                            .Margin(0, 0, 0, 15),
+
+                        State.IsExporting ? 
+                        VStack(
+                            ActivityIndicator()
+                                .IsRunning(true)
+                                .HCenter()
+                                .HeightRequest(30)
+                                .WidthRequest(30)
+                                .Margin(0, 0, 0, 10),
+                            Label(State.ExportProgressMessage)
+                                .FontSize(14)
+                                .HCenter()
+                                .TextColor(Colors.Gray)
+                        ) :
+                        HStack(
+                            Button($"{_localize["SaveToDevice"]}")
+                                .OnClicked(ExportDataToFile)
+                                .ImageSource(SegoeFluentIcons.Save.ToImageSource())
+                                .HorizontalOptions(LayoutOptions.FillAndExpand)
+                                .Margin(0, 0, 5, 0),
+
+                            Button($"{_localize["Share"]}")
+                                .OnClicked(ExportAndShare)
+                                .ImageSource(SegoeFluentIcons.Share.ToImageSource())
+                                .HorizontalOptions(LayoutOptions.FillAndExpand)
+                                .Margin(5, 0, 0, 0)
+                        ),
+
+                        !string.IsNullOrEmpty(State.LastExportFilePath) ?
+                        Label($"Last exported: {State.LastExportFilePath}")
+                            .FontSize(12)
+                            .TextColor(Colors.Gray)
+                            .Margin(0, 10, 0, 0) : null
+                    )
                 )
                 .Spacing((double)Application.Current.Resources["size320"])
                 .Padding(24)
@@ -187,4 +241,122 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
     Task GoToOpenAI() => 
         Browser.OpenAsync("https://platform.openai.com/account/api-keys");
+
+    async Task ExportDataToFile()
+    {
+        try
+        {
+            SetState(s => {
+                s.IsExporting = true;
+                s.ExportProgressMessage = "Starting export...";
+            });
+
+            var progress = new Progress<string>(message => 
+            {
+                SetState(s => s.ExportProgressMessage = message);
+            });
+
+            using var zipStream = await _dataExportService.ExportAllDataAsZipAsync(progress);
+            
+            SetState(s => s.ExportProgressMessage = "Saving file...");
+
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string fileName = $"SentenceStudio_Export_{timestamp}.zip";
+
+            var result = await _fileSaver.SaveAsync(fileName, zipStream, CancellationToken.None);
+
+            if (result.IsSuccessful)
+            {
+                SetState(s => {
+                    s.IsExporting = false;
+                    s.LastExportFilePath = result.FilePath;
+                    s.ExportProgressMessage = "Export completed!";
+                });
+
+                await AppShell.DisplayToastAsync(_localize["ExportCompleted"].ToString());
+            }
+            else
+            {
+                SetState(s => {
+                    s.IsExporting = false;
+                    s.ExportProgressMessage = "Export failed";
+                });
+
+                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                    result.Exception?.Message ?? "Failed to save export file", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetState(s => {
+                s.IsExporting = false;
+                s.ExportProgressMessage = "Export failed";
+            });
+
+            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                $"An error occurred during export: {ex.Message}", "OK");
+        }
+    }
+
+    async Task ExportAndShare()
+    {
+        try
+        {
+            SetState(s => {
+                s.IsExporting = true;
+                s.ExportProgressMessage = "Preparing export for sharing...";
+            });
+
+            var progress = new Progress<string>(message => 
+            {
+                SetState(s => s.ExportProgressMessage = message);
+            });
+
+            using var zipStream = await _dataExportService.ExportAllDataAsZipAsync(progress);
+            
+            SetState(s => s.ExportProgressMessage = "Opening share dialog...");
+
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string fileName = $"SentenceStudio_Export_{timestamp}.zip";
+
+            // Save to temporary location first
+            var tempResult = await _fileSaver.SaveAsync(fileName, zipStream, CancellationToken.None);
+
+            if (tempResult.IsSuccessful)
+            {
+                // Use Share API to share the file
+                await Share.RequestAsync(new ShareFileRequest
+                {
+                    Title = "Sentence Studio Data Export",
+                    File = new ShareFile(tempResult.FilePath)
+                });
+
+                SetState(s => {
+                    s.IsExporting = false;
+                    s.LastExportFilePath = tempResult.FilePath;
+                    s.ExportProgressMessage = "Export shared!";
+                });
+            }
+            else
+            {
+                SetState(s => {
+                    s.IsExporting = false;
+                    s.ExportProgressMessage = "Export failed";
+                });
+
+                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                    tempResult.Exception?.Message ?? "Failed to prepare export for sharing", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetState(s => {
+                s.IsExporting = false;
+                s.ExportProgressMessage = "Export failed";
+            });
+
+            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                $"An error occurred during export: {ex.Message}", "OK");
+        }
+    }
 }

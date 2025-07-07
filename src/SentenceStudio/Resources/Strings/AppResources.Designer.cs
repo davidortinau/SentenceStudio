@@ -364,6 +364,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Data exported successfully!.
+        /// </summary>
+        internal static string ExportCompleted {
+            get {
+                return ResourceManager.GetString("ExportCompleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export Data.
+        /// </summary>
+        internal static string ExportData {
+            get {
+                return ResourceManager.GetString("ExportData", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export all your learning data as CSV files in a ZIP archive. This includes vocabulary, progress, and settings..
+        /// </summary>
+        internal static string ExportDataDescription {
+            get {
+                return ResourceManager.GetString("ExportDataDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export Error.
+        /// </summary>
+        internal static string ExportError {
+            get {
+                return ResourceManager.GetString("ExportError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to File Type.
         /// </summary>
         internal static string FileType {
@@ -688,6 +724,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Save to Device.
+        /// </summary>
+        internal static string SaveToDevice {
+            get {
+                return ResourceManager.GetString("SaveToDevice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Select another tile to make a match!.
         /// </summary>
         internal static string SelectAnotherTile {
@@ -720,6 +765,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Shadowing {
             get {
                 return ResourceManager.GetString("Shadowing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Share.
+        /// </summary>
+        internal static string Share {
+            get {
+                return ResourceManager.GetString("Share", resourceCulture);
             }
         }
         

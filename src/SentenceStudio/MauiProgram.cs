@@ -238,6 +238,7 @@ public static class MauiProgram
 		services.AddSingleton<AudioAnalyzer>();
 		services.AddSingleton<YouTubeImportService>();
 		services.AddSingleton<ElevenLabsSpeechService>();
+		services.AddSingleton<DataExportService>();
 
 		// services.AddSingleton<AppShellModel>();
 		services.AddSingleton<StoryRepository>();
