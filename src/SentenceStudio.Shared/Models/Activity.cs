@@ -9,5 +9,7 @@ public enum Activity
     SyntacticAnalysis,
     Translation,
     Shadowing,
-    VocabularyMatching
+    VocabularyMatching,
+    Clozure,
+    HowDoYouSay
 }

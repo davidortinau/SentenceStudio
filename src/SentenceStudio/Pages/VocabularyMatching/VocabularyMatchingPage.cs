@@ -503,7 +503,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             var activity = new UserActivity
             {
-                Activity = "VocabularyMatching",
+                Activity = SentenceStudio.Shared.Models.Activity.VocabularyMatching.ToString(),
                 Input = "match_attempt",
                 Accuracy = isCorrect ? 100 : 0,
                 CreatedAt = DateTime.Now,
@@ -527,7 +527,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             
             var activity = new UserActivity
             {
-                Activity = "VocabularyMatching",
+                Activity = SentenceStudio.Shared.Models.Activity.VocabularyMatching.ToString(),
                 Input = $"game_completed_{State.TotalPairs}_pairs",
                 Accuracy = accuracy,
                 CreatedAt = DateTime.Now,

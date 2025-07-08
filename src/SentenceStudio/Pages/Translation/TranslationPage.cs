@@ -28,6 +28,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
     [Inject] AiService _aiService;
+    [Inject] UserActivityRepository _userActivityRepository;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -318,6 +319,18 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         try 
         {
             var feedback = await _aiService.SendPrompt<GradeResponse>(prompt);
+            
+            // Track user activity
+            await _userActivityRepository.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Translation.ToString(),
+                Input = State.UserInput,
+                Accuracy = feedback.Accuracy,
+                Fluency = feedback.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+            
             SetState(s => {
                 s.HasFeedback = true;
                 s.Feedback = FormatGradeResponse(feedback);

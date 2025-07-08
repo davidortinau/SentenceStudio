@@ -301,9 +301,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		var activity = new UserActivity
 		{
-			Activity = "Clozure",
+			Activity = SentenceStudio.Shared.Models.Activity.Clozure.ToString(),
 			Input = answer,
-			Accuracy = answer == currentChallenge.VocabularyWordAsUsed ? 100 : 0
+			Accuracy = answer == currentChallenge.VocabularyWordAsUsed ? 100 : 0,
+			CreatedAt = DateTime.Now,
+			UpdatedAt = DateTime.Now
 		};
 
 		currentChallenge.UserActivity = activity;
