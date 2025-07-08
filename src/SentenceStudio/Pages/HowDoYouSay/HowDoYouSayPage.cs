@@ -38,6 +38,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] AudioAnalyzer _audioAnalyzer;
 	[Inject] IFileSaver _fileSaver;
 	[Inject] StreamHistoryRepository _streamHistoryRepository;
+	[Inject] UserActivityRepository _userActivityRepository;
 	LocalizationManager _localize => LocalizationManager.Instance;
 	
 	private IAudioPlayer _audioPlayer;
@@ -214,6 +215,16 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			
 			// Update the history item with the file path
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
+
+			// Track user activity
+			await _userActivityRepository.SaveAsync(new UserActivity
+			{
+				Activity = SentenceStudio.Shared.Models.Activity.HowDoYouSay.ToString(),
+				Input = State.Phrase,
+				Accuracy = 100, // Default to 100 for successful speech generation
+				CreatedAt = DateTime.Now,
+				UpdatedAt = DateTime.Now
+			});
 
 			PlayAudio(historyItem);
 			

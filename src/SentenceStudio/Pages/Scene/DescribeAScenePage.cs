@@ -29,6 +29,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     [Inject] TeacherService _teacherService; // still used for grading
     [Inject] TranslationService _translationService; // added for translation
     [Inject] SceneImageService _sceneImageService;
+    [Inject] UserActivityRepository _userActivityRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
     CommunityToolkit.Maui.Views.Popup? _popup;
 
@@ -314,6 +315,18 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RecommendedSentence = grade.GrammarNotes.RecommendedTranslation,
                 GrammarNotes = grade.GrammarNotes.Explanation
             };
+            
+            // Track user activity
+            await _userActivityRepository.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.SceneDescription.ToString(),
+                Input = State.UserInput,
+                Accuracy = grade.Accuracy,
+                Fluency = grade.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+            
             SetState(s =>
             {
                 s.UserInput = string.Empty;

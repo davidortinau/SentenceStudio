@@ -24,6 +24,7 @@ partial class WarmupPage : Component<WarmupPageState>
 {    [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
     [Inject] ElevenLabsSpeechService _speechService;
+    [Inject] UserActivityRepository _userActivityRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
     
@@ -320,6 +321,16 @@ partial class WarmupPage : Component<WarmupPageState>
         var previousChunk = State.Chunks[State.Chunks.Count - 2];
         previousChunk.Comprehension = response.Comprehension;
         previousChunk.ComprehensionNotes = response.ComprehensionNotes;
+
+        // Track user activity
+        await _userActivityRepository.SaveAsync(new UserActivity
+        {
+            Activity = SentenceStudio.Shared.Models.Activity.Warmup.ToString(),
+            Input = previousChunk.Text,
+            Accuracy = response.Comprehension,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
+        });
 
         await _conversationService.SaveConversationChunk(previousChunk);
         await _conversationService.SaveConversationChunk(chunk);

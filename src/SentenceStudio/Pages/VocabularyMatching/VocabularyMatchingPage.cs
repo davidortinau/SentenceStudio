@@ -470,12 +470,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             // Record unsuccessful match activity
             await RecordMatchActivity(false);
         }
-        
-        // If game is complete, record overall game completion
-        if (State.IsGameComplete)
-        {
-            await RecordGameCompletion();
-        }
     }
 
     void RestartGame()
@@ -501,10 +495,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         try
         {
+            // Get the target language word from the selected tiles
+            var targetLanguageWord = State.SelectedTiles.FirstOrDefault(t => t.Language == "target")?.Text ?? "unknown";
+            
             var activity = new UserActivity
             {
-                Activity = "VocabularyMatching",
-                Input = "match_attempt",
+                Activity = SentenceStudio.Shared.Models.Activity.VocabularyMatching.ToString(),
+                Input = targetLanguageWord,
                 Accuracy = isCorrect ? 100 : 0,
                 CreatedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now
@@ -519,27 +516,4 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         }
     }
 
-    async Task RecordGameCompletion()
-    {
-        try
-        {
-            var accuracy = State.TotalPairs > 0 ? (double)State.MatchedPairs / State.TotalPairs * 100 : 0;
-            
-            var activity = new UserActivity
-            {
-                Activity = "VocabularyMatching",
-                Input = $"game_completed_{State.TotalPairs}_pairs",
-                Accuracy = accuracy,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
-            };
-
-            await _userActivityRepository.SaveAsync(activity);
-        }
-        catch (Exception ex)
-        {
-            // Log error but don't break game flow
-            System.Diagnostics.Debug.WriteLine($"Error recording game completion: {ex.Message}");
-        }
-    }
 }
