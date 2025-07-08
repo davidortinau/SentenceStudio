@@ -1,48 +1,46 @@
 name: "Copilot Setup Steps"
+
 on: workflow_dispatch
+
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: Setup .NET
+
+    - name: Setup .NET 9 and 10
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
-          9.x
-          10.x
+          9.0.x
+          10.0.x
         include-prerelease: true
-    - name: Install MAUI workload
-      run: |
-        dotnet workload install maui-android
-    - name: Restore dependencies
-      run: |
-        cd src
-        dotnet restore
-    - name: Build shared libraries
-      run: |
-        cd src
-        dotnet build --no-restore src/SentenceStudio.Shared/SentenceStudio.Shared.csproj
-        dotnet build --no-restore src/SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj
-        dotnet build --no-restore src/SentenceStudio.WebServiceDefaults/SentenceStudio.WebServiceDefaults.csproj
-    - name: Build web applications
-      run: |
-        cd src
-        dotnet build --no-restore src/SentenceStudio.Web/SentenceStudio.Web.csproj
-        dotnet build --no-restore src/SentenceStudio.AppHost/SentenceStudio.AppHost.csproj
-    - name: Build MAUI project (Android)
-      run: |
-        cd src
-        dotnet build --no-restore -f net10.0-android src/SentenceStudio/SentenceStudio.csproj
-    - name: Environment verification
-      run: |
-        echo "✅ Development environment setup complete"
-        echo "🔧 .NET versions installed:"
-        dotnet --list-sdks
-        echo "📦 Workloads installed:"
-        dotnet workload list
-        echo "🎯 Ready for Copilot development!"
+
+    - name: Verify .NET installation
+      run: dotnet --version
+
+    - name: Install MAUI Android workloads
+      run: dotnet workload install maui-android
+
+    - name: List installed workloads
+      run: dotnet workload list
+
+    - name: Restore project dependencies
+      run: dotnet restore src/SentenceStudio.sln
+
+    - name: Build shared library
+      run: dotnet build src/SentenceStudio.Shared/SentenceStudio.Shared.csproj --no-restore
+
+    - name: Build service defaults
+      run: dotnet build src/SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj --no-restore
+
+    - name: Build web service defaults
+      run: dotnet build src/SentenceStudio.WebServiceDefaults/SentenceStudio.WebServiceDefaults.csproj --no-restore
+
+    - name: Build web application
+      run: dotnet build src/SentenceStudio.Web/SentenceStudio.Web.csproj --no-restore
+
+    - name: Build MAUI project (Android verification)
+      run: dotnet build src/SentenceStudio/SentenceStudio.csproj -f net10.0-android --no-restore
