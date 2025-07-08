@@ -3,6 +3,7 @@ on: workflow_dispatch
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -44,3 +45,4 @@ jobs:
         dotnet --list-sdks
         echo "📦 Workloads installed:"
         dotnet workload list
+        echo "🎯 Ready for Copilot development!"
