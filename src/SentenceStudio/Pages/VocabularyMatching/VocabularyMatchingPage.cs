@@ -434,6 +434,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         if (isMatch)
         {
+            // Record successful match activity
+            await RecordMatchActivity(true);
+
             // It's a match!
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
@@ -452,11 +455,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     s.GameMessage = "";
                 }
             });
-            // Record successful match activity
-            await RecordMatchActivity(true);
+            
         }
         else
         {
+            // Record unsuccessful match activity
+            await RecordMatchActivity(false);
+            
             // Not a match
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
@@ -467,8 +472,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IncorrectGuesses++;
                 s.GameMessage = _localize["NotAMatch"].ToString();
             });
-            // Record unsuccessful match activity
-            await RecordMatchActivity(false);
+            
         }
     }
 
