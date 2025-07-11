@@ -239,6 +239,7 @@ public static class MauiProgram
 		services.AddSingleton<YouTubeImportService>();
 		services.AddSingleton<ElevenLabsSpeechService>();
 		services.AddSingleton<DataExportService>();
+		services.AddSingleton<NameGenerationService>();
 
 		// services.AddSingleton<AppShellModel>();
 		services.AddSingleton<StoryRepository>();
