@@ -1,5 +1,6 @@
 using System.Globalization;
 using CommunityToolkit.Maui.Storage;
+using MauiReactor.Parameters;
 
 namespace SentenceStudio.Pages.Account;
 
@@ -28,6 +29,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
     [Inject] VocabularyService _vocabularyService;
     [Inject] DataExportService _dataExportService;
     [Inject] IFileSaver _fileSaver;
+    [Param] IParameter<AppState> _appState;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -168,7 +170,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
     async Task LoadProfile()
     {
-        var profile = await _userProfileRepository.GetAsync();
+        var profile = await _userProfileRepository.GetOrCreateDefaultAsync();
         SetState(s =>
         {
             s.ProfileID = profile.Id;
@@ -226,16 +228,19 @@ partial class UserProfilePage : Component<UserProfilePageState>
         {
             await _userProfileRepository.DeleteAsync();
             
+            // Clear the onboarding preference so user goes through onboarding again
+            Preferences.Default.Remove("is_onboarded");
+            
+            // Update the app state to reflect no profile exists
+            _appState.Set(s => s.CurrentUserProfile = null);
+            
             // Set culture back to English after reset
             _localize.SetCulture(new CultureInfo("en-US"));
             
-            // Now reload the profile (which will create a new default one)
-            await LoadProfile();
-            
-            // Update the UI to reflect the change
-            SetState(s => s.DisplayLanguageIndex = Array.IndexOf(DisplayLanguages, "English"));
-            
             await AppShell.DisplayToastAsync(_localize["ProfileReset"].ToString() ?? "Profile reset");
+            
+            // Navigate back to root which should trigger the AppShell to re-evaluate and show onboarding
+            await MauiControls.Shell.Current.GoToAsync("//");
         }
     }
 

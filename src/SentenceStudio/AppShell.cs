@@ -67,11 +67,36 @@ public partial class AppShell : Component
             // State.CurrentAppTheme = Application.Current.UserAppTheme;
         }
 
+        // Method to refresh the user profile state (called after reset)
+        public async Task RefreshUserProfileAsync()
+        {
+            var currentProfile = await _userProfileRepository.GetAsync();
+            state.Set(s => s.CurrentUserProfile = currentProfile);
+        }
+
     public override VisualNode Render() {
 
-        if (state.Value.CurrentUserProfile == null)
+        // Check if user needs onboarding - either no profile exists or onboarding was never completed
+        var isOnboarded = Preferences.Default.Get("is_onboarded", false);
+        var hasProfile = state.Value.CurrentUserProfile != null;
+        
+        // Debug information
+        System.Diagnostics.Debug.WriteLine($"AppShell Render - isOnboarded: {isOnboarded}, hasProfile: {hasProfile}");
+        if (hasProfile)
+        {
+            System.Diagnostics.Debug.WriteLine($"Profile exists - Name: '{state.Value.CurrentUserProfile.Name}', Id: {state.Value.CurrentUserProfile.Id}");
+        }
+        
+        // Show onboarding if either condition is true:
+        // 1. User hasn't completed onboarding flow yet
+        // 2. No user profile exists in database
+        if (!isOnboarded || !hasProfile)
+        {
+            System.Diagnostics.Debug.WriteLine("Showing OnboardingPage");
             return new OnboardingPage();
+        }
 
+        System.Diagnostics.Debug.WriteLine("Showing Main Shell");
         return Shell(
             FlyoutItem("Dashboard",
                 ShellContent()

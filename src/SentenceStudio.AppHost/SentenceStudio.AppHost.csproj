@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../SentenceStudio.Web/SentenceStudio.Web.csproj" />
-    <ProjectReference Include="../SentenceStudio/SentenceStudio.csproj" />
+    <!-- <ProjectReference Include="../SentenceStudio/SentenceStudio.csproj" /> -->
   </ItemGroup>
 
 </Project>

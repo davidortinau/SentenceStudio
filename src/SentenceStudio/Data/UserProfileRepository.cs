@@ -28,6 +28,19 @@ public class UserProfileRepository
         await db.Database.EnsureCreatedAsync(); // TODO find a more reliable place to call this, if needed. It is one of the first data calls in every app run right now
         var profile = await db.UserProfiles.FirstOrDefaultAsync();
         
+        // Ensure DisplayLanguage is never null or empty for existing profiles
+        if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))
+        {
+            profile.DisplayLanguage = "English";
+        }
+        
+        return profile; // Return null if no profile exists
+    }
+
+    public async Task<UserProfile> GetOrCreateDefaultAsync()
+    {
+        var profile = await GetAsync();
+        
         // Provide defaults for a new or invalid profile
         if (profile == null)
         {
@@ -40,12 +53,6 @@ public class UserProfileRepository
                 DisplayLanguage = "English",
                 OpenAI_APIKey = string.Empty
             };
-        }
-        
-        // Ensure DisplayLanguage is never null or empty
-        if (string.IsNullOrEmpty(profile.DisplayLanguage))
-        {
-            profile.DisplayLanguage = "English";
         }
         
         return profile;

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using MauiReactor.Parameters;
 
 namespace SentenceStudio.Pages.Onboarding;
 
@@ -21,6 +22,7 @@ public partial class OnboardingPage : Component<OnboardingState>
     [Inject] UserProfileRepository _userProfileRepository;
     [Inject] VocabularyService _vocabularyService;
     [Inject] IConfiguration _configuration;
+    [Param] IParameter<AppState> _appState;
 
     LocalizationManager _localize => LocalizationManager.Instance;
     
@@ -214,21 +216,36 @@ public partial class OnboardingPage : Component<OnboardingState>
 
     async Task End()
     {
-        var profile = new UserProfile
+        try
         {
-            Name = State.Name,
-            Email = State.Email,
-            NativeLanguage = State.NativeLanguage,
-            TargetLanguage = State.TargetLanguage,
-            DisplayLanguage = State.DisplayLanguage,
-            OpenAI_APIKey = State.OpenAI_APIKey
-        };
+            var profile = new UserProfile
+            {
+                Name = State.Name,
+                Email = State.Email,
+                NativeLanguage = State.NativeLanguage,
+                TargetLanguage = State.TargetLanguage,
+                DisplayLanguage = State.DisplayLanguage,
+                OpenAI_APIKey = State.OpenAI_APIKey
+            };
 
-        await _userProfileRepository.SaveAsync(profile);
-        await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
-
-        Preferences.Default.Set("is_onboarded", true);
-        // App.Current.Windows[0].Page = new AppShell(_service.GetService<AppShellModel>());
+            await _userProfileRepository.SaveAsync(profile);
+            
+            // Update the app state with the new profile
+            _appState.Set(s => s.CurrentUserProfile = profile);
+            
+            // Set the onboarding preference to true
+            Preferences.Default.Set("is_onboarded", true);
+            
+            await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
+            
+            // The AppShell will automatically re-render and show the main Shell now
+            // No need to navigate manually
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in OnboardingPage.End(): {ex}");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to complete onboarding: {ex.Message}", "OK");
+        }
     }
 
     
