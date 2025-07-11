@@ -13,6 +13,7 @@ public class MatchingTile
     public int VocabularyWordId { get; set; }
     public bool IsSelected { get; set; }
     public bool IsMatched { get; set; }
+    public bool IsVisible { get; set; } = true;
 }
 
 class VocabularyMatchingPageState
@@ -25,6 +26,7 @@ class VocabularyMatchingPageState
     public int IncorrectGuesses { get; set; }
     public bool IsGameComplete { get; set; }
     public string GameMessage { get; set; } = "";
+    public bool HideNativeWordsMode { get; set; } = true; // New setting for the requested feature
 }
 
 partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, ActivityProps>
@@ -39,6 +41,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         return ContentPage(_localize["VocabularyMatchingTitle"].ToString(),
             ToolbarItem(_localize["NewGame"].ToString())
                 .OnClicked(RestartGame),
+            ToolbarItem(State.HideNativeWordsMode ? _localize["ShowAllWords"].ToString() : _localize["HideNativeWords"].ToString())
+                .OnClicked(ToggleHideNativeWordsMode),
             Grid(rows: "Auto, *", columns: "*",
                 // Header with progress
                 RenderHeader(),
@@ -188,6 +192,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         double height = GetTileHeight();
         double width = GetTileWidth();
 
+        // If tile is not visible, render an empty placeholder to maintain grid layout
+        if (!tile.IsVisible)
+        {
+            return ContentView()
+                .GridRow(row)
+                .GridColumn(col);
+        }
+
         return Border(
             // Grid(
                 Label(tile.Text)
@@ -306,7 +318,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.MatchedPairs = 0;
                 s.IsBusy = false;
                 s.IsGameComplete = false;
-                s.GameMessage = _localize["MatchPairs"].ToString();
+                s.GameMessage = s.HideNativeWordsMode ? 
+                    _localize["TapTargetToReveal"].ToString() : 
+                    _localize["MatchPairs"].ToString();
             });
         }
         catch (Exception ex)
@@ -333,7 +347,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     Id = tileId++,
                     Text = word.NativeLanguageTerm.Trim(),
                     Language = "native",
-                    VocabularyWordId = word.Id
+                    VocabularyWordId = word.Id,
+                    IsVisible = !State.HideNativeWordsMode // Hide native words initially if mode is enabled
                 });
             }
         }
@@ -348,7 +363,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     Id = tileId++,
                     Text = word.TargetLanguageTerm.Trim(),
                     Language = "target",
-                    VocabularyWordId = word.Id
+                    VocabularyWordId = word.Id,
+                    IsVisible = true // Target words are always visible initially
                 });
             }
         }
@@ -366,7 +382,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     void OnTileTapped(MatchingTile tile)
     {
-        if (tile.IsMatched || State.IsGameComplete)
+        if (tile.IsMatched || State.IsGameComplete || !tile.IsVisible)
+            return;
+
+        // In hide native words mode, only allow target words to be selected first
+        if (State.HideNativeWordsMode && State.SelectedTiles.Count == 0 && tile.Language == "native")
             return;
 
         if (tile.IsSelected)
@@ -385,6 +405,17 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         // Select the tile
         SelectTile(tile);
+
+        // If in hide native words mode and a target language word was selected, show native words
+        if (State.HideNativeWordsMode && tile.Language == "target" && State.SelectedTiles.Count == 1)
+        {
+            SetState(s => {
+                foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                {
+                    nativeTile.IsVisible = true;
+                }
+            });
+        }
 
         if (State.SelectedTiles.Count == 2)
         {
@@ -417,7 +448,18 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             var tileToUpdate = s.Tiles.First(t => t.Id == tile.Id);
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
-            s.GameMessage = _localize["MatchPairs"].ToString();
+            s.GameMessage = s.HideNativeWordsMode && s.SelectedTiles.Count == 0 ? 
+                _localize["TapTargetToReveal"].ToString() : 
+                _localize["MatchPairs"].ToString();
+            
+            // If in hide native words mode and we're deselecting the last tile, hide native words again
+            if (s.HideNativeWordsMode && s.SelectedTiles.Count == 0)
+            {
+                foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                {
+                    nativeTile.IsVisible = false;
+                }
+            }
         });
     }
 
@@ -448,11 +490,26 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.MatchedPairs++;
                 s.GameMessage = _localize["GreatMatch"].ToString();
+                
+                // Hide native words again if in hide mode
+                if (s.HideNativeWordsMode)
+                {
+                    foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                    {
+                        nativeTile.IsVisible = false;
+                    }
+                }
+                
                 // Check if game is complete
                 if (s.MatchedPairs >= s.TotalPairs)
                 {
                     s.IsGameComplete = true;
                     s.GameMessage = "";
+                    // Show all words for the final congratulations view
+                    foreach (var anyTile in s.Tiles)
+                    {
+                        anyTile.IsVisible = true;
+                    }
                 }
             });
             
@@ -471,6 +528,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.IncorrectGuesses++;
                 s.GameMessage = _localize["NotAMatch"].ToString();
+                
+                // Hide native words again if in hide mode
+                if (s.HideNativeWordsMode)
+                {
+                    foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                    {
+                        nativeTile.IsVisible = false;
+                    }
+                }
             });
             
         }
@@ -488,6 +554,32 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.GameMessage = "";
         });
         LoadVocabulary();
+    }
+
+    void ToggleHideNativeWordsMode()
+    {
+        SetState(s => {
+            s.HideNativeWordsMode = !s.HideNativeWordsMode;
+            
+            // Update visibility of native tiles based on new mode
+            if (s.HideNativeWordsMode)
+            {
+                // Hide native words unless a target word is currently selected
+                bool hasTargetSelected = s.SelectedTiles.Any(t => t.Language == "target");
+                foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                {
+                    nativeTile.IsVisible = hasTargetSelected;
+                }
+            }
+            else
+            {
+                // Show all native words in traditional mode
+                foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native"))
+                {
+                    nativeTile.IsVisible = true;
+                }
+            }
+        });
     }
 
     async Task NavigateBack()
