@@ -601,4 +601,16 @@
     <value>Not a match. Try again!</value>
     <comment>Incorrect match message</comment>
   </data>
+  <data name="HideNativeWords" xml:space="preserve">
+    <value>Hide Native Words</value>
+    <comment>Toggle button text to enable hide native words mode</comment>
+  </data>
+  <data name="ShowAllWords" xml:space="preserve">
+    <value>Show All Words</value>
+    <comment>Toggle button text to disable hide native words mode</comment>
+  </data>
+  <data name="TapTargetToReveal" xml:space="preserve">
+    <value>Tap a target language word to reveal native words, then find its match!</value>
+    <comment>Instructions for hide native words mode</comment>
+  </data>
 </root>

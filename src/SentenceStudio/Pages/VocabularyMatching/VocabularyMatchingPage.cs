@@ -41,7 +41,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         return ContentPage(_localize["VocabularyMatchingTitle"].ToString(),
             ToolbarItem(_localize["NewGame"].ToString())
                 .OnClicked(RestartGame),
-            ToolbarItem(State.HideNativeWordsMode ? "Show All Words" : "Hide Native Words")
+            ToolbarItem(State.HideNativeWordsMode ? _localize["ShowAllWords"].ToString() : _localize["HideNativeWords"].ToString())
                 .OnClicked(ToggleHideNativeWordsMode),
             Grid(rows: "Auto, *", columns: "*",
                 // Header with progress
@@ -319,7 +319,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IsBusy = false;
                 s.IsGameComplete = false;
                 s.GameMessage = s.HideNativeWordsMode ? 
-                    "Tap a target language word to reveal native words, then find its match!" : 
+                    _localize["TapTargetToReveal"].ToString() : 
                     _localize["MatchPairs"].ToString();
             });
         }
@@ -385,6 +385,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (tile.IsMatched || State.IsGameComplete || !tile.IsVisible)
             return;
 
+        // In hide native words mode, only allow target words to be selected first
+        if (State.HideNativeWordsMode && State.SelectedTiles.Count == 0 && tile.Language == "native")
+            return;
+
         if (tile.IsSelected)
         {
             // Deselect the tile
@@ -444,7 +448,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             var tileToUpdate = s.Tiles.First(t => t.Id == tile.Id);
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
-            s.GameMessage = _localize["MatchPairs"].ToString();
+            s.GameMessage = s.HideNativeWordsMode && s.SelectedTiles.Count == 0 ? 
+                _localize["TapTargetToReveal"].ToString() : 
+                _localize["MatchPairs"].ToString();
             
             // If in hide native words mode and we're deselecting the last tile, hide native words again
             if (s.HideNativeWordsMode && s.SelectedTiles.Count == 0)
@@ -499,6 +505,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 {
                     s.IsGameComplete = true;
                     s.GameMessage = "";
+                    // Show all words for the final congratulations view
+                    foreach (var anyTile in s.Tiles)
+                    {
+                        anyTile.IsVisible = true;
+                    }
                 }
             });
             
