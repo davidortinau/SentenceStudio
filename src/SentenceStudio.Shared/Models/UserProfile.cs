@@ -13,6 +13,7 @@ public class UserProfile
     public string? DisplayLanguage { get; set; }
     public string? Email { get; set; }
     public string? OpenAI_APIKey { get; set; }
+    public bool VocabularyProgressiveReveal { get; set; } = false;
     public DateTime CreatedAt { get; set; }
     
     [NotMapped]

@@ -601,4 +601,16 @@
     <value>Not a match. Try again!</value>
     <comment>Incorrect match message</comment>
   </data>
+  <data name="VocabularyProgressiveReveal" xml:space="preserve">
+    <value>Progressive Reveal Mode</value>
+    <comment>Setting name for vocabulary matching progressive reveal</comment>
+  </data>
+  <data name="VocabularyProgressiveRevealDescription" xml:space="preserve">
+    <value>Hide native language words until a target language word is selected</value>
+    <comment>Description for vocabulary matching progressive reveal setting</comment>
+  </data>
+  <data name="VocabularySettings" xml:space="preserve">
+    <value>Vocabulary Settings</value>
+    <comment>Section title for vocabulary-related settings</comment>
+  </data>
 </root>

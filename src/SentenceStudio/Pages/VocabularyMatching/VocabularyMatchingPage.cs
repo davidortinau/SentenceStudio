@@ -25,12 +25,15 @@ class VocabularyMatchingPageState
     public int IncorrectGuesses { get; set; }
     public bool IsGameComplete { get; set; }
     public string GameMessage { get; set; } = "";
+    public bool IsProgressiveRevealMode { get; set; } = false;
+    public bool AreNativeWordsVisible { get; set; } = true;
 }
 
 partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, ActivityProps>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserActivityRepository _userActivityRepository;
+    [Inject] UserProfileRepository _userProfileRepository;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -188,31 +191,39 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         double height = GetTileHeight();
         double width = GetTileWidth();
 
+        // In progressive reveal mode, hide native language tiles if they should not be visible
+        bool shouldHideTile = State.IsProgressiveRevealMode && 
+                              tile.Language == "native" && 
+                              !State.AreNativeWordsVisible && 
+                              !tile.IsMatched;
+
         return Border(
             // Grid(
-                Label(tile.Text)
+                Label(shouldHideTile ? "?" : tile.Text)
                     .FontSize(fontSize)
                     .HCenter()
                     .VCenter()
-                    .TextColor(GetTileTextColor(tile))
+                    .TextColor(GetTileTextColor(tile, shouldHideTile))
             // )
             // .HeightRequest(height)
             // .WidthRequest(width)
         )
-        .BackgroundColor(GetTileBackgroundColor(tile))
+        .BackgroundColor(GetTileBackgroundColor(tile, shouldHideTile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(1)
-        .Stroke(GetTileBorderColor(tile))
+        .Stroke(GetTileBorderColor(tile, shouldHideTile))
         .OnTapped(() => OnTileTapped(tile))
-        .Opacity(tile.IsMatched ? 0.3 : 1.0)
+        .Opacity(tile.IsMatched ? 0.3 : (shouldHideTile ? 0.5 : 1.0))
         .GridRow(row)
         .GridColumn(col);
     }
 
     // Footer removed; actions moved to ToolbarItems, arrr!
 
-    Color GetTileBackgroundColor(MatchingTile tile)
+    Color GetTileBackgroundColor(MatchingTile tile, bool shouldHideTile = false)
     {
+        if (shouldHideTile)
+            return ApplicationTheme.Gray300;
         if (tile.IsMatched)
             return ApplicationTheme.Gray200;
         if (tile.IsSelected)
@@ -222,8 +233,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         return ApplicationTheme.Secondary;
     }
 
-    Color GetTileTextColor(MatchingTile tile)
+    Color GetTileTextColor(MatchingTile tile, bool shouldHideTile = false)
     {
+        if (shouldHideTile)
+            return ApplicationTheme.Gray600;
         if (tile.IsSelected)
             return Colors.White;
 
@@ -243,8 +256,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         return Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
     }
 
-    Color GetTileBorderColor(MatchingTile tile)
+    Color GetTileBorderColor(MatchingTile tile, bool shouldHideTile = false)
     {
+        if (shouldHideTile)
+            return ApplicationTheme.Gray400;
         if (tile.IsSelected)
             return ApplicationTheme.Primary;
         if (tile.IsMatched)
@@ -260,6 +275,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.IsBusy = true;
             s.GameMessage = "";
         });
+
+        // Load user's progressive reveal setting
+        var userProfile = await _userProfileRepository.GetOrCreateDefaultAsync();
+        bool progressiveRevealMode = userProfile.VocabularyProgressiveReveal;
 
         try
         {
@@ -307,6 +326,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IsBusy = false;
                 s.IsGameComplete = false;
                 s.GameMessage = _localize["MatchPairs"].ToString();
+                s.IsProgressiveRevealMode = progressiveRevealMode;
+                s.AreNativeWordsVisible = !progressiveRevealMode; // Hide native words initially if progressive reveal is on
             });
         }
         catch (Exception ex)
@@ -369,6 +390,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (tile.IsMatched || State.IsGameComplete)
             return;
 
+        // In progressive reveal mode, prevent tapping hidden native tiles
+        if (State.IsProgressiveRevealMode && 
+            tile.Language == "native" && 
+            !State.AreNativeWordsVisible &&
+            !tile.IsMatched)
+        {
+            return;
+        }
+
         if (tile.IsSelected)
         {
             // Deselect the tile
@@ -385,6 +415,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         // Select the tile
         SelectTile(tile);
+
+        // In progressive reveal mode, show native words when target word is selected
+        if (State.IsProgressiveRevealMode && 
+            tile.Language == "target" && 
+            !State.AreNativeWordsVisible)
+        {
+            SetState(s => s.AreNativeWordsVisible = true);
+        }
 
         if (State.SelectedTiles.Count == 2)
         {
@@ -418,6 +456,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
             s.GameMessage = _localize["MatchPairs"].ToString();
+            
+            // In progressive reveal mode, hide native words again if no tiles are selected
+            if (s.IsProgressiveRevealMode && s.SelectedTiles.Count == 0)
+            {
+                s.AreNativeWordsVisible = false;
+            }
         });
     }
 
@@ -448,6 +492,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.MatchedPairs++;
                 s.GameMessage = _localize["GreatMatch"].ToString();
+                
+                // In progressive reveal mode, hide native words again after successful match
+                if (s.IsProgressiveRevealMode)
+                {
+                    s.AreNativeWordsVisible = false;
+                }
+                
                 // Check if game is complete
                 if (s.MatchedPairs >= s.TotalPairs)
                 {
@@ -471,6 +522,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.IncorrectGuesses++;
                 s.GameMessage = _localize["NotAMatch"].ToString();
+                
+                // In progressive reveal mode, hide native words again after failed match
+                if (s.IsProgressiveRevealMode)
+                {
+                    s.AreNativeWordsVisible = false;
+                }
             });
             
         }
@@ -486,6 +543,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.IncorrectGuesses = 0;
             s.IsGameComplete = false;
             s.GameMessage = "";
+            // Reset progressive reveal state - this will be set again in LoadVocabulary
+            s.IsProgressiveRevealMode = false;
+            s.AreNativeWordsVisible = true;
         });
         LoadVocabulary();
     }

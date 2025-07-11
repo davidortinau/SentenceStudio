@@ -12,6 +12,7 @@ class UserProfilePageState
     public string TargetLanguage { get; set; } = string.Empty;
     public string DisplayLanguage { get; set; } = string.Empty;
     public string OpenAI_APIKey { get; set; } = string.Empty;
+    public bool VocabularyProgressiveReveal { get; set; } = false;
     public int NativeLanguageIndex { get; internal set; }
     public int TargetLanguageIndex { get; internal set; }
     public int DisplayLanguageIndex { get; internal set; }
@@ -109,6 +110,32 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         // .TextColor(Theme.IsLightTheme ? ApplicationTheme.Secondary : ApplicationTheme.SecondaryDark)
                         .OnTapped(GoToOpenAI),
 
+                    // Vocabulary Settings Section
+                    VStack(
+                        Label($"{_localize["VocabularySettings"]}")
+                            .FontAttributes(FontAttributes.Bold)
+                            .FontSize(16)
+                            .Margin(0, 20, 0, 10),
+
+                        HStack(
+                            VStack(
+                                Label($"{_localize["VocabularyProgressiveReveal"]}")
+                                    .FontSize(14)
+                                    .FontAttributes(FontAttributes.Bold),
+                                Label($"{_localize["VocabularyProgressiveRevealDescription"]}")
+                                    .FontSize(12)
+                                    .TextColor(Colors.Gray)
+                            )
+                            .HorizontalOptions(LayoutOptions.FillAndExpand),
+                            
+                            Switch()
+                                .IsToggled(State.VocabularyProgressiveReveal)
+                                .OnToggled(isToggled => SetState(s => s.VocabularyProgressiveReveal = isToggled))
+                                .VerticalOptions(LayoutOptions.Center)
+                        )
+                        .Spacing(10)
+                    ),
+
                     Button($"{_localize["Save"]}")
                         .OnClicked(Save)
                         .HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill)
@@ -180,6 +207,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
             s.TargetLanguage = profile.TargetLanguage;
             s.DisplayLanguage = profile.DisplayLanguage;
             s.OpenAI_APIKey = profile.OpenAI_APIKey;
+            s.VocabularyProgressiveReveal = profile.VocabularyProgressiveReveal;
 
             s.NativeLanguageIndex = Array.IndexOf(Constants.Languages, profile.NativeLanguage);
             s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
@@ -195,7 +223,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
             NativeLanguage = State.NativeLanguage,
             TargetLanguage = State.TargetLanguage,
             DisplayLanguage = State.DisplayLanguage,
-            OpenAI_APIKey = State.OpenAI_APIKey
+            OpenAI_APIKey = State.OpenAI_APIKey,
+            VocabularyProgressiveReveal = State.VocabularyProgressiveReveal
         };
 
         await _userProfileRepository.SaveAsync(profile);
