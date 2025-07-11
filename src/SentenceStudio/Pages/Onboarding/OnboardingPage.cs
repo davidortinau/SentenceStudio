@@ -42,7 +42,10 @@ public partial class OnboardingPage : Component<OnboardingState>
             (s, lang) => { 
                 s.TargetLanguage = lang;
                 // Generate names when target language changes
-                Task.Run(async () => await LoadSuggestedNames(lang));
+                Task.Run(async () => 
+                {
+                    await LoadSuggestedNames(lang);
+                });
             }),
         RenderNameStep(),
         State.NeedsApiKey ? RenderApiKeyStep() : null,
@@ -55,7 +58,10 @@ public partial class OnboardingPage : Component<OnboardingState>
         SetState(s => s.NeedsApiKey = string.IsNullOrEmpty(settings?.OpenAIKey));
         
         // Load default names for English initially
-        Task.Run(async () => await LoadSuggestedNames("English"));
+        Task.Run(async () => 
+        {
+            await LoadSuggestedNames("English");
+        });
         
         base.OnMounted();
     }
@@ -64,21 +70,21 @@ public partial class OnboardingPage : Component<OnboardingState>
     {
         if (string.IsNullOrEmpty(targetLanguage)) return;
         
-        SetState(s => s.IsLoadingNames = true);
+        MainThread.BeginInvokeOnMainThread(() => SetState(s => s.IsLoadingNames = true));
         
         try
         {
             var names = await _nameGenerationService.GenerateNamesAsync(targetLanguage);
-            SetState(s => 
+            MainThread.BeginInvokeOnMainThread(() => SetState(s => 
             {
                 s.SuggestedNames = names;
                 s.IsLoadingNames = false;
-            });
+            }));
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Failed to load suggested names: {ex.Message}");
-            SetState(s => s.IsLoadingNames = false);
+            MainThread.BeginInvokeOnMainThread(() => SetState(s => s.IsLoadingNames = false));
         }
     }
 
@@ -93,6 +99,19 @@ public partial class OnboardingPage : Component<OnboardingState>
             s.CurrentPosition = newPosition;
             s.LastPositionReached = newPosition == maxScreens;
         });
+    }
+
+    bool CanProceedToNext()
+    {
+        return State.CurrentPosition switch
+        {
+            0 => true, // Welcome step - always can proceed
+            1 => !string.IsNullOrEmpty(State.NativeLanguage), // Native language step
+            2 => !string.IsNullOrEmpty(State.TargetLanguage), // Target language step  
+            3 => !string.IsNullOrEmpty(State.Name), // Name step
+            4 => !State.NeedsApiKey || !string.IsNullOrEmpty(State.OpenAI_APIKey), // API key step
+            _ => true
+        };
     }
 
     public override VisualNode Render()
@@ -116,11 +135,13 @@ public partial class OnboardingPage : Component<OnboardingState>
                         Button("Next")
                             .GridColumn(1)
                             .IsVisible(!State.LastPositionReached)
+                            .IsEnabled(CanProceedToNext())
                             .OnClicked(() => NavigateToPosition(State.CurrentPosition + 1)),
 
                         Button("Continue")
                             .GridColumn(1)
                             .IsVisible(State.LastPositionReached)
+                            .IsEnabled(CanProceedToNext())
                             .OnClicked(End),
 
                         IndicatorView()
@@ -187,7 +208,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                 // Show suggested names if available
                 State.SuggestedNames.Length > 0 && !State.IsLoadingNames ?
                     VStack(
-                        Label($"Suggestions in {State.TargetLanguage}:")
+                        Label($"Suggestions in {(!string.IsNullOrEmpty(State.TargetLanguage) ? State.TargetLanguage : "English")}:")
                             .FontSize(14)
                             .TextColor(ApplicationTheme.Gray600)
                             .HCenter(),
