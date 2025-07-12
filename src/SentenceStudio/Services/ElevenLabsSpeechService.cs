@@ -141,16 +141,22 @@ public class ElevenLabsSpeechService
                 voiceId = VoiceOptions[voiceId];
             }
 
-            // Create the voice settings
+            // Create the voice settings including speed
             var voiceSettings = new VoiceSettings(
-                stability: stability, 
-                similarityBoost: similarityBoost);
+                stability: stability,
+                similarityBoost: similarityBoost)
+            {
+                Speed = speed
+            };
                 
             var voice = await _client.VoicesEndpoint
                 .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
 
-            // Create audio generation options
-            var request = new TextToSpeechRequest(voice, text, model: Model.MultiLingualV2);//eleven_multilingual_v2
+            // Create audio generation options including voice settings
+            var request = new TextToSpeechRequest(voice, text, model: Model.MultiLingualV2)
+            {
+                VoiceSettings = voiceSettings
+            };//eleven_multilingual_v2
 
             // Generate the speech using the proper API call
             var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
