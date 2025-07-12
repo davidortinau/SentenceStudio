@@ -355,3 +355,8 @@ partial class SfBottomSheet
         base.OnRemoveChild(widget, childControl);
     }
 }
+
+[Scaffold(typeof(Syncfusion.Maui.Toolkit.ComboBox.SfComboBox))]
+partial class SfComboBox
+{
+}

@@ -277,14 +277,23 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             List<VocabularyWord> words = new List<VocabularyWord>();
 
-            // Try to get vocabulary from the resource first
-            if (Props.Resource?.Id != -1)
+            // Combine vocabulary from all selected resources
+            if (Props.Resources?.Any() == true)
             {
-                var resource = await _resourceRepo.GetResourceAsync(Props.Resource.Id);
-                words = resource.Vocabulary;
+                foreach (var resourceRef in Props.Resources)
+                {
+                    if (resourceRef?.Id != -1)
+                    {
+                        var resource = await _resourceRepo.GetResourceAsync(resourceRef.Id);
+                        if (resource?.Vocabulary?.Any() == true)
+                        {
+                            words.AddRange(resource.Vocabulary);
+                        }
+                    }
+                }
             }
             
-            // If no words from resource, get some default words for demo
+            // If no words from resources, get some default words for demo
             if (words.Count == 0)
             {
                 SetState(s => {
@@ -294,9 +303,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 return;
             }
 
-            // Shuffle the words so each game gets a new random set
+            // Remove duplicates based on both native and target terms, and shuffle
             words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
                                    !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                         .GroupBy(w => new { w.NativeLanguageTerm?.Trim(), w.TargetLanguageTerm?.Trim() })
+                         .Select(g => g.First())
                          .OrderBy(_ => Guid.NewGuid())
                          .Take(8)
                          .ToList();
