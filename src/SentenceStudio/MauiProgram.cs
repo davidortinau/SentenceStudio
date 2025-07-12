@@ -30,6 +30,7 @@ using CommunityToolkit.Maui.Storage;
 using CoreSync;
 using CoreSync.Http.Client;
 using Microsoft.Extensions.Hosting;
+using Syncfusion.Maui.Core.Hosting;
 
 #if WINDOWS
 using System.Reflection;
@@ -48,14 +49,15 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 			.AddServiceDefaults()
-			#if ANDROID || IOS || MACCATALYST
+#if ANDROID || IOS || MACCATALYST
 			.UseShiny()
-			#endif
+#endif
 			.UseMauiCommunityToolkit()
 			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
 			.ConfigureSyncfusionToolkit()
+			.ConfigureSyncfusionCore()
 			.AddAudio(
 				playbackOptions =>
 				{

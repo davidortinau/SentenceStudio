@@ -306,7 +306,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             // Remove duplicates based on both native and target terms, and shuffle
             words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
                                    !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
-                         .GroupBy(w => new { w.NativeLanguageTerm?.Trim(), w.TargetLanguageTerm?.Trim() })
+                         .GroupBy(w => new { Native = w.NativeLanguageTerm?.Trim(), Target = w.TargetLanguageTerm?.Trim() })
                          .Select(g => g.First())
                          .OrderBy(_ => Guid.NewGuid())
                          .Take(8)

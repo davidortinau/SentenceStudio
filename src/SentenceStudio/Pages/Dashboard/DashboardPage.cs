@@ -52,25 +52,9 @@ partial class DashboardPage : Component<DashboardPageState>
                                     .HStart(),
                                 Border(
                                     CollectionView()
-                                        .ItemsSource(State.Resources)
+                                        .ItemsSource(State.Resources, RenderResourcesTemplate)
                                         .SelectionMode(SelectionMode.Multiple)
-                                        .SelectedItems(State.SelectedResources)
-                                        .ItemTemplate(DataTemplate.Create(() => 
-                                            Border(
-                                                Label().Text(() => ((LearningResource)BindingContext).Title)
-                                                    .Padding(12, 8)
-                                            )
-                                            .BackgroundColor(() => {
-                                                var resource = (LearningResource)BindingContext;
-                                                return State.SelectedResources.Contains(resource) ? 
-                                                    ApplicationTheme.Primary : 
-                                                    ApplicationTheme.LightBackground;
-                                            })
-                                            .StrokeShape(new RoundRectangle().CornerRadius(4))
-                                            .Stroke(ApplicationTheme.Gray300)
-                                            .StrokeThickness(1)
-                                            .Margin(2)
-                                        ))
+                                        .SelectedItems(State.SelectedResources.Cast<object>().ToList())
                                         .HeightRequest(150)
                                         .OnSelectionChanged((sender, e) => 
                                         {
@@ -123,6 +107,25 @@ partial class DashboardPage : Component<DashboardPageState>
             )// grid
                 
         ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
+    }
+
+    private VisualNode RenderResourcesTemplate(LearningResource item)
+    {
+        return Border(
+                                                Label().Text(() => ((LearningResource)item).Title)
+                                                    .Padding(12, 8)
+                                            )
+                                            .BackgroundColor(() =>
+                                            {
+                                                var resource = (LearningResource)item;
+                                                return State.SelectedResources.Contains(resource) ?
+                                                    ApplicationTheme.Primary :
+                                                    ApplicationTheme.LightBackground;
+                                            })
+                                            .StrokeShape(new RoundRectangle().CornerRadius(4))
+                                            .Stroke(ApplicationTheme.Gray300)
+                                            .StrokeThickness(1)
+                                            .Margin(2);
     }
 
     async Task LoadOrRefreshDataAsync()
