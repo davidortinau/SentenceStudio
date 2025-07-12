@@ -35,12 +35,12 @@ public partial class OnboardingPage : Component<OnboardingState>
         RenderLanguageStep(
             "What is your primary language?", 
             s => s.NativeLanguage,
-            (s, lang) => s.NativeLanguage = lang),
+            (lang) => SetState(s => s.NativeLanguage = lang)),
         RenderLanguageStep(
             "What language are you here to practice?", 
             s => s.TargetLanguage,
-            (s, lang) => { 
-                s.TargetLanguage = lang;
+            (lang) => { 
+                SetState(s => s.TargetLanguage = lang);
                 // Generate names when target language changes
                 Task.Run(async () => 
                 {
@@ -120,15 +120,12 @@ public partial class OnboardingPage : Component<OnboardingState>
         return ContentPage($"{_localize["MyProfile"]}",
             
                 Grid(rows: "*, Auto", "",
-                    CarouselView()
-                        .HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
-                        .IsSwipeEnabled(false)
-                        .Loop(false)
-                        .Position(State.CurrentPosition)
-                        .ItemsSource(screens, RenderItemTemplate),
+                    // Render the current screen directly
+                    screens[State.CurrentPosition],
 
-                    Grid(rows: "Auto, Auto", columns: "1*, 3*", 
+                    Grid(rows: "Auto", columns: "1*, 3*",
                         Button("Back")
+                            .IsVisible(State.CurrentPosition > 0)
                             .IsEnabled(State.CurrentPosition > 0)
                             .OnClicked(() => NavigateToPosition(State.CurrentPosition - 1)),
 
@@ -142,29 +139,15 @@ public partial class OnboardingPage : Component<OnboardingState>
                             .GridColumn(1)
                             .IsVisible(State.LastPositionReached)
                             .IsEnabled(CanProceedToNext())
-                            .OnClicked(End),
-
-                        IndicatorView()
-                            .GridRow(1)
-                            .GridColumnSpan(2)
-                            .HCenter()
-                            .IndicatorColor(ApplicationTheme.Gray200)
-                            .SelectedIndicatorColor(ApplicationTheme.Primary)
-                            .IndicatorSize(DeviceInfo.Platform == DevicePlatform.iOS ? 6 : 8)
+                            .OnClicked(End)
                     )
+                        .ColumnSpacing(8)
                         .GridRow(1)
-                        .RowSpacing(20),
-                    Label($"{State.CurrentPosition + 1} of {screens.Length}")
-                        .FontSize(64)
-                        .GridRow(0)
-                        .HCenter()
-                        .VCenter()
+                        .RowSpacing(20)
                 )
                 .Padding(ApplicationTheme.Size160)
             );
     }
-
-    VisualNode RenderItemTemplate(VisualNode node) => node;
 
     VisualNode RenderWelcomeStep() =>
         ContentView(
@@ -214,7 +197,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                             .HCenter(),
                         
                         // First row - masculine names
-                        Grid(columns: "*, *, *, *",
+                        Grid(rows: "auto",columns: "*, *, *, *",
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(0), 0),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(1), 1),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(2), 2),
@@ -223,7 +206,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .ColumnSpacing(8),
                         
                         // Second row - feminine names  
-                        Grid(columns: "*, *, *, *",
+                        Grid(rows:"auto",columns: "*, *, *, *",
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(4), 0),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(5), 1),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(6), 2),
@@ -240,7 +223,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
     VisualNode RenderNameButton(string name, int column)
     {
-        if (string.IsNullOrEmpty(name)) return new ContentView();
+        if (string.IsNullOrEmpty(name)) return ContentView();
         
         return Button(name)
             .GridColumn(column)
@@ -252,7 +235,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             .OnClicked(() => SetState(s => s.Name = name));
     }
 
-    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<OnboardingState, string> setter) =>
+    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<string> setter) =>
         ContentView(
             Grid("Auto, Auto", "",
                 Label(title)
@@ -267,7 +250,10 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .OnSelectedIndexChanged((index) =>
                         {
                             if (index >= 0 && index < Constants.Languages.Length)
-                                SetState(s => setter(s, Constants.Languages[index]));
+                            {
+                                var selectedLanguage = Constants.Languages[index];
+                                setter(selectedLanguage);
+                            }
                         })
                 }
                 .GridRow(1)

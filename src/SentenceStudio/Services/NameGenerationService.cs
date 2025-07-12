@@ -51,9 +51,10 @@ public class NameGenerationService
 
     private async Task<string[]> GenerateNamesWithAiAsync(string targetLanguage)
     {
-        var prompt = $"Generate 8 popular names in {targetLanguage} - 4 masculine and 4 feminine names. " +
-                    $"Return only the names separated by commas, no additional text or formatting. " +
-                    $"For example: Name1, Name2, Name3, Name4, Name5, Name6, Name7, Name8";
+        var prompt = $"Generate 8 popular names from {targetLanguage} culture in the native script/language - 4 masculine and 4 feminine names. " +
+                    $"If the language is Korean, use Hangul characters. If Japanese, use appropriate Japanese characters. " +
+                    $"Return only the names separated by commas, no additional text, formatting, or romanization. " +
+                    $"For example for Korean: 지훈, 민수, 현우, 태양, 지은, 수빈, 예린, 하은";
 
         var response = await _aiService.SendPrompt<string>(prompt);
         
