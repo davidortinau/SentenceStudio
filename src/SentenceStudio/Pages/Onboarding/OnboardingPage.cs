@@ -14,6 +14,8 @@ public class OnboardingState
     public string DisplayLanguage { get; set; } = string.Empty;
     public string OpenAI_APIKey { get; set; } = string.Empty;
     public bool NeedsApiKey { get; set; }
+    public string[] SuggestedNames { get; set; } = Array.Empty<string>();
+    public bool IsLoadingNames { get; set; } = false;
 }
 
 public partial class OnboardingPage : Component<OnboardingState>
@@ -22,6 +24,7 @@ public partial class OnboardingPage : Component<OnboardingState>
     [Inject] UserProfileRepository _userProfileRepository;
     [Inject] VocabularyService _vocabularyService;
     [Inject] IConfiguration _configuration;
+    [Inject] NameGenerationService _nameGenerationService;
     [Param] IParameter<AppState> _appState;
 
     LocalizationManager _localize => LocalizationManager.Instance;
@@ -29,15 +32,22 @@ public partial class OnboardingPage : Component<OnboardingState>
     VisualNode[] GetScreens() => new[]
     {
         RenderWelcomeStep(),
-        RenderNameStep(),
         RenderLanguageStep(
             "What is your primary language?", 
             s => s.NativeLanguage,
-            (s, lang) => s.NativeLanguage = lang),
+            (lang) => SetState(s => s.NativeLanguage = lang)),
         RenderLanguageStep(
             "What language are you here to practice?", 
             s => s.TargetLanguage,
-            (s, lang) => s.TargetLanguage = lang),
+            (lang) => { 
+                SetState(s => s.TargetLanguage = lang);
+                // Generate names when target language changes
+                Task.Run(async () => 
+                {
+                    await LoadSuggestedNames(lang);
+                });
+            }),
+        RenderNameStep(),
         State.NeedsApiKey ? RenderApiKeyStep() : null,
         RenderFinalStep()
     }.Where(screen => screen != null).ToArray();
@@ -46,7 +56,36 @@ public partial class OnboardingPage : Component<OnboardingState>
     {
         var settings = _configuration.GetRequiredSection("Settings").Get<Settings>();
         SetState(s => s.NeedsApiKey = string.IsNullOrEmpty(settings?.OpenAIKey));
+        
+        // Load default names for English initially
+        Task.Run(async () => 
+        {
+            await LoadSuggestedNames("English");
+        });
+        
         base.OnMounted();
+    }
+
+    async Task LoadSuggestedNames(string targetLanguage)
+    {
+        if (string.IsNullOrEmpty(targetLanguage)) return;
+        
+        MainThread.BeginInvokeOnMainThread(() => SetState(s => s.IsLoadingNames = true));
+        
+        try
+        {
+            var names = await _nameGenerationService.GenerateNamesAsync(targetLanguage);
+            MainThread.BeginInvokeOnMainThread(() => SetState(s => 
+            {
+                s.SuggestedNames = names;
+                s.IsLoadingNames = false;
+            }));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load suggested names: {ex.Message}");
+            MainThread.BeginInvokeOnMainThread(() => SetState(s => s.IsLoadingNames = false));
+        }
     }
 
     void NavigateToPosition(int newPosition)
@@ -62,55 +101,53 @@ public partial class OnboardingPage : Component<OnboardingState>
         });
     }
 
+    bool CanProceedToNext()
+    {
+        return State.CurrentPosition switch
+        {
+            0 => true, // Welcome step - always can proceed
+            1 => !string.IsNullOrEmpty(State.NativeLanguage), // Native language step
+            2 => !string.IsNullOrEmpty(State.TargetLanguage), // Target language step  
+            3 => !string.IsNullOrEmpty(State.Name), // Name step
+            4 => !State.NeedsApiKey || !string.IsNullOrEmpty(State.OpenAI_APIKey), // API key step
+            _ => true
+        };
+    }
+
     public override VisualNode Render()
     {
         var screens = GetScreens();
         return ContentPage($"{_localize["MyProfile"]}",
             
                 Grid(rows: "*, Auto", "",
-                    CarouselView()
-                        .HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
-                        .IsSwipeEnabled(false)
-                        .Loop(false)
-                        .Position(State.CurrentPosition)
-                        .ItemsSource(screens, RenderItemTemplate),
+                    // Render the current screen directly
+                    screens[State.CurrentPosition],
 
-                    Grid(rows: "Auto, Auto", columns: "1*, 3*", 
+                    Grid(rows: "Auto", columns: "1*, 3*",
                         Button("Back")
+                            .IsVisible(State.CurrentPosition > 0)
                             .IsEnabled(State.CurrentPosition > 0)
                             .OnClicked(() => NavigateToPosition(State.CurrentPosition - 1)),
 
                         Button("Next")
                             .GridColumn(1)
                             .IsVisible(!State.LastPositionReached)
+                            .IsEnabled(CanProceedToNext())
                             .OnClicked(() => NavigateToPosition(State.CurrentPosition + 1)),
 
                         Button("Continue")
                             .GridColumn(1)
                             .IsVisible(State.LastPositionReached)
-                            .OnClicked(End),
-
-                        IndicatorView()
-                            .GridRow(1)
-                            .GridColumnSpan(2)
-                            .HCenter()
-                            .IndicatorColor(ApplicationTheme.Gray200)
-                            .SelectedIndicatorColor(ApplicationTheme.Primary)
-                            .IndicatorSize(DeviceInfo.Platform == DevicePlatform.iOS ? 6 : 8)
+                            .IsEnabled(CanProceedToNext())
+                            .OnClicked(End)
                     )
+                        .ColumnSpacing(8)
                         .GridRow(1)
-                        .RowSpacing(20),
-                    Label($"{State.CurrentPosition + 1} of {screens.Length}")
-                        .FontSize(64)
-                        .GridRow(0)
-                        .HCenter()
-                        .VCenter()
+                        .RowSpacing(20)
                 )
                 .Padding(ApplicationTheme.Size160)
             );
     }
-
-    VisualNode RenderItemTemplate(VisualNode node) => node;
 
     VisualNode RenderWelcomeStep() =>
         ContentView(
@@ -130,7 +167,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
     VisualNode RenderNameStep() =>
         ContentView(
-            Grid("Auto, Auto","",
+            VStack(
                 Label("What should I call you?")
                     .Style((Style)Application.Current.Resources["Title1"])
                     .HCenter(),
@@ -141,14 +178,64 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .Text(State.Name)
                         .OnTextChanged(text => SetState(s => s.Name = text))
                 }
-                .GridRow(1)
-                .Hint("Enter your name")
+                .Hint("Enter your name or tap a suggestion below"),
+
+                // Show loading indicator when generating names
+                State.IsLoadingNames ? 
+                    Label("Generating name suggestions...")
+                        .HCenter()
+                        .FontSize(14)
+                        .TextColor(ApplicationTheme.Gray400)
+                    : null,
+
+                // Show suggested names if available
+                State.SuggestedNames.Length > 0 && !State.IsLoadingNames ?
+                    VStack(
+                        Label($"Suggestions in {(!string.IsNullOrEmpty(State.TargetLanguage) ? State.TargetLanguage : "English")}:")
+                            .FontSize(14)
+                            .TextColor(ApplicationTheme.Gray600)
+                            .HCenter(),
+                        
+                        // First row - masculine names
+                        Grid(rows: "auto",columns: "*, *, *, *",
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(0), 0),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(1), 1),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(2), 2),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(3), 3)
+                        )
+                        .ColumnSpacing(8),
+                        
+                        // Second row - feminine names  
+                        Grid(rows:"auto",columns: "*, *, *, *",
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(4), 0),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(5), 1),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(6), 2),
+                            RenderNameButton(State.SuggestedNames.ElementAtOrDefault(7), 3)
+                        )
+                        .ColumnSpacing(8)
+                    )
+                    .Spacing(8)
+                    : null
             )
-            .RowSpacing(ApplicationTheme.Size160).ColumnSpacing(ApplicationTheme.Size160)
+            .Spacing(ApplicationTheme.Size160)
             .Margin(ApplicationTheme.Size160)
         );
 
-    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<OnboardingState, string> setter) =>
+    VisualNode RenderNameButton(string name, int column)
+    {
+        if (string.IsNullOrEmpty(name)) return ContentView();
+        
+        return Button(name)
+            .GridColumn(column)
+            .BackgroundColor(ApplicationTheme.Gray100)
+            .TextColor(ApplicationTheme.Gray900)
+            .FontSize(14)
+            .CornerRadius(8)
+            .Padding(8, 6)
+            .OnClicked(() => SetState(s => s.Name = name));
+    }
+
+    VisualNode RenderLanguageStep(string title, Func<OnboardingState, string> getter, Action<string> setter) =>
         ContentView(
             Grid("Auto, Auto", "",
                 Label(title)
@@ -163,7 +250,10 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .OnSelectedIndexChanged((index) =>
                         {
                             if (index >= 0 && index < Constants.Languages.Length)
-                                SetState(s => setter(s, Constants.Languages[index]));
+                            {
+                                var selectedLanguage = Constants.Languages[index];
+                                setter(selectedLanguage);
+                            }
                         })
                 }
                 .GridRow(1)
