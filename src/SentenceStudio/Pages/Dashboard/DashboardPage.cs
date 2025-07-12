@@ -6,6 +6,7 @@ using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Controls;
+using MauiReactor.Shapes;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -45,38 +46,48 @@ partial class DashboardPage : Component<DashboardPageState>
                             .Width(800)
                             .IsVisible(false),
                         Grid(
-                            new SfTextInputLayout
-                                {
-                                    new SfComboBox()
+                            VStack(
+                                Label("Learning Resources")
+                                    .Style((Style)Application.Current.Resources["Caption1"])
+                                    .HStart(),
+                                Border(
+                                    CollectionView()
                                         .ItemsSource(State.Resources)
-                                        .DisplayMemberPath("Title")
-                                        .MultiSelectMode(Syncfusion.Maui.Toolkit.ComboBox.ComboBoxMultiSelectMode.Token)
+                                        .SelectionMode(SelectionMode.Multiple)
                                         .SelectedItems(State.SelectedResources)
-                                        .OnSelectionChanged((object sender, Syncfusion.Maui.Toolkit.ComboBox.ComboBoxSelectionChangedEventArgs e) => 
+                                        .ItemTemplate(DataTemplate.Create(() => 
+                                            Border(
+                                                Label().Text(() => ((LearningResource)BindingContext).Title)
+                                                    .Padding(12, 8)
+                                            )
+                                            .BackgroundColor(() => {
+                                                var resource = (LearningResource)BindingContext;
+                                                return State.SelectedResources.Contains(resource) ? 
+                                                    ApplicationTheme.Primary : 
+                                                    ApplicationTheme.LightBackground;
+                                            })
+                                            .StrokeShape(new RoundRectangle().CornerRadius(4))
+                                            .Stroke(ApplicationTheme.Gray300)
+                                            .StrokeThickness(1)
+                                            .Margin(2)
+                                        ))
+                                        .HeightRequest(150)
+                                        .OnSelectionChanged((sender, e) => 
                                         {
-                                            var selectedItems = e.AddedItems?.Cast<LearningResource>().ToList() ?? new List<LearningResource>();
-                                            var removedItems = e.RemovedItems?.Cast<LearningResource>().ToList() ?? new List<LearningResource>();
+                                            var newSelected = e.CurrentSelection?.Cast<LearningResource>().ToList() ?? new List<LearningResource>();
                                             
                                             SetState(s => {
-                                                // Remove items that were deselected
-                                                foreach (var item in removedItems)
-                                                {
-                                                    s.SelectedResources.Remove(item);
-                                                }
-                                                // Add newly selected items
-                                                foreach (var item in selectedItems)
-                                                {
-                                                    if (!s.SelectedResources.Contains(item))
-                                                    {
-                                                        s.SelectedResources.Add(item);
-                                                    }
-                                                }
+                                                s.SelectedResources = newSelected;
                                             });
                                             
-                                            _parameters.Set(p => p.SelectedResources = State.SelectedResources.ToList());
+                                            _parameters.Set(p => p.SelectedResources = newSelected.ToList());
                                         })
-                                }
-                                .Hint("Learning Resources"),
+                                )
+                                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                                .Stroke(ApplicationTheme.Gray300)
+                                .StrokeThickness(1)
+                                .Padding(8)
+                            ).Spacing(8),
                             new SfTextInputLayout
                                 {
                                     Picker()

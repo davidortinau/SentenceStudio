@@ -360,3 +360,35 @@ partial class SfBottomSheet
 partial class SfComboBox
 {
 }
+
+partial interface ISfComboBox
+{
+    public SelectionMode SelectionMode { get; set; }
+}
+
+partial class SfComboBox<T>
+{
+    SelectionMode ISfComboBox.SelectionMode { get; set; }
+
+    partial void OnBeginUpdate()
+    {
+        Validate.EnsureNotNull(NativeControl);
+
+        var thisAsISfComboBox = (ISfComboBox)this;
+        
+        // Set selection mode to multiple if specified
+        if (thisAsISfComboBox.SelectionMode == SelectionMode.Multiple)
+        {
+            SetPropertyValue(NativeControl, "SelectionMode", Syncfusion.Maui.Toolkit.ComboBox.ComboBoxSelectionMode.Multiple);
+        }
+    }
+}
+
+partial class SfComboBoxExtensions
+{
+    public static T SelectionMode<T>(this T comboBox, SelectionMode selectionMode) where T : ISfComboBox
+    {
+        comboBox.SelectionMode = selectionMode;
+        return comboBox;
+    }
+}
