@@ -22,7 +22,8 @@ class DashboardPageState
     public List<SkillProfile> SkillProfiles { get; set; } = [];
     
     public List<LearningResource> SelectedResources { get; set; } = [];
-    public int SelectedSkillProfileIndex { get; set; }
+    public int SelectedSkillProfileIndex { get; set; } = -1; // Initialize to -1 (no selection)
+    public int SelectedResourceIndex { get; set; } = -1; // Initialize to -1 (no selection)
 }
 
 partial class DashboardPage : Component<DashboardPageState>
@@ -46,41 +47,41 @@ partial class DashboardPage : Component<DashboardPageState>
                             .Width(800)
                             .IsVisible(false),
                         Grid(
-                            VStack(
-                                Label("Learning Resources")
-                                    .Style((Style)Application.Current.Resources["Caption1"])
-                                    .HStart(),
-                                Border(
-                                    CollectionView()
-                                        .ItemsSource(State.Resources, RenderResourcesTemplate)
-                                        .SelectionMode(SelectionMode.Multiple)
-                                        .SelectedItems(State.SelectedResources.Cast<object>().ToList())
-                                        .HeightRequest(150)
-                                        .OnSelectionChanged((sender, e) => 
-                                        {
-                                            var newSelected = e.CurrentSelection?.Cast<LearningResource>().ToList() ?? new List<LearningResource>();
-                                            
-                                            SetState(s => {
-                                                s.SelectedResources = newSelected;
-                                            });
-                                            
-                                            _parameters.Set(p => p.SelectedResources = newSelected.ToList());
-                                        })
-                                )
-                                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                                .Stroke(ApplicationTheme.Gray300)
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            ).Spacing(8),
                             new SfTextInputLayout
                                 {
-                                    Picker()
-                                        .ItemsSource(State.SkillProfiles?.Select(p => p.Title).ToList())
-                                        .SelectedIndex(State.SelectedSkillProfileIndex)
-                                        .OnSelectedIndexChanged(index => 
+                                    new SfComboBox()
+                                        .ItemsSource(State.Resources)
+                                        .DisplayMemberPath("Title")
+                                        .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
+                                        .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
+                                        .OnSelectionChanged((sender, e) => 
                                         {
-                                            State.SelectedSkillProfileIndex = index;
-                                            _parameters.Set(p => p.SelectedSkillProfile = State.SkillProfiles[index]);
+                                            if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
+                                            {
+                                                SetState(s => {
+                                                    s.SelectedResources = selectedResources;
+                                                    s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
+                                                });
+                                                _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
+                                            }
+                                        })
+                                }
+                                .Hint("Learning Resources"),
+                            new SfTextInputLayout
+                                {
+                                    new SfComboBox()
+                                        .ItemsSource(State.SkillProfiles)
+                                        .DisplayMemberPath("Title")
+                                        .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
+                                        .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
+                                        .OnSelectionChanged((sender, e) => 
+                                        {
+                                            if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
+                                            {
+                                                var index = State.SkillProfiles.IndexOf(selectedProfile);
+                                                SetState(s => s.SelectedSkillProfileIndex = index);
+                                                _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
+                                            }
                                         })
                                 }
                                 .Hint("Skills")
@@ -109,25 +110,6 @@ partial class DashboardPage : Component<DashboardPageState>
         ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
     }
 
-    private VisualNode RenderResourcesTemplate(LearningResource item)
-    {
-        return Border(
-                                                Label().Text(() => ((LearningResource)item).Title)
-                                                    .Padding(12, 8)
-                                            )
-                                            .BackgroundColor(() =>
-                                            {
-                                                var resource = (LearningResource)item;
-                                                return State.SelectedResources.Contains(resource) ?
-                                                    ApplicationTheme.Primary :
-                                                    ApplicationTheme.LightBackground;
-                                            })
-                                            .StrokeShape(new RoundRectangle().CornerRadius(4))
-                                            .Stroke(ApplicationTheme.Gray300)
-                                            .StrokeThickness(1)
-                                            .Margin(2);
-    }
-
     async Task LoadOrRefreshDataAsync()
     {
         var resources = await _resourceRepository.GetAllResourcesAsync();
@@ -143,6 +125,8 @@ partial class DashboardPage : Component<DashboardPageState>
             s.Resources = resources;
             s.SkillProfiles = skills;
             s.SelectedResources = resources.Take(1).ToList(); // Default to first resource
+            s.SelectedSkillProfileIndex = skills.Any() ? 0 : -1; // Set to first item if available, otherwise -1
+            s.SelectedResourceIndex = resources.Any() ? 0 : -1; // Set to first item if available, otherwise -1
         });
     }
 }

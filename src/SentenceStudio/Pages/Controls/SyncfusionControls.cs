@@ -356,42 +356,104 @@ partial class SfBottomSheet
     }
 }
 
-// [Scaffold(typeof(Syncfusion.Maui.Inputs.SfComboBox))]
-// partial class SfComboBox
-// {
-// }
+// Manual SfComboBox wrapper - avoiding scaffold inheritance issues
+public partial class SfComboBox : MauiReactor.VisualNode<Syncfusion.Maui.Inputs.SfComboBox>
+{
+    private System.EventHandler<Syncfusion.Maui.Inputs.SelectionChangedEventArgs> _selectionChangedHandler;
 
-// [Scaffold(typeof(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase))]
-// partial class DropDownListBase<T>{}
+    public SfComboBox()
+    {
+    }
 
-// partial interface ISfComboBox
-// {
-//     public SelectionMode SelectionMode { get; set; }
-// }
-
-// partial class SfComboBox<T>
-// {
-//     SelectionMode ISfComboBox.SelectionMode { get; set; }
-
-//     partial void OnBeginUpdate()
-//     {
-//         Validate.EnsureNotNull(NativeControl);
-
-//         var thisAsISfComboBox = (ISfComboBox)this;
+    protected override void OnMount()
+    {
+        _nativeControl ??= new Syncfusion.Maui.Inputs.SfComboBox();
+        base.OnMount();
         
-//         // Set selection mode to multiple if specified
-//         if (thisAsISfComboBox.SelectionMode == SelectionMode.Multiple)
-//         {
-//             SetPropertyValue(NativeControl, "SelectionMode", Syncfusion.Maui.Toolkit.ComboBox.ComboBoxSelectionMode.Multiple);
-//         }
-//     }
-// }
+        if (_selectionChangedHandler != null && NativeControl != null)
+        {
+            ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged += _selectionChangedHandler;
+        }
+    }
 
-// partial class SfComboBoxExtensions
-// {
-//     public static T SelectionMode<T>(this T comboBox, SelectionMode selectionMode) where T : ISfComboBox
-//     {
-//         comboBox.SelectionMode = selectionMode;
-//         return comboBox;
-//     }
-// }
+    protected override void OnUnmount()
+    {
+        if (_selectionChangedHandler != null && NativeControl != null)
+        {
+            ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged -= _selectionChangedHandler;
+        }
+        
+        base.OnUnmount();
+    }
+
+    internal void SetSelectionChangedHandler(System.EventHandler<Syncfusion.Maui.Inputs.SelectionChangedEventArgs> handler)
+    {
+        if (_selectionChangedHandler != null && NativeControl != null)
+        {
+            ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged -= _selectionChangedHandler;
+        }
+
+        _selectionChangedHandler = handler;
+
+        if (_selectionChangedHandler != null && NativeControl != null)
+        {
+            ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged += _selectionChangedHandler;
+        }
+    }
+}
+
+// Extension methods for common SfComboBox properties
+public static partial class SfComboBoxExtensions
+{
+    public static SfComboBox ItemsSource(this SfComboBox comboBox, System.Collections.IEnumerable itemsSource)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.ItemsSourceProperty, itemsSource);
+        return comboBox;
+    }
+
+    public static SfComboBox DisplayMemberPath(this SfComboBox comboBox, string displayMemberPath)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.DisplayMemberPathProperty, displayMemberPath);
+        return comboBox;
+    }
+
+    public static SfComboBox SelectedItem(this SfComboBox comboBox, object selectedItem)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.SelectedItemProperty, selectedItem);
+        return comboBox;
+    }
+
+    public static SfComboBox SelectedIndex(this SfComboBox comboBox, int selectedIndex)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.SelectedIndexProperty, selectedIndex);
+        return comboBox;
+    }
+
+    public static SfComboBox SelectionMode(this SfComboBox comboBox, Syncfusion.Maui.Inputs.ComboBoxSelectionMode selectionMode)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.SelectionModeProperty, selectionMode);
+        return comboBox;
+    }
+
+    public static SfComboBox IsEditable(this SfComboBox comboBox, bool isEditable)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.IsEditableProperty, isEditable);
+        return comboBox;
+    }
+
+    public static SfComboBox Text(this SfComboBox comboBox, string text)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.TextProperty, text);
+        return comboBox;
+    }
+
+    public static SfComboBox OnSelectionChanged(this SfComboBox comboBox, EventHandler<Syncfusion.Maui.Inputs.SelectionChangedEventArgs> handler)
+    {
+        comboBox.SetSelectionChangedHandler(handler);
+        return comboBox;
+    }
+}
+
+
+
+
