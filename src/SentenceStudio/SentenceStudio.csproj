@@ -162,6 +162,7 @@
 				
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" Version="30.1.39" />
 			
 	</ItemGroup>
 

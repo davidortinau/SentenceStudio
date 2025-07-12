@@ -427,6 +427,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Hide Native Words.
+        /// </summary>
+        internal static string HideNativeWords {
+            get {
+                return ResourceManager.GetString("HideNativeWords", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to How Do You Say.
         /// </summary>
         internal static string HowDoYouSay {
@@ -778,6 +787,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Show All Words.
+        /// </summary>
+        internal static string ShowAllWords {
+            get {
+                return ResourceManager.GetString("ShowAllWords", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Skill Profiles.
         /// </summary>
         internal static string SkillProfiles {
@@ -810,6 +828,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Tags {
             get {
                 return ResourceManager.GetString("Tags", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tap a target language word to reveal native words, then find its match!.
+        /// </summary>
+        internal static string TapTargetToReveal {
+            get {
+                return ResourceManager.GetString("TapTargetToReveal", resourceCulture);
             }
         }
         
