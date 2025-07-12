@@ -1,10 +1,48 @@
 # Sentence Studio
 
-Sentence Studio is a comprehensive language learning application that empowers learners to master their target language through interactive, AI-powered exercises. As language educators know, consistent practice with meaningful feedback is essential for developing fluency, accuracy, and confidence. This application provides personalized sentence building exercises, conversation practice, and vocabulary development tools that adapt to each learner's progress and proficiency level.
+Sentence Studio is a language learning application that empowers learners to practice their target language through interactive, AI-powered exercises. The key advantage of this tool over other language learning platforms is that you can bring your own vocabulary and curriculum. This allows you to focus on exercises targeted at what you are studying and learning elsewhere, rather than being overwhelmed with different skills and contexts.
+
+Whether you're following a textbook, taking a class, or working with a tutor, Sentence Studio lets you import your specific vocabulary lists and practice the exact grammar patterns you need to master. This targeted approach ensures your practice time directly supports your primary learning goals.
 
 ## Overview
 
 Sentence Studio leverages artificial intelligence to create engaging language learning experiences across multiple platforms. Whether you're a beginner building foundational skills or an advanced learner refining your command of the language, the application provides structured practice opportunities that mirror effective classroom instruction methods.
+
+### Bring Your Own Curriculum
+
+The power of Sentence Studio lies in its ability to work with your existing learning materials. You can import:
+
+- **Custom Vocabulary Lists**: CSV files with your specific vocabulary from textbooks, classes, or personal study
+- **Grammar Focus Areas**: Text files outlining the specific grammar patterns you're working on
+- **Themed Content**: Vocabulary and exercises organized around topics relevant to your studies
+
+#### Example Usage
+
+For a lesson focused on daily routines using present simple tense, you might create:
+
+**Vocabulary File ([docs/examples/Lesson1-vocab.csv](docs/examples/Lesson1-vocab.csv)):**
+```csv
+English,Translation,Category,Example Sentence
+wake up,despertarse,Daily Routine,I wake up at 7 AM every day.
+breakfast,desayuno,Daily Routine,I eat breakfast with my family.
+work,trabajar,Daily Activities,She works in an office downtown.
+study,estudiar,Daily Activities,He studies English every evening.
+```
+
+**Skills File ([docs/examples/Lesson1-skills.txt](docs/examples/Lesson1-skills.txt)):**
+```
+Grammar Focus: Present Simple Tense
+- Forming positive statements with regular verbs
+- Using "be" verb forms (am, is, are)
+- Basic sentence structure: Subject + Verb + Object
+
+Communication Goals:
+- Introducing yourself and others
+- Describing daily habits and routines
+- Expressing preferences and dislikes
+```
+
+This targeted approach ensures your practice sessions directly reinforce what you're learning in your primary course or textbook.
 
 ### Core Learning Features
 
@@ -20,20 +58,20 @@ Sentence Studio leverages artificial intelligence to create engaging language le
 
 ### Technical Architecture
 
-- **Cross-Platform Support**: Native applications for iOS, Android, macOS, and Windows using .NET MAUI
-- **Modern UI Framework**: Built with MauiReactor using Model-View-Update (MVU) architecture patterns
-- **AI Integration**: OpenAI API for intelligent content generation, assessment, and personalized feedback
-- **Text-to-Speech**: ElevenLabs integration for high-quality pronunciation modeling
-- **Data Persistence**: SQLite database with CoreSync for cross-device synchronization
+- **Cross-Platform Support**: Native applications for iOS, Android, macOS, and Windows using [.NET MAUI](https://docs.microsoft.com/en-us/dotnet/maui/)
+- **Modern UI Framework**: Built with [MauiReactor](https://github.com/adospace/reactorui-maui) using Model-View-Update (MVU) architecture patterns
+- **AI Integration**: [OpenAI API](https://platform.openai.com/) for intelligent content generation, assessment, and personalized feedback
+- **Text-to-Speech**: [ElevenLabs](https://elevenlabs.io/) integration for high-quality pronunciation modeling
+- **Data Persistence**: [SQLite](https://www.sqlite.org/) database with CoreSync for cross-device synchronization
 - **Offline Capability**: Local data storage enabling practice sessions without internet connectivity
-- **Template Engine**: Scriban for dynamic prompt generation and content customization
+- **Template Engine**: [Scriban](https://github.com/scriban/scriban) for dynamic prompt generation and content customization
 
 ## System Requirements
 
 ### Development Environment
 
 - **.NET 9.0 SDK or later** (targeting .NET 10.0 frameworks)
-- **Visual Studio 2022** (version 17.8 or later) or **Visual Studio Code** with C# extensions
+- **Visual Studio 2022** (version 17.8 or later), **Visual Studio Code** with C# extensions, or **JetBrains Rider**
 - **MAUI Workloads**: Install using `dotnet workload install maui`
 
 ### Platform-Specific Requirements
@@ -145,12 +183,12 @@ dotnet build SentenceStudio/SentenceStudio.csproj -f net10.0-windows10.0.19041.0
 
 #### Desktop (macOS Catalyst)
 ```bash
-dotnet run --project SentenceStudio/SentenceStudio.csproj -f net10.0-maccatalyst
+dotnet build -t:Run -f net10.0-maccatalyst SentenceStudio/SentenceStudio.csproj
 ```
 
 #### Desktop (Windows)
 ```bash
-dotnet run --project SentenceStudio/SentenceStudio.csproj -f net10.0-windows10.0.19041.0
+dotnet build -t:Run -f net10.0-windows10.0.19041.0 SentenceStudio/SentenceStudio.csproj
 ```
 
 #### Mobile Deployment
@@ -194,7 +232,7 @@ The application uses SQLite for local data storage, providing offline functional
 
 ### CoreSync Integration
 
-The application includes CoreSync functionality for data synchronization across devices. This feature enables:
+The application includes [CoreSync](https://github.com/adospace/mauireactor-core-sync) functionality for data synchronization across devices. This feature enables:
 - Cross-device progress synchronization
 - Backup and restore capabilities
 - Collaborative learning features (when implemented)
@@ -264,7 +302,7 @@ For more detailed development specifications, see the documentation in the `docs
 
 ## License
 
-Please refer to the repository license for usage and distribution terms.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
