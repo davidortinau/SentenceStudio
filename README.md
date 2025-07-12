@@ -44,6 +44,20 @@ Communication Goals:
 
 This targeted approach ensures your practice sessions directly reinforce what you're learning in your primary course or textbook.
 
+## App Screenshots
+
+<img alt="Main Activities Dashboard" src="https://github.com/user-attachments/assets/0a0ed8ca-b6f5-4083-82d8-d31cb635236a" width="600">
+
+*Main dashboard showing various learning activities with customizable learning resources and skills*
+
+<img alt="Vocabulary Matching Exercise" src="https://github.com/user-attachments/assets/632c6972-90be-4fb0-91ab-29a4a9e8e94e" width="600">
+
+*Interactive vocabulary matching game with Korean-English pairs*
+
+<img alt="Shadowing Practice with Audio" src="https://github.com/user-attachments/assets/363f41a4-16ef-46d5-b9cc-9d6cdbf42cc4" width="600">
+
+*Shadowing exercise with audio waveform visualization and pronunciation guidance*
+
 ### Core Learning Features
 
 - **AI-Powered Conversation Practice**: Engage in natural conversations with AI tutoring that provides immediate feedback and guidance
