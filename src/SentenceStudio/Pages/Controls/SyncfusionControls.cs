@@ -452,6 +452,31 @@ public static partial class SfComboBoxExtensions
         comboBox.SetSelectionChangedHandler(handler);
         return comboBox;
     }
+
+    public static SfComboBox DropDownBackground(this SfComboBox comboBox, Brush brush)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.BackgroundProperty, brush);
+        return comboBox;
+    }
+
+    public static SfComboBox BackgroundColor(this SfComboBox comboBox, Color color)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.BackgroundColorProperty, color);
+        return comboBox;
+    }
+
+    public static SfComboBox PlaceholderText(this SfComboBox comboBox, string text)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.PlaceholderProperty, text);
+        return comboBox;
+    }
+
+    public static SfComboBox PlaceholderColor(this SfComboBox comboBox, Color color)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.PlaceholderColorProperty, color);
+        return comboBox;
+    }
+
 }
 
 

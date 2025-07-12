@@ -153,10 +153,7 @@ public class ElevenLabsSpeechService
                 .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
 
             // Create audio generation options including voice settings
-            var request = new TextToSpeechRequest(voice, text, model: Model.MultiLingualV2)
-            {
-                VoiceSettings = voiceSettings
-            };//eleven_multilingual_v2
+            var request = new TextToSpeechRequest(voice, text, voiceSettings: voiceSettings, model: Model.MultiLingualV2);//eleven_multilingual_v2
 
             // Generate the speech using the proper API call
             var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
