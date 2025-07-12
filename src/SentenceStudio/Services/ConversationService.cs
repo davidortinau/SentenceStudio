@@ -94,7 +94,7 @@ namespace SentenceStudio.Services
             }
         }   
 
-        public async Task<Reply> ContinueConveration(List<ConversationChunk> chunks)
+        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks)
         {       
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
