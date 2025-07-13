@@ -55,7 +55,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Title)
                                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                                 )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
+                                .ThemeKey(ApplicationTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -70,7 +70,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                                         .HeightRequest(100)
                                 )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
+                                .ThemeKey(ApplicationTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -145,7 +145,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                                 .OnCheckedChanged(e =>
                                                     { if (e.Value) SetState(s => s.Delimiter = "tab"); })
                                         )
-                                        .Spacing((Double)Application.Current.Resources["size320"])
+                                        .Spacing(ApplicationTheme.Size320)
                                     )
                                     .Spacing(5)
                                 ) : 
@@ -163,7 +163,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                                             .Keyboard(Keyboard.Url)
                                     )
-                                    .Style((Style)Application.Current.Resources["InputWrapper"])
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -180,7 +180,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                                             .HeightRequest(150)
                                     )
-                                    .Style((Style)Application.Current.Resources["InputWrapper"])
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -197,7 +197,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                                             .HeightRequest(150)
                                     )
-                                    .Style((Style)Application.Current.Resources["InputWrapper"])
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -212,7 +212,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Tags)
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
-                                .Style((Style)Application.Current.Resources["InputWrapper"])
+                                .ThemeKey(ApplicationTheme.InputWrapper)
                             )
                             .Spacing(5),
                             

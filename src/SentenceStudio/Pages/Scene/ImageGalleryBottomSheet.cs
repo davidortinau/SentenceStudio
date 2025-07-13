@@ -20,10 +20,10 @@ partial class ImageGalleryBottomSheet : Component
     VisualNode RenderHeader() =>
         Grid(
             Label("Choose an image")
-                .Style((Style)Application.Current.Resources["Title1"])
+                .ThemeKey(ApplicationTheme.Title1)
                 .HStart(),
 
-            HStack(spacing: (Double)Application.Current.Resources["size60"],
+            HStack(spacing: ApplicationTheme.Size60,
                 Button()
                     .ImageSource(SegoeFluentIcons.ImageExport.ToFontImageSource())
                     .Background(Colors.Transparent)

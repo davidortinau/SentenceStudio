@@ -277,7 +277,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Title)
                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -292,7 +292,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                         .HeightRequest(100)
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -343,7 +343,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                         .Keyboard(Keyboard.Url)
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -358,7 +358,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                         .HeightRequest(150)
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -373,7 +373,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                         .HeightRequest(150)
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -387,7 +387,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Tags)
                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                 )
-                .Style((Style)Application.Current.Resources["InputWrapper"])
+                .ThemeKey(ApplicationTheme.InputWrapper)
             )
             .Spacing(5),
             

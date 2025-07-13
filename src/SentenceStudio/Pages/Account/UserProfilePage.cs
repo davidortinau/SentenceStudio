@@ -160,7 +160,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Margin(0, 10, 0, 0) : null
                     )
                 )
-                .Spacing((double)Application.Current.Resources["size320"])
+                .Spacing(ApplicationTheme.Size320)
                 .Padding(24)
             )
         ).OnAppearing(LoadProfile);

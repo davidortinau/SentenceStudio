@@ -35,7 +35,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                             .StrokeThickness(1)
                         )
                     }
-                    .Spacing((Double)Application.Current.Resources["size320"]),
+                    .Spacing(ApplicationTheme.Size320),
 
                     Border(
                         Grid(
@@ -50,7 +50,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                     .StrokeThickness(1)
                     .HStart()
                 )
-                .Padding((Double)Application.Current.Resources["size160"])
+                .Padding(ApplicationTheme.Size160)
                 .Spacing(ApplicationTheme.Size240)
             )
         ).OnAppearing(LoadProfiles);

@@ -13,7 +13,7 @@ partial class SelectableLabel : Component
 	public override VisualNode Render() 
 		=> Label(labelRef => _labelRef = labelRef)
 			.Text(_text)
-			.Style((Style)Application.Current.Resources["Body1"])
+			.ThemeKey(ApplicationTheme.Body1)
 			.TextColor(Colors.White)
 			.OnTapped(async () =>
 			{

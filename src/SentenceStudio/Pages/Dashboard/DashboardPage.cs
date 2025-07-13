@@ -100,8 +100,9 @@ partial class DashboardPage : Component<DashboardPageState>
                                 .Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
                                 .GridColumn(1) // Border
                         ).Columns("*,*").ColumnSpacing(15),
-                        
-                        Label().Style((Style)Application.Current.Resources["Title1"]).HStart().Text($"{_localize["Activities"]}"),
+
+                        Label()
+                            .ThemeKey(ApplicationTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
                             new ActivityBorder()
                                 .LabelText($"{_localize["Warmup"]}")
@@ -115,7 +116,7 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")                                
                         }.Spacing(20)
                     )// vstack
-                    .Padding((Double)Application.Current.Resources["size160"])
+                    .Padding(ApplicationTheme.Size160)
                     .Spacing(ApplicationTheme.Size240)
                 )// vscrollview
             )// grid

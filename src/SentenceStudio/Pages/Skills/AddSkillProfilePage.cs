@@ -34,8 +34,8 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                     }
                     .Hint("Skills Description")
                 )
-                .Spacing((Double)Application.Current.Resources["size320"])
-                .Margin((Double)Application.Current.Resources["size160"])
+                .Spacing(ApplicationTheme.Size320)
+                .Margin(ApplicationTheme.Size160)
             )
         );
     }

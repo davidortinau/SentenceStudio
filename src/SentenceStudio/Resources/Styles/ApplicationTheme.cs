@@ -5,6 +5,12 @@ namespace SentenceStudio.Resources.Styles;
 
 class ApplicationTheme : Theme
 {
+    public const string Title1 = nameof(Title1);
+    public const string Title3 = nameof(Title3);
+    public const string Caption1 = nameof(Caption1);
+    public const string Body1 = nameof(Body1);
+    public const string InputWrapper = nameof(InputWrapper);
+
     public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
     public static Color PrimaryDark { get; } = Color.FromRgba(172, 153, 234, 255); // #AC99EA
     public static Color PrimaryDarkText { get; } = Color.FromRgba(36, 36, 36, 255); // #242424
@@ -48,6 +54,8 @@ class ApplicationTheme : Theme
     public static Brush Gray600Brush { get; } = new SolidColorBrush(Gray600);
     public static Brush Gray900Brush { get; } = new SolidColorBrush(Gray900);
     public static Brush Gray950Brush { get; } = new SolidColorBrush(Gray950);
+    public static Brush LightCardBackgroundBrush { get; } = new SolidColorBrush(LightSecondaryBackground);
+    public static Brush DarkCardBackgroundBrush { get; } = new SolidColorBrush(DarkSecondaryBackground);
 
     public static double SizeNone { get; } = 0;
     public static double Size20 { get; } = 2;
@@ -402,7 +410,7 @@ class ApplicationTheme : Theme
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
             .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
 
-        LabelStyles.Themes["Title1"] = _ => _
+        LabelStyles.Themes[Title1] = _ => _
             .FontSize(28)
             .LineHeight(1.21)
             .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
@@ -424,6 +432,12 @@ class ApplicationTheme : Theme
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         BorderStyles.Themes["CardStyle"] = _ => _
+            .StrokeShape(new RoundRectangle().CornerRadius(20))
+            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .StrokeThickness(0)
+            .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
+
+        BorderStyles.Themes[InputWrapper] = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))
             .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
             .StrokeThickness(0)

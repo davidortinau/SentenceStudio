@@ -40,21 +40,21 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     VisualNode SentencesHeader() =>
         Grid("", columns: "*,*,*,*",
             Label(_localize["Sentence"])
-                .Style((Style)Application.Current.Resources["Title3"])
+                .ThemeKey(ApplicationTheme.Title3)
                 .GridColumn(0),
             Label(_localize["Accuracy"])
-                .Style((Style)Application.Current.Resources["Title3"])
+                .ThemeKey(ApplicationTheme.Title3)
                 .Center()
                 .GridColumn(1),
             Label(_localize["Fluency"])
-                .Style((Style)Application.Current.Resources["Title3"])
+                .ThemeKey(ApplicationTheme.Title3)
                 .Center()
                 .GridColumn(2),
             Label(_localize["Actions"])
-                .Style((Style)Application.Current.Resources["Title3"])
+                .ThemeKey(ApplicationTheme.Title3)
                 .Center()
                 .GridColumn(3)
-        ).Margin((double)Application.Current.Resources["size160"]);
+        ).Margin(ApplicationTheme.Size160);
 
     VisualNode SentencesScrollView() =>
         ScrollView(
@@ -72,7 +72,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             ScrollView(
                 VStack(spacing: ApplicationTheme.Size40,
                     Label(_localize["ChooseAVocabularyWord"])
-                        .Style((Style)Application.Current.Resources["Title3"]),
+                        .ThemeKey(ApplicationTheme.Title3),
                     HStack(spacing: ApplicationTheme.Size40,
                         State.VocabBlocks.Select(word =>
                             Button(word.TargetLanguageTerm)
@@ -108,7 +108,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             .GridColumn(0)
 
         ).GridRow(2)
-        .Padding((double)Application.Current.Resources["size160"])
+        .Padding(ApplicationTheme.Size160)
         .RowSpacing(ApplicationTheme.Size40);
 
     VisualNode LoadingOverlay() =>
@@ -271,8 +271,8 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
             )
             .Background(Theme.IsLightTheme ? 
-                (Brush)Application.Current.Resources["LightCardBackground"] : 
-                (Brush)Application.Current.Resources["DarkCardBackground"])
+                ApplicationTheme.LightCardBackgroundBrush : 
+                ApplicationTheme.DarkCardBackgroundBrush)
         );    Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +

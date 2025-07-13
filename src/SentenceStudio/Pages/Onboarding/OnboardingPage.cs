@@ -153,11 +153,11 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             Grid("Auto, Auto","",
                 Label("Welcome to Sentence Studio!")
-                    .Style((Style)Application.Current.Resources["Title1"])
+                    .ThemeKey(ApplicationTheme.Title1)
                     .HCenter(),
 
                 Label("Strengthen your language skills with our fun and interactive sentence building activities.")
-                    .Style((Style)Application.Current.Resources["Title3"])
+                    .ThemeKey(ApplicationTheme.Title3)
                     .HCenter()
                     .GridRow(1)
             )
@@ -169,7 +169,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             VStack(
                 Label("What should I call you?")
-                    .Style((Style)Application.Current.Resources["Title1"])
+                    .ThemeKey(ApplicationTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -239,7 +239,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             Grid("Auto, Auto", "",
                 Label(title)
-                    .Style((Style)Application.Current.Resources["Title1"])
+                    .ThemeKey(ApplicationTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -267,7 +267,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             VStack(
                 Label("Sentence Studio needs an API key from OpenAI to use the AI features.")
-                    .Style((Style)Application.Current.Resources["Title1"])
+                    .ThemeKey(ApplicationTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -292,11 +292,11 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             Grid("Auto, Auto","",
                 Label("Let's begin!")
-                    .Style((Style)Application.Current.Resources["Title1"])
+                    .ThemeKey(ApplicationTheme.Title1)
                     .HCenter(),
 
                 Label("On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth.")
-                    .Style((Style)Application.Current.Resources["Title3"])
+                    .ThemeKey(ApplicationTheme.Title3)
                     .HCenter()
                     .GridRow(1)
             )

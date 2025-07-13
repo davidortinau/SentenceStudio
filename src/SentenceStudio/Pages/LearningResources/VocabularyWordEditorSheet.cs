@@ -53,7 +53,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                                 .Text(State.Word.TargetLanguageTerm)
                                 .OnTextChanged(text => SetState(s => s.Word.TargetLanguageTerm = text))
                         )
-                        .Style((Style)Application.Current.Resources["InputWrapper"])
+                        .ThemeKey(ApplicationTheme.InputWrapper)
                     )
                     .Spacing(5),
                     
@@ -66,7 +66,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                                 .Text(State.Word.NativeLanguageTerm)
                                 .OnTextChanged(text => SetState(s => s.Word.NativeLanguageTerm = text))
                         )
-                        .Style((Style)Application.Current.Resources["InputWrapper"])
+                        .ThemeKey(ApplicationTheme.InputWrapper)
                     )
                     .Spacing(5),
                     

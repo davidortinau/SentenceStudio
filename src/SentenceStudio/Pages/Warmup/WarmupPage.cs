@@ -152,8 +152,8 @@ partial class WarmupPage : Component<WarmupPageState>
             )
             .Margin(new Thickness(15, 5))
             .Padding(new Thickness(12, 4, 12, 8))
-            .Background((Color)Application.Current.Resources["Secondary"])
-            .Stroke((Color)Application.Current.Resources["Secondary"])
+            .Background(ApplicationTheme.Secondary)
+            .Stroke(ApplicationTheme.Secondary)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
             .HorizontalOptions(LayoutOptions.End)
             .OnTapped(()=>{
@@ -182,7 +182,7 @@ partial class WarmupPage : Component<WarmupPageState>
             Border(
                 Entry()
                     .Placeholder("그건 한국어로 어떻게 말해요?")
-                    .FontSize((double)Application.Current.Resources["size200"])
+                    .FontSize(ApplicationTheme.Size200)
                     .ReturnType(ReturnType.Send)
                     .Text(State.UserInput)
                     .OnTextChanged((s, e) => State.UserInput = e.NewTextValue)

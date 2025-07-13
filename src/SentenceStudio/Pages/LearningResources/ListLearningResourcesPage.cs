@@ -63,7 +63,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         )
                         .Columns("*, Auto")
                     )
-                    .Style((Style)Application.Current.Resources["InputWrapper"])
+                    .ThemeKey(ApplicationTheme.InputWrapper)
                     .Margin(new Thickness(10, 10, 10, 5)),
 
                     // Filters

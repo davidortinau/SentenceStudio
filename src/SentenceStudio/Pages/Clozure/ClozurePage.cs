@@ -141,7 +141,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.StrokeShape(new RoundRectangle().CornerRadius(10))
 						.StrokeThickness(2)
 						.Stroke(sentence.IsCurrent ? 
-							(Color)Application.Current.Resources["Secondary"] : 
+							ApplicationTheme.Secondary : 
 							ApplicationTheme.Gray200)
 					)					
 				)

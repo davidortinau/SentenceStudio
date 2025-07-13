@@ -67,7 +67,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
-                    .Style((Style)Application.Current.Resources["Caption1"])
+                    .ThemeKey(ApplicationTheme.Caption1)
                     .HCenter()
                     .TextColor(ApplicationTheme.Primary) :
                 null
@@ -88,7 +88,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     VisualNode RenderGameComplete() =>
         VStack(spacing: 20,
             Label(_localize["Congratulations"].ToString())
-                .Style((Style)Application.Current.Resources["Title1"])
+                .ThemeKey(ApplicationTheme.Title1)
                 .HCenter(),
             
             Label(_localize["AllPairsMatched"].ToString())

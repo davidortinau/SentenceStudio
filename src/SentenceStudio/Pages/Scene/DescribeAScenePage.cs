@@ -73,7 +73,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .Header(
                     ContentView(
                         Label($"{_localize["ISee"]}")
-                            .Padding((Double)Application.Current.Resources["size160"])
+                            .Padding(ApplicationTheme.Size160)
                     )
                 )
                 .GridColumn(1)
@@ -86,7 +86,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             Label($"Accuracy: {sentence.Accuracy}")
                 .FontSize(12)
         )
-        .Padding((Double)Application.Current.Resources["size160"])
+        .Padding(ApplicationTheme.Size160)
         .OnTapped(() => ShowExplanation(sentence));
 
     VisualNode RenderInput() => new SfTextInputLayout(
@@ -146,7 +146,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
     VisualNode RenderHeader() => Grid(
             Label("Choose an image")
-                .Style((Style)Application.Current.Resources["Title1"])
+                .ThemeKey(ApplicationTheme.Title1)
                 .HStart(),
 
             HStack(spacing: ApplicationTheme.Size60,
