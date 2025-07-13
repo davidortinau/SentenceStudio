@@ -12,6 +12,7 @@ class ListLearningResourcesState
     public bool IsMigrating { get; set; } = false;
     public int FilterTypeIndex { get; set; } = 0;
     public int FilterLanguageIndex { get; set; } = 0;
+    public bool IsCreatingStarter { get; set; } = false;
 }
 
 class ResourceProps
@@ -22,6 +23,7 @@ class ResourceProps
 partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] UserProfileRepository _userProfileRepo;
     
     LocalizationManager _localize => LocalizationManager.Instance;
     
@@ -113,10 +115,32 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 Label($"{_localize["NoResourcesFound"]}")
                                     .VCenter().HCenter(),
 
-                                Button("Add Your First Resource")
-                                    .OnClicked(AddResource)
-                                    .HCenter()
-                                    .WidthRequest(200)
+                                State.IsCreatingStarter ?
+                                VStack(
+                                    ActivityIndicator()
+                                        .IsRunning(true)
+                                        .HCenter()
+                                        .HeightRequest(30)
+                                        .WidthRequest(30),
+                                    Label("Creating starter vocabulary...")
+                                        .HCenter()
+                                        .FontSize(14)
+                                        .TextColor(Colors.Gray)
+                                )
+                                .Spacing(10) :
+                                VStack(
+                                    Button("Add Your First Resource")
+                                        .OnClicked(AddResource)
+                                        .HCenter()
+                                        .WidthRequest(200),
+
+                                    Button("Create a Starter Resource")
+                                        .OnClicked(CreateStarterResource)
+                                        .HCenter()
+                                        .WidthRequest(200)
+                                        .BackgroundColor(ApplicationTheme.Primary)
+                                )
+                                .Spacing(10)
                             )
                             .GridRow(1)
                             .Spacing(15)
@@ -281,5 +305,44 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return MauiControls.Shell.Current.GoToAsync<ResourceProps>(
             nameof(EditLearningResourcePage),
             props => props.ResourceID = resourceId);
+    }
+
+    async Task CreateStarterResource()
+    {
+        try
+        {
+            SetState(s => s.IsCreatingStarter = true);
+            
+            // Get user profile to get language preferences
+            var profile = await _userProfileRepo.GetOrCreateDefaultAsync();
+            
+            if (string.IsNullOrEmpty(profile.NativeLanguage) || string.IsNullOrEmpty(profile.TargetLanguage))
+            {
+                await Application.Current.MainPage.DisplayAlert(
+                    "Profile Required", 
+                    "Please set up your native and target languages in your profile first.", 
+                    "OK");
+                    
+                SetState(s => s.IsCreatingStarter = false);
+                return;
+            }
+            
+            // Create the starter vocabulary resource
+            await _resourceRepo.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+            
+            // Reload resources to show the new starter resource
+            await LoadResources();
+            
+            SetState(s => s.IsCreatingStarter = false);
+        }
+        catch (Exception ex)
+        {
+            SetState(s => s.IsCreatingStarter = false);
+            
+            await Application.Current.MainPage.DisplayAlert(
+                "Error", 
+                $"Failed to create starter resource: {ex.Message}", 
+                "OK");
+        }
     }
 }
