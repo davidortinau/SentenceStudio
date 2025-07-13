@@ -24,20 +24,7 @@ public partial class App : MauiReactorApplication
 		Debug.WriteLine($"AppStart Culture: {CultureInfo.CurrentUICulture.Name}");
 		Debug.WriteLine($"Manufacturer: {DeviceInfo.Model}");
 
-		if (DeviceInfo.Model.Contains("NoteAir3C", StringComparison.CurrentCultureIgnoreCase)) // TODO expand this to detect any eInk device
-		{
-			Application.Current.Resources.MergedDictionaries.Add(new HighContrastColors());
-		}
-		else
-		{
-			Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.AppColors());
-		}
-
-		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Fluent());
-		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Styles());
-		Application.Current.Resources.MergedDictionaries.Add(new Resources.Styles.Converters());
-
-		 // Set the initial culture from user profile (will run asynchronously)
+		// Set the initial culture from user profile (will run asynchronously)
 		InitializeUserCulture();
 	}
 	
