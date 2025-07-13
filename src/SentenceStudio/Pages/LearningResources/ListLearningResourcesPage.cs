@@ -22,7 +22,6 @@ class ResourceProps
 partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
-    [Inject] VocabularyService _vocabService;
     
     LocalizationManager _localize => LocalizationManager.Instance;
     
@@ -37,7 +36,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return ContentPage($"{_localize["LearningResources"]}",
             ToolbarItem("Search").OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
             ToolbarItem("Add").OnClicked(AddResource),
-            ToolbarItem("Migrate").OnClicked(MigrateVocabularyLists),
 
             Grid(rows: "Auto, *", columns: "*",
                 VStack(
@@ -117,12 +115,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                                 Button("Add Your First Resource")
                                     .OnClicked(AddResource)
-                                    .HCenter()
-                                    .WidthRequest(200),
-
-                                Button("Import from Vocabulary Lists")
-                                    .OnClicked(MigrateVocabularyLists)
-                                    .ThemeKey("Secondary")
                                     .HCenter()
                                     .WidthRequest(200)
                             )
@@ -289,42 +281,5 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return MauiControls.Shell.Current.GoToAsync<ResourceProps>(
             nameof(EditLearningResourcePage),
             props => props.ResourceID = resourceId);
-    }
-    
-    async Task MigrateVocabularyLists()
-    {
-        // Check if there are vocabulary lists to migrate
-        var lists = await _vocabService.GetListsAsync();
-        if (lists == null || lists.Count == 0)
-        {
-            await Application.Current.MainPage.DisplayAlert(
-                "No Lists to Migrate", 
-                "There are no vocabulary lists to migrate.", 
-                "OK");
-            return;
-        }
-        
-        bool confirm = await Application.Current.MainPage.DisplayAlert(
-            "Migrate Vocabulary Lists", 
-            $"Would ye like to migrate {lists.Count} vocabulary lists to Learning Resources? The original lists will be preserved.", 
-            "Aye, Migrate", 
-            "Nay");
-            
-        if (!confirm) return;
-        
-        SetState(s => s.IsMigrating = true);
-        
-        // Use our new migration helper
-        await MigrationHelper.MigrateVocabularyListsAsync(_vocabService, _resourceRepo);
-        
-        // Reload the resources
-        await LoadResources();
-        
-        SetState(s => s.IsMigrating = false);
-        
-        await Application.Current.MainPage.DisplayAlert(
-            "Migration Complete", 
-            "Your vocabulary lists have been migrated to Learning Resources!", 
-            "OK");
     }
 }

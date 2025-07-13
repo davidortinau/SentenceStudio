@@ -231,7 +231,6 @@ public static class MauiProgram
 
 
 		services.AddSingleton<TeacherService>();
-		services.AddSingleton<VocabularyService>();
 		services.AddSingleton<ConversationService>();
 		services.AddSingleton<AiService>();
 		services.AddSingleton<SceneImageService>();

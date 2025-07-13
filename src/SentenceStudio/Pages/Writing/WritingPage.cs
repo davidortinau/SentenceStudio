@@ -19,7 +19,6 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
     [Inject] TranslationService _translationService;
-    [Inject] VocabularyService _vocabService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _learningResourceRepository;
     LocalizationManager _localize => LocalizationManager.Instance;

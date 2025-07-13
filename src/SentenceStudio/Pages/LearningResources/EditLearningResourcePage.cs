@@ -18,7 +18,6 @@ class EditLearningResourceState
 partial class EditLearningResourcePage : Component<EditLearningResourceState, ResourceProps>
 {
     [Inject] LearningResourceRepository _resourceRepo;
-    [Inject] VocabularyService _vocabService;
     [Inject] AiService _aiService;
     
     LocalizationManager _localize => LocalizationManager.Instance;

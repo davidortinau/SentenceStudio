@@ -22,7 +22,6 @@ public partial class OnboardingPage : Component<OnboardingState>
 {
     [Inject] IServiceProvider _service;
     [Inject] UserProfileRepository _userProfileRepository;
-    [Inject] VocabularyService _vocabularyService;
     [Inject] IConfiguration _configuration;
     [Inject] NameGenerationService _nameGenerationService;
     [Param] IParameter<AppState> _appState;

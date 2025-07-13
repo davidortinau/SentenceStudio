@@ -26,7 +26,7 @@ class UserProfilePageState
 partial class UserProfilePage : Component<UserProfilePageState>
 {
     [Inject] UserProfileRepository _userProfileRepository;
-    [Inject] VocabularyService _vocabularyService;
+    [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] DataExportService _dataExportService;
     [Inject] IFileSaver _fileSaver;
     [Param] IParameter<AppState> _appState;
@@ -206,17 +206,19 @@ partial class UserProfilePage : Component<UserProfilePageState>
         
         await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
 
-        var lists = await _vocabularyService.GetListsAsync();
-        if(lists.Count == 0)
+        var resources = await _learningResourceRepository.GetVocabularyListsAsync();
+        if(resources.Count == 0)
         {
             var response = await Application.Current.MainPage.DisplayAlert("Vocabulary", 
                 _localize["CreateStarterVocabPrompt"].ToString(), 
                 _localize["Yes"].ToString(), 
                 _localize["NoVocabPromptResponse"].ToString());
             if(response)
-                await _vocabularyService.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+                await _learningResourceRepository.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
         }
-    }    async Task Reset()
+    }    
+    
+    async Task Reset()
     {
         var response = await Application.Current.MainPage.DisplayAlert(
             _localize["Reset"].ToString(), 

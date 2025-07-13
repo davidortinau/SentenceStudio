@@ -5,16 +5,16 @@ namespace SentenceStudio.Data;
 public class LearningResourceRepository
 {
     private readonly IServiceProvider _serviceProvider;
-    private VocabularyService _vocabularyService;
     private ISyncService _syncService;
+    private AiService _aiService;
 
     public LearningResourceRepository(IServiceProvider serviceProvider = null)
     {
         _serviceProvider = serviceProvider;
         if (serviceProvider != null)
         {
-            _vocabularyService = serviceProvider.GetService<VocabularyService>();
             _syncService = serviceProvider.GetService<ISyncService>();
+            _aiService = serviceProvider.GetService<AiService>();
         }
     }
 
@@ -249,6 +249,64 @@ public class LearningResourceRepository
         {
             await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
+        }
+    }
+
+    public async Task GetStarterVocabulary(string nativeLanguage, string targetLanguage)
+    {       
+        var prompt = string.Empty;     
+        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetStarterVocabulary.scriban-txt");
+        using (StreamReader reader = new StreamReader(templateStream))
+        {
+            var template = Template.Parse(await reader.ReadToEndAsync());
+            prompt = await template.RenderAsync(new { native_language = nativeLanguage, target_language = targetLanguage});
+        }
+        
+        try
+        {
+            var response = await _aiService.SendPrompt<string>(prompt);
+
+            // Create a LearningResource instead of VocabularyList
+            var resource = new LearningResource
+            {
+                Title = "Sentence Studio Starter Vocabulary",
+                Description = $"Starter vocabulary for learning {targetLanguage}",
+                MediaType = "Vocabulary List",
+                Language = targetLanguage,
+                Tags = "starter,vocabulary",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // Parse vocabulary words and add them to the resource
+            var vocabularyWords = VocabularyWord.ParseVocabularyWords(response);
+            
+            // Save the resource first
+            await SaveResourceAsync(resource);
+            
+            // Now save the vocabulary words and associate them with the resource
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            foreach (var word in vocabularyWords)
+            {
+                if (word.CreatedAt == default)
+                    word.CreatedAt = DateTime.UtcNow;
+                word.UpdatedAt = DateTime.UtcNow;
+                
+                // Add the word to the database
+                db.VocabularyWords.Add(word);
+                await db.SaveChangesAsync();
+                
+                // Associate the word with the resource
+                await AddVocabularyToResourceAsync(resource.Id, word.Id);
+            }
+            
+            await AppShell.DisplayToastAsync("Starter vocabulary resource created");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"An error occurred GetStarterVocabulary: {ex.Message}");
         }
     }
 }

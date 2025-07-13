@@ -23,7 +23,6 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] IFilePickerService _picker;
-    [Inject] VocabularyService _vocabService;
     LocalizationManager _localize => LocalizationManager.Instance;
     
     static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
