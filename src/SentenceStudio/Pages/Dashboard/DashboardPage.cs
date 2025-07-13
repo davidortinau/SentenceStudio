@@ -71,8 +71,8 @@ partial class DashboardPage : Component<DashboardPageState>
                                                     _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
                                                 }
                                             })
-                                    )
-                                ), // Border
+                                    ).Spacing(ApplicationTheme.LayoutSpacing)
+                                ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80), // Border
                             Border
                                 (
                                     VStack(
@@ -86,7 +86,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                             .DisplayMemberPath("Title")
                                             .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
                                             .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                            .OnSelectionChanged((sender, e) => 
+                                            .OnSelectionChanged((sender, e) =>
                                             {
                                                 if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
                                                 {
@@ -95,8 +95,9 @@ partial class DashboardPage : Component<DashboardPageState>
                                                     _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
                                                 }
                                             })
-                                    )
+                                    ).Spacing(ApplicationTheme.LayoutSpacing)
                                 )
+                                .Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
                                 .GridColumn(1) // Border
                         ).Columns("*,*").ColumnSpacing(15),
                         
