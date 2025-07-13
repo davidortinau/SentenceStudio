@@ -19,6 +19,7 @@ using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
+using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Services;
 using SentenceStudio.Data;
 using SentenceStudio.Common;
@@ -204,6 +205,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
 		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
 		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
+		MauiReactor.Routing.RegisterRoute<VocabularyQuizPage>(nameof(VocabularyQuizPage));
 		MauiReactor.Routing.RegisterRoute<TranslationPage>(nameof(TranslationPage));
 		MauiReactor.Routing.RegisterRoute<EditSkillProfilePage>(nameof(EditSkillProfilePage));
 		MauiReactor.Routing.RegisterRoute<AddSkillProfilePage>(nameof(AddSkillProfilePage));

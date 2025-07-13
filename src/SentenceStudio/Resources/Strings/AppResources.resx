@@ -613,4 +613,16 @@
     <value>Tap a target language word to reveal native words, then find its match!</value>
     <comment>Instructions for hide native words mode</comment>
   </data>
+  <data name="VocabularyQuiz" xml:space="preserve">
+    <value>Vocabulary Quiz</value>
+    <comment>Vocabulary quiz activity title</comment>
+  </data>
+  <data name="No Vocabulary" xml:space="preserve">
+    <value>No Vocabulary</value>
+    <comment>Error dialog title when no vocabulary is found</comment>
+  </data>
+  <data name="This resource has no vocabulary to study." xml:space="preserve">
+    <value>This resource has no vocabulary to study.</value>
+    <comment>Error message when no vocabulary is available</comment>
+  </data>
 </root>

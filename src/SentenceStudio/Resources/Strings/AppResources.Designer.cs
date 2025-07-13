@@ -607,6 +607,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No Vocabulary.
+        /// </summary>
+        internal static string No_Vocabulary {
+            get {
+                return ResourceManager.GetString("No Vocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Not a match. Try again!.
         /// </summary>
         internal static string NotAMatch {
@@ -859,6 +868,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This resource has no vocabulary to study..
+        /// </summary>
+        internal static string This_resource_has_no_vocabulary_to_study_ {
+            get {
+                return ResourceManager.GetString("This resource has no vocabulary to study.", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Title.
         /// </summary>
         internal static string Title {
@@ -972,6 +990,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabularyMatchingTitle {
             get {
                 return ResourceManager.GetString("VocabularyMatchingTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Quiz.
+        /// </summary>
+        internal static string VocabularyQuiz {
+            get {
+                return ResourceManager.GetString("VocabularyQuiz", resourceCulture);
             }
         }
         

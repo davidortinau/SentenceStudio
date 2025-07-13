@@ -18,6 +18,11 @@ class ApplicationTheme : Theme
     public static Color SecondaryDarkText { get; } = Color.FromRgba(152, 128, 229, 255); // #9880E5
     public static Color Tertiary { get; } = Color.FromRgba(43, 11, 152, 255); // #2B0B98
 
+    // Status colors for vocabulary quiz and other feedback
+    public static Color Success { get; } = Color.FromRgba(34, 197, 94, 255); // #22C55E
+    public static Color Error { get; } = Color.FromRgba(239, 68, 68, 255); // #EF4444
+    public static Color Warning { get; } = Color.FromRgba(245, 158, 11, 255); // #F59E0B
+
     public static Color White { get; } = Colors.White; // #FFFFFF
     public static Color Black { get; } = Colors.Black; // #000000
     public static Color Magenta { get; } = Color.FromRgba(214, 0, 170, 255); // #D600AA

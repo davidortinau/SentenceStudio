@@ -11,5 +11,6 @@ public enum Activity
     Shadowing,
     VocabularyMatching,
     Clozure,
-    HowDoYouSay
+    HowDoYouSay,
+    VocabularyQuiz
 }
