@@ -98,16 +98,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["VocabularyQuiz"]}",
-            Grid(rows: "Auto,*,80", columns: "*",
-                SessionStatusDisplay(),
+            Grid(rows: "Auto,*", columns: "*",
+                LearningProgressBar(),
                 ScrollView(
-                    Grid(rows: "60,*,Auto", columns: "*",
-                        VocabularyScoreboard(),
+                    Grid(rows: "*,Auto", columns: "*",
                         TermDisplay(),
                         UserInputSection()
                     ).RowSpacing(8)
-                ),
-                NavigationFooter(),
+                ).GridRow(1),
+                // NavigationFooter(),
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 CelebrationOverlay()
@@ -221,119 +220,53 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .GridRow(1).GridColumn(5)
         ).GridRow(2);
 
-    VisualNode SessionStatusDisplay() =>
-            Grid(rows: "Auto", columns: "*,Auto,Auto",
-                // Session info (left)
-                HStack(spacing: 8,
-                    Label($"Session {State.CurrentSetNumber}")
-                        .FontSize(16)
-                        .FontAttributes(MauiControls.FontAttributes.Bold),
-                    Label($"Turn {State.CurrentTurn}/{State.MaxTurnsPerSession}")
-                        .FontSize(14)
-                ).VCenter(),
-                
-                // Term counts (center/right side)
-                VStack(spacing: 4,
-                    // Not Started terms
-                    HStack(spacing: 4,
-                        Ellipse()
-                            .Fill(Colors.LightGray)
-                            .WidthRequest(12)
-                            .HeightRequest(12),
-                        Label($"Not Started: {State.NotStartedCount}")
-                            .FontSize(12)
-                    ),
-                    
-                    // Unknown terms (in current activity)
-                    HStack(spacing: 4,
-                        Ellipse()
-                            .Fill(ApplicationTheme.Warning)
-                            .WidthRequest(12)
-                            .HeightRequest(12),
-                        Label($"Unknown: {State.UnknownTermsCount}")
-                            .FontSize(12)
-                    ),
-                    
-                    // Learning terms
-                    HStack(spacing: 4,
-                        Ellipse()
-                            .Fill(ApplicationTheme.Primary)
-                            .WidthRequest(12)
-                            .HeightRequest(12),
-                        Label($"Learning: {State.LearningTermsCount}")
-                            .FontSize(12)
-                    ),
-                    
-                    // Known terms (across entire resource)
-                    HStack(spacing: 4,
-                        Ellipse()
-                            .Fill(ApplicationTheme.Success)
-                            .WidthRequest(12)
-                            .HeightRequest(12),
-                        Label($"Known: {State.KnownTermsCount}")
-                            .FontSize(12)
-                    )
-                ).GridColumn(1),
-                
-                // Total count (right)
-                Label($"Total: {State.TotalResourceTermsCount}")
-                    .FontSize(14)
-                    .FontAttributes(MauiControls.FontAttributes.Bold)
-                    .TextColor(ApplicationTheme.Primary)
-                    .VCenter()
-                    .GridColumn(2)
-            ).Padding(12).Margin(8,4);
-
-    VisualNode VocabularyScoreboard() =>
-        ScrollView(
-            HStack(spacing: 2,
-                ActivityIndicator()
-                    .IsRunning(State.IsBuffering)
-                    .IsVisible(State.IsBuffering)
-                    .Color(Theme.IsLightTheme ? 
-                        ApplicationTheme.DarkOnLightBackground : 
-                        ApplicationTheme.LightOnDarkBackground)
-                    .VCenter(),
-                HStack(spacing: 4,
-                    State.VocabularyItems.Select(item =>
-                        Border(
-                            Grid(
-                                // Progress indicator for current mode
-                                ProgressBar()
-                                    .Progress(item.IsPromoted ? item.TextEntryProgress : item.MultipleChoiceProgress)
-                                    .ProgressColor(item.IsCompleted ? ApplicationTheme.Success : 
-                                                 item.IsPromoted ? ApplicationTheme.Warning : ApplicationTheme.Primary)
-                                    .BackgroundColor(Colors.Transparent)
-                                    .WidthRequest(16)
-                                    .HeightRequest(2)
-                                    .VEnd(),
-                                
-                                ImageButton()
-                                    .WidthRequest(18).HeightRequest(18)
-                                    .Center()
-                                    .Aspect(Aspect.Center)
-                                    .Source(VocabularyItemToImageSource(item))
-                                    .OnClicked(() => JumpTo(item))
-                            )
-                        )
-                        .WidthRequest(20).HeightRequest(20)
-                        .StrokeShape(new RoundRectangle().CornerRadius(10))
-                        .StrokeThickness(2)
-                        .Stroke(item.IsCurrent ? 
-                            ApplicationTheme.Secondary : 
-                            ApplicationTheme.Gray200)
-                        .Background(GetItemBackgroundColor(item))
-                    )					
-                )
+    VisualNode LearningProgressBar() =>
+        Grid(rows: "Auto", columns: "Auto,*,Auto",
+            // Left green bubble with learning count
+            Border(
+                Label($"{State.LearningTermsCount}")
+                    .FontSize(16)
+                    .FontAttributes(FontAttributes.Bold)
+                    .TextColor(Colors.White)
+                    .Center()
             )
-            .Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
-                new Thickness(16, 6) : 
-                new Thickness(ApplicationTheme.Size240))
-        )
-        .Orientation(ScrollOrientation.Horizontal)
-        .HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
-        .GridRow(0)
-        .VCenter();
+            .Background(ApplicationTheme.Success)
+            .StrokeShape(new RoundRectangle().CornerRadius(15))
+            .StrokeThickness(0)
+            // .WidthRequest(80)
+            .HeightRequest(30)
+            .Padding(0)
+            .GridColumn(0)
+            .VCenter(),
+            
+            // Center progress bar
+            ProgressBar()
+                .Progress(State.TotalResourceTermsCount > 0 ? 
+                    (double)State.LearningTermsCount / State.TotalResourceTermsCount : 0)
+                .ProgressColor(ApplicationTheme.Success)
+                .BackgroundColor(Colors.LightGray)
+                .HeightRequest(6)
+                .GridColumn(1)
+                .VCenter()
+                .Margin(12, 0),
+            
+            // Right grey bubble with total count
+            Border(
+                Label($"{State.TotalResourceTermsCount}")
+                    .FontSize(16)
+                    .FontAttributes(FontAttributes.Bold)
+                    .TextColor(Colors.White)
+                    .Center()
+            )
+            .Background(Colors.Gray)
+            .StrokeShape(new RoundRectangle().CornerRadius(15))
+            .StrokeThickness(0)
+            // .WidthRequest(80)
+            .HeightRequest(30)
+            .Padding(0)
+            .GridColumn(2)
+            .VCenter()
+        ).Padding(16, 8);
 
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
@@ -346,21 +279,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .Center()
                 .FontAttributes(FontAttributes.Bold),
             
-            // Progress indicator for current word
-            HStack(spacing: 8,
-                Label(GetProgressText())
-                    .FontSize(12)
-                    .Center()
-                    .TextColor(ApplicationTheme.Secondary)
-                    .IsVisible(!string.IsNullOrEmpty(GetProgressText()))
-            )
-            .Center(),
-            
-            Label(State.FeedbackMessage)
-                .FontSize(16)
-                .Center()
-                .TextColor(State.IsCorrect ? ApplicationTheme.Success : ApplicationTheme.Error)
-                .IsVisible(!string.IsNullOrEmpty(State.FeedbackMessage)),
+            // Label(State.FeedbackMessage)
+            //     .FontSize(16)
+            //     .Center()
+            //     .TextColor(State.IsCorrect ? ApplicationTheme.Success : ApplicationTheme.Error)
+            //     .IsVisible(!string.IsNullOrEmpty(State.FeedbackMessage)),
             Label(State.CurrentTargetLanguageTerm)
                 .FontSize(24)
                 .Center()
@@ -371,17 +294,17 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(14)
                 .Center()
                 .TextColor(ApplicationTheme.Warning)
-                .IsVisible(State.RequireCorrectTyping),
+                .IsVisible(State.RequireCorrectTyping)
             
             // Auto-advance countdown for multiple choice
-            Label($"Next question in {State.AutoAdvanceCountdown}...")
-                .FontSize(14)
-                .Center()
-                .TextColor(ApplicationTheme.Secondary)
-                .IsVisible(State.IsAutoAdvancing)
+            // Label($"Next question in {State.AutoAdvanceCountdown}...")
+            //     .FontSize(14)
+            //     .Center()
+            //     .TextColor(ApplicationTheme.Secondary)
+            //     .IsVisible(State.IsAutoAdvancing)
         )
         .Margin(30)
-        .GridRow(1)
+        .GridRow(0)
         // Allow manual advance by tapping during countdown
         .OnTapped(async () => {
             if (State.IsAutoAdvancing)
@@ -399,7 +322,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         )
         .RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
         .Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0))
-        .GridRow(2);
+        .GridRow(1);
 
     VisualNode RenderTextInput() =>
         new SfTextInputLayout(
@@ -492,28 +415,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             return SegoeFluentIcons.Edit.ToImageSource(iconSize: 14);
             
         return SegoeFluentIcons.StatusCircleRing.ToImageSource(iconSize: 14);
-    }
-
-    string GetProgressText()
-    {
-        var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
-        if (currentItem == null) return "";
-
-        if (currentItem.IsCompleted)
-            return "✅ Learned!";
-
-        if (currentItem.IsPromoted)
-        {
-            var correct = currentItem.TextEntryCorrect;
-            var needed = VocabularyQuizItem.RequiredCorrectAnswers;
-            return $"Typing: {correct}/{needed} correct";
-        }
-        else
-        {
-            var correct = currentItem.MultipleChoiceCorrect;
-            var needed = VocabularyQuizItem.RequiredCorrectAnswers;
-            return $"Multiple Choice: {correct}/{needed} correct";
-        }
     }
 
     Color GetItemBackgroundColor(VocabularyQuizItem item)

@@ -47,60 +47,116 @@ partial class DashboardPage : Component<DashboardPageState>
                             .Height(600)
                             .Width(800)
                             .IsVisible(false),
-                        Grid(
-                            Border
-                                (
-                                    VStack(
-                                        Label()
-                                            .Text("Learning Resource(s)"),
-                                        new SfComboBox()
-                                            .BackgroundColor(Colors.Transparent)
-                                            .PlaceholderText("Select resource(s)")
-                                            .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.Resources)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                            .OnSelectionChanged((sender, e) => 
-                                            {
-                                                if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
+                        // Responsive layout: horizontal on wide screens, vertical on narrow screens
+                        DeviceInfo.Idiom == DeviceIdiom.Phone || DeviceDisplay.MainDisplayInfo.Width < 600 ?
+                            // Vertical layout for narrow screens
+                            VStack(spacing: 15,
+                                Border
+                                    (
+                                        VStack(
+                                            Label()
+                                                .Text("Learning Resource(s)"),
+                                            new SfComboBox()
+                                                .BackgroundColor(Colors.Transparent)
+                                                .PlaceholderText("Select resource(s)")
+                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .ItemsSource(State.Resources)
+                                                .DisplayMemberPath("Title")
+                                                .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
+                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
+                                                .OnSelectionChanged((sender, e) => 
                                                 {
-                                                    SetState(s => {
-                                                        s.SelectedResources = selectedResources;
-                                                        s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
-                                                    });
-                                                    _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
-                                                }
-                                            })
-                                    ).Spacing(ApplicationTheme.LayoutSpacing)
-                                ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80), // Border
-                            Border
-                                (
-                                    VStack(
-                                        Label()
-                                            .Text("Skill(s)"),
-                                        new SfComboBox()
-                                            .BackgroundColor(Colors.Transparent)
-                                            .PlaceholderText("Select skill(s)")
-                                            .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.SkillProfiles)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                            .OnSelectionChanged((sender, e) =>
-                                            {
-                                                if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
+                                                    if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
+                                                    {
+                                                        SetState(s => {
+                                                            s.SelectedResources = selectedResources;
+                                                            s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
+                                                        });
+                                                        _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
+                                                    }
+                                                })
+                                        ).Spacing(ApplicationTheme.LayoutSpacing)
+                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80),
+                                Border
+                                    (
+                                        VStack(
+                                            Label()
+                                                .Text("Skill(s)"),
+                                            new SfComboBox()
+                                                .BackgroundColor(Colors.Transparent)
+                                                .PlaceholderText("Select skill(s)")
+                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .ItemsSource(State.SkillProfiles)
+                                                .DisplayMemberPath("Title")
+                                                .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
+                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
+                                                .OnSelectionChanged((sender, e) =>
                                                 {
-                                                    var index = State.SkillProfiles.IndexOf(selectedProfile);
-                                                    SetState(s => s.SelectedSkillProfileIndex = index);
-                                                    _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
-                                                }
-                                            })
-                                    ).Spacing(ApplicationTheme.LayoutSpacing)
-                                )
-                                .Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
-                                .GridColumn(1) // Border
-                        ).Columns("*,*").ColumnSpacing(15),
+                                                    if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
+                                                    {
+                                                        var index = State.SkillProfiles.IndexOf(selectedProfile);
+                                                        SetState(s => s.SelectedSkillProfileIndex = index);
+                                                        _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
+                                                    }
+                                                })
+                                        ).Spacing(ApplicationTheme.LayoutSpacing)
+                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
+                            ) :
+                            // Horizontal layout for wide screens
+                            Grid(
+                                Border
+                                    (
+                                        VStack(
+                                            Label()
+                                                .Text("Learning Resource(s)"),
+                                            new SfComboBox()
+                                                .BackgroundColor(Colors.Transparent)
+                                                .PlaceholderText("Select resource(s)")
+                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .ItemsSource(State.Resources)
+                                                .DisplayMemberPath("Title")
+                                                .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
+                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
+                                                .OnSelectionChanged((sender, e) => 
+                                                {
+                                                    if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
+                                                    {
+                                                        SetState(s => {
+                                                            s.SelectedResources = selectedResources;
+                                                            s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
+                                                        });
+                                                        _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
+                                                    }
+                                                })
+                                        ).Spacing(ApplicationTheme.LayoutSpacing)
+                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80),
+                                Border
+                                    (
+                                        VStack(
+                                            Label()
+                                                .Text("Skill(s)"),
+                                            new SfComboBox()
+                                                .BackgroundColor(Colors.Transparent)
+                                                .PlaceholderText("Select skill(s)")
+                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .ItemsSource(State.SkillProfiles)
+                                                .DisplayMemberPath("Title")
+                                                .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
+                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
+                                                .OnSelectionChanged((sender, e) =>
+                                                {
+                                                    if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
+                                                    {
+                                                        var index = State.SkillProfiles.IndexOf(selectedProfile);
+                                                        SetState(s => s.SelectedSkillProfileIndex = index);
+                                                        _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
+                                                    }
+                                                })
+                                        ).Spacing(ApplicationTheme.LayoutSpacing)
+                                    )
+                                    .Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
+                                    .GridColumn(1)
+                            ).Columns("*,*").ColumnSpacing(15),
 
                         Label()
                             .ThemeKey(ApplicationTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
