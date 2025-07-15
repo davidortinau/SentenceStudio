@@ -37,6 +37,13 @@ public class LearningResourceRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<List<VocabularyWord>> GetAllVocabularyWordsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyWords.ToListAsync();
+    }
+
     public async Task<int> SaveWordAsync(VocabularyWord word)
     {
         using var scope = _serviceProvider.CreateScope();

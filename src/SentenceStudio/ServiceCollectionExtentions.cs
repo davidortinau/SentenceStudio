@@ -25,6 +25,8 @@ public static class ServiceCollectionExtentions
                     .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
                     .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
                     .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload)
                     ;
 
             return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Local, new SyncLogger(serviceProvider.GetRequiredService<ILogger<SyncLogger>>()));

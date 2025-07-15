@@ -44,6 +44,32 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
         modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
+
+        // Configure relationships for vocabulary progress tracking
+        modelBuilder.Entity<VocabularyProgress>()
+            .HasOne(vp => vp.VocabularyWord)
+            .WithOne()
+            .HasForeignKey<VocabularyProgress>(vp => vp.VocabularyWordId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<VocabularyLearningContext>()
+            .HasOne(vlc => vlc.VocabularyProgress)
+            .WithMany(vp => vp.LearningContexts)
+            .HasForeignKey(vlc => vlc.VocabularyProgressId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<VocabularyLearningContext>()
+            .HasOne(vlc => vlc.LearningResource)
+            .WithMany()
+            .HasForeignKey(vlc => vlc.LearningResourceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Create unique constraint to ensure one progress record per vocabulary word
+        modelBuilder.Entity<VocabularyProgress>()
+            .HasIndex(vp => vp.VocabularyWordId)
+            .IsUnique();
 
         // Configure many-to-many relationship between LearningResource and VocabularyWord
         modelBuilder.Entity<LearningResource>()
@@ -80,5 +106,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationChunk> ConversationChunks => Set<ConversationChunk>();
     public DbSet<ResourceVocabularyMapping> ResourceVocabularyMappings => Set<ResourceVocabularyMapping>();
+    public DbSet<VocabularyProgress> VocabularyProgresses => Set<VocabularyProgress>();
+    public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();
 
 }

@@ -38,6 +38,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return ContentPage($"{_localize["LearningResources"]}",
             ToolbarItem("Search").OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
             ToolbarItem("Add").OnClicked(AddResource),
+            ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
 
             Grid(rows: "Auto, *", columns: "*",
                 VStack(
@@ -305,6 +306,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return MauiControls.Shell.Current.GoToAsync<ResourceProps>(
             nameof(EditLearningResourcePage),
             props => props.ResourceID = resourceId);
+    }
+    
+    Task ViewVocabularyProgress()
+    {
+        return MauiControls.Shell.Current.GoToAsync(nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage));
     }
 
     async Task CreateStarterResource()

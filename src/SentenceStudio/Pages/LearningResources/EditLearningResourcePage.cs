@@ -33,6 +33,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 // .IsVisible(State.IsEditing),
             ToolbarItem("Delete").OnClicked(DeleteResource),
                 // .IsVisible(!State.IsEditing),
+            ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
+                // Show vocabulary progress for this specific resource
                 
             Grid(
                 State.IsLoading ? 
@@ -669,5 +671,12 @@ Transcript:
             SetState(s => s.IsGeneratingVocabulary = false);
             await App.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
         }
+    }
+    
+    Task ViewVocabularyProgress()
+    {
+        return MauiControls.Shell.Current.GoToAsync<SentenceStudio.Pages.VocabularyProgress.VocabularyProgressProps>(
+            nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage),
+            props => props.ResourceId = State.Resource.Id);
     }
 }

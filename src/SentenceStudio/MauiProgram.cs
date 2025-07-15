@@ -220,6 +220,9 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.ListLearningResourcesPage>(nameof(SentenceStudio.Pages.LearningResources.ListLearningResourcesPage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.AddLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.AddLearningResourcePage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.EditLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.EditLearningResourcePage));
+		
+		// Register Vocabulary Progress pages
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage>(nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage));
 	}
 
 	
@@ -251,6 +254,9 @@ public static class MauiProgram
 		services.AddSingleton<SkillProfileRepository>();
 		services.AddSingleton<LearningResourceRepository>();
 		services.AddSingleton<StreamHistoryRepository>();
+		services.AddSingleton<VocabularyProgressRepository>();
+		services.AddSingleton<VocabularyLearningContextRepository>();
+		services.AddSingleton<VocabularyProgressService>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 

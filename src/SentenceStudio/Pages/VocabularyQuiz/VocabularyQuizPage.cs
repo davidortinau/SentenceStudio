@@ -63,35 +63,41 @@ class VocabularyQuizPageState
 public class VocabularyQuizItem
 {
     public VocabularyWord Word { get; set; }
-    public bool IsPromoted { get; set; } // Promoted from multiple choice to text entry
-    public bool IsCompleted { get; set; } // Successfully learned both modes
     public bool IsCurrent { get; set; }
     public UserActivity? UserActivity { get; set; }
-    public int MultipleChoiceCorrect { get; set; } // Track MC correct answers
-    public int TextEntryCorrect { get; set; } // Track text entry correct answers
+    
+    // Global progress from VocabularyProgress table
+    public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+    
+    // Computed properties that delegate to global progress
+    public bool IsPromoted => Progress?.IsPromoted ?? false;
+    public bool IsCompleted => Progress?.IsCompleted ?? false;
+    public int MultipleChoiceCorrect => Progress?.MultipleChoiceCorrect ?? 0;
+    public int TextEntryCorrect => Progress?.TextEntryCorrect ?? 0;
     
     // Require 3 correct answers before advancing
     public const int RequiredCorrectAnswers = 3;
-    public bool HasConfidenceInMultipleChoice => MultipleChoiceCorrect >= RequiredCorrectAnswers; // Ready for promotion
-    public bool HasConfidenceInTextEntry => TextEntryCorrect >= RequiredCorrectAnswers; // Ready for completion
+    public bool HasConfidenceInMultipleChoice => Progress?.HasConfidenceInMultipleChoice ?? false;
+    public bool HasConfidenceInTextEntry => Progress?.HasConfidenceInTextEntry ?? false;
     
     // Progress indicators
-    public float MultipleChoiceProgress => Math.Min(1.0f, (float)MultipleChoiceCorrect / RequiredCorrectAnswers);
-    public float TextEntryProgress => Math.Min(1.0f, (float)TextEntryCorrect / RequiredCorrectAnswers);
+    public float MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0f;
+    public float TextEntryProgress => Progress?.TextEntryProgress ?? 0f;
     
     // Check if term is ready to be skipped in current phase (learned but not fully completed)
     public bool IsReadyToSkipInCurrentPhase { get; set; }
     
     // Term status helpers for tracking
-    public bool IsUnknown => MultipleChoiceCorrect == 0 && TextEntryCorrect == 0;
-    public bool IsLearning => (MultipleChoiceCorrect > 0 || TextEntryCorrect > 0) && !IsCompleted;
-    public bool IsKnown => IsCompleted; // Fully learned (3 MC + 3 text entry correct)
+    public bool IsUnknown => Progress?.IsUnknown ?? true;
+    public bool IsLearning => Progress?.IsLearning ?? false;
+    public bool IsKnown => Progress?.IsKnown ?? false;
 }
 
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
 {
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] VocabularyProgressService _progressService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -489,18 +495,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         System.Diagnostics.Debug.WriteLine($"Session completed - Turn {State.CurrentTurn}/{State.MaxTurnsPerSession}");
         
-        // Promote eligible terms (those with confidence in multiple choice)
-        var termsToPromote = State.VocabularyItems.Where(item => 
-            !item.IsPromoted && item.HasConfidenceInMultipleChoice).ToList();
-        
-        foreach (var term in termsToPromote)
-        {
-            term.IsPromoted = true;
-            term.IsReadyToSkipInCurrentPhase = false; // Reset for text entry phase
-            System.Diagnostics.Debug.WriteLine($"Promoted term: {term.Word.NativeLanguageTerm}");
-        }
-        
-        // Remove fully learned terms (known)
+        // Remove fully learned terms (known) from current session
         var learnedTerms = State.VocabularyItems.Where(item => item.IsKnown).ToList();
         foreach (var term in learnedTerms)
         {
@@ -570,18 +565,27 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Take(neededTerms)
             .ToList();
         
+        // Get progress for these new words
+        var wordIds = randomWords.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        
         foreach (var word in randomWords)
         {
-            var newItem = new VocabularyQuizItem
-            {
-                Word = word,
-                IsPromoted = false,
-                IsCompleted = false,
-                IsCurrent = false
-            };
+            var progress = progressDict[word.Id];
             
-            State.VocabularyItems.Add(newItem);
-            System.Diagnostics.Debug.WriteLine($"Added new term: {word.NativeLanguageTerm}");
+            // Only add words that aren't already completed
+            if (!progress.IsCompleted)
+            {
+                var newItem = new VocabularyQuizItem
+                {
+                    Word = word,
+                    IsCurrent = false,
+                    Progress = progress
+                };
+                
+                State.VocabularyItems.Add(newItem);
+                System.Diagnostics.Debug.WriteLine($"Added new term: {word.NativeLanguageTerm}");
+            }
         }
     }
 
@@ -650,15 +654,34 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // Take first set
             var currentSetWords = shuffledVocab.Take(setSize).ToList();
             
-            var quizItems = currentSetWords.Select(word => new VocabularyQuizItem
+            // Create quiz items with global progress
+            var wordIds = currentSetWords.Select(w => w.Id).ToList();
+            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+            
+            var quizItems = currentSetWords.Select(word => 
             {
-                Word = word,
-                IsPromoted = false,
-                IsCompleted = false,
-                IsCurrent = false,
-                MultipleChoiceCorrect = 0,
-                TextEntryCorrect = 0
+                var progress = progressDict[word.Id];
+                return new VocabularyQuizItem
+                {
+                    Word = word,
+                    IsCurrent = false,
+                    Progress = progress
+                };
             }).ToList();
+
+            // Filter out completed words by default (could be made configurable)
+            var incompleteItems = quizItems.Where(item => !item.IsCompleted).ToList();
+            
+            if (!incompleteItems.Any())
+            {
+                // All words are already learned - show celebration and return
+                ShowCelebration("🎊 All words in this set are already learned! Great job!");
+                SetState(s => s.IsBusy = false);
+                return;
+            }
+
+            // Use incomplete items for the quiz
+            quizItems = incompleteItems;
 
             // Set first item as current
             if (quizItems.Any())
@@ -722,16 +745,26 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (isCorrect)
         {
+            // Get current resource ID for context tracking
+            var currentResourceId = GetCurrentResourceId();
+            var inputMode = currentItem.IsPromoted ? InputMode.Text : InputMode.MultipleChoice;
+            
+            // Update global progress
+            var updatedProgress = await _progressService.RecordCorrectAnswerAsync(
+                currentItem.Word.Id, 
+                inputMode, 
+                "VocabularyQuiz", 
+                currentResourceId);
+            
+            // Update the quiz item with new progress
+            currentItem.Progress = updatedProgress;
+            
             if (currentItem.IsPromoted)
             {
                 // Correct in text entry
-                currentItem.TextEntryCorrect++;
-                
                 if (currentItem.HasConfidenceInTextEntry)
                 {
                     // Mark as completed after 3 correct answers
-                    currentItem.IsCompleted = true;
-                    
                     SetState(s => 
                     {
                         s.ShowAnswer = true;
@@ -760,8 +793,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             else
             {
                 // Correct in multiple choice
-                currentItem.MultipleChoiceCorrect++;
-                
                 if (currentItem.HasConfidenceInMultipleChoice)
                 {
                     // Ready for promotion after 3 correct answers - mark as ready to skip in current phase
@@ -790,6 +821,16 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
         else
         {
+            // Record incorrect answer for analytics
+            var currentResourceId = GetCurrentResourceId();
+            var inputMode = currentItem.IsPromoted ? InputMode.Text : InputMode.MultipleChoice;
+            
+            await _progressService.RecordIncorrectAnswerAsync(
+                currentItem.Word.Id, 
+                inputMode, 
+                "VocabularyQuiz", 
+                currentResourceId);
+            
             if (currentItem.IsPromoted)
             {
                 // Incorrect in text entry - require them to type the correct answer
@@ -887,6 +928,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var allActivityTerms = GetAllTermsEverInActivity(totalResourceTerms);
             s.NotStartedCount = totalResourceTerms.Count - allActivityTerms.Count;
         });
+    }
+    
+    int? GetCurrentResourceId()
+    {
+        // Try to get the first resource ID from Props.Resources
+        if (Props.Resources?.Any() == true)
+        {
+            return Props.Resources.First().Id;
+        }
+        
+        // Fallback to Props.Resource for backward compatibility
+        return Props.Resource?.Id;
     }
     
     List<VocabularyWord> GetTotalTermsInResource()
@@ -1050,12 +1103,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     void StartNextRound()
     {
-        // Promote items that were successful in multiple choice
-        foreach (var item in State.VocabularyItems
-            .Where(i => !i.IsCompleted && i.HasConfidenceInMultipleChoice && !i.IsPromoted))
-        {
-            item.IsPromoted = true;
-        }
+        // Note: Promotion is now handled automatically by the global progress system
+        // No need to manually promote items here
 
         // Shuffle incomplete items for variety in the new round
         ShuffleIncompleteItems();
@@ -1064,6 +1113,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             s.CurrentRound++;
             s.CorrectAnswersInRound = 0;
+            s.IsRoundComplete = false;
         });
 
         ShowCelebration($"🎯 Round {State.CurrentRound} - Time for typing!");
