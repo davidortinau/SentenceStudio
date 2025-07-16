@@ -228,15 +228,37 @@ public partial class ActivityBorder : MauiReactor.Component
         .StrokeThickness(1)
         .HorizontalOptions(LayoutOptions.Start)
         .OnTapped(async () =>
-        await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
-            _route,
-            props =>
+        {
+            // 🏴‍☠️ Validate that we have the required selections before navigating
+            if (_parameters.Value.SelectedResources?.Any() != true)
             {
-                props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                props.Skill = _parameters.Value.SelectedSkillProfile;
+                await Application.Current.MainPage.DisplayAlert(
+                    "Ahoy!", 
+                    "Ye need to select at least one learning resource before startin' this activity, matey!", 
+                    "Aye, Captain!");
+                return;
             }
-        )
-    );
+            
+            if (_parameters.Value.SelectedSkillProfile == null)
+            {
+                await Application.Current.MainPage.DisplayAlert(
+                    "Avast!", 
+                    "Choose yer skill profile first, ye scallywag!", 
+                    "Aye, Captain!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ ActivityBorder: Navigating to {_route} with {_parameters.Value.SelectedResources.Count} resources and skill '{_parameters.Value.SelectedSkillProfile.Title}'");
+            
+            await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
+                _route,
+                props =>
+                {
+                    props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                    props.Skill = _parameters.Value.SelectedSkillProfile;
+                }
+            );
+        });
 }
 
 class ActivityProps

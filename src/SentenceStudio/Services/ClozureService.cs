@@ -35,17 +35,38 @@ public class ClozureService
 
     public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
     {
+        Debug.WriteLine($"🏴‍☠️ ClozureService: GetSentences called with resourceID={resourceID}, numberOfSentences={numberOfSentences}, skillID={skillID}");
         var watch = new Stopwatch();
         watch.Start();
 
+        if (resourceID == 0)
+        {
+            Debug.WriteLine("🏴‍☠️ ClozureService: Resource ID is 0 - no resource selected");
+            return new List<Challenge>();
+        }
+
+        if (skillID == 0)
+        {
+            Debug.WriteLine("🏴‍☠️ ClozureService: Skill ID is 0 - no skill selected");
+            return new List<Challenge>();
+        }
+
         var resource = await _resourceRepository.GetResourceAsync(resourceID);
+        Debug.WriteLine($"🏴‍☠️ ClozureService: Resource retrieved: {resource?.Title ?? "null"}");
 
         if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
-            return null;
+        {
+            Debug.WriteLine($"🏴‍☠️ ClozureService: No resource or vocabulary found - returning empty list");
+            return new List<Challenge>(); // Return empty list instead of null
+        }
 
-        _words = resource.Vocabulary.OrderBy(t => Random.Shared.Next()).Take(numberOfSentences).ToList();
+        // 🏴‍☠️ CRITICAL FIX: Send ALL vocabulary words to AI, not just a subset
+        // This ensures the AI can only use words from our vocabulary list
+        _words = resource.Vocabulary.ToList();
+        Debug.WriteLine($"🏴‍☠️ ClozureService: Sending ALL {_words.Count} vocabulary words to AI (not just {numberOfSentences})");
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+        Debug.WriteLine($"🏴‍☠️ ClozureService: Skill profile retrieved: {skillProfile?.Title ?? "null"}");
         
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozures.scriban-txt");
@@ -55,29 +76,120 @@ public class ClozureService
             prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description}); 
         }
 
-        //Debug.WriteLine(prompt);
+        Debug.WriteLine($"🏴‍☠️ ClozureService: Prompt created, length: {prompt.Length}");
         try
         {
             IChatClient client =
             new OpenAIClient(_openAiApiKey)
                 .AsChatClient(modelId: "gpt-4o-mini");
 
+            Debug.WriteLine("🏴‍☠️ ClozureService: Sending prompt to AI service");
             var reply = await client.GetResponseAsync<SentencesResponse>(prompt);
             
             if (reply != null && reply.Result.Sentences != null)
             {
+                Debug.WriteLine($"🏴‍☠️ ClozureService: AI returned {reply.Result.Sentences.Count} sentences");
+                
+                // 🏴‍☠️ IMPORTANT: Populate Challenge objects with vocabulary for progress tracking
+                Debug.WriteLine($"🏴‍☠️ ClozureService: Processing {reply.Result.Sentences.Count} challenges for vocabulary linking");
+                foreach (var challenge in reply.Result.Sentences)
+                {
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: === Processing challenge ===");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge.VocabularyWord: '{challenge.VocabularyWord}'");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge.VocabularyWordAsUsed: '{challenge.VocabularyWordAsUsed}'");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: Available vocabulary words: {string.Join(", ", _words.Select(w => $"'{w.TargetLanguageTerm}' (ID:{w.Id})"))}");
+                    
+                    // Find the vocabulary word that matches this challenge
+                    // Try multiple matching strategies to handle different forms
+                    VocabularyWord matchingWord = null;
+                    string matchStrategy = "";
+                    
+                    // Strategy 1: Exact match with VocabularyWord
+                    matchingWord = _words.FirstOrDefault(w => 
+                        string.Equals(w.TargetLanguageTerm, challenge.VocabularyWord, StringComparison.OrdinalIgnoreCase));
+                    if (matchingWord != null) matchStrategy = "Strategy 1: Exact VocabularyWord match";
+                    
+                    // Strategy 2: Exact match with VocabularyWordAsUsed  
+                    if (matchingWord == null)
+                    {
+                        matchingWord = _words.FirstOrDefault(w => 
+                            string.Equals(w.TargetLanguageTerm, challenge.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase));
+                        if (matchingWord != null) matchStrategy = "Strategy 2: Exact VocabularyWordAsUsed match";
+                    }
+                    
+                    // Strategy 3: VocabularyWord contains target term
+                    if (matchingWord == null)
+                    {
+                        matchingWord = _words.FirstOrDefault(w => 
+                            challenge.VocabularyWord?.Contains(w.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
+                        if (matchingWord != null) matchStrategy = "Strategy 3: VocabularyWord contains target term";
+                    }
+                    
+                    // Strategy 4: Target term contains VocabularyWord
+                    if (matchingWord == null)
+                    {
+                        matchingWord = _words.FirstOrDefault(w => 
+                            w.TargetLanguageTerm?.Contains(challenge.VocabularyWord, StringComparison.OrdinalIgnoreCase) == true);
+                        if (matchingWord != null) matchStrategy = "Strategy 4: Target term contains VocabularyWord";
+                    }
+                    
+                    // Strategy 5: Try partial matching on VocabularyWordAsUsed
+                    if (matchingWord == null)
+                    {
+                        matchingWord = _words.FirstOrDefault(w => 
+                            challenge.VocabularyWordAsUsed?.Contains(w.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
+                        if (matchingWord != null) matchStrategy = "Strategy 5: VocabularyWordAsUsed contains target term";
+                    }
+                    
+                    // Strategy 6: Try reverse partial matching on VocabularyWordAsUsed
+                    if (matchingWord == null)
+                    {
+                        matchingWord = _words.FirstOrDefault(w => 
+                            w.TargetLanguageTerm?.Contains(challenge.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase) == true);
+                        if (matchingWord != null) matchStrategy = "Strategy 6: Target term contains VocabularyWordAsUsed";
+                    }
+                    
+                    // Strategy 7: Fallback - if AI isn't following instructions, just link to first available word
+                    if (matchingWord == null && _words.Any())
+                    {
+                        matchingWord = _words.First();
+                        matchStrategy = "Strategy 7: Fallback to first vocabulary word (AI not following instructions)";
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: ⚠️ FALLBACK - AI generated vocabulary word '{challenge.VocabularyWord}' not in list, using fallback");
+                    }
+                    
+                    if (matchingWord != null)
+                    {
+                        // Create a list containing just this vocabulary word for the challenge
+                        challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ SUCCESS - Linked challenge using {matchStrategy}");
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: Linked to vocabulary word ID {matchingWord.Id} ('{matchingWord.TargetLanguageTerm}')");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: ❌ WARNING - Could not find vocabulary word for challenge");
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge VocabularyWord: '{challenge.VocabularyWord}'");
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge VocabularyWordAsUsed: '{challenge.VocabularyWordAsUsed}'");
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: This will prevent vocabulary progress tracking!");
+                        // Create empty list to avoid null reference
+                        challenge.Vocabulary = new List<VocabularyWord>();
+                    }
+                    
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: === End challenge processing ===");
+                }
+                
                 return reply.Result.Sentences;
             }
             else
             {
-                Debug.WriteLine("Reply or Sentences is null");
+                Debug.WriteLine("🏴‍☠️ ClozureService: Reply or Sentences is null");
                 return new List<Challenge>();
             }
         }
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred GetChallenges: {ex.Message}");
+            Debug.WriteLine($"🏴‍☠️ ClozureService: An error occurred GetChallenges: {ex.Message}");
+            Debug.WriteLine($"🏴‍☠️ ClozureService: Stack trace: {ex.StackTrace}");
             return new List<Challenge>();
         }
     }
