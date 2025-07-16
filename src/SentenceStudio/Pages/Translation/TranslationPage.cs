@@ -3,6 +3,8 @@ using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Clozure;
 using System.Text;
 using System.Web;
+using System.Diagnostics;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -22,6 +24,9 @@ class TranslationPageState
     public List<string> VocabBlocks { get; set; } = [];
     public string RecommendedTranslation { get; set; }
     public List<Challenge> Sentences { get; set; } = [];
+    public string FeedbackMessage { get; set; }
+    public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
+    public bool ShowFeedback { get; set; }
 }
 
 partial class TranslationPage : Component<TranslationPageState, ActivityProps>
@@ -29,6 +34,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     [Inject] TeacherService _teacherService;
     [Inject] AiService _aiService;
     [Inject] UserActivityRepository _userActivityRepository;
+    [Inject] VocabularyProgressService _progressService;
+    [Inject] LearningResourceRepository _resourceRepo;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -66,52 +73,30 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 			.IsVisible(State.IsBusy);
 
     VisualNode RenderSentenceContent() =>
-        Grid("*", DeviceInfo.Idiom == DeviceIdiom.Phone ? "*" : "6*, 3*",
+        VStack(spacing: 16,
             Label()
                 .Text(State.CurrentSentence)
                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
                 .TextColor(Theme.IsLightTheme ?
                     ApplicationTheme.DarkOnLightBackground :
                     ApplicationTheme.LightOnDarkBackground)
-                .IsVisible(!State.HasFeedback)
                 .HStart(),
-
-            Border(
-                WebView()
-                    .Source(BuildHtmlDocument(State.Feedback))
-            )
-                .IsVisible(State.HasFeedback)
-                .GridColumn(DeviceInfo.Idiom == DeviceIdiom.Phone ? 0 : 1)
+            
+            State.ShowFeedback ? 
+                Border(
+                    Label(State.FeedbackMessage)
+                        .FontSize(16)
+                        .Padding(12)
+                        .Center()
+                )
+                .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .StrokeThickness(0)
+                .Margin(0, 8) 
+                : null
         )
         .GridRow(1)
         .Margin(30);
-
-    HtmlWebViewSource BuildHtmlDocument(string content) =>
-        new HtmlWebViewSource
-        {
-            Html = $@"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset=""UTF-8"">
-                <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        font-size: 16px;
-                        color: {(Theme.IsLightTheme ? "#000000" : "#FFFFFF")};
-                        background-color: {(Theme.IsLightTheme ? "#E0E0E0" : "#222228")};
-                        margin: 0;
-                        padding: 16px;
-                    }}
-                </style>
-            </head>
-            <body>
-                {content}
-            </body>
-            </html>
-            "
-        };
 
     VisualNode RenderInputUI() =>
         Grid("*,*", "*,auto,auto,auto",
@@ -178,7 +163,6 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     VisualNode RenderBottomNavigation() =>
         Grid("1,*", "60,1,*,1,60,1,60",
             Button("GO")
-                .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
                 .Background(Colors.Transparent)
                 .GridRow(1).GridColumn(4)
                 .OnClicked(GradeMe),
@@ -248,6 +232,15 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 ApplicationTheme.DarkOnLightBackground :
                 ApplicationTheme.LightOnDarkBackground);
 
+    Color GetFeedbackBackgroundColor(string feedbackType) =>
+        feedbackType switch
+        {
+            "success" => Color.FromArgb("#E8F5E8"),
+            "achievement" => Color.FromArgb("#FFF3E0"),
+            "hint" => Color.FromArgb("#E3F2FD"),
+            _ => Color.FromArgb("#F5F5F5")
+        };
+
     // Event handlers and methods
     async Task LoadSentences()
     {
@@ -293,6 +286,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 s.UserMode = InputMode.Text.ToString();
                 s.HasFeedback = false;
                 s.Feedback = string.Empty;
+                s.ShowFeedback = false;
+                s.FeedbackMessage = string.Empty;
                 s.CurrentSentence = State.Sentences[_currentSentenceIndex].RecommendedTranslation;
                 s.UserInput = string.Empty;
                 s.RecommendedTranslation = State.Sentences[_currentSentenceIndex].SentenceText;
@@ -308,9 +303,21 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
     async Task GradeMe()
     {
+        if (string.IsNullOrWhiteSpace(State.UserInput))
+        {
+            SetState(s => {
+                s.FeedbackMessage = "Please enter your translation before grading.";
+                s.FeedbackType = "hint";
+                s.ShowFeedback = true;
+            });
+            return;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
         SetState(s => {
             s.Feedback = string.Empty;
             s.IsBusy = true;
+            s.ShowFeedback = false;
         });
 
         var prompt = await BuildGradePrompt();
@@ -319,6 +326,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         try 
         {
             var feedback = await _aiService.SendPrompt<GradeResponse>(prompt);
+            stopwatch.Stop();
+            
+            // Process vocabulary from translation
+            await ProcessVocabularyFromTranslation(State.UserInput, feedback, (int)stopwatch.ElapsedMilliseconds);
             
             // Track user activity
             await _userActivityRepository.SaveAsync(new UserActivity
@@ -331,16 +342,28 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 UpdatedAt = DateTime.Now
             });
             
+            // Display comprehensive feedback
+            var feedbackMessage = BuildFeedbackMessage(feedback);
+            var feedbackType = GetFeedbackType((int)feedback.Accuracy);
+            
             SetState(s => {
                 s.HasFeedback = true;
                 s.Feedback = FormatGradeResponse(feedback);
+                s.FeedbackMessage = feedbackMessage;
+                s.FeedbackType = feedbackType;
+                s.ShowFeedback = true;
                 s.IsBusy = false;
             });
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex.Message);
-            SetState(s => s.IsBusy = false);
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in GradeMe: {ex.Message}");
+            SetState(s => {
+                s.FeedbackMessage = "Sorry, there was an error grading your translation. Please try again.";
+                s.FeedbackType = "info";
+                s.ShowFeedback = true;
+                s.IsBusy = false;
+            });
         }
     }
     
@@ -389,6 +412,183 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     void UseVocab(string word)
     {
         SetState(s => s.UserInput += word);
+    }
+
+    string BuildFeedbackMessage(GradeResponse feedback)
+    {
+        var message = new StringBuilder();
+        
+        if (feedback.Accuracy >= 90)
+            message.AppendLine("🎉 Excellent translation!");
+        else if (feedback.Accuracy >= 80)
+            message.AppendLine("✅ Great work!");
+        else if (feedback.Accuracy >= 70)
+            message.AppendLine("👍 Good effort!");
+        else
+            message.AppendLine("💪 Keep practicing!");
+        
+        message.AppendLine($"\nAccuracy: {feedback.Accuracy}/100");
+        if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
+            message.AppendLine(feedback.AccuracyExplanation);
+        
+        message.AppendLine($"\nFluency: {feedback.Fluency}/100");
+        if (!string.IsNullOrEmpty(feedback.FluencyExplanation))
+            message.AppendLine(feedback.FluencyExplanation);
+        
+        if (feedback.GrammarNotes != null)
+        {
+            if (!string.IsNullOrEmpty(feedback.GrammarNotes.RecommendedTranslation))
+                message.AppendLine($"\nRecommended: {feedback.GrammarNotes.RecommendedTranslation}");
+            if (!string.IsNullOrEmpty(feedback.GrammarNotes.Explanation))
+                message.AppendLine($"Notes: {feedback.GrammarNotes.Explanation}");
+        }
+        
+        return message.ToString();
+    }
+
+    string GetFeedbackType(int accuracy) =>
+        accuracy switch
+        {
+            >= 90 => "success",
+            >= 80 => "achievement", 
+            >= 70 => "info",
+            _ => "hint"
+        };
+
+    async Task ProcessVocabularyFromTranslation(string userInput, GradeResponse grade, int responseTimeMs)
+    {
+        try
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Starting vocabulary processing for: '{userInput}'");
+            
+            // Extract vocabulary words from user input using AI analysis
+            var words = await ExtractVocabularyFromUserInput(userInput, grade);
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Extracted {words.Count} vocabulary words");
+            
+            // Process each vocabulary word
+            foreach (var word in words)
+            {
+                try 
+                {
+                    var attempt = new VocabularyAttempt
+                    {
+                        VocabularyWordId = word.Id,
+                        UserId = 1, // Default user
+                        Activity = "Translation",
+                        InputMode = "TextEntry",
+                        WasCorrect = true, // For now, assume translation attempts are learning experiences
+                        ContextType = "Sentence",
+                        UserInput = userInput,
+                        ExpectedAnswer = word.NativeLanguageTerm,
+                        ResponseTimeMs = responseTimeMs,
+                        DifficultyWeight = 1.0f
+                    };
+                    
+                    var progress = await _progressService.RecordAttemptAsync(attempt);
+                    
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Recorded progress for '{word.TargetLanguageTerm}'");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Error recording progress for word '{word.TargetLanguageTerm}': {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in ProcessVocabularyFromTranslation: {ex.Message}");
+        }
+    }
+
+    async Task<List<VocabularyWord>> ExtractVocabularyFromUserInput(string userInput, GradeResponse grade)
+    {
+        try
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Extracting vocabulary from user input: '{userInput}'");
+            
+            // Get available vocabulary from learning resources
+            var resources = await _resourceRepo.GetAllResourcesAsync();
+            var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loaded {allVocabulary.Count} vocabulary words from {resources.Count} resources");
+            
+            var foundWords = new List<VocabularyWord>();
+            
+            // First, try to use AI vocabulary analysis if available
+            if (grade?.VocabularyAnalysis != null && grade.VocabularyAnalysis.Any())
+            {
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Using AI vocabulary analysis - found {grade.VocabularyAnalysis.Count} analyzed words");
+                
+                foreach (var analysis in grade.VocabularyAnalysis)
+                {
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
+                    
+                    // Try to find the word by dictionary form first
+                    var vocabularyWord = allVocabulary.FirstOrDefault(v => 
+                        v.TargetLanguageTerm?.Equals(analysis.DictionaryForm, StringComparison.OrdinalIgnoreCase) == true);
+                    
+                    if (vocabularyWord == null)
+                    {
+                        // Try to find by used form
+                        vocabularyWord = allVocabulary.FirstOrDefault(v => 
+                            v.TargetLanguageTerm?.Equals(analysis.UsedForm, StringComparison.OrdinalIgnoreCase) == true);
+                    }
+                    
+                    if (vocabularyWord != null)
+                    {
+                        foundWords.Add(vocabularyWord);
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Found match for '{analysis.UsedForm}' -> '{vocabularyWord.TargetLanguageTerm}'");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ No match found for '{analysis.UsedForm}' (dictionary form: '{analysis.DictionaryForm}')");
+                    }
+                }
+            }
+            
+            // Fallback: Simple word extraction for Korean text
+            if (foundWords.Count == 0)
+            {
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Using fallback word extraction for Korean text");
+                
+                // Split by spaces and common Korean particles/endings
+                var particles = new[] { "은", "는", "이", "가", "을", "를", "에", "에서", "으로", "로", "과", "와", "하고" };
+                var potentialWords = userInput
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .SelectMany(word => {
+                        // Remove particles from the end of words
+                        var cleanWord = word;
+                        foreach (var particle in particles)
+                        {
+                            if (cleanWord.EndsWith(particle))
+                                cleanWord = cleanWord.Substring(0, cleanWord.Length - particle.Length);
+                        }
+                        return new[] { word, cleanWord };
+                    })
+                    .Where(word => !string.IsNullOrWhiteSpace(word) && word.Length > 1)
+                    .Distinct()
+                    .ToList();
+                
+                foreach (var word in potentialWords)
+                {
+                    var vocabularyWord = allVocabulary.FirstOrDefault(v => 
+                        v.TargetLanguageTerm?.Contains(word, StringComparison.OrdinalIgnoreCase) == true);
+                    
+                    if (vocabularyWord != null && !foundWords.Contains(vocabularyWord))
+                    {
+                        foundWords.Add(vocabularyWord);
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Fallback found match for '{word}' -> '{vocabularyWord.TargetLanguageTerm}'");
+                    }
+                }
+            }
+            
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Final result: Found {foundWords.Count} vocabulary words");
+            return foundWords;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in ExtractVocabularyFromUserInput: {ex.Message}");
+            return new List<VocabularyWord>();
+        }
     }    
 
     protected override void OnMounted()

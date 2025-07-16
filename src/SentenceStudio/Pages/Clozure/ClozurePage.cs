@@ -173,7 +173,6 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				Border(
 					Label(State.FeedbackMessage)
 						.FontSize(16)
-						.TextColor(GetFeedbackTextColor(State.FeedbackType))
 						.Padding(12)
 						.Center()
 				)
@@ -831,18 +830,6 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		// Log learning insights for analytics
 		Debug.WriteLine($"Learning insight for word {wordId}: {insightType}");
 		// TODO: Implement actual insight logging to analytics service
-	}
-	
-	private Color GetFeedbackTextColor(string feedbackType)
-	{
-		return feedbackType switch
-		{
-			"success" => Colors.White,
-			"achievement" => Colors.White,
-			"info" => Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground,
-			"hint" => Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground,
-			_ => Colors.Black
-		};
 	}
 	
 	private Color GetFeedbackBackgroundColor(string feedbackType)

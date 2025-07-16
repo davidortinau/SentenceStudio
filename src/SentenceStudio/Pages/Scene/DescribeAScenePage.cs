@@ -89,7 +89,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     Border(
                         Label(State.FeedbackMessage)
                             .FontSize(16)
-                            .TextColor(GetFeedbackTextColor(State.FeedbackType))
                             .Padding(12)
                             .Center()
                     )
@@ -808,18 +807,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         // For now, return a default user ID
         // This should be replaced with actual user management
         return 1;
-    }
-    
-    Color GetFeedbackTextColor(string feedbackType)
-    {
-        return feedbackType switch
-        {
-            "success" => Colors.White,
-            "achievement" => Colors.White,
-            "info" => Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground,
-            "hint" => Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground,
-            _ => Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground
-        };
     }
     
     Color GetFeedbackBackgroundColor(string feedbackType)

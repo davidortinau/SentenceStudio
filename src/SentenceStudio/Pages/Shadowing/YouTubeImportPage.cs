@@ -58,7 +58,6 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     .IsEnabled(!State.IsImporting && !string.IsNullOrEmpty(State.VideoUrl)),
                 
                 Label(State.ErrorMessage)
-                    .TextColor(Colors.Red)
                     .IsVisible(!string.IsNullOrEmpty(State.ErrorMessage)),
                 
                 VStack(spacing: 10,
