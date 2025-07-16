@@ -257,6 +257,7 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyProgressRepository>();
 		services.AddSingleton<VocabularyLearningContextRepository>();
 		services.AddSingleton<VocabularyProgressService>();
+		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 

@@ -24,6 +24,17 @@ public class VocabularyProgressRepository
             .ToListAsync();
     }
 
+    public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(int vocabularyWordId, int userId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyProgresses
+            .Include(vp => vp.VocabularyWord)
+            .Include(vp => vp.LearningContexts)
+                .ThenInclude(lc => lc.LearningResource)
+            .FirstOrDefaultAsync(vp => vp.VocabularyWordId == vocabularyWordId && vp.UserId == userId);
+    }
+
     public async Task<VocabularyProgress?> GetByWordIdAsync(int vocabularyWordId)
     {
         using var scope = _serviceProvider.CreateScope();
