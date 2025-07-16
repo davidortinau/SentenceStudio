@@ -1,3 +1,34 @@
 I am a student that speaks English, and I'm learning Korean. Given this sentence: \"{{original_sentence}}\" you recommended this translation: \"{{recommended_translation}}\". I translated it as: \"{{user_input}}\". Please grade my translation for accuracy (does it mean approximately what it should and would I be understood by a native speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would say this using 존댓말).
 
-Use a scale of 0 to 100 where higher is better.
+Use a scale of 0 to 100 where higher is better. If the vocabulary and grammar are accurate, then score 100. Any improvements for vocabulary, grammar, or fluency should not deduct from the score but only be included in the explanations.
+
+IMPORTANT: Also analyze the vocabulary words used in my Korean translation. For each Korean word or phrase I used, identify its dictionary form (base form) and indicate whether it was used correctly in context. This will help track my vocabulary progress.
+
+Format your response as json with properties like this: 
+{
+  "accuracy_score": 100, 
+  "accuracy_explanation": "", 
+  "fluency_score": 100, 
+  "fluency_explanation": "", 
+  "grammar_notes": {
+    "original_sentence": "", 
+    "recommended_translation": "", 
+    "explanation": ""
+  },
+  "vocabulary_analysis": [
+    {
+      "used_form": "갔어요",
+      "dictionary_form": "가다",
+      "meaning": "to go",
+      "usage_correct": true,
+      "usage_explanation": "Correctly conjugated past tense polite form"
+    },
+    {
+      "used_form": "예쁜",
+      "dictionary_form": "예쁘다",
+      "meaning": "to be pretty",
+      "usage_correct": true,
+      "usage_explanation": "Correctly used as attributive adjective form"
+    }
+  ]
+}.

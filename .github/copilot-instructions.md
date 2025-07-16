@@ -6,6 +6,10 @@ When building the app project you MUST include a target framework moniker (TFM) 
 
 dotnet build -f net10.0-maccatalyst
 
+IMPORTANT: To run .NET MAUI apps, NEVER use `dotnet run` - it doesn't work for MAUI. Instead use:
+
+dotnet build -t:Run -f net10.0-maccatalyst
+
 It uses the MauiReactor (Reactor.Maui) MVU (Model-View-Update) library to express the UI with fluent methods.
 
 When converting code from C# Markup to MauiReactor, keep these details in mind:
@@ -21,3 +25,7 @@ Documentation via Context 7 is here:
 - MauiReactor https://context7.com/adospace/reactorui-maui/llms.txt
 
 Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
+
+STYLING: Prefer using the centralized styles defined in ApplicationTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
+
+ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (ApplicationTheme.DarkOnLightBackground, ApplicationTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.

@@ -36,6 +36,17 @@ public class VocabularyLearningContextRepository
             .ToListAsync();
     }
 
+    public async Task<List<VocabularyLearningContext>> GetRecentAttemptsAsync(int vocabularyProgressId, int count)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VocabularyLearningContexts
+            .Where(vlc => vlc.VocabularyProgressId == vocabularyProgressId)
+            .OrderByDescending(vlc => vlc.LearnedAt)
+            .Take(count)
+            .ToListAsync();
+    }
+
     public async Task<List<VocabularyLearningContext>> GetByActivityAsync(string activity)
     {
         using var scope = _serviceProvider.CreateScope();

@@ -77,7 +77,9 @@ public class LearningResourceRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.LearningResources.ToListAsync();
+        return await db.LearningResources
+            .Include(r => r.Vocabulary) // Include vocabulary words like GetResourceAsync does
+            .ToListAsync();
     }
 
     public async Task<LearningResource> GetResourceAsync(int resourceId)

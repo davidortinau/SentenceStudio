@@ -166,7 +166,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.Background(Colors.Transparent)
 				.OnClicked(() => DeleteHistoryItem(item))
 				.ImageSource(SegoeFluentIcons.Delete.ToImageSource())
-				.TextColor(Colors.Red)
 				.GridColumn(3)
 				.HEnd()
 		);
@@ -394,7 +393,6 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 							Label("Korean Voices")
 								.FontAttributes(FontAttributes.Bold)
 								.FontSize(18)
-								.TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
 								.HCenter()
 								.Margin(0, 0, 0, 10),
 							CreateVoiceOption("yuna", "Yuna", "Female - Young, cheerful"),

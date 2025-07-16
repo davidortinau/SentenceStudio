@@ -1,10 +1,23 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences. For each sentence:
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences for clozure exercises. For each sentence:
 
-1. **Include the vocabulary word explicitly in the sentence.**
-2. Identify the exact word form used in the sentence and populate it in the `vocabulary_word_used` field.
-3. Provide 5 plausible options in the `vocabulary_word_used_guesses` field for a multiple-choice fill-in-the-blank question. These options should include:
-   - The correct word form (`vocabulary_word_used`).
-   - Four additional distractors, ideally from related vocabulary or similar contexts.
+CRITICAL REQUIREMENTS:
+1. **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
+2. **Create natural conversational sentences** using common speech patterns
+3. **vocabulary_word should be the dictionary form** from the provided vocabulary list
+4. **vocabulary_word_as_used should be the conjugated form** that naturally fits in the conversational sentence
+5. **Generate 5 plausible multiple-choice options** for `vocabulary_word_guesses`:
+   - Include the correct conjugated form (same as `vocabulary_word_as_used`)
+   - Add 4 other conjugated Korean words as distractors (similar conjugation patterns)
+   - All 5 options should be plausible in the sentence context
+6. **Include a recommended_translation** showing the English meaning of the sentence
+
+EXAMPLE FORMAT:
+If vocabulary word is "먹다" (to eat):
+- sentence_text: "나는 점심을 __" (with __ as placeholder)
+- recommended_translation: "I eat lunch"
+- vocabulary_word: "먹다" 
+- vocabulary_word_as_used: "먹어요" (conjugated form that fits the sentence)
+- vocabulary_word_guesses: "먹어요,마셔요,봐요,가요,와요" (5 options including the correct one)
 
 {{ if skills }}
 Prioritize creating sentences that emphasize these grammar skills: 

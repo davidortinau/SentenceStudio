@@ -66,9 +66,9 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(vlc => vlc.LearningResourceId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Create unique constraint to ensure one progress record per vocabulary word
+        // Create unique constraint to ensure one progress record per vocabulary word per user
         modelBuilder.Entity<VocabularyProgress>()
-            .HasIndex(vp => vp.VocabularyWordId)
+            .HasIndex(vp => new { vp.VocabularyWordId, vp.UserId })
             .IsUnique();
 
         // Configure many-to-many relationship between LearningResource and VocabularyWord

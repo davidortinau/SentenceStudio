@@ -1,5 +1,7 @@
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
+using System.Text;
+using System.Diagnostics;
 
 
 
@@ -21,6 +23,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] TranslationService _translationService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _learningResourceRepository;
+    [Inject] VocabularyProgressService _vocabularyProgressService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -218,6 +221,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             CreatedAt = DateTime.Now
         });
 
+        // Process vocabulary from the writing activity
+        try
+        {
+            await ProcessVocabularyFromWriting(sentence.Answer, grade);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ WritingPage: Error processing vocabulary: {ex.Message}");
+        }
+
         SetState(s => { }); // Force refresh
     }
 
@@ -284,5 +297,50 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             _localize["Explanation"].ToString(),
             explanation,
             _localize["OK"].ToString());
+    }
+
+    /// <summary>
+    /// Process vocabulary from writing activity for enhanced tracking
+    /// </summary>
+    async Task ProcessVocabularyFromWriting(string userInput, GradeResponse gradeResponse)
+    {
+        Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Starting vocabulary analysis for WritingPage");
+
+        if (gradeResponse?.VocabularyAnalysis != null && gradeResponse.VocabularyAnalysis.Any())
+        {
+            Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Found {gradeResponse.VocabularyAnalysis.Count} vocabulary items from AI analysis");
+
+            foreach (var vocabItem in gradeResponse.VocabularyAnalysis)
+            {
+                // Use vocabulary from current state
+                var matchedVocab = State.VocabBlocks.FirstOrDefault(v => 
+                    v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedVocab != null)
+                {
+                    var attempt = new VocabularyAttempt
+                    {
+                        VocabularyWordId = matchedVocab.Id,
+                        UserId = 1, // Default user
+                        Activity = "Writing",
+                        InputMode = "TextEntry",
+                        WasCorrect = vocabItem.UsageCorrect,
+                        DifficultyWeight = 1.0f,
+                        ContextType = "Application",
+                        UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
+                        ExpectedAnswer = vocabItem.DictionaryForm,
+                        ResponseTimeMs = 0,
+                        UserConfidence = 0.5f
+                    };
+                    
+                    await _vocabularyProgressService.RecordAttemptAsync(attempt);
+                    Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Recorded attempt for '{vocabItem.UsedForm}' (correct: {vocabItem.UsageCorrect})");
+                }
+            }
+        }
+        else
+        {
+            Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: No AI vocabulary analysis available");
+        }
     }
 }

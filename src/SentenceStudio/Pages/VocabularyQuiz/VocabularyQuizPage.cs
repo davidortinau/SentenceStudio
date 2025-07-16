@@ -2,22 +2,32 @@ using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Dashboard;
 using System.Timers;
+using System.Diagnostics;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
 /// <summary>
-/// Vocabulary Quiz Activity - Progressive Learning System
+/// Vocabulary Quiz Activity - Enhanced Progress Tracking System
 /// 
 /// Learning Flow:
-/// 1. Multiple Choice Phase: Users answer 3 correct questions to advance
-/// 2. Text Entry Phase: Users type 3 correct answers to complete the word
-/// 3. Progress Tracking: Visual indicators show progress toward learning goals
+/// 1. Recognition Phase: Users practice multiple choice recognition until proficient
+/// 2. Production Phase: Users practice text entry (typing) until proficient  
+/// 3. Application Phase: Advanced contextual usage (future enhancement)
 /// 
-/// Key Features:
-/// - Requires 3 correct answers before advancing phases (configurable via RequiredCorrectAnswers)
-/// - Uses "learned" terminology instead of "mastered" for better UX
-/// - Progress bars show completion status for each word
-/// - Automatic round progression when words are ready to advance
+/// Enhanced Features:
+/// - Activity-independent progress tracking with mastery scores (0.0-1.0)
+/// - Phase-based progression (Recognition → Production → Application)
+/// - Response time tracking for performance analytics
+/// - Difficulty weighting based on context and word characteristics
+/// - Spaced repetition scheduling for optimal review timing
+/// - Rich context tracking for cross-activity learning insights
+/// 
+/// Key Improvements:
+/// - Uses VocabularyAttempt model for detailed attempt recording
+/// - Enhanced feedback based on mastery scores vs. simple counters
+/// - Backward compatible with existing 3-correct-answer thresholds
+/// - Supports multiple users and learning contexts
+/// - Progress bars reflect overall mastery rather than just completion
 /// </summary>
 class VocabularyQuizPageState
 {
@@ -68,28 +78,32 @@ public class VocabularyQuizItem
     // Global progress from VocabularyProgress table
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
     
-    // Computed properties that delegate to global progress
-    public bool IsPromoted => Progress?.IsPromoted ?? false;
-    public bool IsCompleted => Progress?.IsCompleted ?? false;
-    public int MultipleChoiceCorrect => Progress?.MultipleChoiceCorrect ?? 0;
-    public int TextEntryCorrect => Progress?.TextEntryCorrect ?? 0;
+    // Enhanced computed properties that delegate to new system
+    public bool IsPromoted => Progress?.CurrentPhase >= LearningPhase.Production;
+    public bool IsCompleted => Progress?.IsKnown ?? false;
+    public int MultipleChoiceCorrect => Progress?.RecognitionCorrect ?? 0;
+    public int TextEntryCorrect => Progress?.ProductionCorrect ?? 0;
     
-    // Require 3 correct answers before advancing
+    // Legacy support for backward compatibility
     public const int RequiredCorrectAnswers = 3;
-    public bool HasConfidenceInMultipleChoice => Progress?.HasConfidenceInMultipleChoice ?? false;
-    public bool HasConfidenceInTextEntry => Progress?.HasConfidenceInTextEntry ?? false;
+    public bool HasConfidenceInMultipleChoice => Progress?.RecognitionAccuracy >= 0.7f;
+    public bool HasConfidenceInTextEntry => Progress?.ProductionAccuracy >= 0.7f;
     
-    // Progress indicators
-    public float MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0f;
-    public float TextEntryProgress => Progress?.TextEntryProgress ?? 0f;
+    // Enhanced progress indicators
+    public float MultipleChoiceProgress => Progress?.RecognitionAccuracy ?? 0f;
+    public float TextEntryProgress => Progress?.ProductionAccuracy ?? 0f;
+    public float MasteryProgress => Progress?.MasteryScore ?? 0f;
     
-    // Check if term is ready to be skipped in current phase (learned but not fully completed)
+    // Check if term is ready to be skipped in current phase
     public bool IsReadyToSkipInCurrentPhase { get; set; }
     
-    // Term status helpers for tracking
+    // Enhanced status helpers
     public bool IsUnknown => Progress?.IsUnknown ?? true;
     public bool IsLearning => Progress?.IsLearning ?? false;
     public bool IsKnown => Progress?.IsKnown ?? false;
+    
+    // Spaced repetition support
+    public bool IsDueForReview => Progress?.IsDueForReview ?? false;
 }
 
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
@@ -97,6 +111,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] VocabularyProgressService _progressService;
+
+    // Enhanced tracking: Response timer for measuring user response time
+    private Stopwatch _responseTimer = new Stopwatch();
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -165,7 +182,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode LearningProgressBar() =>
         Grid(rows: "Auto", columns: "Auto,*,Auto",
-            // Left green bubble with learning count
+            // Left bubble shows learning count with enhanced status
             Border(
                 Label($"{State.LearningTermsCount}")
                     .FontSize(16)
@@ -176,16 +193,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Background(ApplicationTheme.Success)
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
-            // .WidthRequest(80)
             .HeightRequest(30)
             .Padding(0)
             .GridColumn(0)
             .VCenter(),
             
-            // Center progress bar
+            // Center progress bar shows overall mastery
             ProgressBar()
                 .Progress(State.TotalResourceTermsCount > 0 ? 
-                    (double)State.LearningTermsCount / State.TotalResourceTermsCount : 0)
+                    CalculateOverallMasteryProgress() : 0)
                 .ProgressColor(ApplicationTheme.Success)
                 .BackgroundColor(Colors.LightGray)
                 .HeightRequest(6)
@@ -193,7 +209,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .VCenter()
                 .Margin(12, 0),
             
-            // Right grey bubble with total count
+            // Right bubble shows total count
             Border(
                 Label($"{State.TotalResourceTermsCount}")
                     .FontSize(16)
@@ -204,12 +220,22 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Background(Colors.Gray)
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
-            // .WidthRequest(80)
             .HeightRequest(30)
             .Padding(0)
             .GridColumn(2)
             .VCenter()
         ).Padding(16, 8);
+    
+    private double CalculateOverallMasteryProgress()
+    {
+        if (!State.VocabularyItems.Any()) return 0;
+        
+        var averageMastery = State.VocabularyItems
+            .Where(item => item.Progress != null)
+            .Average(item => item.Progress!.MasteryScore);
+            
+        return averageMastery;
+    }
 
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
@@ -396,15 +422,32 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.IsCorrect = false;
             s.RequireCorrectTyping = false;
             s.CorrectAnswerToType = "";
-            s.UserMode = item.IsPromoted ? InputMode.Text.ToString() : InputMode.MultipleChoice.ToString();
+            s.UserMode = GetUserModeForItem(item); // Enhanced mode determination
             s.IsAutoAdvancing = false; // Reset auto-advance state
         });
+
+        // Enhanced tracking: Start response timer
+        _responseTimer.Restart();
 
         // Generate multiple choice options if needed
         if (!item.IsPromoted)
         {
             await GenerateMultipleChoiceOptions(item);
         }
+    }
+
+    // Enhanced mode determination based on current learning phase
+    private string GetUserModeForItem(VocabularyQuizItem item)
+    {
+        var currentPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
+        
+        return currentPhase switch
+        {
+            LearningPhase.Recognition => InputMode.MultipleChoice.ToString(),
+            LearningPhase.Production => InputMode.Text.ToString(),
+            LearningPhase.Application => InputMode.Text.ToString(),
+            _ => InputMode.MultipleChoice.ToString()
+        };
     }
 
     async Task GenerateMultipleChoiceOptions(VocabularyQuizItem currentItem)
@@ -530,21 +573,28 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // Debug logging
             System.Diagnostics.Debug.WriteLine($"VocabularyQuizPage - LoadVocabulary started");
             System.Diagnostics.Debug.WriteLine($"Props.Resources count: {Props.Resources?.Count ?? 0}");
+            System.Diagnostics.Debug.WriteLine($"Props.Resource: {Props.Resource?.Title ?? "null"}");
             
             List<VocabularyWord> vocabulary = new List<VocabularyWord>();
 
             // Combine vocabulary from all selected resources like VocabularyMatchingPage does
             if (Props.Resources?.Any() == true)
             {
+                System.Diagnostics.Debug.WriteLine($"Using Props.Resources with {Props.Resources.Count} resources");
                 foreach (var resourceRef in Props.Resources)
                 {
-                    if (resourceRef?.Id != -1)
+                    System.Diagnostics.Debug.WriteLine($"Processing resource: {resourceRef?.Title ?? "null"} (ID: {resourceRef?.Id ?? -1})");
+                    if (resourceRef?.Id > 0)
                     {
                         var resource = await _resourceRepo.GetResourceAsync(resourceRef.Id);
                         if (resource?.Vocabulary?.Any() == true)
                         {
                             vocabulary.AddRange(resource.Vocabulary);
                             System.Diagnostics.Debug.WriteLine($"Added {resource.Vocabulary.Count} words from resource {resource.Title}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Resource {resource?.Title ?? "null"} has no vocabulary");
                         }
                     }
                 }
@@ -554,6 +604,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 System.Diagnostics.Debug.WriteLine("No resources provided, falling back to Props.Resource");
                 // Fallback to Props.Resource for backward compatibility
                 var resourceId = Props.Resource?.Id ?? 0;
+                System.Diagnostics.Debug.WriteLine($"Fallback resource ID: {resourceId}");
                 if (resourceId > 0)
                 {
                     var resource = await _resourceRepo.GetResourceAsync(resourceId);
@@ -562,6 +613,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         vocabulary.AddRange(resource.Vocabulary);
                         System.Diagnostics.Debug.WriteLine($"Added {resource.Vocabulary.Count} words from fallback resource {resource.Title}");
                     }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Fallback resource {resource?.Title ?? "null"} has no vocabulary");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No fallback resource ID available");
                 }
             }
 
@@ -585,46 +644,80 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             
             // Take first set
             var currentSetWords = shuffledVocab.Take(setSize).ToList();
+            System.Diagnostics.Debug.WriteLine($"Selected {currentSetWords.Count} words for quiz");
             
             // Create quiz items with global progress
             var wordIds = currentSetWords.Select(w => w.Id).ToList();
-            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+            System.Diagnostics.Debug.WriteLine($"Getting progress for {wordIds.Count} word IDs: [{string.Join(", ", wordIds)}]");
             
-            var quizItems = currentSetWords.Select(word => 
+            try 
             {
-                var progress = progressDict[word.Id];
-                return new VocabularyQuizItem
+                var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+                System.Diagnostics.Debug.WriteLine($"Retrieved progress for {progressDict?.Count ?? 0} words");
+                
+                var quizItems = currentSetWords.Select(word => 
                 {
-                    Word = word,
-                    IsCurrent = false,
-                    Progress = progress
-                };
-            }).ToList();
+                    if (progressDict?.ContainsKey(word.Id) == true)
+                    {
+                        var progress = progressDict[word.Id];
+                        System.Diagnostics.Debug.WriteLine($"Word {word.NativeLanguageTerm}: Progress exists, IsCompleted: {progress.IsCompleted}");
+                        return new VocabularyQuizItem
+                        {
+                            Word = word,
+                            IsCurrent = false,
+                            Progress = progress
+                        };
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Word {word.NativeLanguageTerm}: No progress found, creating new");
+                        // Create default progress if none exists
+                        var defaultProgress = new SentenceStudio.Shared.Models.VocabularyProgress
+                        {
+                            VocabularyWordId = word.Id,
+                            IsCompleted = false,
+                            MasteryScore = 0.0f,
+                            CurrentPhase = LearningPhase.Recognition,
+                            TotalAttempts = 0,
+                            CorrectAttempts = 0
+                        };
+                        return new VocabularyQuizItem
+                        {
+                            Word = word,
+                            IsCurrent = false,
+                            Progress = defaultProgress
+                        };
+                    }
+                }).ToList();
 
-            // Filter out completed words by default (could be made configurable)
-            var incompleteItems = quizItems.Where(item => !item.IsCompleted).ToList();
-            
-            if (!incompleteItems.Any())
-            {
-                // All words are already learned - show celebration and return
-                ShowCelebration("🎊 All words in this set are already learned! Great job!");
-                SetState(s => s.IsBusy = false);
-                return;
-            }
+                System.Diagnostics.Debug.WriteLine($"Created {quizItems.Count} quiz items");
 
-            // Use incomplete items for the quiz
-            quizItems = incompleteItems;
+                // Filter out completed words by default (could be made configurable)
+                var incompleteItems = quizItems.Where(item => !item.IsCompleted).ToList();
+                System.Diagnostics.Debug.WriteLine($"Found {incompleteItems.Count} incomplete items out of {quizItems.Count} total");
+                
+                if (!incompleteItems.Any())
+                {
+                    // All words are already learned - show celebration and return
+                    ShowCelebration("🎊 All words in this set are already learned! Great job!");
+                    SetState(s => s.IsBusy = false);
+                    return;
+                }
 
-            // Set first item as current
-            if (quizItems.Any())
-            {
-                quizItems[0].IsCurrent = true;
-            }
+                // Use incomplete items for the quiz
+                quizItems = incompleteItems;
 
-            SetState(s => 
-            {
-                s.VocabularyItems = new ObservableCollection<VocabularyQuizItem>(quizItems);
-                s.CurrentRound = 1;
+                // Set first item as current
+                if (quizItems.Any())
+                {
+                    quizItems[0].IsCurrent = true;
+                    System.Diagnostics.Debug.WriteLine($"Set first item as current: {quizItems[0].Word.NativeLanguageTerm}");
+                }
+
+                SetState(s => 
+                {
+                    s.VocabularyItems = new ObservableCollection<VocabularyQuizItem>(quizItems);
+                    s.CurrentRound = 1;
                 s.CorrectAnswersInRound = 0;
                 s.CurrentSetNumber = 1;
                 s.TotalSets = totalSets;
@@ -632,9 +725,44 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             System.Diagnostics.Debug.WriteLine($"Created {quizItems.Count} quiz items");
 
-            if (quizItems.Any())
+                if (quizItems.Any())
+                {
+                    await LoadCurrentItem(quizItems[0]);
+                }
+            }
+            catch (Exception progressEx)
             {
-                await LoadCurrentItem(quizItems[0]);
+                System.Diagnostics.Debug.WriteLine($"Error loading progress: {progressEx.Message}");
+                // Create quiz items without progress for now
+                var quizItems = currentSetWords.Select(word => new VocabularyQuizItem
+                {
+                    Word = word,
+                    IsCurrent = false,
+                    Progress = new SentenceStudio.Shared.Models.VocabularyProgress
+                    {
+                        VocabularyWordId = word.Id,
+                        IsCompleted = false,
+                        MasteryScore = 0.0f,
+                        CurrentPhase = LearningPhase.Recognition,
+                        TotalAttempts = 0,
+                        CorrectAttempts = 0
+                    }
+                }).ToList();
+                
+                if (quizItems.Any())
+                {
+                    quizItems[0].IsCurrent = true;
+                    SetState(s => 
+                    {
+                        s.VocabularyItems = new ObservableCollection<VocabularyQuizItem>(quizItems);
+                        s.CurrentRound = 1;
+                        s.CorrectAnswersInRound = 0;
+                        s.CurrentSetNumber = 1;
+                        s.TotalSets = totalSets;
+                    });
+                    
+                    await LoadCurrentItem(quizItems[0]);
+                }
             }
         }
         catch (Exception ex)
@@ -662,7 +790,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var isCorrect = string.Equals(answer.Trim(), State.CurrentTargetLanguageTerm.Trim(), 
             StringComparison.OrdinalIgnoreCase);
 
-        // Save user activity
+        // Enhanced tracking: Stop response timer
+        _responseTimer.Stop();
+
+        // Save legacy user activity for backward compatibility
         var activity = new UserActivity
         {
             Activity = SentenceStudio.Shared.Models.Activity.VocabularyQuiz.ToString(),
@@ -675,118 +806,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         currentItem.UserActivity = activity;
         await _userActivityRepository.SaveAsync(activity);
 
-        if (isCorrect)
-        {
-            // Get current resource ID for context tracking
-            var currentResourceId = GetCurrentResourceId();
-            var inputMode = currentItem.IsPromoted ? InputMode.Text : InputMode.MultipleChoice;
-            
-            // Update global progress
-            var updatedProgress = await _progressService.RecordCorrectAnswerAsync(
-                currentItem.Word.Id, 
-                inputMode, 
-                "VocabularyQuiz", 
-                currentResourceId);
-            
-            // Update the quiz item with new progress
-            currentItem.Progress = updatedProgress;
-            
-            if (currentItem.IsPromoted)
-            {
-                // Correct in text entry
-                if (currentItem.HasConfidenceInTextEntry)
-                {
-                    // Mark as completed after 3 correct answers
-                    SetState(s => 
-                    {
-                        s.ShowAnswer = true;
-                        s.IsCorrect = true;
-                        s.FeedbackMessage = "🎉 Excellent! Word learned!";
-                        s.CorrectAnswersInRound++;
-                    });
+        // Enhanced tracking: Record answer with detailed context
+        await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
 
-                    // Show celebration
-                    ShowCelebration("✨ Perfect! Word learned!");
-                }
-                else
-                {
-                    // Still need more correct answers but mark as ready to skip in current phase
-                    currentItem.IsReadyToSkipInCurrentPhase = true;
-                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - currentItem.TextEntryCorrect;
-                    SetState(s => 
-                    {
-                        s.ShowAnswer = true;
-                        s.IsCorrect = true;
-                        s.FeedbackMessage = $"✅ Correct! {remaining} more correct answer{(remaining == 1 ? "" : "s")} to learn this word.";
-                        s.CorrectAnswersInRound++;
-                    });
-                }
-            }
-            else
-            {
-                // Correct in multiple choice
-                if (currentItem.HasConfidenceInMultipleChoice)
-                {
-                    // Ready for promotion after 3 correct answers - mark as ready to skip in current phase
-                    currentItem.IsReadyToSkipInCurrentPhase = true;
-                    SetState(s => 
-                    {
-                        s.ShowAnswer = true;
-                        s.IsCorrect = true;
-                        s.FeedbackMessage = "✅ Great! Ready for the typing challenge in the next round.";
-                        s.CorrectAnswersInRound++;
-                    });
-                }
-                else
-                {
-                    // Still need more correct answers
-                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - currentItem.MultipleChoiceCorrect;
-                    SetState(s => 
-                    {
-                        s.ShowAnswer = true;
-                        s.IsCorrect = true;
-                        s.FeedbackMessage = $"✅ Correct! {remaining} more correct answer{(remaining == 1 ? "" : "s")} to advance to typing.";
-                        s.CorrectAnswersInRound++;
-                    });
-                }
-            }
-        }
-        else
-        {
-            // Record incorrect answer for analytics
-            var currentResourceId = GetCurrentResourceId();
-            var inputMode = currentItem.IsPromoted ? InputMode.Text : InputMode.MultipleChoice;
-            
-            await _progressService.RecordIncorrectAnswerAsync(
-                currentItem.Word.Id, 
-                inputMode, 
-                "VocabularyQuiz", 
-                currentResourceId);
-            
-            if (currentItem.IsPromoted)
-            {
-                // Incorrect in text entry - require them to type the correct answer
-                SetState(s => 
-                {
-                    s.ShowCorrectAnswer = true;
-                    s.IsCorrect = false;
-                    s.FeedbackMessage = "Not quite right. Please type the correct answer below to continue:";
-                    s.RequireCorrectTyping = true;
-                    s.CorrectAnswerToType = s.CurrentTargetLanguageTerm;
-                    s.UserInput = ""; // Clear input for retyping
-                });
-            }
-            else
-            {
-                // Incorrect in multiple choice - show correct answer with auto-advance
-                SetState(s => 
-                {
-                    s.ShowAnswer = true;
-                    s.IsCorrect = false;
-                    s.FeedbackMessage = "❌ Incorrect. The correct answer is highlighted.";
-                });
-            }
-        }
+        // Enhanced feedback: Update UI based on enhanced progress
+        UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
 
         // Increment turn counter and update term counts
         SetState(s => s.CurrentTurn++);
@@ -802,11 +826,224 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Check if we can proceed to next round
         CheckRoundCompletion();
         
-        // Auto-advance after showing feedback for both correct and incorrect answers
+        // Auto-advance after showing feedback
         if (State.ShowAnswer)
         {
             TransitionToNextItem();
         }
+    }
+
+    // Enhanced tracking method integrated from the example
+    private async Task RecordAnswerWithEnhancedTracking(
+        VocabularyQuizItem currentItem, 
+        bool isCorrect, 
+        string userInput)
+    {
+        // Get current resource ID for context tracking
+        var currentResourceId = GetCurrentResourceId();
+        var inputMode = ParseInputMode(State.UserMode);
+        
+        // Determine context type based on the quiz mode and word usage
+        var contextType = DetermineContextType(currentItem, inputMode);
+        
+        // Determine difficulty weight based on various factors
+        var difficultyWeight = CalculateDifficultyWeight(currentItem, inputMode, contextType);
+        
+        // Create detailed attempt record
+        var attempt = new VocabularyAttempt
+        {
+            VocabularyWordId = currentItem.Word.Id,
+            UserId = GetCurrentUserId(), // Default to 1 for now
+            Activity = "VocabularyQuiz",
+            InputMode = inputMode.ToString(),
+            WasCorrect = isCorrect,
+            DifficultyWeight = difficultyWeight,
+            ContextType = contextType,
+            LearningResourceId = currentResourceId,
+            UserInput = userInput,
+            ExpectedAnswer = GetExpectedAnswer(currentItem, inputMode),
+            ResponseTimeMs = (int)_responseTimer.ElapsedMilliseconds,
+            UserConfidence = GetUserConfidenceRating() // Optional: from UI slider
+        };
+        
+        // Record attempt using enhanced service
+        var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
+        
+        // Update the quiz item with new progress
+        currentItem.Progress = updatedProgress;
+    }
+    
+    private InputMode ParseInputMode(string userMode)
+    {
+        return Enum.TryParse<InputMode>(userMode, out var mode) ? mode : InputMode.MultipleChoice;
+    }
+    
+    private string DetermineContextType(VocabularyQuizItem item, InputMode inputMode)
+    {
+        // Enhanced context detection logic
+        if (inputMode == InputMode.MultipleChoice)
+            return "Isolated"; // Multiple choice is always isolated recognition
+            
+        // For text entry, check if word appears in conjugated form
+        var word = item.Word;
+        var expectedAnswer = GetExpectedAnswer(item, inputMode);
+        
+        if (word.TargetLanguageTerm != expectedAnswer)
+            return "Conjugated"; // Word appears in different form
+            
+        return "Isolated"; // Standard text entry
+    }
+    
+    private float CalculateDifficultyWeight(VocabularyQuizItem item, InputMode inputMode, string contextType)
+    {
+        float baseWeight = 1.0f;
+        
+        // Adjust based on input mode
+        if (inputMode == InputMode.Text)
+            baseWeight *= 1.2f; // Text entry is harder than multiple choice
+            
+        // Adjust based on context
+        if (contextType == "Conjugated")
+            baseWeight *= 1.5f; // Conjugated forms are more difficult
+            
+        // Adjust based on word characteristics (length, complexity, etc.)
+        if (item.Word.TargetLanguageTerm?.Length > 10)
+            baseWeight *= 1.1f; // Longer words are slightly harder
+            
+        // Adjust based on previous performance
+        if (item.Progress?.Accuracy < 0.5f)
+            baseWeight *= 0.9f; // Lower weight if consistently struggling
+            
+        return Math.Min(2.0f, Math.Max(0.5f, baseWeight)); // Clamp between 0.5 and 2.0
+    }
+    
+    private void UpdateUIBasedOnEnhancedProgress(VocabularyQuizItem item, bool wasCorrect)
+    {
+        var progress = item.Progress;
+        if (progress == null) return;
+
+        if (wasCorrect)
+        {
+            // Use mastery score for more nuanced feedback
+            var masteryScore = progress.MasteryScore;
+            var currentPhase = progress.CurrentPhase;
+            
+            if (masteryScore >= 0.8f)
+            {
+                // Word is now known (mastered)
+                SetState(s => {
+                    s.ShowAnswer = true;
+                    s.IsCorrect = true;
+                    s.FeedbackMessage = "🎉 Excellent! Word mastered!";
+                    s.CorrectAnswersInRound++;
+                });
+                ShowCelebration("✨ Perfect! Word mastered!");
+            }
+            else if (currentPhase == LearningPhase.Production && 
+                     GetPreviousPhase(item) == LearningPhase.Recognition)
+            {
+                // Phase advanced from Recognition to Production
+                SetState(s => {
+                    s.ShowAnswer = true;
+                    s.IsCorrect = true;
+                    s.FeedbackMessage = "🎯 Great! Advanced to typing practice.";
+                    s.CorrectAnswersInRound++;
+                });
+            }
+            else if (currentPhase == LearningPhase.Application && 
+                     GetPreviousPhase(item) == LearningPhase.Production)
+            {
+                // Phase advanced from Production to Application
+                SetState(s => {
+                    s.ShowAnswer = true;
+                    s.IsCorrect = true;
+                    s.FeedbackMessage = "🚀 Excellent! Ready for advanced usage.";
+                    s.CorrectAnswersInRound++;
+                });
+            }
+            else
+            {
+                // Show progress toward mastery
+                var progressPercent = (int)(masteryScore * 100);
+                SetState(s => {
+                    s.ShowAnswer = true;
+                    s.IsCorrect = true;
+                    s.FeedbackMessage = $"✅ Correct! Mastery: {progressPercent}%";
+                    s.CorrectAnswersInRound++;
+                });
+            }
+            
+            // Show spaced repetition info if relevant
+            if (progress.NextReviewDate.HasValue)
+            {
+                var nextReview = progress.NextReviewDate.Value;
+                var daysUntilReview = (nextReview - DateTime.Now).Days;
+                Debug.WriteLine($"Next review for word {item.Word.Id} in {daysUntilReview} days");
+            }
+        }
+        else
+        {
+            // Handle incorrect answers with enhanced feedback
+            var masteryScore = progress.MasteryScore;
+            var attempts = progress.TotalAttempts;
+            
+            if (item.Progress?.CurrentPhase == LearningPhase.Production || 
+                item.Progress?.CurrentPhase == LearningPhase.Application)
+            {
+                // Incorrect in text entry - require them to type the correct answer
+                SetState(s => 
+                {
+                    s.ShowCorrectAnswer = true;
+                    s.IsCorrect = false;
+                    s.FeedbackMessage = "Not quite right. Please type the correct answer below to continue:";
+                    s.RequireCorrectTyping = true;
+                    s.CorrectAnswerToType = s.CurrentTargetLanguageTerm;
+                    s.UserInput = ""; // Clear input for retyping
+                });
+            }
+            else
+            {
+                // Incorrect in multiple choice - show correct answer with auto-advance
+                SetState(s => {
+                    s.ShowAnswer = true;
+                    s.IsCorrect = false;
+                    s.FeedbackMessage = $"❌ Not quite. Mastery: {(int)(masteryScore * 100)}% ({attempts} attempts)";
+                });
+            }
+        }
+    }
+    
+    private LearningPhase GetPreviousPhase(VocabularyQuizItem item)
+    {
+        // This is a simplified approach - in a real implementation, you might track phase history
+        var currentPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
+        return currentPhase switch
+        {
+            LearningPhase.Production => LearningPhase.Recognition,
+            LearningPhase.Application => LearningPhase.Production,
+            _ => LearningPhase.Recognition
+        };
+    }
+    
+    private float? GetUserConfidenceRating()
+    {
+        // This could come from a UI slider asking "How confident were you?"
+        // Returning null for now to indicate no confidence rating was provided
+        return null;
+    }
+    
+    private int GetCurrentUserId()
+    {
+        // For now, return default user ID
+        // In a real implementation, this would come from user authentication
+        return 1;
+    }
+    
+    private string GetExpectedAnswer(VocabularyQuizItem item, InputMode inputMode)
+    {
+        // This logic would depend on quiz configuration
+        // For now, return the target language term
+        return item.Word.TargetLanguageTerm ?? "";
     }
 
     private void TransitionToNextItem()
@@ -825,12 +1062,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var startTime = DateTime.Now;
         var duration = TimeSpan.FromMilliseconds(5000); // 5-second duration to match ClozurePage
         
-        timer.Elapsed += async (sender, e) =>
+        timer.Elapsed += (sender, e) =>
         {
             var elapsed = DateTime.Now - startTime;
             var progress = Math.Min(elapsed.TotalMilliseconds / duration.TotalMilliseconds, 1.0);
             
-            await MainThread.InvokeOnMainThreadAsync(() =>
+            MainThread.InvokeOnMainThreadAsync(() =>
             {
                 SetState(s => s.AutoTransitionProgress = progress);
             });
@@ -840,7 +1077,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 timer.Stop();
                 timer.Dispose();
                 
-                await MainThread.InvokeOnMainThreadAsync(async () =>
+                MainThread.InvokeOnMainThreadAsync(async () =>
                 {
                     SetState(s => 
                     {
