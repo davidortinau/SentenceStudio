@@ -187,18 +187,52 @@ partial class DashboardPage : Component<DashboardPageState>
         var resources = await _resourceRepository.GetAllResourcesAsync();
         var skills = await _skillService.ListAsync();
 
+        // Only set defaults if no previous selections exist
+        var existingSelectedResources = _parameters.Value?.SelectedResources;
+        var existingSelectedSkill = _parameters.Value?.SelectedSkillProfile;
+
         _parameters.Set(p =>{
-            p.SelectedResources = resources.Take(1).ToList(); // Default to first resource
-            p.SelectedSkillProfile = skills.FirstOrDefault();
+            // Preserve existing selections, or set defaults if none exist
+            p.SelectedResources = existingSelectedResources?.Any() == true ? existingSelectedResources : resources.Take(1).ToList();
+            p.SelectedSkillProfile = existingSelectedSkill ?? skills.FirstOrDefault();
         });
+
+        // Calculate indices for the selected items
+        var selectedResourceIndex = -1;
+        var selectedSkillIndex = -1;
+        
+        if (_parameters.Value.SelectedResources?.Any() == true)
+        {
+            var firstSelected = _parameters.Value.SelectedResources.First();
+            for (int i = 0; i < resources.Count; i++)
+            {
+                if (resources[i].Id == firstSelected.Id)
+                {
+                    selectedResourceIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        if (_parameters.Value.SelectedSkillProfile != null)
+        {
+            for (int i = 0; i < skills.Count; i++)
+            {
+                if (skills[i].Id == _parameters.Value.SelectedSkillProfile.Id)
+                {
+                    selectedSkillIndex = i;
+                    break;
+                }
+            }
+        }
 
         SetState(s => 
         {
             s.Resources = resources;
             s.SkillProfiles = skills;
-            s.SelectedResources = resources.Take(1).ToList(); // Default to first resource
-            s.SelectedSkillProfileIndex = skills.Any() ? 0 : -1; // Set to first item if available, otherwise -1
-            s.SelectedResourceIndex = resources.Any() ? 0 : -1; // Set to first item if available, otherwise -1
+            s.SelectedResources = _parameters.Value.SelectedResources ?? new List<LearningResource>();
+            s.SelectedSkillProfileIndex = selectedSkillIndex >= 0 ? selectedSkillIndex : (skills.Any() ? 0 : -1);
+            s.SelectedResourceIndex = selectedResourceIndex >= 0 ? selectedResourceIndex : (resources.Any() ? 0 : -1);
         });
     }
 }
