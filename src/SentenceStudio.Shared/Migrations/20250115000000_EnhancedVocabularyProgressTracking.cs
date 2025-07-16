@@ -119,54 +119,49 @@ namespace SentenceStudio.Shared.Migrations
                 type: "TEXT",
                 nullable: true);
 
-            // Rename VocabularyLearningContext table
-            migrationBuilder.RenameTable(
-                name: "VocabularyLearningContext",
-                newName: "VocabularyLearningContexts");
-
-            // Add new columns to VocabularyLearningContexts
+            // Add new columns to VocabularyLearningContext
             migrationBuilder.AddColumn<bool>(
                 name: "WasCorrect",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "INTEGER",
                 nullable: false,
                 defaultValue: false);
 
             migrationBuilder.AddColumn<float>(
                 name: "DifficultyScore",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "REAL",
                 nullable: false,
                 defaultValue: 0.5f);
 
             migrationBuilder.AddColumn<int>(
                 name: "ResponseTimeMs",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "INTEGER",
                 nullable: false,
                 defaultValue: 0);
 
             migrationBuilder.AddColumn<float>(
                 name: "UserConfidence",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "REAL",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "ContextType",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "TEXT",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "UserInput",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "TEXT",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "ExpectedAnswer",
-                table: "VocabularyLearningContexts",
+                table: "VocabularyLearningContext",
                 type: "TEXT",
                 nullable: true);
 
@@ -179,7 +174,7 @@ namespace SentenceStudio.Shared.Migrations
 
             // Update existing records to populate WasCorrect based on CorrectAnswersInContext
             migrationBuilder.Sql(
-                "UPDATE VocabularyLearningContexts SET WasCorrect = CASE WHEN CorrectAnswersInContext > 0 THEN 1 ELSE 0 END");
+                "UPDATE VocabularyLearningContext SET WasCorrect = CASE WHEN CorrectAnswersInContext > 0 THEN 1 ELSE 0 END");
         }
 
         /// <inheritdoc />
@@ -251,39 +246,34 @@ namespace SentenceStudio.Shared.Migrations
                 name: "MasteredAt",
                 table: "VocabularyProgress");
 
-            // Remove new columns from VocabularyLearningContexts
+            // Remove new columns from VocabularyLearningContext
             migrationBuilder.DropColumn(
                 name: "WasCorrect",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "DifficultyScore",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "ResponseTimeMs",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "UserConfidence",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "ContextType",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "UserInput",
-                table: "VocabularyLearningContexts");
+                table: "VocabularyLearningContext");
 
             migrationBuilder.DropColumn(
                 name: "ExpectedAnswer",
-                table: "VocabularyLearningContexts");
-
-            // Rename table back
-            migrationBuilder.RenameTable(
-                name: "VocabularyLearningContexts",
-                newName: "VocabularyLearningContext");
+                table: "VocabularyLearningContext");
 
             // Recreate the original unique index
             migrationBuilder.CreateIndex(

@@ -6,6 +6,10 @@ When building the app project you MUST include a target framework moniker (TFM) 
 
 dotnet build -f net10.0-maccatalyst
 
+IMPORTANT: To run .NET MAUI apps, NEVER use `dotnet run` - it doesn't work for MAUI. Instead use:
+
+dotnet build -t:Run -f net10.0-maccatalyst
+
 It uses the MauiReactor (Reactor.Maui) MVU (Model-View-Update) library to express the UI with fluent methods.
 
 When converting code from C# Markup to MauiReactor, keep these details in mind:
