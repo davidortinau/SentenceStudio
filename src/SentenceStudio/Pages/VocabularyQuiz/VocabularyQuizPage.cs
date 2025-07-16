@@ -44,8 +44,7 @@ class VocabularyQuizPageState
     public int CurrentSetNumber { get; set; } = 1;
     public int TotalSets { get; set; } = 1;
     public bool ShowCorrectAnswer { get; set; }
-    public bool IsAutoAdvancing { get; set; } // Show auto-advance countdown
-    public int AutoAdvanceCountdown { get; set; } = 2; // Countdown seconds
+    public bool IsAutoAdvancing { get; set; } // Show auto-advance progress
     
     // Session management for 10-turn rounds
     public int CurrentTurn { get; set; } = 1;
@@ -112,7 +111,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         UserInputSection()
                     ).RowSpacing(8)
                 ).GridRow(1),
-                // NavigationFooter(),
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 CelebrationOverlay()
@@ -164,67 +162,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .Background(Color.FromArgb("#80000000"))
         .GridRowSpan(2)
         .IsVisible(State.ShowCelebration);
-
-    VisualNode NavigationFooter() =>
-        Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
-            Button(State.IsAutoAdvancing ? "SKIP" : 
-                   (State.RequireCorrectTyping ? "NEXT" : (State.ShowAnswer ? "NEXT" : "CHECK")))
-                .TextColor(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
-                .Background(Colors.Transparent)
-                .GridRow(1).GridColumn(4)
-                .OnClicked(State.IsAutoAdvancing ? SkipCountdown :
-                          (State.RequireCorrectTyping ? NextItem : (State.ShowAnswer ? NextItem : CheckAnswer)))
-                // Show button during auto-advance (as SKIP) or when not in multiple choice mode
-                .IsVisible(State.IsAutoAdvancing || State.UserMode != InputMode.MultipleChoice.ToString() || State.ShowAnswer || State.RequireCorrectTyping),
-
-            VStack(spacing: 4,
-                Label($"Set {State.CurrentSetNumber} of {State.TotalSets}")
-                    .FontSize(12)
-                    .Center(),
-                Label($"Round {State.CurrentRound}")
-                    .FontSize(14)
-                    .FontAttributes(FontAttributes.Bold)
-                    .Center()
-            )
-            .GridRow(1).GridColumn(2)
-            .Center(),
-
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Previous.ToImageSource())
-                .GridRow(1).GridColumn(0)
-                .OnClicked(PreviousItem),
-
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Next.ToImageSource())
-                .GridRow(1).GridColumn(6)
-                .OnClicked(NextItem),
-
-            BoxView()
-                .Color(Colors.Black)
-                .HeightRequest(1)
-                .GridColumnSpan(7),
-
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(1),
-
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(3),
-
-            BoxView()
-                .Color(Colors.Black)
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(5)
-        ).GridRow(2);
 
     VisualNode LearningProgressBar() =>
         Grid(rows: "Auto", columns: "Auto,*,Auto",
@@ -285,11 +222,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .Center()
                 .FontAttributes(FontAttributes.Bold),
             
-            // Label(State.FeedbackMessage)
-            //     .FontSize(16)
-            //     .Center()
-            //     .TextColor(State.IsCorrect ? ApplicationTheme.Success : ApplicationTheme.Error)
-            //     .IsVisible(!string.IsNullOrEmpty(State.FeedbackMessage)),
+                
             Label(State.CurrentTargetLanguageTerm)
                 .FontSize(24)
                 .Center()
@@ -465,7 +398,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.CorrectAnswerToType = "";
             s.UserMode = item.IsPromoted ? InputMode.Text.ToString() : InputMode.MultipleChoice.ToString();
             s.IsAutoAdvancing = false; // Reset auto-advance state
-            s.AutoAdvanceCountdown = 2;
         });
 
         // Generate multiple choice options if needed
@@ -846,7 +778,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             }
             else
             {
-                // Incorrect in multiple choice - show correct answer
+                // Incorrect in multiple choice - show correct answer with auto-advance
                 SetState(s => 
                 {
                     s.ShowAnswer = true;
@@ -870,34 +802,57 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Check if we can proceed to next round
         CheckRoundCompletion();
         
-        // Auto-advance after showing feedback for correct answers (both multiple choice and text entry)
-        if (State.ShowAnswer && State.IsCorrect)
+        // Auto-advance after showing feedback for both correct and incorrect answers
+        if (State.ShowAnswer)
         {
-            // Show countdown and auto-advance
-            SetState(s => 
+            TransitionToNextItem();
+        }
+    }
+
+    private void TransitionToNextItem()
+    {
+        // Exit if already auto-advancing
+        if (State.IsAutoAdvancing) return;
+        
+        SetState(s => 
+        {
+            s.IsAutoAdvancing = true;
+            s.AutoTransitionProgress = 0.0;
+        });
+        
+        // Use System.Timers.Timer for smooth progress animation
+        var timer = new System.Timers.Timer(100); // Update every 100ms for smooth animation
+        var startTime = DateTime.Now;
+        var duration = TimeSpan.FromMilliseconds(5000); // 5-second duration to match ClozurePage
+        
+        timer.Elapsed += async (sender, e) =>
+        {
+            var elapsed = DateTime.Now - startTime;
+            var progress = Math.Min(elapsed.TotalMilliseconds / duration.TotalMilliseconds, 1.0);
+            
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                s.IsAutoAdvancing = true;
-                s.AutoAdvanceCountdown = 2;
+                SetState(s => s.AutoTransitionProgress = progress);
             });
             
-            _ = Task.Run(async () =>
+            if (progress >= 1.0)
             {
-                // Countdown from 2 to 1
-                for (int i = 2; i >= 1; i--)
-                {
-                    await MainThread.InvokeOnMainThreadAsync(() => 
-                        SetState(s => s.AutoAdvanceCountdown = i));
-                    await Task.Delay(1000); // 1 second intervals
-                }
+                timer.Stop();
+                timer.Dispose();
                 
-                // Auto-advance
-                await MainThread.InvokeOnMainThreadAsync(async () => 
+                await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    SetState(s => s.IsAutoAdvancing = false);
+                    SetState(s => 
+                    {
+                        s.IsAutoAdvancing = false;
+                        s.AutoTransitionProgress = 0.0;
+                    });
                     await NextItem();
                 });
-            });
-        }
+            }
+        };
+        
+        timer.Start();
     }
 
     async Task SkipCountdown()
@@ -1125,7 +1080,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task NextItem()
     {
-        autoNextTimer?.Stop();
         
         // Handle the special case where user must type correct answer
         if (State.RequireCorrectTyping)
@@ -1267,8 +1221,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    System.Timers.Timer autoNextTimer;
-
     protected override void OnMounted()
     {
         base.OnMounted();
@@ -1277,7 +1229,5 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     protected override void OnWillUnmount()
     {
         base.OnWillUnmount();
-        autoNextTimer?.Stop();
-        autoNextTimer?.Dispose();
     }
 }
