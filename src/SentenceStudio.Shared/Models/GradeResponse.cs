@@ -16,6 +16,18 @@ public class GradeResponse
     [NotMapped]
     public GrammarNotes? GrammarNotes { get; set; }
     
+    [NotMapped]
+    public List<VocabularyAnalysis>? VocabularyAnalysis { get; set; }
+    
     public DateTime CreatedAt { get; set; }
     public int ChallengeID { get; set; }
+}
+
+public class VocabularyAnalysis
+{
+    public string UsedForm { get; set; } = string.Empty;
+    public string DictionaryForm { get; set; } = string.Empty;
+    public string Meaning { get; set; } = string.Empty;
+    public bool UsageCorrect { get; set; }
+    public string UsageExplanation { get; set; } = string.Empty;
 }

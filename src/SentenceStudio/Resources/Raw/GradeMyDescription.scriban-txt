@@ -6,4 +6,33 @@ Please grade what I have written for accuracy (does it seem accurate according t
 
 Use a scale of 0 to 100 where higher is better. If the vocabulary and grammar are accurate, then score 100. Any improvements for vocabulary, grammar, or fluency should not deduct from the score but only be included in the explanations.
 
-Format your response as json with properties like this: {\"accuracy_score\": 100, \"accuracy_explanation\": \"\", \"fluency_score\": 100, \"fluency_explanation\": \"\", \"grammar_notes\": {\"original_sentence\": \"\", \"recommended_translation\": \"\", \"explanation\": \"\"}}. 
+IMPORTANT: Also analyze the vocabulary words used in my description. For each Korean word or phrase I used, identify its dictionary form (base form) and indicate whether it was used correctly in context. This will help track my vocabulary progress.
+
+Format your response as json with properties like this: 
+{
+  "accuracy_score": 100, 
+  "accuracy_explanation": "", 
+  "fluency_score": 100, 
+  "fluency_explanation": "", 
+  "grammar_notes": {
+    "original_sentence": "", 
+    "recommended_translation": "", 
+    "explanation": ""
+  },
+  "vocabulary_analysis": [
+    {
+      "used_form": "갔어요",
+      "dictionary_form": "가다",
+      "meaning": "to go",
+      "usage_correct": true,
+      "usage_explanation": "Correctly conjugated past tense polite form"
+    },
+    {
+      "used_form": "예쁜",
+      "dictionary_form": "예쁘다",
+      "meaning": "to be pretty",
+      "usage_correct": true,
+      "usage_explanation": "Correctly used as attributive adjective form"
+    }
+  ]
+}. 
