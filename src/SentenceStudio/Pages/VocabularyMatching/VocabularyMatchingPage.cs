@@ -2,8 +2,16 @@ using SentenceStudio.Pages.Dashboard;
 using System.Collections.ObjectModel;
 using MauiReactor.Shapes;
 using ReactorCustomLayouts;
+using System.Diagnostics;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
+
+public class WordWithProgress
+{
+    public VocabularyWord Word { get; set; }
+    public SentenceStudio.Shared.Models.VocabularyProgress Progress { get; set; }
+}
 
 public class MatchingTile
 {
@@ -14,6 +22,14 @@ public class MatchingTile
     public bool IsSelected { get; set; }
     public bool IsMatched { get; set; }
     public bool IsVisible { get; set; } = true;
+    
+    // Enhanced progress tracking
+    public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+    public VocabularyWord? Word { get; set; }
+    
+    // Enhanced computed properties
+    public bool IsKnown => Progress?.IsKnown ?? false;
+    public float MasteryProgress => Progress?.MasteryScore ?? 0f;
 }
 
 class VocabularyMatchingPageState
@@ -33,6 +49,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserActivityRepository _userActivityRepository;
+    [Inject] VocabularyProgressService _progressService;
+
+    // Enhanced tracking: Response timer for measuring user response time
+    private Stopwatch _responseTimer = new Stopwatch();
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -201,15 +221,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         }
 
         return Border(
-            // Grid(
-                Label(tile.Text)
-                    .FontSize(fontSize)
-                    .HCenter()
-                    .VCenter()
-                    .TextColor(GetTileTextColor(tile))
-            // )
-            // .HeightRequest(height)
-            // .WidthRequest(width)
+            Label(tile.Text)
+                .FontSize(fontSize)
+                .HCenter()
+                .VCenter()
+                .TextColor(GetTileTextColor(tile))
         )
         .BackgroundColor(GetTileBackgroundColor(tile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
@@ -303,13 +319,11 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 return;
             }
 
-            // Remove duplicates based on both native and target terms, and shuffle
+            // Remove duplicates based on both native and target terms
             words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
                                    !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
                          .GroupBy(w => new { Native = w.NativeLanguageTerm?.Trim(), Target = w.TargetLanguageTerm?.Trim() })
                          .Select(g => g.First())
-                         .OrderBy(_ => Guid.NewGuid())
-                         .Take(8)
                          .ToList();
             
             if (words.Count == 0)
@@ -321,11 +335,26 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 return;
             }
 
-            var tiles = CreateTilesFromWords(words);
+            // Get progress for all words using enhanced tracking
+            var wordIds = words.Select(w => w.Id).ToList();
+            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+
+            // Prioritize words that need more practice
+            var wordsWithProgress = words.Select(word => new WordWithProgress
+            {
+                Word = word,
+                Progress = progressDict[word.Id]
+            }).ToList();
+
+            // Filter and prioritize words for matching activity
+            var selectedWords = SelectWordsForMatching(wordsWithProgress).Take(8).ToList();
+            
+            // Create tiles with enhanced progress information
+            var tiles = await CreateTilesFromWordsAsync(selectedWords);
             
             SetState(s => {
                 s.Tiles = tiles;
-                s.TotalPairs = words.Count;
+                s.TotalPairs = selectedWords.Count;
                 s.MatchedPairs = 0;
                 s.IsBusy = false;
                 s.IsGameComplete = false;
@@ -340,7 +369,78 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IsBusy = false;
                 s.GameMessage = _localize["ErrorLoadingVocabulary"].ToString();
             });
+            System.Diagnostics.Debug.WriteLine($"Error loading vocabulary: {ex.Message}");
         }
+    }
+
+    private List<WordWithProgress> SelectWordsForMatching(List<WordWithProgress> wordsWithProgress)
+    {
+        // Prioritize words that need practice in recognition phase
+        // or that are learning but not yet mastered
+        return wordsWithProgress
+            .Where(wp => !wp.Progress.IsKnown) // Don't include already mastered words
+            .OrderBy(wp => wp.Progress.MasteryScore) // Prioritize words that need more practice
+            .ThenBy(wp => wp.Progress.CurrentPhase) // Recognition phase first
+            .ThenBy(_ => Guid.NewGuid()) // Random for variety
+            .ToList();
+    }
+
+    async Task<List<MatchingTile>> CreateTilesFromWordsAsync(List<WordWithProgress> wordsWithProgress)
+    {
+        var tiles = new List<MatchingTile>();
+        int tileId = 0;
+
+        // Create tiles for native language terms
+        foreach (var wp in wordsWithProgress)
+        {
+            var word = wp.Word;
+            var progress = wp.Progress;
+            
+            if (!string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
+            {
+                tiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.NativeLanguageTerm.Trim(),
+                    Language = "native",
+                    VocabularyWordId = word.Id,
+                    IsVisible = !State.HideNativeWordsMode,
+                    Progress = progress,
+                    Word = word
+                });
+            }
+        }
+
+        // Create tiles for target language terms
+        foreach (var wp in wordsWithProgress)
+        {
+            var word = wp.Word;
+            var progress = wp.Progress;
+            
+            if (!string.IsNullOrWhiteSpace(word.TargetLanguageTerm))
+            {
+                tiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.TargetLanguageTerm.Trim(),
+                    Language = "target",
+                    VocabularyWordId = word.Id,
+                    IsVisible = true,
+                    Progress = progress,
+                    Word = word
+                });
+            }
+        }
+
+        // Shuffle the tiles
+        var random = new Random();
+        for (int i = tiles.Count - 1; i > 0; i--)
+        {
+            int j = random.Next(0, i + 1);
+            (tiles[i], tiles[j]) = (tiles[j], tiles[i]);
+        }
+
+        return tiles;
     }
 
     List<MatchingTile> CreateTilesFromWords(List<VocabularyWord> words)
@@ -414,6 +514,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             return;
         }
 
+        // Enhanced tracking: Start response timer when first tile is selected
+        if (State.SelectedTiles.Count == 0)
+        {
+            _responseTimer.Restart();
+        }
+
         // Select the tile
         SelectTile(tile);
 
@@ -485,11 +591,23 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         bool isMatch = tile1.VocabularyWordId == tile2.VocabularyWordId && 
                        tile1.Language != tile2.Language;
 
+        // Enhanced tracking: Stop response timer
+        _responseTimer.Stop();
+
+        // Find the vocabulary word being matched
+        var matchedWord = tile1.Word ?? tile2.Word;
+        if (matchedWord != null)
+        {
+            await RecordEnhancedMatchActivity(matchedWord, isMatch);
+        }
+        else
+        {
+            // Fallback to legacy recording
+            await RecordMatchActivity(isMatch);
+        }
+
         if (isMatch)
         {
-            // Record successful match activity
-            await RecordMatchActivity(true);
-
             // It's a match!
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
@@ -527,9 +645,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         }
         else
         {
-            // Record unsuccessful match activity
-            await RecordMatchActivity(false);
-            
             // Not a match
             SetState(s => {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
@@ -549,8 +664,72 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     }
                 }
             });
-            
         }
+    }
+
+    private async Task RecordEnhancedMatchActivity(VocabularyWord word, bool isCorrect)
+    {
+        try
+        {
+            // Get current resource ID for context tracking
+            var currentResourceId = GetCurrentResourceId();
+            
+            // Create detailed attempt record
+            var attempt = new VocabularyAttempt
+            {
+                VocabularyWordId = word.Id,
+                UserId = GetCurrentUserId(),
+                Activity = "VocabularyMatching",
+                InputMode = InputMode.MultipleChoice.ToString(), // Matching is essentially multiple choice
+                WasCorrect = isCorrect,
+                DifficultyWeight = 0.8f, // Matching is slightly easier than text entry
+                ContextType = "Isolated", // Words are shown in isolation
+                LearningResourceId = currentResourceId,
+                UserInput = isCorrect ? "correct_match" : "incorrect_match",
+                ExpectedAnswer = $"{word.NativeLanguageTerm} = {word.TargetLanguageTerm}",
+                ResponseTimeMs = (int)_responseTimer.ElapsedMilliseconds,
+                UserConfidence = null // Not captured in matching activity
+            };
+            
+            // Record attempt using enhanced service
+            var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
+            
+            // Update the tiles with new progress
+            var tilesForWord = State.Tiles.Where(t => t.VocabularyWordId == word.Id).ToList();
+            foreach (var tile in tilesForWord)
+            {
+                tile.Progress = updatedProgress;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"Enhanced progress tracking: Word {word.Id} - Correct: {isCorrect}, Mastery: {updatedProgress.MasteryScore:F2}");
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't break game flow
+            System.Diagnostics.Debug.WriteLine($"Error recording enhanced match activity: {ex.Message}");
+            
+            // Fallback to legacy recording
+            await RecordMatchActivity(isCorrect);
+        }
+    }
+
+    private int GetCurrentUserId()
+    {
+        // For now, return default user ID
+        // In a real implementation, this would come from user authentication
+        return 1;
+    }
+
+    private int? GetCurrentResourceId()
+    {
+        // Try to get the first resource ID from Props.Resources
+        if (Props.Resources?.Any() == true)
+        {
+            return Props.Resources.First().Id;
+        }
+        
+        // Fallback to Props.Resource for backward compatibility
+        return Props.Resource?.Id;
     }
 
     void RestartGame()
