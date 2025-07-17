@@ -52,6 +52,7 @@ class VocabularyLearningProgressPageState
     public LearningResource? SelectedResource { get; set; }
     public VocabularyFilterType SelectedFilter { get; set; } = VocabularyFilterType.All;
     public string SearchText { get; set; } = string.Empty;
+    public double ScreenWidth { get; set; }
     
     // Computed stats
     public int TotalWords => VocabularyItems.Count;
@@ -73,31 +74,32 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                ScrollView(
-                    VStack(spacing: 16,
-                        RenderHeaderStats(),
-                        RenderFilters(),
-                        RenderVocabularyList()
-                    ).Padding(16)
+                Grid(rows: "Auto,Auto,*", columns: "*",
+                    RenderHeaderStats(),
+                    RenderFilters(),
+                    RenderVocabularyCollectionView()
                 )
         )
-        .OnAppearing(LoadData);
+        .OnAppearing(LoadData)
+        .OnSizeChanged(() => OnPageSizeChanged());
     }
 
     VisualNode RenderHeaderStats() =>
-        Border(
-            HStack(spacing: 20,
-                RenderStatCard("Total", State.TotalWords, ApplicationTheme.Primary),
-                RenderStatCard("Known", State.KnownWords, ApplicationTheme.Success),
-                RenderStatCard("Learning", State.LearningWords, ApplicationTheme.Warning),
-                RenderStatCard("Unknown", State.UnknownWords, ApplicationTheme.Gray400)
-            ).HCenter()
-        )
-        .Background(Theme.IsLightTheme ? Colors.White : ApplicationTheme.DarkSecondaryBackground)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
-        .StrokeThickness(1)
-        .Stroke(ApplicationTheme.Gray200)
-        .Padding(16);
+        VStack(
+            Border(
+                HStack(spacing: 20,
+                    RenderStatCard("Total", State.TotalWords, ApplicationTheme.Primary),
+                    RenderStatCard("Known", State.KnownWords, ApplicationTheme.Success),
+                    RenderStatCard("Learning", State.LearningWords, ApplicationTheme.Warning),
+                    RenderStatCard("Unknown", State.UnknownWords, ApplicationTheme.Gray400)
+                ).HCenter()
+            )
+            .Background(Theme.IsLightTheme ? Colors.White : ApplicationTheme.DarkSecondaryBackground)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .StrokeThickness(1)
+            .Stroke(ApplicationTheme.Gray200)
+            .Padding(16)
+        ).Padding(16, 16, 16, 0).GridRow(0);
 
     VisualNode RenderStatCard(string title, int count, Color color) =>
         VStack(spacing: 4,
@@ -145,20 +147,38 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .Placeholder("Search vocabulary...")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
-        );
+        ).Padding(16, 8, 16, 8).GridRow(1);
 
-    VisualNode RenderVocabularyList() =>
-        VStack(spacing: 12,
-            Label($"Vocabulary Words ({State.FilteredVocabularyItems.Count})")
-                .FontSize(18)
-                .FontAttributes(FontAttributes.Bold)
-                .TextColor(ApplicationTheme.Primary),
-            
-            new HWrap()
-            {
-                State.FilteredVocabularyItems.Select(RenderVocabularyCard).ToArray()
-            }.Spacing(12)
-        );
+    VisualNode RenderVocabularyCollectionView()
+    {
+        // Calculate optimal number of columns based on screen width
+        var screenWidth = State.ScreenWidth > 0 ? State.ScreenWidth : 
+            DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+        var cardWidth = 120; // From RenderVocabularyCard WidthRequest
+        var horizontalSpacing = ApplicationTheme.LayoutSpacing;
+        var containerPadding = 32; // 16 left + 16 right padding
+        
+        // Calculate how many cards can fit: (screenWidth - padding) / (cardWidth + spacing) 
+        var availableWidth = screenWidth - containerPadding;
+        var itemWidthWithSpacing = cardWidth + horizontalSpacing;
+        var calculatedSpan = Math.Max(1, (int)(availableWidth / itemWidthWithSpacing));
+        
+        // Clamp between reasonable bounds
+        var span = Math.Max(2, calculatedSpan);
+
+        var gridLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
+        {
+            VerticalItemSpacing = ApplicationTheme.LayoutSpacing,
+            HorizontalItemSpacing = ApplicationTheme.LayoutSpacing
+        };
+
+        return CollectionView()
+                .ItemsSource(State.FilteredVocabularyItems, RenderVocabularyCard)
+                .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty, gridLayout)
+                .BackgroundColor(Colors.Transparent)
+                .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
+                .GridRow(2);
+    }
 
     VisualNode RenderVocabularyCard(VocabularyProgressItem item) =>
         Border(
@@ -192,6 +212,10 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
 
         try
         {
+            // Initialize screen width
+            var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+            SetState(s => s.ScreenWidth = screenWidth);
+
             // Load all learning resources
             var resources = await _resourceRepo.GetAllResourcesAsync();
             SetState(s => s.AvailableResources = new ObservableCollection<LearningResource>(resources));
@@ -219,6 +243,13 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         {
             SetState(s => s.IsBusy = false);
         }
+    }
+
+    void OnPageSizeChanged()
+    {
+        // Update screen width when page size changes (rotation, window resize)
+        var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+        SetState(s => s.ScreenWidth = screenWidth);
     }
 
     async Task LoadVocabularyData()

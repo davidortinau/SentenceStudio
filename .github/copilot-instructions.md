@@ -29,3 +29,56 @@ Always search Microsoft documentation (MS Learn) when working with .NET, Windows
 STYLING: Prefer using the centralized styles defined in ApplicationTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
 
 ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (ApplicationTheme.DarkOnLightBackground, ApplicationTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
+
+## MauiReactor Layout and UI Guidelines
+
+**CRITICAL: NEVER wrap VisualNodes in unnecessary layout containers!**
+
+1. **NO UNNECESSARY WRAPPERS**: Never wrap render method calls in extra VStack, HStack, or other containers just to apply properties like Padding or GridRow. Put these properties INSIDE the render methods where they belong.
+
+   ❌ WRONG:
+   ```csharp
+   VStack(RenderHeader()).Padding(16).GridRow(0)
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   // In the main layout:
+   RenderHeader()
+   
+   // Inside RenderHeader method:
+   VStack(...).Padding(16).GridRow(0)
+   ```
+
+2. **GRID SYNTAX**: Use the proper MauiReactor Grid syntax with inline parameters:
+   ```csharp
+   Grid(rows: "Auto,Auto,*", columns: "*",
+       RenderHeader(),
+       RenderBody(),
+       RenderFooter()
+   )
+   ```
+
+3. **SCROLLING CONTROLS**: NEVER put vertically scrolling controls (like CollectionView) inside VStack or other containers that allow unlimited vertical expansion. This causes infinite item rendering and performance issues.
+
+   ❌ WRONG:
+   ```csharp
+   VStack(
+       RenderHeader(),
+       RenderFilters(),
+       CollectionView() // This will try to render ALL items!
+   )
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Grid(rows: "Auto,Auto,*", columns: "*",
+       RenderHeader().GridRow(0),
+       RenderFilters().GridRow(1),
+       RenderCollectionView().GridRow(2) // Constrained by star-sized row
+   )
+   ```
+
+4. **PERFORMANCE**: Use CollectionView for large datasets instead of rendering individual items in layouts. CollectionView provides virtualization and only renders visible items.
+
+5. **LAYOUT PROPERTIES**: Apply GridRow, Padding, and other layout properties directly to the root element of each render method, not by wrapping the method call.
