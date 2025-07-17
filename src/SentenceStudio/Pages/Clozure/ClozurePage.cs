@@ -50,6 +50,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				LoadingOverlay()
 			).RowSpacing(12)
 		)
+		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
 		.OnAppearing(LoadSentences);
 	}
 
@@ -65,8 +66,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		Grid(
 			Label("Thinking.....")
 				.FontSize(64)
-				.TextColor(Theme.IsLightTheme ? 
-					ApplicationTheme.DarkOnLightBackground : 
+				.TextColor(Theme.IsLightTheme ?
+					ApplicationTheme.DarkOnLightBackground :
 					ApplicationTheme.LightOnDarkBackground)
 				.Center()
 		)
