@@ -44,8 +44,8 @@ class VocabularyQuizPageState
     public bool ShowAnswer { get; set; }
     public string FeedbackMessage { get; set; } = string.Empty;
     public bool IsCorrect { get; set; }
-    public string CelebrationMessage { get; set; } = string.Empty;
-    public bool ShowCelebration { get; set; }
+    public bool ShowSessionSummary { get; set; }
+    public List<VocabularyQuizItem> SessionSummaryItems { get; set; } = new();
     public int CurrentRound { get; set; } = 1;
     public int CorrectAnswersInRound { get; set; }
     public bool IsRoundComplete { get; set; }
@@ -130,7 +130,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 ).GridRow(1),
                 AutoTransitionBar(),
                 LoadingOverlay(),
-                CelebrationOverlay()
+                SessionSummaryOverlay()
             ).RowSpacing(12)
         )
         .OnAppearing(LoadVocabulary);
@@ -157,28 +157,153 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
 
-    VisualNode CelebrationOverlay() =>
+    VisualNode SessionSummaryOverlay() =>
         Grid(
-            VStack(spacing: 20,
-                Label(State.CelebrationMessage)
-                    .FontSize(48)
-                    .TextColor(ApplicationTheme.Success)
-                    .Center()
-                    .FontAttributes(FontAttributes.Bold),
-                Button("Continue")
-                    .OnClicked(() => SetState(s => s.ShowCelebration = false))
-                    .Background(ApplicationTheme.Primary)
-                    .TextColor(Colors.White)
-                    .CornerRadius(8)
-                    .Padding(20, 12)
+            ScrollView(
+                VStack(spacing: ApplicationTheme.LayoutSpacing,
+                    // Header
+                    Label($"📚 Session {State.CurrentSetNumber - 1} Summary")
+                        .FontSize(24)
+                        .FontAttributes(FontAttributes.Bold)
+                        .TextColor(ApplicationTheme.Primary)
+                        .Center(),
+
+                    Label("Review the vocabulary you just studied:")
+                        .FontSize(16)
+                        .Center()
+                        .TextColor(Theme.IsLightTheme ?
+                            ApplicationTheme.DarkOnLightBackground :
+                            ApplicationTheme.LightOnDarkBackground),
+
+                    // Vocabulary list
+                    VStack(spacing: 8,
+                        State.SessionSummaryItems.Select(item => RenderSummaryItem(item))
+                    ),
+
+                    // Session stats
+                    Border(
+                        VStack(spacing: 8,
+                            Label("📊 Session Statistics")
+                                .FontSize(18)
+                                .FontAttributes(FontAttributes.Bold)
+                                .Center()
+                                .TextColor(ApplicationTheme.Primary),
+
+                            HStack(spacing: 20,
+                                VStack(spacing: 4,
+                                    Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy >= 0.8f)}")
+                                        .FontSize(20)
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .TextColor(ApplicationTheme.Success)
+                                        .Center(),
+                                    Label("Mastered")
+                                        .FontSize(12)
+                                        .Center()
+                                ),
+                                VStack(spacing: 4,
+                                    Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy >= 0.5f && i.Progress?.Accuracy < 0.8f)}")
+                                        .FontSize(20)
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .TextColor(ApplicationTheme.Warning)
+                                        .Center(),
+                                    Label("Learning")
+                                        .FontSize(12)
+                                        .Center()
+                                ),
+                                VStack(spacing: 4,
+                                    Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy < 0.5f)}")
+                                        .FontSize(20)
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .TextColor(ApplicationTheme.Error)
+                                        .Center(),
+                                    Label("Review Needed")
+                                        .FontSize(12)
+                                        .Center()
+                                )
+                            ).Center()
+                        )
+                        .Padding(16)
+                    )
+                    .Background(Theme.IsLightTheme ?
+                        ApplicationTheme.LightSecondaryBackground :
+                        ApplicationTheme.DarkSecondaryBackground)
+                    .StrokeShape(new RoundRectangle().CornerRadius(8))
+                    .Margin(0, 16),
+
+                    // Continue button
+                    Button("Continue to Next Session")
+                        .OnClicked(() => SetState(s => s.ShowSessionSummary = false))
+                        .Background(ApplicationTheme.Primary)
+                        .TextColor(Colors.White)
+                        .CornerRadius(8)
+                        .Padding(20, 12)
+                        .Margin(0, 16)
+                )
+                .Padding(ApplicationTheme.LayoutPadding)
             )
-            .Center()
-            .Background(Theme.IsLightTheme ? Colors.White : ApplicationTheme.DarkSecondaryBackground)
-            .Padding(40)
         )
-        .Background(Color.FromArgb("#80000000"))
+        .Background(Theme.IsLightTheme ? 
+                            ApplicationTheme.LightBackground : 
+                            ApplicationTheme.DarkBackground)
         .GridRowSpan(2)
-        .IsVisible(State.ShowCelebration);
+        .IsVisible(State.ShowSessionSummary);
+
+    VisualNode RenderSummaryItem(VocabularyQuizItem item)
+    {
+        var accuracy = item.Progress?.Accuracy ?? 0f;
+        var masteryScore = item.Progress?.MasteryScore ?? 0f;
+        
+        Color statusColor = accuracy >= 0.8f ? ApplicationTheme.Success :
+                           accuracy >= 0.5f ? ApplicationTheme.Warning :
+                           ApplicationTheme.Error;
+        
+        string statusIcon = accuracy >= 0.8f ? "✅" :
+                           accuracy >= 0.5f ? "🔄" :
+                           "❌";
+        
+        return Border(
+            HStack(spacing: 12,
+                Label(statusIcon)
+                    .FontSize(16),
+                
+                VStack(spacing: 4,
+                    Label(item.Word.NativeLanguageTerm ?? "")
+                        .FontSize(16)
+                        .FontAttributes(FontAttributes.Bold)
+                        .TextColor(Theme.IsLightTheme ? 
+                            ApplicationTheme.DarkOnLightBackground : 
+                            ApplicationTheme.LightOnDarkBackground),
+                    
+                    Label(item.Word.TargetLanguageTerm ?? "")
+                        .FontSize(14)
+                        .TextColor(ApplicationTheme.Primary)
+                )
+                .HStart(),
+                
+                VStack(spacing: 2,
+                    Label($"{(int)(masteryScore * 100)}%")
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold)
+                        .TextColor(statusColor)
+                        .HEnd(),
+                    
+                    Label($"{item.Progress?.TotalAttempts ?? 0} attempts")
+                        .FontSize(10)
+                        .TextColor(ApplicationTheme.SecondaryDarkText)
+                        .HEnd()
+                )
+                .HEnd()
+            )
+            .Padding(12)
+        )
+        .Background(Theme.IsLightTheme ? 
+            Colors.White : 
+            ApplicationTheme.DarkSecondaryBackground)
+        .Stroke(statusColor.WithAlpha(0.3f))
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(6))
+        .Margin(0, 2);
+    }
 
     VisualNode LearningProgressBar() =>
         Grid(rows: "Auto", columns: "Auto,*,Auto",
@@ -194,7 +319,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(0)
+            .Padding(ApplicationTheme.Size160, 2)
             .GridColumn(0)
             .VCenter(),
             
@@ -221,7 +346,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(0)
+            .Padding(ApplicationTheme.Size160, 2)
             .GridColumn(2)
             .VCenter()
         ).Padding(16, 8);
@@ -470,6 +595,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         System.Diagnostics.Debug.WriteLine($"Session completed - Turn {State.CurrentTurn}/{State.MaxTurnsPerSession}");
         
+        // Capture vocabulary items for session summary before removing them
+        var sessionItems = State.VocabularyItems.ToList();
+        
         // Remove fully learned terms (known) from current session
         var learnedTerms = State.VocabularyItems.Where(item => item.IsKnown).ToList();
         foreach (var term in learnedTerms)
@@ -487,16 +615,17 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.CurrentTurn = 1;
             s.CurrentSetNumber++;
             s.IsSessionComplete = false;
+            s.SessionSummaryItems = sessionItems; // Store session items for summary
         });
         
         // Shuffle all terms for randomization
         ShuffleIncompleteItems();
         UpdateTermCounts();
         
-        // Show session completion message
-        ShowCelebration($"🎊 Session {State.CurrentSetNumber - 1} complete! Starting session {State.CurrentSetNumber}");
+        // Show session summary instead of celebration
+        SetState(s => s.ShowSessionSummary = true);
         
-        // Jump to first term
+        // Jump to first term (for when they continue)
         var firstTerm = State.VocabularyItems.FirstOrDefault();
         if (firstTerm != null)
         {
@@ -698,8 +827,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 
                 if (!incompleteItems.Any())
                 {
-                    // All words are already learned - show celebration and return
-                    ShowCelebration("🎊 All words in this set are already learned! Great job!");
+                    // All words are already learned - show toast and return
+                    await AppShell.DisplayToastAsync("🎊 All words in this set are already learned! Great job!");
                     SetState(s => s.IsBusy = false);
                     return;
                 }
@@ -810,7 +939,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
 
         // Enhanced feedback: Update UI based on enhanced progress
-        UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
+        await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
 
         // Increment turn counter and update term counts
         SetState(s => s.CurrentTurn++);
@@ -824,7 +953,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
 
         // Check if we can proceed to next round
-        CheckRoundCompletion();
+        await CheckRoundCompletion();
         
         // Auto-advance after showing feedback
         if (State.ShowAnswer)
@@ -917,7 +1046,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return Math.Min(2.0f, Math.Max(0.5f, baseWeight)); // Clamp between 0.5 and 2.0
     }
     
-    private void UpdateUIBasedOnEnhancedProgress(VocabularyQuizItem item, bool wasCorrect)
+    private async Task UpdateUIBasedOnEnhancedProgress(VocabularyQuizItem item, bool wasCorrect)
     {
         var progress = item.Progress;
         if (progress == null) return;
@@ -937,7 +1066,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     s.FeedbackMessage = "🎉 Excellent! Word mastered!";
                     s.CorrectAnswersInRound++;
                 });
-                ShowCelebration("✨ Perfect! Word mastered!");
+                await AppShell.DisplayToastAsync("✨ Perfect! Word mastered!");
             }
             else if (currentPhase == LearningPhase.Production && 
                      GetPreviousPhase(item) == LearningPhase.Recognition)
@@ -1183,15 +1312,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return allTerms.Where(term => currentTermIds.Contains(term.Id)).ToList();
     }
 
-    void ShowCelebration(string message)
-    {
-        SetState(s => 
-        {
-            s.CelebrationMessage = message;
-            s.ShowCelebration = true;
-        });
-    }
-
     bool ShouldShuffleForRoundVariety()
     {
         // Check if all incomplete items have been attempted at least once in current mode
@@ -1206,14 +1326,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return allAttempted;
     }
 
-    void CheckRoundCompletion()
+    async Task CheckRoundCompletion()
     {
         var incompleteItems = State.VocabularyItems.Where(i => !i.IsCompleted).ToList();
         
         if (!incompleteItems.Any())
         {
             // All items completed!
-            ShowCelebration("🎊 All vocabulary learned! Great job!");
+            await AppShell.DisplayToastAsync("🎊 All vocabulary learned! Great job!");
             return;
         }
 
@@ -1232,7 +1352,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // If we have items ready to promote, start next round
         if (readyToPromote.Any() && AllCurrentModeItemsAttempted())
         {
-            StartNextRound();
+            await StartNextRound();
         }
     }
 
@@ -1293,7 +1413,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         System.Diagnostics.Debug.WriteLine($"Shuffled {incompleteItems.Count} incomplete items for variety");
     }
 
-    void StartNextRound()
+    async Task StartNextRound()
     {
         // Note: Promotion is now handled automatically by the global progress system
         // No need to manually promote items here
@@ -1308,7 +1428,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.IsRoundComplete = false;
         });
 
-        ShowCelebration($"🎯 Round {State.CurrentRound} - Time for typing!");
+        await AppShell.DisplayToastAsync($"🎯 Round {State.CurrentRound} - Time for typing!");
     }
 
     // Add a counter to track when to shuffle for variety
@@ -1352,7 +1472,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // All items either completed or ready to skip - check if truly all completed
             if (!incompleteItems.Any())
             {
-                ShowCelebration("🎊 All vocabulary learned!");
+                await AppShell.DisplayToastAsync("🎊 All vocabulary learned!");
                 return;
             }
             else
