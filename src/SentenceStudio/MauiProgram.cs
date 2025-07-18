@@ -49,7 +49,7 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
-			.AddServiceDefaults()
+			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 #endif

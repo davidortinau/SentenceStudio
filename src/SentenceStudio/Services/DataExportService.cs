@@ -81,7 +81,7 @@ public class DataExportService
     private async Task AddCsvToZip(ZipArchive archive, string fileName, string csvContent)
     {
         var entry = archive.CreateEntry(fileName);
-        using var entryStream = await entry.OpenAsync();
+        using var entryStream = entry.Open();
         using var writer = new StreamWriter(entryStream, Encoding.UTF8);
         await writer.WriteAsync(csvContent);
     }

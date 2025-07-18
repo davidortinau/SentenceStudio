@@ -38,9 +38,10 @@ partial class DashboardPage : Component<DashboardPageState>
 
     public override VisualNode Render()
 	{
+        Console.WriteLine(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
 
-            Grid(                
+            Grid(
                 VScrollView(
                     VStack(
                         ContentView()
@@ -64,11 +65,12 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged((sender, e) => 
+                                                .OnSelectionChanged((sender, e) =>
                                                 {
                                                     if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
                                                     {
-                                                        SetState(s => {
+                                                        SetState(s =>
+                                                        {
                                                             s.SelectedResources = selectedResources;
                                                             s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
                                                         });
@@ -76,7 +78,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                     }
                                                 })
                                         ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80),
+                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80),
                                 Border
                                     (
                                         VStack(
@@ -100,7 +102,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                     }
                                                 })
                                         ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
+                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80)
                             ) :
                             // Horizontal layout for wide screens
                             Grid(
@@ -117,11 +119,12 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.Resources?.Count > 0 && State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < State.Resources.Count ? State.SelectedResourceIndex : -1)
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged((sender, e) => 
+                                                .OnSelectionChanged((sender, e) =>
                                                 {
                                                     if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
                                                     {
-                                                        SetState(s => {
+                                                        SetState(s =>
+                                                        {
                                                             s.SelectedResources = selectedResources;
                                                             s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
                                                         });
@@ -129,7 +132,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                     }
                                                 })
                                         ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160,ApplicationTheme.Size80),
+                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80),
                                 Border
                                     (
                                         VStack(
@@ -154,7 +157,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 })
                                         ).Spacing(ApplicationTheme.LayoutSpacing)
                                     )
-                                    .Padding(ApplicationTheme.Size160,ApplicationTheme.Size80)
+                                    .Padding(ApplicationTheme.Size160, ApplicationTheme.Size80)
                                     .GridColumn(1)
                             ).Columns("*,*").ColumnSpacing(15),
 
@@ -171,19 +174,20 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyQuiz"]}").Route(nameof(VocabularyQuizPage)),
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
-                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")                                
+                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
                         }.Spacing(20)
                     )// vstack
                     .Padding(ApplicationTheme.Size160)
                     .Spacing(ApplicationTheme.Size240)
                 )// vscrollview
             )// grid
-                
+
         ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
     }
 
     async Task LoadOrRefreshDataAsync()
     {
+        Console.WriteLine(">> DashboardPage OnAppearing <<");
         var resources = await _resourceRepository.GetAllResourcesAsync();
         var skills = await _skillService.ListAsync();
 
