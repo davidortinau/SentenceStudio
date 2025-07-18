@@ -55,7 +55,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 }),
 
                             Button()
-                                .ImageSource(SegoeFluentIcons.Search.ToImageSource())
+                                .ImageSource(ApplicationTheme.IconSearch)
                                 .BackgroundColor(Colors.Transparent)
                                 .OnClicked(SearchResources)
                                 .GridColumn(1)

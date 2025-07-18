@@ -88,7 +88,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconDashboard { get; } = new FontImageSource
     {
-        Glyph = FluentUI.diagram_24_regular, // Replace with actual glyph
+        Glyph = FluentUI.diagram_24_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -96,7 +96,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconProjects { get; } = new FontImageSource
     {
-        Glyph = FluentUI.list_24_regular, // Replace with actual glyph
+        Glyph = FluentUI.list_24_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -104,7 +104,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconMeta { get; } = new FontImageSource
     {
-        Glyph = FluentUI.info_24_regular, // Replace with actual glyph
+        Glyph = FluentUI.info_24_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -112,7 +112,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconRibbon { get; } = new FontImageSource
     {
-        Glyph = FluentUI.ribbon_20_regular, // Replace with actual glyph
+        Glyph = FluentUI.ribbon_20_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -120,7 +120,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconAdd { get; } = new FontImageSource
     {
-        Glyph = FluentUI.add_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.add_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? White : Black,
         Size = IconSize
@@ -128,7 +128,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconDelete { get; } = new FontImageSource
     {
-        Glyph = FluentUI.delete_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.delete_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -136,7 +136,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconClean { get; } = new FontImageSource
     {
-        Glyph = FluentUI.broom_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.broom_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -144,7 +144,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconLight { get; } = new FontImageSource
     {
-        Glyph = FluentUI.weather_sunny_28_regular, // Replace with actual glyph
+        Glyph = FluentUI.weather_sunny_28_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -152,7 +152,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconDark { get; } = new FontImageSource
     {
-        Glyph = FluentUI.weather_moon_28_regular, // Replace with actual glyph
+        Glyph = FluentUI.weather_moon_28_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -184,7 +184,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconPlay { get; } = new FontImageSource
     {
-        Glyph = FluentUI.play_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.play_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -192,7 +192,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconPause { get; } = new FontImageSource
     {
-        Glyph = FluentUI.pause_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.pause_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -200,7 +200,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconStop { get; } = new FontImageSource
     {
-        Glyph = FluentUI.record_stop_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.record_stop_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -208,7 +208,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconRewind { get; } = new FontImageSource
     {
-        Glyph = FluentUI.skip_back_10_32_regular, // Replace with actual glyph
+        Glyph = FluentUI.skip_back_10_32_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -216,7 +216,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconPlaySm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.play_20_regular, // Replace with actual glyph
+        Glyph = FluentUI.play_20_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -224,7 +224,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconPauseSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.pause_20_regular, // Replace with actual glyph
+        Glyph = FluentUI.pause_20_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -232,7 +232,7 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconStopSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.stop_20_regular, // Replace with actual glyph
+        Glyph = FluentUI.stop_20_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -240,10 +240,225 @@ class ApplicationTheme : Theme
 
     public static FontImageSource IconRewindSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.previous_20_regular, // Replace with actual glyph
+        Glyph = FluentUI.previous_20_regular, 
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
+    };
+
+    public static FontImageSource IconNext { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.next_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconPrevious { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.previous_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconKeyboard { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.keyboard_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconMultiSelect { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.multiselect_ltr_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconDictionary { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.book_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconSave { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.save_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconShare { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.share_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconCopy { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.copy_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconInfo { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.info_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconCircleCheckmark { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.checkmark_circle_16_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconCancel { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.calendar_cancel_16_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconImageExport { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.arrow_export_ltr_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconSwitch { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.arrow_turn_down_right_20_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconTranslate { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.translate_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconErase { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.eraser_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconCheckbox { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.checkbox_2_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+    public static FontImageSource IconCheckboxSelected { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.checkbox_checked_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconSearch { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.search_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconMore { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.more_horizontal_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconFileExplorer { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.folder_search_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconEdit { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.edit_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconStatus { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.status_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconVideo { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.video_32_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconPodcast { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.mic_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconImage { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.image_48_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconVocabList { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.list_28_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconArticle { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.document_100_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
     };
 
     protected override void OnApply()
@@ -581,15 +796,16 @@ class ApplicationTheme : Theme
 
     }
     public static ImageSource GetIconForMediaType(string mediaType)
+    {
+        return mediaType switch
         {
-            return mediaType switch
-            {
-                "Video" => SegoeFluentIcons.Video.ToImageSource(),
-                "Podcast" => SegoeFluentIcons.Microphone.ToImageSource(),
-                "Image" => SegoeFluentIcons.Photo.ToImageSource(),
-                "Vocabulary List" => SegoeFluentIcons.ReadingList.ToImageSource(),
-                "Article" => SegoeFluentIcons.Document.ToImageSource(),
-                _ => SegoeFluentIcons.Document.ToImageSource()
-            };
-        }
+            "Video" =>IconVideo,
+            "Podcast" => IconPodcast,
+            "Image" => IconImage,
+            "Vocabulary List" => IconVocabList,
+            "Article" => IconArticle,
+            _ => IconArticle
+        };
+    }
 }
+

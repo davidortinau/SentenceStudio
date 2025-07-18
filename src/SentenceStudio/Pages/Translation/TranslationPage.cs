@@ -175,14 +175,14 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Previous.ToImageSource())
+                .Source(ApplicationTheme.IconPrevious)
                 .GridRow(1).GridColumn(0)
                 .OnClicked(PreviousSentence),
 
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(SegoeFluentIcons.Next.ToImageSource())
+                .Source(ApplicationTheme.IconNext)
                 .GridRow(1).GridColumn(6)
                 .OnClicked(NextSentence),
 

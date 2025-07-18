@@ -127,7 +127,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .Hint($"{_localize["Vocabulary"]}"),
 
                                         Button()
-                                            .ImageSource(SegoeFluentIcons.FileExplorer.ToImageSource())
+                                            .ImageSource(ApplicationTheme.IconFileExplorer)
                                             .Background(Colors.Transparent)
                                             .HEnd()
                                             .OnClicked(ChooseFile),

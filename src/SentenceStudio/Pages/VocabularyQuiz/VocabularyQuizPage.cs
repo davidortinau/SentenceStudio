@@ -499,12 +499,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     ImageSource VocabularyItemToImageSource(VocabularyQuizItem item)
     {
         if (item.IsCompleted)
-            return SegoeFluentIcons.StatusCircleCheckmark.ToImageSource(iconSize: 14);
+            return ApplicationTheme.IconCircleCheckmark;
         
         if (item.IsPromoted)
-            return SegoeFluentIcons.Edit.ToImageSource(iconSize: 14);
+            return ApplicationTheme.IconEdit;
             
-        return SegoeFluentIcons.StatusCircleRing.ToImageSource(iconSize: 14);
+        return ApplicationTheme.IconStatus;
     }
 
     Color GetItemBackgroundColor(VocabularyQuizItem item)

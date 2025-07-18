@@ -158,14 +158,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => SaveAudioAsMp3(item))
-				.ImageSource(SegoeFluentIcons.Save.ToImageSource())
+				.ImageSource(ApplicationTheme.IconSave)
 				.TextColor(Colors.Black)
 				.GridColumn(2)
 				.HEnd(),
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => DeleteHistoryItem(item))
-				.ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+				.ImageSource(ApplicationTheme.IconDelete)
 				.GridColumn(3)
 				.HEnd()
 		);

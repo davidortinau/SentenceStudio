@@ -404,7 +404,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(SegoeFluentIcons.Previous.ToImageSource())
+                    .Source(ApplicationTheme.IconPrevious)
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
             
@@ -419,7 +419,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(SegoeFluentIcons.Next.ToImageSource())
+                    .Source(ApplicationTheme.IconNext)
                     .GridRow(0).GridColumn(4)
                     .OnClicked(NextSentence),
 
@@ -445,7 +445,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 State.IsNarrowScreen ?
                 // Narrow layout - just show a menu button that opens bottom sheet with all controls
                 Button()
-                    .ImageSource(SegoeFluentIcons.More.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconMore)
                     .ThemeKey("Secondary")
                     .HeightRequest(35)
                     .WidthRequest(35)
@@ -458,7 +458,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Wide layout - show all controls
                 HStack(
                     Button()
-                        .ImageSource(SegoeFluentIcons.Save.ToImageSource())
+                        .ImageSource(ApplicationTheme.IconSave)
                         .ThemeKey("Secondary")
                         .HeightRequest(35)
                         .WidthRequest(35)

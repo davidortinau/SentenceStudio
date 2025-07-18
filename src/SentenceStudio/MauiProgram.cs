@@ -54,7 +54,6 @@ public static class MauiProgram
 			.UseShiny()
 #endif
 			.UseMauiCommunityToolkit()
-			.UseSegoeFluentMauiIcons()
 			.UseBottomSheet()
 			.UseSkiaSharp()
 			.ConfigureSyncfusionToolkit()

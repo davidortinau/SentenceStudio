@@ -93,14 +93,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(SegoeFluentIcons.Previous.ToImageSource())
+				.Source(ApplicationTheme.IconPrevious)
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(SegoeFluentIcons.Next.ToImageSource())
+				.Source(ApplicationTheme.IconNext)
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
 
@@ -234,8 +234,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (activity == null) return null;
 		
 		return activity.Accuracy == 100 ? 
-			SegoeFluentIcons.StatusCircleCheckmark.ToImageSource(iconSize:14) : 
-			SegoeFluentIcons.Cancel.ToImageSource(iconSize:14);
+			ApplicationTheme.IconCircleCheckmark : 
+			ApplicationTheme.IconCancel;
 	}
 
 	async Task JumpTo(Challenge challenge)

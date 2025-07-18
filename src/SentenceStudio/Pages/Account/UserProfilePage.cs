@@ -142,13 +142,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         HStack(
                             Button($"{_localize["SaveToDevice"]}")
                                 .OnClicked(ExportDataToFile)
-                                .ImageSource(SegoeFluentIcons.Save.ToImageSource())
+                                .ImageSource(ApplicationTheme.IconSave)
                                 .HorizontalOptions(LayoutOptions.FillAndExpand)
                                 .Margin(0, 0, 5, 0),
 
                             Button($"{_localize["Share"]}")
                                 .OnClicked(ExportAndShare)
-                                .ImageSource(SegoeFluentIcons.Share.ToImageSource())
+                                .ImageSource(ApplicationTheme.IconShare)
                                 .HorizontalOptions(LayoutOptions.FillAndExpand)
                                 .Margin(5, 0, 0, 0)
                         ),

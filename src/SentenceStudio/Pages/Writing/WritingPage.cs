@@ -2,6 +2,7 @@ using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
 using System.Text;
 using System.Diagnostics;
+using Fonts;
 
 
 
@@ -102,7 +103,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     .BackgroundColor(Colors.Transparent)
                     .HEnd()
                     .GridColumn(1)
-                    .ImageSource(SegoeFluentIcons.Dictionary.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconDictionary)
                     .OnClicked(TranslateInput)
             )
             .Hint(_localize["WhatDoYouWantToSay"].ToString())
@@ -254,14 +255,14 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     .TextColor(Theme.IsLightTheme ? 
                         ApplicationTheme.LightOnDarkBackground :
                         ApplicationTheme.DarkOnLightBackground)
-                    .ImageSource(SegoeFluentIcons.Copy.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconCopy)
                     .OnClicked(() => UseVocab(sentence.Answer)),
                 Button()
                     .BackgroundColor(Colors.Transparent)
                     .TextColor(Theme.IsLightTheme ? 
                         ApplicationTheme.LightOnDarkBackground :
                         ApplicationTheme.DarkOnLightBackground)
-                    .ImageSource(SegoeFluentIcons.Info.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconInfo)
                     .OnClicked(() => ShowExplanation(sentence))
             ).Center().GridColumn(3)
         );
@@ -270,12 +271,12 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         SwipeView(
             SwipeItemView(
                 Grid(
-                    Label().Text(SegoeFluentIcons.Copy.ToString()).FontSize(24).Center()
+                    Label().Text(FluentUI.copy_24_regular).FontSize(24).Center()
                 ).BackgroundColor(Colors.Red).WidthRequest(60)
             ).OnInvoked(() => UseVocab(sentence.Answer)).HStart(),
             SwipeItemView(
                 Grid(
-                    Label().Text(SegoeFluentIcons.Info.ToString()).FontSize(24).Center()
+                    Label().Text(FluentUI.info_24_regular).FontSize(24).Center()
                 ).BackgroundColor(Colors.Orange).WidthRequest(60)
             ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
             Grid("",columns: "*,*",

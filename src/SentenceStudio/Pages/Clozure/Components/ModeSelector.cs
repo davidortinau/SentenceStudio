@@ -21,8 +21,8 @@ partial class ModeSelector : Component<ModeSelectorState>
     public override VisualNode Render()
     {
         return new SfSegmentedControl{
-                    new SfSegmentItem().ImageSource(SegoeFluentIcons.KeyboardStandard.ToImageSource()),
-                    new SfSegmentItem().ImageSource(SegoeFluentIcons.MultiSelect.ToImageSource())
+                    new SfSegmentItem().ImageSource(ApplicationTheme.IconKeyboard),
+                    new SfSegmentItem().ImageSource(ApplicationTheme.IconMultiSelect)
                 }
                 .Background(Colors.Transparent)
                 .ShowSeparator(true)

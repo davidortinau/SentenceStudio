@@ -46,47 +46,58 @@ public partial class AppShell : Component
     //     };
     // }
     
-        private bool _initialized = false;
-        // private UserProfile _currentUserProfile;
+    private bool _initialized = false;
+    // private UserProfile _currentUserProfile;
 
-        [Inject] UserProfileRepository _userProfileRepository;
+    [Inject] UserProfileRepository _userProfileRepository;
 
-        protected override void OnMounted()
+    protected override void OnMounted()
+    {
+        base.OnMounted();
+
+        // if (!_initialized)
+        // {
+        //     _initialized = true;
+        //     Task.Run(async () =>
+        //     {
+        //         state.Value.CurrentUserProfile = await _userProfileRepository.GetAsync();
+        //     }).Wait();
+        // }
+
+        // State.CurrentAppTheme = Application.Current.UserAppTheme;
+    }
+
+    // Method to refresh the user profile state (called after reset)
+    public async Task RefreshUserProfileAsync()
+    {
+        var currentProfile = await _userProfileRepository.GetAsync();
+        state.Set(s => s.CurrentUserProfile = currentProfile);
+    }
+
+    public override VisualNode Render()
+    {
+
+        if (!_initialized)
         {
-            base.OnMounted();
-
-            if (!_initialized)
+            _initialized = true;
+            Task.Run(async () =>
             {
-                _initialized = true;
-                Task.Run(async () =>
-                {
+                if(state != null && _userProfileRepository != null)
                     state.Value.CurrentUserProfile = await _userProfileRepository.GetAsync();
-                }).Wait();
-            }
-
-            // State.CurrentAppTheme = Application.Current.UserAppTheme;
+            }).Wait();
         }
-
-        // Method to refresh the user profile state (called after reset)
-        public async Task RefreshUserProfileAsync()
-        {
-            var currentProfile = await _userProfileRepository.GetAsync();
-            state.Set(s => s.CurrentUserProfile = currentProfile);
-        }
-
-    public override VisualNode Render() {
 
         // Check if user needs onboarding - either no profile exists or onboarding was never completed
         var isOnboarded = Preferences.Default.Get("is_onboarded", false);
         var hasProfile = state.Value.CurrentUserProfile != null;
-        
+
         // Debug information
         System.Diagnostics.Debug.WriteLine($"AppShell Render - isOnboarded: {isOnboarded}, hasProfile: {hasProfile}");
         if (hasProfile)
         {
             System.Diagnostics.Debug.WriteLine($"Profile exists - Name: '{state.Value.CurrentUserProfile.Name}', Id: {state.Value.CurrentUserProfile.Id}");
         }
-        
+
         // Show onboarding if either condition is true:
         // 1. User hasn't completed onboarding flow yet
         // 2. No user profile exists in database

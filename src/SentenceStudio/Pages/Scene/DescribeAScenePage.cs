@@ -43,15 +43,15 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     {
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
-                .IconImageSource(SegoeFluentIcons.Info.ToImageSource())
+                .IconImageSource(ApplicationTheme.IconInfo)
                 .OnClicked(ViewDescription),
 
             ToolbarItem()
-                .IconImageSource(SegoeFluentIcons.ImageExport.ToImageSource())
+                .IconImageSource(ApplicationTheme.IconImageExport)
                 .OnClicked(LoadImage),
 
             ToolbarItem()
-                .IconImageSource(SegoeFluentIcons.SwitchApps.ToImageSource())
+                .IconImageSource(ApplicationTheme.IconSwitch)
                 .OnClicked(ManageImages),
 
             Grid("Auto,*,Auto", "*",
@@ -125,12 +125,12 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             HStack(
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(SegoeFluentIcons.LanguageKor.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconTranslate)
                     .OnClicked(TranslateInput),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(SegoeFluentIcons.EraseTool.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconErase)
                     .OnClicked(ClearInput)
             ).Spacing(ApplicationTheme.Size40).HStart()
         )
@@ -173,7 +173,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
             HStack(spacing: ApplicationTheme.Size60,
                 Button()
-                    .ImageSource(SegoeFluentIcons.ImageExport.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconImageExport)
                     .Background(Colors.Transparent)
                     .Padding(0)
                     .Margin(0)
@@ -181,14 +181,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .IsVisible(!State.IsDeleteVisible),
 
                 Button()
-                    .ImageSource(SegoeFluentIcons.CheckboxCompositeReversed.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconCheckbox)
                     .Background(Colors.Transparent)
                     .Padding(0)
                     .Margin(0)
                     .VCenter(),
 
                 Button()
-                    .ImageSource(SegoeFluentIcons.Delete.ToImageSource())
+                    .ImageSource(ApplicationTheme.IconDelete)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -219,14 +219,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .OnTapped(() => OnImageSelected(image)),
 
             Image()
-                .Source(SegoeFluentIcons.Checkbox.ToImageSource())
+                .Source(ApplicationTheme.IconCheckbox)
                 .VEnd()
                 .HEnd()
                 .IsVisible(State.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(SegoeFluentIcons.CheckboxCompositeReversed.ToImageSource())
+                .Source(ApplicationTheme.IconCheckboxSelected)
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)

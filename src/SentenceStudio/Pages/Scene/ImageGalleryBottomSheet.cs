@@ -25,7 +25,7 @@ partial class ImageGalleryBottomSheet : Component
 
             HStack(spacing: ApplicationTheme.Size60,
                 Button()
-                    .ImageSource(SegoeFluentIcons.ImageExport.ToFontImageSource())
+                    .ImageSource(ApplicationTheme.IconImageExport)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -34,7 +34,7 @@ partial class ImageGalleryBottomSheet : Component
                     .IsVisible(!_state.IsDeleteVisible),
 
                 Button()
-                    .ImageSource(SegoeFluentIcons.CheckboxCompositeReversed.ToFontImageSource())
+                    .ImageSource(ApplicationTheme.IconCheckbox)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -42,7 +42,7 @@ partial class ImageGalleryBottomSheet : Component
                     .VCenter(),
 
                 Button()
-                    .ImageSource(SegoeFluentIcons.Delete.ToFontImageSource())
+                    .ImageSource(ApplicationTheme.IconDelete)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -73,14 +73,14 @@ partial class ImageGalleryBottomSheet : Component
                 ,
 
             Image()
-                .Source(SegoeFluentIcons.Checkbox.ToFontImageSource())
+                .Source(ApplicationTheme.IconCheckbox)
                 .VEnd()
                 .HEnd()
                 .IsVisible(_state.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(SegoeFluentIcons.CheckboxCompositeReversed.ToFontImageSource())
+                .Source(ApplicationTheme.IconCheckboxSelected)
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)
