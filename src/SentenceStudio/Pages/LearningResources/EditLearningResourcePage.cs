@@ -1,4 +1,8 @@
 using MauiReactor.Shapes;
+using SentenceStudio.Data;
+using SentenceStudio.Shared.Models;
+using SentenceStudio.Services;
+using LukeMauiFilePicker;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -13,14 +17,25 @@ class EditLearningResourceState
     public int MediaTypeIndex { get; set; } = 0;
     public int LanguageIndex { get; set; } = 0;
     public bool IsGeneratingVocabulary { get; set; } = false;
+    public string VocabList { get; set; } = string.Empty;
+    public string Delimiter { get; set; } = "comma";
 }
 
 partial class EditLearningResourcePage : Component<EditLearningResourceState, ResourceProps>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] AiService _aiService;
+    [Inject] IFilePickerService _picker;
     
     LocalizationManager _localize => LocalizationManager.Instance;
+    
+    static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
+    {
+        { DevicePlatform.Android, new[] { "text/*" } },
+        { DevicePlatform.iOS, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.MacCatalyst, new[] { "public.json", "public.plain-text" } },
+        { DevicePlatform.WinUI, new[] { ".txt", ".json" } }
+    };
 
     public override VisualNode Render()
     {
@@ -176,33 +191,33 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .Spacing(10) :
                 null,
                 
-            // Vocabulary section if this is a vocabulary list or has vocabulary
-            State.Resource.Vocabulary?.Count > 0 ?
-                VStack(
-                    Grid(
-                        Label("Vocabulary")
-                            .FontAttributes(FontAttributes.Bold)
-                            .FontSize(18)
-                            .GridColumn(0),
-                            
-                        HStack(
-                            Button("Generate")
-                                .ThemeKey("Secondary")
-                                .OnClicked(GenerateVocabulary)
-                                .IsEnabled(!State.IsGeneratingVocabulary)
-                                .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-                                
-                            ActivityIndicator()
-                                .IsRunning(State.IsGeneratingVocabulary)
-                                .IsVisible(State.IsGeneratingVocabulary)
-                                .Scale(0.8)
-                        )
-                        .Spacing(10)
-                        .GridColumn(1)
-                        .HEnd()
-                    )
-                    .Columns("*, Auto"),
+            // Vocabulary section - always show for all media types
+            VStack(
+                Grid(
+                    Label("Vocabulary")
+                        .FontAttributes(FontAttributes.Bold)
+                        .FontSize(18)
+                        .GridColumn(0),
                         
+                    HStack(
+                        Button("Generate")
+                            .ThemeKey("Secondary")
+                            .OnClicked(GenerateVocabulary)
+                            .IsEnabled(!State.IsGeneratingVocabulary)
+                            .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
+                            
+                        ActivityIndicator()
+                            .IsRunning(State.IsGeneratingVocabulary)
+                            .IsVisible(State.IsGeneratingVocabulary)
+                            .Scale(0.8)
+                    )
+                    .Spacing(10)
+                    .GridColumn(1)
+                    .HEnd()
+                )
+                .Columns("*, Auto"),
+                    
+                State.Resource.Vocabulary?.Count > 0 ?
                     CollectionView()
                         .SelectionMode(SelectionMode.None)
                         .ItemsSource(State.Resource.Vocabulary, word => 
@@ -224,43 +239,16 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .StrokeThickness(1)
                             .StrokeShape(new RoundRectangle().CornerRadius(5))
                             .Margin(new Thickness(0, 0, 0, 5))
-                        )
-                )
-                .Spacing(10) :
-                VStack(
-                    Grid(
-                        Label("Vocabulary")
-                            .FontAttributes(FontAttributes.Bold)
-                            .FontSize(18)
-                            .GridColumn(0),
-                            
-                        HStack(
-                            Button("Generate")
-                                .ThemeKey("Secondary")
-                                .OnClicked(GenerateVocabulary)
-                                .IsEnabled(!State.IsGeneratingVocabulary)
-                                .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-                                
-                            ActivityIndicator()
-                                .IsRunning(State.IsGeneratingVocabulary)
-                                .IsVisible(State.IsGeneratingVocabulary)
-                                .Scale(0.8)
-                        )
-                        .Spacing(10)
-                        .GridColumn(1)
-                        .HEnd()
-                    )
-                    .Columns("*, Auto"),
-                    
+                        ) :
                     State.IsGeneratingVocabulary ?
                         Label("Analyzing transcript and generating vocabulary...")
                             .FontSize(14)
                             .TextColor(Colors.Gray) :
-                        Label("No vocabulary words have been added yet.")
+                        Label("No vocabulary words have been added yet. Use Generate to extract from transcript or add words manually in Edit mode.")
                             .FontSize(14)
                             .TextColor(Colors.Gray)
-                )
-                .Spacing(10)
+            )
+            .Spacing(10)
         )
         .Spacing(15);
     }
@@ -421,6 +409,46 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     .HEnd()
                 )
                 .Columns("*, Auto"),
+                
+                // Vocabulary import section
+                VStack(
+                    Label("Import Vocabulary from File or Paste Text")
+                        .FontAttributes(FontAttributes.Bold)
+                        .HStart(),
+                    new SfTextInputLayout{
+                        Editor()
+                            .Text(State.VocabList)
+                            .OnTextChanged(text => SetState(s => s.VocabList = text))
+                            .MinimumHeightRequest(150)
+                            .MaximumHeightRequest(250)
+                        }
+                        .Hint($"{_localize["Vocabulary"]}"),
+
+                    Button()
+                        .ImageSource(ApplicationTheme.IconFileExplorer)
+                        .Background(Colors.Transparent)
+                        .HEnd()
+                        .OnClicked(ChooseFile),
+
+                    HStack(
+                        RadioButton()
+                            .Content("Comma").Value("comma")
+                            .IsChecked(State.Delimiter == "comma")
+                            .OnCheckedChanged(e =>
+                                { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                        RadioButton()
+                            .Content("Tab").Value("tab")
+                            .IsChecked(State.Delimiter == "tab")
+                            .OnCheckedChanged(e =>
+                                { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
+                        Button("Import")
+                            .ThemeKey("Secondary")
+                            .OnClicked(ImportVocabulary)
+                            .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
+                    )
+                    .Spacing(ApplicationTheme.Size320)
+                )
+                .Spacing(5),
                 
                 CollectionView()
                     .SelectionMode(SelectionMode.None)
@@ -678,5 +706,88 @@ Transcript:
         return MauiControls.Shell.Current.GoToAsync<SentenceStudio.Pages.VocabularyProgress.VocabularyProgressProps>(
             nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage),
             props => props.ResourceId = State.Resource.Id);
+    }
+    
+    async Task ChooseFile()
+    {
+        var file = await _picker.PickFileAsync("Select a file", FileType);
+
+        if (file != null)
+        {
+            using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            SetState(s => s.VocabList = content);
+        }
+    }
+    
+    async Task ImportVocabulary()
+    {
+        if (string.IsNullOrWhiteSpace(State.VocabList))
+        {
+            await App.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
+            return;
+        }
+        
+        try
+        {
+            // Parse vocabulary words from the input
+            var newWords = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
+            
+            if (!newWords.Any())
+            {
+                await App.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
+                return;
+            }
+            
+            int addedCount = 0;
+            int duplicateCount = 0;
+            
+            SetState(s => {
+                // Initialize vocabulary list if it doesn't exist
+                if (s.Resource.Vocabulary == null)
+                {
+                    s.Resource.Vocabulary = new List<VocabularyWord>();
+                }
+                
+                // Add new words, checking for duplicates
+                foreach (var word in newWords)
+                {
+                    // Check for duplicates based on both terms
+                    bool isDuplicate = s.Resource.Vocabulary.Any(existing => 
+                        (existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true &&
+                         existing.NativeLanguageTerm?.Trim().Equals(word.NativeLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true) ||
+                        existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+                    
+                    if (!isDuplicate)
+                    {
+                        word.CreatedAt = DateTime.UtcNow;
+                        word.UpdatedAt = DateTime.UtcNow;
+                        s.Resource.Vocabulary.Add(word);
+                        addedCount++;
+                    }
+                    else
+                    {
+                        duplicateCount++;
+                    }
+                }
+                
+                // Clear the input after successful import
+                s.VocabList = string.Empty;
+            });
+            
+            // Show result message
+            var message = $"Added {addedCount} new vocabulary words.";
+            if (duplicateCount > 0)
+            {
+                message += $" Skipped {duplicateCount} duplicates.";
+            }
+            
+            await App.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
+        }
     }
 }

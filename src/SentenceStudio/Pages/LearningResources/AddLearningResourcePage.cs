@@ -109,49 +109,8 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                             )
                             .Spacing(5),
                             
-                            // Only show vocabulary input if Media Type is Vocabulary List
-                            State.Resource.MediaType == "Vocabulary List" ?
-                                VStack(
-                                    // Vocabulary List Input
-                                    VStack(
-                                        Label("Vocabulary Words")
-                                            .FontAttributes(FontAttributes.Bold)
-                                            .HStart(),
-                                        new SfTextInputLayout{
-                                            Editor()
-                                                .Text(State.VocabList)
-                                                .OnTextChanged(text => SetState(s => s.VocabList = text))
-                                                .MinimumHeightRequest(300)
-                                                .MaximumHeightRequest(500)
-                                            }
-                                            .Hint($"{_localize["Vocabulary"]}"),
-
-                                        Button()
-                                            .ImageSource(ApplicationTheme.IconFileExplorer)
-                                            .Background(Colors.Transparent)
-                                            .HEnd()
-                                            .OnClicked(ChooseFile),
-
-                                        HStack(
-                                            RadioButton()
-                                                .Content("Comma").Value("comma")
-                                                .IsChecked(State.Delimiter == "comma")
-                                                .OnCheckedChanged(e =>
-                                                    { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
-                                            RadioButton()
-                                                .Content("Tab").Value("tab")
-                                                .IsChecked(State.Delimiter == "tab")
-                                                .OnCheckedChanged(e =>
-                                                    { if (e.Value) SetState(s => s.Delimiter = "tab"); })
-                                        )
-                                        .Spacing(ApplicationTheme.Size320)
-                                    )
-                                    .Spacing(5)
-                                ) : 
-                                null,
-                            
-                            // Media URL - only show if not vocabulary
-                            State.Resource.MediaType != "Vocabulary" ?
+                            // Media URL - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
                                 VStack(
                                     Label("Media URL")
                                         .FontAttributes(FontAttributes.Bold)
@@ -167,8 +126,8 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 .Spacing(5) : 
                                 null,
                             
-                            // Transcript - only show if not vocabulary
-                            State.Resource.MediaType != "Vocabulary" ?
+                            // Transcript - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
                                 VStack(
                                     Label("Transcript")
                                         .FontAttributes(FontAttributes.Bold)
@@ -184,8 +143,8 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 .Spacing(5) : 
                                 null,
                             
-                            // Translation - only show if not vocabulary
-                            State.Resource.MediaType != "Vocabulary" ?
+                            // Translation - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
                                 VStack(
                                     Label("Translation")
                                         .FontAttributes(FontAttributes.Bold)
@@ -212,6 +171,167 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
                                 .ThemeKey(ApplicationTheme.InputWrapper)
+                            )
+                            .Spacing(5),
+                            
+                            // Vocabulary section - show for ALL media types
+                            VStack(
+                                Label("Vocabulary Words")
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .HStart(),
+                                new SfTextInputLayout{
+                                    Editor()
+                                        .Text(State.VocabList)
+                                        .OnTextChanged(text => SetState(s => s.VocabList = text))
+                                        .MinimumHeightRequest(200)
+                                        .MaximumHeightRequest(400)
+                                    }
+                                    .Hint($"{_localize["Vocabulary"]}"),
+
+                                Button()
+                                    .ImageSource(ApplicationTheme.IconFileExplorer)
+                                    .Background(Colors.Transparent)
+                                    .HEnd()
+                                    .OnClicked(ChooseFile),
+
+                                HStack(
+                                    RadioButton()
+                                        .Content("Comma").Value("comma")
+                                        .IsChecked(State.Delimiter == "comma")
+                                        .OnCheckedChanged(e =>
+                                            { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                                    RadioButton()
+                                        .Content("Tab").Value("tab")
+                                        .IsChecked(State.Delimiter == "tab")
+                                        .OnCheckedChanged(e =>
+                                            { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
+                                    Button("Import & Append")
+                                        .ThemeKey("Secondary")
+                                        .OnClicked(ImportVocabulary)
+                                        .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
+                                )
+                                .Spacing(ApplicationTheme.Size320),
+                                
+                                // Show current vocabulary count if any exists
+                                State.Resource.Vocabulary?.Count > 0 ?
+                                    Label($"Current vocabulary: {State.Resource.Vocabulary.Count} words")
+                                        .FontSize(14)
+                                        .TextColor(Colors.Gray)
+                                        .HStart() :
+                                    null
+                            )
+                            .Spacing(5),
+                            
+                            // Media URL - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
+                                VStack(
+                                    Label("Media URL")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Entry()
+                                            .Text(State.Resource.MediaUrl)
+                                            .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
+                                            .Keyboard(Keyboard.Url)
+                                    )
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                )
+                                .Spacing(5) : 
+                                null,
+                            
+                            // Transcript - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
+                                VStack(
+                                    Label("Transcript")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Editor()
+                                            .Text(State.Resource.Transcript)
+                                            .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
+                                            .HeightRequest(150)
+                                    )
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                )
+                                .Spacing(5) : 
+                                null,
+                            
+                            // Translation - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
+                                VStack(
+                                    Label("Translation")
+                                        .FontAttributes(FontAttributes.Bold)
+                                        .HStart(),
+                                    Border(
+                                        Editor()
+                                            .Text(State.Resource.Translation)
+                                            .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
+                                            .HeightRequest(150)
+                                    )
+                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                )
+                                .Spacing(5) : 
+                                null,
+                            
+                            // Tags
+                            VStack(
+                                Label("Tags (comma separated)")
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .HStart(),
+                                Border(
+                                    Entry()
+                                        .Text(State.Resource.Tags)
+                                        .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
+                                )
+                                .ThemeKey(ApplicationTheme.InputWrapper)
+                            )
+                            .Spacing(5),
+                            
+                            // Vocabulary section - show for ALL media types
+                            VStack(
+                                Label("Vocabulary Words")
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .HStart(),
+                                new SfTextInputLayout{
+                                    Editor()
+                                        .Text(State.VocabList)
+                                        .OnTextChanged(text => SetState(s => s.VocabList = text))
+                                        .MinimumHeightRequest(200)
+                                        .MaximumHeightRequest(400)
+                                    }
+                                    .Hint($"{_localize["Vocabulary"]}"),
+
+                                Button()
+                                    .ImageSource(ApplicationTheme.IconFileExplorer)
+                                    .Background(Colors.Transparent)
+                                    .HEnd()
+                                    .OnClicked(ChooseFile),
+
+                                HStack(
+                                    RadioButton()
+                                        .Content("Comma").Value("comma")
+                                        .IsChecked(State.Delimiter == "comma")
+                                        .OnCheckedChanged(e =>
+                                            { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                                    RadioButton()
+                                        .Content("Tab").Value("tab")
+                                        .IsChecked(State.Delimiter == "tab")
+                                        .OnCheckedChanged(e =>
+                                            { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
+                                    Button("Import & Append")
+                                        .ThemeKey("Secondary")
+                                        .OnClicked(ImportVocabulary)
+                                        .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
+                                )
+                                .Spacing(ApplicationTheme.Size320),
+                                
+                                // Show current vocabulary count if any exists
+                                State.Resource.Vocabulary?.Count > 0 ?
+                                    Label($"Current vocabulary: {State.Resource.Vocabulary.Count} words")
+                                        .FontSize(14)
+                                        .TextColor(Colors.Gray)
+                                        .HStart() :
+                                    null
                             )
                             .Spacing(5),
                             
@@ -247,11 +367,34 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         
         SetState(s => s.IsLoading = true);
         
-        // If this is a vocabulary resource, create the vocabulary words
-        if (State.Resource.MediaType == "Vocabulary List" && !string.IsNullOrWhiteSpace(State.VocabList))
+        // If there's vocabulary content, create/append the vocabulary words for all media types
+        if (!string.IsNullOrWhiteSpace(State.VocabList))
         {
-            // Parse vocabulary words from the input and add to the resource
-            State.Resource.Vocabulary = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
+            // Parse vocabulary words from the input
+            var newWords = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
+            
+            // Initialize vocabulary list if it doesn't exist
+            if (State.Resource.Vocabulary == null)
+            {
+                State.Resource.Vocabulary = new List<VocabularyWord>();
+            }
+            
+            // Add new words, checking for duplicates
+            foreach (var word in newWords)
+            {
+                // Check for duplicates based on both terms
+                bool isDuplicate = State.Resource.Vocabulary.Any(existing => 
+                    (existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true &&
+                     existing.NativeLanguageTerm?.Trim().Equals(word.NativeLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true) ||
+                    existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+                
+                if (!isDuplicate)
+                {
+                    word.CreatedAt = DateTime.UtcNow;
+                    word.UpdatedAt = DateTime.UtcNow;
+                    State.Resource.Vocabulary.Add(word);
+                }
+            }
         }
         
         // Save the resource
@@ -273,6 +416,76 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
             SetState(s => s.VocabList = content);
+        }
+    }
+    
+    async Task ImportVocabulary()
+    {
+        if (string.IsNullOrWhiteSpace(State.VocabList))
+        {
+            await App.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
+            return;
+        }
+        
+        try
+        {
+            // Parse vocabulary words from the input
+            var newWords = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
+            
+            if (!newWords.Any())
+            {
+                await App.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
+                return;
+            }
+            
+            int addedCount = 0;
+            int duplicateCount = 0;
+            
+            SetState(s => {
+                // Initialize vocabulary list if it doesn't exist
+                if (s.Resource.Vocabulary == null)
+                {
+                    s.Resource.Vocabulary = new List<VocabularyWord>();
+                }
+                
+                // Add new words, checking for duplicates
+                foreach (var word in newWords)
+                {
+                    // Check for duplicates based on both terms
+                    bool isDuplicate = s.Resource.Vocabulary.Any(existing => 
+                        (existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true &&
+                         existing.NativeLanguageTerm?.Trim().Equals(word.NativeLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true) ||
+                        existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+                    
+                    if (!isDuplicate)
+                    {
+                        word.CreatedAt = DateTime.UtcNow;
+                        word.UpdatedAt = DateTime.UtcNow;
+                        s.Resource.Vocabulary.Add(word);
+                        addedCount++;
+                    }
+                    else
+                    {
+                        duplicateCount++;
+                    }
+                }
+                
+                // Clear the input after successful import
+                s.VocabList = string.Empty;
+            });
+            
+            // Show result message
+            var message = $"Added {addedCount} new vocabulary words.";
+            if (duplicateCount > 0)
+            {
+                message += $" Skipped {duplicateCount} duplicates.";
+            }
+            
+            await App.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
         }
     }
 }
