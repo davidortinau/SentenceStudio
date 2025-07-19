@@ -28,6 +28,11 @@ public interface IVocabularyProgressService
     Task<List<VocabularyProgress>> GetAllProgressAsync(int userId = 1);
     
     /// <summary>
+    /// Gets progress for multiple vocabulary words and returns as dictionary
+    /// </summary>
+    Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 1);
+    
+    /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)
     /// </summary>
     Task<VocabularyProgress> GetOrCreateProgressAsync(int vocabularyWordId);

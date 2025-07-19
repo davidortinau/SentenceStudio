@@ -7,7 +7,10 @@ public partial class Settings : ObservableObject
 {
     [ObservableProperty]
     private string? openAIKey;
-    
+
     [ObservableProperty]
     private string? elevenLabsKey;
+
+    [ObservableProperty]
+    private string? syncfusionKey;
 }

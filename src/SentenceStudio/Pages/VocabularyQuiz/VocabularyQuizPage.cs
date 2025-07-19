@@ -1025,7 +1025,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     
     private float CalculateDifficultyWeight(VocabularyQuizItem item, InputMode inputMode, string contextType)
     {
-        float baseWeight = 1.0f;
+        float baseWeight = 0.5f;
         
         // Adjust based on input mode
         if (inputMode == InputMode.Text)

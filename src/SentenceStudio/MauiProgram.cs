@@ -32,6 +32,7 @@ using CoreSync;
 using CoreSync.Http.Client;
 using Microsoft.Extensions.Hosting;
 using Syncfusion.Maui.Core.Hosting;
+using Syncfusion.Licensing;
 
 #if WINDOWS
 using System.Reflection;
@@ -91,6 +92,8 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
 			;
 
+			
+
 #if ANDROID || IOS || MACCATALYST
 		builder.Configuration.AddJsonPlatformBundle();
 #else
@@ -121,6 +124,11 @@ public static class MauiProgram
 					.AddConsoleExporter(); // Export traces to console for debugging
 			});
 
+		var sfKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
+			? Environment.GetEnvironmentVariable("SyncfusionKey")!
+			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().SyncfusionKey;
+
+		Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(sfKey);
 
 		var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
 			? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
