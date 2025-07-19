@@ -1,4 +1,5 @@
 using MauiReactor.Shapes;
+using SentenceStudio.Pages.VocabularyProgress;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -310,7 +311,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     
     Task ViewVocabularyProgress()
     {
-        return MauiControls.Shell.Current.GoToAsync(nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage));
+        return MauiControls.Shell.Current.GoToAsync(nameof(VocabularyLearningProgressPage));
     }
 
     async Task CreateStarterResource()

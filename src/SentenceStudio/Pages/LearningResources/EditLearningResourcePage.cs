@@ -3,6 +3,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Services;
 using LukeMauiFilePicker;
+using SentenceStudio.Pages.VocabularyProgress;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -703,8 +704,8 @@ Transcript:
     
     Task ViewVocabularyProgress()
     {
-        return MauiControls.Shell.Current.GoToAsync<SentenceStudio.Pages.VocabularyProgress.VocabularyProgressProps>(
-            nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage),
+        return MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
+            nameof(VocabularyLearningProgressPage),
             props => props.ResourceId = State.Resource.Id);
     }
     

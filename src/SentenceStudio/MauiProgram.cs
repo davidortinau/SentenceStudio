@@ -33,6 +33,8 @@ using CoreSync.Http.Client;
 using Microsoft.Extensions.Hosting;
 using Syncfusion.Maui.Core.Hosting;
 using Syncfusion.Licensing;
+using SentenceStudio.Pages.LearningResources;
+using SentenceStudio.Pages.VocabularyProgress;
 
 #if WINDOWS
 using System.Reflection;
@@ -224,12 +226,11 @@ public static class MauiProgram
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 		
 		// Register Learning Resources pages
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.ListLearningResourcesPage>(nameof(SentenceStudio.Pages.LearningResources.ListLearningResourcesPage));
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.AddLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.AddLearningResourcePage));
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.LearningResources.EditLearningResourcePage>(nameof(SentenceStudio.Pages.LearningResources.EditLearningResourcePage));
+		MauiReactor.Routing.RegisterRoute<AddLearningResourcePage>(nameof(AddLearningResourcePage));
+		MauiReactor.Routing.RegisterRoute<EditLearningResourcePage>(nameof(EditLearningResourcePage));
 		
 		// Register Vocabulary Progress pages
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage>(nameof(SentenceStudio.Pages.VocabularyProgress.VocabularyLearningProgressPage));
+		MauiReactor.Routing.RegisterRoute<VocabularyLearningProgressPage>(nameof(VocabularyLearningProgressPage));
 	}
 
 	
