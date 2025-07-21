@@ -753,6 +753,92 @@ bool ValidateResource(LearningResource resource)
 - **Vocabulary interaction** responsiveness
 - **Audio quality** and synchronization accuracy
 
+## Phase 1.5: Paragraph Rendering Implementation
+
+### Current Status
+ReadingPage displays each sentence as individual Labels, but users prefer paragraph-style reading flow for better comprehension and natural text flow.
+
+### Validated Solution
+Use MauiReactor's fluent FormattedString with Span elements for vocabulary interaction, based on working examples from MauiReactor samples.
+
+### Working Syntax Examples
+```csharp
+// From FormattedTextTestPage.cs - Interactive spans with gestures
+Label(FormattedString(
+    Span("Click Me!", Colors.Red, FontAttributes.Bold, TapGestureRecognizer().OnTapped(() => ...)),
+    Span(" and me!", Colors.Blue, FontAttributes.Italic, TapGestureRecognizer().OnTapped(() => ...))
+))
+
+// From StatisticsPage.cs - Using native FormattedString
+Label()
+.FormattedText(new MauiControls.FormattedString
+{
+    Spans = {
+        new MauiControls.Span { Text = "text", TextColor = Colors.Black, FontSize = 36 },
+        new MauiControls.Span { Text = "more", TextColor = Colors.Gray, FontSize = 20 }
+    }
+})
+```
+
+### Implementation Strategy for Reading Activity
+```csharp
+// Paragraph rendering with vocabulary interaction
+VStack([
+    // For each paragraph group
+    Label(FormattedString([
+        // For each text segment in paragraph
+        ..RenderParagraphSegments(paragraph, vocabularyWords, activeSentenceIndex)
+    ]))
+    .Padding(16, 8)
+    .FontSize(State.FontSize)
+])
+
+private Span[] RenderParagraphSegments(List<Sentence> sentences, List<VocabularyWord> vocab, int? activeIndex)
+{
+    var spans = new List<Span>();
+    
+    foreach (var (sentence, index) in sentences.Select((s, i) => (s, i)))
+    {
+        var segments = ParseSentenceForVocabulary(sentence.Text, vocab);
+        
+        foreach (var segment in segments)
+        {
+            var spanColor = index == activeIndex 
+                ? ApplicationTheme.HighlightBackground  // Active sentence
+                : ApplicationTheme.DarkOnLightBackground;
+                
+            if (segment.IsVocabulary)
+            {
+                spans.Add(Span(
+                    segment.Text, 
+                    ApplicationTheme.VocabularyTextColor,
+                    FontAttributes.None,
+                    TapGestureRecognizer().OnTapped(() => ShowVocabularyPopup(segment.VocabularyWord))
+                ));
+            }
+            else
+            {
+                spans.Add(Span(segment.Text, spanColor));
+            }
+        }
+        
+        // Add sentence spacing
+        if (index < sentences.Count - 1)
+            spans.Add(Span(" "));
+    }
+    
+    return spans.ToArray();
+}
+```
+
+### Benefits
+- ✅ **Confirmed working syntax** from actual MauiReactor examples
+- ✅ **Natural reading flow** with paragraph spacing
+- ✅ **Individual word tap detection** via TapGestureRecognizer on vocabulary Spans
+- ✅ **Sentence-level highlighting** by updating Span colors during audio playback
+- ✅ **Vocabulary underlining** through TextDecorations.Underline on vocabulary Spans
+- ✅ **Font size responsiveness** through Label.FontSize property
+
 ## Future Enhancements
 
 ### Phase 2 Features

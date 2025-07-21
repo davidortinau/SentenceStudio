@@ -4,6 +4,13 @@ using System.Text.RegularExpressions;
 
 namespace SentenceStudio.Pages.Reading;
 
+class TextSegment
+{
+    public string Text { get; set; } = string.Empty;
+    public bool IsVocabulary { get; set; }
+    public VocabularyWord VocabularyWord { get; set; }
+}
+
 class ReadingPageState
 {
     // Content
@@ -128,9 +135,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         ScrollView(
             VStack(
                 new VisualNode[] { RenderReadingInstructions() }
-                    .Concat(State.Sentences.Select((sentence, index) => 
-                        RenderSentence(sentence, index)
-                    ))
+                    .Concat(RenderParagraphs())
                     .ToArray()
             )
             .Spacing(ApplicationTheme.Size160)
@@ -138,28 +143,110 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .GridRow(1);
     
-    VisualNode RenderSentence(string sentence, int index) =>
-        VStack(
-            RenderSentenceWithVocabulary(sentence, index)
-        )
-        .Background(GetSentenceBackground(index))
-        .Padding(ApplicationTheme.Size120)
-        .OnTapped(() => SelectSentence(index))        // Single tap = select only
-        .OnTapped(() => StartPlaybackFromSentence(index), 2);  // Double tap = play from here
-    
-    Color GetSentenceBackground(int index)
+    VisualNode[] RenderParagraphs()
     {
-        if (index == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return ApplicationTheme.Primary.WithAlpha(0.3f); // Bright highlight for current playing
-        else if (index == State.SelectedSentenceIndex)
-            return ApplicationTheme.Secondary.WithAlpha(0.5f); // Subtle selection
-        else
-            return Colors.Transparent;
+        var paragraphs = new List<VisualNode>();
+        var paragraphGroups = GroupSentencesIntoParagraphs();
+        
+        foreach (var (paragraphSentences, paragraphIndex) in paragraphGroups.Select((p, i) => (p, i)))
+        {
+            var spans = new List<VisualNode>();
+            
+            foreach (var (sentence, sentenceIndex) in paragraphSentences)
+            {
+                var segments = ParseSentenceForVocabulary(sentence);
+                
+                foreach (var segment in segments)
+                {
+                    var textColor = GetTextColorForSentence(sentenceIndex);
+                    
+                    if (segment.IsVocabulary)
+                    {
+                        // Vocabulary word with interaction
+                        spans.Add(
+                            Span(segment.Text, 
+                                ApplicationTheme.Primary, 
+                                FontAttributes.None,
+                                TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
+                                .TextDecorations(TextDecorations.Underline)
+                        );
+                    }
+                    else
+                    {
+                        // Regular text with highlighting if active
+                        spans.Add(Span(segment.Text, textColor));
+                    }
+                }
+                
+                // Add space between sentences
+                if (sentence != paragraphSentences.Last().Item1)
+                {
+                    spans.Add(Span(" "));
+                }
+            }
+            
+            paragraphs.Add(
+                VStack(
+                    Label(FormattedString(spans.ToArray()))
+                        .FontSize(State.FontSize)
+                        .LineHeight(1.5)
+                )
+                .Padding(ApplicationTheme.Size120)
+                .OnTapped(() => SelectParagraph(paragraphSentences))
+                .OnTapped(() => StartPlaybackFromParagraph(paragraphSentences), 2)
+            );
+        }
+        
+        return paragraphs.ToArray();
     }
     
-    async Task SelectSentence(int index)
+    List<List<(string, int)>> GroupSentencesIntoParagraphs()
     {
-        SetState(s => s.SelectedSentenceIndex = index);
+        // Simple paragraph grouping - every 3-4 sentences for now
+        // In the future, this could be enhanced with ML or natural language processing
+        var paragraphs = new List<List<(string, int)>>();
+        var currentParagraph = new List<(string, int)>();
+        
+        for (int i = 0; i < State.Sentences.Count; i++)
+        {
+            currentParagraph.Add((State.Sentences[i], i));
+            
+            // Start new paragraph every 3-4 sentences or at natural breaks
+            if (currentParagraph.Count >= 3 && (i == State.Sentences.Count - 1 || ShouldBreakParagraph(State.Sentences[i])))
+            {
+                paragraphs.Add(currentParagraph);
+                currentParagraph = new List<(string, int)>();
+            }
+        }
+        
+        // Add any remaining sentences
+        if (currentParagraph.Any())
+        {
+            paragraphs.Add(currentParagraph);
+        }
+        
+        return paragraphs;
+    }
+    
+    bool ShouldBreakParagraph(string sentence)
+    {
+        // Natural paragraph break indicators
+        var breakIndicators = new[] { "However", "Meanwhile", "In addition", "Furthermore", "Therefore", "Consequently" };
+        return breakIndicators.Any(indicator => sentence.StartsWith(indicator, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    Color GetTextColorForSentence(int sentenceIndex)
+    {
+        if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
+            return ApplicationTheme.Primary; // Highlight current playing sentence
+        else
+            return ApplicationTheme.DarkOnLightBackground;
+    }
+    
+    async Task SelectParagraph(List<(string, int)> paragraphSentences)
+    {
+        var firstSentenceIndex = paragraphSentences.First().Item2;
+        SetState(s => s.SelectedSentenceIndex = firstSentenceIndex);
         
         // Show helpful hint for first-time users
         if (!State.HasShownJumpHint)
@@ -170,13 +257,10 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
     }
     
-    VisualNode RenderSentenceWithVocabulary(string sentence, int index)
+    Task StartPlaybackFromParagraph(List<(string, int)> paragraphSentences)
     {
-        // For now, just render as plain text - vocabulary interaction can be added later
-        return Label(sentence)
-            .FontSize(State.FontSize)
-            .LineHeight(1.4)
-            .TextColor(ApplicationTheme.DarkOnLightBackground);
+        var firstSentenceIndex = paragraphSentences.First().Item2;
+        return StartPlaybackFromSentence(firstSentenceIndex);
     }
     
     VisualNode RenderReadingInstructions() =>
@@ -456,6 +540,43 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         return sentences;
     }
     
+    List<TextSegment> ParseSentenceForVocabulary(string sentence)
+    {
+        var segments = new List<TextSegment>();
+        var words = sentence.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        
+        foreach (var word in words)
+        {
+            var vocabularyMatch = FindVocabularyMatch(word);
+            
+            if (vocabularyMatch != null)
+            {
+                segments.Add(new TextSegment
+                {
+                    Text = word,
+                    IsVocabulary = true,
+                    VocabularyWord = vocabularyMatch
+                });
+            }
+            else
+            {
+                segments.Add(new TextSegment
+                {
+                    Text = word,
+                    IsVocabulary = false
+                });
+            }
+            
+            // Add space after each word except the last
+            if (word != words.Last())
+            {
+                segments.Add(new TextSegment { Text = " ", IsVocabulary = false });
+            }
+        }
+        
+        return segments;
+    }
+    
     VocabularyWord FindVocabularyMatch(string word)
     {
         var cleanWord = word.Trim().ToLowerInvariant()
@@ -465,12 +586,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             v.TargetLanguageTerm?.ToLowerInvariant() == cleanWord ||
             v.TargetLanguageTerm?.ToLowerInvariant().Contains(cleanWord) == true
         );
-    }
-    
-    List<string> SplitSentenceIntoWords(string sentence)
-    {
-        return sentence.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
     }
     
     // Vocabulary UI
