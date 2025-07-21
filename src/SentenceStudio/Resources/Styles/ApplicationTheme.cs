@@ -694,7 +694,7 @@ class ApplicationTheme : Theme
             .BackgroundColor(Colors.Transparent)
             .TextColor(IsLightTheme ? Black : White)
             .FontFamily("OpenSansRegular")
-            .FontSize(14)
+            .FontSize(DeviceIdiom.Desktop == DeviceInfo.Idiom ? 24 : 18)
             .MinimumHeightRequest(44)
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.RadioButton.TextColorProperty, IsLightTheme ? Gray300 : Gray600);

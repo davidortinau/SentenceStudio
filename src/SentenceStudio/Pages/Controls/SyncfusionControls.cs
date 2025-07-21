@@ -477,6 +477,12 @@ public static partial class SfComboBoxExtensions
         return comboBox;
     }
 
+    public static SfComboBox SelectedItems(this SfComboBox comboBox, System.Collections.IList selectedItems)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.SelectedItemsProperty, selectedItems);
+        return comboBox;
+    }
+
 }
 
 

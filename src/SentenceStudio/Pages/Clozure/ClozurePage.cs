@@ -251,6 +251,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		SetState(s => 
 		{
+			// 🏴‍☠️ CRITICAL: Replace the vocabulary word with __ placeholder for display
 			s.CurrentSentence = challenge.SentenceText.Replace(challenge.VocabularyWordAsUsed, "__");
 			s.RecommendedTranslation = challenge.RecommendedTranslation;
 			s.GuessOptions = challenge.VocabularyWordGuesses?.Split(",").Select(x => x.Trim()).OrderBy(x => Guid.NewGuid()).ToArray();
@@ -282,6 +283,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				SetState(s =>
 				{
 					s.Sentences = new ObservableCollection<Challenge>(sentences);
+					// 🏴‍☠️ CRITICAL: Replace the vocabulary word with __ placeholder for display
 					s.CurrentSentence = first.SentenceText.Replace(first.VocabularyWordAsUsed, "__");
 					s.RecommendedTranslation = first.RecommendedTranslation;
 					s.GuessOptions = first.VocabularyWordGuesses?.Split(",")
@@ -470,10 +472,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		if (isCorrect)
 		{
-			// Fill in the blank space with the correct answer
+			// 🏴‍☠️ Fill in the blank space with the correct answer (show complete sentence)
 			SetState(s => {
 				s.UserInput = string.Empty;
-				s.CurrentSentence = currentChallenge.SentenceText;
+				s.CurrentSentence = currentChallenge.SentenceText; // Show complete sentence
 			});
 			
 			TransitionToNextSentence();

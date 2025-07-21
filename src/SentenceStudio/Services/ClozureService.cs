@@ -2,6 +2,8 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+using Scriban;
 
 namespace SentenceStudio.Services;
 
@@ -69,7 +71,7 @@ public class ClozureService
         Debug.WriteLine($"🏴‍☠️ ClozureService: Skill profile retrieved: {skillProfile?.Title ?? "null"}");
         
         var prompt = string.Empty;     
-        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozures.scriban-txt");
+        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(await reader.ReadToEndAsync());
@@ -84,100 +86,55 @@ public class ClozureService
                 .AsChatClient(modelId: "gpt-4o-mini");
 
             Debug.WriteLine("🏴‍☠️ ClozureService: Sending prompt to AI service");
-            var reply = await client.GetResponseAsync<SentencesResponse>(prompt);
+            var reply = await client.GetResponseAsync<ClozureResponse>(prompt);
             
             if (reply != null && reply.Result.Sentences != null)
             {
                 Debug.WriteLine($"🏴‍☠️ ClozureService: AI returned {reply.Result.Sentences.Count} sentences");
                 
-                // 🏴‍☠️ IMPORTANT: Populate Challenge objects with vocabulary for progress tracking
-                Debug.WriteLine($"🏴‍☠️ ClozureService: Processing {reply.Result.Sentences.Count} challenges for vocabulary linking");
-                foreach (var challenge in reply.Result.Sentences)
+                // 🏴‍☠️ IMPORTANT: Convert ClozureDto objects to Challenge objects and link vocabulary
+                Debug.WriteLine($"🏴‍☠️ ClozureService: Converting {reply.Result.Sentences.Count} ClozureDto objects to Challenge objects");
+                var challenges = new List<Challenge>();
+                
+                foreach (var clozureDto in reply.Result.Sentences)
                 {
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: === Processing challenge ===");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge.VocabularyWord: '{challenge.VocabularyWord}'");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge.VocabularyWordAsUsed: '{challenge.VocabularyWordAsUsed}'");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: Available vocabulary words: {string.Join(", ", _words.Select(w => $"'{w.TargetLanguageTerm}' (ID:{w.Id})"))}");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: === Processing clozure DTO ===");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWord: '{clozureDto.VocabularyWord}'");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordAsUsed: '{clozureDto.VocabularyWordAsUsed}'");
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordGuesses: '{clozureDto.VocabularyWordGuesses}'");
                     
-                    // Find the vocabulary word that matches this challenge
-                    // Try multiple matching strategies to handle different forms
-                    VocabularyWord matchingWord = null;
-                    string matchStrategy = "";
-                    
-                    // Strategy 1: Exact match with VocabularyWord
-                    matchingWord = _words.FirstOrDefault(w => 
-                        string.Equals(w.TargetLanguageTerm, challenge.VocabularyWord, StringComparison.OrdinalIgnoreCase));
-                    if (matchingWord != null) matchStrategy = "Strategy 1: Exact VocabularyWord match";
-                    
-                    // Strategy 2: Exact match with VocabularyWordAsUsed  
-                    if (matchingWord == null)
+                    // Create Challenge object from DTO - keep it simple
+                    var challenge = new Challenge
                     {
-                        matchingWord = _words.FirstOrDefault(w => 
-                            string.Equals(w.TargetLanguageTerm, challenge.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase));
-                        if (matchingWord != null) matchStrategy = "Strategy 2: Exact VocabularyWordAsUsed match";
-                    }
+                        SentenceText = clozureDto.SentenceText,
+                        RecommendedTranslation = clozureDto.RecommendedTranslation,
+                        VocabularyWord = clozureDto.VocabularyWord,
+                        VocabularyWordAsUsed = clozureDto.VocabularyWordAsUsed,
+                        VocabularyWordGuesses = clozureDto.VocabularyWordGuesses,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
                     
-                    // Strategy 3: VocabularyWord contains target term
-                    if (matchingWord == null)
-                    {
-                        matchingWord = _words.FirstOrDefault(w => 
-                            challenge.VocabularyWord?.Contains(w.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
-                        if (matchingWord != null) matchStrategy = "Strategy 3: VocabularyWord contains target term";
-                    }
-                    
-                    // Strategy 4: Target term contains VocabularyWord
-                    if (matchingWord == null)
-                    {
-                        matchingWord = _words.FirstOrDefault(w => 
-                            w.TargetLanguageTerm?.Contains(challenge.VocabularyWord, StringComparison.OrdinalIgnoreCase) == true);
-                        if (matchingWord != null) matchStrategy = "Strategy 4: Target term contains VocabularyWord";
-                    }
-                    
-                    // Strategy 5: Try partial matching on VocabularyWordAsUsed
-                    if (matchingWord == null)
-                    {
-                        matchingWord = _words.FirstOrDefault(w => 
-                            challenge.VocabularyWordAsUsed?.Contains(w.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
-                        if (matchingWord != null) matchStrategy = "Strategy 5: VocabularyWordAsUsed contains target term";
-                    }
-                    
-                    // Strategy 6: Try reverse partial matching on VocabularyWordAsUsed
-                    if (matchingWord == null)
-                    {
-                        matchingWord = _words.FirstOrDefault(w => 
-                            w.TargetLanguageTerm?.Contains(challenge.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase) == true);
-                        if (matchingWord != null) matchStrategy = "Strategy 6: Target term contains VocabularyWordAsUsed";
-                    }
-                    
-                    // Strategy 7: Fallback - if AI isn't following instructions, just link to first available word
-                    if (matchingWord == null && _words.Any())
-                    {
-                        matchingWord = _words.First();
-                        matchStrategy = "Strategy 7: Fallback to first vocabulary word (AI not following instructions)";
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: ⚠️ FALLBACK - AI generated vocabulary word '{challenge.VocabularyWord}' not in list, using fallback");
-                    }
+                    // Try to find matching vocabulary word for progress tracking
+                    var matchingWord = _words.FirstOrDefault(w => 
+                        string.Equals(w.TargetLanguageTerm, clozureDto.VocabularyWord, StringComparison.OrdinalIgnoreCase));
                     
                     if (matchingWord != null)
                     {
-                        // Create a list containing just this vocabulary word for the challenge
                         challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ SUCCESS - Linked challenge using {matchStrategy}");
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: Linked to vocabulary word ID {matchingWord.Id} ('{matchingWord.TargetLanguageTerm}')");
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ Linked to vocabulary word ID {matchingWord.Id} ('{matchingWord.TargetLanguageTerm}')");
                     }
                     else
                     {
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: ❌ WARNING - Could not find vocabulary word for challenge");
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge VocabularyWord: '{challenge.VocabularyWord}'");
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: Challenge VocabularyWordAsUsed: '{challenge.VocabularyWordAsUsed}'");
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: This will prevent vocabulary progress tracking!");
-                        // Create empty list to avoid null reference
+                        Debug.WriteLine($"🏴‍☠️ ClozureService: ⚠️ Could not find vocabulary word '{clozureDto.VocabularyWord}' in lesson vocabulary");
                         challenge.Vocabulary = new List<VocabularyWord>();
                     }
                     
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: === End challenge processing ===");
+                    challenges.Add(challenge);
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ Added clozure challenge");
                 }
                 
-                return reply.Result.Sentences;
+                return challenges;
             }
             else
             {

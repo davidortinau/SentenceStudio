@@ -1,4 +1,4 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences along with natural English translations. 
+Using the following vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} natural and conversational sentences in that language along with natural English translations. 
 
 {{ if skills }}
 Emphasize the following skills that I want to practice: 

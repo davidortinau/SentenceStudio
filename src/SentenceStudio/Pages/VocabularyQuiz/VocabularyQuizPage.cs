@@ -75,10 +75,20 @@ public class VocabularyQuizItem
     public bool IsCurrent { get; set; }
     public UserActivity? UserActivity { get; set; }
     
-    // Global progress from VocabularyProgress table
+    // Global progress from VocabularyProgress table (cross-activity mastery)
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
     
-    // Enhanced computed properties that delegate to new system
+    // Activity-specific progress (THIS quiz activity only)
+    public int QuizRecognitionStreak { get; set; } = 0;  // Consecutive multiple choice correct
+    public int QuizProductionStreak { get; set; } = 0;   // Consecutive text entry correct
+    public bool QuizRecognitionComplete => QuizRecognitionStreak >= RequiredCorrectAnswers;
+    public bool QuizProductionComplete => QuizProductionStreak >= RequiredCorrectAnswers;
+    public bool ReadyToRotateOut => QuizRecognitionComplete && QuizProductionComplete;
+    
+    // Current phase within THIS quiz (independent of global phase)
+    public bool IsPromotedInQuiz => QuizRecognitionComplete;
+    
+    // Enhanced computed properties that delegate to new system (for UI display)
     public bool IsPromoted => Progress?.CurrentPhase >= LearningPhase.Production;
     public bool IsCompleted => Progress?.IsKnown ?? false;
     public int MultipleChoiceCorrect => Progress?.RecognitionCorrect ?? 0;
@@ -555,28 +565,30 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _responseTimer.Restart();
 
         // Generate multiple choice options if needed
-        if (!item.IsPromoted)
+        if (!item.IsPromotedInQuiz)
         {
             await GenerateMultipleChoiceOptions(item);
         }
     }
 
-    // Enhanced mode determination based on current learning phase
+    // Enhanced mode determination based on quiz-specific progress
     private string GetUserModeForItem(VocabularyQuizItem item)
     {
-        var currentPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
-        
-        return currentPhase switch
-        {
-            LearningPhase.Recognition => InputMode.MultipleChoice.ToString(),
-            LearningPhase.Production => InputMode.Text.ToString(),
-            LearningPhase.Application => InputMode.Text.ToString(),
-            _ => InputMode.MultipleChoice.ToString()
-        };
+        // Use quiz-specific promotion status (not global Progress.CurrentPhase)
+        return item.IsPromotedInQuiz ? InputMode.Text.ToString() : InputMode.MultipleChoice.ToString();
     }
 
     async Task GenerateMultipleChoiceOptions(VocabularyQuizItem currentItem)
     {
+        var correctAnswer = currentItem.Word.TargetLanguageTerm ?? "";
+        
+        if (string.IsNullOrEmpty(correctAnswer))
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Warning: Current item {currentItem.Word.NativeLanguageTerm} has no target language term!");
+            SetState(s => s.ChoiceOptions = new[] { "Error: No answer available" });
+            return;
+        }
+
         var allWords = State.VocabularyItems
             .Where(i => i != currentItem)
             .Select(i => i.Word.TargetLanguageTerm)
@@ -585,8 +597,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Take(3)
             .ToList();
 
-        allWords.Add(currentItem.Word.TargetLanguageTerm ?? "");
+        // Always ensure the correct answer is included
+        allWords.Add(correctAnswer);
+        
+        // Shuffle the options
         allWords = allWords.OrderBy(x => Guid.NewGuid()).ToArray().ToList();
+        
+        // Debug logging to verify correct answer is present
+        System.Diagnostics.Debug.WriteLine($"🎯 Generated options for '{currentItem.Word.NativeLanguageTerm}': {string.Join(", ", allWords)}");
+        System.Diagnostics.Debug.WriteLine($"🎯 Correct answer '{correctAnswer}' is included: {allWords.Contains(correctAnswer)}");
 
         SetState(s => s.ChoiceOptions = allWords.ToArray());
     }
@@ -598,12 +617,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Capture vocabulary items for session summary before removing them
         var sessionItems = State.VocabularyItems.ToList();
         
-        // Remove fully learned terms (known) from current session
-        var learnedTerms = State.VocabularyItems.Where(item => item.IsKnown).ToList();
-        foreach (var term in learnedTerms)
+        // Remove words that have completed BOTH recognition AND production phases in THIS quiz
+        var completedTerms = State.VocabularyItems.Where(item => item.ReadyToRotateOut).ToList();
+        foreach (var term in completedTerms)
         {
             State.VocabularyItems.Remove(term);
-            System.Diagnostics.Debug.WriteLine($"Removed learned term: {term.Word.NativeLanguageTerm}");
+            System.Diagnostics.Debug.WriteLine($"Removed completed term: {term.Word.NativeLanguageTerm} " +
+                $"(MC: {term.QuizRecognitionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers}, " +
+                $"Text: {term.QuizProductionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})");
         }
         
         // Add new terms if we need to maintain a full set
@@ -633,6 +654,39 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
+    // 🏴‍☠️ NEW METHOD: Immediate rotation during session for continuous word flow
+    async Task RotateOutMasteredWordsAndAddNew()
+    {
+        // Find words that are ready to rotate out (mastered in this quiz)
+        var masteredWords = State.VocabularyItems.Where(item => item.ReadyToRotateOut).ToList();
+        
+        if (masteredWords.Any())
+        {
+            System.Diagnostics.Debug.WriteLine($"🎊 Rotating out {masteredWords.Count} mastered words during session:");
+            foreach (var masteredWord in masteredWords)
+            {
+                System.Diagnostics.Debug.WriteLine($"  - {masteredWord.Word.NativeLanguageTerm} (MC: {masteredWord.QuizRecognitionStreak}, Text: {masteredWord.QuizProductionStreak})");
+                State.VocabularyItems.Remove(masteredWord);
+            }
+            
+            // Add new words to replace the mastered ones
+            await AddNewTermsToMaintainSet();
+            
+            // Update term counts to reflect changes
+            UpdateTermCounts();
+            
+            // Show feedback to user
+            if (masteredWords.Count == 1)
+            {
+                await AppShell.DisplayToastAsync($"🌟 '{masteredWords.First().Word.NativeLanguageTerm}' mastered! New word added.");
+            }
+            else
+            {
+                await AppShell.DisplayToastAsync($"🌟 {masteredWords.Count} words mastered! New words added.");
+            }
+        }
+    }
+
     async Task AddNewTermsToMaintainSet()
     {
         // Target set size (can be configurable)
@@ -642,7 +696,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         
         if (neededTerms <= 0) return;
         
-        System.Diagnostics.Debug.WriteLine($"Need to add {neededTerms} new terms to maintain set size");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Need to add {neededTerms} new terms to maintain set size");
         
         // Get new vocabulary from resources that aren't already in the current set
         var currentWords = State.VocabularyItems.Select(item => item.Word.Id).ToHashSet();
@@ -663,34 +717,152 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             }
         }
         
-        // Add random selection of new terms
-        var randomWords = availableWords
-            .OrderBy(x => Guid.NewGuid())
+        if (!availableWords.Any())
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ No more new words available in learning resources! You've worked through all vocabulary!");
+            await AppShell.DisplayToastAsync("🎊 Congratulations! You've worked through all vocabulary in this learning resource!");
+            return;
+        }
+        
+        // Prioritize words that haven't been mastered globally yet
+        var wordIds = availableWords.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        
+        // Sort words by mastery level - prioritize unmastered words first
+        var sortedWords = availableWords
+            .OrderBy(word => 
+            {
+                var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] : null;
+                return progress?.MasteryScore ?? 0f; // Unmastered words (low mastery) come first
+            })
+            .ThenBy(x => Guid.NewGuid()) // Random within same mastery level
             .Take(neededTerms)
             .ToList();
         
-        // Get progress for these new words
-        var wordIds = randomWords.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Adding {sortedWords.Count} new terms (prioritizing unmastered words):");
         
-        foreach (var word in randomWords)
+        foreach (var word in sortedWords)
         {
-            var progress = progressDict[word.Id];
-            
-            // Only add words that aren't already completed
-            if (!progress.IsCompleted)
-            {
-                var newItem = new VocabularyQuizItem
+            var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] : 
+                new SentenceStudio.Shared.Models.VocabularyProgress
                 {
-                    Word = word,
-                    IsCurrent = false,
-                    Progress = progress
+                    VocabularyWordId = word.Id,
+                    IsCompleted = false,
+                    MasteryScore = 0.0f,
+                    CurrentPhase = LearningPhase.Recognition,
+                    TotalAttempts = 0,
+                    CorrectAttempts = 0
                 };
-                
-                State.VocabularyItems.Add(newItem);
-                System.Diagnostics.Debug.WriteLine($"Added new term: {word.NativeLanguageTerm}");
+            
+            var newItem = new VocabularyQuizItem
+            {
+                Word = word,
+                IsCurrent = false,
+                Progress = progress,
+                // Initialize quiz-specific counters to 0 (fresh start in this quiz)
+                QuizRecognitionStreak = 0,
+                QuizProductionStreak = 0
+            };
+            
+            State.VocabularyItems.Add(newItem);
+            System.Diagnostics.Debug.WriteLine($"  + {word.NativeLanguageTerm} (Global mastery: {(progress.MasteryScore * 100):F0}%)");
+        }
+    }
+
+    // 🏴‍☠️ INTELLIGENT WORD SELECTION: Prioritize learning and resume progress
+    async Task<List<VocabularyWord>> SelectWordsIntelligently(List<VocabularyWord> allVocabulary)
+    {
+        const int targetSetSize = 10;
+        
+        if (allVocabulary.Count <= targetSetSize)
+        {
+            System.Diagnostics.Debug.WriteLine($"🎯 Small vocabulary set ({allVocabulary.Count} words) - using all words");
+            return allVocabulary.OrderBy(x => Guid.NewGuid()).ToList();
+        }
+        
+        // Get progress for all vocabulary words
+        var allWordIds = allVocabulary.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(allWordIds);
+        
+        // Categorize words by mastery level
+        var unmasteredWords = new List<VocabularyWord>();
+        var learningWords = new List<VocabularyWord>();
+        var reviewWords = new List<VocabularyWord>();
+        var masteredWords = new List<VocabularyWord>();
+        
+        foreach (var word in allVocabulary)
+        {
+            var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] : null;
+            var masteryScore = progress?.MasteryScore ?? 0f;
+            var isCompleted = progress?.IsCompleted ?? false;
+            
+            if (isCompleted || masteryScore >= 0.9f)
+            {
+                masteredWords.Add(word);
+            }
+            else if (masteryScore >= 0.5f)
+            {
+                learningWords.Add(word);
+            }
+            else if (masteryScore > 0f)
+            {
+                reviewWords.Add(word);
+            }
+            else
+            {
+                unmasteredWords.Add(word);
             }
         }
+        
+        System.Diagnostics.Debug.WriteLine($"🎯 Word categorization:");
+        System.Diagnostics.Debug.WriteLine($"  📚 Unmastered: {unmasteredWords.Count}");
+        System.Diagnostics.Debug.WriteLine($"  📖 Learning: {learningWords.Count}");
+        System.Diagnostics.Debug.WriteLine($"  🔄 Review: {reviewWords.Count}");
+        System.Diagnostics.Debug.WriteLine($"  ✅ Mastered: {masteredWords.Count}");
+        
+        // Smart selection algorithm: Prioritize learning > unmastered > review > mastered
+        var selectedWords = new List<VocabularyWord>();
+        
+        // 1. First priority: Words currently being learned (have some progress but not mastered)
+        var shuffledLearning = learningWords.OrderBy(x => Guid.NewGuid()).ToList();
+        var learningToTake = Math.Min(6, shuffledLearning.Count); // Up to 60% learning words
+        selectedWords.AddRange(shuffledLearning.Take(learningToTake));
+        System.Diagnostics.Debug.WriteLine($"🎯 Added {learningToTake} learning words");
+        
+        // 2. Second priority: Completely new words (unmastered)
+        if (selectedWords.Count < targetSetSize)
+        {
+            var shuffledUnmastered = unmasteredWords.OrderBy(x => Guid.NewGuid()).ToList();
+            var unmasteredToTake = Math.Min(targetSetSize - selectedWords.Count, shuffledUnmastered.Count);
+            selectedWords.AddRange(shuffledUnmastered.Take(unmasteredToTake));
+            System.Diagnostics.Debug.WriteLine($"🎯 Added {unmasteredToTake} unmastered words");
+        }
+        
+        // 3. Third priority: Review words (some attempts but low mastery)
+        if (selectedWords.Count < targetSetSize)
+        {
+            var shuffledReview = reviewWords.OrderBy(x => Guid.NewGuid()).ToList();
+            var reviewToTake = Math.Min(targetSetSize - selectedWords.Count, shuffledReview.Count);
+            selectedWords.AddRange(shuffledReview.Take(reviewToTake));
+            System.Diagnostics.Debug.WriteLine($"🎯 Added {reviewToTake} review words");
+        }
+        
+        // 4. Last resort: Include some mastered words if we don't have enough
+        if (selectedWords.Count < targetSetSize)
+        {
+            var shuffledMastered = masteredWords.OrderBy(x => Guid.NewGuid()).ToList();
+            var masteredToTake = targetSetSize - selectedWords.Count;
+            selectedWords.AddRange(shuffledMastered.Take(masteredToTake));
+            System.Diagnostics.Debug.WriteLine($"🎯 Added {masteredToTake} mastered words (last resort)");
+        }
+        
+        // Final shuffle to avoid predictable ordering
+        var finalSelection = selectedWords.OrderBy(x => Guid.NewGuid()).ToList();
+        
+        System.Diagnostics.Debug.WriteLine($"🎯 Final selection: {finalSelection.Count} words");
+        System.Diagnostics.Debug.WriteLine($"🎯 Selected words: {string.Join(", ", finalSelection.Select(w => w.NativeLanguageTerm))}");
+        
+        return finalSelection;
     }
 
     async Task LoadVocabulary()
@@ -766,17 +938,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 return;
             }
 
-            // Create sets of 10 terms (or appropriate fraction)
-            var shuffledVocab = vocabulary.OrderBy(x => Guid.NewGuid()).ToList();
-            var setSize = Math.Min(10, shuffledVocab.Count);
-            var totalSets = (int)Math.Ceiling(shuffledVocab.Count / (double)setSize);
+            // 🏴‍☠️ SMART WORD SELECTION: Prioritize unmastered words and resume progress
+            var smartSelectedWords = await SelectWordsIntelligently(vocabulary);
+            var setSize = smartSelectedWords.Count;
+            var totalSets = (int)Math.Ceiling(vocabulary.Count / (double)Math.Min(10, vocabulary.Count));
             
-            // Take first set
-            var currentSetWords = shuffledVocab.Take(setSize).ToList();
-            System.Diagnostics.Debug.WriteLine($"Selected {currentSetWords.Count} words for quiz");
+            System.Diagnostics.Debug.WriteLine($"🎯 Smart selection: {smartSelectedWords.Count} words chosen from {vocabulary.Count} total");
             
             // Create quiz items with global progress
-            var wordIds = currentSetWords.Select(w => w.Id).ToList();
+            var wordIds = smartSelectedWords.Select(w => w.Id).ToList();
             System.Diagnostics.Debug.WriteLine($"Getting progress for {wordIds.Count} word IDs: [{string.Join(", ", wordIds)}]");
             
             try 
@@ -784,7 +954,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
                 System.Diagnostics.Debug.WriteLine($"Retrieved progress for {progressDict?.Count ?? 0} words");
                 
-                var quizItems = currentSetWords.Select(word => 
+                var quizItems = smartSelectedWords.Select(word => 
                 {
                     if (progressDict?.ContainsKey(word.Id) == true)
                     {
@@ -794,7 +964,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         {
                             Word = word,
                             IsCurrent = false,
-                            Progress = progress
+                            Progress = progress,
+                            // Initialize quiz-specific counters
+                            QuizRecognitionStreak = 0,
+                            QuizProductionStreak = 0
                         };
                     }
                     else
@@ -814,23 +987,25 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         {
                             Word = word,
                             IsCurrent = false,
-                            Progress = defaultProgress
+                            Progress = defaultProgress,
+                            // Initialize quiz-specific counters
+                            QuizRecognitionStreak = 0,
+                            QuizProductionStreak = 0
                         };
                     }
                 }).ToList();
 
                 System.Diagnostics.Debug.WriteLine($"Created {quizItems.Count} quiz items");
 
-                // Filter out completed words by default (could be made configurable)
-                var incompleteItems = quizItems.Where(item => !item.IsCompleted).ToList();
-                System.Diagnostics.Debug.WriteLine($"Found {incompleteItems.Count} incomplete items out of {quizItems.Count} total");
+                // Filter out completed words from QUIZ perspective (not global mastery)
+                var incompleteItems = quizItems.Where(item => !item.ReadyToRotateOut).ToList();
+                System.Diagnostics.Debug.WriteLine($"Found {incompleteItems.Count} quiz-incomplete items out of {quizItems.Count} total");
                 
                 if (!incompleteItems.Any())
                 {
-                    // All words are already learned - show toast and return
-                    await AppShell.DisplayToastAsync("🎊 All words in this set are already learned! Great job!");
-                    SetState(s => s.IsBusy = false);
-                    return;
+                    // All words are completed in THIS quiz - add more words or show completion
+                    await AppShell.DisplayToastAsync("🎊 All words in this set completed! Adding new words...");
+                    // Continue with empty set to trigger new word addition in AddNewTermsToMaintainSet
                 }
 
                 // Use incomplete items for the quiz
@@ -863,7 +1038,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading progress: {progressEx.Message}");
                 // Create quiz items without progress for now
-                var quizItems = currentSetWords.Select(word => new VocabularyQuizItem
+                var quizItems = smartSelectedWords.Select(word => new VocabularyQuizItem
                 {
                     Word = word,
                     IsCurrent = false,
@@ -875,7 +1050,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         CurrentPhase = LearningPhase.Recognition,
                         TotalAttempts = 0,
                         CorrectAttempts = 0
-                    }
+                    },
+                    // Initialize quiz-specific counters
+                    QuizRecognitionStreak = 0,
+                    QuizProductionStreak = 0
                 }).ToList();
                 
                 if (quizItems.Any())
@@ -938,8 +1116,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Enhanced tracking: Record answer with detailed context
         await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
 
+        // Update quiz-specific streak counters based on correct/incorrect answers
+        await UpdateQuizSpecificProgress(currentItem, isCorrect);
+
         // Enhanced feedback: Update UI based on enhanced progress
         await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
+
+        // 🏴‍☠️ CHECK FOR IMMEDIATE MASTERY: If word is now mastered, prepare for rotation
+        if (currentItem.ReadyToRotateOut)
+        {
+            System.Diagnostics.Debug.WriteLine($"🎯 Word '{currentItem.Word.NativeLanguageTerm}' is now ready to rotate out!");
+            // Note: Actual rotation happens in NextItem() to ensure proper flow
+        }
 
         // Increment turn counter and update term counts
         SetState(s => s.CurrentTurn++);
@@ -962,6 +1150,54 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
+    private async Task UpdateQuizSpecificProgress(VocabularyQuizItem currentItem, bool isCorrect)
+    {
+        var currentMode = State.UserMode;
+        
+        if (currentMode == InputMode.MultipleChoice.ToString())
+        {
+            // Recognition phase (multiple choice)
+            if (isCorrect)
+            {
+                currentItem.QuizRecognitionStreak++;
+                System.Diagnostics.Debug.WriteLine($"🎯 Recognition streak for {currentItem.Word.NativeLanguageTerm}: {currentItem.QuizRecognitionStreak}");
+                
+                if (currentItem.QuizRecognitionComplete)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎉 Recognition phase completed for {currentItem.Word.NativeLanguageTerm}! Moving to production phase.");
+                }
+            }
+            else
+            {
+                // Reset streak on incorrect answer
+                var previousStreak = currentItem.QuizRecognitionStreak;
+                currentItem.QuizRecognitionStreak = 0;
+                System.Diagnostics.Debug.WriteLine($"❌ Recognition streak reset for {currentItem.Word.NativeLanguageTerm}: {previousStreak} → 0");
+            }
+        }
+        else if (currentMode == InputMode.Text.ToString())
+        {
+            // Production phase (text entry)
+            if (isCorrect)
+            {
+                currentItem.QuizProductionStreak++;
+                System.Diagnostics.Debug.WriteLine($"🎯 Production streak for {currentItem.Word.NativeLanguageTerm}: {currentItem.QuizProductionStreak}");
+                
+                if (currentItem.QuizProductionComplete)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎉 Production phase completed for {currentItem.Word.NativeLanguageTerm}! Ready to rotate out.");
+                }
+            }
+            else
+            {
+                // Reset streak on incorrect answer
+                var previousStreak = currentItem.QuizProductionStreak;
+                currentItem.QuizProductionStreak = 0;
+                System.Diagnostics.Debug.WriteLine($"❌ Production streak reset for {currentItem.Word.NativeLanguageTerm}: {previousStreak} → 0");
+            }
+        }
+    }
+    
     // Enhanced tracking method integrated from the example
     private async Task RecordAnswerWithEnhancedTracking(
         VocabularyQuizItem currentItem, 
@@ -1053,53 +1289,58 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (wasCorrect)
         {
-            // Use mastery score for more nuanced feedback
-            var masteryScore = progress.MasteryScore;
-            var currentPhase = progress.CurrentPhase;
+            var currentMode = State.UserMode;
             
-            if (masteryScore >= 0.8f)
+            if (currentMode == InputMode.MultipleChoice.ToString())
             {
-                // Word is now known (mastered)
-                SetState(s => {
-                    s.ShowAnswer = true;
-                    s.IsCorrect = true;
-                    s.FeedbackMessage = "🎉 Excellent! Word mastered!";
-                    s.CorrectAnswersInRound++;
-                });
-                await AppShell.DisplayToastAsync("✨ Perfect! Word mastered!");
+                // Multiple choice feedback
+                if (item.QuizRecognitionComplete)
+                {
+                    SetState(s => 
+                    {
+                        s.IsCorrect = true;
+                        s.ShowAnswer = true;
+                        s.FeedbackMessage = $"� Perfect! Recognition mastered ({item.QuizRecognitionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})! Moving to typing practice.";
+                        s.CorrectAnswersInRound++;
+                    });
+                }
+                else
+                {
+                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - item.QuizRecognitionStreak;
+                    SetState(s => 
+                    {
+                        s.IsCorrect = true;
+                        s.ShowAnswer = true;
+                        s.FeedbackMessage = $"✅ Correct! {remaining} more in a row to advance to typing.";
+                        s.CorrectAnswersInRound++;
+                    });
+                }
             }
-            else if (currentPhase == LearningPhase.Production && 
-                     GetPreviousPhase(item) == LearningPhase.Recognition)
+            else if (currentMode == InputMode.Text.ToString())
             {
-                // Phase advanced from Recognition to Production
-                SetState(s => {
-                    s.ShowAnswer = true;
-                    s.IsCorrect = true;
-                    s.FeedbackMessage = "🎯 Great! Advanced to typing practice.";
-                    s.CorrectAnswersInRound++;
-                });
-            }
-            else if (currentPhase == LearningPhase.Application && 
-                     GetPreviousPhase(item) == LearningPhase.Production)
-            {
-                // Phase advanced from Production to Application
-                SetState(s => {
-                    s.ShowAnswer = true;
-                    s.IsCorrect = true;
-                    s.FeedbackMessage = "🚀 Excellent! Ready for advanced usage.";
-                    s.CorrectAnswersInRound++;
-                });
-            }
-            else
-            {
-                // Show progress toward mastery
-                var progressPercent = (int)(masteryScore * 100);
-                SetState(s => {
-                    s.ShowAnswer = true;
-                    s.IsCorrect = true;
-                    s.FeedbackMessage = $"✅ Correct! Mastery: {progressPercent}%";
-                    s.CorrectAnswersInRound++;
-                });
+                // Text entry feedback
+                if (item.ReadyToRotateOut)
+                {
+                    SetState(s => 
+                    {
+                        s.IsCorrect = true;
+                        s.ShowAnswer = true;
+                        s.FeedbackMessage = $"🎊 Excellent! Word completed ({item.QuizProductionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})! Ready for new words.";
+                        s.CorrectAnswersInRound++;
+                    });
+                    await AppShell.DisplayToastAsync("✨ Word mastered in this quiz!");
+                }
+                else
+                {
+                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - item.QuizProductionStreak;
+                    SetState(s => 
+                    {
+                        s.IsCorrect = true;
+                        s.ShowAnswer = true;
+                        s.FeedbackMessage = $"✅ Great typing! {remaining} more in a row to complete this word.";
+                        s.CorrectAnswersInRound++;
+                    });
+                }
             }
             
             // Show spaced repetition info if relevant
@@ -1113,30 +1354,30 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         else
         {
             // Handle incorrect answers with enhanced feedback
-            var masteryScore = progress.MasteryScore;
-            var attempts = progress.TotalAttempts;
+            var currentMode = State.UserMode;
             
-            if (item.Progress?.CurrentPhase == LearningPhase.Production || 
-                item.Progress?.CurrentPhase == LearningPhase.Application)
+            if (currentMode == InputMode.Text.ToString())
             {
                 // Incorrect in text entry - require them to type the correct answer
                 SetState(s => 
                 {
-                    s.ShowCorrectAnswer = true;
                     s.IsCorrect = false;
-                    s.FeedbackMessage = "Not quite right. Please type the correct answer below to continue:";
+                    s.ShowAnswer = false;
+                    s.ShowCorrectAnswer = true;
                     s.RequireCorrectTyping = true;
-                    s.CorrectAnswerToType = s.CurrentTargetLanguageTerm;
+                    s.CorrectAnswerToType = State.CurrentTargetLanguageTerm;
+                    s.FeedbackMessage = $"❌ Incorrect. Streak reset to 0. Type the correct answer to continue:";
                     s.UserInput = ""; // Clear input for retyping
                 });
             }
             else
             {
                 // Incorrect in multiple choice - show correct answer with auto-advance
-                SetState(s => {
-                    s.ShowAnswer = true;
+                SetState(s => 
+                {
                     s.IsCorrect = false;
-                    s.FeedbackMessage = $"❌ Not quite. Mastery: {(int)(masteryScore * 100)}% ({attempts} attempts)";
+                    s.ShowAnswer = true;
+                    s.FeedbackMessage = $"❌ Not quite. Streak reset to 0. The correct answer is shown above.";
                 });
             }
         }
@@ -1315,25 +1556,25 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     bool ShouldShuffleForRoundVariety()
     {
         // Check if all incomplete items have been attempted at least once in current mode
-        var incompleteItems = State.VocabularyItems.Where(i => !i.IsCompleted).ToList();
+        var incompleteItems = State.VocabularyItems.Where(i => !i.ReadyToRotateOut).ToList();
         
         if (incompleteItems.Count <= 2) return false; // Don't shuffle if too few items
         
         bool allAttempted = incompleteItems.All(i => 
-            (i.IsPromoted && i.TextEntryCorrect > 0) || 
-            (!i.IsPromoted && i.MultipleChoiceCorrect > 0));
+            (i.IsPromotedInQuiz && i.QuizProductionStreak > 0) || 
+            (!i.IsPromotedInQuiz && i.QuizRecognitionStreak > 0));
             
         return allAttempted;
     }
 
     async Task CheckRoundCompletion()
     {
-        var incompleteItems = State.VocabularyItems.Where(i => !i.IsCompleted).ToList();
+        var incompleteItems = State.VocabularyItems.Where(i => !i.ReadyToRotateOut).ToList();
         
         if (!incompleteItems.Any())
         {
-            // All items completed!
-            await AppShell.DisplayToastAsync("🎊 All vocabulary learned! Great job!");
+            // All items completed in quiz!
+            await AppShell.DisplayToastAsync("🎊 All vocabulary completed in this quiz! Adding new words...");
             return;
         }
 
@@ -1344,31 +1585,31 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             System.Diagnostics.Debug.WriteLine("Shuffled items for round variety - all items attempted once");
         }
 
-        // Check if all items have been attempted in current mode and ready to advance
+        // Check if all items ready for promotion (recognition complete -> production)
         var readyToPromote = State.VocabularyItems
-            .Where(i => !i.IsPromoted && !i.IsCompleted && i.HasConfidenceInMultipleChoice)
+            .Where(i => !i.IsPromotedInQuiz && !i.ReadyToRotateOut && i.QuizRecognitionComplete)
             .ToList();
 
         // If we have items ready to promote, start next round
         if (readyToPromote.Any() && AllCurrentModeItemsAttempted())
         {
-            await StartNextRound();
+            StartNextRound();
         }
     }
 
     bool AllCurrentModeItemsAttempted()
     {
         return State.VocabularyItems.All(i => 
-            i.IsCompleted || 
-            (i.IsPromoted && i.TextEntryCorrect > 0) || 
-            (!i.IsPromoted && i.MultipleChoiceCorrect > 0));
+            i.ReadyToRotateOut || 
+            (i.IsPromotedInQuiz && i.QuizProductionStreak > 0) || 
+            (!i.IsPromotedInQuiz && i.QuizRecognitionStreak > 0));
     }
 
     void ShuffleIncompleteItems()
     {
         // Get all incomplete items with their current positions
         var incompleteItems = State.VocabularyItems
-            .Where(i => !i.IsCompleted)
+            .Where(i => !i.ReadyToRotateOut)
             .ToList();
             
         if (incompleteItems.Count <= 1) return; // No need to shuffle if 1 or 0 items
@@ -1378,7 +1619,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         
         // Find completed items to keep their positions
         var completedItems = State.VocabularyItems
-            .Where(i => i.IsCompleted)
+            .Where(i => i.ReadyToRotateOut)
             .ToList();
         
         // Create new list maintaining completed items but shuffling incomplete ones
@@ -1387,7 +1628,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         
         foreach (var item in State.VocabularyItems)
         {
-            if (item.IsCompleted)
+            if (item.ReadyToRotateOut)
             {
                 // Keep completed items in place
                 newList.Add(item);
@@ -1413,9 +1654,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         System.Diagnostics.Debug.WriteLine($"Shuffled {incompleteItems.Count} incomplete items for variety");
     }
 
-    async Task StartNextRound()
+    void StartNextRound()
     {
-        // Note: Promotion is now handled automatically by the global progress system
+        // Note: Promotion is now handled by quiz-specific progress system
         // No need to manually promote items here
 
         // Shuffle incomplete items for variety in the new round
@@ -1428,7 +1669,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.IsRoundComplete = false;
         });
 
-        await AppShell.DisplayToastAsync($"🎯 Round {State.CurrentRound} - Time for typing!");
+        AppShell.DisplayToastAsync($"🎯 Round {State.CurrentRound} - Time for typing!");
     }
 
     // Add a counter to track when to shuffle for variety
@@ -1461,10 +1702,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             }
         }
         
-        var currentIndex = State.VocabularyItems.IndexOf(State.VocabularyItems.FirstOrDefault(i => i.IsCurrent));
-        var incompleteItems = State.VocabularyItems.Where(i => !i.IsCompleted).ToList();
+        // 🏴‍☠️ IMMEDIATE ROTATION: Remove mastered words and add new ones during session
+        await RotateOutMasteredWordsAndAddNew();
         
-        // Filter items that still need practice in this phase (not ready to skip)
+        var currentIndex = State.VocabularyItems.IndexOf(State.VocabularyItems.FirstOrDefault(i => i.IsCurrent));
+        var incompleteItems = State.VocabularyItems.Where(i => !i.ReadyToRotateOut).ToList();
+        
+        // Filter items that still need practice in current phase
         var itemsNeedingPractice = incompleteItems.Where(i => !i.IsReadyToSkipInCurrentPhase).ToList();
         
         if (!itemsNeedingPractice.Any())
@@ -1472,7 +1716,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // All items either completed or ready to skip - check if truly all completed
             if (!incompleteItems.Any())
             {
-                await AppShell.DisplayToastAsync("🎊 All vocabulary learned!");
+                await AppShell.DisplayToastAsync("🎊 All vocabulary completed in this quiz!");
                 return;
             }
             else
@@ -1494,7 +1738,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         for (int i = currentIndex + 1; i < State.VocabularyItems.Count; i++)
         {
             var item = State.VocabularyItems[i];
-            if (!item.IsCompleted && !item.IsReadyToSkipInCurrentPhase)
+            if (!item.ReadyToRotateOut && !item.IsReadyToSkipInCurrentPhase)
             {
                 nextItem = item;
                 break;

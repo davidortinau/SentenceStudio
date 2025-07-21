@@ -1,0 +1,23 @@
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences for clozure exercises.
+
+**CRITICAL REQUIREMENTS:**
+1. **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
+2. **Create complete, natural Korean sentences** using the vocabulary word appropriately conjugated/inflected
+3. Provide the vocabulary word in its exact dictionary form from the provided list
+4. Provide how the vocabulary word appears in the sentence (conjugated/inflected form)
+5. **Create exactly 5 comma-separated options for multiple choice:**
+   - Include the correct answer (same as the conjugated form used in sentence)
+   - Add 4 plausible Korean distractors with similar conjugation patterns
+   - All options should make grammatical sense if inserted into the sentence
+6. Provide a natural English translation of the complete sentence
+
+**EXAMPLES:**
+Using provided vocabulary like "먹다", "학생", "공부하다" :
+- SentenceText: "저는 점심을 먹지 않을 거예요." → Translation: "I'm not going to eat lunch." → VocabularyWordAsUsed: "먹지" → VocabularyWord: "먹다" → VocabularyWordGuesses: ["먹지", "하지", "가지", "보지", "사지"]
+- SentenceText: "우리 반에 새로운 학생이 왔어요." → Translation: "A new student came to our class." → VocabularyWordAsUsed: "학생" → VocabularyWord: "학생" → VocabularyWordGuesses: ["학생", "선생", "친구", "아이", "사람"]
+
+{{ if skills }}
+Prioritize grammar patterns: {{ skills }}
+{{ end }}
+
+Generate {{ number_of_sentences }} unique clozure exercises.

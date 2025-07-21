@@ -4,7 +4,7 @@ using SentenceStudio.Pages.Clozure;
 using System.Text;
 using System.Web;
 using System.Diagnostics;
-using SentenceStudio.Services;
+using Scriban;
 
 namespace SentenceStudio.Pages.Translation;
 
@@ -31,7 +31,7 @@ class TranslationPageState
 
 partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 {
-    [Inject] TeacherService _teacherService;
+    [Inject] TranslationService _translationService;
     [Inject] AiService _aiService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] VocabularyProgressService _progressService;
@@ -81,6 +81,9 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     ApplicationTheme.DarkOnLightBackground :
                     ApplicationTheme.LightOnDarkBackground)
                 .HStart(),
+            
+            // Add vocabulary progress scoreboard
+            RenderVocabularyScoreboard(),
             
             State.ShowFeedback ? 
                 Border(
@@ -215,7 +218,48 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .GridRow(1).GridColumn(5)
         ).GridRow(1);
 
-    // this is the label that should float over the screen near the cursor when over a text block
+    VisualNode RenderVocabularyScoreboard() =>
+        _currentSentenceIndex >= 0 && _currentSentenceIndex < State.Sentences.Count ?
+            HStack(
+                State.Sentences[_currentSentenceIndex].Vocabulary?
+                    .Select(word => RenderVocabularyWordStatusSync(word))
+                    .ToArray() ?? Array.Empty<VisualNode>()
+            )
+            .Spacing(8)
+            .Margin(0, 8)
+            .HorizontalOptions(LayoutOptions.Center)
+            : null;
+
+    VisualNode RenderVocabularyWordStatusSync(VocabularyWord word)
+    {
+        try
+        {
+            // Use a simple visual indicator for now - can be enhanced with real-time progress later
+            return Border(
+                    Label("◦")
+                        .FontSize(16)
+                        .TextColor(ApplicationTheme.Primary)
+                        .Center()
+                )
+                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                .StrokeThickness(1)
+                .Stroke(ApplicationTheme.Primary)
+                .HeightRequest(24)
+                .WidthRequest(24)
+                .BackgroundColor(Colors.Transparent);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error rendering word status for '{word.TargetLanguageTerm}': {ex.Message}");
+            return Border()
+                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                .StrokeThickness(1)
+                .Stroke(ApplicationTheme.Gray400)
+                .HeightRequest(24)
+                .WidthRequest(24)
+                .BackgroundColor(Colors.Transparent);
+        }
+    }
     VisualNode RenderPopOverLabel() =>
         Label()
             .Padding(8)
@@ -247,33 +291,65 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         await Task.Delay(100);
         SetState(s => s.IsBusy = true);
         
-        // Use the resource Id if available, or fallback to null
-        var resourceId = Props.Resource?.Id ?? 0;
-        
-        var sentences = await _teacherService.GetChallenges(resourceId, 2, Props.Skill.Id);
-        await Task.Delay(100);
-        
-        SetState(s => {
-            foreach(var sentence in sentences)
-            {
-                s.Sentences.Add(sentence);
-            }
-        });
-        
-        SetState(s => s.IsBusy = false);
-        
-        SetCurrentSentence();
-
-        if(State.Sentences.Count < 10)
+        try 
         {
-            SetState(s => s.IsBuffering = true);
-            var moreSentences = await _teacherService.GetChallenges(resourceId, 8, Props.Skill.Id);
-            SetState(s => {
-                foreach(var sentence in moreSentences)
+            // Use the resource Id if available, or fallback to null
+            var resourceId = Props.Resource?.Id ?? 0;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loading sentences for resource {resourceId}, skill {Props.Skill?.Id}");
+            
+            var sentences = await _translationService.GetTranslationSentences(resourceId, 2, Props.Skill.Id);
+            await Task.Delay(100);
+            
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Received {sentences?.Count ?? 0} sentences from translation service");
+            
+            if (sentences?.Any() == true)
+            {
+                SetState(s => {
+                    foreach(var sentence in sentences)
+                    {
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Adding sentence: '{sentence.SentenceText}' -> '{sentence.RecommendedTranslation}'");
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary count: {sentence.Vocabulary?.Count ?? 0}");
+                        if (sentence.Vocabulary?.Any() == true)
+                        {
+                            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary words: [{string.Join(", ", sentence.Vocabulary.Select(v => $"{v.TargetLanguageTerm}({v.NativeLanguageTerm})"))}]");
+                        }
+                        s.Sentences.Add(sentence);
+                    }
+                });
+                
+                SetState(s => s.IsBusy = false);
+                
+                SetCurrentSentence();
+
+                if(State.Sentences.Count < 10)
                 {
-                    s.Sentences.Add(sentence);
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Loading additional sentences in background");
+                    SetState(s => s.IsBuffering = true);
+                    var moreSentences = await _translationService.GetTranslationSentences(resourceId, 8, Props.Skill.Id);
+                    SetState(s => {
+                        foreach(var sentence in moreSentences)
+                        {
+                            s.Sentences.Add(sentence);
+                        }
+                        s.IsBuffering = false;
+                    });
                 }
-                s.IsBuffering = false;
+            }
+            else
+            {
+                Debug.WriteLine("🏴‍☠️ TranslationPage: No sentences returned from translation service");
+                SetState(s => {
+                    s.CurrentSentence = "No sentences available for this skill. Check yer resource configuration, matey!";
+                    s.IsBusy = false;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error loading sentences: {ex.Message}");
+            SetState(s => {
+                s.CurrentSentence = $"Error loading sentences: {ex.Message}";
+                s.IsBusy = false;
             });
         }
     }
@@ -283,6 +359,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         if (State.Sentences != null && State.Sentences.Count > 0 && _currentSentenceIndex < State.Sentences.Count)
         {
             SetState(s => {
+                // 🏴‍☠️ CRITICAL FIX: Reset input mode to Text/Keyboard when moving to next sentence
                 s.UserMode = InputMode.Text.ToString();
                 s.HasFeedback = false;
                 s.Feedback = string.Empty;
@@ -298,6 +375,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .OrderBy(_ => Random.Shared.Next())
                     .ToList() ?? [];
             });
+            
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Set current sentence {_currentSentenceIndex + 1}/{State.Sentences.Count}");
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Input mode reset to: {InputMode.Text}");
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Available vocabulary blocks: [{string.Join(", ", State.VocabBlocks)}]");
         }
     }
 
@@ -342,8 +423,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 UpdatedAt = DateTime.Now
             });
             
-            // Display comprehensive feedback
-            var feedbackMessage = BuildFeedbackMessage(feedback);
+            // Display comprehensive feedback with enhanced context awareness
+            var feedbackMessage = await BuildEnhancedFeedbackMessage(feedback);
             var feedbackType = GetFeedbackType((int)feedback.Accuracy);
             
             SetState(s => {
@@ -446,6 +527,83 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         return message.ToString();
     }
 
+    async Task<string> BuildEnhancedFeedbackMessage(GradeResponse feedback)
+    {
+        var message = new StringBuilder();
+        
+        // Context-aware primary feedback
+        if (State.UserMode == InputMode.MultipleChoice.ToString())
+        {
+            // Vocabulary blocks mode feedback
+            if (feedback.Accuracy >= 85)
+                message.AppendLine("🎉 Perfect! Great use of vocabulary blocks!");
+            else if (feedback.Accuracy >= 75)
+                message.AppendLine("✅ Excellent! Vocabulary blocks helped you succeed!");
+            else if (feedback.Accuracy >= 65)
+                message.AppendLine("👍 Good effort with vocabulary blocks!");
+            else
+                message.AppendLine("💪 Try different combinations with the vocabulary blocks!");
+        }
+        else
+        {
+            // Free text entry feedback
+            if (feedback.Accuracy >= 90)
+                message.AppendLine("🎉 Outstanding free translation!");
+            else if (feedback.Accuracy >= 80)
+                message.AppendLine("✅ Excellent translation skills!");
+            else if (feedback.Accuracy >= 70)
+                message.AppendLine("👍 Strong translation attempt!");
+            else
+                message.AppendLine("💪 Keep developing your translation skills!");
+        }
+        
+        // Add vocabulary achievement feedback
+        try
+        {
+            var allSentenceWords = await GetAllVocabularyFromCurrentSentence();
+            var usedWords = await ExtractVocabularyFromUserInput(State.UserInput, feedback);
+            
+            if (usedWords.Count == allSentenceWords.Count && allSentenceWords.Count > 0)
+            {
+                message.AppendLine("🌟 Amazing! You used ALL the vocabulary words!");
+            }
+            else if (usedWords.Count > 0)
+            {
+                message.AppendLine($"📚 Great! You used {usedWords.Count} vocabulary word{(usedWords.Count > 1 ? "s" : "")}!");
+            }
+            
+            // Check for conjugated forms
+            if (feedback.VocabularyAnalysis?.Any(va => !string.Equals(va.DictionaryForm, va.UsedForm, StringComparison.OrdinalIgnoreCase)) == true)
+            {
+                message.AppendLine("💪 Excellent work with word conjugations!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in vocabulary feedback: {ex.Message}");
+        }
+        
+        // Add accuracy and fluency scores
+        message.AppendLine($"\nAccuracy: {feedback.Accuracy}/100");
+        if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
+            message.AppendLine(feedback.AccuracyExplanation);
+        
+        message.AppendLine($"\nFluency: {feedback.Fluency}/100");
+        if (!string.IsNullOrEmpty(feedback.FluencyExplanation))
+            message.AppendLine(feedback.FluencyExplanation);
+        
+        // Grammar and improvement notes
+        if (feedback.GrammarNotes != null)
+        {
+            if (!string.IsNullOrEmpty(feedback.GrammarNotes.RecommendedTranslation))
+                message.AppendLine($"\nRecommended: {feedback.GrammarNotes.RecommendedTranslation}");
+            if (!string.IsNullOrEmpty(feedback.GrammarNotes.Explanation))
+                message.AppendLine($"Notes: {feedback.GrammarNotes.Explanation}");
+        }
+        
+        return message.ToString();
+    }
+
     string GetFeedbackType(int accuracy) =>
         accuracy switch
         {
@@ -461,36 +619,56 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             Debug.WriteLine($"🏴‍☠️ TranslationPage: Starting vocabulary processing for: '{userInput}'");
             
-            // Extract vocabulary words from user input using AI analysis
-            var words = await ExtractVocabularyFromUserInput(userInput, grade);
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Extracted {words.Count} vocabulary words");
+            // Get ALL vocabulary words from the current sentence, not just those in user input
+            var allSentenceWords = await GetAllVocabularyFromCurrentSentence();
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Found {allSentenceWords.Count} vocabulary words in current sentence");
             
-            // Process each vocabulary word
-            foreach (var word in words)
+            // Extract words actually used by the user
+            var usedWords = await ExtractVocabularyFromUserInput(userInput, grade);
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: User used {usedWords.Count} vocabulary words");
+            
+            // Calculate base difficulty for this translation
+            var baseDifficulty = CalculateTranslationDifficulty(userInput, grade, allSentenceWords.Count);
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Base difficulty calculated: {baseDifficulty}");
+            
+            // Process ALL vocabulary words from the sentence
+            foreach (var word in allSentenceWords)
             {
                 try 
                 {
+                    // Additional safety check - ensure word has valid ID
+                    if (word.Id <= 0)
+                    {
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ⚠️ Skipping word '{word.TargetLanguageTerm}' - invalid ID: {word.Id}");
+                        continue;
+                    }
+                    
+                    var wasUsedCorrectly = usedWords.Any(uw => uw.Id == word.Id);
+                    var contextType = DetermineTranslationContextType(word, userInput, grade);
+                    var wordDifficulty = CalculateWordSpecificDifficulty(word, baseDifficulty, contextType);
+                    
                     var attempt = new VocabularyAttempt
                     {
                         VocabularyWordId = word.Id,
                         UserId = 1, // Default user
                         Activity = "Translation",
-                        InputMode = "TextEntry",
-                        WasCorrect = true, // For now, assume translation attempts are learning experiences
-                        ContextType = "Sentence",
+                        InputMode = State.UserMode == InputMode.MultipleChoice.ToString() ? "VocabularyBlocks" : "TextEntry",
+                        WasCorrect = DetermineWordCorrectness(wasUsedCorrectly, grade, word),
+                        ContextType = contextType,
                         UserInput = userInput,
                         ExpectedAnswer = word.NativeLanguageTerm,
                         ResponseTimeMs = responseTimeMs,
-                        DifficultyWeight = 1.0f
+                        DifficultyWeight = wordDifficulty
                     };
                     
                     var progress = await _progressService.RecordAttemptAsync(attempt);
                     
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Recorded progress for '{word.TargetLanguageTerm}'");
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Recorded progress for '{word.TargetLanguageTerm}' " +
+                        $"(ID: {word.Id}, Used: {wasUsedCorrectly}, Correct: {attempt.WasCorrect}, Difficulty: {wordDifficulty:F2}, Context: {contextType})");
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Error recording progress for word '{word.TargetLanguageTerm}': {ex.Message}");
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ Error recording progress for word '{word.TargetLanguageTerm}' (ID: {word.Id}): {ex.Message}");
                 }
             }
         }
@@ -508,8 +686,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             
             // Get available vocabulary from learning resources
             var resources = await _resourceRepo.GetAllResourcesAsync();
-            var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loaded {allVocabulary.Count} vocabulary words from {resources.Count} resources");
+            var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>())
+                .Where(v => v.Id > 0 && !string.IsNullOrEmpty(v.TargetLanguageTerm)) // Only valid words with IDs
+                .ToList();
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loaded {allVocabulary.Count} valid vocabulary words from {resources.Count} resources");
             
             var foundWords = new List<VocabularyWord>();
             
@@ -520,68 +700,80 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 
                 foreach (var analysis in grade.VocabularyAnalysis)
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
-                    
-                    // Try to find the word by dictionary form first
-                    var vocabularyWord = allVocabulary.FirstOrDefault(v => 
-                        v.TargetLanguageTerm?.Equals(analysis.DictionaryForm, StringComparison.OrdinalIgnoreCase) == true);
-                    
-                    if (vocabularyWord == null)
+                    // Skip particles and invalid words
+                    if (await IsValidVocabularyTerm(analysis.DictionaryForm) && 
+                        await IsValidVocabularyTerm(analysis.UsedForm))
                     {
-                        // Try to find by used form
-                        vocabularyWord = allVocabulary.FirstOrDefault(v => 
-                            v.TargetLanguageTerm?.Equals(analysis.UsedForm, StringComparison.OrdinalIgnoreCase) == true);
-                    }
-                    
-                    if (vocabularyWord != null)
-                    {
-                        foundWords.Add(vocabularyWord);
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Found match for '{analysis.UsedForm}' -> '{vocabularyWord.TargetLanguageTerm}'");
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
+                        
+                        // Try to find the word by dictionary form first
+                        var vocabularyWord = allVocabulary.FirstOrDefault(v => 
+                            v.TargetLanguageTerm?.Equals(analysis.DictionaryForm, StringComparison.OrdinalIgnoreCase) == true);
+                        
+                        if (vocabularyWord == null)
+                        {
+                            // Try to find by used form
+                            vocabularyWord = allVocabulary.FirstOrDefault(v => 
+                                v.TargetLanguageTerm?.Equals(analysis.UsedForm, StringComparison.OrdinalIgnoreCase) == true);
+                        }
+                        
+                        if (vocabularyWord != null && !foundWords.Any(fw => fw.Id == vocabularyWord.Id))
+                        {
+                            foundWords.Add(vocabularyWord);
+                            Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Found match for '{analysis.UsedForm}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ No match found for '{analysis.UsedForm}' (dictionary form: '{analysis.DictionaryForm}')");
+                        }
                     }
                     else
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ No match found for '{analysis.UsedForm}' (dictionary form: '{analysis.DictionaryForm}')");
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ⚠️ Skipping invalid vocabulary term: '{analysis.UsedForm}' (dictionary: '{analysis.DictionaryForm}')");
                     }
                 }
             }
             
-            // Fallback: Simple word extraction for Korean text
+            // Fallback: Simple word extraction for Korean text, but filter out particles
             if (foundWords.Count == 0)
             {
                 Debug.WriteLine($"🏴‍☠️ TranslationPage: Using fallback word extraction for Korean text");
                 
-                // Split by spaces and common Korean particles/endings
-                var particles = new[] { "은", "는", "이", "가", "을", "를", "에", "에서", "으로", "로", "과", "와", "하고" };
-                var potentialWords = userInput
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .SelectMany(word => {
-                        // Remove particles from the end of words
-                        var cleanWord = word;
-                        foreach (var particle in particles)
+                var words = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var potentialWords = new List<string>();
+                
+                foreach (var word in words)
+                {
+                    if (await IsValidVocabularyTerm(word))
+                    {
+                        var cleanWord = RemoveKoreanParticles(word);
+                        potentialWords.Add(word);
+                        if (cleanWord != word && await IsValidVocabularyTerm(cleanWord))
                         {
-                            if (cleanWord.EndsWith(particle))
-                                cleanWord = cleanWord.Substring(0, cleanWord.Length - particle.Length);
+                            potentialWords.Add(cleanWord);
                         }
-                        return new[] { word, cleanWord };
-                    })
+                    }
+                }
+                
+                var validWords = potentialWords
                     .Where(word => !string.IsNullOrWhiteSpace(word) && word.Length > 1)
                     .Distinct()
                     .ToList();
                 
-                foreach (var word in potentialWords)
+                foreach (var word in validWords)
                 {
                     var vocabularyWord = allVocabulary.FirstOrDefault(v => 
                         v.TargetLanguageTerm?.Contains(word, StringComparison.OrdinalIgnoreCase) == true);
                     
-                    if (vocabularyWord != null && !foundWords.Contains(vocabularyWord))
+                    if (vocabularyWord != null && !foundWords.Any(fw => fw.Id == vocabularyWord.Id))
                     {
                         foundWords.Add(vocabularyWord);
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Fallback found match for '{word}' -> '{vocabularyWord.TargetLanguageTerm}'");
+                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Fallback found match for '{word}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
                     }
                 }
             }
             
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Final result: Found {foundWords.Count} vocabulary words");
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Final result: Found {foundWords.Count} valid vocabulary words");
             return foundWords;
         }
         catch (Exception ex)
@@ -589,6 +781,326 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in ExtractVocabularyFromUserInput: {ex.Message}");
             return new List<VocabularyWord>();
         }
+    }
+
+    async Task<bool> IsValidVocabularyWord(VocabularyWord word)
+    {
+        if (word == null || word.Id <= 0 || string.IsNullOrEmpty(word.TargetLanguageTerm))
+            return false;
+            
+        return await IsValidVocabularyTerm(word.TargetLanguageTerm);
+    }
+
+    async Task<bool> IsValidVocabularyTerm(string term)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return false;
+            
+        // Filter out Korean particles and common function words
+        var koreanParticles = new HashSet<string> 
+        { 
+            "은", "는", "이", "가", "을", "를", "에", "에서", "으로", "로", 
+            "과", "와", "하고", "의", "도", "만", "부터", "까지", "처럼", "같이",
+            "에게", "한테", "께", "보다", "보단", "만큼", "대로", "따라", "에서부터",
+            "까지만", "조차", "마저", "밖에", "뿐", "라도", "든지", "거나", "든가"
+        };
+        
+        var englishParticles = new HashSet<string>
+        {
+            "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "can", "must", "shall", "ought", "need",
+            "dare", "used", "am", "being", "been", "this", "that", "these", "those"
+        };
+        
+        var cleanTerm = term.Trim().ToLower();
+        
+        // Check if it's a particle or function word
+        if (koreanParticles.Contains(cleanTerm) || englishParticles.Contains(cleanTerm))
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered out particle/function word: '{term}'");
+            return false;
+        }
+        
+        // Additional check for pure particle words (single character Korean particles)
+        if (IsKoreanText(term) && term.Length == 1)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered out single character Korean: '{term}'");
+            return false;
+        }
+        
+        // Must be at least 2 characters for Korean, or at least 3 for English
+        if (IsKoreanText(term) && term.Length < 2)
+            return false;
+        if (!IsKoreanText(term) && term.Length < 3)
+            return false;
+            
+        return true;
+    }
+
+    async Task<VocabularyWord?> LookupVocabularyWordInDatabase(VocabularyWord word)
+    {
+        try
+        {
+            // If the word already has a valid ID, return it
+            if (word.Id > 0)
+                return word;
+                
+            // Look up the word in all resources to get the proper database ID
+            var resources = await _resourceRepo.GetAllResourcesAsync();
+            var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>());
+            
+            var dbWord = allVocabulary.FirstOrDefault(v => 
+                v.TargetLanguageTerm?.Equals(word.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true &&
+                v.Id > 0);
+                
+            if (dbWord != null)
+            {
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Found database word: '{word.TargetLanguageTerm}' -> ID {dbWord.Id}");
+                return dbWord;
+            }
+            
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: No database match found for: '{word.TargetLanguageTerm}'");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error looking up word '{word.TargetLanguageTerm}': {ex.Message}");
+            return null;
+        }
+    }
+
+    string RemoveKoreanParticles(string word)
+    {
+        var particles = new[] { 
+            "에서부터", "까지만", "처럼", "같이", "에게", "한테", "보다", "만큼", "대로", "따라",
+            "은", "는", "이", "가", "을", "를", "에", "에서", "으로", "로", "과", "와", "하고", 
+            "의", "도", "만", "부터", "까지", "께", "조차", "마저", "밖에", "뿐", "라도", 
+            "든지", "거나", "든가"
+        };
+        
+        foreach (var particle in particles.OrderByDescending(p => p.Length)) // Remove longer particles first
+        {
+            if (word.EndsWith(particle) && word.Length > particle.Length)
+            {
+                var cleanWord = word.Substring(0, word.Length - particle.Length);
+                if (cleanWord.Length >= 2) // Ensure we don't create too short words
+                {
+                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Removed particle '{particle}' from '{word}' -> '{cleanWord}'");
+                    return cleanWord;
+                }
+            }
+        }
+        
+        return word;
+    }
+
+    bool IsKoreanText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+            
+        // Check if text contains Korean characters (Hangul syllables, Jamo, etc.)
+        return text.Any(c => 
+            (c >= 0xAC00 && c <= 0xD7AF) || // Hangul syllables
+            (c >= 0x1100 && c <= 0x11FF) || // Hangul Jamo
+            (c >= 0x3130 && c <= 0x318F) || // Hangul Compatibility Jamo
+            (c >= 0xA960 && c <= 0xA97F) || // Hangul Jamo Extended-A
+            (c >= 0xD7B0 && c <= 0xD7FF));  // Hangul Jamo Extended-B
+    }
+
+    async Task<List<VocabularyWord>> GetAllVocabularyFromCurrentSentence()
+    {
+        try
+        {
+            if (_currentSentenceIndex >= 0 && _currentSentenceIndex < State.Sentences.Count)
+            {
+                var currentSentence = State.Sentences[_currentSentenceIndex];
+                var sentenceVocab = currentSentence.Vocabulary?.ToList() ?? new List<VocabularyWord>();
+                
+                // Filter out invalid vocabulary and ensure we have valid IDs
+                var validVocab = new List<VocabularyWord>();
+                foreach (var word in sentenceVocab)
+                {
+                    if (await IsValidVocabularyWord(word))
+                    {
+                        // Look up the word in the database to get the proper ID
+                        var dbWord = await LookupVocabularyWordInDatabase(word);
+                        if (dbWord != null)
+                        {
+                            validVocab.Add(dbWord);
+                        }
+                    }
+                }
+                
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered vocabulary - {sentenceVocab.Count} -> {validVocab.Count} valid words");
+                return validVocab;
+            }
+            return new List<VocabularyWord>();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error getting sentence vocabulary: {ex.Message}");
+            return new List<VocabularyWord>();
+        }
+    }
+
+    private float CalculateTranslationDifficulty(string userInput, GradeResponse grade, int vocabularyWordCount)
+    {
+        float difficulty = 1.0f; // Base difficulty for translation
+        
+        // Input mode adjustment - vocabulary blocks are easier
+        if (State.UserMode == InputMode.MultipleChoice.ToString())
+        {
+            difficulty *= 0.7f; // Vocabulary blocks are significantly easier
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary blocks mode - difficulty reduced to {difficulty:F2}");
+        }
+        else
+        {
+            difficulty *= 1.2f; // Free text entry is harder
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Text entry mode - difficulty increased to {difficulty:F2}");
+        }
+        
+        // Sentence complexity based on word count
+        var wordCount = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (wordCount > 10)
+        {
+            difficulty *= 1.3f;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
+        }
+        else if (wordCount > 15)
+        {
+            difficulty *= 1.5f;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Very long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
+        }
+        
+        // Translation quality impact on difficulty
+        if (grade != null)
+        {
+            var qualityMultiplier = Math.Max(0.8f, (float)(grade.Accuracy / 100.0));
+            difficulty *= qualityMultiplier;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Quality adjustment ({grade.Accuracy}%) - difficulty adjusted to {difficulty:F2}");
+        }
+        
+        // Vocabulary density - more vocab words = harder
+        if (vocabularyWordCount > 3)
+        {
+            difficulty *= 1.2f;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: High vocabulary density ({vocabularyWordCount} words) - difficulty increased to {difficulty:F2}");
+        }
+        
+        // Clamp difficulty between reasonable bounds
+        var finalDifficulty = Math.Min(2.5f, Math.Max(0.5f, difficulty));
+        Debug.WriteLine($"🏴‍☠️ TranslationPage: Final difficulty (clamped): {finalDifficulty:F2}");
+        
+        return finalDifficulty;
+    }
+
+    private string DetermineTranslationContextType(VocabularyWord word, string userInput, GradeResponse grade)
+    {
+        // Check if the word appears in a conjugated or modified form
+        if (grade?.VocabularyAnalysis != null)
+        {
+            var analysis = grade.VocabularyAnalysis.FirstOrDefault(va => 
+                va.DictionaryForm?.Equals(word.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true ||
+                va.UsedForm?.Equals(word.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
+            
+            if (analysis != null && !string.Equals(analysis.DictionaryForm, analysis.UsedForm, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' identified as Conjugated (dictionary: {analysis.DictionaryForm}, used: {analysis.UsedForm})");
+                return "Conjugated";
+            }
+        }
+        
+        // Check for grammar complexity indicators
+        if (grade?.GrammarNotes?.Explanation?.ToLower().Contains("conjugation") == true ||
+            grade?.GrammarNotes?.Explanation?.ToLower().Contains("verb form") == true ||
+            grade?.GrammarNotes?.Explanation?.ToLower().Contains("tense") == true)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Complex grammar detected for '{word.TargetLanguageTerm}'");
+            return "Complex";
+        }
+        
+        // Check sentence length for complexity
+        var wordCount = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (wordCount > 12)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long sentence context for '{word.TargetLanguageTerm}'");
+            return "Complex";
+        }
+        
+        Debug.WriteLine($"🏴‍☠️ TranslationPage: Standard sentence context for '{word.TargetLanguageTerm}'");
+        return "Sentence";
+    }
+
+    private float CalculateWordSpecificDifficulty(VocabularyWord word, float baseDifficulty, string contextType)
+    {
+        float wordDifficulty = baseDifficulty;
+        
+        // Apply context type multipliers (similar to Clozure)
+        switch (contextType)
+        {
+            case "Conjugated":
+                wordDifficulty *= 1.8f;
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Conjugated context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                break;
+            case "Complex":
+                wordDifficulty *= 1.4f;
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Complex context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                break;
+            case "Sentence":
+                wordDifficulty *= 1.2f;
+                Debug.WriteLine($"🏴‍☠️ TranslationPage: Sentence context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                break;
+        }
+        
+        // Word-specific difficulty based on length/complexity
+        if (word.TargetLanguageTerm?.Length > 6)
+        {
+            wordDifficulty *= 1.1f;
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long word '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+        }
+        
+        // Clamp final difficulty
+        var finalDifficulty = Math.Min(3.0f, Math.Max(0.3f, wordDifficulty));
+        Debug.WriteLine($"🏴‍☠️ TranslationPage: Final word difficulty for '{word.TargetLanguageTerm}': {finalDifficulty:F2}");
+        
+        return finalDifficulty;
+    }
+
+    private bool DetermineWordCorrectness(bool wasUsedByUser, GradeResponse grade, VocabularyWord word)
+    {
+        // If the user didn't use the word at all, it's considered incorrect for vocabulary tracking
+        if (!wasUsedByUser)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' not used by user - marked incorrect");
+            return false;
+        }
+        
+        // If translation accuracy is very low, consider vocabulary usage incorrect
+        if (grade?.Accuracy < 50)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Low accuracy ({grade.Accuracy}%) - word '{word.TargetLanguageTerm}' marked incorrect");
+            return false;
+        }
+        
+        // For vocabulary blocks mode, be more lenient since they're guided
+        if (State.UserMode == InputMode.MultipleChoice.ToString() && grade?.Accuracy >= 60)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary blocks mode with decent accuracy - word '{word.TargetLanguageTerm}' marked correct");
+            return true;
+        }
+        
+        // For text entry, require higher accuracy
+        if (State.UserMode == InputMode.Text.ToString() && grade?.Accuracy >= 70)
+        {
+            Debug.WriteLine($"🏴‍☠️ TranslationPage: Text entry mode with good accuracy - word '{word.TargetLanguageTerm}' marked correct");
+            return true;
+        }
+        
+        Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' marked incorrect (accuracy: {grade?.Accuracy}%, mode: {State.UserMode})");
+        return false;
     }    
 
     protected override void OnMounted()

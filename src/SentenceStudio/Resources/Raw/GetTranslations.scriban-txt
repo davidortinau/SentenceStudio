@@ -1,0 +1,26 @@
+Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}} ({{- t.native_language_term -}}){{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} natural Korean sentences for translation practice.
+
+**VOCABULARY CONSTRAINT: You may ONLY use these exact vocabulary words:**
+{{ for t in terms }}
+- {{ t.target_language_term }} = {{ t.native_language_term }}
+{{ end }}
+
+**CRITICAL REQUIREMENTS:**
+1. **Each sentence must include at least 1 vocabulary word from the provided list** - use 1-3 vocabulary words per sentence
+2. Generate natural conversational Korean sentences that incorporate the vocabulary words (conjugated as needed)
+3. Use normal Korean grammar, particles, and common words - just ensure each sentence features vocabulary from our list
+4. Provide natural English translations that reflect the vocabulary words used
+5. List ALL Korean words/components from the sentence so learners can see every "building block" in multiple choice mode
+6. **Do not invent new vocabulary words** - only use the vocabulary words we've provided for the lesson content
+7. Focus on creating realistic, practical sentences that a Korean learner would encounter
+
+**EXAMPLES:**
+Using provided vocabulary like "학생" (student), "한국어" (Korean language), "공부하다" (to study):
+- Korean: "저는 학생이에요" → English: "I am a student" → TranslationVocabulary: ["저", "학생", "이에요"]
+- Korean: "왜 한국어를 공부해요?" → English: "Why do you study Korean?" → TranslationVocabulary: ["왜", "한국어", "공부해요"]
+
+{{ if skills }}
+Prioritize grammar patterns: {{ skills }}
+{{ end }}
+
+Generate {{ number_of_sentences }} diverse translation exercises.
