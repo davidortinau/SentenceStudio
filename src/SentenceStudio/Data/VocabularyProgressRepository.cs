@@ -89,6 +89,23 @@ public class VocabularyProgressRepository
             
             if (item.Id != 0)
             {
+                // For updates, detach any tracked navigation properties to avoid conflicts
+                if (item.VocabularyWord != null)
+                {
+                    db.Entry(item.VocabularyWord).State = EntityState.Detached;
+                    item.VocabularyWord = null; // Clear navigation property to avoid tracking
+                }
+                
+                // Detach any learning contexts to avoid conflicts
+                if (item.LearningContexts?.Any() == true)
+                {
+                    foreach (var context in item.LearningContexts)
+                    {
+                        db.Entry(context).State = EntityState.Detached;
+                    }
+                    item.LearningContexts.Clear();
+                }
+                
                 db.VocabularyProgresses.Update(item);
             }
             else

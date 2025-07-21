@@ -71,6 +71,19 @@ public class VocabularyLearningContextRepository
             
             if (item.Id != 0)
             {
+                // For updates, detach any tracked navigation properties to avoid conflicts
+                if (item.VocabularyProgress != null)
+                {
+                    db.Entry(item.VocabularyProgress).State = EntityState.Detached;
+                    item.VocabularyProgress = null; // Clear navigation property to avoid tracking
+                }
+                
+                if (item.LearningResource != null)
+                {
+                    db.Entry(item.LearningResource).State = EntityState.Detached;
+                    item.LearningResource = null; // Clear navigation property to avoid tracking
+                }
+                
                 db.VocabularyLearningContexts.Update(item);
             }
             else

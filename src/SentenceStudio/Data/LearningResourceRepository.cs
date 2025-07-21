@@ -53,6 +53,25 @@ public class LearningResourceRepository
         {
             if (word.Id != 0)
             {
+                // For updates, detach any tracked navigation properties to avoid conflicts
+                if (word.LearningResources?.Any() == true)
+                {
+                    foreach (var resource in word.LearningResources)
+                    {
+                        db.Entry(resource).State = EntityState.Detached;
+                    }
+                    word.LearningResources.Clear();
+                }
+                
+                if (word.ResourceMappings?.Any() == true)
+                {
+                    foreach (var mapping in word.ResourceMappings)
+                    {
+                        db.Entry(mapping).State = EntityState.Detached;
+                    }
+                    word.ResourceMappings.Clear();
+                }
+                
                 db.VocabularyWords.Update(word);
             }
             else

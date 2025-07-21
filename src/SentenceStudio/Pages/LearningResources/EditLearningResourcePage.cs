@@ -28,6 +28,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] AiService _aiService;
     [Inject] IFilePickerService _picker;
     
+    // Track whether we need to save resource relationship (only for new words)
+    private bool _shouldSaveResourceRelationship = false;
+    
     LocalizationManager _localize => LocalizationManager.Instance;
     
     static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
@@ -84,7 +87,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         return new VocabularyWordEditorSheet(
             State.CurrentVocabularyWord, 
             State.IsAddingNewWord,
-            SaveVocabularyWord,
+            word => _ = SaveVocabularyWordAsync(word), // Async wrapper
             () => SetState(s => s.IsVocabularySheetVisible = false)
         );
     }
@@ -605,34 +608,103 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         });
     }
     
-    void SaveVocabularyWord(VocabularyWord word)
+    async Task SaveVocabularyWordAsync(VocabularyWord word)
     {
-        SetState(s => {
-            if (s.IsAddingNewWord)
+        try
+        {
+            SetState(s => s.IsLoading = true);
+            
+            // Set timestamps
+            if (word.CreatedAt == default)
+                word.CreatedAt = DateTime.UtcNow;
+            word.UpdatedAt = DateTime.UtcNow;
+            
+            // Save the vocabulary word to database
+            var result = await _resourceRepo.SaveWordAsync(word);
+            
+            if (result <= 0)
             {
-                // Add new word to the list
-                if (s.Resource.Vocabulary == null)
-                {
-                    s.Resource.Vocabulary = new List<VocabularyWord>();
-                }
-                s.Resource.Vocabulary.Add(word);
+                throw new Exception("Failed to save vocabulary word to database");
             }
-            else
+            
+            SetState(s => 
             {
-                // Update existing word
-                var index = s.Resource.Vocabulary.FindIndex(w => w.Id == word.Id);
-                if (index >= 0)
+                if (s.IsAddingNewWord)
                 {
-                    s.Resource.Vocabulary[index] = word;
+                    // For new words, add to resource and save relationship
+                    if (s.Resource.Vocabulary == null)
+                    {
+                        s.Resource.Vocabulary = new List<VocabularyWord>();
+                    }
+                    s.Resource.Vocabulary.Add(word);
+                    
+                    // Only save resource for new words to establish relationship
+                    _shouldSaveResourceRelationship = true;
                 }
+                else
+                {
+                    // For existing words, just update the local list - no need to save resource
+                    var index = s.Resource.Vocabulary.FindIndex(w => w.Id == word.Id);
+                    if (index >= 0)
+                    {
+                        s.Resource.Vocabulary[index] = word;
+                    }
+                    _shouldSaveResourceRelationship = false;
+                }
+                s.IsVocabularySheetVisible = false;
+                s.IsLoading = false;
+            });
+            
+            // Only save resource relationship for new words
+            if (State.Resource.Id > 0 && _shouldSaveResourceRelationship)
+            {
+                await _resourceRepo.SaveResourceAsync(State.Resource);
             }
-            s.IsVocabularySheetVisible = false;
-        });
+            
+            await AppShell.DisplayToastAsync("✅ Vocabulary word saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            SetState(s => s.IsLoading = false);
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to save vocabulary word: {ex.Message}", "OK");
+            System.Diagnostics.Debug.WriteLine($"SaveVocabularyWordAsync error: {ex}");
+        }
     }
     
-    void DeleteVocabularyWord(VocabularyWord word)
+    async Task DeleteVocabularyWord(VocabularyWord word)
     {
-        SetState(s => s.Resource.Vocabulary.Remove(word));
+        bool confirm = await App.Current.MainPage.DisplayAlert(
+            "Confirm Delete", 
+            $"Are you sure you want to delete '{word.TargetLanguageTerm}'?", 
+            "Yes", "No");
+            
+        if (!confirm) return;
+        
+        try
+        {
+            SetState(s => s.IsLoading = true);
+            
+            // Remove from the resource relationship first if word has an ID
+            if (word.Id > 0 && State.Resource.Id > 0)
+            {
+                await _resourceRepo.RemoveVocabularyFromResourceAsync(State.Resource.Id, word.Id);
+            }
+            
+            // Remove from local state
+            SetState(s => 
+            {
+                s.Resource.Vocabulary.Remove(word);
+                s.IsLoading = false;
+            });
+            
+            await AppShell.DisplayToastAsync("🗑️ Vocabulary word removed successfully!");
+        }
+        catch (Exception ex)
+        {
+            SetState(s => s.IsLoading = false);
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
+            System.Diagnostics.Debug.WriteLine($"DeleteVocabularyWord error: {ex}");
+        }
     }
     
     async Task GenerateVocabulary()

@@ -69,53 +69,6 @@ class VocabularyQuizPageState
     public int TotalResourceTermsCount { get; set; } // Total vocabulary in learning resource
 }
 
-public class VocabularyQuizItem
-{
-    public VocabularyWord Word { get; set; }
-    public bool IsCurrent { get; set; }
-    public UserActivity? UserActivity { get; set; }
-    
-    // Global progress from VocabularyProgress table (cross-activity mastery)
-    public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
-    
-    // Activity-specific progress (THIS quiz activity only)
-    public int QuizRecognitionStreak { get; set; } = 0;  // Consecutive multiple choice correct
-    public int QuizProductionStreak { get; set; } = 0;   // Consecutive text entry correct
-    public bool QuizRecognitionComplete => QuizRecognitionStreak >= RequiredCorrectAnswers;
-    public bool QuizProductionComplete => QuizProductionStreak >= RequiredCorrectAnswers;
-    public bool ReadyToRotateOut => QuizRecognitionComplete && QuizProductionComplete;
-    
-    // Current phase within THIS quiz (independent of global phase)
-    public bool IsPromotedInQuiz => QuizRecognitionComplete;
-    
-    // Enhanced computed properties that delegate to new system (for UI display)
-    public bool IsPromoted => Progress?.CurrentPhase >= LearningPhase.Production;
-    public bool IsCompleted => Progress?.IsKnown ?? false;
-    public int MultipleChoiceCorrect => Progress?.RecognitionCorrect ?? 0;
-    public int TextEntryCorrect => Progress?.ProductionCorrect ?? 0;
-    
-    // Legacy support for backward compatibility
-    public const int RequiredCorrectAnswers = 3;
-    public bool HasConfidenceInMultipleChoice => Progress?.RecognitionAccuracy >= 0.7f;
-    public bool HasConfidenceInTextEntry => Progress?.ProductionAccuracy >= 0.7f;
-    
-    // Enhanced progress indicators
-    public float MultipleChoiceProgress => Progress?.RecognitionAccuracy ?? 0f;
-    public float TextEntryProgress => Progress?.ProductionAccuracy ?? 0f;
-    public float MasteryProgress => Progress?.MasteryScore ?? 0f;
-    
-    // Check if term is ready to be skipped in current phase
-    public bool IsReadyToSkipInCurrentPhase { get; set; }
-    
-    // Enhanced status helpers
-    public bool IsUnknown => Progress?.IsUnknown ?? true;
-    public bool IsLearning => Progress?.IsLearning ?? false;
-    public bool IsKnown => Progress?.IsKnown ?? false;
-    
-    // Spaced repetition support
-    public bool IsDueForReview => Progress?.IsDueForReview ?? false;
-}
-
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
 {
     [Inject] UserActivityRepository _userActivityRepository;
@@ -361,17 +314,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .VCenter()
         ).Padding(16, 8);
     
-    private double CalculateOverallMasteryProgress()
-    {
-        if (!State.VocabularyItems.Any()) return 0;
-        
-        var averageMastery = State.VocabularyItems
-            .Where(item => item.Progress != null)
-            .Average(item => item.Progress!.MasteryScore);
-            
-        return averageMastery;
-    }
-
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
             Label("What is this in Korean?")
@@ -517,6 +459,17 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return ApplicationTheme.IconStatus;
     }
 
+    private double CalculateOverallMasteryProgress()
+    {
+        if (!State.VocabularyItems.Any()) return 0;
+        
+        var averageMastery = State.VocabularyItems
+            .Where(item => item.Progress != null)
+            .Average(item => item.Progress!.MasteryScore);
+            
+        return averageMastery;
+    }
+
     Color GetItemBackgroundColor(VocabularyQuizItem item)
     {
         if (item.IsCompleted)
@@ -571,11 +524,23 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    // Enhanced mode determination based on quiz-specific progress
+    // Enhanced mode determination based on global progress across all activities
     private string GetUserModeForItem(VocabularyQuizItem item)
     {
-        // Use quiz-specific promotion status (not global Progress.CurrentPhase)
-        return item.IsPromotedInQuiz ? InputMode.Text.ToString() : InputMode.MultipleChoice.ToString();
+        // Respect global progress from previous attempts across all activities
+        var globalPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
+        
+        // If globally in Production phase or beyond, start with text input
+        if (globalPhase >= LearningPhase.Production)
+        {
+            // Set the recognition streak to trigger promotion automatically
+            // This makes IsPromotedInQuiz return true without modifying the read-only property
+            item.QuizRecognitionStreak = VocabularyQuizItem.RequiredCorrectAnswers;
+            return InputMode.Text.ToString();
+        }
+        
+        // Otherwise start with multiple choice (Recognition phase)
+        return InputMode.MultipleChoice.ToString();
     }
 
     async Task GenerateMultipleChoiceOptions(VocabularyQuizItem currentItem)
