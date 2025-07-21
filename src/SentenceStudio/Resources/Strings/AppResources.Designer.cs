@@ -697,6 +697,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Reading.
+        /// </summary>
+        internal static string Reading {
+            get {
+                return ResourceManager.GetString("Reading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Refresh.
         /// </summary>
         internal static string Refresh {

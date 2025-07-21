@@ -1,4 +1,5 @@
 using Plugin.Maui.Audio;
+using SentenceStudio.Pages.Dashboard;
 using System.Text.RegularExpressions;
 
 namespace SentenceStudio.Pages.Reading;
@@ -50,7 +51,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HCenter(),
                     Label("Loading content...")
                         .HCenter()
-                        .ThemeKey(ApplicationTheme.Body)
+                        .ThemeKey(ApplicationTheme.Body1)
                 )
                 .VCenter()
                 .HCenter()
@@ -66,7 +67,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HCenter(),
                     Label(State.ErrorMessage)
                         .HCenter()
-                        .ThemeKey(ApplicationTheme.Body),
+                        .ThemeKey(ApplicationTheme.Body1),
                     Button("Go Back")
                         .OnClicked(GoBack)
                         .HCenter()
@@ -78,7 +79,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
         
         return ContentPage($"{_localize["Reading"]}",
-            Grid(rows: "Auto,*,Auto", columns: "*",
+            Grid("Auto,*,Auto", "*",
                 RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
@@ -88,7 +89,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     }
     
     VisualNode RenderHeader() =>
-        Grid(columns: "Auto,*,Auto,Auto", 
+        Grid("*", "Auto,*,Auto,Auto", 
             Button("←")
                 .OnClicked(GoBack)
                 .GridColumn(0),
@@ -114,13 +115,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     VisualNode RenderReadingContent() =>
         ScrollView(
             VStack(
-                // Optional reading instructions
-                RenderReadingInstructions(),
-                
-                // Main content with sentences
-                State.Sentences.Select((sentence, index) => 
-                    RenderSentence(sentence, index)
-                ).ToArray()
+                new VisualNode[] { RenderReadingInstructions() }
+                    .Concat(State.Sentences.Select((sentence, index) => 
+                        RenderSentence(sentence, index)
+                    ))
+                    .ToArray()
             )
             .Spacing(ApplicationTheme.Size160)
             .Padding(ApplicationTheme.Size240)
@@ -134,7 +133,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         .Background(GetSentenceBackground(index))
         .Padding(ApplicationTheme.Size120)
         .OnTapped(() => SelectSentence(index))        // Single tap = select only
-        .OnDoubleTapped(() => StartPlaybackFromSentence(index));  // Double tap = play from here
+        .OnTapped(() => StartPlaybackFromSentence(index), 2);  // Double tap = play from here
     
     Color GetSentenceBackground(int index)
     {
@@ -161,59 +160,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     VisualNode RenderSentenceWithVocabulary(string sentence, int index)
     {
-        var words = SplitSentenceIntoWords(sentence);
-        var spans = new List<VisualNode>();
-        
-        foreach (var word in words)
-        {
-            var vocabularyWord = FindVocabularyMatch(word);
-            if (vocabularyWord != null)
-            {
-                spans.Add(
-                    Span(word)
-                        .TextDecorations(TextDecorations.Underline)
-                        .TextColor(ApplicationTheme.Primary)
-                        .OnTapped(() => ShowVocabularyBottomSheet(vocabularyWord))
-                );
-            }
-            else
-            {
-                spans.Add(Span(word));
-            }
-            
-            // Add space between words
-            spans.Add(Span(" "));
-        }
-        
-        return Label()
-            .FormattedText(FormattedString(spans.ToArray()))
-            .FontSize(State.FontSize)
+        // For now, just render as plain text - vocabulary interaction can be added later
+        return Label(sentence)
+            .FontSize(16)
             .LineHeight(1.4)
-            .ThemeKey(ApplicationTheme.Body);
+            .TextColor(ApplicationTheme.DarkOnLightBackground);
     }
     
     VisualNode RenderReadingInstructions() =>
-        Border()
-            .Background(ApplicationTheme.Secondary.WithAlpha(0.3f))
-            .Stroke(ApplicationTheme.Primary.WithAlpha(0.5f))
-            .Padding(ApplicationTheme.Size120)
-            .Margin(ApplicationTheme.Size160)
-            .IsVisible(!State.HasDismissedInstructions)
-            .Content(
-                HStack(
-                    Label("💡")
-                        .FontSize(16),
-                    VStack(
-                        Label("Reading Controls:")
-                            .FontAttributes(FontAttributes.Bold)
-                            .FontSize(14)
+        Border(
+            HStack(
+                Label("💡")
+                    .FontSize(16),
+                VStack(
+                    Label("Reading Controls:")
+                        .FontAttributes(FontAttributes.Bold)
+                        .FontSize(14)
                             .ThemeKey(ApplicationTheme.Caption1),
                         Label("• Tap vocabulary words for translations")
                             .FontSize(12)
-                            .ThemeKey(ApplicationTheme.Body),
+                            .ThemeKey(ApplicationTheme.Body1),
                         Label("• Double-tap sentences to play from there")
                             .FontSize(12)
-                            .ThemeKey(ApplicationTheme.Body)
+                            .ThemeKey(ApplicationTheme.Body1)
                     )
                     .Spacing(2),
                     Button("✕")
@@ -222,7 +191,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HorizontalOptions(LayoutOptions.End)
                 )
                 .Spacing(ApplicationTheme.Size120)
-            );
+            )
+            .Background(ApplicationTheme.Secondary.WithAlpha(0.3f))
+            .Stroke(ApplicationTheme.Primary.WithAlpha(0.5f))
+            .Padding(ApplicationTheme.Size120)
+            .Margin(ApplicationTheme.Size160)
+            .IsVisible(!State.HasDismissedInstructions);
     
     void DismissInstructions()
     {
@@ -231,7 +205,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     }
     
     VisualNode RenderAudioControls() =>
-        Grid(columns: "Auto,Auto,*,Auto,Auto",
+        Grid("*", "Auto,Auto,*,Auto,Auto",
             Button("⏮️") // Previous sentence
                 .OnClicked(PreviousSentence)
                 .GridColumn(0),
@@ -264,11 +238,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     Label(State.SelectedVocabulary?.TargetLanguageTerm)
                         .FontSize(24)
                         .FontAttributes(FontAttributes.Bold)
-                        .ThemeKey(ApplicationTheme.Title2)
+                        .ThemeKey(ApplicationTheme.Title1)
                         .HCenter(),
                     Label(State.SelectedVocabulary?.NativeLanguageTerm)
                         .FontSize(18)
-                        .ThemeKey(ApplicationTheme.Body)
+                        .ThemeKey(ApplicationTheme.Body1)
                         .HCenter(),
                     Button("Close")
                         .OnClicked(CloseVocabularyBottomSheet)
@@ -345,7 +319,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         var sentence = State.Sentences[sentenceIndex];
         var cacheKey = $"reading_{State.Resource.Id}_{sentenceIndex}";
-        var audioFilePath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
+        var audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
         
         // Check cache first
         if (File.Exists(audioFilePath))
@@ -488,7 +462,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     async Task GoBack()
     {
         StopCurrentPlayback();
-        await MauiControls.Shell.Current.GoToAsync("..");
+    MauiControls.Shell.Current.GoToAsync("..");
     }
     
     // Lifecycle
