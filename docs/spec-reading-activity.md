@@ -24,19 +24,11 @@ The Reading Activity provides an immersive reading experience for LearningResour
 - **Audio caching** for repeat playback performance
 - **Speed control** for learner preferences
 
-### 4. Synchronized Reading
-- **Active sentence highlighting** during audio playback
-- **Auto-scroll** to keep highlighted sentence visible
-- **Click-to-jump** functionality to start playing from any sentence
-- **Visual progress indicator** showing reading position
-
-### 5. Enhanced Audio Navigation
-- **Double-tap sentences** to jump audio playback to that position
-- **Audio scrubber bar** with visual sentence markers for quick navigation
+### 4. Basic Audio Navigation
+- **Play/Pause controls** with standard media player interface
 - **Previous/Next sentence buttons** for step-by-step audio control
-- **Progress bar tap-to-jump** for approximate position seeking
-- **Long-press context menu** for additional sentence options
-- **Visual feedback** showing played vs unplayed sentences
+- **Double-tap sentences** to jump audio playbook to that position
+- **Visual feedback** showing current playing sentence
 
 ## Technical Architecture
 
@@ -68,7 +60,7 @@ class ReadingPageState
     public int CurrentSentenceIndex { get; set; } = -1;
     public int SelectedSentenceIndex { get; set; } = -1;
     public VocabularyWord SelectedVocabulary { get; set; }
-    public bool IsVocabularyPopupVisible { get; set; } = false;
+    public bool IsVocabularyBottomSheetVisible { get; set; } = false;
     
     // UI state
     public bool IsBusy { get; set; } = false;
@@ -82,7 +74,7 @@ class ReadingPageState
 ### Service Dependencies
 - **ElevenLabsSpeechService** - Audio generation using same voices as "How You Say"
 - **LearningResourceRepository** - Resource and vocabulary data
-- **AudioManager** - Media playback control
+- **Plugin.Maui.Audio (AudioManager.Current.CreatePlayer)** - Media playback control
 - **File caching system** - Persistent audio storage
 
 ## UI Components
@@ -218,7 +210,7 @@ VisualNode RenderSentenceWithVocabulary(string sentence, int index)
                 Span(word)
                     .TextDecorations(TextDecorations.Underline)
                     .TextColor(ApplicationTheme.Primary)
-                    .OnTapped(() => ShowVocabularyPopup(vocabularyWord))
+                    .OnTapped(() => ShowVocabularyBottomSheet(vocabularyWord))
             );
         }
         else
@@ -234,27 +226,27 @@ VisualNode RenderSentenceWithVocabulary(string sentence, int index)
 }
 ```
 
-### 4. Vocabulary Popup
+### 4. Vocabulary Integration
 ```csharp
-VisualNode RenderVocabularyPopup() =>
-    new PopupHost(r => _vocabularyPopup = r)
-    {
-        VStack(
-            Label(State.SelectedVocabulary?.TargetLanguageTerm)
-                .FontSize(24)
-                .FontAttributes(FontAttributes.Bold)
-                .ThemeKey(ApplicationTheme.Title2),
-            Label(State.SelectedVocabulary?.NativeLanguageTerm)
-                .FontSize(18)
-                .ThemeKey(ApplicationTheme.Body),
-            Button("Close")
-                .OnClicked(CloseVocabularyPopup)
+VisualNode RenderVocabularyBottomSheet() =>
+    new SfBottomSheet(
+        ScrollView(
+            VStack(
+                Label(State.SelectedVocabulary?.TargetLanguageTerm)
+                    .FontSize(24)
+                    .FontAttributes(FontAttributes.Bold)
+                    .ThemeKey(ApplicationTheme.Title2),
+                Label(State.SelectedVocabulary?.NativeLanguageTerm)
+                    .FontSize(18)
+                    .ThemeKey(ApplicationTheme.Body),
+                Button("Close")
+                    .OnClicked(CloseVocabularyBottomSheet)
+            )
+            .Spacing(ApplicationTheme.Size160)
+            .Padding(ApplicationTheme.Size240)
         )
-        .Spacing(ApplicationTheme.Size160)
-        .Padding(ApplicationTheme.Size240)
-        .Background(ApplicationTheme.PopupBackground)
-    }
-    .IsVisible(State.IsVocabularyPopupVisible);
+    )
+    .IsOpen(State.IsVocabularyBottomSheetVisible);
 ```
 
 ### 5. Audio Controls
