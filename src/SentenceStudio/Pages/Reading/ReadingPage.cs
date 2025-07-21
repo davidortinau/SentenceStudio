@@ -77,7 +77,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Spacing(ApplicationTheme.Size160)
             );
         }
-        
+
         return ContentPage($"{_localize["Reading"]}",
             Grid("Auto,*,Auto", "*",
                 RenderHeader(),
@@ -85,11 +85,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 RenderAudioControls(),
                 RenderVocabularyBottomSheet()
             )
-        ).OnAppearing(LoadContentAsync);
+        )
+        .OnAppearing(LoadContentAsync);
     }
     
     VisualNode RenderHeader() =>
-        Grid("*", "Auto,*,Auto,Auto", 
+        Grid(rows: "*", columns: "Auto,*,Auto,Auto,Auto,Auto",
             Button("←")
                 .OnClicked(GoBack)
                 .GridColumn(0),
@@ -99,16 +100,27 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .GridColumn(1)
                 .VCenter()
                 .ThemeKey(ApplicationTheme.Title3),
+            ImageButton()
+                .Source(ApplicationTheme.IconFontDecrease)
+                .OnClicked(DecreaseFontSize)
+                .GridColumn(2)
+                .Padding(4),
+            ImageButton()
+                .Source(ApplicationTheme.IconFontIncrease)
+                .OnClicked(IncreaseFontSize)
+                .GridColumn(3)
+                .Padding(4),
             Button()
                 .Text(State.IsAudioPlaying ? "⏸️" : "▶️")
                 .OnClicked(TogglePlayback)
-                .GridColumn(2),
+                .GridColumn(4),
             Label($"{State.PlaybackSpeed:F1}x")
                 .OnTapped(CyclePlaybackSpeed)
-                .GridColumn(3)
+                .GridColumn(5)
                 .VCenter()
                 .Padding(ApplicationTheme.Size80)
         )
+        .ColumnSpacing(ApplicationTheme.LayoutSpacing)
         .Padding(ApplicationTheme.Size160)
         .GridRow(0);
     
@@ -162,7 +174,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         // For now, just render as plain text - vocabulary interaction can be added later
         return Label(sentence)
-            .FontSize(16)
+            .FontSize(State.FontSize)
             .LineHeight(1.4)
             .TextColor(ApplicationTheme.DarkOnLightBackground);
     }
@@ -177,6 +189,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(14)
                             .ThemeKey(ApplicationTheme.Caption1),
+                        Label("• Use A-/A+ buttons to adjust text size")
+                            .FontSize(12)
+                            .ThemeKey(ApplicationTheme.Body1),
                         Label("• Tap vocabulary words for translations")
                             .FontSize(12)
                             .ThemeKey(ApplicationTheme.Body1),
@@ -408,6 +423,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         
         SetState(s => s.PlaybackSpeed = speeds[nextIndex]);
         Preferences.Set("ReadingActivity_PlaybackSpeed", State.PlaybackSpeed);
+    }
+    
+    void IncreaseFontSize()
+    {
+        var newSize = Math.Min(State.FontSize + 2, 32.0); // Max font size 32
+        SetState(s => s.FontSize = newSize);
+        Preferences.Set("ReadingActivity_FontSize", State.FontSize);
+    }
+    
+    void DecreaseFontSize()
+    {
+        var newSize = Math.Max(State.FontSize - 2, 12.0); // Min font size 12
+        SetState(s => s.FontSize = newSize);
+        Preferences.Set("ReadingActivity_FontSize", State.FontSize);
     }
     
     // Content Processing

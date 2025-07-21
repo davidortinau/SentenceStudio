@@ -86,9 +86,25 @@ class ApplicationTheme : Theme
     public static double LayoutSpacing { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 15 : 5;
     public static double ButtonMinimumSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 60 : 44;
 
+    public static FontImageSource IconFontDecrease { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.font_decrease_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconFontIncrease{ get; } = new FontImageSource
+    {
+        Glyph = FluentUI.font_increase_24_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconDashboard { get; } = new FontImageSource
     {
-        Glyph = FluentUI.diagram_24_regular, 
+        Glyph = FluentUI.diagram_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
