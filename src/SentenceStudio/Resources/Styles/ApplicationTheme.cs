@@ -229,10 +229,26 @@ class ApplicationTheme : Theme
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
     };
+    
+    public static FontImageSource IconPreviousSm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.previous_32_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
+
+    public static FontImageSource IconNextSm { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.next_32_regular, 
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size280
+    };
 
     public static FontImageSource IconPlaySm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.play_20_regular, 
+        Glyph = FluentUI.play_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200

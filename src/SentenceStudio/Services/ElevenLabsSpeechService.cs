@@ -121,6 +121,8 @@ public class ElevenLabsSpeechService
     /// <param name="stability">Voice stability (0.0 to 1.0) - higher values make voice more consistent but less expressive.</param>
     /// <param name="similarityBoost">Similarity boost (0.0 to 1.0) - higher values make voice more like original but may sound metallic.</param>
     /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
+    /// <param name="previousText">Optional previous sentence for better context and flow.</param>
+    /// <param name="nextText">Optional next sentence for better context and flow.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A memory stream containing the generated audio.</returns>
     public async Task<Stream> TextToSpeechAsync(
@@ -129,6 +131,8 @@ public class ElevenLabsSpeechService
         float stability = 0.5f,
         float similarityBoost = 0.75f,
         float speed = 1.0f,
+        string? previousText = null,
+        string? nextText = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -141,19 +145,17 @@ public class ElevenLabsSpeechService
                 voiceId = VoiceOptions[voiceId];
             }
 
-            // Create the voice settings including speed
-            var voiceSettings = new VoiceSettings(
-                stability: stability,
-                similarityBoost: similarityBoost)
-            {
-                Speed = speed
-            };
-                
             var voice = await _client.VoicesEndpoint
                 .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
 
-            // Create audio generation options including voice settings
-            var request = new TextToSpeechRequest(voice, text, voiceSettings: voiceSettings, model: Model.MultiLingualV2);//eleven_multilingual_v2
+            // Create audio generation options with latest model and context parameters
+            var request = new TextToSpeechRequest(
+                voice, 
+                text, 
+                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed }, 
+                model: Model.MultiLingualV2,
+                previousText: previousText,
+                nextText: nextText); // Using latest multilingual model
 
             // Generate the speech using the proper API call
             var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(

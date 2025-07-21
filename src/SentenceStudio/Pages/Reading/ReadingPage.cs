@@ -86,8 +86,17 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
 
         return ContentPage($"{_localize["Reading"]}",
+            ToolbarItem()
+                .IconImageSource(ApplicationTheme.IconFontDecrease)
+                .OnClicked(DecreaseFontSize),
+            ToolbarItem()
+                .IconImageSource(ApplicationTheme.IconFontIncrease)
+                .OnClicked(IncreaseFontSize),
+            ToolbarItem()
+                .IconImageSource(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
+                .OnClicked(TogglePlayback),
             Grid(rows:"Auto,*,Auto", columns:"*",
-                RenderHeader(),
+                // RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
                 RenderVocabularyBottomSheet()
@@ -97,35 +106,26 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     }
     
     VisualNode RenderHeader() =>
-        Grid(rows: "*", columns: "Auto,*,Auto,Auto,Auto,Auto",
-            Button("←")
-                .OnClicked(GoBack)
-                .GridColumn(0),
-            Label(State.Resource?.Title ?? "Reading")
-                .FontAttributes(FontAttributes.Bold)
-                .FontSize(18)
-                .GridColumn(1)
-                .VCenter()
-                .ThemeKey(ApplicationTheme.Title3),
+        Grid(rows: "*", columns: "*,Auto,Auto,Auto",
             ImageButton()
                 .Source(ApplicationTheme.IconFontDecrease)
                 .OnClicked(DecreaseFontSize)
-                .GridColumn(2)
+                .GridColumn(1)
                 .Padding(4),
             ImageButton()
                 .Source(ApplicationTheme.IconFontIncrease)
                 .OnClicked(IncreaseFontSize)
-                .GridColumn(3)
+                .GridColumn(2)
                 .Padding(4),
-            Button()
-                .Text(State.IsAudioPlaying ? "⏸️" : "▶️")
+            ImageButton()
+                .Source(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
                 .OnClicked(TogglePlayback)
-                .GridColumn(4),
-            Label($"{State.PlaybackSpeed:F1}x")
-                .OnTapped(CyclePlaybackSpeed)
-                .GridColumn(5)
-                .VCenter()
-                .Padding(ApplicationTheme.Size80)
+                .GridColumn(3)
+            // Label($"{State.PlaybackSpeed:F1}x")
+            //     .OnTapped(CyclePlaybackSpeed)
+            //     .GridColumn(4)
+            //     .VCenter()
+            //     .Padding(ApplicationTheme.Size80)
         )
         .ColumnSpacing(ApplicationTheme.LayoutSpacing)
         .Padding(ApplicationTheme.Size160)
@@ -134,7 +134,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     VisualNode RenderReadingContent() =>
         ScrollView(
             VStack(
-                new VisualNode[] { RenderReadingInstructions() }
+                new VisualNode[] { Label(State.Resource?.Title ?? "Reading")
+                .FontAttributes(FontAttributes.Bold)
+                .FontSize(18)
+                .GridColumn(0)
+                .VCenter()
+                .ThemeKey(ApplicationTheme.Title3) }
                     .Concat(RenderParagraphs())
                     .ToArray()
             )
@@ -304,27 +309,25 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     }
     
     VisualNode RenderAudioControls() =>
-        Grid("*", "Auto,Auto,*,Auto,Auto",
-            Button("⏮️") // Previous sentence
+        Grid("*", "Auto,*,Auto",
+            ImageButton()
+                .Source(ApplicationTheme.IconPreviousSm)
                 .OnClicked(PreviousSentence)
                 .GridColumn(0),
-            Button()
-                .Text(State.IsAudioPlaying ? "⏸️" : "▶️")
-                .OnClicked(TogglePlayback)
-                .GridColumn(1),
             Label($"Sentence {State.CurrentSentenceIndex + 1} of {State.Sentences.Count}")
-                .GridColumn(2)
+                .GridColumn(1)
                 .VCenter()
                 .HCenter()
                 .ThemeKey(ApplicationTheme.Caption1),
-            Button("⏭️") // Next sentence
+            ImageButton()
+                .Source(ApplicationTheme.IconNextSm)
                 .OnClicked(NextSentence)
-                .GridColumn(3),
-            Label($"{State.PlaybackSpeed:F1}x")
-                .OnTapped(CyclePlaybackSpeed)
-                .GridColumn(4)
-                .VCenter()
-                .Padding(ApplicationTheme.Size80)
+                .GridColumn(2)
+            // Label($"{State.PlaybackSpeed:F1}x")
+            //     .OnTapped(CyclePlaybackSpeed)
+            //     .GridColumn(4)
+            //     .VCenter()
+            //     .Padding(ApplicationTheme.Size80)
         )
         .Padding(ApplicationTheme.Size160)
         .GridRow(2)
@@ -433,11 +436,17 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         
         try
         {
-            // Generate audio using ElevenLabsSpeechService (same as How You Say)
+            // Get context from adjacent sentences for better TTS quality
+            string? previousText = sentenceIndex > 0 ? State.Sentences[sentenceIndex - 1] : null;
+            string? nextText = sentenceIndex < State.Sentences.Count - 1 ? State.Sentences[sentenceIndex + 1] : null;
+
+            // Generate audio using ElevenLabsSpeechService with context for better reading flow
             var audioStream = await _speechService.TextToSpeechAsync(
                 text: sentence,
                 voiceId: Voices.JiYoung, // Default voice
-                speed: State.PlaybackSpeed
+                speed: State.PlaybackSpeed,
+                previousText: previousText,  // Provide context for better flow
+                nextText: nextText           // Provide context for better flow
             );
             
             // Cache to disk
