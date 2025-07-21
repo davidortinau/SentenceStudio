@@ -86,7 +86,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
 
         return ContentPage($"{_localize["Reading"]}",
-            Grid("Auto,*,Auto", "*",
+            Grid(rows:"Auto,*,Auto", columns:"*",
                 RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
@@ -238,7 +238,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     Color GetTextColorForSentence(int sentenceIndex)
     {
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return ApplicationTheme.Primary; // Highlight current playing sentence
+            return ApplicationTheme.Secondary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
         else
             return ApplicationTheme.DarkOnLightBackground;
     }
@@ -351,6 +351,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Padding(ApplicationTheme.Size240)
             )
         )
+        .GridRowSpan(3)
         .IsOpen(State.IsVocabularyBottomSheetVisible);
     
     // Audio Management
@@ -377,6 +378,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     async Task PlaySentence(int index)
     {
+        // Highlight the sentence BEFORE starting audio playback
+        SetState(s => {
+            s.CurrentSentenceIndex = index;
+            s.IsAudioPlaying = true;  // Set this early so highlighting appears immediately
+        });
+        
         if (!State.AudioCache.ContainsKey(index))
         {
             await GenerateAudioForSentence(index);
@@ -389,10 +396,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             _audioPlayer.PlaybackEnded += OnSentencePlaybackEnded;
             _audioPlayer.Play();
             
-            SetState(s => {
-                s.CurrentSentenceIndex = index;
-                s.IsAudioPlaying = true;
-            });
+            // State already updated above for immediate highlighting
         }
     }
     
