@@ -20,6 +20,7 @@ using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyQuiz;
+using SentenceStudio.Pages.Reading;
 using SentenceStudio.Services;
 using SentenceStudio.Data;
 using SentenceStudio.Common;
@@ -223,6 +224,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
 		MauiReactor.Routing.RegisterRoute<VocabularyMatchingPage>(nameof(VocabularyMatchingPage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
+		MauiReactor.Routing.RegisterRoute<ReadingPage>("reading");
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 		
 		// Register Learning Resources pages

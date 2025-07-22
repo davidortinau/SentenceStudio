@@ -313,6 +313,10 @@
     <value>How Do You Say</value>
     <comment/>
   </data>
+  <data name="Reading" xml:space="preserve">
+    <value>Reading</value>
+    <comment/>
+  </data>
   <data name="Done" xml:space="preserve">
     <value>Done</value>
     <comment/>

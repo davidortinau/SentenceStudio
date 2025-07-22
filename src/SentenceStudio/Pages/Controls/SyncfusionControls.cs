@@ -483,6 +483,30 @@ public static partial class SfComboBoxExtensions
         return comboBox;
     }
 
+    public static SfComboBox TokenItemStyle(this SfComboBox comboBox, Style style)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.TokenItemStyleProperty, style);
+        return comboBox;
+    }
+
+    public static SfComboBox ItemPadding(this SfComboBox comboBox, Thickness value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.ItemPaddingProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox HeightRequest(this SfComboBox comboBox, double value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.HeightRequestProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox TextColor(this SfComboBox comboBox, Color value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.TextColorProperty, value);
+        return comboBox;
+    }
+
 }
 
 

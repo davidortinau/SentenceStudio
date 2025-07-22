@@ -23,6 +23,8 @@ Documentation via Context 7 is here:
 - .NET MAUI https://context7.com/dotnet/maui/llms.txt
 - Community Toolkit for .NET MAUI https://context7.com/communitytoolkit/maui.git/llms.txt
 - MauiReactor https://context7.com/adospace/reactorui-maui/llms.txt
+- ElevenLabs API Official Docs https://context7.com/elevenlabs/elevenlabs-docs/llms.txt
+- ElevenLabs-DotNet SDK https://context7.com/rageagainstthepixel/elevenlabs-dotnet/llms.txt
 
 Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
 

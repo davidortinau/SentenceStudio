@@ -24,19 +24,11 @@ The Reading Activity provides an immersive reading experience for LearningResour
 - **Audio caching** for repeat playback performance
 - **Speed control** for learner preferences
 
-### 4. Synchronized Reading
-- **Active sentence highlighting** during audio playback
-- **Auto-scroll** to keep highlighted sentence visible
-- **Click-to-jump** functionality to start playing from any sentence
-- **Visual progress indicator** showing reading position
-
-### 5. Enhanced Audio Navigation
-- **Double-tap sentences** to jump audio playback to that position
-- **Audio scrubber bar** with visual sentence markers for quick navigation
+### 4. Basic Audio Navigation
+- **Play/Pause controls** with standard media player interface
 - **Previous/Next sentence buttons** for step-by-step audio control
-- **Progress bar tap-to-jump** for approximate position seeking
-- **Long-press context menu** for additional sentence options
-- **Visual feedback** showing played vs unplayed sentences
+- **Double-tap sentences** to jump audio playbook to that position
+- **Visual feedback** showing current playing sentence
 
 ## Technical Architecture
 
@@ -68,7 +60,7 @@ class ReadingPageState
     public int CurrentSentenceIndex { get; set; } = -1;
     public int SelectedSentenceIndex { get; set; } = -1;
     public VocabularyWord SelectedVocabulary { get; set; }
-    public bool IsVocabularyPopupVisible { get; set; } = false;
+    public bool IsVocabularyBottomSheetVisible { get; set; } = false;
     
     // UI state
     public bool IsBusy { get; set; } = false;
@@ -82,7 +74,7 @@ class ReadingPageState
 ### Service Dependencies
 - **ElevenLabsSpeechService** - Audio generation using same voices as "How You Say"
 - **LearningResourceRepository** - Resource and vocabulary data
-- **AudioManager** - Media playback control
+- **Plugin.Maui.Audio (AudioManager.Current.CreatePlayer)** - Media playback control
 - **File caching system** - Persistent audio storage
 
 ## UI Components
@@ -218,7 +210,7 @@ VisualNode RenderSentenceWithVocabulary(string sentence, int index)
                 Span(word)
                     .TextDecorations(TextDecorations.Underline)
                     .TextColor(ApplicationTheme.Primary)
-                    .OnTapped(() => ShowVocabularyPopup(vocabularyWord))
+                    .OnTapped(() => ShowVocabularyBottomSheet(vocabularyWord))
             );
         }
         else
@@ -234,27 +226,27 @@ VisualNode RenderSentenceWithVocabulary(string sentence, int index)
 }
 ```
 
-### 4. Vocabulary Popup
+### 4. Vocabulary Integration
 ```csharp
-VisualNode RenderVocabularyPopup() =>
-    new PopupHost(r => _vocabularyPopup = r)
-    {
-        VStack(
-            Label(State.SelectedVocabulary?.TargetLanguageTerm)
-                .FontSize(24)
-                .FontAttributes(FontAttributes.Bold)
-                .ThemeKey(ApplicationTheme.Title2),
-            Label(State.SelectedVocabulary?.NativeLanguageTerm)
-                .FontSize(18)
-                .ThemeKey(ApplicationTheme.Body),
-            Button("Close")
-                .OnClicked(CloseVocabularyPopup)
+VisualNode RenderVocabularyBottomSheet() =>
+    new SfBottomSheet(
+        ScrollView(
+            VStack(
+                Label(State.SelectedVocabulary?.TargetLanguageTerm)
+                    .FontSize(24)
+                    .FontAttributes(FontAttributes.Bold)
+                    .ThemeKey(ApplicationTheme.Title2),
+                Label(State.SelectedVocabulary?.NativeLanguageTerm)
+                    .FontSize(18)
+                    .ThemeKey(ApplicationTheme.Body),
+                Button("Close")
+                    .OnClicked(CloseVocabularyBottomSheet)
+            )
+            .Spacing(ApplicationTheme.Size160)
+            .Padding(ApplicationTheme.Size240)
         )
-        .Spacing(ApplicationTheme.Size160)
-        .Padding(ApplicationTheme.Size240)
-        .Background(ApplicationTheme.PopupBackground)
-    }
-    .IsVisible(State.IsVocabularyPopupVisible);
+    )
+    .IsOpen(State.IsVocabularyBottomSheetVisible);
 ```
 
 ### 5. Audio Controls
@@ -760,6 +752,92 @@ bool ValidateResource(LearningResource resource)
 - **Reading flow** with different content lengths
 - **Vocabulary interaction** responsiveness
 - **Audio quality** and synchronization accuracy
+
+## Phase 1.5: Paragraph Rendering Implementation
+
+### Current Status
+ReadingPage displays each sentence as individual Labels, but users prefer paragraph-style reading flow for better comprehension and natural text flow.
+
+### Validated Solution
+Use MauiReactor's fluent FormattedString with Span elements for vocabulary interaction, based on working examples from MauiReactor samples.
+
+### Working Syntax Examples
+```csharp
+// From FormattedTextTestPage.cs - Interactive spans with gestures
+Label(FormattedString(
+    Span("Click Me!", Colors.Red, FontAttributes.Bold, TapGestureRecognizer().OnTapped(() => ...)),
+    Span(" and me!", Colors.Blue, FontAttributes.Italic, TapGestureRecognizer().OnTapped(() => ...))
+))
+
+// From StatisticsPage.cs - Using native FormattedString
+Label()
+.FormattedText(new MauiControls.FormattedString
+{
+    Spans = {
+        new MauiControls.Span { Text = "text", TextColor = Colors.Black, FontSize = 36 },
+        new MauiControls.Span { Text = "more", TextColor = Colors.Gray, FontSize = 20 }
+    }
+})
+```
+
+### Implementation Strategy for Reading Activity
+```csharp
+// Paragraph rendering with vocabulary interaction
+VStack([
+    // For each paragraph group
+    Label(FormattedString([
+        // For each text segment in paragraph
+        ..RenderParagraphSegments(paragraph, vocabularyWords, activeSentenceIndex)
+    ]))
+    .Padding(16, 8)
+    .FontSize(State.FontSize)
+])
+
+private Span[] RenderParagraphSegments(List<Sentence> sentences, List<VocabularyWord> vocab, int? activeIndex)
+{
+    var spans = new List<Span>();
+    
+    foreach (var (sentence, index) in sentences.Select((s, i) => (s, i)))
+    {
+        var segments = ParseSentenceForVocabulary(sentence.Text, vocab);
+        
+        foreach (var segment in segments)
+        {
+            var spanColor = index == activeIndex 
+                ? ApplicationTheme.HighlightBackground  // Active sentence
+                : ApplicationTheme.DarkOnLightBackground;
+                
+            if (segment.IsVocabulary)
+            {
+                spans.Add(Span(
+                    segment.Text, 
+                    ApplicationTheme.VocabularyTextColor,
+                    FontAttributes.None,
+                    TapGestureRecognizer().OnTapped(() => ShowVocabularyPopup(segment.VocabularyWord))
+                ));
+            }
+            else
+            {
+                spans.Add(Span(segment.Text, spanColor));
+            }
+        }
+        
+        // Add sentence spacing
+        if (index < sentences.Count - 1)
+            spans.Add(Span(" "));
+    }
+    
+    return spans.ToArray();
+}
+```
+
+### Benefits
+- ✅ **Confirmed working syntax** from actual MauiReactor examples
+- ✅ **Natural reading flow** with paragraph spacing
+- ✅ **Individual word tap detection** via TapGestureRecognizer on vocabulary Spans
+- ✅ **Sentence-level highlighting** by updating Span colors during audio playback
+- ✅ **Vocabulary underlining** through TextDecorations.Underline on vocabulary Spans
+- ✅ **Font size responsiveness** through Label.FontSize property
 
 ## Future Enhancements
 
