@@ -44,7 +44,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
     public override VisualNode Render()
 	{
-        Console.WriteLine(">> DashboardPage Render <<");
+        //Console.Writeline(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
 
             Grid(
@@ -64,7 +64,11 @@ partial class DashboardPage : Component<DashboardPageState>
                                             Label()
                                                 .Text("Learning Resource(s)"),
                                             new SfComboBox()
+                                                .HeightRequest(44)
                                                 .BackgroundColor(Colors.Transparent)
+                                                .TextColor(ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground) // doesn't help bc mult selection chips
+                                                .TokenItemStyle(ApplicationTheme.ChipStyle)
+                                                .ItemPadding(ApplicationTheme.LayoutPadding)
                                                 .PlaceholderText("Select resource(s)")
                                                 .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.Resources)
@@ -92,7 +96,10 @@ partial class DashboardPage : Component<DashboardPageState>
                                             Label()
                                                 .Text("Skill(s)"),
                                             new SfComboBox()
+                                                .HeightRequest(44)
                                                 .BackgroundColor(Colors.Transparent)
+                                                .TextColor(ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                                                .ItemPadding(ApplicationTheme.LayoutPadding)
                                                 .PlaceholderText("Select skill(s)")
                                                 .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.SkillProfiles)
@@ -198,7 +205,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
     async Task LoadOrRefreshDataAsync()
     {
-        Console.WriteLine(">> DashboardPage OnAppearing <<");
+        //Console.Writeline(">> DashboardPage OnAppearing <<");
         var resources = await _resourceRepository.GetAllResourcesAsync();
         var skills = await _skillService.ListAsync();
 

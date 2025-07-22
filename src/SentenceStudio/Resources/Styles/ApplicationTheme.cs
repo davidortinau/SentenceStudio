@@ -1,5 +1,6 @@
 using MauiReactor.Shapes;
 using Fonts;
+using OpenAI.VectorStores;
 
 namespace SentenceStudio.Resources.Styles;
 
@@ -86,9 +87,16 @@ class ApplicationTheme : Theme
     public static double LayoutSpacing { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 15 : 5;
     public static double ButtonMinimumSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 60 : 44;
 
+    public static Style ChipStyle { get; } = new Style(typeof(Syncfusion.Maui.Core.SfChipGroup))
+    {
+        Setters = {
+            new Setter { Property = Syncfusion.Maui.Core.SfChipGroup.ChipTextColorProperty, Value = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground }
+        }
+    };
+
     public static FontImageSource IconFontDecrease { get; } = new FontImageSource
     {
-        Glyph = FluentUI.font_decrease_24_regular, 
+        Glyph = FluentUI.font_decrease_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize

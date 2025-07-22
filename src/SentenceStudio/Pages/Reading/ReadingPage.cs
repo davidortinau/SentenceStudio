@@ -283,7 +283,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
             return ApplicationTheme.Primary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
         else
-            return ApplicationTheme.DarkOnLightBackground;
+            return ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
     }
     
     async Task SelectParagraph(List<(string, int)> paragraphSentences)
@@ -398,23 +398,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)
     {
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Requested sentence {startIndex}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: _audioManager null? {_audioManager == null}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: IsTimestampedAudioLoaded? {State.IsTimestampedAudioLoaded}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Total sentences: {State.Sentences.Count}");
-        
         if (_audioManager == null || !State.IsTimestampedAudioLoaded) 
         {
-            System.Diagnostics.Debug.WriteLine("🏴‍☠️ StartPlaybackFromSentence: Cannot start playback - audio not ready");
             await AppShell.DisplayToastAsync("🏴‍☠️ Audio not ready yet, Captain!");
             return;
         }
         
         if (startIndex < 0 || startIndex >= State.Sentences.Count)
-        {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Invalid sentence index {startIndex}");
             return;
-        }
 
         StopCurrentPlayback();
         
@@ -423,17 +414,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             s.IsAudioPlaying = true;
         });
         
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: About to call PlayFromSentenceAsync({startIndex})");
-        
         try
         {
             // Use timestamp-based playback
             await _audioManager.PlayFromSentenceAsync(startIndex);
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: PlayFromSentenceAsync completed for sentence {startIndex}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Error - {ex.Message}");
             await AppShell.DisplayToastAsync($"🏴‍☠️ Playback error: {ex.Message}");
         }
     }

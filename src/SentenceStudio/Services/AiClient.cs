@@ -84,7 +84,7 @@ public class AIClient
                 
                 if (chatUpdate.FinishReason.HasValue)
                 {
-                    Console.WriteLine($"Chat completion finished: {chatUpdate.FinishReason.Value}");
+                    //Console.Writeline($"Chat completion finished: {chatUpdate.FinishReason.Value}");
                     return "End of line";
                 }
             }

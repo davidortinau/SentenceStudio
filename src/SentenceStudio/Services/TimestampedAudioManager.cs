@@ -53,8 +53,6 @@ public class TimestampedAudioManager : IDisposable
             // Setup progress tracking timer (50ms for smooth real-time updates)
             _progressTimer = new System.Timers.Timer(50);
             _progressTimer.Elapsed += OnProgressTimerElapsed;
-
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TimestampedAudioManager: Loaded audio with {audio.Characters.Length} character timestamps, duration: {Duration.TotalSeconds:F1}s");
         }
         catch (Exception ex)
         {
@@ -215,14 +213,9 @@ public class TimestampedAudioManager : IDisposable
     private void OnProgressTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_player?.IsPlaying != true || _currentAudio == null) 
-        {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: Skipping - player playing: {_player?.IsPlaying}, audio null: {_currentAudio == null}");
             return;
-        }
 
         var currentTime = _player.CurrentPosition;
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: Current position: {currentTime:F3}s");
-        
         ProgressUpdated?.Invoke(this, currentTime);
 
         // Use REAL-TIME sentence detection based on character timestamps!
@@ -232,29 +225,11 @@ public class TimestampedAudioManager : IDisposable
             _currentAudio.FullTranscript
         );
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: Calculated sentence index: {newSentenceIndex}, current: {_currentSentenceIndex}");
-
         // Fire event if sentence changed
         if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0)
         {
-            var oldIndex = _currentSentenceIndex;
             _currentSentenceIndex = newSentenceIndex;
-            
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: SENTENCE CHANGED! {oldIndex} -> {newSentenceIndex}");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: Firing SentenceChanged event");
-            
             SentenceChanged?.Invoke(this, _currentSentenceIndex);
-
-            // Debug: Show real-time sentence detection
-            var sentenceInfo = GetSentenceTimingInfo(_currentSentenceIndex);
-            if (sentenceInfo != null)
-            {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ REAL-TIME: Sentence {_currentSentenceIndex} at {currentTime:F2}s -> '{sentenceInfo.Text.Substring(0, Math.Min(50, sentenceInfo.Text.Length))}...'");
-            }
-        }
-        else if (newSentenceIndex == -1)
-        {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TIMER: WARNING - Could not determine sentence index at {currentTime:F3}s");
         }
     }
 
