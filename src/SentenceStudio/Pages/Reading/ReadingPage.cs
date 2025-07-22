@@ -1,6 +1,8 @@
 using Plugin.Maui.Audio;
 using SentenceStudio.Pages.Dashboard;
 using System.Text.RegularExpressions;
+using SentenceStudio.Services;
+using SentenceStudio.Models;
 
 namespace SentenceStudio.Pages.Reading;
 
@@ -18,11 +20,19 @@ class ReadingPageState
     public List<string> Sentences { get; set; } = new();
     public List<VocabularyWord> VocabularyWords { get; set; } = new();
     
-    // Audio
+    // Timestamped Audio System (NEW)
+    public TimestampedAudio TimestampedAudio { get; set; }
+    public bool IsTimestampedAudioLoaded { get; set; } = false;
+    public bool IsGeneratingAudio { get; set; } = false;
+    public string AudioGenerationStatus { get; set; } = "Ready";
+    public double AudioGenerationProgress { get; set; } = 0.0;
+    
+    // Audio Playback State
     public bool IsAudioPlaying { get; set; } = false;
-    public bool IsAudioLoading { get; set; } = false;
+    public bool IsPlaying { get; set; } = false;  // For compatibility with some code paths
+    public double CurrentPlaybackTime { get; set; } = 0.0;
+    public double AudioDuration { get; set; } = 0.0;
     public float PlaybackSpeed { get; set; } = 1.0f;
-    public Dictionary<int, string> AudioCache { get; set; } = new(); // sentence index -> audio file path
     
     // Reading state
     public int CurrentSentenceIndex { get; set; } = -1;
@@ -44,7 +54,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] LearningResourceRepository _resourceRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
     
-    private IAudioPlayer _audioPlayer;
+    private TimestampedAudioManager _audioManager;
+    private SentenceTimingCalculator _timingCalculator;
     
     public override VisualNode Render()
     {
@@ -93,9 +104,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .IconImageSource(ApplicationTheme.IconFontIncrease)
                 .OnClicked(IncreaseFontSize),
             ToolbarItem()
+                .IconImageSource(ApplicationTheme.IconDelete)
+                .OnClicked(ClearAudioCache),
+            ToolbarItem()
                 .IconImageSource(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
                 .OnClicked(TogglePlayback),
-            Grid(rows:"Auto,*,Auto", columns:"*",
+            Grid(rows:"Auto,Auto,*,Auto", columns:"*",
+                RenderAudioLoadingBanner(),
                 // RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
@@ -105,6 +120,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         .OnAppearing(LoadContentAsync);
     }
     
+    VisualNode RenderAudioLoadingBanner() =>
+        Border(
+            HStack(
+                ActivityIndicator()
+                    .IsRunning(State.IsGeneratingAudio)
+                    .Color(ApplicationTheme.Primary),
+                Label(State.AudioGenerationStatus)
+                    .ThemeKey(ApplicationTheme.Body1)
+                    .VCenter(),
+                ProgressBar()
+                    .Progress(State.AudioGenerationProgress)
+                    .ProgressColor(ApplicationTheme.Primary)
+                    .HorizontalOptions(LayoutOptions.FillAndExpand)
+                    .IsVisible(State.AudioGenerationProgress > 0)
+            )
+            .Spacing(ApplicationTheme.Size120)
+            .Padding(ApplicationTheme.Size160)
+        )
+        .Background(ApplicationTheme.Secondary.WithAlpha(0.2f))
+        .Stroke(ApplicationTheme.Primary.WithAlpha(0.3f))
+        .GridRow(0)
+        .IsVisible(State.IsGeneratingAudio);
+
     VisualNode RenderHeader() =>
         Grid(rows: "*", columns: "*,Auto,Auto,Auto",
             ImageButton()
@@ -146,7 +184,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             .Spacing(ApplicationTheme.Size160)
             .Padding(ApplicationTheme.Size240)
         )
-        .GridRow(1);
+        .GridRow(2);
     
     VisualNode[] RenderParagraphs()
     {
@@ -243,7 +281,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     Color GetTextColorForSentence(int sentenceIndex)
     {
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return ApplicationTheme.Secondary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
+            return ApplicationTheme.Primary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
         else
             return ApplicationTheme.DarkOnLightBackground;
     }
@@ -330,7 +368,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             //     .Padding(ApplicationTheme.Size80)
         )
         .Padding(ApplicationTheme.Size160)
-        .GridRow(2)
+        .GridRow(3)
         .IsVisible(State.Sentences.Any());
     
     VisualNode RenderVocabularyBottomSheet() =>
@@ -354,53 +392,62 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Padding(ApplicationTheme.Size240)
             )
         )
-        .GridRowSpan(3)
+        .GridRowSpan(4)
         .IsOpen(State.IsVocabularyBottomSheetVisible);
     
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)
     {
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Requested sentence {startIndex}");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: _audioManager null? {_audioManager == null}");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: IsTimestampedAudioLoaded? {State.IsTimestampedAudioLoaded}");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Total sentences: {State.Sentences.Count}");
+        
+        if (_audioManager == null || !State.IsTimestampedAudioLoaded) 
+        {
+            System.Diagnostics.Debug.WriteLine("🏴‍☠️ StartPlaybackFromSentence: Cannot start playback - audio not ready");
+            await AppShell.DisplayToastAsync("🏴‍☠️ Audio not ready yet, Captain!");
+            return;
+        }
+        
+        if (startIndex < 0 || startIndex >= State.Sentences.Count)
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Invalid sentence index {startIndex}");
+            return;
+        }
+
         StopCurrentPlayback();
         
         SetState(s => {
             s.CurrentSentenceIndex = startIndex;
-            s.IsAudioLoading = true;
+            s.IsAudioPlaying = true;
         });
         
-        // Pre-generate audio for current and next few sentences
-        var tasks = new List<Task>();
-        for (int i = startIndex; i < Math.Min(startIndex + 3, State.Sentences.Count); i++)
-        {
-            tasks.Add(GenerateAudioForSentence(i));
-        }
-        await Task.WhenAll(tasks);
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: About to call PlayFromSentenceAsync({startIndex})");
         
-        SetState(s => s.IsAudioLoading = false);
-        await PlaySentence(startIndex);
+        try
+        {
+            // Use timestamp-based playback
+            await _audioManager.PlayFromSentenceAsync(startIndex);
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: PlayFromSentenceAsync completed for sentence {startIndex}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ StartPlaybackFromSentence: Error - {ex.Message}");
+            await AppShell.DisplayToastAsync($"🏴‍☠️ Playback error: {ex.Message}");
+        }
     }
     
-    async Task PlaySentence(int index)
+    Task PlaySentenceFromCache(int index, string audioFilePath)
     {
-        // Highlight the sentence BEFORE starting audio playback
-        SetState(s => {
-            s.CurrentSentenceIndex = index;
-            s.IsAudioPlaying = true;  // Set this early so highlighting appears immediately
-        });
-        
-        if (!State.AudioCache.ContainsKey(index))
-        {
-            await GenerateAudioForSentence(index);
-        }
-        
-        var audioFilePath = State.AudioCache[index];
-        if (File.Exists(audioFilePath))
-        {
-            _audioPlayer = AudioManager.Current.CreatePlayer(File.OpenRead(audioFilePath));
-            _audioPlayer.PlaybackEnded += OnSentencePlaybackEnded;
-            _audioPlayer.Play();
-            
-            // State already updated above for immediate highlighting
-        }
+        // This method is now handled by StartPlaybackFromSentence with timestamps
+        return StartPlaybackFromSentence(index);
+    }
+    
+    Task PlaySentence(int index)
+    {
+        // This method is now handled by StartPlaybackFromSentence with timestamps
+        return StartPlaybackFromSentence(index);
     }
     
     private void OnSentencePlaybackEnded(object sender, EventArgs e)
@@ -409,7 +456,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
             var nextIndex = State.CurrentSentenceIndex + 1;
-            Task.Run(() => PlaySentence(nextIndex));
+            Task.Run(() => StartPlaybackFromSentence(nextIndex));
         }
         else
         {
@@ -421,61 +468,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
     }
     
-    async Task GenerateAudioForSentence(int sentenceIndex)
-    {
-        var sentence = State.Sentences[sentenceIndex];
-        var cacheKey = $"reading_{State.Resource.Id}_{sentenceIndex}";
-        var audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
-        
-        // Check cache first
-        if (File.Exists(audioFilePath))
-        {
-            State.AudioCache[sentenceIndex] = audioFilePath;
-            return;
-        }
-        
-        try
-        {
-            // Get context from adjacent sentences for better TTS quality
-            string? previousText = sentenceIndex > 0 ? State.Sentences[sentenceIndex - 1] : null;
-            string? nextText = sentenceIndex < State.Sentences.Count - 1 ? State.Sentences[sentenceIndex + 1] : null;
-
-            // Generate audio using ElevenLabsSpeechService with context for better reading flow
-            var audioStream = await _speechService.TextToSpeechAsync(
-                text: sentence,
-                voiceId: Voices.JiYoung, // Default voice
-                speed: State.PlaybackSpeed,
-                previousText: previousText,  // Provide context for better flow
-                nextText: nextText           // Provide context for better flow
-            );
-            
-            // Cache to disk
-            using (var fileStream = File.Create(audioFilePath))
-            {
-                await audioStream.CopyToAsync(fileStream);
-            }
-            
-            State.AudioCache[sentenceIndex] = audioFilePath;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ ReadingPage: Failed to generate audio for sentence {sentenceIndex}: {ex.Message}");
-        }
-    }
-    
     void StopCurrentPlayback()
     {
-        if (_audioPlayer != null)
+        if (_audioManager != null)
         {
-            _audioPlayer.PlaybackEnded -= OnSentencePlaybackEnded;
-            
-            if (_audioPlayer.IsPlaying)
-            {
-                _audioPlayer.Stop();
-            }
-            
-            _audioPlayer.Dispose();
-            _audioPlayer = null;
+            _audioManager.Stop();
         }
         
         SetState(s => s.IsAudioPlaying = false);
@@ -483,6 +480,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     async Task TogglePlayback()
     {
+        // Check if audio is still loading
+        if (State.IsGeneratingAudio)
+        {
+            await AppShell.DisplayToastAsync("🏴‍☠️ Hold yer horses! Audio is still loading, Captain!");
+            return;
+        }
+        
+        if (!State.IsTimestampedAudioLoaded)
+        {
+            await AppShell.DisplayToastAsync("🏴‍☠️ No audio loaded yet, Captain! Try again in a moment.");
+            return;
+        }
+
         if (State.IsAudioPlaying)
         {
             StopCurrentPlayback();
@@ -500,7 +510,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         if (State.CurrentSentenceIndex > 0)
         {
-            await StartPlaybackFromSentence(State.CurrentSentenceIndex - 1);
+            // Use TimestampedAudioManager navigation to maintain playback
+            if (_audioManager != null)
+            {
+                await _audioManager.PreviousSentenceAsync();
+            }
+            else
+            {
+                // Fallback if no audio manager
+                await StartPlaybackFromSentence(State.CurrentSentenceIndex - 1);
+            }
         }
     }
     
@@ -508,7 +527,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
-            await StartPlaybackFromSentence(State.CurrentSentenceIndex + 1);
+            // Use TimestampedAudioManager navigation to maintain playback
+            if (_audioManager != null)
+            {
+                await _audioManager.NextSentenceAsync();
+            }
+            else
+            {
+                // Fallback if no audio manager
+                await StartPlaybackFromSentence(State.CurrentSentenceIndex + 1);
+            }
         }
     }
     
@@ -534,6 +562,27 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         var newSize = Math.Max(State.FontSize - 2, 12.0); // Min font size 12
         SetState(s => s.FontSize = newSize);
         Preferences.Set("ReadingActivity_FontSize", State.FontSize);
+    }
+    
+    async Task ClearAudioCache()
+    {
+        try
+        {
+            // Stop any current playback
+            StopCurrentPlayback();
+            
+            // Clear timestamped audio (real-time system doesn't use cache files)
+            SetState(s => {
+                s.TimestampedAudio = null;
+                s.IsTimestampedAudioLoaded = false;
+            });
+            
+            await AppShell.DisplayToastAsync("🏴‍☠️ Audio cache cleared! Fresh voices ahead, Captain!");
+        }
+        catch (Exception ex)
+        {
+            await AppShell.DisplayToastAsync($"Failed to clear cache: {ex.Message}");
+        }
     }
     
     // Content Processing
@@ -619,7 +668,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     async Task GoBack()
     {
         StopCurrentPlayback();
-    MauiControls.Shell.Current.GoToAsync("..");
+        MauiControls.Shell.Current.GoToAsync("..");
     }
     
     // Lifecycle
@@ -637,6 +686,167 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             SetState(s => s.ErrorMessage = "Resource has no transcript");
             return;
+        }
+        
+        // Initialize in background
+        Task.Run(async () =>
+        {
+            try
+            {
+                var fullResource = await _resourceRepository.GetResourceAsync(Props.Resource.Id);
+                
+                SetState(s =>
+                {
+                    s.Resource = fullResource;
+                    s.Sentences = SplitIntoSentences(fullResource.Transcript ?? "");
+                    s.FontSize = Preferences.Get("ReadingActivity_FontSize", 18.0);
+                    s.PlaybackSpeed = Preferences.Get("ReadingActivity_PlaybackSpeed", 1.0f);
+                    s.HasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
+                    s.HasDismissedInstructions = Preferences.Get("ReadingActivity_HasDismissedInstructions", false);
+                    s.IsBusy = false;
+                });
+                
+                // Initialize timestamped audio system
+                await InitializeAudioSystemAsync();
+            }
+            catch (Exception ex)
+            {
+                SetState(s => {
+                    s.ErrorMessage = $"Failed to load content: {ex.Message}";
+                    s.IsBusy = false;
+                });
+            }
+        });
+    }
+    
+    private async Task InitializeAudioSystemAsync()
+    {
+        if (State.Resource?.Transcript == null) return;
+
+        // Show loading state
+        SetState(s => {
+            s.IsGeneratingAudio = true;
+            s.AudioGenerationStatus = "🏴‍☠️ Initializing audio system...";
+            s.AudioGenerationProgress = 0.1;
+        });
+
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Loading state set, should be visible now");
+        
+        // Add a small delay to ensure loading UI shows
+        await Task.Delay(500);
+
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Starting audio system initialization");
+
+            _timingCalculator = new SentenceTimingCalculator();
+            _audioManager = new TimestampedAudioManager(_timingCalculator);
+            
+            // Update progress
+            SetState(s => {
+                s.AudioGenerationStatus = "🏴‍☠️ Generating timestamped audio...";
+                s.AudioGenerationProgress = 0.3;
+            });
+            
+            // Generate timestamped audio for the entire resource
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ InitializeAudioSystemAsync: Generating audio for transcript length: {State.Resource.Transcript.Length}");
+            var timestampedAudioResult = await _speechService.GenerateTimestampedAudioAsync(State.Resource);
+            
+            if (timestampedAudioResult != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ InitializeAudioSystemAsync: Generated audio with {timestampedAudioResult.Characters.Length} characters, duration: {timestampedAudioResult.Duration.TotalSeconds:F1}s");
+                
+                // Update progress
+                SetState(s => {
+                    s.AudioGenerationStatus = "🏴‍☠️ Processing character timestamps...";
+                    s.AudioGenerationProgress = 0.7;
+                });
+                
+                // Convert to the new TimestampedAudio model
+                var timestampedAudio = new TimestampedAudio
+                {
+                    AudioData = timestampedAudioResult.AudioData.ToArray(),
+                    Characters = timestampedAudioResult.Characters,
+                    FullTranscript = State.Resource.Transcript,
+                    Duration = timestampedAudioResult.Duration.TotalSeconds
+                };
+                
+                // Update progress
+                SetState(s => {
+                    s.AudioGenerationStatus = "🏴‍☠️ Loading audio into player...";
+                    s.AudioGenerationProgress = 0.9;
+                });
+                
+                // Load audio into manager (no pre-calculated timings needed!)
+                await _audioManager.LoadAudioAsync(timestampedAudio);
+                _audioManager.SentenceChanged += OnCurrentSentenceChanged;
+                _audioManager.PlaybackEnded += OnPlaybackEnded;
+                
+                // Update state with loaded status
+                SetState(s => 
+                {
+                    s.IsTimestampedAudioLoaded = true;
+                    s.TimestampedAudio = timestampedAudio;
+                    s.IsGeneratingAudio = false;
+                    s.AudioGenerationStatus = "🏴‍☠️ Audio ready for playback!";
+                    s.AudioGenerationProgress = 1.0;
+                });
+                
+                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Real-time audio system initialized with character-level timestamps!");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Failed to generate timestamped audio");
+                SetState(s => {
+                    s.IsGeneratingAudio = false;
+                    s.AudioGenerationStatus = "⚠️ Failed to generate audio";
+                    s.AudioGenerationProgress = 0.0;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error initializing audio: {ex.Message}");
+            SetState(s => {
+                s.IsGeneratingAudio = false;
+                s.AudioGenerationStatus = $"⚠️ Audio error: {ex.Message}";
+                s.AudioGenerationProgress = 0.0;
+            });
+        }
+    }
+
+    private void OnCurrentSentenceChanged(object? sender, int sentenceIndex)
+    {
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {sentenceIndex}");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {State.CurrentSentenceIndex}");
+        
+        SetState(s => {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Setting state from {s.CurrentSentenceIndex} to {sentenceIndex}");
+            s.CurrentSentenceIndex = sentenceIndex;
+        });
+        
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
+    }
+
+    private void OnPlaybackEnded(object? sender, EventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ OnPlaybackEnded: Playback finished");
+        SetState(s => s.IsPlaying = false);
+    }
+    
+    protected override void OnWillUnmount()
+    {
+        base.OnWillUnmount();
+        
+        // Clean up audio resources
+        StopCurrentPlayback();
+        
+        // Clean up TimestampedAudioManager
+        if (_audioManager != null)
+        {
+            _audioManager.SentenceChanged -= OnCurrentSentenceChanged;
+            _audioManager.PlaybackEnded -= OnPlaybackEnded;
+            _audioManager.Dispose();
         }
     }
     
@@ -659,6 +869,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 s.HasDismissedInstructions = Preferences.Get("ReadingActivity_HasDismissedInstructions", false);
                 s.IsBusy = false;
             });
+            
+            // Initialize timestamped audio system
+            await InitializeAudioSystemAsync();
         }
         catch (Exception ex)
         {

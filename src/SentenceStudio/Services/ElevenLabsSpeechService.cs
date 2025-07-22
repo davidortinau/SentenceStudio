@@ -2,6 +2,7 @@ using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
+using SentenceStudio.Models;
 
 namespace SentenceStudio.Services;
 
@@ -115,6 +116,7 @@ public class ElevenLabsSpeechService
 
     /// <summary>
     /// Converts text to speech using ElevenLabs API and returns the audio as a stream.
+    /// DEPRECATED: Use GenerateTimestampedAudioAsync for better performance and synchronization.
     /// </summary>
     /// <param name="text">The text to convert to speech.</param>
     /// <param name="voiceId">The voice Id or name to use (from VoiceOptions).</param>
@@ -125,6 +127,7 @@ public class ElevenLabsSpeechService
     /// <param name="nextText">Optional next sentence for better context and flow.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A memory stream containing the generated audio.</returns>
+    [Obsolete("Use GenerateTimestampedAudioAsync for better performance and synchronization")]
     public async Task<Stream> TextToSpeechAsync(
         string text,
         string voiceId = "echo",
@@ -162,6 +165,7 @@ public class ElevenLabsSpeechService
                 request, 
                 cancellationToken: cancellationToken);
 
+
             // Create a memory stream from the audio bytes
             var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
             
@@ -173,6 +177,134 @@ public class ElevenLabsSpeechService
         {
             Debug.WriteLine($"Error in TextToSpeechAsync: {ex.Message}");
             return Stream.Null;
+        }
+    }
+
+    /// <summary>
+    /// Generates timestamped audio for an entire learning resource with character-level synchronization.
+    /// This is the preferred method for reading activities as it provides perfect audio-text sync.
+    /// </summary>
+    /// <param name="resource">The learning resource to generate audio for</param>
+    /// <param name="voiceId">The voice Id or name to use (from VoiceOptions)</param>
+    /// <param name="stability">Voice stability (0.0 to 1.0)</param>
+    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0)</param>
+    /// <param name="speed">Speech speed multiplier (0.5 to 2.0)</param>
+    /// <param name="cancellationToken">A cancellation token</param>
+    /// <returns>Timestamped audio result with character-level timing data</returns>
+    public async Task<TimestampedAudioResult> GenerateTimestampedAudioAsync(
+        LearningResource resource,
+        string voiceId = "jiyoung",  // Default to Korean voice
+        float stability = 0.5f,
+        float similarityBoost = 0.75f,
+        float speed = 1.0f,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            // Check cache first
+            var cacheKey = $"timestamped_{resource.Id}_{voiceId}_{speed:F1}";
+            var cacheFilePath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
+            var cacheMetaPath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.json");
+            
+            if (File.Exists(cacheFilePath) && File.Exists(cacheMetaPath))
+            {
+                try
+                {
+                    var metaJson = await File.ReadAllTextAsync(cacheMetaPath, cancellationToken);
+                    var cachedResult = System.Text.Json.JsonSerializer.Deserialize<TimestampedAudioResult>(metaJson);
+                    
+                    if (cachedResult != null)
+                    {
+                        // Load audio data from file
+                        var audioData = await File.ReadAllBytesAsync(cacheFilePath, cancellationToken);
+                        cachedResult.AudioData = new ReadOnlyMemory<byte>(audioData);
+                        cachedResult.CacheFilePath = cacheFilePath;
+                        
+                        Debug.WriteLine($"🏴‍☠️ Using cached timestamped audio for resource {resource.Id}");
+                        return cachedResult;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"⚠️ Failed to load cached audio: {ex.Message}");
+                    // Continue with fresh generation
+                }
+            }
+
+            // Map simple voice names to actual ElevenLabs voice IDs if needed
+            if (VoiceOptions.ContainsKey(voiceId))
+            {
+                voiceId = VoiceOptions[voiceId];
+            }
+
+            var voice = await _client.VoicesEndpoint
+                .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
+
+            // Create timestamped audio generation request
+            var request = new TextToSpeechRequest(
+                voice: voice,
+                text: resource.Transcript,
+                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
+                model: Model.MultiLingualV2,
+                withTimestamps: true  // KEY: Enable character-level timestamps
+            );
+
+            Debug.WriteLine($"🏴‍☠️ Generating timestamped audio for resource {resource.Id} using voice {voice.Name} ({voiceId})");
+
+            // Generate the speech with timestamps
+            var voiceClip = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
+                request,
+                cancellationToken: cancellationToken);
+
+            // Calculate total duration from timestamps
+            var duration = TimeSpan.Zero;
+            if (voiceClip.TimestampedTranscriptCharacters?.Length > 0)
+            {
+                var lastChar = voiceClip.TimestampedTranscriptCharacters[^1];
+                duration = TimeSpan.FromSeconds(lastChar.EndTime);
+            }
+
+            var result = new TimestampedAudioResult
+            {
+                AudioData = voiceClip.ClipData,
+                Characters = voiceClip.TimestampedTranscriptCharacters ?? Array.Empty<TimestampedTranscriptCharacter>(),
+                Duration = duration,
+                CacheFilePath = cacheFilePath
+            };
+
+            // Cache the result
+            try
+            {
+                await File.WriteAllBytesAsync(cacheFilePath, voiceClip.ClipData.ToArray(), cancellationToken);
+                
+                // Save metadata (excluding AudioData to avoid duplication)
+                var metaData = new TimestampedAudioResult
+                {
+                    AudioData = ReadOnlyMemory<byte>.Empty,
+                    Characters = result.Characters,
+                    Duration = result.Duration,
+                    CacheFilePath = result.CacheFilePath
+                };
+                
+                var metaJson = System.Text.Json.JsonSerializer.Serialize(metaData);
+                await File.WriteAllTextAsync(cacheMetaPath, metaJson, cancellationToken);
+                
+                Debug.WriteLine($"🏴‍☠️ Cached timestamped audio: {voiceClip.ClipData.Length} bytes, {result.Characters.Length} characters, {duration.TotalSeconds:F1}s");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"⚠️ Failed to cache timestamped audio: {ex.Message}");
+                // Continue without caching
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"🏴‍☠️ Error in GenerateTimestampedAudioAsync: {ex.Message}");
+            throw;
         }
     }
 
