@@ -43,8 +43,9 @@ public class InteractiveTextRenderer : SKCanvasView
     
     // Rendering resources
     private SKPaint _textPaint;
-    private SKPaint _highlightPaint;
+    private SKPaint _highlightedTextPaint; // NEW: Paint for highlighted sentence text
     private SKPaint _vocabularyPaint;
+    private SKPaint _highlightedVocabularyPaint; // NEW: Paint for highlighted vocabulary text
     private SKFont _font;
     private bool _needsLayout = true;
     
@@ -130,7 +131,9 @@ public class InteractiveTextRenderer : SKCanvasView
             if (_textPaint != null && _vocabularyPaint != null)
             {
                 _textPaint.TextSize = fontSize;
+                _highlightedTextPaint.TextSize = fontSize;
                 _vocabularyPaint.TextSize = fontSize;
+                _highlightedVocabularyPaint.TextSize = fontSize;
                 
                 // Update font with current typeface (will be Korean font once loaded)
                 if (_font != null)
@@ -139,9 +142,11 @@ public class InteractiveTextRenderer : SKCanvasView
                     _font.Dispose();
                     _font = new SKFont(currentTypeface, fontSize);
                     
-                    // Apply the typeface to paints
+                    // Apply the typeface to all paints
                     _textPaint.Typeface = currentTypeface;
+                    _highlightedTextPaint.Typeface = currentTypeface;
                     _vocabularyPaint.Typeface = currentTypeface;
+                    _highlightedVocabularyPaint.Typeface = currentTypeface;
                 }
                 
                 _needsLayout = true;
@@ -183,17 +188,20 @@ public class InteractiveTextRenderer : SKCanvasView
             };
             System.Diagnostics.Debug.WriteLine($"✅ Text paint created: Size={_textPaint.TextSize}, Color={_textPaint.Color}");
 
-            // Highlight paint for current sentence
-            _highlightPaint = new SKPaint
+            // Highlighted text paint for current sentence - use primary color for sentence highlighting
+            var highlightColor = ApplicationTheme.Primary.ToSKColor();
+            _highlightedTextPaint = new SKPaint
             {
                 IsAntialias = true,
-                Color = _highlightColor.ToSKColor(),
-                Style = SKPaintStyle.Fill
+                TextSize = _fontSize,
+                Color = highlightColor,
+                TextAlign = SKTextAlign.Left,
+                Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
             };
-            System.Diagnostics.Debug.WriteLine($"✅ Highlight paint created");
+            System.Diagnostics.Debug.WriteLine($"✅ Highlighted text paint created: Size={_highlightedTextPaint.TextSize}, Color={_highlightedTextPaint.Color}");
 
-            // Vocabulary paint for vocabulary words - use primary color for vocabulary highlighting
-            var vocabColor = ApplicationTheme.Primary.ToSKColor();
+            // Vocabulary paint for vocabulary words - use secondary color for vocabulary highlighting
+            var vocabColor = ApplicationTheme.Tertiary.ToSKColor();
             _vocabularyPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -205,6 +213,22 @@ public class InteractiveTextRenderer : SKCanvasView
                 // Will draw underline manually if needed
             };
             System.Diagnostics.Debug.WriteLine($"✅ Vocabulary paint created: Size={_vocabularyPaint.TextSize}, Color={_vocabularyPaint.Color}");
+
+            // Highlighted vocabulary paint for vocabulary words in current sentence - use primary + secondary mix
+            var highlightedVocabColor = Color.FromRgba(
+                (ApplicationTheme.Primary.Red + ApplicationTheme.Secondary.Red) / 2,
+                (ApplicationTheme.Primary.Green + ApplicationTheme.Secondary.Green) / 2,
+                (ApplicationTheme.Primary.Blue + ApplicationTheme.Secondary.Blue) / 2,
+                1.0f).ToSKColor();
+            _highlightedVocabularyPaint = new SKPaint
+            {
+                IsAntialias = true,
+                TextSize = _fontSize,
+                Color = highlightedVocabColor,
+                TextAlign = SKTextAlign.Left,
+                Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
+            };
+            System.Diagnostics.Debug.WriteLine($"✅ Highlighted vocabulary paint created: Size={_highlightedVocabularyPaint.TextSize}, Color={_highlightedVocabularyPaint.Color}");
 
             // Font for text measurement - Initialize with default, load Korean font async
             _font = new SKFont(SKTypeface.Default, _fontSize);
@@ -245,9 +269,11 @@ public class InteractiveTextRenderer : SKCanvasView
                         _font?.Dispose();
                         _font = new SKFont(typeface, _fontSize);
                         
-                        // CRITICAL: Apply the Korean typeface to both paints
+                        // CRITICAL: Apply the Korean typeface to all paints
                         _textPaint.Typeface = typeface;
+                        _highlightedTextPaint.Typeface = typeface;
                         _vocabularyPaint.Typeface = typeface;
+                        _highlightedVocabularyPaint.Typeface = typeface;
                         
                         InvalidateSurface(); // Redraw with new font
                         System.Diagnostics.Debug.WriteLine("✅ Successfully loaded and applied Korean font to paints");
@@ -465,7 +491,7 @@ public class InteractiveTextRenderer : SKCanvasView
             System.Diagnostics.Debug.WriteLine($"🎨 Canvas cleared with RED color for testing");
             
             // Early return if paints are not initialized yet
-            if (_textPaint == null || _highlightPaint == null || _vocabularyPaint == null)
+            if (_textPaint == null || _highlightedTextPaint == null || _vocabularyPaint == null || _highlightedVocabularyPaint == null)
             {
                 System.Diagnostics.Debug.WriteLine("❌ Paints not initialized yet, skipping render");
                 return;
@@ -487,32 +513,10 @@ public class InteractiveTextRenderer : SKCanvasView
                 _needsLayout = false;
             }
             
-            // Draw highlighting for current sentence
-            if (_currentSentenceIndex >= 0 && _currentSentenceIndex < _sentenceBounds.Count)
-            {
-                DrawSentenceHighlight(canvas);
-            }
-            
-            // Draw all words
+            // Draw all words (highlighting is now handled by text color in DrawWords)
             DrawWords(canvas);
             
         }, 2.0); // Target <2ms for excellent performance
-    }
-
-    private void DrawSentenceHighlight(SKCanvas canvas)
-    {
-        var sentenceBounds = _sentenceBounds[_currentSentenceIndex];
-        
-        // Find all words in this sentence and draw background
-        for (int i = sentenceBounds.StartWordIndex; i <= sentenceBounds.EndWordIndex && i < _wordBounds.Count; i++)
-        {
-            var wordBounds = _wordBounds[i];
-            var rect = wordBounds.Bounds;
-            
-            // Expand rectangle slightly for better visual appearance
-            rect.Inflate(2, 1);
-            canvas.DrawRect(rect, _highlightPaint);
-        }
     }
 
     private void DrawWords(SKCanvas canvas)
@@ -521,8 +525,22 @@ public class InteractiveTextRenderer : SKCanvasView
         
         foreach (var wordBounds in _wordBounds)
         {
-            var paint = wordBounds.IsVocabulary ? _vocabularyPaint : _textPaint;
-            System.Diagnostics.Debug.WriteLine($"🖍️ Drawing word '{wordBounds.Text}' at {wordBounds.Position} with color {paint.Color}");
+            // Determine if this word is in the currently highlighted sentence
+            bool isInHighlightedSentence = _currentSentenceIndex >= 0 && 
+                                         wordBounds.SentenceIndex == _currentSentenceIndex;
+            
+            // Choose the appropriate paint based on vocabulary status and highlighting
+            SKPaint paint;
+            if (wordBounds.IsVocabulary)
+            {
+                paint = isInHighlightedSentence ? _highlightedVocabularyPaint : _vocabularyPaint;
+            }
+            else
+            {
+                paint = isInHighlightedSentence ? _highlightedTextPaint : _textPaint;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"🖍️ Drawing word '{wordBounds.Text}' at {wordBounds.Position} with color {paint.Color} (highlighted: {isInHighlightedSentence})");
             canvas.DrawText(wordBounds.Text, wordBounds.Position, paint);
         }
         
@@ -604,13 +622,15 @@ public class InteractiveTextRenderer : SKCanvasView
         {
             // Clean up resources when handler changes
             _textPaint?.Dispose();
-            _highlightPaint?.Dispose();
+            _highlightedTextPaint?.Dispose();
             _vocabularyPaint?.Dispose();
+            _highlightedVocabularyPaint?.Dispose();
             _font?.Dispose();
             
             _textPaint = null!;
-            _highlightPaint = null!;
+            _highlightedTextPaint = null!;
             _vocabularyPaint = null!;
+            _highlightedVocabularyPaint = null!;
             _font = null!;
         }
     }
