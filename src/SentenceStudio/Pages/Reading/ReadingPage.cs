@@ -714,34 +714,52 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     async Task PreviousSentence()
     {
+        // Handle case where no sentence is currently selected
+        if (State.CurrentSentenceIndex == -1)
+        {
+            SetState(s => s.CurrentSentenceIndex = 0);
+            return;
+        }
+        
         if (State.CurrentSentenceIndex > 0)
         {
-            // Use TimestampedAudioManager navigation to maintain playback
-            if (_audioManager != null)
+            var newIndex = State.CurrentSentenceIndex - 1;
+            
+            // ALWAYS update the visual highlighting immediately for responsive UI
+            SetState(s => s.CurrentSentenceIndex = newIndex);
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PreviousSentence: Updated visual highlighting to sentence {newIndex}");
+            
+            // If audio is playing and we have an audio manager, also update audio position
+            if (_audioManager != null && State.IsAudioPlaying)
             {
                 await _audioManager.PreviousSentenceAsync();
-            }
-            else
-            {
-                // Fallback if no audio manager
-                await StartPlaybackFromSentence(State.CurrentSentenceIndex - 1);
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PreviousSentence: Updated audio position to sentence {newIndex}");
             }
         }
     }
     
     async Task NextSentence()
     {
+        // Handle case where no sentence is currently selected
+        if (State.CurrentSentenceIndex == -1)
+        {
+            SetState(s => s.CurrentSentenceIndex = 0);
+            return;
+        }
+        
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
-            // Use TimestampedAudioManager navigation to maintain playback
-            if (_audioManager != null)
+            var newIndex = State.CurrentSentenceIndex + 1;
+            
+            // ALWAYS update the visual highlighting immediately for responsive UI
+            SetState(s => s.CurrentSentenceIndex = newIndex);
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ NextSentence: Updated visual highlighting to sentence {newIndex}");
+            
+            // If audio is playing and we have an audio manager, also update audio position
+            if (_audioManager != null && State.IsAudioPlaying)
             {
                 await _audioManager.NextSentenceAsync();
-            }
-            else
-            {
-                // Fallback if no audio manager
-                await StartPlaybackFromSentence(State.CurrentSentenceIndex + 1);
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ NextSentence: Updated audio position to sentence {newIndex}");
             }
         }
     }
@@ -1103,13 +1121,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {sentenceIndex}");
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {State.CurrentSentenceIndex}");
         
-        SetState(s => {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Setting state from {s.CurrentSentenceIndex} to {sentenceIndex}");
-            s.CurrentSentenceIndex = sentenceIndex;
-        });
+        // Only update if the sentence index actually changed to avoid unnecessary re-renders
+        if (State.CurrentSentenceIndex != sentenceIndex)
+        {
+            SetState(s => {
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Setting state from {s.CurrentSentenceIndex} to {sentenceIndex}");
+                s.CurrentSentenceIndex = sentenceIndex;
+            });
+            
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: No change needed, already at sentence {sentenceIndex}");
+        }
         
         PerformanceLogger.EndTimer("OnCurrentSentenceChanged", 5.0); // Warn if > 5ms
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
     }
 
     private void OnProgressUpdated(object? sender, double currentTime)
