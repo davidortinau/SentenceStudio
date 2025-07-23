@@ -1,3 +1,4 @@
+using ElevenLabs;
 using Plugin.Maui.Audio;
 using SentenceStudio.Models;
 using System.Timers;
@@ -27,6 +28,13 @@ public class TimestampedAudioManager : IDisposable
     public TimeSpan Duration => TimeSpan.FromSeconds(_player?.Duration ?? 0.0);
     public int CurrentSentenceIndex => _currentSentenceIndex;
 
+    private List<(int StartCharIdx, int EndCharIdx)> _sentenceCharRanges = new();
+    private List<string> _sentences = new();
+    
+    // Pre-calculated sentence timing lookup for super-fast sentence detection
+    private Dictionary<double, int> _timestampToSentenceMap = new();
+    private List<(double StartTime, double EndTime, int SentenceIndex)> _sentenceTimings = new();
+
     public TimestampedAudioManager(SentenceTimingCalculator timingCalculator)
     {
         _timingCalculator = timingCalculator;
@@ -40,8 +48,50 @@ public class TimestampedAudioManager : IDisposable
         // Dispose existing player
         _player?.Dispose();
         _progressTimer?.Dispose();
-
         _currentAudio = audio;
+
+        // Precompute sentence-to-character-index mapping
+        _sentences = SentenceTimingCalculator.SplitIntoSentences(audio.FullTranscript);
+        _sentenceCharRanges = BuildSentenceCharRanges(_sentences, audio.FullTranscript, audio.Characters);
+
+        // 🎯 NEW: Pre-build efficient timestamp-to-sentence lookup table
+        _sentenceTimings = BuildSentenceTimings(_sentenceCharRanges, audio.Characters);
+        _timestampToSentenceMap = BuildTimestampLookupTable(_sentenceTimings);
+
+        // Print out the full transcript
+        System.Diagnostics.Debug.WriteLine("=== Full Transcript ===");
+        System.Diagnostics.Debug.WriteLine(audio.FullTranscript);
+
+        // Print out the sentences
+        System.Diagnostics.Debug.WriteLine("=== Sentences ===");
+        for (int i = 0; i < _sentences.Count; i++)
+        {
+            System.Diagnostics.Debug.WriteLine($"Sentence {i}: {_sentences[i]}");
+        }
+
+        // Print out the character data with timestamps
+        System.Diagnostics.Debug.WriteLine("=== Character Timestamp Data ===");
+        for (int i = 0; i < audio.Characters.Length; i++)
+        {
+            var c = audio.Characters[i];
+            System.Diagnostics.Debug.WriteLine($"CharIdx {i}: '{c.Character}' [{c.StartTime:F2}s - {c.EndTime:F2}s]");
+        }
+
+        // Print out the sentence-to-character index mapping
+        System.Diagnostics.Debug.WriteLine("=== Sentence Character Ranges ===");
+        for (int i = 0; i < _sentenceCharRanges.Count; i++)
+        {
+            var (start, end) = _sentenceCharRanges[i];
+            System.Diagnostics.Debug.WriteLine($"Sentence {i}: CharIdx {start} to {end} => \"{audio.FullTranscript.Substring(start, end - start + 1)}\"");
+        }
+
+        // Print out the pre-calculated sentence timings
+        System.Diagnostics.Debug.WriteLine("=== 🎯 Pre-calculated Sentence Timings ===");
+        for (int i = 0; i < _sentenceTimings.Count; i++)
+        {
+            var (startTime, endTime, sentenceIdx) = _sentenceTimings[i];
+            System.Diagnostics.Debug.WriteLine($"Sentence {sentenceIdx}: {startTime:F2}s - {endTime:F2}s");
+        }
 
         try
         {
@@ -59,6 +109,118 @@ public class TimestampedAudioManager : IDisposable
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error loading audio: {ex.Message}");
             throw;
         }
+    }
+
+    /// <summary>
+    /// Build a mapping from sentence index to (startCharIdx, endCharIdx) in the character array
+    /// </summary>
+    private List<(int StartCharIdx, int EndCharIdx)> BuildSentenceCharRanges(List<string> sentences, string transcript, TimestampedTranscriptCharacter[] characters)
+    {
+        var ranges = new List<(int, int)>();
+        int charArrayPos = 0;
+        foreach (var sentence in sentences)
+        {
+            // Remove leading/trailing whitespace for matching
+            var trimmedSentence = sentence.Trim();
+            if (string.IsNullOrEmpty(trimmedSentence))
+            {
+                ranges.Add((0, 0));
+                continue;
+            }
+            // Find start
+            int startCharIdx = -1;
+            int matchPos = 0;
+            for (; charArrayPos < characters.Length; charArrayPos++)
+            {
+                // Skip whitespace in both
+                while (matchPos < trimmedSentence.Length && char.IsWhiteSpace(trimmedSentence[matchPos])) matchPos++;
+                if (matchPos >= trimmedSentence.Length) break;
+                if (characters[charArrayPos].Character.ToString() == trimmedSentence[matchPos].ToString())
+                {
+                    if (startCharIdx == -1)
+                        startCharIdx = charArrayPos;
+                    matchPos++;
+                    // If we've matched the whole sentence, break
+                    if (matchPos >= trimmedSentence.Length)
+                        break;
+                }
+            }
+            int endCharIdx = charArrayPos;
+            // Clamp indices
+            startCharIdx = Math.Max(0, Math.Min(startCharIdx, characters.Length - 1));
+            endCharIdx = Math.Max(0, Math.Min(endCharIdx, characters.Length - 1));
+            ranges.Add((startCharIdx, endCharIdx));
+            charArrayPos = endCharIdx + 1;
+        }
+        return ranges;
+    }
+
+    /// <summary>
+    /// 🎯 Pre-calculate sentence timings from character ranges for super-fast lookup
+    /// </summary>
+    private List<(double StartTime, double EndTime, int SentenceIndex)> BuildSentenceTimings(
+        List<(int StartCharIdx, int EndCharIdx)> sentenceRanges, 
+        TimestampedTranscriptCharacter[] characters)
+    {
+        var timings = new List<(double, double, int)>();
+        
+        for (int sentenceIdx = 0; sentenceIdx < sentenceRanges.Count; sentenceIdx++)
+        {
+            var (startCharIdx, endCharIdx) = sentenceRanges[sentenceIdx];
+            
+            // Clamp indices to valid range
+            startCharIdx = Math.Max(0, Math.Min(startCharIdx, characters.Length - 1));
+            endCharIdx = Math.Max(0, Math.Min(endCharIdx, characters.Length - 1));
+            
+            var startTime = characters[startCharIdx].StartTime;
+            var endTime = characters[endCharIdx].EndTime;
+            
+            timings.Add((startTime, endTime, sentenceIdx));
+            
+            System.Diagnostics.Debug.WriteLine($"🎯 Sentence {sentenceIdx}: {startTime:F2}s - {endTime:F2}s");
+        }
+        
+        return timings;
+    }
+
+    /// <summary>
+    /// 🎯 Build a super-fast timestamp lookup table (every 100ms resolution)
+    /// Maps timestamp -> sentence index for O(1) lookups during playback
+    /// </summary>
+    private Dictionary<double, int> BuildTimestampLookupTable(List<(double StartTime, double EndTime, int SentenceIndex)> sentenceTimings)
+    {
+        var lookupTable = new Dictionary<double, int>();
+        
+        if (!sentenceTimings.Any()) return lookupTable;
+        
+        // Resolution: every 100ms for balance of accuracy vs memory
+        const double resolution = 0.1; // 100ms
+        
+        var maxTime = sentenceTimings.Max(t => t.EndTime);
+        
+        for (double time = 0; time <= maxTime; time += resolution)
+        {
+            // Find which sentence this timestamp belongs to
+            var sentenceIndex = -1;
+            
+            for (int i = 0; i < sentenceTimings.Count; i++)
+            {
+                var (startTime, endTime, idx) = sentenceTimings[i];
+                if (time >= startTime && time <= endTime)
+                {
+                    sentenceIndex = idx;
+                    break;
+                }
+            }
+            
+            // Store the mapping (round to resolution to ensure exact key matches)
+            var key = Math.Round(time, 1);
+            lookupTable[key] = sentenceIndex;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"🎯 Built timestamp lookup table with {lookupTable.Count} entries (0.0s to {maxTime:F1}s)");
+        
+        return lookupTable;
     }
 
     /// <summary>
@@ -179,58 +341,79 @@ public class TimestampedAudioManager : IDisposable
     /// </summary>
     public List<string> GetSentences()
     {
-        if (_currentAudio == null || string.IsNullOrEmpty(_currentAudio.FullTranscript))
-            return new List<string>();
-
-        // Use the timing calculator's sentence splitting for consistency
-        var sentences = new List<string>();
-        var transcript = _currentAudio.FullTranscript;
-        var currentSentence = "";
-        
-        for (int i = 0; i < transcript.Length; i++)
-        {
-            var c = transcript[i];
-            currentSentence += c;
-            
-            if (IsSentenceDelimiter(c) && IsEndOfSentence(transcript, i))
-            {
-                sentences.Add(currentSentence.Trim());
-                currentSentence = "";
-            }
-        }
-        
-        if (!string.IsNullOrWhiteSpace(currentSentence))
-        {
-            sentences.Add(currentSentence.Trim());
-        }
-        
-        return sentences.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+        return _sentences ?? new List<string>();
     }
 
     /// <summary>
-    /// Real-time progress tracking with character-level sentence detection
+    /// 🎯 SUPER-FAST real-time progress tracking using pre-calculated lookup table
+    /// No more character searching or looping - just O(1) dictionary lookup!
     /// </summary>
     private void OnProgressTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_player?.IsPlaying != true || _currentAudio == null) 
             return;
-
+            
         var currentTime = _player.CurrentPosition;
         ProgressUpdated?.Invoke(this, currentTime);
-
-        // Use REAL-TIME sentence detection based on character timestamps!
-        var newSentenceIndex = _timingCalculator.GetCurrentSentenceIndex(
-            currentTime, 
-            _currentAudio.Characters, 
-            _currentAudio.FullTranscript
-        );
-
-        // Fire event if sentence changed
-        if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0)
+        
+        // 🎯 FAST LOOKUP: Round to our resolution and check lookup table
+        var lookupKey = Math.Round(currentTime, 1); // Round to 100ms resolution
+        
+        int newSentenceIndex = -1;
+        if (_timestampToSentenceMap.TryGetValue(lookupKey, out var sentenceIdx))
         {
+            newSentenceIndex = sentenceIdx;
+        }
+        else
+        {
+            // Fallback: find closest timestamp in our lookup table
+            var closestKey = _timestampToSentenceMap.Keys
+                .Where(k => Math.Abs(k - currentTime) < 0.2) // Within 200ms
+                .OrderBy(k => Math.Abs(k - currentTime))
+                .FirstOrDefault();
+                
+            if (closestKey > 0 && _timestampToSentenceMap.TryGetValue(closestKey, out var fallbackIdx))
+            {
+                newSentenceIndex = fallbackIdx;
+            }
+        }
+        
+        // Update sentence if it changed
+        if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0 && newSentenceIndex < _sentences.Count)
+        {
+            System.Diagnostics.Debug.WriteLine($"🎯 [FAST LOOKUP] Sentence changed: {_currentSentenceIndex} -> {newSentenceIndex} at {currentTime:F2}s");
             _currentSentenceIndex = newSentenceIndex;
             SentenceChanged?.Invoke(this, _currentSentenceIndex);
         }
+    }
+
+    /// <summary>
+    /// Find the character index in the timestamp array for a given audio time
+    /// </summary>
+    private int GetCharacterIndexAtTime(double timeSeconds, TimestampedTranscriptCharacter[] characters)
+    {
+        for (int i = 0; i < characters.Length; i++)
+        {
+            var character = characters[i];
+            if (timeSeconds >= character.StartTime && timeSeconds <= character.EndTime)
+            {
+                return i;
+            }
+        }
+        // If exact match not found, find the closest character
+        var closestIndex = -1;
+        var minDifference = double.MaxValue;
+        for (int i = 0; i < characters.Length; i++)
+        {
+            var character = characters[i];
+            var difference = Math.Abs(timeSeconds - character.StartTime);
+            if (difference < minDifference)
+            {
+                minDifference = difference;
+                closestIndex = i;
+            }
+        }
+        return closestIndex;
     }
 
     private void OnPlaybackEnded(object? sender, EventArgs e)

@@ -23,6 +23,7 @@ Documentation via Context 7 is here:
 - .NET MAUI https://context7.com/dotnet/maui/llms.txt
 - Community Toolkit for .NET MAUI https://context7.com/communitytoolkit/maui.git/llms.txt
 - MauiReactor https://context7.com/adospace/reactorui-maui/llms.txt
+- SkiaSharp https://context7.com/mono/skiasharp/llms.txt
 - ElevenLabs API Official Docs https://context7.com/elevenlabs/elevenlabs-docs/llms.txt
 - ElevenLabs-DotNet SDK https://context7.com/rageagainstthepixel/elevenlabs-dotnet/llms.txt
 

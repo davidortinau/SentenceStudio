@@ -6,3 +6,5 @@ Include these prompt instructions if their link's name is used.
 - [async](dotnet/async.prompt.md)
 - [Code Style](dotnet/codestyle.prompt.md)
 - [Testing using xUnit](dotnet/testing.xunit.prompt.md)
+- [performance](dotnet/maui/maui-performance-diagnostics.prompt.md)
+- [diagnostics](dotnet/maui/maui-performance-diagnostics.prompt.md)

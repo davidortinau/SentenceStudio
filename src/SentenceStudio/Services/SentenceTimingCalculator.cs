@@ -23,23 +23,19 @@ public class SentenceTimingCalculator
     {
         if (characters == null || characters.Length == 0 || string.IsNullOrEmpty(fullTranscript))
             return -1;
-
-        // Find the character being spoken at the current time
         var currentCharIndex = GetCharacterIndexAtTime(currentTimeSeconds, characters);
-        
-        if (currentCharIndex == -1) 
+        if (currentCharIndex == -1)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] No character found for time {currentTimeSeconds:F2}s");
             return -1;
-
-        // Find which sentence this character belongs to by looking backwards for sentence boundaries
+        }
         var sentenceIndex = GetSentenceIndexForCharacter(currentCharIndex, fullTranscript);
-        
-        // BOUNDS CHECK: Ensure we don't return invalid indices
         var sentences = SplitIntoSentences(fullTranscript);
         if (sentenceIndex < 0 || sentenceIndex >= sentences.Count)
         {
-            sentenceIndex = Math.Max(0, Math.Min(sentenceIndex, sentences.Count - 1));
+            System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Invalid sentence index {sentenceIndex} for char {currentCharIndex} (time {currentTimeSeconds:F2}s), sentences.Count={sentences.Count}");
+            return -1;
         }
-        
         return sentenceIndex;
     }
 
@@ -173,56 +169,47 @@ public class SentenceTimingCalculator
     /// </summary>
     private int GetSentenceIndexForCharacter(int charIndex, string fullTranscript)
     {
-        if (charIndex < 0 || charIndex >= fullTranscript.Length) 
+        if (charIndex < 0 || charIndex >= fullTranscript.Length)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Char index {charIndex} out of bounds for transcript length {fullTranscript.Length}");
             return -1;
-
+        }
         var sentences = SplitIntoSentences(fullTranscript);
         var currentPos = 0;
-        
         for (int sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)
         {
             var sentenceText = sentences[sentenceIndex];
             var sentenceLength = sentenceText.Length;
-            
-            // Check if the character falls within this sentence
             if (charIndex >= currentPos && charIndex < currentPos + sentenceLength)
             {
                 return sentenceIndex;
             }
-            
             currentPos += sentenceLength;
-            
-            // Skip sentence delimiters and whitespace - BUT COUNT THEM!
-            while (currentPos < fullTranscript.Length && 
-                   (IsSentenceDelimiter(fullTranscript[currentPos]) || char.IsWhiteSpace(fullTranscript[currentPos])))
+            while (currentPos < fullTranscript.Length && (IsSentenceDelimiter(fullTranscript[currentPos]) || char.IsWhiteSpace(fullTranscript[currentPos])))
             {
                 currentPos++;
             }
         }
-        
-        // SAFETY CHECK: Don't return invalid indices
-        return Math.Max(0, sentences.Count - 1);
+        System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Could not map char index {charIndex} to a sentence");
+        return -1;
     }
 
     /// <summary>
     /// Splits text into sentences using proper sentence boundaries
     /// </summary>
-    private List<string> SplitIntoSentences(string text)
+    public static List<string> SplitIntoSentences(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return new List<string>();
 
         var sentences = new List<string>();
         var currentSentence = "";
-        
         for (int i = 0; i < text.Length; i++)
         {
             var c = text[i];
             currentSentence += c;
-            
             if (IsSentenceDelimiter(c))
             {
-                // Check if this is actually the end of a sentence (not an abbreviation, etc.)
                 if (IsEndOfSentence(text, i))
                 {
                     var trimmedSentence = currentSentence.Trim();
@@ -234,8 +221,6 @@ public class SentenceTimingCalculator
                 }
             }
         }
-        
-        // Add any remaining text as the last sentence
         if (!string.IsNullOrWhiteSpace(currentSentence))
         {
             var trimmedSentence = currentSentence.Trim();
@@ -244,50 +229,28 @@ public class SentenceTimingCalculator
                 sentences.Add(trimmedSentence);
             }
         }
-        
         return sentences;
     }
 
-    /// <summary>
-    /// Checks if character is a sentence delimiter
-    /// </summary>
-    private bool IsSentenceDelimiter(char c)
+    public static bool IsSentenceDelimiter(char c)
     {
-        return c == '.' || c == '!' || c == '?' || c == '。' || c == '！' || c == '？'; // Include Korean punctuation
+        return c == '.' || c == '!' || c == '?' || c == '。' || c == '！' || c == '？';
     }
 
-    /// <summary>
-    /// Determines if a delimiter actually ends a sentence (vs abbreviation, etc.)
-    /// Updated to work with international text including Korean, Chinese, Japanese, etc.
-    /// </summary>
-    private bool IsEndOfSentence(string text, int delimiterIndex)
+    public static bool IsEndOfSentence(string text, int delimiterIndex)
     {
-        // If at end of text, it's definitely end of sentence
-        if (delimiterIndex + 1 >= text.Length) 
+        if (delimiterIndex + 1 >= text.Length)
             return true;
-        
         var delimiter = text[delimiterIndex];
         var nextChar = text[delimiterIndex + 1];
-        
-        // Korean punctuation (。！？) are almost always sentence endings
         if (delimiter == '。' || delimiter == '！' || delimiter == '？')
             return true;
-        
-        // For Western punctuation, be more lenient:
-        // 1. If followed by whitespace, it's likely a sentence end
-        // 2. Don't require capital letters (for international text)
         if (char.IsWhiteSpace(nextChar))
             return true;
-        
-        // If not followed by whitespace, check for some obvious non-sentence cases
-        // like decimal numbers (3.14) or abbreviations (Mr.)
         if (delimiter == '.' && char.IsDigit(nextChar))
             return false;
-        
-        // Default to true for ? and ! even without whitespace (more lenient)
         if (delimiter == '?' || delimiter == '!')
             return true;
-        
         return false;
     }
 

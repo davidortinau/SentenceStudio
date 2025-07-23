@@ -3,6 +3,7 @@ using SentenceStudio.Pages.Dashboard;
 using System.Text.RegularExpressions;
 using SentenceStudio.Services;
 using SentenceStudio.Models;
+using SentenceStudio.Components;
 
 namespace SentenceStudio.Pages.Reading;
 
@@ -10,6 +11,7 @@ class TextSegment
 {
     public string Text { get; set; } = string.Empty;
     public bool IsVocabulary { get; set; }
+    public bool IsWord { get; set; } // 🎯 NEW: Indicates if this is a tappable word
     public VocabularyWord VocabularyWord { get; set; }
 }
 
@@ -46,6 +48,24 @@ class ReadingPageState
     public string ErrorMessage { get; set; }
     public bool HasShownJumpHint { get; set; } = false;
     public bool HasDismissedInstructions { get; set; } = false;
+    
+    // 🎯 NEW: Cached UI content for performance
+    public VisualNode[] CachedParagraphs { get; set; } = Array.Empty<VisualNode>();
+    public List<List<TextSegment>> CachedSentenceSegments { get; set; } = new();
+    public bool IsContentCached { get; set; } = false;
+    public double CachedFontSize { get; set; } = 0.0;
+    public int CachedCurrentSentence { get; set; } = -2; // Use -2 to force initial cache
+    public bool CachedIsAudioPlaying { get; set; } = false;
+    
+    // 🚀 PERFORMANCE: Smart highlighting cache - avoids rebuilding everything
+    public Dictionary<int, VisualNode> CachedParagraphsByIndex { get; set; } = new();
+    public Dictionary<int, List<(string, int)>> CachedParagraphSentences { get; set; } = new();
+    public bool IsStructuralCacheValid { get; set; } = false;
+    
+    // 🎯 NEW: FormattedString caching to avoid span recreation
+    public Dictionary<int, Microsoft.Maui.Controls.FormattedString> CachedFormattedStrings { get; set; } = new();
+    public Dictionary<int, int> CachedParagraphHighlightedSentence { get; set; } = new();
+    public int LastHighlightedSentence { get; set; } = -1;
 }
 
 partial class ReadingPage : Component<ReadingPageState, ActivityProps>
@@ -172,75 +192,267 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     VisualNode RenderReadingContent() =>
         ScrollView(
             VStack(
-                new VisualNode[] { Label(State.Resource?.Title ?? "Reading")
-                .FontAttributes(FontAttributes.Bold)
-                .FontSize(18)
-                .GridColumn(0)
-                .VCenter()
-                .ThemeKey(ApplicationTheme.Title3) }
-                    .Concat(RenderParagraphs())
-                    .ToArray()
+                new RxInteractiveTextRenderer()
+                    .Content(State.Sentences, State.VocabularyWords, PrepareSegments())
+                    .CurrentSentence(State.CurrentSentenceIndex)
+                    .FontSize((float)State.FontSize)
+                    .OnVocabularyWordTapped((v) => ShowVocabularyBottomSheet(v))
+                    .OnWordTapped(word => {
+                        // Handle word tap for dictionary lookup
+                        Debug.WriteLine($"Word tapped: {word}");
+                    })
+                    .HeightRequest(600)
+                    .HorizontalOptions(LayoutOptions.FillAndExpand)
             )
             .Spacing(ApplicationTheme.Size160)
             .Padding(ApplicationTheme.Size240)
         )
         .GridRow(2);
+
+    List<List<SentenceStudio.Components.TextSegment>> PrepareSegments()
+{
+    var segments = new List<List<SentenceStudio.Components.TextSegment>>();
+    
+    foreach (var sentence in State.Sentences)
+    {
+        var sentenceSegments = new List<SentenceStudio.Components.TextSegment>();
+        var words = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        
+        foreach (var word in words)
+        {
+            var vocab = State.VocabularyWords?.FirstOrDefault(v => 
+                v.TargetLanguageTerm?.ToLowerInvariant() == word.ToLowerInvariant());
+            
+            sentenceSegments.Add(new SentenceStudio.Components.TextSegment
+            {
+                Text = word,
+                IsVocabulary = vocab != null,
+                IsWord = true,
+                VocabularyWord = vocab
+            });
+            
+            if (word != words.Last())
+            {
+                sentenceSegments.Add(new SentenceStudio.Components.TextSegment
+                {
+                    Text = " ",
+                    IsVocabulary = false,
+                    IsWord = false
+                });
+            }
+        }
+        
+        segments.Add(sentenceSegments);
+    }
+    
+    return segments;
+}
     
     VisualNode[] RenderParagraphs()
     {
-        var paragraphs = new List<VisualNode>();
-        var paragraphGroups = GroupSentencesIntoParagraphs();
-        
-        foreach (var (paragraphSentences, paragraphIndex) in paragraphGroups.Select((p, i) => (p, i)))
+        return PerformanceLogger.Time("RenderParagraphs", () =>
         {
-            var spans = new List<VisualNode>();
-            
-            foreach (var (sentence, sentenceIndex) in paragraphSentences)
+            // 🚀 PERFORMANCE: Check if only sentence highlighting changed (most common case)
+            bool onlyHighlightingChanged = State.IsStructuralCacheValid && 
+                State.CachedFontSize == State.FontSize &&
+                State.CachedCurrentSentence != State.CurrentSentenceIndex &&
+                State.CachedIsAudioPlaying == State.IsAudioPlaying;
+                
+            if (onlyHighlightingChanged)
             {
-                var segments = ParseSentenceForVocabulary(sentence);
-                
-                foreach (var segment in segments)
+                // Fast path: Only update paragraph colors without rebuilding structure
+                return PerformanceLogger.Time("FastHighlightingUpdate", () =>
                 {
-                    var textColor = GetTextColorForSentence(sentenceIndex);
-                    
-                    if (segment.IsVocabulary)
-                    {
-                        // Vocabulary word with interaction
-                        spans.Add(
-                            Span(segment.Text, 
-                                ApplicationTheme.Primary, 
-                                FontAttributes.None,
-                                TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
-                                .TextDecorations(TextDecorations.Underline)
-                        );
-                    }
-                    else
-                    {
-                        // Regular text with highlighting if active
-                        spans.Add(Span(segment.Text, textColor));
-                    }
+                    var updatedParagraphs = UpdateParagraphHighlighting();
+                    State.CachedCurrentSentence = State.CurrentSentenceIndex;
+                    System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update completed");
+                    return updatedParagraphs;
+                }, 2.0); // Warn if > 2ms
+            }
+            
+            // 🚀 PERFORMANCE: Check full cache validity 
+            if (State.IsContentCached && 
+                State.CachedFontSize == State.FontSize &&
+                State.CachedCurrentSentence == State.CurrentSentenceIndex &&
+                State.CachedIsAudioPlaying == State.IsAudioPlaying)
+            {
+                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Using cached paragraphs");
+                return State.CachedParagraphs;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Cache miss - rebuilding content (FontSize: {State.CachedFontSize}->{State.FontSize}, Sentence: {State.CachedCurrentSentence}->{State.CurrentSentenceIndex}, Playing: {State.CachedIsAudioPlaying}->{State.IsAudioPlaying})");
+            
+            // Cache is invalid or doesn't exist - rebuild content
+            return PerformanceLogger.Time("FullContentRebuild", () =>
+            {
+                BuildContentCache();
+                return State.CachedParagraphs;
+            }, 20.0); // Warn if > 20ms
+        }, 5.0); // Warn if total > 5ms
+    }
+    
+    VisualNode[] UpdateParagraphHighlighting()
+    {
+        return PerformanceLogger.Time("FastHighlightingUpdate", () =>
+        {
+            // 🚀 PERFORMANCE: New strategy - only update what changed, reuse everything else
+            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update started");
+            
+            // Find which paragraphs actually need updates
+            var paragraphGroups = GroupSentencesIntoParagraphs();
+            var updatedParagraphs = new VisualNode[paragraphGroups.Count];
+            var hasAnyChanges = false;
+            
+            for (int paragraphIndex = 0; paragraphIndex < paragraphGroups.Count; paragraphIndex++)
+            {
+                var paragraphSentences = paragraphGroups[paragraphIndex];
+                var sentenceIndices = paragraphSentences.Select(s => s.Item2).ToList();
+                
+                // Check if this paragraph needs updating
+                bool containsCurrentSentence = sentenceIndices.Contains(State.CurrentSentenceIndex);
+                bool containsPreviousSentence = sentenceIndices.Contains(State.CachedCurrentSentence);
+                bool needsUpdate = containsCurrentSentence || containsPreviousSentence;
+                
+                if (needsUpdate && State.CachedParagraphsByIndex.ContainsKey(paragraphIndex))
+                {
+                    // Rebuild this specific paragraph
+                    updatedParagraphs[paragraphIndex] = BuildSingleParagraph(paragraphSentences, paragraphIndex);
+                    hasAnyChanges = true;
                 }
-                
-                // Add space between sentences
-                if (sentence != paragraphSentences.Last().Item1)
+                else if (State.CachedParagraphsByIndex.ContainsKey(paragraphIndex))
                 {
-                    spans.Add(Span(" "));
+                    // Reuse exactly the same VisualNode instance - no changes
+                    updatedParagraphs[paragraphIndex] = State.CachedParagraphsByIndex[paragraphIndex];
+                }
+                else
+                {
+                    // First time - need to build
+                    updatedParagraphs[paragraphIndex] = BuildSingleParagraph(paragraphSentences, paragraphIndex);
+                    hasAnyChanges = true;
                 }
             }
             
-            paragraphs.Add(
-                VStack(
-                    Label(FormattedString(spans.ToArray()))
+            if (hasAnyChanges)
+            {
+                State.CachedParagraphs = updatedParagraphs;
+                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update completed");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: No changes needed - reusing cached paragraphs");
+            }
+            
+            return State.CachedParagraphs;
+        }, 10.0); // Warn if > 10ms
+    }
+    
+    VisualNode BuildSingleParagraph(List<(string, int)> paragraphSentences, int paragraphIndex)
+    {
+        return PerformanceLogger.Time($"BuildSingleParagraph[{paragraphIndex}]", () =>
+        {
+            var spans = PerformanceLogger.Time("CreateSpans", () =>
+            {
+                var spanList = new List<VisualNode>();
+                
+                foreach (var (sentence, sentenceIndex) in paragraphSentences)
+                {
+                    var segments = PerformanceLogger.Time("ParseSentence", () => 
+                        ParseSentenceForVocabularyAndWords(sentence), 5.0);
+                    
+                    foreach (var segment in segments)
+                    {
+                        var textColor = GetTextColorForSentence(sentenceIndex);
+                        
+                        if (segment.IsVocabulary)
+                        {
+                            // Vocabulary word with interaction
+                            spanList.Add(
+                                Span(segment.Text, 
+                                    ApplicationTheme.Primary, 
+                                    FontAttributes.None,
+                                    TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
+                                    .TextDecorations(TextDecorations.Underline)
+                            );
+                        }
+                        else if (segment.IsWord)
+                        {
+                            // Regular word with dictionary lookup capability
+                            spanList.Add(
+                                Span(segment.Text, 
+                                    textColor, 
+                                    FontAttributes.None,
+                                    TapGestureRecognizer().OnTapped(() => LookupWordInDictionary(segment.Text)))
+                            );
+                        }
+                        else
+                        {
+                            // Regular text with highlighting if active
+                            spanList.Add(Span(segment.Text, textColor));
+                        }
+                    }
+                    
+                    // Add space between sentences
+                    if (sentence != paragraphSentences.Last().Item1)
+                    {
+                        spanList.Add(Span(" "));
+                    }
+                }
+                
+                return spanList;
+            }, 15.0);
+            
+            var formattedString = PerformanceLogger.Time("CreateFormattedString", () =>
+                FormattedString(spans.ToArray()), 5.0);
+            
+            var paragraph = PerformanceLogger.Time("CreateParagraphLayout", () =>
+            {
+                return VStack(
+                    Label(formattedString)
                         .FontSize(State.FontSize)
                         .LineHeight(1.5)
                 )
                 .Padding(ApplicationTheme.Size120)
                 .OnTapped(() => SelectParagraph(paragraphSentences))
-                .OnTapped(() => StartPlaybackFromParagraph(paragraphSentences), 2)
-            );
-        }
-        
-        return paragraphs.ToArray();
+                .OnTapped(() => StartPlaybackFromParagraph(paragraphSentences), 2);
+            }, 5.0);
+            
+            // Cache this paragraph
+            State.CachedParagraphsByIndex[paragraphIndex] = paragraph;
+            State.CachedParagraphSentences[paragraphIndex] = paragraphSentences;
+            
+            return paragraph;
+        }, 8.0); // Warn if total > 8ms
+    }
+
+    void BuildContentCache()
+    {
+        PerformanceLogger.Time("BuildContentCache", () =>
+        {
+            var paragraphs = new List<VisualNode>();
+            var paragraphGroups = GroupSentencesIntoParagraphs();
+            
+            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Building cache for {State.Sentences.Count} sentences in {paragraphGroups.Count} paragraphs");
+            
+            // Clear previous caches
+            State.CachedParagraphsByIndex.Clear();
+            State.CachedParagraphSentences.Clear();
+            
+            foreach (var (paragraphSentences, paragraphIndex) in paragraphGroups.Select((p, i) => (p, i)))
+            {
+                var paragraph = BuildSingleParagraph(paragraphSentences, paragraphIndex);
+                paragraphs.Add(paragraph);
+            }
+
+            // Update cache
+            State.CachedParagraphs = paragraphs.ToArray();
+            State.IsContentCached = true;
+            State.IsStructuralCacheValid = true;
+            State.CachedFontSize = State.FontSize;
+            State.CachedCurrentSentence = State.CurrentSentenceIndex;
+            State.CachedIsAudioPlaying = State.IsAudioPlaying;
+            
+            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Cache built for {paragraphs.Count} paragraphs");
+        }, 30.0); // Warn if > 30ms
     }
     
     List<List<(string, int)>> GroupSentencesIntoParagraphs()
@@ -352,11 +564,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Source(ApplicationTheme.IconPreviousSm)
                 .OnClicked(PreviousSentence)
                 .GridColumn(0),
-            Label($"Sentence {State.CurrentSentenceIndex + 1} of {State.Sentences.Count}")
-                .GridColumn(1)
-                .VCenter()
-                .HCenter()
-                .ThemeKey(ApplicationTheme.Caption1),
+            VStack(
+                Label($"Sentence {State.CurrentSentenceIndex + 1} of {State.Sentences.Count}")
+                    .HCenter()
+                    .ThemeKey(ApplicationTheme.Caption1),
+                Label(FormatPlaybackTime(State.CurrentPlaybackTime))
+                    .HCenter()
+                    .ThemeKey(ApplicationTheme.Caption1)
+                    .FontSize(12)
+                    .IsVisible(State.IsTimestampedAudioLoaded)
+            )
+            .GridColumn(1)
+            .VCenter()
+            .Spacing(4),
             ImageButton()
                 .Source(ApplicationTheme.IconNextSm)
                 .OnClicked(NextSentence)
@@ -539,16 +759,39 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     void IncreaseFontSize()
     {
-        var newSize = Math.Min(State.FontSize + 2, 32.0); // Max font size 32
-        SetState(s => s.FontSize = newSize);
+        var newSize = Math.Min(State.FontSize + 2, 72.0); // Max font size 72 for better accessibility
+        SetState(s => {
+            s.FontSize = newSize;
+            // 🚀 PERFORMANCE: Invalidate cache when font size changes
+            s.IsContentCached = false;
+            s.IsStructuralCacheValid = false;
+        });
         Preferences.Set("ReadingActivity_FontSize", State.FontSize);
     }
     
     void DecreaseFontSize()
     {
         var newSize = Math.Max(State.FontSize - 2, 12.0); // Min font size 12
-        SetState(s => s.FontSize = newSize);
+        SetState(s => {
+            s.FontSize = newSize;
+            // 🚀 PERFORMANCE: Invalidate cache when font size changes
+            s.IsContentCached = false;
+            s.IsStructuralCacheValid = false;
+        });
         Preferences.Set("ReadingActivity_FontSize", State.FontSize);
+    }
+    
+    string FormatPlaybackTime(double timeSeconds)
+    {
+        var time = TimeSpan.FromSeconds(timeSeconds);
+        if (time.TotalHours >= 1)
+        {
+            return $"{time:h\\:mm\\:ss}";
+        }
+        else
+        {
+            return $"{time:m\\:ss}";
+        }
     }
     
     async Task ClearAudioCache()
@@ -558,11 +801,28 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             // Stop any current playback
             StopCurrentPlayback();
             
+            // Show performance summary before clearing
+            var summary = PerformanceLogger.GetPerformanceSummary();
+            System.Diagnostics.Debug.WriteLine(summary);
+            
             // Clear timestamped audio (real-time system doesn't use cache files)
             SetState(s => {
                 s.TimestampedAudio = null;
                 s.IsTimestampedAudioLoaded = false;
+                s.IsAudioPlaying = false;
+                s.IsPlaying = false;
+                s.CurrentPlaybackTime = 0.0;
+                s.CurrentSentenceIndex = -1;
+                
+                // Clear performance cache too
+                s.IsContentCached = false;
+                s.IsStructuralCacheValid = false;
+                s.CachedParagraphsByIndex.Clear();
+                s.CachedParagraphSentences.Clear();
             });
+            
+            // Reset performance measurements
+            PerformanceLogger.Reset();
             
             await AppShell.DisplayToastAsync("🏴‍☠️ Audio cache cleared! Fresh voices ahead, Captain!");
         }
@@ -589,6 +849,53 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         return sentences;
     }
     
+    List<TextSegment> ParseSentenceForVocabularyAndWords(string sentence)
+    {
+        var segments = new List<TextSegment>();
+        var words = sentence.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        
+        foreach (var word in words)
+        {
+            var vocabularyMatch = FindVocabularyMatch(word);
+            
+            if (vocabularyMatch != null)
+            {
+                segments.Add(new TextSegment
+                {
+                    Text = word,
+                    IsVocabulary = true,
+                    IsWord = true, // Vocabulary words are also tappable words
+                    VocabularyWord = vocabularyMatch
+                });
+            }
+            else
+            {
+                // Check if this is a word (contains letters) vs punctuation/whitespace
+                var isWord = Regex.IsMatch(word, @"\p{L}"); // Unicode letter check
+                
+                segments.Add(new TextSegment
+                {
+                    Text = word,
+                    IsVocabulary = false,
+                    IsWord = isWord // Regular words can be tapped for dictionary lookup
+                });
+            }
+            
+            // Add space after each word except the last
+            if (word != words.Last())
+            {
+                segments.Add(new TextSegment 
+                { 
+                    Text = " ", 
+                    IsVocabulary = false, 
+                    IsWord = false 
+                });
+            }
+        }
+        
+        return segments;
+    }
+
     List<TextSegment> ParseSentenceForVocabulary(string sentence)
     {
         var segments = new List<TextSegment>();
@@ -646,6 +953,23 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         });
     }
     
+    void LookupWordInDictionary(string word)
+    {
+        // 🎯 NEW: Dictionary lookup for regular words
+        // TODO: Implement dictionary service integration
+        // For now, show a simple feedback
+        SetState(s => {
+            // Could show a toast or mini popup with dictionary definition
+            // This is a placeholder for future dictionary integration
+        });
+        
+        // Example of what this might do:
+        // - Call a Korean dictionary API
+        // - Show pronunciation, meaning, example sentences
+        // - Add word to personal vocabulary list
+        Console.WriteLine($"Looking up word: {word}");
+    }
+    
     void CloseVocabularyBottomSheet()
     {
         SetState(s => s.IsVocabularyBottomSheetVisible = false);
@@ -674,36 +998,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s => s.ErrorMessage = "Resource has no transcript");
             return;
         }
-        
-        // Initialize in background
-        Task.Run(async () =>
-        {
-            try
-            {
-                var fullResource = await _resourceRepository.GetResourceAsync(Props.Resource.Id);
-                
-                SetState(s =>
-                {
-                    s.Resource = fullResource;
-                    s.Sentences = SplitIntoSentences(fullResource.Transcript ?? "");
-                    s.FontSize = Preferences.Get("ReadingActivity_FontSize", 18.0);
-                    s.PlaybackSpeed = Preferences.Get("ReadingActivity_PlaybackSpeed", 1.0f);
-                    s.HasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
-                    s.HasDismissedInstructions = Preferences.Get("ReadingActivity_HasDismissedInstructions", false);
-                    s.IsBusy = false;
-                });
-                
-                // Initialize timestamped audio system
-                await InitializeAudioSystemAsync();
-            }
-            catch (Exception ex)
-            {
-                SetState(s => {
-                    s.ErrorMessage = $"Failed to load content: {ex.Message}";
-                    s.IsBusy = false;
-                });
-            }
-        });
+        // Removed: Initialization logic that called InitializeAudioSystemAsync
     }
     
     private async Task InitializeAudioSystemAsync()
@@ -767,6 +1062,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Load audio into manager (no pre-calculated timings needed!)
                 await _audioManager.LoadAudioAsync(timestampedAudio);
                 _audioManager.SentenceChanged += OnCurrentSentenceChanged;
+                _audioManager.ProgressUpdated += OnProgressUpdated;
                 _audioManager.PlaybackEnded += OnPlaybackEnded;
                 
                 // Update state with loaded status
@@ -804,6 +1100,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     private void OnCurrentSentenceChanged(object? sender, int sentenceIndex)
     {
+        PerformanceLogger.StartTimer("OnCurrentSentenceChanged");
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {sentenceIndex}");
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {State.CurrentSentenceIndex}");
         
@@ -812,7 +1109,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             s.CurrentSentenceIndex = sentenceIndex;
         });
         
+        PerformanceLogger.EndTimer("OnCurrentSentenceChanged", 5.0); // Warn if > 5ms
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
+    }
+
+    private void OnProgressUpdated(object? sender, double currentTime)
+    {
+        SetState(s => s.CurrentPlaybackTime = currentTime);
     }
 
     private void OnPlaybackEnded(object? sender, EventArgs e)
@@ -832,6 +1135,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         if (_audioManager != null)
         {
             _audioManager.SentenceChanged -= OnCurrentSentenceChanged;
+            _audioManager.ProgressUpdated -= OnProgressUpdated;
             _audioManager.PlaybackEnded -= OnPlaybackEnded;
             _audioManager.Dispose();
         }
@@ -855,6 +1159,10 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 s.HasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
                 s.HasDismissedInstructions = Preferences.Get("ReadingActivity_HasDismissedInstructions", false);
                 s.IsBusy = false;
+                
+                // 🚀 PERFORMANCE: Invalidate cache when new content is loaded
+                s.IsContentCached = false;
+                s.IsStructuralCacheValid = false;
             });
             
             // Initialize timestamped audio system
