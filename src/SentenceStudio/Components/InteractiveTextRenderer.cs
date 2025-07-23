@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Pages.Reading;
 using SentenceStudio.Services;
+using SentenceStudio.Resources.Styles;
 
 namespace SentenceStudio.Components;
 
@@ -35,6 +36,7 @@ public class InteractiveTextRenderer : SKCanvasView
     private Color _textColor = Colors.Black;
     private Color _highlightColor = Colors.Yellow;
     private int _currentSentenceIndex = -1;
+    private float _calculatedHeight = 0f;
     
     // Touch interaction
     private WordBounds? _lastTappedWord;
@@ -57,6 +59,16 @@ public class InteractiveTextRenderer : SKCanvasView
         _logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<InteractiveTextRenderer>.Instance;
         
         EnableTouchEvents = true;
+        
+        // Set minimum size constraints to ensure the canvas gets dimensions
+        MinimumHeightRequest = 100;
+        MinimumWidthRequest = 200;
+        
+        // Set initial height request to prevent zero-height issues
+        HeightRequest = 200; // Will be updated when content is set
+        
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ InteractiveTextRenderer constructor - Set minimum constraints");
+        
         // Defer paint initialization until the control is loaded
     }
 
@@ -69,7 +81,11 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         PerformanceLogger.Time("SetContent", () =>
         {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ SetContent called with {sentences?.Count ?? 0} sentences, {vocabularyWords?.Count ?? 0} vocab words");
+            
             _text = string.Join(" ", sentences);
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Combined text: '{_text.Substring(0, Math.Min(100, _text.Length))}...'");
+            
             _needsLayout = true;
             
             // Pre-process vocabulary for fast lookup
@@ -78,7 +94,11 @@ public class InteractiveTextRenderer : SKCanvasView
             // Build word bounds with vocabulary information
             BuildWordBounds(sentences, sentenceSegments, vocabLookup);
             
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Built {_wordBounds.Count} word bounds, {_sentenceBounds.Count} sentence bounds");
+            
             InvalidateSurface();
+            // Update height request after content changes
+            UpdateHeightRequest();
         }, 10.0);
     }
 
@@ -126,6 +146,8 @@ public class InteractiveTextRenderer : SKCanvasView
                 
                 _needsLayout = true;
                 InvalidateSurface();
+                // Update height request after font size changes
+                UpdateHeightRequest();
                 System.Diagnostics.Debug.WriteLine($"✅ Font size updated and surface invalidated");
             }
             else
@@ -145,39 +167,66 @@ public class InteractiveTextRenderer : SKCanvasView
 
     private void InitializePaints()
     {
-        // Text paint for regular words
-        _textPaint = new SKPaint
-        {
-            IsAntialias = true,
-            TextSize = _fontSize,
-            Color = _textColor.ToSKColor(),
-            TextAlign = SKTextAlign.Left,
-            Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
-        };
-
-        // Highlight paint for current sentence
-        _highlightPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = _highlightColor.ToSKColor(),
-            Style = SKPaintStyle.Fill
-        };
-
-        // Vocabulary paint for vocabulary words
-        _vocabularyPaint = new SKPaint
-        {
-            IsAntialias = true,
-            TextSize = _fontSize,
-            Color = Colors.Blue.ToSKColor(),
-            TextAlign = SKTextAlign.Left,
-            Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
-            // Note: SkiaSharp doesn't support UnderlineText directly
-            // Will draw underline manually if needed
-        };
-
-        // Font for text measurement - Initialize with default, load Korean font async
-        _font = new SKFont(SKTypeface.Default, _fontSize);
+        System.Diagnostics.Debug.WriteLine("🎨 InitializePaints called");
         
+        try
+        {
+            // Text paint for regular words - use theme text color with fallback
+            var textColor = GetThemeTextColor();
+            _textPaint = new SKPaint
+            {
+                IsAntialias = true,
+                TextSize = _fontSize,
+                Color = textColor,
+                TextAlign = SKTextAlign.Left,
+                Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
+            };
+            System.Diagnostics.Debug.WriteLine($"✅ Text paint created: Size={_textPaint.TextSize}, Color={_textPaint.Color}");
+
+            // Highlight paint for current sentence
+            _highlightPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Color = _highlightColor.ToSKColor(),
+                Style = SKPaintStyle.Fill
+            };
+            System.Diagnostics.Debug.WriteLine($"✅ Highlight paint created");
+
+            // Vocabulary paint for vocabulary words - use primary color for vocabulary highlighting
+            var vocabColor = ApplicationTheme.Primary.ToSKColor();
+            _vocabularyPaint = new SKPaint
+            {
+                IsAntialias = true,
+                TextSize = _fontSize,
+                Color = vocabColor,
+                TextAlign = SKTextAlign.Left,
+                Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
+                // Note: SkiaSharp doesn't support UnderlineText directly
+                // Will draw underline manually if needed
+            };
+            System.Diagnostics.Debug.WriteLine($"✅ Vocabulary paint created: Size={_vocabularyPaint.TextSize}, Color={_vocabularyPaint.Color}");
+
+            // Font for text measurement - Initialize with default, load Korean font async
+            _font = new SKFont(SKTypeface.Default, _fontSize);
+            System.Diagnostics.Debug.WriteLine($"✅ Font created: Size={_font.Size}");
+            
+            // TEMPORARY: Ensure we have visible colors for debugging
+            if (_textPaint.Color.Alpha == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("⚠️ Text color is transparent, using fallback");
+                _textPaint.Color = SKColors.Black;
+            }
+            if (_vocabularyPaint.Color.Alpha == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("⚠️ Vocabulary color is transparent, using fallback");
+                _vocabularyPaint.Color = SKColors.Blue;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error in InitializePaints: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+        }
         
         // Load the Korean font asynchronously and update when ready
         _ = Task.Run(async () =>
@@ -215,6 +264,74 @@ public class InteractiveTextRenderer : SKCanvasView
                 // Keep using the default font
             }
         });
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Gets the current theme background color
+    /// </summary>
+    private SKColor GetThemeBackgroundColor()
+    {
+        try
+        {
+            // Use ApplicationTheme to get the correct background color
+            var backgroundColor = ApplicationTheme.IsLightTheme 
+                ? ApplicationTheme.LightBackground 
+                : ApplicationTheme.DarkBackground;
+            
+            System.Diagnostics.Debug.WriteLine($"🎨 Theme background color: IsLight={ApplicationTheme.IsLightTheme}, Color={backgroundColor}");
+            return backgroundColor.ToSKColor();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error getting theme background color: {ex.Message}");
+            // Fallback to basic colors
+            return ApplicationTheme.IsLightTheme ? SKColors.White : SKColors.Black;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current theme text color
+    /// </summary>
+    private SKColor GetThemeTextColor()
+    {
+        try
+        {
+            // Use ApplicationTheme to get the correct text color
+            var textColor = ApplicationTheme.IsLightTheme 
+                ? ApplicationTheme.DarkOnLightBackground 
+                : ApplicationTheme.LightOnDarkBackground;
+            
+            System.Diagnostics.Debug.WriteLine($"🎨 Theme text color: IsLight={ApplicationTheme.IsLightTheme}, Color={textColor}");
+            return textColor.ToSKColor();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error getting theme text color: {ex.Message}");
+            // Fallback to basic colors
+            return ApplicationTheme.IsLightTheme ? SKColors.Black : SKColors.White;
+        }
+    }
+
+    /// <summary>
+    /// Calculates and updates the height request based on content
+    /// </summary>
+    private void UpdateHeightRequest()
+    {
+        // Ensure we have a minimum height even if calculation hasn't happened yet
+        var targetHeight = Math.Max(_calculatedHeight, 100); // Minimum 100px height
+        
+        if (targetHeight > 0)
+        {
+            Application.Current?.Dispatcher.Dispatch(() =>
+            {
+                System.Diagnostics.Debug.WriteLine($"🔄 UpdateHeightRequest: Setting height to {targetHeight} (calculated: {_calculatedHeight})");
+                HeightRequest = targetHeight;
+            });
+        }
     }
 
     #endregion
@@ -285,6 +402,7 @@ public class InteractiveTextRenderer : SKCanvasView
             float y = padding + _fontSize;
             float lineHeight = _fontSize * lineSpacing;
             float maxWidth = canvasWidth - (padding * 2);
+            float maxY = y; // Track the maximum Y position for height calculation
             
             foreach (var wordBounds in _wordBounds)
             {
@@ -304,9 +422,19 @@ public class InteractiveTextRenderer : SKCanvasView
                 wordBounds.Bounds = new SKRect(x, y - _fontSize, x + wordWidth, y);
                 wordBounds.Position = new SKPoint(x, y);
                 
+                // Track maximum Y for height calculation
+                maxY = Math.Max(maxY, y);
+                
                 // Move to next word position
                 x += wordWidth + spaceWidth;
             }
+            
+            // Calculate total required height with minimal bottom padding
+            // maxY represents the bottom of the text on the last line, so just add small padding
+            _calculatedHeight = maxY + 15f; // Small 15px bottom padding
+            
+            // Update the height request on the main thread
+            UpdateHeightRequest();
         }, 5.0);
     }
 
@@ -322,17 +450,39 @@ public class InteractiveTextRenderer : SKCanvasView
             var canvas = surface.Canvas;
             var info = e.Info;
             
-            canvas.Clear(SKColors.White);
+            System.Diagnostics.Debug.WriteLine($"🎨 OnPaintSurface called: {info.Width}x{info.Height}, Control size: {Width}x{Height}");
+            
+            // CRITICAL: Check if canvas has zero dimensions
+            if (info.Width <= 0 || info.Height <= 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ CRITICAL: Canvas has zero dimensions! Info: {info.Width}x{info.Height}, Control: {Width}x{Height}");
+                return;
+            }
+            
+            // Use theme-appropriate background color instead of hardcoded white
+            var bgColor = GetThemeBackgroundColor();
+            canvas.Clear(bgColor);
+            System.Diagnostics.Debug.WriteLine($"🎨 Canvas cleared with RED color for testing");
             
             // Early return if paints are not initialized yet
             if (_textPaint == null || _highlightPaint == null || _vocabularyPaint == null)
+            {
+                System.Diagnostics.Debug.WriteLine("❌ Paints not initialized yet, skipping render");
                 return;
+            }
             
-            if (_wordBounds.Count == 0) return;
+            if (_wordBounds.Count == 0) 
+            {
+                System.Diagnostics.Debug.WriteLine("❌ No word bounds, skipping render");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"🎨 Drawing {_wordBounds.Count} words");
             
             // Recalculate layout if needed
             if (_needsLayout)
             {
+                System.Diagnostics.Debug.WriteLine("🔄 Recalculating layout");
                 CalculateWordPositions(canvas, info.Width, info.Height);
                 _needsLayout = false;
             }
@@ -367,11 +517,16 @@ public class InteractiveTextRenderer : SKCanvasView
 
     private void DrawWords(SKCanvas canvas)
     {
+        System.Diagnostics.Debug.WriteLine($"🖍️ DrawWords called with {_wordBounds.Count} words");
+        
         foreach (var wordBounds in _wordBounds)
         {
             var paint = wordBounds.IsVocabulary ? _vocabularyPaint : _textPaint;
+            System.Diagnostics.Debug.WriteLine($"🖍️ Drawing word '{wordBounds.Text}' at {wordBounds.Position} with color {paint.Color}");
             canvas.DrawText(wordBounds.Text, wordBounds.Position, paint);
         }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Finished drawing {_wordBounds.Count} words");
     }
 
     #endregion
@@ -413,6 +568,23 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         // Simple hit testing - can be optimized with spatial indexing if needed
         return _wordBounds.FirstOrDefault(wb => wb.Bounds.Contains(point));
+    }
+
+    #endregion
+
+    #region Size Change Handling
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        
+        // Trigger re-layout when size changes (window resize, orientation change, etc.)
+        if (width > 0 && height > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"🔄 InteractiveTextRenderer size changed: {width}x{height}");
+            _needsLayout = true;
+            InvalidateSurface();
+        }
     }
 
     #endregion

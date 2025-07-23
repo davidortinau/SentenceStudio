@@ -201,7 +201,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         // Handle word tap for dictionary lookup
                         Debug.WriteLine($"Word tapped: {word}");
                     })
-                    .HeightRequest(600)
                     .HorizontalOptions(LayoutOptions.FillAndExpand)
             )
             .Spacing(ApplicationTheme.Size160)

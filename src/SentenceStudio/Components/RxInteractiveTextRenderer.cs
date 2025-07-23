@@ -134,18 +134,11 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
 
     protected override void OnMount()
     {
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ RxInteractiveTextRenderer.OnMount - Creating native control");
-        
-        // Create the native control manually - this is the missing piece!
-        _nativeControl ??= new InteractiveTextRenderer();
-        
         base.OnMount();
-        
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ RxInteractiveTextRenderer.OnMount - NativeControl is null: {NativeControl == null}");
         
         if (NativeControl == null)
         {
-            System.Diagnostics.Debug.WriteLine("❌ NativeControl is still null after creation!");
+            System.Diagnostics.Debug.WriteLine("❌ RxInteractiveTextRenderer: NativeControl is null after mount!");
             return;
         }
 
@@ -154,8 +147,6 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
         NativeControl.VocabularyWordTapped += OnVocabularyWordTappedInternal;
         NativeControl.ParagraphTapped += OnParagraphTappedInternal;
         NativeControl.ParagraphDoubleTapped += OnParagraphDoubleTappedInternal;
-
-        System.Diagnostics.Debug.WriteLine("✅ RxInteractiveTextRenderer mounted successfully with events wired!");
     }
 
     protected override void OnUnmount()
@@ -174,11 +165,9 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
 
     protected override void OnUpdate()
     {
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ RxInteractiveTextRenderer.OnUpdate - NativeControl is null: {NativeControl == null}, FontSize: {_fontSize}");
-        
         if (NativeControl == null)
         {
-            System.Diagnostics.Debug.WriteLine("❌ NativeControl is null in OnUpdate!");
+            System.Diagnostics.Debug.WriteLine("❌ RxInteractiveTextRenderer: NativeControl is null in OnUpdate!");
             return;
         }
 
@@ -191,8 +180,7 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
         // Update current sentence highlighting
         NativeControl.SetCurrentSentence(_currentSentenceIndex);
 
-        // Update font size with debug logging
-        System.Diagnostics.Debug.WriteLine($"🔤 OnUpdate calling SetFontSize with: {_fontSize}");
+        // Update font size
         NativeControl.SetFontSize(_fontSize);
 
         // Update layout properties
