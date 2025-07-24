@@ -1,4 +1,5 @@
 using ElevenLabs;
+using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using SentenceStudio.Models;
 using System.Timers;
@@ -11,6 +12,7 @@ namespace SentenceStudio.Services;
 /// </summary>
 public class TimestampedAudioManager : IDisposable
 {
+    private readonly ILogger<TimestampedAudioManager> _logger;
     private IAudioPlayer? _player;
     private TimestampedAudio? _currentAudio;
     private readonly SentenceTimingCalculator _timingCalculator;
@@ -35,9 +37,10 @@ public class TimestampedAudioManager : IDisposable
     private Dictionary<double, int> _timestampToSentenceMap = new();
     private List<(double StartTime, double EndTime, int SentenceIndex)> _sentenceTimings = new();
 
-    public TimestampedAudioManager(SentenceTimingCalculator timingCalculator)
+    public TimestampedAudioManager(SentenceTimingCalculator timingCalculator, ILogger<TimestampedAudioManager> logger)
     {
         _timingCalculator = timingCalculator;
+        _logger = logger;
     }
 
     /// <summary>
@@ -58,39 +61,35 @@ public class TimestampedAudioManager : IDisposable
         _sentenceTimings = BuildSentenceTimings(_sentenceCharRanges, audio.Characters);
         _timestampToSentenceMap = BuildTimestampLookupTable(_sentenceTimings);
 
-        // Print out the full transcript
-        System.Diagnostics.Debug.WriteLine("=== Full Transcript ===");
-        System.Diagnostics.Debug.WriteLine(audio.FullTranscript);
+        _logger.LogDebug("=== Full Transcript ===");
+        _logger.LogDebug("{Transcript}", audio.FullTranscript);
 
-        // Print out the sentences
-        System.Diagnostics.Debug.WriteLine("=== Sentences ===");
+        _logger.LogDebug("=== Sentences ===");
         for (int i = 0; i < _sentences.Count; i++)
         {
-            System.Diagnostics.Debug.WriteLine($"Sentence {i}: {_sentences[i]}");
+            _logger.LogTrace("Sentence {Index}: {Text}", i, _sentences[i]);
         }
 
-        // Print out the character data with timestamps
-        System.Diagnostics.Debug.WriteLine("=== Character Timestamp Data ===");
+        _logger.LogTrace("=== Character Timestamp Data ===");
         for (int i = 0; i < audio.Characters.Length; i++)
         {
             var c = audio.Characters[i];
-            System.Diagnostics.Debug.WriteLine($"CharIdx {i}: '{c.Character}' [{c.StartTime:F2}s - {c.EndTime:F2}s]");
+            _logger.LogTrace("CharIdx {Index}: '{Character}' [{StartTime:F2}s - {EndTime:F2}s]", i, c.Character, c.StartTime, c.EndTime);
         }
 
-        // Print out the sentence-to-character index mapping
-        System.Diagnostics.Debug.WriteLine("=== Sentence Character Ranges ===");
+        _logger.LogDebug("=== Sentence Character Ranges ===");
         for (int i = 0; i < _sentenceCharRanges.Count; i++)
         {
             var (start, end) = _sentenceCharRanges[i];
-            System.Diagnostics.Debug.WriteLine($"Sentence {i}: CharIdx {start} to {end} => \"{audio.FullTranscript.Substring(start, end - start + 1)}\"");
+            _logger.LogTrace("Sentence {Index}: CharIdx {StartIdx} to {EndIdx} => \"{Text}\"", 
+                i, start, end, audio.FullTranscript.Substring(start, end - start + 1));
         }
 
-        // Print out the pre-calculated sentence timings
-        System.Diagnostics.Debug.WriteLine("=== 🎯 Pre-calculated Sentence Timings ===");
+        _logger.LogDebug("=== 🎯 Pre-calculated Sentence Timings ===");
         for (int i = 0; i < _sentenceTimings.Count; i++)
         {
             var (startTime, endTime, sentenceIdx) = _sentenceTimings[i];
-            System.Diagnostics.Debug.WriteLine($"Sentence {sentenceIdx}: {startTime:F2}s - {endTime:F2}s");
+            _logger.LogDebug("Sentence {Index}: {StartTime:F2}s - {EndTime:F2}s", sentenceIdx, startTime, endTime);
         }
 
         try
@@ -106,7 +105,7 @@ public class TimestampedAudioManager : IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error loading audio: {ex.Message}");
+            _logger.LogError(ex, "Error loading audio: {Message}", ex.Message);
             throw;
         }
     }
@@ -177,7 +176,7 @@ public class TimestampedAudioManager : IDisposable
             
             timings.Add((startTime, endTime, sentenceIdx));
             
-            System.Diagnostics.Debug.WriteLine($"🎯 Sentence {sentenceIdx}: {startTime:F2}s - {endTime:F2}s");
+            _logger.LogTrace("Sentence {Index}: {StartTime:F2}s - {EndTime:F2}s", sentenceIdx, startTime, endTime);
         }
         
         return timings;
@@ -218,7 +217,7 @@ public class TimestampedAudioManager : IDisposable
             lookupTable[key] = sentenceIndex;
         }
         
-        System.Diagnostics.Debug.WriteLine($"🎯 Built timestamp lookup table with {lookupTable.Count} entries (0.0s to {maxTime:F1}s)");
+        _logger.LogDebug("Built timestamp lookup table with {Count} entries (0.0s to {MaxTime:F1}s)", lookupTable.Count, maxTime);
         
         return lookupTable;
     }
@@ -232,7 +231,7 @@ public class TimestampedAudioManager : IDisposable
 
         _player.Play();
         _progressTimer?.Start();
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ TimestampedAudioManager: Real-time playback started");
+        _logger.LogInformation("TimestampedAudioManager: Real-time playback started");
     }
 
     /// <summary>
@@ -244,7 +243,7 @@ public class TimestampedAudioManager : IDisposable
 
         _player.Pause();
         _progressTimer?.Stop();
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ TimestampedAudioManager: Playback paused");
+        _logger.LogInformation("TimestampedAudioManager: Playback paused");
     }
 
     /// <summary>
@@ -257,7 +256,7 @@ public class TimestampedAudioManager : IDisposable
         _player.Stop();
         _progressTimer?.Stop();
         _currentSentenceIndex = -1;
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ TimestampedAudioManager: Playback stopped");
+        _logger.LogInformation("TimestampedAudioManager: Playback stopped");
     }
 
     /// <summary>
@@ -268,7 +267,7 @@ public class TimestampedAudioManager : IDisposable
     {
         if (_player == null || _currentAudio == null || sentenceIndex < 0)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ Invalid sentence index or no audio loaded: {sentenceIndex}");
+            _logger.LogWarning("Invalid sentence index or no audio loaded: {SentenceIndex}", sentenceIndex);
             return;
         }
 
@@ -281,7 +280,7 @@ public class TimestampedAudioManager : IDisposable
 
         if (sentenceInfo == null)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ Could not calculate timing for sentence {sentenceIndex}");
+            _logger.LogWarning("Could not calculate timing for sentence {SentenceIndex}", sentenceIndex);
             return;
         }
 
@@ -295,11 +294,12 @@ public class TimestampedAudioManager : IDisposable
                 Play();
             }
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TimestampedAudioManager: Playing from sentence {sentenceIndex} at {sentenceInfo.StartTime:F2}s - '{sentenceInfo.Text.Substring(0, Math.Min(40, sentenceInfo.Text.Length))}...'");
+            _logger.LogInformation("TimestampedAudioManager: Playing from sentence {SentenceIndex} at {StartTime:F2}s - '{TextPreview}...'", 
+                sentenceIndex, sentenceInfo.StartTime, sentenceInfo.Text.Substring(0, Math.Min(40, sentenceInfo.Text.Length)));
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error seeking to sentence {sentenceIndex}: {ex.Message}");
+            _logger.LogError(ex, "Error seeking to sentence {SentenceIndex}: {Message}", sentenceIndex, ex.Message);
         }
     }
 
@@ -381,7 +381,8 @@ public class TimestampedAudioManager : IDisposable
         // Update sentence if it changed
         if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0 && newSentenceIndex < _sentences.Count)
         {
-            System.Diagnostics.Debug.WriteLine($"🎯 [FAST LOOKUP] Sentence changed: {_currentSentenceIndex} -> {newSentenceIndex} at {currentTime:F2}s");
+            _logger.LogTrace("[FAST LOOKUP] Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s", 
+                _currentSentenceIndex, newSentenceIndex, currentTime);
             _currentSentenceIndex = newSentenceIndex;
             SentenceChanged?.Invoke(this, _currentSentenceIndex);
         }
@@ -421,7 +422,7 @@ public class TimestampedAudioManager : IDisposable
         _progressTimer?.Stop();
         _currentSentenceIndex = -1;
         PlaybackEnded?.Invoke(this, EventArgs.Empty);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ TimestampedAudioManager: Playback ended");
+        _logger.LogInformation("TimestampedAudioManager: Playback ended");
     }
 
     /// <summary>

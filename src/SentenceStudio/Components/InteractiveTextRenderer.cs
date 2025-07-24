@@ -26,7 +26,7 @@ public class TextSegment
 /// </summary>
 public class InteractiveTextRenderer : SKCanvasView
 {
-    private readonly ILogger<InteractiveTextRenderer> _logger;
+    private ILogger<InteractiveTextRenderer> _logger;
     
     // Text rendering state
     private List<WordBounds> _wordBounds = new();
@@ -41,6 +41,13 @@ public class InteractiveTextRenderer : SKCanvasView
     // Touch interaction
     private WordBounds? _lastTappedWord;
     
+    // 🎯 NEW: Double-tap detection with debouncing
+    private DateTime _lastTapTime = DateTime.MinValue;
+    private WordBounds? _lastTapWord = null;
+    private const double DoubleTapThreshold = 500; // milliseconds
+    private System.Threading.Timer? _singleTapTimer;
+    private WordBounds? _pendingSingleTapWord;
+    
     // Rendering resources
     private SKPaint _textPaint;
     private SKPaint _highlightedTextPaint; // NEW: Paint for highlighted sentence text
@@ -52,11 +59,14 @@ public class InteractiveTextRenderer : SKCanvasView
     // Events for interaction
     public event Action<string>? WordTapped;
     public event Action<VocabularyWord>? VocabularyWordTapped;
-    public event Action<List<(string, int)>>? ParagraphTapped;
-    public event Action<List<(string, int)>>? ParagraphDoubleTapped;
+    
+    // 🎯 NEW: Sentence-level interaction events
+    public event Action<int>? SentenceTapped;
+    public event Action<int>? SentenceDoubleTapped;
 
     public InteractiveTextRenderer()
     {
+        // Will be set when component is attached to handler
         _logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<InteractiveTextRenderer>.Instance;
         
         EnableTouchEvents = true;
@@ -67,8 +77,6 @@ public class InteractiveTextRenderer : SKCanvasView
         
         // Set initial height request to prevent zero-height issues
         HeightRequest = 200; // Will be updated when content is set
-        
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ InteractiveTextRenderer constructor - Set minimum constraints");
         
         // Defer paint initialization until the control is loaded
     }
@@ -82,10 +90,11 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         PerformanceLogger.Time("SetContent", () =>
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ SetContent called with {sentences?.Count ?? 0} sentences, {vocabularyWords?.Count ?? 0} vocab words");
+            _logger.LogDebug("SetContent called with {SentenceCount} sentences, {VocabularyCount} vocab words", 
+                sentences?.Count ?? 0, vocabularyWords?.Count ?? 0);
             
             _text = string.Join(" ", sentences);
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Combined text: '{_text.Substring(0, Math.Min(100, _text.Length))}...'");
+            _logger.LogTrace("Combined text length: {TextLength} characters", _text.Length);
             
             _needsLayout = true;
             
@@ -95,7 +104,8 @@ public class InteractiveTextRenderer : SKCanvasView
             // Build word bounds with vocabulary information
             BuildWordBounds(sentences, sentenceSegments, vocabLookup);
             
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Built {_wordBounds.Count} word bounds, {_sentenceBounds.Count} sentence bounds");
+            _logger.LogDebug("Built {WordBoundsCount} word bounds, {SentenceBoundsCount} sentence bounds", 
+                _wordBounds.Count, _sentenceBounds.Count);
             
             InvalidateSurface();
             // Update height request after content changes
@@ -120,11 +130,11 @@ public class InteractiveTextRenderer : SKCanvasView
     /// </summary>
     public void SetFontSize(float fontSize)
     {
-        System.Diagnostics.Debug.WriteLine($"🔤 SetFontSize called: current={_fontSize}, new={fontSize}");
+        _logger.LogTrace("SetFontSize called: current={CurrentFontSize}, new={NewFontSize}", _fontSize, fontSize);
         
         if (Math.Abs(_fontSize - fontSize) > 0.1f)
         {
-            System.Diagnostics.Debug.WriteLine($"🔤 Font size changing from {_fontSize} to {fontSize}");
+            _logger.LogDebug("Font size changing from {OldSize} to {NewSize}", _fontSize, fontSize);
             _fontSize = fontSize;
             
             // Only update if paints are initialized
@@ -153,16 +163,16 @@ public class InteractiveTextRenderer : SKCanvasView
                 InvalidateSurface();
                 // Update height request after font size changes
                 UpdateHeightRequest();
-                System.Diagnostics.Debug.WriteLine($"✅ Font size updated and surface invalidated");
+                _logger.LogDebug("Font size updated and surface invalidated");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"❌ Paints not initialized yet, font size change deferred");
+                _logger.LogWarning("Paints not initialized yet, font size change deferred");
             }
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"🔤 Font size change too small, ignoring");
+            _logger.LogTrace("Font size change too small, ignoring");
         }
     }
 
@@ -172,7 +182,7 @@ public class InteractiveTextRenderer : SKCanvasView
 
     private void InitializePaints()
     {
-        System.Diagnostics.Debug.WriteLine("🎨 InitializePaints called");
+        _logger.LogDebug("InitializePaints called");
         
         try
         {
@@ -186,7 +196,7 @@ public class InteractiveTextRenderer : SKCanvasView
                 TextAlign = SKTextAlign.Left,
                 Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
             };
-            System.Diagnostics.Debug.WriteLine($"✅ Text paint created: Size={_textPaint.TextSize}, Color={_textPaint.Color}");
+            _logger.LogTrace("Text paint created: Size={TextSize}, Color={Color}", _textPaint.TextSize, _textPaint.Color);
 
             // Highlighted text paint for current sentence - use primary color for sentence highlighting
             var highlightColor = ApplicationTheme.Primary.ToSKColor();
@@ -198,7 +208,7 @@ public class InteractiveTextRenderer : SKCanvasView
                 TextAlign = SKTextAlign.Left,
                 Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
             };
-            System.Diagnostics.Debug.WriteLine($"✅ Highlighted text paint created: Size={_highlightedTextPaint.TextSize}, Color={_highlightedTextPaint.Color}");
+            _logger.LogTrace("Highlighted text paint created: Size={TextSize}, Color={Color}", _highlightedTextPaint.TextSize, _highlightedTextPaint.Color);
 
             // Vocabulary paint for vocabulary words - use secondary color for vocabulary highlighting
             var vocabColor = ApplicationTheme.Tertiary.ToSKColor();
@@ -212,7 +222,7 @@ public class InteractiveTextRenderer : SKCanvasView
                 // Note: SkiaSharp doesn't support UnderlineText directly
                 // Will draw underline manually if needed
             };
-            System.Diagnostics.Debug.WriteLine($"✅ Vocabulary paint created: Size={_vocabularyPaint.TextSize}, Color={_vocabularyPaint.Color}");
+            _logger.LogTrace("Vocabulary paint created: Size={TextSize}, Color={Color}", _vocabularyPaint.TextSize, _vocabularyPaint.Color);
 
             // Highlighted vocabulary paint for vocabulary words in current sentence - use primary + secondary mix
             var highlightedVocabColor = Color.FromRgba(
@@ -228,28 +238,27 @@ public class InteractiveTextRenderer : SKCanvasView
                 TextAlign = SKTextAlign.Left,
                 Typeface = SKTypeface.Default  // Start with default, will be updated with Korean font
             };
-            System.Diagnostics.Debug.WriteLine($"✅ Highlighted vocabulary paint created: Size={_highlightedVocabularyPaint.TextSize}, Color={_highlightedVocabularyPaint.Color}");
+            _logger.LogTrace("Highlighted vocabulary paint created: Size={TextSize}, Color={Color}", _highlightedVocabularyPaint.TextSize, _highlightedVocabularyPaint.Color);
 
             // Font for text measurement - Initialize with default, load Korean font async
             _font = new SKFont(SKTypeface.Default, _fontSize);
-            System.Diagnostics.Debug.WriteLine($"✅ Font created: Size={_font.Size}");
+            _logger.LogTrace("Font created: Size={FontSize}", _font.Size);
             
-            // TEMPORARY: Ensure we have visible colors for debugging
+            // Ensure we have visible colors for debugging
             if (_textPaint.Color.Alpha == 0)
             {
-                System.Diagnostics.Debug.WriteLine("⚠️ Text color is transparent, using fallback");
+                _logger.LogWarning("Text color is transparent, using fallback");
                 _textPaint.Color = SKColors.Black;
             }
             if (_vocabularyPaint.Color.Alpha == 0)
             {
-                System.Diagnostics.Debug.WriteLine("⚠️ Vocabulary color is transparent, using fallback");
+                _logger.LogWarning("Vocabulary color is transparent, using fallback");
                 _vocabularyPaint.Color = SKColors.Blue;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error in InitializePaints: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "Error in InitializePaints");
         }
         
         // Load the Korean font asynchronously and update when ready
@@ -276,18 +285,17 @@ public class InteractiveTextRenderer : SKCanvasView
                         _highlightedVocabularyPaint.Typeface = typeface;
                         
                         InvalidateSurface(); // Redraw with new font
-                        System.Diagnostics.Debug.WriteLine("✅ Successfully loaded and applied Korean font to paints");
+                        _logger.LogInformation("Successfully loaded and applied Korean font to paints");
                     });
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("⚠️ Korean font stream was null, keeping default font");
+                    _logger.LogWarning("Korean font stream was null, keeping default font");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"❌ Korean font loading failed: {ex.Message}");
-                // Keep using the default font
+                _logger.LogWarning(ex, "Korean font loading failed, keeping default font");
             }
         });
     }
@@ -308,12 +316,12 @@ public class InteractiveTextRenderer : SKCanvasView
                 ? ApplicationTheme.LightBackground 
                 : ApplicationTheme.DarkBackground;
             
-            System.Diagnostics.Debug.WriteLine($"🎨 Theme background color: IsLight={ApplicationTheme.IsLightTheme}, Color={backgroundColor}");
+            _logger.LogTrace("Theme background color: IsLight={IsLight}, Color={Color}", ApplicationTheme.IsLightTheme, backgroundColor);
             return backgroundColor.ToSKColor();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error getting theme background color: {ex.Message}");
+            _logger.LogWarning(ex, "Error getting theme background color, using fallback");
             // Fallback to basic colors
             return ApplicationTheme.IsLightTheme ? SKColors.White : SKColors.Black;
         }
@@ -331,12 +339,12 @@ public class InteractiveTextRenderer : SKCanvasView
                 ? ApplicationTheme.DarkOnLightBackground 
                 : ApplicationTheme.LightOnDarkBackground;
             
-            System.Diagnostics.Debug.WriteLine($"🎨 Theme text color: IsLight={ApplicationTheme.IsLightTheme}, Color={textColor}");
+            _logger.LogTrace("Theme text color: IsLight={IsLight}, Color={Color}", ApplicationTheme.IsLightTheme, textColor);
             return textColor.ToSKColor();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error getting theme text color: {ex.Message}");
+            _logger.LogWarning(ex, "Error getting theme text color, using fallback");
             // Fallback to basic colors
             return ApplicationTheme.IsLightTheme ? SKColors.Black : SKColors.White;
         }
@@ -354,7 +362,7 @@ public class InteractiveTextRenderer : SKCanvasView
         {
             Application.Current?.Dispatcher.Dispatch(() =>
             {
-                System.Diagnostics.Debug.WriteLine($"🔄 UpdateHeightRequest: Setting height to {targetHeight} (calculated: {_calculatedHeight})");
+                _logger.LogTrace("UpdateHeightRequest: Setting height to {TargetHeight} (calculated: {CalculatedHeight})", targetHeight, _calculatedHeight);
                 HeightRequest = targetHeight;
             });
         }
@@ -476,39 +484,40 @@ public class InteractiveTextRenderer : SKCanvasView
             var canvas = surface.Canvas;
             var info = e.Info;
             
-            System.Diagnostics.Debug.WriteLine($"🎨 OnPaintSurface called: {info.Width}x{info.Height}, Control size: {Width}x{Height}");
+            _logger.LogTrace("OnPaintSurface called: {Width}x{Height}, Control size: {ControlWidth}x{ControlHeight}", 
+                info.Width, info.Height, Width, Height);
             
             // CRITICAL: Check if canvas has zero dimensions
             if (info.Width <= 0 || info.Height <= 0)
             {
-                System.Diagnostics.Debug.WriteLine($"❌ CRITICAL: Canvas has zero dimensions! Info: {info.Width}x{info.Height}, Control: {Width}x{Height}");
+                _logger.LogWarning("Canvas has zero dimensions! Info: {InfoWidth}x{InfoHeight}, Control: {ControlWidth}x{ControlHeight}", 
+                    info.Width, info.Height, Width, Height);
                 return;
             }
             
             // Use theme-appropriate background color instead of hardcoded white
             var bgColor = GetThemeBackgroundColor();
             canvas.Clear(bgColor);
-            System.Diagnostics.Debug.WriteLine($"🎨 Canvas cleared with RED color for testing");
             
             // Early return if paints are not initialized yet
             if (_textPaint == null || _highlightedTextPaint == null || _vocabularyPaint == null || _highlightedVocabularyPaint == null)
             {
-                System.Diagnostics.Debug.WriteLine("❌ Paints not initialized yet, skipping render");
+                _logger.LogDebug("Paints not initialized yet, skipping render");
                 return;
             }
             
             if (_wordBounds.Count == 0) 
             {
-                System.Diagnostics.Debug.WriteLine("❌ No word bounds, skipping render");
+                _logger.LogDebug("No word bounds, skipping render");
                 return;
             }
             
-            System.Diagnostics.Debug.WriteLine($"🎨 Drawing {_wordBounds.Count} words");
+            _logger.LogTrace("Drawing {WordCount} words", _wordBounds.Count);
             
             // Recalculate layout if needed
             if (_needsLayout)
             {
-                System.Diagnostics.Debug.WriteLine("🔄 Recalculating layout");
+                _logger.LogTrace("Recalculating layout");
                 CalculateWordPositions(canvas, info.Width, info.Height);
                 _needsLayout = false;
             }
@@ -521,7 +530,7 @@ public class InteractiveTextRenderer : SKCanvasView
 
     private void DrawWords(SKCanvas canvas)
     {
-        System.Diagnostics.Debug.WriteLine($"🖍️ DrawWords called with {_wordBounds.Count} words");
+        _logger.LogTrace("DrawWords called with {WordCount} words", _wordBounds.Count);
         
         foreach (var wordBounds in _wordBounds)
         {
@@ -540,11 +549,10 @@ public class InteractiveTextRenderer : SKCanvasView
                 paint = isInHighlightedSentence ? _highlightedTextPaint : _textPaint;
             }
             
-            System.Diagnostics.Debug.WriteLine($"🖍️ Drawing word '{wordBounds.Text}' at {wordBounds.Position} with color {paint.Color} (highlighted: {isInHighlightedSentence})");
             canvas.DrawText(wordBounds.Text, wordBounds.Position, paint);
         }
         
-        System.Diagnostics.Debug.WriteLine($"✅ Finished drawing {_wordBounds.Count} words");
+        _logger.LogTrace("Finished drawing {WordCount} words", _wordBounds.Count);
     }
 
     #endregion
@@ -558,28 +566,122 @@ public class InteractiveTextRenderer : SKCanvasView
             if (e.ActionType == SKTouchAction.Pressed)
             {
                 var tappedWord = FindWordAtPoint(e.Location);
+                var currentTapTime = DateTime.Now;
                 
                 if (tappedWord != null)
                 {
                     _lastTappedWord = tappedWord;
                     
-                    if (tappedWord.IsVocabulary && tappedWord.VocabularyWord != null)
+                    _logger.LogDebug("🏴‍☠️ Word tapped: '{Word}', IsVocabulary: {IsVocab}, HasVocabWord: {HasVocab}, SentenceIndex: {SentenceIndex}", 
+                        tappedWord.Text, tappedWord.IsVocabulary, tappedWord.VocabularyWord != null, tappedWord.SentenceIndex);
+
+                    // 🎯 NEW: Check for double-tap on same sentence with debouncing
+                    bool isDoubleTap = _lastTapWord != null && 
+                                     _lastTapWord.SentenceIndex == tappedWord.SentenceIndex &&
+                                     (currentTapTime - _lastTapTime).TotalMilliseconds <= DoubleTapThreshold;
+
+                    if (isDoubleTap)
                     {
-                        VocabularyWordTapped?.Invoke(tappedWord.VocabularyWord);
+                        _logger.LogDebug("🏴‍☠️ DOUBLE TAP detected on sentence {SentenceIndex}!", tappedWord.SentenceIndex);
+                        
+                        // Cancel any pending single tap
+                        _singleTapTimer?.Dispose();
+                        _singleTapTimer = null;
+                        _pendingSingleTapWord = null;
+                        
+                        // Fire sentence double-tap event immediately
+                        SentenceDoubleTapped?.Invoke(tappedWord.SentenceIndex);
+                        
+                        // Reset double-tap tracking
+                        _lastTapTime = DateTime.MinValue;
+                        _lastTapWord = null;
                     }
                     else
                     {
-                        WordTapped?.Invoke(tappedWord.Text);
+                        // Potential single tap - delay execution to allow for double tap
+                        _logger.LogDebug("🏴‍☠️ Potential single tap - starting debounce timer");
+                        
+                        // Cancel any existing single tap timer
+                        _singleTapTimer?.Dispose();
+                        
+                        // Store the pending tap
+                        _pendingSingleTapWord = tappedWord;
+                        
+                        // Start timer to execute single tap action after debounce period
+                        _singleTapTimer = new System.Threading.Timer(ExecutePendingSingleTap, null, 
+                            (int)DoubleTapThreshold + 50, // Add 50ms buffer
+                            System.Threading.Timeout.Infinite);
+                        
+                        // Update double-tap tracking
+                        _lastTapTime = currentTapTime;
+                        _lastTapWord = tappedWord;
                     }
                     
-                    // TODO: Implement double-tap detection for paragraph interaction
-                    // For now, just fire single tap
                     e.Handled = true;
+                }
+                else
+                {
+                    _logger.LogDebug("🏴‍☠️ No word found at touch point: {X}, {Y}", e.Location.X, e.Location.Y);
+                    
+                    // Reset double-tap tracking when tapping empty space
+                    _lastTapTime = DateTime.MinValue;
+                    _lastTapWord = null;
+                    
+                    // Cancel any pending single tap
+                    _singleTapTimer?.Dispose();
+                    _singleTapTimer = null;
+                    _pendingSingleTapWord = null;
                 }
             }
         }, 1.0);
         
         base.OnTouch(e);
+    }
+
+    /// <summary>
+    /// Executes the pending single tap action after debounce period
+    /// </summary>
+    private void ExecutePendingSingleTap(object? state)
+    {
+        try
+        {
+            var wordToProcess = _pendingSingleTapWord;
+            if (wordToProcess != null)
+            {
+                _logger.LogDebug("🏴‍☠️ Executing debounced single tap for: {Word}", wordToProcess.Text);
+                
+                // Execute on main thread
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (wordToProcess.IsVocabulary && wordToProcess.VocabularyWord != null)
+                    {
+                        // Fire vocabulary event for vocabulary words
+                        VocabularyWordTapped?.Invoke(wordToProcess.VocabularyWord);
+                        _logger.LogDebug("🏴‍☠️ Fired VocabularyWordTapped for: {Word}", wordToProcess.Text);
+                    }
+                    else
+                    {
+                        WordTapped?.Invoke(wordToProcess.Text);
+                        _logger.LogDebug("🏴‍☠️ Fired WordTapped for: {Word}", wordToProcess.Text);
+                    }
+                    
+                    // Also fire sentence single tap event
+                    SentenceTapped?.Invoke(wordToProcess.SentenceIndex);
+                    _logger.LogDebug("🏴‍☠️ Fired SentenceTapped for sentence: {SentenceIndex}", wordToProcess.SentenceIndex);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "🏴‍☠️ Error executing pending single tap");
+        }
+        finally
+        {
+            // Clean up
+            _singleTapTimer?.Dispose();
+            _singleTapTimer = null;
+            _pendingSingleTapWord = null;
+        }
     }
 
     private WordBounds? FindWordAtPoint(SKPoint point)
@@ -599,7 +701,7 @@ public class InteractiveTextRenderer : SKCanvasView
         // Trigger re-layout when size changes (window resize, orientation change, etc.)
         if (width > 0 && height > 0)
         {
-            System.Diagnostics.Debug.WriteLine($"🔄 InteractiveTextRenderer size changed: {width}x{height}");
+            _logger.LogDebug("InteractiveTextRenderer size changed: {Width}x{Height}", width, height);
             _needsLayout = true;
             InvalidateSurface();
         }
@@ -613,14 +715,38 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         base.OnHandlerChanged();
         
-        if (Handler != null && _textPaint == null)
+        if (Handler != null)
         {
+            // Get the logger from the service provider when handler is attached
+            try
+            {
+                var serviceProvider = Handler.MauiContext?.Services;
+                if (serviceProvider != null)
+                {
+                    var loggerFactory = serviceProvider.GetService<ILoggerFactory>();
+                    if (loggerFactory != null)
+                    {
+                        _logger = loggerFactory.CreateLogger<InteractiveTextRenderer>();
+                        _logger.LogDebug("InteractiveTextRenderer logger initialized");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize logger: {ex.Message}");
+            }
+            
             // Initialize paints when the handler is set
-            InitializePaints();
+            if (_textPaint == null)
+            {
+                InitializePaints();
+            }
         }
         else if (Handler == null)
         {
             // Clean up resources when handler changes
+            CleanupTimers();
+            
             _textPaint?.Dispose();
             _highlightedTextPaint?.Dispose();
             _vocabularyPaint?.Dispose();
@@ -633,6 +759,16 @@ public class InteractiveTextRenderer : SKCanvasView
             _highlightedVocabularyPaint = null!;
             _font = null!;
         }
+    }
+    
+    /// <summary>
+    /// Clean up any active timers to prevent memory leaks
+    /// </summary>
+    private void CleanupTimers()
+    {
+        _singleTapTimer?.Dispose();
+        _singleTapTimer = null;
+        _pendingSingleTapWord = null;
     }
 
     #endregion

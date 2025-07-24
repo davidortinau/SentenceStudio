@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using SentenceStudio.Services;
 using SentenceStudio.Models;
 using SentenceStudio.Components;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Reading;
 
@@ -42,6 +43,12 @@ class ReadingPageState
     public VocabularyWord SelectedVocabulary { get; set; }
     public bool IsVocabularyBottomSheetVisible { get; set; } = false;
     
+    // 🎯 NEW: Dictionary lookup state
+    public string DictionaryWord { get; set; }
+    public string DictionaryDefinition { get; set; }
+    public bool IsDictionaryBottomSheetVisible { get; set; } = false;
+    public bool IsLookingUpWord { get; set; } = false;
+    
     // UI state
     public bool IsBusy { get; set; } = false;
     public double FontSize { get; set; } = 18.0;
@@ -66,12 +73,20 @@ class ReadingPageState
     public Dictionary<int, Microsoft.Maui.Controls.FormattedString> CachedFormattedStrings { get; set; } = new();
     public Dictionary<int, int> CachedParagraphHighlightedSentence { get; set; } = new();
     public int LastHighlightedSentence { get; set; } = -1;
+    
+    // 🏴‍☠️ NEW: Navigation hiding for immersive reading
+    public bool IsNavigationVisible { get; set; } = true;
+    public double LastScrollY { get; set; } = 0.0;
+    public double ScrollThreshold { get; set; } = 50.0; // Pixels to scroll before hiding
+    public bool IsScrollingDown { get; set; } = false;
 }
 
 partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 {
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] LearningResourceRepository _resourceRepository;
+    [Inject] TranslationService _translationService;
+    [Inject] ILogger<TimestampedAudioManager> _audioManagerLogger;
     LocalizationManager _localize => LocalizationManager.Instance;
     
     private TimestampedAudioManager _audioManager;
@@ -134,9 +149,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
-                RenderVocabularyBottomSheet()
+                RenderVocabularyBottomSheet(),
+                RenderDictionaryBottomSheet()
             )
         )
+        .Set(MauiControls.Shell.NavBarIsVisibleProperty, State.IsNavigationVisible)
         .OnAppearing(LoadContentAsync);
     }
     
@@ -197,15 +214,35 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     .CurrentSentence(State.CurrentSentenceIndex)
                     .FontSize((float)State.FontSize)
                     .OnVocabularyWordTapped((v) => ShowVocabularyBottomSheet(v))
-                    .OnWordTapped(word => {
+                    .OnWordTapped(word =>
+                    {
                         // Handle word tap for dictionary lookup
-                        Debug.WriteLine($"Word tapped: {word}");
+                        Debug.WriteLine($"🏴‍☠️ Word tapped: {word}");
+                        LookupWordInDictionary(word);
+                    })
+                    .OnSentenceDoubleTapped(sentenceIndex =>
+                    {
+                        // 🎯 NEW: Handle sentence double-tap to jump to that sentence
+                        Debug.WriteLine($"🏴‍☠️ Sentence double-tapped: {sentenceIndex}");
+                        
+                        // Show helpful hint for first-time users
+                        if (!State.HasShownJumpHint)
+                        {
+                            _ = Task.Run(async () => {
+                                await AppShell.DisplayToastAsync("🏴‍☠️ Jumping to that sentence, Captain!");
+                                SetState(s => s.HasShownJumpHint = true);
+                                Preferences.Set("ReadingActivity_HasShownJumpHint", true);
+                            });
+                        }
+                        
+                        _ = Task.Run(() => StartPlaybackFromSentence(sentenceIndex));
                     })
                     .HorizontalOptions(LayoutOptions.FillAndExpand)
             )
             .Spacing(ApplicationTheme.Size160)
             .Padding(ApplicationTheme.Size240)
         )
+        .OnScrolled(OnScrollViewScrolled)
         .GridRow(2);
 
     List<List<SentenceStudio.Components.TextSegment>> PrepareSegments()
@@ -411,8 +448,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .LineHeight(1.5)
                 )
                 .Padding(ApplicationTheme.Size120)
-                .OnTapped(() => SelectParagraph(paragraphSentences))
-                .OnTapped(() => StartPlaybackFromParagraph(paragraphSentences), 2);
+                .OnTapped(() => StartPlaybackFromSentence(paragraphSentences.First().Item2), 2);
             }, 5.0);
             
             // Cache this paragraph
@@ -497,26 +533,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             return ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
     }
     
-    async Task SelectParagraph(List<(string, int)> paragraphSentences)
-    {
-        var firstSentenceIndex = paragraphSentences.First().Item2;
-        SetState(s => s.SelectedSentenceIndex = firstSentenceIndex);
-        
-        // Show helpful hint for first-time users
-        if (!State.HasShownJumpHint)
-        {
-            await AppShell.DisplayToastAsync("💡 Double-tap to play from here!");
-            SetState(s => s.HasShownJumpHint = true);
-            Preferences.Set("ReadingActivity_HasShownJumpHint", true);
-        }
-    }
-    
-    Task StartPlaybackFromParagraph(List<(string, int)> paragraphSentences)
-    {
-        var firstSentenceIndex = paragraphSentences.First().Item2;
-        return StartPlaybackFromSentence(firstSentenceIndex);
-    }
-    
     VisualNode RenderReadingInstructions() =>
         Border(
             HStack(
@@ -533,7 +549,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         Label("• Tap vocabulary words for translations")
                             .FontSize(12)
                             .ThemeKey(ApplicationTheme.Body1),
-                        Label("• Double-tap sentences to play from there")
+                        Label("• Double-tap any sentence to jump to that point")
                             .FontSize(12)
                             .ThemeKey(ApplicationTheme.Body1)
                     )
@@ -588,7 +604,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .Padding(ApplicationTheme.Size160)
         .GridRow(3)
-        .IsVisible(State.Sentences.Any());
+        .IsVisible(State.Sentences.Any() && State.IsNavigationVisible);
     
     VisualNode RenderVocabularyBottomSheet() =>
         new SfBottomSheet(
@@ -613,6 +629,42 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .GridRowSpan(4)
         .IsOpen(State.IsVocabularyBottomSheetVisible);
+    
+    VisualNode RenderDictionaryBottomSheet() =>
+        new SfBottomSheet(
+            ScrollView(
+                VStack(
+                    Label(State.DictionaryWord)
+                        .FontSize(24)
+                        .FontAttributes(FontAttributes.Bold)
+                        .ThemeKey(ApplicationTheme.Title1)
+                        .HCenter(),
+                    State.IsLookingUpWord 
+                        ? VStack(
+                            ActivityIndicator()
+                                .IsRunning(true)
+                                .Color(ApplicationTheme.Primary)
+                                .HCenter(),
+                            Label("Looking up definition...")
+                                .FontSize(16)
+                                .ThemeKey(ApplicationTheme.Body1)
+                                .HCenter()
+                        )
+                        .Spacing(ApplicationTheme.Size120)
+                        : Label(State.DictionaryDefinition)
+                            .FontSize(18)
+                            .ThemeKey(ApplicationTheme.Body1)
+                            .HCenter(),
+                    Button("Close")
+                        .OnClicked(CloseDictionaryBottomSheet)
+                        .HCenter()
+                )
+                .Spacing(ApplicationTheme.Size160)
+                .Padding(ApplicationTheme.Size240)
+            )
+        )
+        .GridRowSpan(4)
+        .IsOpen(State.IsDictionaryBottomSheetVisible);
     
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)
@@ -776,7 +828,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     void IncreaseFontSize()
     {
-        var newSize = Math.Min(State.FontSize + 2, 72.0); // Max font size 72 for better accessibility
+        var newSize = Math.Min(State.FontSize + 2, 100.0); // Max font size 72 for better accessibility
         SetState(s => {
             s.FontSize = newSize;
             // 🚀 PERFORMANCE: Invalidate cache when font size changes
@@ -788,7 +840,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     void DecreaseFontSize()
     {
-        var newSize = Math.Max(State.FontSize - 2, 12.0); // Min font size 12
+        var newSize = Math.Max(State.FontSize - 2, 32.0); // Min font size 12
         SetState(s => {
             s.FontSize = newSize;
             // 🚀 PERFORMANCE: Invalidate cache when font size changes
@@ -972,19 +1024,69 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     void LookupWordInDictionary(string word)
     {
-        // 🎯 NEW: Dictionary lookup for regular words
-        // TODO: Implement dictionary service integration
-        // For now, show a simple feedback
-        SetState(s => {
-            // Could show a toast or mini popup with dictionary definition
-            // This is a placeholder for future dictionary integration
+        // 🎯 NEW: Dictionary lookup for regular words using bottom sheet UI
+        _ = Task.Run(async () => {
+            try
+            {
+                Debug.WriteLine($"🏴‍☠️ Looking up word: {word}");
+                
+                // Clean the word - remove punctuation for better lookup
+                var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
+                
+                // Show loading state in the dictionary bottom sheet
+                SetState(s => {
+                    s.DictionaryWord = cleanWord;
+                    s.DictionaryDefinition = null;
+                    s.IsDictionaryBottomSheetVisible = true;
+                    s.IsLookingUpWord = true;
+                });
+                
+                // First check if we have this word in our local vocabulary
+                var vocabularyWords = State.VocabularyWords;
+                var localWord = vocabularyWords?.FirstOrDefault(v => 
+                    v.TargetLanguageTerm.Equals(cleanWord, StringComparison.OrdinalIgnoreCase));
+                
+                if (localWord != null && !string.IsNullOrEmpty(localWord.NativeLanguageTerm))
+                {
+                    // Found in local vocabulary - show definition
+                    Debug.WriteLine($"🏴‍☠️ Found local translation: {localWord.TargetLanguageTerm} = {localWord.NativeLanguageTerm}");
+                    SetState(s => {
+                        s.DictionaryDefinition = localWord.NativeLanguageTerm;
+                        s.IsLookingUpWord = false;
+                    });
+                    return;
+                }
+                
+                // Not found locally - use AI translation service
+                Debug.WriteLine($"🏴‍☠️ Word not found locally, using AI translation for: {cleanWord}");
+                var translation = await _translationService.TranslateAsync(cleanWord);
+                
+                if (!string.IsNullOrEmpty(translation))
+                {
+                    Debug.WriteLine($"🏴‍☠️ AI translation found: {cleanWord} = {translation}");
+                    SetState(s => {
+                        s.DictionaryDefinition = translation;
+                        s.IsLookingUpWord = false;
+                    });
+                }
+                else
+                {
+                    Debug.WriteLine($"🏴‍☠️ No translation found for: {cleanWord}");
+                    SetState(s => {
+                        s.DictionaryDefinition = "No definition found";
+                        s.IsLookingUpWord = false;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"🏴‍☠️ Error in dictionary lookup: {ex.Message}");
+                SetState(s => {
+                    s.DictionaryDefinition = "Unable to lookup word definition";
+                    s.IsLookingUpWord = false;
+                });
+            }
         });
-        
-        // Example of what this might do:
-        // - Call a Korean dictionary API
-        // - Show pronunciation, meaning, example sentences
-        // - Add word to personal vocabulary list
-        Console.WriteLine($"Looking up word: {word}");
     }
     
     void CloseVocabularyBottomSheet()
@@ -992,10 +1094,56 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         SetState(s => s.IsVocabularyBottomSheetVisible = false);
     }
     
+    void CloseDictionaryBottomSheet()
+    {
+        SetState(s => s.IsDictionaryBottomSheetVisible = false);
+    }
+    
+    // 🏴‍☠️ NEW: Immersive scroll-based navigation hiding
+    void OnScrollViewScrolled(object sender, ScrolledEventArgs e)
+    {
+        // Calculate scroll direction and distance
+        var currentScrollY = e.ScrollY;
+        var deltaY = currentScrollY - State.LastScrollY;
+        
+        // Only trigger changes if we've scrolled a significant amount
+        if (Math.Abs(deltaY) > 5) // Small threshold to avoid excessive updates
+        {
+            var isScrollingDown = deltaY > 0;
+            var shouldHideNavigation = isScrollingDown && currentScrollY > State.ScrollThreshold;
+            var shouldShowNavigation = !isScrollingDown || currentScrollY <= 20; // Show when scrolling up or near top
+            
+            // Update navigation visibility if it needs to change
+            if (shouldHideNavigation && State.IsNavigationVisible)
+            {
+                SetState(s => {
+                    s.IsNavigationVisible = false;
+                    s.IsScrollingDown = true;
+                });
+                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Hiding navigation - scrolled down past threshold");
+            }
+            else if (shouldShowNavigation && !State.IsNavigationVisible)
+            {
+                SetState(s => {
+                    s.IsNavigationVisible = true;
+                    s.IsScrollingDown = false;
+                });
+                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Showing navigation - scrolled up or near top");
+            }
+            
+            // Update last scroll position
+            SetState(s => s.LastScrollY = currentScrollY);
+        }
+    }
+    
     // Navigation
     async Task GoBack()
     {
         StopCurrentPlayback();
+        
+        // 🏴‍☠️ Ensure navigation is visible when leaving the page
+        SetState(s => s.IsNavigationVisible = true);
+        
         MauiControls.Shell.Current.GoToAsync("..");
     }
     
@@ -1039,7 +1187,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Starting audio system initialization");
 
             _timingCalculator = new SentenceTimingCalculator();
-            _audioManager = new TimestampedAudioManager(_timingCalculator);
+            _audioManager = new TimestampedAudioManager(_timingCalculator, _audioManagerLogger);
             
             // Update progress
             SetState(s => {

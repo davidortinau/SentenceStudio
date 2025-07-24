@@ -22,8 +22,10 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
     // Events
     private Action<string>? _wordTapped;
     private Action<VocabularyWord>? _vocabularyWordTapped;
-    private Action<List<(string, int)>>? _paragraphTapped;
-    private Action<List<(string, int)>>? _paragraphDoubleTapped;
+    
+    // 🎯 NEW: Sentence-level events
+    private Action<int>? _sentenceTapped;
+    private Action<int>? _sentenceDoubleTapped;
 
     public RxInteractiveTextRenderer()
     {
@@ -69,7 +71,6 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
     /// </summary>
     public RxInteractiveTextRenderer FontSize(float fontSize)
     {
-        System.Diagnostics.Debug.WriteLine($"🔤 RxInteractiveTextRenderer.FontSize called: {fontSize}");
         _fontSize = fontSize;
         return this;
     }
@@ -109,22 +110,22 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
         _vocabularyWordTapped = callback;
         return this;
     }
-
+    
     /// <summary>
-    /// Event fired when a paragraph is tapped
+    /// Event fired when a sentence is tapped
     /// </summary>
-    public RxInteractiveTextRenderer OnParagraphTapped(Action<List<(string, int)>> callback)
+    public RxInteractiveTextRenderer OnSentenceTapped(Action<int> callback)
     {
-        _paragraphTapped = callback;
+        _sentenceTapped = callback;
         return this;
     }
-
+    
     /// <summary>
-    /// Event fired when a paragraph is double-tapped
+    /// Event fired when a sentence is double-tapped - perfect for jumping to that sentence!
     /// </summary>
-    public RxInteractiveTextRenderer OnParagraphDoubleTapped(Action<List<(string, int)>> callback)
+    public RxInteractiveTextRenderer OnSentenceDoubleTapped(Action<int> callback)
     {
-        _paragraphDoubleTapped = callback;
+        _sentenceDoubleTapped = callback;
         return this;
     }
 
@@ -138,15 +139,16 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
         
         if (NativeControl == null)
         {
-            System.Diagnostics.Debug.WriteLine("❌ RxInteractiveTextRenderer: NativeControl is null after mount!");
             return;
         }
 
         // Wire up events
         NativeControl.WordTapped += OnWordTappedInternal;
         NativeControl.VocabularyWordTapped += OnVocabularyWordTappedInternal;
-        NativeControl.ParagraphTapped += OnParagraphTappedInternal;
-        NativeControl.ParagraphDoubleTapped += OnParagraphDoubleTappedInternal;
+        
+        // 🎯 NEW: Wire up sentence events
+        NativeControl.SentenceTapped += OnSentenceTappedInternal;
+        NativeControl.SentenceDoubleTapped += OnSentenceDoubleTappedInternal;
     }
 
     protected override void OnUnmount()
@@ -156,8 +158,10 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
             // Unwire events
             NativeControl.WordTapped -= OnWordTappedInternal;
             NativeControl.VocabularyWordTapped -= OnVocabularyWordTappedInternal;
-            NativeControl.ParagraphTapped -= OnParagraphTappedInternal;
-            NativeControl.ParagraphDoubleTapped -= OnParagraphDoubleTappedInternal;
+            
+            // 🎯 NEW: Unwire sentence events
+            NativeControl.SentenceTapped -= OnSentenceTappedInternal;
+            NativeControl.SentenceDoubleTapped -= OnSentenceDoubleTappedInternal;
         }
 
         base.OnUnmount();
@@ -167,7 +171,6 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
     {
         if (NativeControl == null)
         {
-            System.Diagnostics.Debug.WriteLine("❌ RxInteractiveTextRenderer: NativeControl is null in OnUpdate!");
             return;
         }
 
@@ -207,15 +210,15 @@ public class RxInteractiveTextRenderer : VisualNode<InteractiveTextRenderer>
     {
         _vocabularyWordTapped?.Invoke(vocabularyWord);
     }
-
-    private void OnParagraphTappedInternal(List<(string, int)> paragraph)
+    
+    private void OnSentenceTappedInternal(int sentenceIndex)
     {
-        _paragraphTapped?.Invoke(paragraph);
+        _sentenceTapped?.Invoke(sentenceIndex);
     }
-
-    private void OnParagraphDoubleTappedInternal(List<(string, int)> paragraph)
+    
+    private void OnSentenceDoubleTappedInternal(int sentenceIndex)
     {
-        _paragraphDoubleTapped?.Invoke(paragraph);
+        _sentenceDoubleTapped?.Invoke(sentenceIndex);
     }
 
     #endregion
