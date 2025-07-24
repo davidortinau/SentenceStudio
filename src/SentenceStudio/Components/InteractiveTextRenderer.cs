@@ -48,6 +48,10 @@ public class InteractiveTextRenderer : SKCanvasView
     private System.Threading.Timer? _singleTapTimer;
     private WordBounds? _pendingSingleTapWord;
     
+    // 🏴‍☠️ Touch tracking for tap detection
+    private SKPoint _touchStartPoint = SKPoint.Empty;
+    private DateTime _touchStartTime = DateTime.MinValue;
+    
     // Rendering resources
     private SKPaint _textPaint;
     private SKPaint _highlightedTextPaint; // NEW: Paint for highlighted sentence text
@@ -580,79 +584,134 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         PerformanceLogger.Time("OnTouch", () =>
         {
-            if (e.ActionType == SKTouchAction.Pressed)
+            _logger.LogDebug("🏴‍☠️ Touch event: {ActionType} at {X}, {Y} - Handled: {Handled}", 
+                e.ActionType, e.Location.X, e.Location.Y, e.Handled);
+            
+            // EXPERIMENTAL: Always handle touch events to ensure we get all events
+            e.Handled = true;
+            
+            // Log ALL touch events to debug what we're actually receiving
+            switch (e.ActionType)
             {
-                var tappedWord = FindWordAtPoint(e.Location);
-                var currentTapTime = DateTime.Now;
-                
-                if (tappedWord != null)
-                {
-                    _lastTappedWord = tappedWord;
+                case SKTouchAction.Pressed:
+                    _logger.LogDebug("🏴‍☠️ PRESSED event received");
+                    _touchStartPoint = e.Location;
+                    _touchStartTime = DateTime.Now;
+                    break;
                     
-                    _logger.LogDebug("🏴‍☠️ Word tapped: '{Word}', IsVocabulary: {IsVocab}, HasVocabWord: {HasVocab}, SentenceIndex: {SentenceIndex}", 
-                        tappedWord.Text, tappedWord.IsVocabulary, tappedWord.VocabularyWord != null, tappedWord.SentenceIndex);
-
-                    // 🎯 NEW: Check for double-tap on same sentence with debouncing
-                    bool isDoubleTap = _lastTapWord != null && 
-                                     _lastTapWord.SentenceIndex == tappedWord.SentenceIndex &&
-                                     (currentTapTime - _lastTapTime).TotalMilliseconds <= DoubleTapThreshold;
-
-                    if (isDoubleTap)
+                case SKTouchAction.Moved:
+                    _logger.LogDebug("🏴‍☠️ MOVED event received");
+                    break;
+                    
+                case SKTouchAction.Released:
+                    _logger.LogDebug("🏴‍☠️ RELEASED event received - THIS IS WHAT WE NEED!");
+                    var touchDuration = (DateTime.Now - _touchStartTime).TotalMilliseconds;
+                    var distance = _touchStartPoint != SKPoint.Empty ? 
+                        Math.Sqrt(Math.Pow(e.Location.X - _touchStartPoint.X, 2) + 
+                                 Math.Pow(e.Location.Y - _touchStartPoint.Y, 2)) : 0;
+                    
+                    _logger.LogDebug("🏴‍☠️ Touch released: duration={Duration}ms, distance={Distance}px", touchDuration, distance);
+                    
+                    // Only process as tap if it's a quick, stationary touch
+                    if (touchDuration < 300 && distance < 10)
                     {
-                        _logger.LogDebug("🏴‍☠️ DOUBLE TAP detected on sentence {SentenceIndex}!", tappedWord.SentenceIndex);
-                        
-                        // Cancel any pending single tap
-                        _singleTapTimer?.Dispose();
-                        _singleTapTimer = null;
-                        _pendingSingleTapWord = null;
-                        
-                        // Fire sentence double-tap event immediately
-                        SentenceDoubleTapped?.Invoke(tappedWord.SentenceIndex);
-                        
-                        // Reset double-tap tracking
-                        _lastTapTime = DateTime.MinValue;
-                        _lastTapWord = null;
+                        _logger.LogDebug("🏴‍☠️ Processing as quick tap");
+                        ProcessTapGesture(e.Location, DateTime.Now);
                     }
                     else
                     {
-                        // Potential single tap - delay execution to allow for double tap
-                        _logger.LogDebug("🏴‍☠️ Potential single tap - starting debounce timer");
-                        
-                        // Cancel any existing single tap timer
-                        _singleTapTimer?.Dispose();
-                        
-                        // Store the pending tap
-                        _pendingSingleTapWord = tappedWord;
-                        
-                        // Start timer to execute single tap action after debounce period
-                        _singleTapTimer = new System.Threading.Timer(ExecutePendingSingleTap, null, 
-                            (int)DoubleTapThreshold + 50, // Add 50ms buffer
-                            System.Threading.Timeout.Infinite);
-                        
-                        // Update double-tap tracking
-                        _lastTapTime = currentTapTime;
-                        _lastTapWord = tappedWord;
+                        _logger.LogDebug("🏴‍☠️ Not a quick tap - ignoring");
                     }
                     
-                    e.Handled = true;
-                }
-                else
-                {
-                    _logger.LogDebug("🏴‍☠️ No word found at touch point: {X}, {Y}", e.Location.X, e.Location.Y);
+                    // Reset tracking
+                    _touchStartPoint = SKPoint.Empty;
+                    _touchStartTime = DateTime.MinValue;
+                    break;
                     
-                    // Reset double-tap tracking when tapping empty space
-                    _lastTapTime = DateTime.MinValue;
-                    _lastTapWord = null;
+                case SKTouchAction.Cancelled:
+                    _logger.LogDebug("🏴‍☠️ CANCELLED event received");
+                    _touchStartPoint = SKPoint.Empty;
+                    _touchStartTime = DateTime.MinValue;
+                    break;
                     
-                    // Cancel any pending single tap
-                    _singleTapTimer?.Dispose();
-                    _singleTapTimer = null;
-                    _pendingSingleTapWord = null;
-                }
+                default:
+                    _logger.LogDebug("🏴‍☠️ UNKNOWN touch action: {ActionType}", e.ActionType);
+                    break;
             }
         }, 1.0);
         
         base.OnTouch(e);
+    }
+
+    /// <summary>
+    /// Processes a valid tap gesture (not a scroll)
+    /// </summary>
+    private void ProcessTapGesture(SKPoint location, DateTime currentTapTime)
+    {
+        var tappedWord = FindWordAtPoint(location);
+        
+        if (tappedWord != null)
+        {
+            _lastTappedWord = tappedWord;
+            
+            _logger.LogDebug("🏴‍☠️ Word tapped: '{Word}', IsVocabulary: {IsVocab}, HasVocabWord: {HasVocab}, SentenceIndex: {SentenceIndex}", 
+                tappedWord.Text, tappedWord.IsVocabulary, tappedWord.VocabularyWord != null, tappedWord.SentenceIndex);
+
+            // 🎯 Check for double-tap on same sentence with debouncing
+            bool isDoubleTap = _lastTapWord != null && 
+                             _lastTapWord.SentenceIndex == tappedWord.SentenceIndex &&
+                             (currentTapTime - _lastTapTime).TotalMilliseconds <= DoubleTapThreshold;
+
+            if (isDoubleTap)
+            {
+                _logger.LogDebug("🏴‍☠️ DOUBLE TAP detected on sentence {SentenceIndex}!", tappedWord.SentenceIndex);
+                
+                // Cancel any pending single tap
+                _singleTapTimer?.Dispose();
+                _singleTapTimer = null;
+                _pendingSingleTapWord = null;
+                
+                // Fire sentence double-tap event immediately
+                SentenceDoubleTapped?.Invoke(tappedWord.SentenceIndex);
+                
+                // Reset double-tap tracking
+                _lastTapTime = DateTime.MinValue;
+                _lastTapWord = null;
+            }
+            else
+            {
+                // Potential single tap - delay execution to allow for double tap
+                _logger.LogDebug("🏴‍☠️ Potential single tap - starting debounce timer");
+                
+                // Cancel any existing single tap timer
+                _singleTapTimer?.Dispose();
+                
+                // Store the pending tap
+                _pendingSingleTapWord = tappedWord;
+                
+                // Start timer to execute single tap action after debounce period
+                _singleTapTimer = new System.Threading.Timer(ExecutePendingSingleTap, null, 
+                    (int)DoubleTapThreshold + 50, // Add 50ms buffer
+                    System.Threading.Timeout.Infinite);
+                
+                // Update double-tap tracking
+                _lastTapTime = currentTapTime;
+                _lastTapWord = tappedWord;
+            }
+        }
+        else
+        {
+            _logger.LogDebug("🏴‍☠️ No word found at touch point: {X}, {Y}", location.X, location.Y);
+            
+            // Reset double-tap tracking when tapping empty space
+            _lastTapTime = DateTime.MinValue;
+            _lastTapWord = null;
+            
+            // Cancel any pending single tap
+            _singleTapTimer?.Dispose();
+            _singleTapTimer = null;
+            _pendingSingleTapWord = null;
+        }
     }
 
     /// <summary>
@@ -786,6 +845,10 @@ public class InteractiveTextRenderer : SKCanvasView
         _singleTapTimer?.Dispose();
         _singleTapTimer = null;
         _pendingSingleTapWord = null;
+        
+        // Reset touch detection state
+        _touchStartPoint = SKPoint.Empty;
+        _touchStartTime = DateTime.MinValue;
     }
 
     #endregion
