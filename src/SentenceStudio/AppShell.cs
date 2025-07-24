@@ -7,6 +7,7 @@ using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.YouTube;
 using SentenceStudio.Pages.LearningResources;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio;
 
@@ -27,6 +28,8 @@ public partial class AppShell : Component
     {
         [Param]
         private readonly IParameter<AppState> state;
+        
+        [Inject] ILogger<AppShell> _logger;
 
     // public AppShell()
     // {
@@ -92,10 +95,10 @@ public partial class AppShell : Component
         var hasProfile = state.Value.CurrentUserProfile != null;
 
         // Debug information
-        System.Diagnostics.Debug.WriteLine($"AppShell Render - isOnboarded: {isOnboarded}, hasProfile: {hasProfile}");
+        _logger.LogDebug("AppShell Render - isOnboarded: {IsOnboarded}, hasProfile: {HasProfile}", isOnboarded, hasProfile);
         if (hasProfile)
         {
-            System.Diagnostics.Debug.WriteLine($"Profile exists - Name: '{state.Value.CurrentUserProfile.Name}', Id: {state.Value.CurrentUserProfile.Id}");
+            _logger.LogDebug("Profile exists - Name: '{ProfileName}', Id: {ProfileId}", state.Value.CurrentUserProfile.Name, state.Value.CurrentUserProfile.Id);
         }
 
         // Show onboarding if either condition is true:
@@ -103,11 +106,11 @@ public partial class AppShell : Component
         // 2. No user profile exists in database
         if (!isOnboarded || !hasProfile)
         {
-            System.Diagnostics.Debug.WriteLine("Showing OnboardingPage");
+            _logger.LogDebug("Showing OnboardingPage");
             return new OnboardingPage();
         }
 
-        System.Diagnostics.Debug.WriteLine("Showing Main Shell");
+        _logger.LogDebug("Showing Main Shell");
         return Shell(
             FlyoutItem("Dashboard",
                 ShellContent()

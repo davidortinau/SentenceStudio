@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Scriban;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services
 {
@@ -14,6 +15,7 @@ namespace SentenceStudio.Services
         private readonly LearningResourceRepository _resourceRepo;
         private readonly SkillProfileRepository _skillRepository;
         private readonly ISyncService _syncService;
+        private readonly ILogger<TranslationService> _logger;
         private readonly string _openAiApiKey;
         
         private List<VocabularyWord> _words;
@@ -24,9 +26,10 @@ namespace SentenceStudio.Services
             }
         }
 
-        public TranslationService(IServiceProvider serviceProvider, IConfiguration configuration)
+        public TranslationService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<TranslationService> logger)
         {
             _serviceProvider = serviceProvider;
+            _logger = logger;
             _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
             _aiService = serviceProvider.GetRequiredService<AiService>();
             _resourceRepo = serviceProvider.GetRequiredService<LearningResourceRepository>();
@@ -36,37 +39,37 @@ namespace SentenceStudio.Services
 
         public async Task<List<Challenge>> GetTranslationSentences(int resourceID, int numberOfSentences, int skillID)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationService: GetTranslationSentences called with resourceID={resourceID}, numberOfSentences={numberOfSentences}, skillID={skillID}");
+            _logger.LogDebug("GetTranslationSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}", resourceID, numberOfSentences, skillID);
             var watch = new Stopwatch();
             watch.Start();
 
             if (resourceID == 0)
             {
-                Debug.WriteLine("🏴‍☠️ TranslationService: Resource ID is 0 - no resource selected");
+                _logger.LogWarning("Resource ID is 0 - no resource selected");
                 return new List<Challenge>();
             }
 
             if (skillID == 0)
             {
-                Debug.WriteLine("🏴‍☠️ TranslationService: Skill ID is 0 - no skill selected");
+                _logger.LogWarning("Skill ID is 0 - no skill selected");
                 return new List<Challenge>();
             }
 
             var resource = await _resourceRepo.GetResourceAsync(resourceID);
-            Debug.WriteLine($"🏴‍☠️ TranslationService: Resource retrieved: {resource?.Title ?? "null"}");
+            _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
 
             if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationService: No resource or vocabulary found - returning empty list");
+                _logger.LogWarning("No resource or vocabulary found - returning empty list");
                 return new List<Challenge>();
             }
 
             // Send ALL vocabulary words to AI to ensure it only uses words from our vocabulary list
             _words = resource.Vocabulary.ToList();
-            Debug.WriteLine($"🏴‍☠️ TranslationService: Sending ALL {_words.Count} vocabulary words to AI");
+            _logger.LogDebug("Sending ALL {VocabularyCount} vocabulary words to AI", _words.Count);
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
-            Debug.WriteLine($"🏴‍☠️ TranslationService: Skill profile retrieved: {skillProfile?.Title ?? "null"}");
+            _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");
             
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
@@ -76,30 +79,30 @@ namespace SentenceStudio.Services
                 prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description}); 
             }
 
-            Debug.WriteLine($"🏴‍☠️ TranslationService: Prompt created, length: {prompt.Length}");
+            _logger.LogTrace("Prompt created, length: {PromptLength}", prompt.Length);
             try
             {
                 IChatClient client =
                 new OpenAIClient(_openAiApiKey)
                     .AsChatClient(modelId: "gpt-4o-mini");
 
-                Debug.WriteLine("🏴‍☠️ TranslationService: Sending prompt to AI service");
+                _logger.LogDebug("Sending prompt to AI service");
                 var reply = await client.GetResponseAsync<TranslationResponse>(prompt);
                 
                 if (reply != null && reply.Result.Sentences != null)
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationService: AI returned {reply.Result.Sentences.Count} sentences");
+                    _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Result.Sentences.Count);
                     
                     // Convert TranslationDto objects to Challenge objects and link vocabulary
-                    Debug.WriteLine($"🏴‍☠️ TranslationService: Converting {reply.Result.Sentences.Count} TranslationDto objects to Challenge objects");
+                    _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Result.Sentences.Count);
                     var challenges = new List<Challenge>();
                     
                     foreach (var translationDto in reply.Result.Sentences)
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationService: === Processing translation DTO ===");
-                        Debug.WriteLine($"🏴‍☠️ TranslationService: DTO.SentenceText: '{translationDto.SentenceText}'");
-                        Debug.WriteLine($"🏴‍☠️ TranslationService: DTO.RecommendedTranslation: '{translationDto.RecommendedTranslation}'");
-                        Debug.WriteLine($"🏴‍☠️ TranslationService: DTO.TranslationVocabulary: [{string.Join(", ", translationDto.TranslationVocabulary)}]");
+                        _logger.LogTrace("=== Processing translation DTO ===");
+                        _logger.LogTrace("DTO.SentenceText: '{SentenceText}'", translationDto.SentenceText);
+                        _logger.LogTrace("DTO.RecommendedTranslation: '{RecommendedTranslation}'", translationDto.RecommendedTranslation);
+                        _logger.LogTrace("DTO.TranslationVocabulary: [{TranslationVocabulary}]", string.Join(", ", translationDto.TranslationVocabulary));
                         
                         // Create Challenge object from DTO - simply map TranslationVocabulary to Challenge.Vocabulary
                         var challenge = new Challenge

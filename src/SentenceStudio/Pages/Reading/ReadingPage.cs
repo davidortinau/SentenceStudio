@@ -87,6 +87,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] TranslationService _translationService;
     [Inject] ILogger<TimestampedAudioManager> _audioManagerLogger;
+    [Inject] ILogger<ReadingPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
     
     private TimestampedAudioManager _audioManager;
@@ -217,13 +218,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     .OnWordTapped(word =>
                     {
                         // Handle word tap for dictionary lookup
-                        Debug.WriteLine($"🏴‍☠️ Word tapped: {word}");
+                        _logger.LogDebug("Word tapped: {Word}", word);
                         LookupWordInDictionary(word);
                     })
                     .OnSentenceDoubleTapped(sentenceIndex =>
                     {
                         // 🎯 NEW: Handle sentence double-tap to jump to that sentence
-                        Debug.WriteLine($"🏴‍☠️ Sentence double-tapped: {sentenceIndex}");
+                        _logger.LogDebug("Sentence double-tapped: {SentenceIndex}", sentenceIndex);
                         
                         // Show helpful hint for first-time users
                         if (!State.HasShownJumpHint)
@@ -301,7 +302,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 {
                     var updatedParagraphs = UpdateParagraphHighlighting();
                     State.CachedCurrentSentence = State.CurrentSentenceIndex;
-                    System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update completed");
+                    _logger.LogTrace("Fast highlighting update completed");
                     return updatedParagraphs;
                 }, 2.0); // Warn if > 2ms
             }
@@ -312,11 +313,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 State.CachedCurrentSentence == State.CurrentSentenceIndex &&
                 State.CachedIsAudioPlaying == State.IsAudioPlaying)
             {
-                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Using cached paragraphs");
+                _logger.LogTrace("Using cached paragraphs");
                 return State.CachedParagraphs;
             }
 
-            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Cache miss - rebuilding content (FontSize: {State.CachedFontSize}->{State.FontSize}, Sentence: {State.CachedCurrentSentence}->{State.CurrentSentenceIndex}, Playing: {State.CachedIsAudioPlaying}->{State.IsAudioPlaying})");
+            _logger.LogDebug("Cache miss - rebuilding content (FontSize: {CachedFontSize}->{FontSize}, Sentence: {CachedCurrentSentence}->{CurrentSentenceIndex}, Playing: {CachedIsAudioPlaying}->{IsAudioPlaying})", 
+                State.CachedFontSize, State.FontSize, State.CachedCurrentSentence, State.CurrentSentenceIndex, State.CachedIsAudioPlaying, State.IsAudioPlaying);
             
             // Cache is invalid or doesn't exist - rebuild content
             return PerformanceLogger.Time("FullContentRebuild", () =>
@@ -332,7 +334,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         return PerformanceLogger.Time("FastHighlightingUpdate", () =>
         {
             // 🚀 PERFORMANCE: New strategy - only update what changed, reuse everything else
-            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update started");
+            _logger.LogTrace("Fast highlighting update started");
             
             // Find which paragraphs actually need updates
             var paragraphGroups = GroupSentencesIntoParagraphs();
@@ -371,11 +373,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             if (hasAnyChanges)
             {
                 State.CachedParagraphs = updatedParagraphs;
-                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Fast highlighting update completed");
+                _logger.LogTrace("Fast highlighting update completed");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: No changes needed - reusing cached paragraphs");
+                _logger.LogTrace("No changes needed - reusing cached paragraphs");
             }
             
             return State.CachedParagraphs;
@@ -466,7 +468,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             var paragraphs = new List<VisualNode>();
             var paragraphGroups = GroupSentencesIntoParagraphs();
             
-            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Building cache for {State.Sentences.Count} sentences in {paragraphGroups.Count} paragraphs");
+            _logger.LogDebug("Building cache for {SentenceCount} sentences in {ParagraphCount} paragraphs", State.Sentences.Count, paragraphGroups.Count);
             
             // Clear previous caches
             State.CachedParagraphsByIndex.Clear();
@@ -486,7 +488,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             State.CachedCurrentSentence = State.CurrentSentenceIndex;
             State.CachedIsAudioPlaying = State.IsAudioPlaying;
             
-            System.Diagnostics.Debug.WriteLine($"🚀 PERFORMANCE: Cache built for {paragraphs.Count} paragraphs");
+            _logger.LogDebug("Cache built for {ParagraphCount} paragraphs", paragraphs.Count);
         }, 30.0); // Warn if > 30ms
     }
     
@@ -779,13 +781,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             
             // ALWAYS update the visual highlighting immediately for responsive UI
             SetState(s => s.CurrentSentenceIndex = newIndex);
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PreviousSentence: Updated visual highlighting to sentence {newIndex}");
+            _logger.LogDebug("PreviousSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
             
             // If audio is playing and we have an audio manager, also update audio position
             if (_audioManager != null && State.IsAudioPlaying)
             {
                 await _audioManager.PreviousSentenceAsync();
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PreviousSentence: Updated audio position to sentence {newIndex}");
+                _logger.LogDebug("PreviousSentence: Updated audio position to sentence {SentenceIndex}", newIndex);
             }
         }
     }
@@ -805,13 +807,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             
             // ALWAYS update the visual highlighting immediately for responsive UI
             SetState(s => s.CurrentSentenceIndex = newIndex);
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ NextSentence: Updated visual highlighting to sentence {newIndex}");
+            _logger.LogDebug("NextSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
             
             // If audio is playing and we have an audio manager, also update audio position
             if (_audioManager != null && State.IsAudioPlaying)
             {
                 await _audioManager.NextSentenceAsync();
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ NextSentence: Updated audio position to sentence {newIndex}");
+                _logger.LogDebug("NextSentence: Updated audio position to sentence {SentenceIndex}", newIndex);
             }
         }
     }
@@ -872,7 +874,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             
             // Show performance summary before clearing
             var summary = PerformanceLogger.GetPerformanceSummary();
-            System.Diagnostics.Debug.WriteLine(summary);
+            _logger.LogDebug("{PerformanceSummary}", summary);
             
             // Clear timestamped audio (real-time system doesn't use cache files)
             SetState(s => {
@@ -1028,7 +1030,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         _ = Task.Run(async () => {
             try
             {
-                Debug.WriteLine($"🏴‍☠️ Looking up word: {word}");
+                _logger.LogDebug("Looking up word: {Word}", word);
                 
                 // Clean the word - remove punctuation for better lookup
                 var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
@@ -1049,7 +1051,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 if (localWord != null && !string.IsNullOrEmpty(localWord.NativeLanguageTerm))
                 {
                     // Found in local vocabulary - show definition
-                    Debug.WriteLine($"🏴‍☠️ Found local translation: {localWord.TargetLanguageTerm} = {localWord.NativeLanguageTerm}");
+                    _logger.LogDebug("Found local translation: {TargetTerm} = {NativeTerm}", localWord.TargetLanguageTerm, localWord.NativeLanguageTerm);
                     SetState(s => {
                         s.DictionaryDefinition = localWord.NativeLanguageTerm;
                         s.IsLookingUpWord = false;
@@ -1058,12 +1060,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 }
                 
                 // Not found locally - use AI translation service
-                Debug.WriteLine($"🏴‍☠️ Word not found locally, using AI translation for: {cleanWord}");
+                _logger.LogDebug("Word not found locally, using AI translation for: {CleanWord}", cleanWord);
                 var translation = await _translationService.TranslateAsync(cleanWord);
                 
                 if (!string.IsNullOrEmpty(translation))
                 {
-                    Debug.WriteLine($"🏴‍☠️ AI translation found: {cleanWord} = {translation}");
+                    _logger.LogDebug("AI translation found: {CleanWord} = {Translation}", cleanWord, translation);
                     SetState(s => {
                         s.DictionaryDefinition = translation;
                         s.IsLookingUpWord = false;
@@ -1071,7 +1073,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 }
                 else
                 {
-                    Debug.WriteLine($"🏴‍☠️ No translation found for: {cleanWord}");
+                    _logger.LogWarning("No translation found for: {CleanWord}", cleanWord);
                     SetState(s => {
                         s.DictionaryDefinition = "No definition found";
                         s.IsLookingUpWord = false;
@@ -1080,7 +1082,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"🏴‍☠️ Error in dictionary lookup: {ex.Message}");
+                _logger.LogError(ex, "Error in dictionary lookup for word: {Word}", word);
                 SetState(s => {
                     s.DictionaryDefinition = "Unable to lookup word definition";
                     s.IsLookingUpWord = false;
@@ -1120,7 +1122,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.IsNavigationVisible = false;
                     s.IsScrollingDown = true;
                 });
-                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Hiding navigation - scrolled down past threshold");
+                _logger.LogDebug("Hiding navigation - scrolled down past threshold");
             }
             else if (shouldShowNavigation && !State.IsNavigationVisible)
             {
@@ -1128,7 +1130,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.IsNavigationVisible = true;
                     s.IsScrollingDown = false;
                 });
-                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Showing navigation - scrolled up or near top");
+                _logger.LogDebug("Showing navigation - scrolled up or near top");
             }
             
             // Update last scroll position
@@ -1177,14 +1179,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             s.AudioGenerationProgress = 0.1;
         });
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Loading state set, should be visible now");
+        _logger.LogDebug("InitializeAudioSystemAsync: Loading state set, should be visible now");
         
         // Add a small delay to ensure loading UI shows
         await Task.Delay(500);
 
         try
         {
-            System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Starting audio system initialization");
+            _logger.LogDebug("InitializeAudioSystemAsync: Starting audio system initialization");
 
             _timingCalculator = new SentenceTimingCalculator();
             _audioManager = new TimestampedAudioManager(_timingCalculator, _audioManagerLogger);
@@ -1196,12 +1198,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             });
             
             // Generate timestamped audio for the entire resource
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ InitializeAudioSystemAsync: Generating audio for transcript length: {State.Resource.Transcript.Length}");
+            _logger.LogDebug("InitializeAudioSystemAsync: Generating audio for transcript length: {TranscriptLength}", State.Resource.Transcript.Length);
             var timestampedAudioResult = await _speechService.GenerateTimestampedAudioAsync(State.Resource);
             
             if (timestampedAudioResult != null)
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ InitializeAudioSystemAsync: Generated audio with {timestampedAudioResult.Characters.Length} characters, duration: {timestampedAudioResult.Duration.TotalSeconds:F1}s");
+                _logger.LogDebug("InitializeAudioSystemAsync: Generated audio with {CharacterCount} characters, duration: {Duration:F1}s", timestampedAudioResult.Characters.Length, timestampedAudioResult.Duration.TotalSeconds);
                 
                 // Update progress
                 SetState(s => {
