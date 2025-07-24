@@ -147,36 +147,40 @@ Sentence Studio requires API keys for AI and text-to-speech functionality. You'l
    - Create an account and generate an API key
    - Free tier available with usage limitations
 
-#### Desktop Configuration (Development)
+3. **HuggingFace Token** (Optional) - For additional AI model access
+   - Visit: https://huggingface.co/settings/tokens
+   - Create an account and generate an access token
 
-For desktop development, set environment variables:
+4. **Syncfusion Key** (Optional) - For premium UI components
+   - Visit: https://www.syncfusion.com/account/downloads
+   - Create a community account for free license
 
-**Windows (PowerShell):**
-```powershell
-$env:AI__OpenAI__ApiKey = "your-openai-api-key-here"
-$env:ElevenLabsKey = "your-elevenlabs-api-key-here"
-```
+#### Configuration Setup
 
-**macOS/Linux (Terminal):**
+Copy the template configuration file and add your API keys:
+
 ```bash
-export AI__OpenAI__ApiKey="your-openai-api-key-here"
-export ElevenLabsKey="your-elevenlabs-api-key-here"
+# Copy the template file
+cp src/SentenceStudio/appsettings.template.json src/SentenceStudio/appsettings.json
+
+# Edit the appsettings.json file with your actual API keys
+# Note: This file is gitignored for security
 ```
 
-#### Mobile Configuration
-
-For mobile deployments, create an `appsettings.json` file in the `src/SentenceStudio` project directory:
+Your `appsettings.json` should look like:
 
 ```json
 {
   "Settings": {
-    "OpenAIKey": "your-openai-api-key-here",
-    "ElevenLabsKey": "your-elevenlabs-api-key-here"
+    "OpenAIKey": "sk-proj-your-actual-openai-key-here",
+    "HuggingFaceToken": "hf_your-actual-huggingface-token-here", 
+    "ElevenLabsKey": "sk_your-actual-elevenlabs-key-here",
+    "SyncfusionKey": "your-actual-syncfusion-key-here"
   }
 }
 ```
 
-**Important Security Note**: Never commit API keys to version control. The project's `.gitignore` excludes `appsettings.json` to prevent accidental exposure of sensitive credentials.
+**⚠️ Security Warning**: Never commit the `appsettings.json` file containing real API keys to version control. The file is included in `.gitignore` to prevent accidental exposure.
 
 ## Building and Running
 
