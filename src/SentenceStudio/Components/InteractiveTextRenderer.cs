@@ -261,14 +261,32 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogError(ex, "Error in InitializePaints");
         }
         
-        // Load the Korean font asynchronously and update when ready
+        // Load the Korean font using direct file access from MauiAsset (works cross-platform)
         _ = Task.Run(async () =>
         {
             try
             {
-                // Load Korean font using FileSystem.OpenAppPackageFileAsync as suggested
-                using var fontStream = await FileSystem.OpenAppPackageFileAsync("bm_yeonsung.ttf");
-                var typeface = SKTypeface.FromStream(fontStream);
+                SKTypeface? typeface = null;
+                
+                try
+                {
+                    // Try accessing the font as a MauiAsset (should work in all platforms and build modes)
+                    using var fontStream = await FileSystem.OpenAppPackageFileAsync("fonts/bm_yeonsung.ttf");
+                    typeface = SKTypeface.FromStream(fontStream);
+                    
+                    if (typeface != null)
+                    {
+                        _logger.LogInformation("Successfully loaded Korean font via FileSystem.OpenAppPackageFileAsync from MauiAsset");
+                    }
+                    else
+                    {
+                        _logger.LogError("Failed to create SKTypeface from font stream");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to load Korean font from MauiAsset - font file may not be properly embedded");
+                }
                 
                 if (typeface != null)
                 {
@@ -285,17 +303,16 @@ public class InteractiveTextRenderer : SKCanvasView
                         _highlightedVocabularyPaint.Typeface = typeface;
                         
                         InvalidateSurface(); // Redraw with new font
-                        _logger.LogInformation("Successfully loaded and applied Korean font to paints");
                     });
                 }
                 else
                 {
-                    _logger.LogWarning("Korean font stream was null, keeping default font");
+                    _logger.LogWarning("All font loading methods failed, keeping default font");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Korean font loading failed, keeping default font");
+                _logger.LogError(ex, "Unexpected error during font loading");
             }
         });
     }

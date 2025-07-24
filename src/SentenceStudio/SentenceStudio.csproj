@@ -107,6 +107,9 @@
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
 
+		<!-- Korean font also as MauiAsset for SkiaSharp direct access (different logical name) -->
+		<MauiAsset Include="Resources\Fonts\bm_yeonsung.ttf" LogicalName="fonts/bm_yeonsung.ttf" />
+
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>

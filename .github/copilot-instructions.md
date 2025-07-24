@@ -29,6 +29,20 @@ Documentation via Context 7 is here:
 
 Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
 
+## Troubleshooting and Issue Resolution
+
+When encountering build errors, runtime issues, or unexpected behavior:
+
+1. **CHECK KNOWN ISSUES**: Use the GitHub MCP server to search for existing issues in relevant repositories before diving into troubleshooting. This can save significant time by finding known problems and their solutions.
+
+2. **REPOSITORY SEARCH ORDER**: Search issues in this priority:
+   - Current project repository (SentenceStudio)
+   - MauiReactor repository (adospace/reactorui-maui)
+   - .NET MAUI repository (dotnet/maui)
+   - Related dependency repositories
+
+3. **ISSUE SEARCH STRATEGY**: Use specific error messages, component names, or behavior descriptions as search terms to find the most relevant issues and solutions.
+
 ## Microsoft.Extensions.AI Guidelines
 
 When working with AI prompts and DTOs:
