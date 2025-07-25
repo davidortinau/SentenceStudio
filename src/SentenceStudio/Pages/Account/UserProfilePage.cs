@@ -206,16 +206,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
         
         await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
 
-        var resources = await _learningResourceRepository.GetVocabularyListsAsync();
-        if(resources.Count == 0)
-        {
-            var response = await Application.Current.MainPage.DisplayAlert("Vocabulary", 
-                _localize["CreateStarterVocabPrompt"].ToString(), 
-                _localize["Yes"].ToString(), 
-                _localize["NoVocabPromptResponse"].ToString());
-            if(response)
-                await _learningResourceRepository.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
-        }
+        
     }    
     
     async Task Reset()
