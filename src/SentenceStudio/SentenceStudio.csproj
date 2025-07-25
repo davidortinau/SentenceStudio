@@ -160,6 +160,8 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.113" />
     	<PackageReference Include="CoreSync.Sqlite" Version="0.1.113" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" Version="30.1.39" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />	
 	</ItemGroup>
 
 	
@@ -174,11 +176,11 @@
 	</ItemGroup> -->
 
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">		
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />		
+			
 				
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" Version="30.1.39" />
+		
 			
 	</ItemGroup>
 
