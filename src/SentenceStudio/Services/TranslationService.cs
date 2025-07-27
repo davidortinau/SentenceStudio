@@ -121,26 +121,26 @@ namespace SentenceStudio.Services
                         };
                         
                         challenges.Add(challenge);
-                        Debug.WriteLine($"🏴‍☠️ TranslationService: ✅ Added challenge with {translationDto.TranslationVocabulary.Count} vocabulary building blocks");
+                        _logger.LogTrace($"🏴‍☠️ TranslationService: ✅ Added challenge with {translationDto.TranslationVocabulary.Count} vocabulary building blocks");
                     }
                     
                     watch.Stop();
-                    Debug.WriteLine($"🏴‍☠️ TranslationService: Generated {challenges.Count} translation challenges in {watch.Elapsed}");
+                    _logger.LogTrace($"🏴‍☠️ TranslationService: Generated {challenges.Count} translation challenges in {watch.Elapsed}");
                     return challenges;
                 }
                 else
                 {
-                    Debug.WriteLine("🏴‍☠️ TranslationService: Reply or Sentences is null");
+                    _logger.LogTrace("🏴‍☠️ TranslationService: Reply or Sentences is null");
                     return new List<Challenge>();
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationService: Error in GetTranslationSentences - {ex.Message}");
+                _logger.LogError($"🏴‍☠️ TranslationService: Error in GetTranslationSentences - {ex.Message}");
                 return new List<Challenge>();
             }
         }
-        public async Task<string> TranslateAsync(string text)
+        public async Task<string> TranslateAsync(string text, string context = null)
         {
             // Attempt to find an existing translation in the local database
             var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text);
@@ -162,7 +162,10 @@ namespace SentenceStudio.Services
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { user_input = text });
+                    prompt = await template.RenderAsync(new { 
+                        user_input = text, 
+                        context = context ?? string.Empty 
+                    });
                 }
 
                 // Get translation using the AI service
@@ -182,7 +185,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred during translation: {ex.Message}");
+                _logger.LogError($"An error occurred during translation: {ex.Message}");
                 return string.Empty;
             }
         }

@@ -6,6 +6,7 @@ using SentenceStudio.Shared.Models;
 using SentenceStudio.Pages.Reading;
 using SentenceStudio.Services;
 using SentenceStudio.Resources.Styles;
+using System.Text;
 
 namespace SentenceStudio.Components;
 
@@ -97,7 +98,25 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogDebug("SetContent called with {SentenceCount} sentences, {VocabularyCount} vocab words", 
                 sentences?.Count ?? 0, vocabularyWords?.Count ?? 0);
             
-            _text = string.Join(" ", sentences);
+            // 🏴‍☠️ FIXED: Keep original sentences without modifying text - handle paragraph breaks in layout
+            var combinedText = new StringBuilder();
+            for (int i = 0; i < sentences.Count; i++)
+            {
+                if (sentences[i] == "PARAGRAPH_BREAK")
+                {
+                    // Skip paragraph breaks in text combination - they'll be handled in layout
+                    continue;
+                }
+                else
+                {
+                    combinedText.Append(sentences[i]);
+                    if (i < sentences.Count - 1 && sentences[i + 1] != "PARAGRAPH_BREAK")
+                    {
+                        combinedText.Append(" "); // Space between sentences
+                    }
+                }
+            }
+            _text = combinedText.ToString();
             _logger.LogTrace("Combined text length: {TextLength} characters", _text.Length);
             
             _needsLayout = true;
@@ -405,6 +424,32 @@ public class InteractiveTextRenderer : SKCanvasView
             var sentence = sentences[sentenceIndex];
             var segments = sentenceIndex < sentenceSegments.Count ? sentenceSegments[sentenceIndex] : new List<TextSegment>();
             
+            // 🏴‍☠️ FIXED: Handle paragraph breaks at layout level, not in word processing
+            if (sentence == "PARAGRAPH_BREAK")
+            {
+                _sentenceBounds.Add(new SentenceBounds
+                {
+                    SentenceIndex = sentenceIndex,
+                    StartWordIndex = globalWordIndex,
+                    EndWordIndex = globalWordIndex - 1, // No words in paragraph break
+                    Text = sentence
+                });
+                
+                // Add a special marker to track where paragraph breaks should occur
+                var paragraphBreak = new WordBounds
+                {
+                    Text = "PARAGRAPH_BREAK", // Keep as marker, not as line break characters
+                    SentenceIndex = sentenceIndex,
+                    WordIndex = globalWordIndex,
+                    IsVocabulary = false,
+                    VocabularyWord = null
+                };
+                
+                _wordBounds.Add(paragraphBreak);
+                globalWordIndex++;
+                continue;
+            }
+            
             var sentenceStart = globalWordIndex;
             
             // Process each segment in the sentence
@@ -452,15 +497,32 @@ public class InteractiveTextRenderer : SKCanvasView
                 
             const float padding = 20f;
             const float lineSpacing = 1.5f;
+            const float paragraphSpacing = 2.0f; // 🏴‍☠️ NEW: Extra spacing for paragraphs
             
             float x = padding;
             float y = padding + _fontSize;
             float lineHeight = _fontSize * lineSpacing;
+            float paragraphBreakHeight = _fontSize * paragraphSpacing; // Extra space for paragraph breaks
             float maxWidth = canvasWidth - (padding * 2);
             float maxY = y; // Track the maximum Y position for height calculation
             
             foreach (var wordBounds in _wordBounds)
             {
+                // 🏴‍☠️ FIXED: Handle paragraph breaks properly
+                if (wordBounds.Text == "PARAGRAPH_BREAK")
+                {
+                    // Add extra space for paragraph break
+                    y += paragraphBreakHeight;
+                    x = padding; // Reset to start of line
+                    
+                    // Store position for the paragraph break (though it won't be rendered)
+                    wordBounds.Bounds = new SKRect(x, y - _fontSize, x, y);
+                    wordBounds.Position = new SKPoint(x, y);
+                    
+                    maxY = Math.Max(maxY, y);
+                    continue;
+                }
+                
                 var paint = wordBounds.IsVocabulary ? _vocabularyPaint : _textPaint;
                 float wordWidth = paint.MeasureText(wordBounds.Text);
                 float spaceWidth = paint.MeasureText(" ");
@@ -555,6 +617,10 @@ public class InteractiveTextRenderer : SKCanvasView
         
         foreach (var wordBounds in _wordBounds)
         {
+            // 🏴‍☠️ FIXED: Skip rendering paragraph break markers
+            if (wordBounds.Text == "PARAGRAPH_BREAK")
+                continue;
+                
             // Determine if this word is in the currently highlighted sentence
             bool isInHighlightedSentence = _currentSentenceIndex >= 0 && 
                                          wordBounds.SentenceIndex == _currentSentenceIndex;
@@ -763,7 +829,8 @@ public class InteractiveTextRenderer : SKCanvasView
     private WordBounds? FindWordAtPoint(SKPoint point)
     {
         // Simple hit testing - can be optimized with spatial indexing if needed
-        return _wordBounds.FirstOrDefault(wb => wb.Bounds.Contains(point));
+        // 🏴‍☠️ FIXED: Skip paragraph break markers when finding tapped words
+        return _wordBounds.FirstOrDefault(wb => wb.Text != "PARAGRAPH_BREAK" && wb.Bounds.Contains(point));
     }
 
     #endregion

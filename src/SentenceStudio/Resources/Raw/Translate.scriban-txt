@@ -1,1 +1,7 @@
+{{- if context && context != "" -}}
+Translate the word "{{user_input}}" to English. The word appears in this context: "{{context}}"
+
+Please provide just the English translation that best fits this context.
+{{- else -}}
 Translate this to English: {{user_input}}
+{{- end -}}

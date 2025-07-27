@@ -48,6 +48,8 @@ class ReadingPageState
     public string DictionaryDefinition { get; set; }
     public bool IsDictionaryBottomSheetVisible { get; set; } = false;
     public bool IsLookingUpWord { get; set; } = false;
+    public bool CanRememberWord { get; set; } = false; // 🏴‍☠️ NEW: Can save word to vocabulary
+    public bool IsSavingWord { get; set; } = false; // 🏴‍☠️ NEW: Is saving word
     
     // UI state
     public bool IsBusy { get; set; } = false;
@@ -252,6 +254,24 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     
     foreach (var sentence in State.Sentences)
     {
+        // 🏴‍☠️ NEW: Handle paragraph break markers
+        if (sentence == "PARAGRAPH_BREAK")
+        {
+            // Add a special paragraph break segment
+            var paragraphBreakSegments = new List<SentenceStudio.Components.TextSegment>
+            {
+                new SentenceStudio.Components.TextSegment
+                {
+                    Text = "\n\n", // Double line break for paragraph spacing
+                    IsVocabulary = false,
+                    IsWord = false,
+                    VocabularyWord = null
+                }
+            };
+            segments.Add(paragraphBreakSegments);
+            continue;
+        }
+        
         var sentenceSegments = new List<SentenceStudio.Components.TextSegment>();
         var words = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         
@@ -653,10 +673,33 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                 .HCenter()
                         )
                         .Spacing(ApplicationTheme.Size120)
-                        : Label(State.DictionaryDefinition)
-                            .FontSize(18)
-                            .ThemeKey(ApplicationTheme.Body1)
-                            .HCenter(),
+                        : VStack(
+                            Label(State.DictionaryDefinition)
+                                .FontSize(18)
+                                .ThemeKey(ApplicationTheme.Body1)
+                                .HCenter(),
+                            
+                            // 🏴‍☠️ NEW: Remember vocabulary word button
+                            State.CanRememberWord
+                                ? State.IsSavingWord
+                                    ? HStack(
+                                        ActivityIndicator()
+                                            .IsRunning(true)
+                                            .Color(ApplicationTheme.Primary),
+                                        Label("Saving word...")
+                                            .ThemeKey(ApplicationTheme.Body1)
+                                    )
+                                    .HCenter()
+                                    .Spacing(ApplicationTheme.Size80)
+                                    : Button("Remember this word")
+                                        .OnClicked(RememberVocabularyWord)
+                                        .BackgroundColor(ApplicationTheme.Secondary)
+                                        .TextColor(ApplicationTheme.Primary)
+                                        .HCenter()
+                                : null
+                        )
+                        .Spacing(ApplicationTheme.Size120),
+                    
                     Button("Close")
                         .OnClicked(CloseDictionaryBottomSheet)
                         .HCenter()
@@ -909,13 +952,32 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         if (string.IsNullOrWhiteSpace(transcript))
             return new List<string>();
         
-        // Handle multiple sentence delimiters and clean whitespace
-        var sentences = transcript
-            .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
-            .ToList();
+        // 🏴‍☠️ NEW: Preserve paragraph structure by first splitting on double line breaks
+        var paragraphs = transcript.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries);
+        var sentences = new List<string>();
+        
+        foreach (var paragraph in paragraphs)
+        {
+            // Clean up the paragraph and split into sentences
+            var paragraphText = paragraph.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+            
+            // Handle multiple sentence delimiters and clean whitespace
+            var paragraphSentences = paragraphText
+                .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
+                .ToList();
+            
+            // Add sentences from this paragraph
+            sentences.AddRange(paragraphSentences);
+            
+            // 🏴‍☠️ NEW: Add a paragraph break marker if this isn't the last paragraph
+            if (paragraph != paragraphs.Last() && paragraphSentences.Any())
+            {
+                sentences.Add("PARAGRAPH_BREAK"); // Special marker for paragraph breaks
+            }
+        }
         
         return sentences;
     }
@@ -1035,12 +1097,21 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Clean the word - remove punctuation for better lookup
                 var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
                 
+                // 🏴‍☠️ NEW: Get the current sentence for context
+                string currentSentence = null;
+                if (State.CurrentSentenceIndex >= 0 && State.CurrentSentenceIndex < State.Sentences.Count)
+                {
+                    currentSentence = State.Sentences[State.CurrentSentenceIndex];
+                }
+                
                 // Show loading state in the dictionary bottom sheet
                 SetState(s => {
                     s.DictionaryWord = cleanWord;
                     s.DictionaryDefinition = null;
                     s.IsDictionaryBottomSheetVisible = true;
                     s.IsLookingUpWord = true;
+                    s.CanRememberWord = false;
+                    s.IsSavingWord = false;
                 });
                 
                 // First check if we have this word in our local vocabulary
@@ -1050,18 +1121,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 
                 if (localWord != null && !string.IsNullOrEmpty(localWord.NativeLanguageTerm))
                 {
-                    // Found in local vocabulary - show definition
+                    // Found in local vocabulary - show definition, no need to remember
                     _logger.LogDebug("Found local translation: {TargetTerm} = {NativeTerm}", localWord.TargetLanguageTerm, localWord.NativeLanguageTerm);
                     SetState(s => {
                         s.DictionaryDefinition = localWord.NativeLanguageTerm;
                         s.IsLookingUpWord = false;
+                        s.CanRememberWord = false; // Already in vocabulary
                     });
                     return;
                 }
                 
-                // Not found locally - use AI translation service
-                _logger.LogDebug("Word not found locally, using AI translation for: {CleanWord}", cleanWord);
-                var translation = await _translationService.TranslateAsync(cleanWord);
+                // Not found locally - use AI translation service with context
+                _logger.LogDebug("Word not found locally, using AI translation for: {CleanWord} with context: {Context}", cleanWord, currentSentence ?? "(no context)");
+                var translation = await _translationService.TranslateAsync(cleanWord, currentSentence);
                 
                 if (!string.IsNullOrEmpty(translation))
                 {
@@ -1069,6 +1141,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     SetState(s => {
                         s.DictionaryDefinition = translation;
                         s.IsLookingUpWord = false;
+                        s.CanRememberWord = true; // Allow saving new word
                     });
                 }
                 else
@@ -1077,6 +1150,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     SetState(s => {
                         s.DictionaryDefinition = "No definition found";
                         s.IsLookingUpWord = false;
+                        s.CanRememberWord = false;
                     });
                 }
             }
@@ -1086,6 +1160,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 SetState(s => {
                     s.DictionaryDefinition = "Unable to lookup word definition";
                     s.IsLookingUpWord = false;
+                    s.CanRememberWord = false;
                 });
             }
         });
@@ -1099,6 +1174,64 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     void CloseDictionaryBottomSheet()
     {
         SetState(s => s.IsDictionaryBottomSheetVisible = false);
+    }
+    
+    // 🏴‍☠️ NEW: Remember vocabulary word from dictionary lookup
+    void RememberVocabularyWord()
+    {
+        _ = Task.Run(async () => {
+            try
+            {
+                SetState(s => s.IsSavingWord = true);
+                
+                // Create new vocabulary word
+                var newWord = new VocabularyWord
+                {
+                    TargetLanguageTerm = State.DictionaryWord,
+                    NativeLanguageTerm = State.DictionaryDefinition,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                
+                // Save to database
+                var result = await _resourceRepository.SaveWordAsync(newWord);
+                
+                if (result > 0)
+                {
+                    // Add to current reading resource if we have one
+                    if (State.Resource?.Id > 0)
+                    {
+                        await _resourceRepository.AddVocabularyToResourceAsync(State.Resource.Id, newWord.Id);
+                        
+                        // Update local vocabulary list
+                        SetState(s => {
+                            if (s.VocabularyWords == null)
+                                s.VocabularyWords = new List<VocabularyWord>();
+                            s.VocabularyWords.Add(newWord);
+                            s.IsSavingWord = false;
+                            s.CanRememberWord = false; // Word is now remembered
+                        });
+                    }
+                    else
+                    {
+                        SetState(s => s.IsSavingWord = false);
+                    }
+                    
+                    await AppShell.DisplayToastAsync($"🏴‍☠️ Word '{State.DictionaryWord}' added to vocabulary, Captain!");
+                }
+                else
+                {
+                    SetState(s => s.IsSavingWord = false);
+                    await AppShell.DisplayToastAsync("❌ Failed to save vocabulary word");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving vocabulary word: {Word}", State.DictionaryWord);
+                SetState(s => s.IsSavingWord = false);
+                await AppShell.DisplayToastAsync("❌ Error saving vocabulary word");
+            }
+        });
     }
     
     // 🏴‍☠️ NEW: Immersive scroll-based navigation hiding
