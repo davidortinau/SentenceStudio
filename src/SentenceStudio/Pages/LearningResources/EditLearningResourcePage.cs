@@ -44,16 +44,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     public override VisualNode Render()
     {
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
-            ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
-                // .IsVisible(!State.IsEditing),
-            ToolbarItem("Save").OnClicked(SaveResource),
-                // .IsVisible(State.IsEditing),
-            ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)),
-                // .IsVisible(State.IsEditing),
-            ToolbarItem("Delete").OnClicked(DeleteResource),
-                // .IsVisible(!State.IsEditing),
+            State.IsEditing ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
+            State.IsEditing ? null : ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)),
+            State.IsEditing ? ToolbarItem("Save").OnClicked(SaveResource) : null,
+            State.IsEditing ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
             ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
-                // Show vocabulary progress for this specific resource
                 
             Grid(
                 State.IsLoading ? 
@@ -386,39 +381,34 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             
             // Vocabulary section
             VStack(
-                Grid(
-                    Label("Vocabulary")
-                        .FontAttributes(FontAttributes.Bold)
-                        .FontSize(18)
+                Label("Vocabulary")
+                        .ThemeKey(ApplicationTheme.Title1)
                         .GridColumn(0),
                         
-                    HStack(
-                        Button("+ Add Word")
-                            .ThemeKey("Secondary")
-                            .OnClicked(AddVocabularyWord),
+                HStack(
+                    Button("+ Add Word")
+                        .ThemeKey("Secondary")
+                        .OnClicked(AddVocabularyWord),
 
-                        Button("Generate")
-                            .ThemeKey("Secondary")
-                            .OnClicked(GenerateVocabulary)
-                            .IsEnabled(!State.IsGeneratingVocabulary)
-                            .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-                            
-                        ActivityIndicator()
-                            .IsRunning(State.IsGeneratingVocabulary)
-                            .IsVisible(State.IsGeneratingVocabulary)
-                            .Scale(0.8)
-                    )
-                    .Spacing(10)
-                    .GridColumn(1)
-                    .HEnd()
+                    Button("Generate")
+                        .ThemeKey("Secondary")
+                        .OnClicked(GenerateVocabulary)
+                        .IsEnabled(!State.IsGeneratingVocabulary)
+                        .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
+                        
+                    ActivityIndicator()
+                        .IsRunning(State.IsGeneratingVocabulary)
+                        .IsVisible(State.IsGeneratingVocabulary)
+                        .Scale(0.8)
                 )
-                .Columns("*, Auto"),
+                .Spacing(10),
                 
                 // Vocabulary import section
-                VStack(
-                    Label("Import Vocabulary from File or Paste Text")
-                        .FontAttributes(FontAttributes.Bold)
-                        .HStart(),
+                
+                Label("Import Vocabulary from File or Paste Text")
+                    .FontAttributes(FontAttributes.Bold)
+                    .HStart(),
+                Grid(
                     new SfTextInputLayout{
                         Editor()
                             .Text(State.VocabList)
@@ -427,32 +417,33 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .MaximumHeightRequest(250)
                         }
                         .Hint($"{_localize["Vocabulary"]}"),
-
                     Button()
                         .ImageSource(ApplicationTheme.IconFileExplorer)
                         .Background(Colors.Transparent)
                         .HEnd()
-                        .OnClicked(ChooseFile),
-
-                    HStack(
-                        RadioButton()
-                            .Content("Comma").Value("comma")
-                            .IsChecked(State.Delimiter == "comma")
-                            .OnCheckedChanged(e =>
-                                { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
-                        RadioButton()
-                            .Content("Tab").Value("tab")
-                            .IsChecked(State.Delimiter == "tab")
-                            .OnCheckedChanged(e =>
-                                { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
-                        Button("Import")
-                            .ThemeKey("Secondary")
-                            .OnClicked(ImportVocabulary)
-                            .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
-                    )
-                    .Spacing(ApplicationTheme.Size320)
+                        .VEnd()
+                        .TranslationY(-30)
+                        .OnClicked(ChooseFile)
+                ),
+                HStack(
+                    RadioButton()
+                        .Content("Comma").Value("comma")
+                        .FontSize(16)
+                        .IsChecked(State.Delimiter == "comma")
+                        .OnCheckedChanged(e =>
+                            { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                    RadioButton()
+                        .Content("Tab").Value("tab")
+                        .FontSize(16)
+                        .IsChecked(State.Delimiter == "tab")
+                        .OnCheckedChanged(e =>
+                            { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
+                    Button("Import")
+                        .ThemeKey("Secondary")
+                        .OnClicked(ImportVocabulary)
+                        .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                 )
-                .Spacing(5),
+                .Spacing(ApplicationTheme.Size320),
                 
                 CollectionView()
                     .SelectionMode(SelectionMode.None)
@@ -492,9 +483,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Margin(new Thickness(0, 0, 0, 5))
                     )
             )
-            .Spacing(5)
+            .Spacing(ApplicationTheme.LayoutSpacing)
         )
-        .Spacing(15);
+        .Spacing(ApplicationTheme.LayoutSpacing);
     }
 
     async Task LoadResource()
