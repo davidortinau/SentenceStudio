@@ -31,9 +31,9 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                                 .Text(State.Title)
                                 .OnTextChanged(text => SetState(s => s.Title = text))
                         )
-                        .ThemeKey(ApplicationTheme.InputWrapper)
+                        .ThemeKey(MyTheme.InputWrapper)
                     )
-                    .Spacing(ApplicationTheme.Size120),
+                    .Spacing(MyTheme.Size120),
 
                     VStack(
                         Label("Skills Description").HStart(),
@@ -44,15 +44,15 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                                 .AutoSize(EditorAutoSizeOption.TextChanges)
                                 .OnTextChanged(text => SetState(s => s.Description = text))
                         )
-                        .ThemeKey(ApplicationTheme.InputWrapper)
+                        .ThemeKey(MyTheme.InputWrapper)
                     )
-                    .Spacing(ApplicationTheme.Size120),
+                    .Spacing(MyTheme.Size120),
 
                     Label($"Created: {State.Profile.CreatedAt:MM/dd/yyyy}"),
                     Label($"Updated: {State.Profile.UpdatedAt:MM/dd/yyyy}")
                 )
-                .Spacing(ApplicationTheme.Size160)
-                .Padding(ApplicationTheme.Size160)
+                .Spacing(MyTheme.Size160)
+                .Padding(MyTheme.Size160)
             )
         ).OnAppearing(LoadProfile);
     }

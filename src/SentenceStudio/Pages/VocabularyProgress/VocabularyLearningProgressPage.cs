@@ -31,9 +31,9 @@ public class VocabularyProgressItem
     public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
     
     // Color coding
-    public Color StatusColor => IsKnown ? ApplicationTheme.Success : 
-                                IsLearning ? ApplicationTheme.Warning : 
-                                ApplicationTheme.Gray400;
+    public Color StatusColor => IsKnown ? MyTheme.Success : 
+                                IsLearning ? MyTheme.Warning : 
+                                MyTheme.Gray400;
     
     public string StatusText => IsKnown ? "Known" : 
                                 IsLearning ? "Learning" : 
@@ -88,16 +88,16 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         VStack(
             Border(
                 HStack(spacing: 20,
-                    RenderStatCard("Total", State.TotalWords, ApplicationTheme.Primary),
-                    RenderStatCard("Known", State.KnownWords, ApplicationTheme.Success),
-                    RenderStatCard("Learning", State.LearningWords, ApplicationTheme.Warning),
-                    RenderStatCard("Unknown", State.UnknownWords, ApplicationTheme.Gray400)
+                    RenderStatCard("Total", State.TotalWords, MyTheme.HighlightDarkest),
+                    RenderStatCard("Known", State.KnownWords, MyTheme.Success),
+                    RenderStatCard("Learning", State.LearningWords, MyTheme.Warning),
+                    RenderStatCard("Unknown", State.UnknownWords, MyTheme.Gray400)
                 ).HCenter()
             )
-            .Background(Theme.IsLightTheme ? Colors.White : ApplicationTheme.DarkSecondaryBackground)
+            .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .StrokeThickness(1)
-            .Stroke(ApplicationTheme.Gray200)
+            .Stroke(MyTheme.Gray200)
             .Padding(16)
         ).Padding(16, 16, 16, 0).GridRow(0);
 
@@ -105,7 +105,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         VStack(spacing: 4,
             Label(title)
                 .FontSize(12)
-                .TextColor(ApplicationTheme.Gray600)
+                .TextColor(MyTheme.Gray600)
                 .Center(),
             Label(count.ToString())
                 .FontSize(24)
@@ -125,20 +125,20 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
             // Status filter buttons
             HStack(spacing: 8,
                 Button("All")
-                    .BackgroundColor(State.SelectedFilter == VocabularyFilterType.All ? ApplicationTheme.Primary : ApplicationTheme.Gray200)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.All ? Colors.White : ApplicationTheme.Gray600)
+                    .Background(State.SelectedFilter == VocabularyFilterType.All ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
+                    .TextColor(State.SelectedFilter == VocabularyFilterType.All ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.All)),
                 Button("Known")
-                    .BackgroundColor(State.SelectedFilter == VocabularyFilterType.Known ? ApplicationTheme.Success : ApplicationTheme.Gray200)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Known ? Colors.White : ApplicationTheme.Gray600)
+                    .Background(State.SelectedFilter == VocabularyFilterType.Known ? MyTheme.SupportSuccessDark : MyTheme.Gray200Brush)
+                    .TextColor(State.SelectedFilter == VocabularyFilterType.Known ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Known)),
                 Button("Learning")
-                    .BackgroundColor(State.SelectedFilter == VocabularyFilterType.Learning ? ApplicationTheme.Warning : ApplicationTheme.Gray200)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Learning ? Colors.White : ApplicationTheme.Gray600)
+                    .Background(State.SelectedFilter == VocabularyFilterType.Learning ? MyTheme.SupportErrorDark : MyTheme.Gray200Brush)
+                    .TextColor(State.SelectedFilter == VocabularyFilterType.Learning ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Learning)),
                 Button("Unknown")
-                    .BackgroundColor(State.SelectedFilter == VocabularyFilterType.Unknown ? ApplicationTheme.Gray400 : ApplicationTheme.Gray200)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Unknown ? Colors.White : ApplicationTheme.Gray600)
+                    .Background(State.SelectedFilter == VocabularyFilterType.Unknown ? MyTheme.Gray400Brush : MyTheme.Gray200Brush)
+                    .TextColor(State.SelectedFilter == VocabularyFilterType.Unknown ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Unknown))
             ).HCenter(),
 
@@ -155,7 +155,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         var screenWidth = State.ScreenWidth > 0 ? State.ScreenWidth : 
             DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
         var cardWidth = 120; // From RenderVocabularyCard WidthRequest
-        var horizontalSpacing = ApplicationTheme.LayoutSpacing;
+        var horizontalSpacing = MyTheme.LayoutSpacing;
         var containerPadding = 32; // 16 left + 16 right padding
         
         // Calculate how many cards can fit: (screenWidth - padding) / (cardWidth + spacing) 
@@ -168,8 +168,8 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
 
         var gridLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
         {
-            VerticalItemSpacing = ApplicationTheme.LayoutSpacing,
-            HorizontalItemSpacing = ApplicationTheme.LayoutSpacing
+            VerticalItemSpacing = MyTheme.LayoutSpacing,
+            HorizontalItemSpacing = MyTheme.LayoutSpacing
         };
 
         return CollectionView()
@@ -186,11 +186,11 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 Label(item.Word.TargetLanguageTerm ?? "")
                     .FontSize(14)
                     .FontAttributes(FontAttributes.Bold)
-                    .TextColor(ApplicationTheme.Primary)
+                    .TextColor(MyTheme.HighlightDarkest)
                     .Center(),
                 Label(item.Word.NativeLanguageTerm ?? "")
                     .FontSize(12)
-                    .TextColor(ApplicationTheme.Gray600)
+                    .TextColor(MyTheme.Gray600)
                     .Center(),
                 Label(item.StatusText)
                     .FontSize(10)
@@ -199,7 +199,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     .Center()
             ).Padding(8)
         )
-        .Background(Theme.IsLightTheme ? Colors.White : ApplicationTheme.DarkSecondaryBackground)
+        .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(2)
         .Stroke(item.StatusColor)

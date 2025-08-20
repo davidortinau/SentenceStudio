@@ -153,7 +153,7 @@ public partial class AppShell : Component
         //         .Background(Microsoft.Maui.Graphics.Colors.Transparent)
         //         .ShowSeparator(true)
         //         .SegmentCornerRadius(0)
-        //         .Stroke(Theme.IsLightTheme ? ApplicationTheme.Black : ApplicationTheme.White)
+        //         .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
         //         .StrokeThickness(1)
         //         .SelectedIndex(Theme.CurrentAppTheme == AppTheme.Light ? 0 : 1)
         //         .OnSelectionChanged((s, e) => Theme.UserTheme = e.NewIndex == 0 ? AppTheme.Light : AppTheme.Dark)

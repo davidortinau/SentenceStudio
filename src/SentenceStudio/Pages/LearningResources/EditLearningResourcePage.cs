@@ -265,7 +265,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Title)
                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -280,7 +280,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                         .HeightRequest(100)
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -331,7 +331,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                         .Keyboard(Keyboard.Url)
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -346,7 +346,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                         .HeightRequest(150)
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -361,7 +361,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                         .HeightRequest(150)
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
@@ -375,14 +375,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Tags)
                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                 )
-                .ThemeKey(ApplicationTheme.InputWrapper)
+                .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
             
             // Vocabulary section
             VStack(
                 Label("Vocabulary")
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .GridColumn(0),
                         
                 HStack(
@@ -418,7 +418,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         }
                         .Hint($"{_localize["Vocabulary"]}"),
                     Button()
-                        .ImageSource(ApplicationTheme.IconFileExplorer)
+                        .ImageSource(MyTheme.IconFileExplorer)
                         .Background(Colors.Transparent)
                         .HEnd()
                         .VEnd()
@@ -443,7 +443,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnClicked(ImportVocabulary)
                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                 )
-                .Spacing(ApplicationTheme.Size320),
+                .Spacing(MyTheme.Size320),
                 
                 CollectionView()
                     .SelectionMode(SelectionMode.None)
@@ -483,9 +483,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Margin(new Thickness(0, 0, 0, 5))
                     )
             )
-            .Spacing(ApplicationTheme.LayoutSpacing)
+            .Spacing(MyTheme.LayoutSpacing)
         )
-        .Spacing(ApplicationTheme.LayoutSpacing);
+        .Spacing(MyTheme.LayoutSpacing);
     }
 
     async Task LoadResource()

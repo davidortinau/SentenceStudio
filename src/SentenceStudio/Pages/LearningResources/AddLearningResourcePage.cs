@@ -54,7 +54,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Title)
                                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                                 )
-                                .ThemeKey(ApplicationTheme.InputWrapper)
+                                .ThemeKey(MyTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -69,7 +69,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                                         .HeightRequest(100)
                                 )
-                                .ThemeKey(ApplicationTheme.InputWrapper)
+                                .ThemeKey(MyTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -121,7 +121,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                                             .Keyboard(Keyboard.Url)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -138,7 +138,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -155,7 +155,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -170,7 +170,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Tags)
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
-                                .ThemeKey(ApplicationTheme.InputWrapper)
+                                .ThemeKey(MyTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -189,7 +189,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     .Hint($"{_localize["Vocabulary"]}"),
 
                                 Button()
-                                    .ImageSource(ApplicationTheme.IconFileExplorer)
+                                    .ImageSource(MyTheme.IconFileExplorer)
                                     .Background(Colors.Transparent)
                                     .HEnd()
                                     .OnClicked(ChooseFile),
@@ -210,7 +210,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )
-                                .Spacing(ApplicationTheme.Size320),
+                                .Spacing(MyTheme.Size320),
                                 
                                 // Show current vocabulary count if any exists
                                 State.Resource.Vocabulary?.Count > 0 ?
@@ -234,7 +234,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                                             .Keyboard(Keyboard.Url)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -251,7 +251,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -268,7 +268,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(ApplicationTheme.InputWrapper)
+                                    .ThemeKey(MyTheme.InputWrapper)
                                 )
                                 .Spacing(5) : 
                                 null,
@@ -283,7 +283,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Tags)
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
-                                .ThemeKey(ApplicationTheme.InputWrapper)
+                                .ThemeKey(MyTheme.InputWrapper)
                             )
                             .Spacing(5),
                             
@@ -302,7 +302,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     .Hint($"{_localize["Vocabulary"]}"),
 
                                 Button()
-                                    .ImageSource(ApplicationTheme.IconFileExplorer)
+                                    .ImageSource(MyTheme.IconFileExplorer)
                                     .Background(Colors.Transparent)
                                     .HEnd()
                                     .OnClicked(ChooseFile),
@@ -323,7 +323,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )
-                                .Spacing(ApplicationTheme.Size320),
+                                .Spacing(MyTheme.Size320),
                                 
                                 // Show current vocabulary count if any exists
                                 State.Resource.Vocabulary?.Count > 0 ?

@@ -1,10 +1,11 @@
 using MauiReactor.Shapes;
 using Fonts;
 using OpenAI.VectorStores;
+﻿using ReactorTheme.Styles;
 
 namespace SentenceStudio.Resources.Styles;
 
-class ApplicationTheme : Theme
+class MyTheme : ApplicationTheme
 {
     public const string Title1 = nameof(Title1);
     public const string Title3 = nameof(Title3);
@@ -12,10 +13,10 @@ class ApplicationTheme : Theme
     public const string Body1 = nameof(Body1);
     public const string InputWrapper = nameof(InputWrapper);
 
-    public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
+    // public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
     public static Color PrimaryDark { get; } = Color.FromRgba(172, 153, 234, 255); // #AC99EA
     public static Color PrimaryDarkText { get; } = Color.FromRgba(36, 36, 36, 255); // #242424
-    public static Color Secondary { get; } = Color.FromRgba(223, 216, 247, 255); // #DFD8F7
+    // public static Color Secondary { get; } = Color.FromRgba(223, 216, 247, 255); // #DFD8F7
     public static Color SecondaryDarkText { get; } = Color.FromRgba(152, 128, 229, 255); // #9880E5
     public static Color Tertiary { get; } = Color.FromRgba(43, 11, 152, 255); // #2B0B98
 
@@ -47,8 +48,8 @@ class ApplicationTheme : Theme
     public static Color LightSecondaryBackground { get; } = Color.FromRgba(224, 224, 224, 255); // #E0E0E0
     public static Color DarkSecondaryBackground { get; } = Color.FromRgba(34, 34, 40, 255); // #222228
 
-    public static Brush PrimaryBrush { get; } = new SolidColorBrush(Primary);
-    public static Brush SecondaryBrush { get; } = new SolidColorBrush(Secondary);
+    public static Brush PrimaryBrush { get; } = new SolidColorBrush(HighlightDarkest);
+    public static Brush SecondaryBrush { get; } = new SolidColorBrush(HighlightMedium);
     public static Brush TertiaryBrush { get; } = new SolidColorBrush(Tertiary);
     public static Brush WhiteBrush { get; } = new SolidColorBrush(White);
     public static Brush BlackBrush { get; } = new SolidColorBrush(Black);
@@ -509,7 +510,7 @@ class ApplicationTheme : Theme
             .ContainerBackground(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground);
 
         ActivityIndicatorStyles.Default = _ =>
-            _.Color(IsLightTheme ? Primary : White);
+            _.Color(IsLightTheme ? HighlightDarkest : White);
 
         IndicatorViewStyles.Default = _ => _
             .IndicatorColor(IsLightTheme ? Gray200 : Gray500)
@@ -528,7 +529,7 @@ class ApplicationTheme : Theme
 
         ButtonStyles.Default = _ => _
             .TextColor(IsLightTheme ? White : PrimaryDarkText)
-            .BackgroundColor(IsLightTheme ? Primary : PrimaryDark)
+            .BackgroundColor(IsLightTheme ? HighlightDarkest : PrimaryDark)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -553,7 +554,7 @@ class ApplicationTheme : Theme
             .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         CheckBoxStyles.Default = _ => _
-            .Color(IsLightTheme ? Primary : White)
+            .Color(IsLightTheme ? HighlightDarkest : White)
             .MinimumHeightRequest(44)
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.CheckBox.ColorProperty, IsLightTheme ? Gray300 : Gray600);
@@ -727,7 +728,7 @@ class ApplicationTheme : Theme
             .VisualState("CommonStates", "Disable", MauiControls.Picker.TitleColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         ProgressBarStyles.Default = _ => _
-            .ProgressColor(IsLightTheme ? Primary : White)
+            .ProgressColor(IsLightTheme ? HighlightDarkest : White)
             .VisualState("CommonStates", "Disable", MauiControls.ProgressBar.ProgressColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         RadioButtonStyles.Default = _ => _
@@ -770,9 +771,9 @@ class ApplicationTheme : Theme
             .Offset(new Point(10, 10));
 
         SliderStyles.Default = _ => _
-            .MinimumTrackColor(IsLightTheme ? Primary : White)
+            .MinimumTrackColor(IsLightTheme ? HighlightDarkest : White)
             .MaximumTrackColor(IsLightTheme ? Gray200 : Gray600)
-            .ThumbColor(IsLightTheme ? Primary : White)
+            .ThumbColor(IsLightTheme ? HighlightDarkest : White)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.MinimumTrackColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.MaximumTrackColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.ThumbColorProperty, IsLightTheme ? Gray300 : Gray600);
@@ -781,12 +782,12 @@ class ApplicationTheme : Theme
             .BackgroundColor(IsLightTheme ? White : Black);
 
         SwitchStyles.Default = _ => _
-            .OnColor(IsLightTheme ? Primary : White)
+            .OnColor(IsLightTheme ? HighlightDarkest : White)
             .ThumbColor(White)
             .VisualState("CommonStates", "Disable", MauiControls.Switch.OnColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "On", MauiControls.Switch.OnColorProperty, IsLightTheme ? Secondary : Gray200)
-            .VisualState("CommonStates", "On", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? Primary : White)
+            .VisualState("CommonStates", "On", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? HighlightDarkest : White)
             .VisualState("CommonStates", "Off", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? Gray400 : Gray500);
 
 

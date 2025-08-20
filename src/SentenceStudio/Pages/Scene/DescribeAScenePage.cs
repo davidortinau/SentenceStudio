@@ -43,15 +43,15 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     {
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconInfo)
+                .IconImageSource(MyTheme.IconInfo)
                 .OnClicked(ViewDescription),
 
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconImageExport)
+                .IconImageSource(MyTheme.IconImageExport)
                 .OnClicked(LoadImage),
 
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconSwitch)
+                .IconImageSource(MyTheme.IconSwitch)
                 .OnClicked(ManageImages),
 
             Grid("Auto,*,Auto", "*",
@@ -71,7 +71,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .Aspect(Aspect.AspectFit)
                     .HorizontalOptions(LayoutOptions.Fill)
                     .VerticalOptions(LayoutOptions.Start)
-                    .Margin(ApplicationTheme.Size160)
+                    .Margin(MyTheme.Size160)
             ).GridColumn(0),
 
             VStack(spacing: 8,
@@ -80,7 +80,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .Header(
                         ContentView(
                             Label($"{_localize["ISee"]}")
-                                .Padding(ApplicationTheme.Size160)
+                                .Padding(MyTheme.Size160)
                         )
                     ),
                 
@@ -95,7 +95,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
                     .StrokeThickness(0)
-                    .Margin(ApplicationTheme.Size160, 8) 
+                    .Margin(MyTheme.Size160, 8) 
                     : null
             )
             .GridColumn(1)
@@ -108,7 +108,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             Label($"Accuracy: {sentence.Accuracy}")
                 .FontSize(12)
         )
-        .Padding(ApplicationTheme.Size160)
+        .Padding(MyTheme.Size160)
         .OnTapped(() => ShowExplanation(sentence));
 
     VisualNode RenderInput() => new SfTextInputLayout(
@@ -125,17 +125,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             HStack(
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(ApplicationTheme.IconTranslate)
+                    .ImageSource(MyTheme.IconTranslate)
                     .OnClicked(TranslateInput),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(ApplicationTheme.IconErase)
+                    .ImageSource(MyTheme.IconErase)
                     .OnClicked(ClearInput)
-            ).Spacing(ApplicationTheme.Size40).HStart()
+            ).Spacing(MyTheme.Size40).HStart()
         )
         .GridRow(2)
-        .Margin(ApplicationTheme.Size160);
+        .Margin(MyTheme.Size160);
 
     VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
         {
@@ -147,7 +147,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     _ = _popup?.CloseAsync();
                 })
             ).Padding(20)
-            .BackgroundColor(ApplicationTheme.LightBackground)
+            .BackgroundColor(MyTheme.LightBackground)
         }
         .IsShown(State.IsExplanationShown);
 
@@ -160,20 +160,20 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .OnClicked(() => _ = _popup.CloseAsync())
                     .GridRow(2)
             )
-                .Padding(ApplicationTheme.Size240)
-                .RowSpacing(ApplicationTheme.Size120)
-                .Margin(ApplicationTheme.Size240),
+                .Padding(MyTheme.Size240)
+                .RowSpacing(MyTheme.Size120)
+                .Margin(MyTheme.Size240),
         }
         .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
 
     VisualNode RenderHeader() => Grid(
             Label("Choose an image")
-                .ThemeKey(ApplicationTheme.Title1)
+                .ThemeKey(MyTheme.Title1)
                 .HStart(),
 
-            HStack(spacing: ApplicationTheme.Size60,
+            HStack(spacing: MyTheme.Size60,
                 Button()
-                    .ImageSource(ApplicationTheme.IconImageExport)
+                    .ImageSource(MyTheme.IconImageExport)
                     .Background(Colors.Transparent)
                     .Padding(0)
                     .Margin(0)
@@ -181,14 +181,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .IsVisible(!State.IsDeleteVisible),
 
                 Button()
-                    .ImageSource(ApplicationTheme.IconCheckbox)
+                    .ImageSource(MyTheme.IconCheckbox)
                     .Background(Colors.Transparent)
                     .Padding(0)
                     .Margin(0)
                     .VCenter(),
 
                 Button()
-                    .ImageSource(ApplicationTheme.IconDelete)
+                    .ImageSource(MyTheme.IconDelete)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -205,8 +205,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             .SelectedItems(State.SelectedImages.Cast<object>().ToList())
             .ItemsLayout(
                 new HorizontalGridItemsLayout(4)
-                    .VerticalItemSpacing(ApplicationTheme.Size240)
-                    .HorizontalItemSpacing(ApplicationTheme.Size240)
+                    .VerticalItemSpacing(MyTheme.Size240)
+                    .HorizontalItemSpacing(MyTheme.Size240)
             )
             .GridRow(1);
     
@@ -219,14 +219,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .OnTapped(() => OnImageSelected(image)),
 
             Image()
-                .Source(ApplicationTheme.IconCheckbox)
+                .Source(MyTheme.IconCheckbox)
                 .VEnd()
                 .HEnd()
                 .IsVisible(State.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(ApplicationTheme.IconCheckboxSelected)
+                .Source(MyTheme.IconCheckboxSelected)
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)
@@ -236,7 +236,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     VisualNode RenderLoadingOverlay() => Grid(
             Label("Analyzing the image...")
                 .FontSize(64)
-                .TextColor(ApplicationTheme.DarkOnLightBackground)
+                .TextColor(MyTheme.DarkOnLightBackground)
                 .Center()
         )
         .BackgroundColor(Color.FromArgb("#80000000"))
@@ -286,7 +286,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 {
                     sheet.HasBackdrop = true;
                     sheet.HasHandle = true;
-                    sheet.CornerRadius = ApplicationTheme.Size120;
+                    sheet.CornerRadius = MyTheme.Size120;
                     sheet.Detents = new Detent[]
                     {
                         new FullscreenDetent(),
@@ -813,11 +813,11 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     {
         return feedbackType switch
         {
-            "success" => ApplicationTheme.Primary,
+            "success" => MyTheme.SupportSuccessDark,
             "achievement" => Colors.Gold,
-            "info" => ApplicationTheme.Secondary,
-            "hint" => ApplicationTheme.Gray300,
-            _ => ApplicationTheme.Gray200
+            "info" => MyTheme.SupportSuccessMedium,
+            "hint" => MyTheme.Gray300,
+            _ => MyTheme.Gray200
         };
     }
 }

@@ -90,7 +90,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	}
 
 	VisualNode RenderInput() =>
-		VStack(spacing: ApplicationTheme.Size240,
+		VStack(spacing: MyTheme.Size240,
 			ActivityIndicator()
 				.IsVisible(State.IsBusy)
 				.IsRunning(State.IsBusy),
@@ -105,7 +105,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.OnTextChanged((s, e) => SetState(s => s.Phrase = e.NewTextValue))
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
-			.Stroke(ApplicationTheme.Gray300),
+			.Stroke(MyTheme.Gray300),
 			HStack(
 				Button("Submit")
 					.HorizontalOptions(LayoutOptions.Fill)
@@ -114,9 +114,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.ThemeKey("Secondary")
 					.HEnd()
 					.OnClicked(ShowVoiceSelection)
-			).Spacing(ApplicationTheme.Size240).HEnd()
+			).Spacing(MyTheme.Size240).HEnd()
 		)
-		.Padding(ApplicationTheme.Size240);
+		.Padding(MyTheme.Size240);
 		
 	
 	VisualNode RenderHistory() =>
@@ -125,9 +125,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			.Header(Label("History")
 				.FontSize(24)
 				.FontAttributes(FontAttributes.Bold)
-				.Padding(ApplicationTheme.Size240))
+				.Padding(MyTheme.Size240))
 			.ItemsSource(State.StreamHistory, RenderHistoryItem)
-			.Margin(ApplicationTheme.Size240)
+			.Margin(MyTheme.Size240)
 			.GridRow(2); 
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
@@ -158,14 +158,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => SaveAudioAsMp3(item))
-				.ImageSource(ApplicationTheme.IconSave)
+				.ImageSource(MyTheme.IconSave)
 				.TextColor(Colors.Black)
 				.GridColumn(2)
 				.HEnd(),
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => DeleteHistoryItem(item))
-				.ImageSource(ApplicationTheme.IconDelete)
+				.ImageSource(MyTheme.IconDelete)
 				.GridColumn(3)
 				.HEnd()
 		);
@@ -666,12 +666,12 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		// If this is the current playing item and audio is playing, show pause
 		if (State.CurrentPlayingItem == item && _audioPlayer != null && _audioPlayer.IsPlaying)
 		{
-			return ApplicationTheme.IconPause;
+			return MyTheme.IconPause;
 		}
 		// Otherwise show play
 		else
 		{
-			return ApplicationTheme.IconPlay;
+			return MyTheme.IconPlay;
 		}
 	}
 }

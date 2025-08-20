@@ -222,7 +222,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Text paint created: Size={TextSize}, Color={Color}", _textPaint.TextSize, _textPaint.Color);
 
             // Highlighted text paint for current sentence - use primary color for sentence highlighting
-            var highlightColor = ApplicationTheme.Primary.ToSKColor();
+            var highlightColor = MyTheme.HighlightDarkest.ToSKColor();
             _highlightedTextPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -234,7 +234,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Highlighted text paint created: Size={TextSize}, Color={Color}", _highlightedTextPaint.TextSize, _highlightedTextPaint.Color);
 
             // Vocabulary paint for vocabulary words - use secondary color for vocabulary highlighting
-            var vocabColor = ApplicationTheme.Tertiary.ToSKColor();
+            var vocabColor = MyTheme.Tertiary.ToSKColor();
             _vocabularyPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -248,11 +248,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Vocabulary paint created: Size={TextSize}, Color={Color}", _vocabularyPaint.TextSize, _vocabularyPaint.Color);
 
             // Highlighted vocabulary paint for vocabulary words in current sentence - use primary + secondary mix
-            var highlightedVocabColor = Color.FromRgba(
-                (ApplicationTheme.Primary.Red + ApplicationTheme.Secondary.Red) / 2,
-                (ApplicationTheme.Primary.Green + ApplicationTheme.Secondary.Green) / 2,
-                (ApplicationTheme.Primary.Blue + ApplicationTheme.Secondary.Blue) / 2,
-                1.0f).ToSKColor();
+            var highlightedVocabColor = MyTheme.HighlightDark.ToSKColor();
             _highlightedVocabularyPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -352,18 +348,18 @@ public class InteractiveTextRenderer : SKCanvasView
         try
         {
             // Use ApplicationTheme to get the correct background color
-            var backgroundColor = ApplicationTheme.IsLightTheme 
-                ? ApplicationTheme.LightBackground 
-                : ApplicationTheme.DarkBackground;
+            var backgroundColor = MyTheme.IsLightTheme 
+                ? MyTheme.LightBackground 
+                : MyTheme.DarkBackground;
             
-            _logger.LogTrace("Theme background color: IsLight={IsLight}, Color={Color}", ApplicationTheme.IsLightTheme, backgroundColor);
+            _logger.LogTrace("Theme background color: IsLight={IsLight}, Color={Color}", MyTheme.IsLightTheme, backgroundColor);
             return backgroundColor.ToSKColor();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error getting theme background color, using fallback");
             // Fallback to basic colors
-            return ApplicationTheme.IsLightTheme ? SKColors.White : SKColors.Black;
+            return MyTheme.IsLightTheme ? SKColors.White : SKColors.Black;
         }
     }
 
@@ -375,18 +371,18 @@ public class InteractiveTextRenderer : SKCanvasView
         try
         {
             // Use ApplicationTheme to get the correct text color
-            var textColor = ApplicationTheme.IsLightTheme 
-                ? ApplicationTheme.DarkOnLightBackground 
-                : ApplicationTheme.LightOnDarkBackground;
+            var textColor = MyTheme.IsLightTheme 
+                ? MyTheme.DarkOnLightBackground 
+                : MyTheme.LightOnDarkBackground;
             
-            _logger.LogTrace("Theme text color: IsLight={IsLight}, Color={Color}", ApplicationTheme.IsLightTheme, textColor);
+            _logger.LogTrace("Theme text color: IsLight={IsLight}, Color={Color}", MyTheme.IsLightTheme, textColor);
             return textColor.ToSKColor();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error getting theme text color, using fallback");
             // Fallback to basic colors
-            return ApplicationTheme.IsLightTheme ? SKColors.Black : SKColors.White;
+            return MyTheme.IsLightTheme ? SKColors.Black : SKColors.White;
         }
     }
 

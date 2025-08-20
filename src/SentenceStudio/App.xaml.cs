@@ -92,7 +92,7 @@ public abstract class MauiReactorApplication : ReactorApplication<AppShell>
 			//Console.Writeline($"MauiReactorApplication constructor starting");
 			//Console.Writeline($"MauiReactor constructor stack trace: {Environment.StackTrace}");
 			
-			this.UseTheme<ApplicationTheme>();
+			this.UseTheme<MyTheme>();
 			
 			//Console.Writeline($"MauiReactorApplication constructor completed");
 		}

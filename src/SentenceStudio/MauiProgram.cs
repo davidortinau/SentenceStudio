@@ -36,9 +36,11 @@ using Syncfusion.Maui.Core.Hosting;
 using Syncfusion.Licensing;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
+using ReactorTheme;
 
 #if WINDOWS
 using System.Reflection;
+using ReactorTheme;
 #endif
 
 #if DEBUG
@@ -53,6 +55,7 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseReactorThemeFonts()
 			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()

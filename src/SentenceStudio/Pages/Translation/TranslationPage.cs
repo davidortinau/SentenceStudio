@@ -64,8 +64,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 			Label("Thinking.....")
 				.FontSize(64)
 				.TextColor(Theme.IsLightTheme ? 
-					ApplicationTheme.DarkOnLightBackground : 
-					ApplicationTheme.LightOnDarkBackground)
+					MyTheme.DarkOnLightBackground : 
+					MyTheme.LightOnDarkBackground)
 				.Center()
 		)
 			.Background(Color.FromArgb("#80000000"))
@@ -78,8 +78,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .Text(State.CurrentSentence)
                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
                 .TextColor(Theme.IsLightTheme ?
-                    ApplicationTheme.DarkOnLightBackground :
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground :
+                    MyTheme.LightOnDarkBackground)
                 .HStart(),
             
             // Add vocabulary progress scoreboard
@@ -107,7 +107,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 RenderVocabBlocks() : null,
                 RenderUserInput()
         )
-        .RowSpacing(ApplicationTheme.Size40)
+        .RowSpacing(MyTheme.Size40)
         .Padding(30)
         .ColumnSpacing(15)
         .GridRow(2);
@@ -131,9 +131,9 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 Button()
                     .Text(word)
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                    .Padding(ApplicationTheme.Size40)
-                    .BackgroundColor(ApplicationTheme.Gray200)
-                    .TextColor(ApplicationTheme.Gray900)
+                    .Padding(MyTheme.Size40)
+                    .BackgroundColor(MyTheme.Gray200)
+                    .TextColor(MyTheme.Gray900)
                     .OnClicked(() => UseVocab(word))
             )
 		)
@@ -147,15 +147,15 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .IsRunning(State.IsBuffering)
                 .IsVisible(State.IsBuffering)
                 .Color(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .VCenter(),
             Label()
                 .Text(State.Progress)
                 .VCenter()
                 .TextColor(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
 		)
 		.Spacing(8)
         .Padding(30)
@@ -178,42 +178,42 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(ApplicationTheme.IconPrevious)
+                .Source(MyTheme.IconPrevious)
                 .GridRow(1).GridColumn(0)
                 .OnClicked(PreviousSentence),
 
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(ApplicationTheme.IconNext)
+                .Source(MyTheme.IconNext)
                 .GridRow(1).GridColumn(6)
                 .OnClicked(NextSentence),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .HeightRequest(1)
                 .GridColumnSpan(7),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(1),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(3),
 
             BoxView()
                 .Color(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(5)
         ).GridRow(1);
@@ -238,12 +238,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             return Border(
                     Label("◦")
                         .FontSize(16)
-                        .TextColor(ApplicationTheme.Primary)
+                        .TextColor(MyTheme.HighlightDarkest)
                         .Center()
                 )
                 .StrokeShape(new RoundRectangle().CornerRadius(12))
                 .StrokeThickness(1)
-                .Stroke(ApplicationTheme.Primary)
+                .Stroke(MyTheme.HighlightDarkest)
                 .HeightRequest(24)
                 .WidthRequest(24)
                 .BackgroundColor(Colors.Transparent);
@@ -254,7 +254,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             return Border()
                 .StrokeShape(new RoundRectangle().CornerRadius(12))
                 .StrokeThickness(1)
-                .Stroke(ApplicationTheme.Gray400)
+                .Stroke(MyTheme.Gray400)
                 .HeightRequest(24)
                 .WidthRequest(24)
                 .BackgroundColor(Colors.Transparent);
@@ -270,11 +270,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             .HStart()
             .VStart()
             .BackgroundColor(Theme.IsLightTheme ?
-                ApplicationTheme.LightBackground :
-                ApplicationTheme.DarkBackground)
+                MyTheme.LightBackground :
+                MyTheme.DarkBackground)
             .TextColor(Theme.IsLightTheme ?
-                ApplicationTheme.DarkOnLightBackground :
-                ApplicationTheme.LightOnDarkBackground);
+                MyTheme.DarkOnLightBackground :
+                MyTheme.LightOnDarkBackground);
 
     Color GetFeedbackBackgroundColor(string feedbackType) =>
         feedbackType switch
@@ -1123,15 +1123,15 @@ partial class FeedbackPanel : Component
                     Label()
                         .Text(Feedback)
                         .TextColor(Theme.IsLightTheme ? 
-                            ApplicationTheme.DarkOnLightBackground : 
-                            ApplicationTheme.LightOnDarkBackground)
+                            MyTheme.DarkOnLightBackground : 
+                            MyTheme.LightOnDarkBackground)
                         .FontSize(24)
                 )
             )
 		)
         .Background(Theme.IsLightTheme ? 
-            ApplicationTheme.LightBackground : 
-            ApplicationTheme.DarkBackground)
+            MyTheme.LightBackground : 
+            MyTheme.DarkBackground)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .Padding(20)
         .IsVisible(IsVisible);

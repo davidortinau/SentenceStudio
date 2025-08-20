@@ -106,7 +106,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
                     Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
                         .TextDecorations(TextDecorations.Underline)
-                        // .TextColor(Theme.IsLightTheme ? ApplicationTheme.Secondary : ApplicationTheme.SecondaryDark)
+                        // .TextColor(Theme.IsLightTheme ? MyTheme.Secondary : MyTheme.SecondaryDark)
                         .OnTapped(GoToOpenAI),
 
                     Button($"{_localize["Save"]}")
@@ -142,13 +142,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         HStack(
                             Button($"{_localize["SaveToDevice"]}")
                                 .OnClicked(ExportDataToFile)
-                                .ImageSource(ApplicationTheme.IconSave)
+                                .ImageSource(MyTheme.IconSave)
                                 .HorizontalOptions(LayoutOptions.FillAndExpand)
                                 .Margin(0, 0, 5, 0),
 
                             Button($"{_localize["Share"]}")
                                 .OnClicked(ExportAndShare)
-                                .ImageSource(ApplicationTheme.IconShare)
+                                .ImageSource(MyTheme.IconShare)
                                 .HorizontalOptions(LayoutOptions.FillAndExpand)
                                 .Margin(5, 0, 0, 0)
                         ),
@@ -160,7 +160,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Margin(0, 10, 0, 0) : null
                     )
                 )
-                .Spacing(ApplicationTheme.Size320)
+                .Spacing(MyTheme.Size320)
                 .Padding(24)
             )
         ).OnAppearing(LoadProfile);

@@ -107,7 +107,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HCenter(),
                     Label("Loading content...")
                         .HCenter()
-                        .ThemeKey(ApplicationTheme.Body1)
+                        .ThemeKey(MyTheme.Body1)
                 )
                 .VCenter()
                 .HCenter()
@@ -123,29 +123,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HCenter(),
                     Label(State.ErrorMessage)
                         .HCenter()
-                        .ThemeKey(ApplicationTheme.Body1),
+                        .ThemeKey(MyTheme.Body1),
                     Button("Go Back")
                         .OnClicked(GoBack)
                         .HCenter()
                 )
                 .VCenter()
                 .HCenter()
-                .Spacing(ApplicationTheme.Size160)
+                .Spacing(MyTheme.Size160)
             );
         }
 
         return ContentPage($"{_localize["Reading"]}",
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconFontDecrease)
+                .IconImageSource(MyTheme.IconFontDecrease)
                 .OnClicked(DecreaseFontSize),
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconFontIncrease)
+                .IconImageSource(MyTheme.IconFontIncrease)
                 .OnClicked(IncreaseFontSize),
             ToolbarItem()
-                .IconImageSource(ApplicationTheme.IconDelete)
+                .IconImageSource(MyTheme.IconDelete)
                 .OnClicked(ClearAudioCache),
             ToolbarItem()
-                .IconImageSource(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
+                .IconImageSource(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                 .OnClicked(TogglePlayback),
             Grid(rows:"Auto,Auto,*,Auto", columns:"*",
                 RenderAudioLoadingBanner(),
@@ -165,48 +165,48 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             HStack(
                 ActivityIndicator()
                     .IsRunning(State.IsGeneratingAudio)
-                    .Color(ApplicationTheme.Primary),
+                    .Color(MyTheme.HighlightDarkest),
                 Label(State.AudioGenerationStatus)
-                    .ThemeKey(ApplicationTheme.Body1)
+                    .ThemeKey(MyTheme.Body1)
                     .VCenter(),
                 ProgressBar()
                     .Progress(State.AudioGenerationProgress)
-                    .ProgressColor(ApplicationTheme.Primary)
+                    .ProgressColor(MyTheme.HighlightDarkest)
                     .HorizontalOptions(LayoutOptions.FillAndExpand)
                     .IsVisible(State.AudioGenerationProgress > 0)
             )
-            .Spacing(ApplicationTheme.Size120)
-            .Padding(ApplicationTheme.Size160)
+            .Spacing(MyTheme.Size120)
+            .Padding(MyTheme.Size160)
         )
-        .Background(ApplicationTheme.Secondary.WithAlpha(0.2f))
-        .Stroke(ApplicationTheme.Primary.WithAlpha(0.3f))
+        .Background(MyTheme.HighlightDarkest.WithAlpha(0.2f))
+        .Stroke(MyTheme.HighlightDarkest.WithAlpha(0.3f))
         .GridRow(0)
         .IsVisible(State.IsGeneratingAudio);
 
     VisualNode RenderHeader() =>
         Grid(rows: "*", columns: "*,Auto,Auto,Auto",
             ImageButton()
-                .Source(ApplicationTheme.IconFontDecrease)
+                .Source(MyTheme.IconFontDecrease)
                 .OnClicked(DecreaseFontSize)
                 .GridColumn(1)
                 .Padding(4),
             ImageButton()
-                .Source(ApplicationTheme.IconFontIncrease)
+                .Source(MyTheme.IconFontIncrease)
                 .OnClicked(IncreaseFontSize)
                 .GridColumn(2)
                 .Padding(4),
             ImageButton()
-                .Source(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
+                .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                 .OnClicked(TogglePlayback)
                 .GridColumn(3)
             // Label($"{State.PlaybackSpeed:F1}x")
             //     .OnTapped(CyclePlaybackSpeed)
             //     .GridColumn(4)
             //     .VCenter()
-            //     .Padding(ApplicationTheme.Size80)
+            //     .Padding(MyTheme.Size80)
         )
-        .ColumnSpacing(ApplicationTheme.LayoutSpacing)
-        .Padding(ApplicationTheme.Size160)
+        .ColumnSpacing(MyTheme.LayoutSpacing)
+        .Padding(MyTheme.Size160)
         .GridRow(0);
     
     VisualNode RenderReadingContent() =>
@@ -242,8 +242,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     })
                     .HorizontalOptions(LayoutOptions.FillAndExpand)
             )
-            .Spacing(ApplicationTheme.Size160)
-            .Padding(ApplicationTheme.Size240)
+            .Spacing(MyTheme.Size160)
+            .Padding(MyTheme.Size240)
         )
         .OnScrolled(OnScrollViewScrolled)
         .GridRow(2);
@@ -426,7 +426,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             // Vocabulary word with interaction
                             spanList.Add(
                                 Span(segment.Text, 
-                                    ApplicationTheme.Primary, 
+                                    MyTheme.HighlightDarkest, 
                                     FontAttributes.None,
                                     TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
                                     .TextDecorations(TextDecorations.Underline)
@@ -469,7 +469,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontSize(State.FontSize)
                         .LineHeight(1.5)
                 )
-                .Padding(ApplicationTheme.Size120)
+                .Padding(MyTheme.Size120)
                 .OnTapped(() => StartPlaybackFromSentence(paragraphSentences.First().Item2), 2);
             }, 5.0);
             
@@ -550,9 +550,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     Color GetTextColorForSentence(int sentenceIndex)
     {
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return ApplicationTheme.Primary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
+            return MyTheme.HighlightDark; // Use secondary color for sentence highlighting (different from vocabulary Primary)
         else
-            return ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
+            return MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
     }
     
     VisualNode RenderReadingInstructions() =>
@@ -564,16 +564,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     Label("Reading Controls:")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(14)
-                            .ThemeKey(ApplicationTheme.Caption1),
+                            .ThemeKey(MyTheme.Caption1),
                         Label("• Use A-/A+ buttons to adjust text size")
                             .FontSize(12)
-                            .ThemeKey(ApplicationTheme.Body1),
+                            .ThemeKey(MyTheme.Body1),
                         Label("• Tap vocabulary words for translations")
                             .FontSize(12)
-                            .ThemeKey(ApplicationTheme.Body1),
+                            .ThemeKey(MyTheme.Body1),
                         Label("• Double-tap any sentence to jump to that point")
                             .FontSize(12)
-                            .ThemeKey(ApplicationTheme.Body1)
+                            .ThemeKey(MyTheme.Body1)
                     )
                     .Spacing(2),
                     Button("✕")
@@ -581,12 +581,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .OnClicked(DismissInstructions)
                         .HorizontalOptions(LayoutOptions.End)
                 )
-                .Spacing(ApplicationTheme.Size120)
+                .Spacing(MyTheme.Size120)
             )
-            .Background(ApplicationTheme.Secondary.WithAlpha(0.3f))
-            .Stroke(ApplicationTheme.Primary.WithAlpha(0.5f))
-            .Padding(ApplicationTheme.Size120)
-            .Margin(ApplicationTheme.Size160)
+            .Background(MyTheme.HighlightMedium.WithAlpha(0.3f))
+            .Stroke(MyTheme.HighlightDarkest.WithAlpha(0.5f))
+            .Padding(MyTheme.Size120)
+            .Margin(MyTheme.Size160)
             .IsVisible(!State.HasDismissedInstructions);
     
     void DismissInstructions()
@@ -598,16 +598,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     VisualNode RenderAudioControls() =>
         Grid("*", "Auto,*,Auto",
             ImageButton()
-                .Source(ApplicationTheme.IconPreviousSm)
+                .Source(MyTheme.IconPreviousSm)
                 .OnClicked(PreviousSentence)
                 .GridColumn(0),
             VStack(
                 Label($"Sentence {State.CurrentSentenceIndex + 1} of {State.Sentences.Count}")
                     .HCenter()
-                    .ThemeKey(ApplicationTheme.Caption1),
+                    .ThemeKey(MyTheme.Caption1),
                 Label(FormatPlaybackTime(State.CurrentPlaybackTime))
                     .HCenter()
-                    .ThemeKey(ApplicationTheme.Caption1)
+                    .ThemeKey(MyTheme.Caption1)
                     .FontSize(12)
                     .IsVisible(State.IsTimestampedAudioLoaded)
             )
@@ -615,16 +615,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             .VCenter()
             .Spacing(4),
             ImageButton()
-                .Source(ApplicationTheme.IconNextSm)
+                .Source(MyTheme.IconNextSm)
                 .OnClicked(NextSentence)
                 .GridColumn(2)
             // Label($"{State.PlaybackSpeed:F1}x")
             //     .OnTapped(CyclePlaybackSpeed)
             //     .GridColumn(4)
             //     .VCenter()
-            //     .Padding(ApplicationTheme.Size80)
+            //     .Padding(MyTheme.Size80)
         )
-        .Padding(ApplicationTheme.Size160)
+        .Padding(MyTheme.Size160)
         .GridRow(3)
         .IsVisible(State.Sentences.Any() && State.IsNavigationVisible);
     
@@ -635,18 +635,18 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     Label(State.SelectedVocabulary?.TargetLanguageTerm)
                         .FontSize(24)
                         .FontAttributes(FontAttributes.Bold)
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .HCenter(),
                     Label(State.SelectedVocabulary?.NativeLanguageTerm)
                         .FontSize(18)
-                        .ThemeKey(ApplicationTheme.Body1)
+                        .ThemeKey(MyTheme.Body1)
                         .HCenter(),
                     Button("Close")
                         .OnClicked(CloseVocabularyBottomSheet)
                         .HCenter()
                 )
-                .Spacing(ApplicationTheme.Size160)
-                .Padding(ApplicationTheme.Size240)
+                .Spacing(MyTheme.Size160)
+                .Padding(MyTheme.Size240)
             )
         )
         .GridRowSpan(4)
@@ -659,24 +659,24 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     Label(State.DictionaryWord)
                         .FontSize(24)
                         .FontAttributes(FontAttributes.Bold)
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .HCenter(),
                     State.IsLookingUpWord 
                         ? VStack(
                             ActivityIndicator()
                                 .IsRunning(true)
-                                .Color(ApplicationTheme.Primary)
+                                .Color(MyTheme.HighlightDarkest)
                                 .HCenter(),
                             Label("Looking up definition...")
                                 .FontSize(16)
-                                .ThemeKey(ApplicationTheme.Body1)
+                                .ThemeKey(MyTheme.Body1)
                                 .HCenter()
                         )
-                        .Spacing(ApplicationTheme.Size120)
+                        .Spacing(MyTheme.Size120)
                         : VStack(
                             Label(State.DictionaryDefinition)
                                 .FontSize(18)
-                                .ThemeKey(ApplicationTheme.Body1)
+                                .ThemeKey(MyTheme.Body1)
                                 .HCenter(),
                             
                             // 🏴‍☠️ NEW: Remember vocabulary word button
@@ -685,27 +685,27 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                     ? HStack(
                                         ActivityIndicator()
                                             .IsRunning(true)
-                                            .Color(ApplicationTheme.Primary),
+                                            .Color(MyTheme.HighlightDarkest),
                                         Label("Saving word...")
-                                            .ThemeKey(ApplicationTheme.Body1)
+                                            .ThemeKey(MyTheme.Body1)
                                     )
                                     .HCenter()
-                                    .Spacing(ApplicationTheme.Size80)
+                                    .Spacing(MyTheme.Size80)
                                     : Button("Remember this word")
                                         .OnClicked(RememberVocabularyWord)
-                                        .BackgroundColor(ApplicationTheme.Secondary)
-                                        .TextColor(ApplicationTheme.Primary)
+                                        .Background(MyTheme.HighlightMedium)
+                                        .TextColor(MyTheme.HighlightDarkest)
                                         .HCenter()
                                 : null
                         )
-                        .Spacing(ApplicationTheme.Size120),
+                        .Spacing(MyTheme.Size120),
                     
                     Button("Close")
                         .OnClicked(CloseDictionaryBottomSheet)
                         .HCenter()
                 )
-                .Spacing(ApplicationTheme.Size160)
-                .Padding(ApplicationTheme.Size240)
+                .Spacing(MyTheme.Size160)
+                .Padding(MyTheme.Size240)
             )
         )
         .GridRowSpan(4)

@@ -104,7 +104,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Progress(State.AutoTransitionProgress)
             .HeightRequest(4)
             .BackgroundColor(Colors.Transparent)
-            .ProgressColor(ApplicationTheme.Primary)
+            .ProgressColor(MyTheme.HighlightDarkest)
             .VStart();
 
     VisualNode LoadingOverlay() =>
@@ -112,8 +112,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             Label("Loading vocabulary...")
                 .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
                 .TextColor(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
@@ -123,20 +123,20 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     VisualNode SessionSummaryOverlay() =>
         Grid(
             ScrollView(
-                VStack(spacing: ApplicationTheme.LayoutSpacing,
+                VStack(spacing: MyTheme.LayoutSpacing,
                     // Header
                     Label($"📚 Session {State.CurrentSetNumber - 1} Summary")
                         .FontSize(24)
                         .FontAttributes(FontAttributes.Bold)
-                        .TextColor(ApplicationTheme.Primary)
+                        .TextColor(MyTheme.HighlightDarkest)
                         .Center(),
 
                     Label("Review the vocabulary you just studied:")
                         .FontSize(16)
                         .Center()
                         .TextColor(Theme.IsLightTheme ?
-                            ApplicationTheme.DarkOnLightBackground :
-                            ApplicationTheme.LightOnDarkBackground),
+                            MyTheme.DarkOnLightBackground :
+                            MyTheme.LightOnDarkBackground),
 
                     // Vocabulary list
                     VStack(spacing: 8,
@@ -150,14 +150,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .Center()
-                                .TextColor(ApplicationTheme.Primary),
+                                .TextColor(MyTheme.HighlightDarkest),
 
                             HStack(spacing: 20,
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy >= 0.8f)}")
                                         .FontSize(20)
                                         .FontAttributes(FontAttributes.Bold)
-                                        .TextColor(ApplicationTheme.Success)
+                                        .TextColor(MyTheme.Success)
                                         .Center(),
                                     Label("Mastered")
                                         .FontSize(12)
@@ -167,7 +167,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                     Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy >= 0.5f && i.Progress?.Accuracy < 0.8f)}")
                                         .FontSize(20)
                                         .FontAttributes(FontAttributes.Bold)
-                                        .TextColor(ApplicationTheme.Warning)
+                                        .TextColor(MyTheme.Warning)
                                         .Center(),
                                     Label("Learning")
                                         .FontSize(12)
@@ -177,7 +177,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                     Label($"{State.SessionSummaryItems.Count(i => i.Progress?.Accuracy < 0.5f)}")
                                         .FontSize(20)
                                         .FontAttributes(FontAttributes.Bold)
-                                        .TextColor(ApplicationTheme.Error)
+                                        .TextColor(MyTheme.Error)
                                         .Center(),
                                     Label("Review Needed")
                                         .FontSize(12)
@@ -188,26 +188,26 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         .Padding(16)
                     )
                     .Background(Theme.IsLightTheme ?
-                        ApplicationTheme.LightSecondaryBackground :
-                        ApplicationTheme.DarkSecondaryBackground)
+                        MyTheme.LightSecondaryBackground :
+                        MyTheme.DarkSecondaryBackground)
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
                     .Margin(0, 16),
 
                     // Continue button
                     Button("Continue to Next Session")
                         .OnClicked(() => SetState(s => s.ShowSessionSummary = false))
-                        .Background(ApplicationTheme.Primary)
+                        .Background(MyTheme.HighlightDarkest)
                         .TextColor(Colors.White)
                         .CornerRadius(8)
                         .Padding(20, 12)
                         .Margin(0, 16)
                 )
-                .Padding(ApplicationTheme.LayoutPadding)
+                .Padding(MyTheme.LayoutPadding)
             )
         )
         .Background(Theme.IsLightTheme ? 
-                            ApplicationTheme.LightBackground : 
-                            ApplicationTheme.DarkBackground)
+                            MyTheme.LightBackground : 
+                            MyTheme.DarkBackground)
         .GridRowSpan(2)
         .IsVisible(State.ShowSessionSummary);
 
@@ -216,9 +216,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var accuracy = item.Progress?.Accuracy ?? 0f;
         var masteryScore = item.Progress?.MasteryScore ?? 0f;
         
-        Color statusColor = accuracy >= 0.8f ? ApplicationTheme.Success :
-                           accuracy >= 0.5f ? ApplicationTheme.Warning :
-                           ApplicationTheme.Error;
+        Color statusColor = accuracy >= 0.8f ? MyTheme.Success :
+                           accuracy >= 0.5f ? MyTheme.Warning :
+                           MyTheme.Error;
         
         string statusIcon = accuracy >= 0.8f ? "✅" :
                            accuracy >= 0.5f ? "🔄" :
@@ -234,12 +234,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         .FontSize(16)
                         .FontAttributes(FontAttributes.Bold)
                         .TextColor(Theme.IsLightTheme ? 
-                            ApplicationTheme.DarkOnLightBackground : 
-                            ApplicationTheme.LightOnDarkBackground),
+                            MyTheme.DarkOnLightBackground : 
+                            MyTheme.LightOnDarkBackground),
                     
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .FontSize(14)
-                        .TextColor(ApplicationTheme.Primary)
+                        .TextColor(MyTheme.HighlightDarkest)
                 )
                 .HStart(),
                 
@@ -252,7 +252,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     
                     Label($"{item.Progress?.TotalAttempts ?? 0} attempts")
                         .FontSize(10)
-                        .TextColor(ApplicationTheme.SecondaryDarkText)
+                        .TextColor(MyTheme.SecondaryDarkText)
                         .HEnd()
                 )
                 .HEnd()
@@ -261,7 +261,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         )
         .Background(Theme.IsLightTheme ? 
             Colors.White : 
-            ApplicationTheme.DarkSecondaryBackground)
+            MyTheme.DarkSecondaryBackground)
         .Stroke(statusColor.WithAlpha(0.3f))
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(6))
@@ -278,11 +278,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     .TextColor(Colors.White)
                     .Center()
             )
-            .Background(ApplicationTheme.Success)
+            .Background(MyTheme.Success)
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(ApplicationTheme.Size160, 2)
+            .Padding(MyTheme.Size160, 2)
             .GridColumn(0)
             .VCenter(),
             
@@ -290,7 +290,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             ProgressBar()
                 .Progress(State.TotalResourceTermsCount > 0 ? 
                     CalculateOverallMasteryProgress() : 0)
-                .ProgressColor(ApplicationTheme.Success)
+                .ProgressColor(MyTheme.Success)
                 .BackgroundColor(Colors.LightGray)
                 .HeightRequest(6)
                 .GridColumn(1)
@@ -309,7 +309,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(ApplicationTheme.Size160, 2)
+            .Padding(MyTheme.Size160, 2)
             .GridColumn(2)
             .VCenter()
         ).Padding(16, 8);
@@ -330,19 +330,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(24)
                 .Center()
                 .FontAttributes(FontAttributes.Bold)
-                .TextColor(ApplicationTheme.Primary)
+                .TextColor(MyTheme.HighlightDarkest)
                 .IsVisible(State.ShowAnswer || State.ShowCorrectAnswer),
             Label(State.RequireCorrectTyping ? "Type the correct answer to continue:" : "")
                 .FontSize(14)
                 .Center()
-                .TextColor(ApplicationTheme.Warning)
+                .TextColor(MyTheme.Warning)
                 .IsVisible(State.RequireCorrectTyping)
             
             // Auto-advance countdown for multiple choice
             // Label($"Next question in {State.AutoAdvanceCountdown}...")
             //     .FontSize(14)
             //     .Center()
-            //     .TextColor(ApplicationTheme.Secondary)
+            //     .TextColor(MyTheme.HighlightMedium)
             //     .IsVisible(State.IsAutoAdvancing)
         )
         .Margin(30)
@@ -400,30 +400,30 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var isCorrect = option == State.CurrentTargetLanguageTerm;
         
         Color backgroundColor = Colors.Transparent;
-        Color borderColor = ApplicationTheme.Gray200;
+        Color borderColor = MyTheme.Gray200;
         Color textColor = Theme.IsLightTheme ? 
-            ApplicationTheme.DarkOnLightBackground : 
-            ApplicationTheme.LightOnDarkBackground;
+            MyTheme.DarkOnLightBackground : 
+            MyTheme.LightOnDarkBackground;
 
         if (showFeedback)
         {
             if (isCorrect)
             {
-                backgroundColor = ApplicationTheme.Success;
-                borderColor = ApplicationTheme.Success;
+                backgroundColor = MyTheme.Success;
+                borderColor = MyTheme.Success;
                 textColor = Colors.White;
             }
             else if (isSelected && !isCorrect)
             {
-                backgroundColor = ApplicationTheme.Error;
-                borderColor = ApplicationTheme.Error;
+                backgroundColor = MyTheme.Error;
+                borderColor = MyTheme.Error;
                 textColor = Colors.White;
             }
         }
         else if (isSelected)
         {
-            borderColor = ApplicationTheme.Primary;
-            backgroundColor = ApplicationTheme.Primary.WithAlpha(0.1f);
+            borderColor = MyTheme.HighlightDarkest;
+            backgroundColor = MyTheme.HighlightDarkest.WithAlpha(0.1f);
         }
 
         return Border(
@@ -451,12 +451,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     ImageSource VocabularyItemToImageSource(VocabularyQuizItem item)
     {
         if (item.IsCompleted)
-            return ApplicationTheme.IconCircleCheckmark;
+            return MyTheme.IconCircleCheckmark;
         
         if (item.IsPromoted)
-            return ApplicationTheme.IconEdit;
+            return MyTheme.IconEdit;
             
-        return ApplicationTheme.IconStatus;
+        return MyTheme.IconStatus;
     }
 
     private double CalculateOverallMasteryProgress()
@@ -473,10 +473,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     Color GetItemBackgroundColor(VocabularyQuizItem item)
     {
         if (item.IsCompleted)
-            return ApplicationTheme.Success.WithAlpha(0.2f);
+            return MyTheme.Success.WithAlpha(0.2f);
             
         if (item.IsPromoted)
-            return ApplicationTheme.Warning.WithAlpha(0.2f);
+            return MyTheme.Warning.WithAlpha(0.2f);
             
         return Colors.Transparent;
     }

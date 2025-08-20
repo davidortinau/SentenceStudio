@@ -13,19 +13,19 @@ partial class ImageGalleryBottomSheet : Component
         return Grid("Auto,*","",
             RenderHeader(),
             RenderGallery()
-        ).RowSpacing(ApplicationTheme.Size120)
-        .Margin(ApplicationTheme.Size240);
+        ).RowSpacing(MyTheme.Size120)
+        .Margin(MyTheme.Size240);
     }
 
     VisualNode RenderHeader() =>
         Grid(
             Label("Choose an image")
-                .ThemeKey(ApplicationTheme.Title1)
+                .ThemeKey(MyTheme.Title1)
                 .HStart(),
 
-            HStack(spacing: ApplicationTheme.Size60,
+            HStack(spacing: MyTheme.Size60,
                 Button()
-                    .ImageSource(ApplicationTheme.IconImageExport)
+                    .ImageSource(MyTheme.IconImageExport)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -34,7 +34,7 @@ partial class ImageGalleryBottomSheet : Component
                     .IsVisible(!_state.IsDeleteVisible),
 
                 Button()
-                    .ImageSource(ApplicationTheme.IconCheckbox)
+                    .ImageSource(MyTheme.IconCheckbox)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -42,7 +42,7 @@ partial class ImageGalleryBottomSheet : Component
                     .VCenter(),
 
                 Button()
-                    .ImageSource(ApplicationTheme.IconDelete)
+                    .ImageSource(MyTheme.IconDelete)
                     .Background(Colors.Transparent)
                     .TextColor(Colors.Black)
                     .Padding(0)
@@ -59,8 +59,8 @@ partial class ImageGalleryBottomSheet : Component
             .SelectionMode(_state.SelectionMode)
             .SelectedItems(_state.SelectedImages.Cast<object>().ToList())
             .ItemsLayout(new VerticalGridItemsLayout(2)
-                .VerticalItemSpacing(ApplicationTheme.Size240)
-                .HorizontalItemSpacing(ApplicationTheme.Size240))
+                .VerticalItemSpacing(MyTheme.Size240)
+                .HorizontalItemSpacing(MyTheme.Size240))
             .GridRow(1);
 
     VisualNode RenderGalleryItem(SceneImage image) =>
@@ -73,14 +73,14 @@ partial class ImageGalleryBottomSheet : Component
                 ,
 
             Image()
-                .Source(ApplicationTheme.IconCheckbox)
+                .Source(MyTheme.IconCheckbox)
                 .VEnd()
                 .HEnd()
                 .IsVisible(_state.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(ApplicationTheme.IconCheckboxSelected)
+                .Source(MyTheme.IconCheckboxSelected)
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)

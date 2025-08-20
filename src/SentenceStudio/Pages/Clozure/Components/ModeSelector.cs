@@ -11,13 +11,13 @@ partial class ModeSelector : Component
     public override VisualNode Render()
     {
         return new SfSegmentedControl{
-                    new SfSegmentItem().ImageSource(ApplicationTheme.IconKeyboard),
-                    new SfSegmentItem().ImageSource(ApplicationTheme.IconMultiSelect)
+                    new SfSegmentItem().ImageSource(MyTheme.IconKeyboard),
+                    new SfSegmentItem().ImageSource(MyTheme.IconMultiSelect)
                 }
                 .Background(Colors.Transparent)
                 .ShowSeparator(true)
                 .SegmentCornerRadius(0)
-                .Stroke(Theme.IsLightTheme ? ApplicationTheme.Black : ApplicationTheme.White)
+                .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
                 .StrokeThickness(1)
                 .SelectedIndex(_selectedMode == "Text" ? 0 : 1)
                 .OnSelectionChanged((s, e) => {

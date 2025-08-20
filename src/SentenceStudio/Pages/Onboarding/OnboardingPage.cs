@@ -204,7 +204,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .RowSpacing(20) :
                     null
                 )
-                .Padding(ApplicationTheme.Size160)
+                .Padding(MyTheme.Size160)
             );
     }
 
@@ -212,23 +212,23 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             Grid("Auto, Auto","",
                 Label("Welcome to Sentence Studio!")
-                    .ThemeKey(ApplicationTheme.Title1)
+                    .ThemeKey(MyTheme.Title1)
                     .HCenter(),
 
                 Label("Strengthen your language skills with our fun and interactive sentence building activities.")
-                    .ThemeKey(ApplicationTheme.Title3)
+                    .ThemeKey(MyTheme.Title3)
                     .HCenter()
                     .GridRow(1)
             )
-            .RowSpacing(ApplicationTheme.Size160)
-            .Margin(ApplicationTheme.Size160)
+            .RowSpacing(MyTheme.Size160)
+            .Margin(MyTheme.Size160)
         );
 
     VisualNode RenderNameStep() =>
         ContentView(
             VStack(
                 Label("What should I call you?")
-                    .ThemeKey(ApplicationTheme.Title1)
+                    .ThemeKey(MyTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -244,7 +244,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     Label("Generating name suggestions...")
                         .HCenter()
                         .FontSize(14)
-                        .TextColor(ApplicationTheme.Gray400)
+                        .TextColor(MyTheme.Gray400)
                     : null,
 
                 // Show suggested names if available
@@ -252,7 +252,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     VStack(
                         Label($"Suggestions in {(!string.IsNullOrEmpty(State.TargetLanguage) ? State.TargetLanguage : "English")}:")
                             .FontSize(14)
-                            .TextColor(ApplicationTheme.Gray600)
+                            .TextColor(MyTheme.Gray600)
                             .HCenter(),
                         
                         // First row - masculine names
@@ -276,8 +276,8 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .Spacing(8)
                     : null
             )
-            .Spacing(ApplicationTheme.Size160)
-            .Margin(ApplicationTheme.Size160)
+            .Spacing(MyTheme.Size160)
+            .Margin(MyTheme.Size160)
         );
 
     VisualNode RenderNameButton(string name, int column)
@@ -286,8 +286,8 @@ public partial class OnboardingPage : Component<OnboardingState>
         
         return Button(name)
             .GridColumn(column)
-            .BackgroundColor(ApplicationTheme.Gray100)
-            .TextColor(ApplicationTheme.Gray900)
+            .BackgroundColor(MyTheme.Gray100)
+            .TextColor(MyTheme.Gray900)
             .FontSize(14)
             .CornerRadius(8)
             .Padding(8, 6)
@@ -298,7 +298,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         ContentView(
             Grid("Auto, Auto", "",
                 Label(title)
-                    .ThemeKey(ApplicationTheme.Title1)
+                    .ThemeKey(MyTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -318,15 +318,15 @@ public partial class OnboardingPage : Component<OnboardingState>
                 .GridRow(1)
                 .Hint("Select language")
             )
-            .RowSpacing(ApplicationTheme.Size160)
-            .Margin(ApplicationTheme.Size160)
+            .RowSpacing(MyTheme.Size160)
+            .Margin(MyTheme.Size160)
         );
 
     VisualNode RenderApiKeyStep() =>
         ContentView(
             VStack(
                 Label("Sentence Studio needs an API key from OpenAI to use the AI features.")
-                    .ThemeKey(ApplicationTheme.Title1)
+                    .ThemeKey(MyTheme.Title1)
                     .HCenter(),
 
                 new SfTextInputLayout
@@ -342,8 +342,8 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .TextDecorations(TextDecorations.Underline)
                     .OnTapped(() => Browser.OpenAsync("https://platform.openai.com/account/api-keys"))
             )
-            .Spacing(ApplicationTheme.Size160)
-            .Margin(ApplicationTheme.Size160)
+            .Spacing(MyTheme.Size160)
+            .Margin(MyTheme.Size160)
         )
         .IsVisible(State.NeedsApiKey);
 
@@ -362,13 +362,13 @@ public partial class OnboardingPage : Component<OnboardingState>
             return ContentView(
                 VStack(
                     Label("You're all set!")
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .HCenter(),
 
                     Label("Choose how you'd like to begin your language learning journey:")
-                        .ThemeKey(ApplicationTheme.Title3)
+                        .ThemeKey(MyTheme.Title3)
                         .HCenter()
-                        .Margin(0, 0, 0, ApplicationTheme.Size160),
+                        .Margin(0, 0, 0, MyTheme.Size160),
 
                     // Create starter content option
                     Border(
@@ -377,18 +377,18 @@ public partial class OnboardingPage : Component<OnboardingState>
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .HCenter()
-                                .TextColor(ApplicationTheme.LightOnDarkBackground),
+                                .TextColor(MyTheme.LightOnDarkBackground),
 
                             Label($"Let me create a beginner vocabulary list and skill profile for {State.TargetLanguage} to get you started!")
                                 .FontSize(14)
                                 .HCenter()
-                                .TextColor(ApplicationTheme.LightOnDarkBackground)
+                                .TextColor(MyTheme.LightOnDarkBackground)
                                 .Margin(0, 8, 0, 0)
                         )
                         .Spacing(4)
-                        .Padding(ApplicationTheme.Size160)
+                        .Padding(MyTheme.Size160)
                     )
-                    .BackgroundColor(ApplicationTheme.Primary)
+                    .BackgroundColor(MyTheme.HighlightDarkest)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
                     .Padding(4)
                     .OnTapped(CreateStarterContent),
@@ -400,25 +400,25 @@ public partial class OnboardingPage : Component<OnboardingState>
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .HCenter()
-                                .TextColor(ApplicationTheme.DarkOnLightBackground),
+                                .TextColor(MyTheme.DarkOnLightBackground),
 
                             Label("I'll set up my learning materials later. Take me to the dashboard!")
                                 .FontSize(14)
                                 .HCenter()
-                                .TextColor(ApplicationTheme.DarkOnLightBackground)
+                                .TextColor(MyTheme.DarkOnLightBackground)
                                 .Margin(0, 8, 0, 0)
                         )
                         .Spacing(4)
-                        .Padding(ApplicationTheme.Size160)
+                        .Padding(MyTheme.Size160)
                     )
-                    .BackgroundColor(ApplicationTheme.Gray100)
+                    .BackgroundColor(MyTheme.Gray100)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
-                    .Stroke(ApplicationTheme.Gray300)
+                    .Stroke(MyTheme.Gray300)
                     .Padding(4)
                     .OnTapped(SkipAndStart)
                 )
-                .Spacing(ApplicationTheme.Size160)
-                .Margin(ApplicationTheme.Size160)
+                .Spacing(MyTheme.Size160)
+                .Margin(MyTheme.Size160)
             );
         }
         else if (State.IsCreatingStarterContent)
@@ -426,20 +426,20 @@ public partial class OnboardingPage : Component<OnboardingState>
             return ContentView(
                 VStack(
                     Label("Creating Your Learning Materials...")
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .HCenter(),
 
                     Label(State.CreationProgressMessage)
-                        .ThemeKey(ApplicationTheme.Title3)
+                        .ThemeKey(MyTheme.Title3)
                         .HCenter()
-                        .Margin(0, ApplicationTheme.Size160, 0, 0),
+                        .Margin(0, MyTheme.Size160, 0, 0),
 
                     ActivityIndicator()
                         .IsRunning(true)
                         .HCenter()
                 )
-                .Spacing(ApplicationTheme.Size160)
-                .Margin(ApplicationTheme.Size160)
+                .Spacing(MyTheme.Size160)
+                .Margin(MyTheme.Size160)
             );
         }
         else
@@ -448,16 +448,16 @@ public partial class OnboardingPage : Component<OnboardingState>
             return ContentView(
                 Grid("Auto, Auto","",
                     Label("Let's begin!")
-                        .ThemeKey(ApplicationTheme.Title1)
+                        .ThemeKey(MyTheme.Title1)
                         .HCenter(),
 
                     Label("On the next screen, you will be able to choose from a variety of activities to practice your language skills. Along the way Sentence Studio will keep track of your progress and report your growth.")
-                        .ThemeKey(ApplicationTheme.Title3)
+                        .ThemeKey(MyTheme.Title3)
                         .HCenter()
                         .GridRow(1)
                 )
-                .RowSpacing(ApplicationTheme.Size160)
-                .Margin(ApplicationTheme.Size160)
+                .RowSpacing(MyTheme.Size160)
+                .Margin(MyTheme.Size160)
             );
         }
     }

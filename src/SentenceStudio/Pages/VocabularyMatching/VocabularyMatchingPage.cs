@@ -87,12 +87,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
-                    .ThemeKey(ApplicationTheme.Caption1)
+                    .ThemeKey(MyTheme.Caption1)
                     .HCenter()
-                    .TextColor(ApplicationTheme.Primary) :
+                    .TextColor(MyTheme.HighlightDarkest) :
                 null
         )
-        .Padding(ApplicationTheme.Size60);
+        .Padding(MyTheme.Size60);
 
     VisualNode RenderLoading() =>
         VStack(spacing: 16,
@@ -108,7 +108,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     VisualNode RenderGameComplete() =>
         VStack(spacing: 20,
             Label(_localize["Congratulations"].ToString())
-                .ThemeKey(ApplicationTheme.Title1)
+                .ThemeKey(MyTheme.Title1)
                 .HCenter(),
             
             Label(_localize["AllPairsMatched"].ToString())
@@ -179,7 +179,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         )
         .RowSpacing(8)
         .ColumnSpacing(8)
-        .Padding(ApplicationTheme.Size160)
+        .Padding(MyTheme.Size160)
         .VFill()
         .HFill();
     }
@@ -242,12 +242,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     Color GetTileBackgroundColor(MatchingTile tile)
     {
         if (tile.IsMatched)
-            return ApplicationTheme.Gray200;
+            return MyTheme.Gray200;
         if (tile.IsSelected)
-            return ApplicationTheme.Primary;
+            return MyTheme.HighlightDarkest;
         if (tile.Language == "native")
-            return ApplicationTheme.LightBackground;
-        return ApplicationTheme.Secondary;
+            return MyTheme.LightBackground;
+        return MyTheme.HighlightMedium;
     }
 
     Color GetTileTextColor(MatchingTile tile)
@@ -259,25 +259,25 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         // If tile is matched, use a more muted color
         if (tile.IsMatched)
         {
-            return Theme.IsLightTheme ? ApplicationTheme.Gray500 : ApplicationTheme.Gray300;
+            return Theme.IsLightTheme ? MyTheme.Gray500 : MyTheme.Gray300;
         }
 
         // For native tiles, use the right contrast for the background
         if (tile.Language == "native")
         {
-            return Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
+            return Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
         }
         // For target tiles, use the right contrast for secondary background
-        return Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground;
+        return Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
     }
 
     Color GetTileBorderColor(MatchingTile tile)
     {
         if (tile.IsSelected)
-            return ApplicationTheme.Primary;
+            return MyTheme.HighlightDarkest;
         if (tile.IsMatched)
-            return ApplicationTheme.Gray400;
-        return ApplicationTheme.Gray300;
+            return MyTheme.Gray400;
+        return MyTheme.Gray300;
     }
 
     async Task LoadVocabulary()

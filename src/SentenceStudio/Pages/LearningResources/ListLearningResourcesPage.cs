@@ -56,7 +56,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 }),
 
                             Button()
-                                .ImageSource(ApplicationTheme.IconSearch)
+                                .ImageSource(MyTheme.IconSearch)
                                 .BackgroundColor(Colors.Transparent)
                                 .OnClicked(SearchResources)
                                 .GridColumn(1)
@@ -65,7 +65,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         )
                         .Columns("*, Auto")
                     )
-                    .ThemeKey(ApplicationTheme.InputWrapper)
+                    .ThemeKey(MyTheme.InputWrapper)
                     .Margin(new Thickness(10, 10, 10, 5)),
 
                     // Filters
@@ -140,7 +140,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                         .OnClicked(CreateStarterResource)
                                         .HCenter()
                                         .WidthRequest(200)
-                                        .BackgroundColor(ApplicationTheme.Primary)
+                                        .BackgroundColor(MyTheme.HighlightDarkest)
                                 )
                                 .Spacing(10)
                             )
@@ -160,7 +160,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             Grid(rows: "Auto, Auto", columns: "Auto, *, Auto",
                 // Icon based on media type
                 Image()
-                .Source(ApplicationTheme.GetIconForMediaType(resource.MediaType))
+                .Source(MyTheme.GetIconForMediaType(resource.MediaType))
                     .VCenter()
                     .HCenter()
                     .GridColumn(0)

@@ -66,11 +66,11 @@ partial class DashboardPage : Component<DashboardPageState>
                                             new SfComboBox()
                                                 .HeightRequest(44)
                                                 .BackgroundColor(Colors.Transparent)
-                                                .TextColor(ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground) // doesn't help bc mult selection chips
-                                                .TokenItemStyle(ApplicationTheme.ChipStyle)
-                                                .ItemPadding(ApplicationTheme.LayoutPadding)
+                                                .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground) // doesn't help bc mult selection chips
+                                                .TokenItemStyle(MyTheme.ChipStyle)
+                                                .ItemPadding(MyTheme.LayoutPadding)
                                                 .PlaceholderText("Select resource(s)")
-                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.Resources)
                                                 .DisplayMemberPath("Title")
                                                 .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
@@ -88,8 +88,8 @@ partial class DashboardPage : Component<DashboardPageState>
                                                         SaveUserSelectionsToPreferences();
                                                     }
                                                 })
-                                        ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80),
+                                        ).Spacing(MyTheme.LayoutSpacing)
+                                    ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border
                                     (
                                         VStack(
@@ -98,10 +98,10 @@ partial class DashboardPage : Component<DashboardPageState>
                                             new SfComboBox()
                                                 .HeightRequest(44)
                                                 .BackgroundColor(Colors.Transparent)
-                                                .TextColor(ApplicationTheme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
-                                                .ItemPadding(ApplicationTheme.LayoutPadding)
+                                                .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                                                .ItemPadding(MyTheme.LayoutPadding)
                                                 .PlaceholderText("Select skill(s)")
-                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.SkillProfiles)
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
@@ -116,8 +116,8 @@ partial class DashboardPage : Component<DashboardPageState>
                                                         SaveUserSelectionsToPreferences();
                                                     }
                                                 })
-                                        ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80)
+                                        ).Spacing(MyTheme.LayoutSpacing)
+                                    ).Padding(MyTheme.Size160, MyTheme.Size80)
                             ) :
                             // Horizontal layout for wide screens
                             Grid(
@@ -129,7 +129,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                             new SfComboBox()
                                                 .BackgroundColor(Colors.Transparent)
                                                 .PlaceholderText("Select resource(s)")
-                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.Resources)
                                                 .DisplayMemberPath("Title")
                                                 .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
@@ -147,8 +147,8 @@ partial class DashboardPage : Component<DashboardPageState>
                                                         SaveUserSelectionsToPreferences();
                                                     }
                                                 })
-                                        ).Spacing(ApplicationTheme.LayoutSpacing)
-                                    ).Padding(ApplicationTheme.Size160, ApplicationTheme.Size80),
+                                        ).Spacing(MyTheme.LayoutSpacing)
+                                    ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border
                                     (
                                         VStack(
@@ -157,7 +157,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                             new SfComboBox()
                                                 .BackgroundColor(Colors.Transparent)
                                                 .PlaceholderText("Select skill(s)")
-                                                .DropDownBackground(ApplicationTheme.IsLightTheme ? ApplicationTheme.LightSecondaryBackground : ApplicationTheme.DarkSecondaryBackground)
+                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
                                                 .ItemsSource(State.SkillProfiles)
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
@@ -172,14 +172,14 @@ partial class DashboardPage : Component<DashboardPageState>
                                                         SaveUserSelectionsToPreferences();
                                                     }
                                                 })
-                                        ).Spacing(ApplicationTheme.LayoutSpacing)
+                                        ).Spacing(MyTheme.LayoutSpacing)
                                     )
-                                    .Padding(ApplicationTheme.Size160, ApplicationTheme.Size80)
+                                    .Padding(MyTheme.Size160, MyTheme.Size80)
                                     .GridColumn(1)
                             ).Columns("*,*").ColumnSpacing(15),
 
                         Label()
-                            .ThemeKey(ApplicationTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
+                            .ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
                             new ActivityBorder()
                                 .LabelText($"{_localize["Warmup"]}")
@@ -195,8 +195,8 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
                         }.Spacing(20)
                     )// vstack
-                    .Padding(ApplicationTheme.Size160)
-                    .Spacing(ApplicationTheme.Size240)
+                    .Padding(MyTheme.Size160)
+                    .Spacing(MyTheme.Size240)
                 )// vscrollview
             )// grid
 

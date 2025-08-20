@@ -93,7 +93,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
                     :
                     HStack(
                         ImageButton()
-                            .Source(ApplicationTheme.IconRewindSm)
+                            .Source(MyTheme.IconRewindSm)
                             .BackgroundColor(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
@@ -105,7 +105,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
                             }),
 
                         ImageButton()
-                            .Source(State.IsPlaying ? ApplicationTheme.IconPauseSm : ApplicationTheme.IconPlaySm)
+                            .Source(State.IsPlaying ? MyTheme.IconPauseSm : MyTheme.IconPlaySm)
                             .BackgroundColor(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
@@ -125,7 +125,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
                             }),
 
                         ImageButton()
-                            .Source(ApplicationTheme.IconStopSm)
+                            .Source(MyTheme.IconStopSm)
                             .BackgroundColor(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
@@ -148,7 +148,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
             )
             .RowSpacing(4)
         )
-        .Padding(ApplicationTheme.Size120)
+        .Padding(MyTheme.Size120)
         .StrokeShape(new RoundRectangle().CornerRadius(12))
         .Stroke(Colors.Transparent)
         .BackgroundColor(Color.FromArgb("#AA343434"))

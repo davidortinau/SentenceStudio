@@ -59,7 +59,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			.Progress(State.AutoTransitionProgress)
 			.HeightRequest(4)
 			.BackgroundColor(Colors.Transparent)
-			.ProgressColor(ApplicationTheme.Primary)
+			.ProgressColor(MyTheme.HighlightDarkest)
 			.VStart();
 
 	VisualNode LoadingOverlay() =>
@@ -67,8 +67,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			Label("Thinking.....")
 				.FontSize(64)
 				.TextColor(Theme.IsLightTheme ?
-					ApplicationTheme.DarkOnLightBackground :
-					ApplicationTheme.LightOnDarkBackground)
+					MyTheme.DarkOnLightBackground :
+					MyTheme.LightOnDarkBackground)
 				.Center()
 		)
 		.Background(Color.FromArgb("#80000000"))
@@ -79,8 +79,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
 				.TextColor(Theme.IsLightTheme ? 
-					ApplicationTheme.DarkOnLightBackground : 
-					ApplicationTheme.LightOnDarkBackground)
+					MyTheme.DarkOnLightBackground : 
+					MyTheme.LightOnDarkBackground)
 				.Background(Colors.Transparent)
 				.GridRow(1).GridColumn(4)
 				.OnClicked(GradeMe),
@@ -93,14 +93,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(ApplicationTheme.IconPrevious)
+				.Source(MyTheme.IconPrevious)
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(ApplicationTheme.IconNext)
+				.Source(MyTheme.IconNext)
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
 
@@ -132,8 +132,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					.IsRunning(State.IsBuffering)
 					.IsVisible(State.IsBuffering)
 					.Color(Theme.IsLightTheme ? 
-						ApplicationTheme.DarkOnLightBackground : 
-						ApplicationTheme.LightOnDarkBackground)
+						MyTheme.DarkOnLightBackground : 
+						MyTheme.LightOnDarkBackground)
 					.VCenter(),
 				HStack(spacing: 4,
 					State.Sentences.Select(sentence =>
@@ -149,14 +149,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.StrokeShape(new RoundRectangle().CornerRadius(10))
 						.StrokeThickness(2)
 						.Stroke(sentence.IsCurrent ? 
-							ApplicationTheme.Secondary : 
-							ApplicationTheme.Gray200)
+							MyTheme.HighlightDark : 
+							MyTheme.Gray200)
 					)					
 				)
 			)
 			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
 				new Thickness(16, 6) : 
-				new Thickness(ApplicationTheme.Size240))
+				new Thickness(MyTheme.Size240))
 		)
 		.Orientation(ScrollOrientation.Horizontal)
 		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
@@ -234,8 +234,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (activity == null) return null;
 		
 		return activity.Accuracy == 100 ? 
-			ApplicationTheme.IconCircleCheckmark : 
-			ApplicationTheme.IconCancel;
+			MyTheme.IconCircleCheckmark : 
+			MyTheme.IconCancel;
 	}
 
 	async Task JumpTo(Challenge challenge)
@@ -839,11 +839,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	{
 		return feedbackType switch
 		{
-			"success" => ApplicationTheme.Success,
-			"achievement" => ApplicationTheme.Secondary,
-			"info" => ApplicationTheme.Warning,
-			"hint" => ApplicationTheme.Primary,
-			_ => ApplicationTheme.Gray400
+			"success" => MyTheme.SupportSuccessDark,
+			"achievement" => MyTheme.SupportSuccessMedium,
+			"info" => MyTheme.Warning,
+			"hint" => MyTheme.HighlightDarkest,
+			_ => MyTheme.Gray400
 		};
 	}
 }

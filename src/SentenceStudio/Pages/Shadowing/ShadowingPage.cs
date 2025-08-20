@@ -118,7 +118,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         Label(_localize["KoreanVoices"].ToString())
                             .FontAttributes(FontAttributes.Bold)
                             .FontSize(18)
-                            .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                            .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                             .HCenter()
                             .Margin(0, 0, 0, 10),
                         CreateVoiceOption("yuna", _localize["VoiceYuna"].ToString(), _localize["VoiceYunaDesc"].ToString()),
@@ -199,25 +199,25 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node for displaying the current sentence.</returns>
     private VisualNode SentenceDisplay() =>
         ScrollView(
-            VStack(spacing: ApplicationTheme.Size160,
+            VStack(spacing: MyTheme.Size160,
                 Label(State.CurrentSentenceTranslation)
                     .ThemeKey("LargeTitle")
                     .HCenter()
-                    .Margin(ApplicationTheme.Size160),
+                    .Margin(MyTheme.Size160),
 
                 Label(State.CurrentSentenceText)
                     .ThemeKey("Title3")
                     .HCenter()
                     .TextColor(Colors.Gray)
-                    .Margin(ApplicationTheme.Size160),
+                    .Margin(MyTheme.Size160),
 
                 Label(State.CurrentSentencePronunciationNotes)
                     .ThemeKey("Title3")
                     .HCenter()
                     .TextColor(Colors.DarkGray)
-                    .Margin(ApplicationTheme.Size160)
+                    .Margin(MyTheme.Size160)
             )
-            .Padding(ApplicationTheme.Size160)
+            .Padding(MyTheme.Size160)
         ).GridRow(0);
 
     /// <summary>
@@ -259,10 +259,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .StrokeThickness(1)
             .Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
             .HeightRequest(100)
-            .Padding(ApplicationTheme.Size160, 0)
+            .Padding(MyTheme.Size160, 0)
             .IsVisible(true)
         )
-            .Spacing(ApplicationTheme.Size160)
+            .Spacing(MyTheme.Size160)
             .Margin(20, 0)
             .GridRow(1);
 
@@ -404,12 +404,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(ApplicationTheme.IconPrevious)
+                    .Source(MyTheme.IconPrevious)
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
             
                 ImageButton()
-                    .Source(State.IsAudioPlaying ? ApplicationTheme.IconPause : ApplicationTheme.IconPlay)
+                    .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                     .Aspect(Aspect.Center)
                     .Background(Colors.Transparent)
                     .GridRow(0).GridColumn(2)
@@ -419,7 +419,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(ApplicationTheme.IconNext)
+                    .Source(MyTheme.IconNext)
                     .GridRow(0).GridColumn(4)
                     .OnClicked(NextSentence),
 
@@ -445,7 +445,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 State.IsNarrowScreen ?
                 // Narrow layout - just show a menu button that opens bottom sheet with all controls
                 Button()
-                    .ImageSource(ApplicationTheme.IconMore)
+                    .ImageSource(MyTheme.IconMore)
                     .ThemeKey("Secondary")
                     .HeightRequest(35)
                     .WidthRequest(35)
@@ -458,7 +458,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Wide layout - show all controls
                 HStack(
                     Button()
-                        .ImageSource(ApplicationTheme.IconSave)
+                        .ImageSource(MyTheme.IconSave)
                         .ThemeKey("Secondary")
                         .HeightRequest(35)
                         .WidthRequest(35)
@@ -468,16 +468,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         
                     new SfSegmentedControl(
                         new SfSegmentItem()
-                                .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                                .ImageSource(MyTheme.IconSpeedVerySlow),
                             new SfSegmentItem()
-                                .ImageSource(ApplicationTheme.IconSpeedSlow),
+                                .ImageSource(MyTheme.IconSpeedSlow),
                             new SfSegmentItem()
-                                .ImageSource(ApplicationTheme.IconSpeedNormal)
+                                .ImageSource(MyTheme.IconSpeedNormal)
                     )
                         .Background(Colors.Transparent)
                         .ShowSeparator(true)
                         .SegmentCornerRadius(0)
-                        .Stroke(ApplicationTheme.Gray300)
+                        .Stroke(MyTheme.Gray300)
                         .SegmentWidth(40)
                         .SegmentHeight(44)
                         .Margin(0, 0, 12, 0)
@@ -553,7 +553,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     Label("Shadowing Options")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(20)
-                        .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                        .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                         .HCenter()
                         .Margin(0, 0, 0, 20),
 
@@ -567,18 +567,18 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         new SfSegmentedControl(
                             new SfSegmentItem()
                                 // .Text("Very Slow")
-                                .ImageSource(ApplicationTheme.IconSpeedVerySlow),
+                                .ImageSource(MyTheme.IconSpeedVerySlow),
                             new SfSegmentItem()
                                 // .Text("Slow")
-                                .ImageSource(ApplicationTheme.IconSpeedSlow),
+                                .ImageSource(MyTheme.IconSpeedSlow),
                             new SfSegmentItem()
                                 // .Text("Normal")
-                                .ImageSource(ApplicationTheme.IconSpeedNormal)
+                                .ImageSource(MyTheme.IconSpeedNormal)
                         )
                             .Background(Colors.Transparent)
                             .ShowSeparator(true)
                             .SegmentCornerRadius(4)
-                            .Stroke(ApplicationTheme.Gray300)
+                            .Stroke(MyTheme.Gray300)
                             .SegmentHeight(44)
                             .Margin(0, 5, 0, 0)
                             .SelectionIndicatorSettings(
@@ -669,8 +669,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             Label("Thinking.....")
                 .FontSize(64)
                 .TextColor(Theme.IsLightTheme ? 
-                    ApplicationTheme.DarkOnLightBackground : 
-                    ApplicationTheme.LightOnDarkBackground)
+                    MyTheme.DarkOnLightBackground : 
+                    MyTheme.LightOnDarkBackground)
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
@@ -687,7 +687,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     Label("Export Audio")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(20)
-                        .TextColor(Theme.IsLightTheme ? ApplicationTheme.DarkOnLightBackground : ApplicationTheme.LightOnDarkBackground)
+                        .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                         .HCenter()
                         .Margin(0, 0, 0, 20),
                     
