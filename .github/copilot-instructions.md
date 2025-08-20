@@ -66,9 +66,9 @@ public class ExampleDto
 
 The AI will automatically understand the structure and generate appropriate responses without explicit JSON formatting instructions.
 
-STYLING: Prefer using the centralized styles defined in ApplicationTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
+STYLING: Prefer using the centralized styles defined in MyTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
 
-ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (ApplicationTheme.DarkOnLightBackground, ApplicationTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
+ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (MyTheme.DarkOnLightBackground, MyTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
 
 ## MauiReactor Layout and UI Guidelines
 
