@@ -337,4 +337,333 @@ public class LearningResourceRepository
             Debug.WriteLine($"An error occurred GetStarterVocabulary: {ex.Message}");
         }
     }
+
+    // --- Enhanced Vocabulary Management Methods ---
+    
+    /// <summary>
+    /// Get all vocabulary words with their associated learning resources
+    /// </summary>
+    public async Task<List<VocabularyWord>> GetAllVocabularyWordsWithResourcesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Include(vw => vw.LearningResources)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Search vocabulary words by target or native language terms
+    /// </summary>
+    public async Task<List<VocabularyWord>> SearchVocabularyWordsAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return await GetAllVocabularyWordsWithResourcesAsync();
+            
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var searchTerm = query.ToLower().Trim();
+        
+        return await db.VocabularyWords
+            .Include(vw => vw.LearningResources)
+            .Where(vw => 
+                (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
+                (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get vocabulary words that are not associated with any learning resources (orphaned)
+    /// </summary>
+    public async Task<List<VocabularyWord>> GetOrphanedVocabularyWordsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Where(vw => !db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get vocabulary words that are associated with learning resources
+    /// </summary>
+    public async Task<List<VocabularyWord>> GetAssociatedVocabularyWordsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Include(vw => vw.LearningResources)
+            .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get a specific vocabulary word with all its associated resources
+    /// </summary>
+    public async Task<VocabularyWord?> GetVocabularyWordWithResourcesAsync(int wordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Include(vw => vw.LearningResources)
+            .FirstOrDefaultAsync(vw => vw.Id == wordId);
+    }
+
+    /// <summary>
+    /// Get a specific vocabulary word by ID (without resources)
+    /// </summary>
+    public async Task<VocabularyWord?> GetVocabularyWordByIdAsync(int wordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .FirstOrDefaultAsync(vw => vw.Id == wordId);
+    }
+
+    /// <summary>
+    /// Get all learning resources associated with a specific vocabulary word
+    /// </summary>
+    public async Task<List<LearningResource>> GetResourcesForVocabularyWordAsync(int wordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Where(vw => vw.Id == wordId)
+            .SelectMany(vw => vw.LearningResources)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get vocabulary statistics
+    /// </summary>
+    public async Task<(int TotalWords, int AssociatedWords, int OrphanedWords)> GetVocabularyStatsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var totalWords = await db.VocabularyWords.CountAsync();
+        var associatedWords = await db.VocabularyWords
+            .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+            .CountAsync();
+        var orphanedWords = totalWords - associatedWords;
+        
+        return (totalWords, associatedWords, orphanedWords);
+    }
+
+    /// <summary>
+    /// Safely delete a vocabulary word and all its associations
+    /// </summary>
+    public async Task<bool> DeleteVocabularyWordAsync(int wordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            // First remove all resource associations
+            var mappings = await db.ResourceVocabularyMappings
+                .Where(rvm => rvm.VocabularyWordId == wordId)
+                .ToListAsync();
+                
+            db.ResourceVocabularyMappings.RemoveRange(mappings);
+            
+            // Then remove the vocabulary word itself
+            var word = await db.VocabularyWords.FindAsync(wordId);
+            if (word != null)
+            {
+                db.VocabularyWords.Remove(word);
+            }
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Update an existing vocabulary word
+    /// </summary>
+    public async Task<bool> UpdateVocabularyWordAsync(VocabularyWord word)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            word.UpdatedAt = DateTime.UtcNow;
+            db.VocabularyWords.Update(word);
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Bulk associate multiple vocabulary words with a learning resource
+    /// </summary>
+    public async Task<bool> BulkAssociateWordsWithResourceAsync(int resourceId, List<int> vocabularyWordIds)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var resource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                
+            if (resource == null) return false;
+            
+            var vocabularyWords = await db.VocabularyWords
+                .Where(vw => vocabularyWordIds.Contains(vw.Id))
+                .ToListAsync();
+            
+            foreach (var word in vocabularyWords)
+            {
+                if (!resource.Vocabulary.Contains(word))
+                {
+                    resource.Vocabulary.Add(word);
+                }
+            }
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Bulk remove vocabulary words from a learning resource
+    /// </summary>
+    public async Task<bool> BulkRemoveWordsFromResourceAsync(int resourceId, List<int> vocabularyWordIds)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            var mappingsToRemove = await db.ResourceVocabularyMappings
+                .Where(rvm => rvm.ResourceId == resourceId && vocabularyWordIds.Contains(rvm.VocabularyWordId))
+                .ToListAsync();
+                
+            db.ResourceVocabularyMappings.RemoveRange(mappingsToRemove);
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Bulk delete multiple vocabulary words
+    /// </summary>
+    public async Task<bool> BulkDeleteVocabularyWordsAsync(List<int> vocabularyWordIds)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        try
+        {
+            // Remove all resource associations first
+            var mappings = await db.ResourceVocabularyMappings
+                .Where(rvm => vocabularyWordIds.Contains(rvm.VocabularyWordId))
+                .ToListAsync();
+                
+            db.ResourceVocabularyMappings.RemoveRange(mappings);
+            
+            // Then remove the vocabulary words
+            var words = await db.VocabularyWords
+                .Where(vw => vocabularyWordIds.Contains(vw.Id))
+                .ToListAsync();
+                
+            db.VocabularyWords.RemoveRange(words);
+            
+            await db.SaveChangesAsync();
+            
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Get vocabulary words associated with a specific learning resource
+    /// </summary>
+    public async Task<List<VocabularyWord>> GetVocabularyWordsByResourceAsync(int resourceId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .Where(vw => db.ResourceVocabularyMappings
+                .Any(rvm => rvm.ResourceId == resourceId && rvm.VocabularyWordId == vw.Id))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Check if a vocabulary word exists with the same terms
+    /// </summary>
+    public async Task<VocabularyWord?> FindDuplicateVocabularyWordAsync(string targetTerm, string nativeTerm)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.VocabularyWords
+            .FirstOrDefaultAsync(vw => 
+                vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.Trim().ToLower() == targetTerm.Trim().ToLower() &&
+                vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.Trim().ToLower() == nativeTerm.Trim().ToLower());
+    }
+
+    /// <summary>
+    /// Get learning resources that contain a specific vocabulary word
+    /// </summary>
+    public async Task<List<LearningResource>> GetResourcesContainingWordAsync(int vocabularyWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        return await db.LearningResources
+            .Where(lr => db.ResourceVocabularyMappings
+                .Any(rvm => rvm.VocabularyWordId == vocabularyWordId && rvm.ResourceId == lr.Id))
+            .ToListAsync();
+    }
 }

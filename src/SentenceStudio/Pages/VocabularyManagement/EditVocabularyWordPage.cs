@@ -1,0 +1,364 @@
+using Microsoft.Extensions.Logging;
+using MauiReactor.Shapes;
+using SentenceStudio.Data;
+using SentenceStudio.Shared.Models;
+using System.Collections.ObjectModel;
+
+namespace SentenceStudio.Pages.VocabularyManagement;
+
+class VocabularyWordProps
+{
+    public int VocabularyWordId { get; set; }
+}
+
+class EditVocabularyWordPageState
+{
+    public bool IsLoading { get; set; } = true;
+    public bool IsSaving { get; set; } = false;
+    public VocabularyWord Word { get; set; } = new();
+    public List<LearningResource> AvailableResources { get; set; } = new();
+    public List<LearningResource> AssociatedResources { get; set; } = new();
+    public HashSet<int> SelectedResourceIds { get; set; } = new();
+
+    // Form fields
+    public string TargetLanguageTerm { get; set; } = string.Empty;
+    public string NativeLanguageTerm { get; set; } = string.Empty;
+
+    // UI state
+    public string ErrorMessage { get; set; } = string.Empty;
+}
+
+partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, VocabularyWordProps>
+{
+    [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] ILogger<EditVocabularyWordPage> _logger;
+
+    public override VisualNode Render()
+    {
+        return ContentPage("Edit Vocabulary Word",
+            State.IsLoading ?
+                VStack(
+                    ActivityIndicator().IsRunning(true).Center()
+                ).VCenter().HCenter() :
+                ScrollView(
+                    VStack(spacing: 24,
+                        RenderWordForm(),
+                        RenderResourceAssociations(),
+                        RenderActionButtons()
+                    ).Padding(16)
+                )
+        )
+        .OnAppearing(LoadData);
+    }
+
+    VisualNode RenderWordForm() =>
+        VStack(spacing: 16,
+            Label("Vocabulary Terms")
+                .FontSize(20)
+                .FontAttributes(FontAttributes.Bold),
+
+            // Target Language
+            VStack(spacing: 8,
+                Label("Target Language Term")
+                    .FontSize(14)
+                    .FontAttributes(FontAttributes.Bold),
+                Border(
+                    Entry()
+                        .Text(State.TargetLanguageTerm)
+                        .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
+                        .Placeholder("Enter target language term (e.g., 안녕하세요)")
+                        .FontSize(16)
+                )
+                .ThemeKey(MyTheme.InputWrapper)
+                .Padding(12)
+            ),
+
+            // Native Language  
+            VStack(spacing: 8,
+                Label("Native Language Term")
+                    .FontSize(14)
+                    .FontAttributes(FontAttributes.Bold),
+                Border(
+                    Entry()
+                        .Text(State.NativeLanguageTerm)
+                        .OnTextChanged(text => SetState(s => s.NativeLanguageTerm = text))
+                        .Placeholder("Enter native language term (e.g., Hello)")
+                        .FontSize(16)
+                )
+                .ThemeKey(MyTheme.InputWrapper)
+                .Padding(12)
+            ),
+
+            // Error message
+            !string.IsNullOrEmpty(State.ErrorMessage) ?
+                Label(State.ErrorMessage)
+                    .TextColor(MyTheme.SupportErrorDark)
+                    .FontSize(12)
+                    .HStart() :
+                null
+        );
+
+    VisualNode RenderResourceAssociations() =>
+        VStack(spacing: 16,
+            HStack(spacing: 10,
+                Label("Learning Resource Associations")
+                    .FontSize(20)
+                    .FontAttributes(FontAttributes.Bold)
+                    .VCenter()
+                    .HorizontalOptions(LayoutOptions.FillAndExpand),
+
+                Label($"{State.SelectedResourceIds.Count} selected")
+                    .FontSize(12)
+                    .TextColor(MyTheme.Gray600)
+                    .VCenter()
+            ),
+
+            Label("Select which learning resources should include this vocabulary word:")
+                .FontSize(14)
+                .TextColor(MyTheme.Gray600),
+
+            State.AvailableResources.Any() ?
+                VStack(spacing: 8,
+                    State.AvailableResources.Select(resource =>
+                        RenderResourceItem(resource)
+                    ).ToArray()
+                ) :
+                Label("No learning resources available")
+                    .FontSize(14)
+                    .TextColor(MyTheme.Gray500)
+                    .FontAttributes(FontAttributes.Italic)
+                    .Center()
+        );
+
+    VisualNode RenderResourceItem(LearningResource resource) =>
+        Border(
+            HStack(spacing: 12,
+                CheckBox()
+                    .IsChecked(State.SelectedResourceIds.Contains(resource.Id))
+                    .OnCheckedChanged(isChecked => ToggleResourceSelection(resource.Id, isChecked))
+                    .VCenter(),
+
+                VStack(spacing: 4,
+                    Label(resource.Title ?? "Unknown Resource")
+                        .FontSize(16)
+                        .FontAttributes(FontAttributes.Bold),
+
+                    resource.Description != null ?
+                        Label(resource.Description)
+                            .FontSize(12)
+                            .TextColor(MyTheme.Gray600)
+                            .MaxLines(2) :
+                        null
+                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand),
+
+                State.SelectedResourceIds.Contains(resource.Id) ?
+                    Label("✓")
+                        .FontSize(18)
+                        .TextColor(MyTheme.Success)
+                        .VCenter() :
+                    null
+            ).Padding(12)
+        )
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
+        .StrokeThickness(State.SelectedResourceIds.Contains(resource.Id) ? 2 : 1)
+        .Background(State.SelectedResourceIds.Contains(resource.Id) ?
+            (Theme.IsLightTheme ? MyTheme.SupportSuccessLight : MyTheme.DarkSecondaryBackground) :
+            (Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground))
+        .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
+
+    VisualNode RenderActionButtons() =>
+        VStack(spacing: 16,
+            // Save button
+            Button("Save Changes")
+                .ThemeKey("Primary")
+                .OnClicked(SaveVocabularyWord)
+                .IsEnabled(!State.IsSaving &&
+                          !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&
+                          !string.IsNullOrWhiteSpace(State.NativeLanguageTerm.Trim()))
+                .FontSize(16)
+                .Padding(16, 12),
+
+            // Loading indicator
+            State.IsSaving ?
+                HStack(spacing: 8,
+                    ActivityIndicator()
+                        .IsRunning(true)
+                        .Scale(0.8),
+                    Label("Saving...")
+                        .FontSize(14)
+                        .TextColor(MyTheme.Gray600)
+                        .VCenter()
+                ).HCenter() :
+                null,
+
+            // Delete button
+            Button("Delete Vocabulary Word")
+                .ThemeKey("Danger")
+                .OnClicked(DeleteVocabularyWord)
+                .IsEnabled(!State.IsSaving)
+                .FontSize(14)
+        );
+
+    async Task LoadData()
+    {
+        if (Props.VocabularyWordId <= 0)
+        {
+            await Application.Current.MainPage.DisplayAlert("Error", "Invalid vocabulary word ID", "OK");
+            await NavigateBack();
+            return;
+        }
+
+        SetState(s => s.IsLoading = true);
+
+        try
+        {
+            // Load the vocabulary word
+            var word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
+            if (word == null)
+            {
+                await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
+                await NavigateBack();
+                return;
+            }
+
+            // Load all available resources
+            var allResources = await _resourceRepo.GetAllResourcesAsync();
+
+            // Load associated resources for this word
+            var associatedResources = await _resourceRepo.GetResourcesForVocabularyWordAsync(Props.VocabularyWordId);
+
+            SetState(s =>
+            {
+                s.Word = word;
+                s.TargetLanguageTerm = word.TargetLanguageTerm ?? string.Empty;
+                s.NativeLanguageTerm = word.NativeLanguageTerm ?? string.Empty;
+                s.AvailableResources = allResources?.ToList() ?? new List<LearningResource>();
+                s.AssociatedResources = associatedResources?.ToList() ?? new List<LearningResource>();
+                s.SelectedResourceIds = new HashSet<int>(associatedResources?.Select(r => r.Id) ?? Enumerable.Empty<int>());
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load vocabulary word data");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to load vocabulary word: {ex.Message}", "OK");
+            await NavigateBack();
+        }
+        finally
+        {
+            SetState(s => s.IsLoading = false);
+        }
+    }
+
+    void ToggleResourceSelection(int resourceId, bool isSelected)
+    {
+        SetState(s =>
+        {
+            if (isSelected)
+            {
+                s.SelectedResourceIds.Add(resourceId);
+            }
+            else
+            {
+                s.SelectedResourceIds.Remove(resourceId);
+            }
+        });
+    }
+
+    async Task SaveVocabularyWord()
+    {
+        SetState(s =>
+        {
+            s.IsSaving = true;
+            s.ErrorMessage = string.Empty;
+        });
+
+        try
+        {
+            var targetTerm = State.TargetLanguageTerm.Trim();
+            var nativeTerm = State.NativeLanguageTerm.Trim();
+
+            if (string.IsNullOrEmpty(targetTerm) || string.IsNullOrEmpty(nativeTerm))
+            {
+                SetState(s => s.ErrorMessage = "Both target and native language terms are required");
+                return;
+            }
+
+            // Check for duplicates (excluding current word)
+            var existingWord = await _resourceRepo.FindDuplicateVocabularyWordAsync(targetTerm, nativeTerm);
+            if (existingWord != null && existingWord.Id != State.Word.Id)
+            {
+                SetState(s => s.ErrorMessage = "A vocabulary word with these terms already exists");
+                return;
+            }
+
+            // Update the word
+            State.Word.TargetLanguageTerm = targetTerm;
+            State.Word.NativeLanguageTerm = nativeTerm;
+            State.Word.UpdatedAt = DateTime.UtcNow;
+
+            await _resourceRepo.SaveWordAsync(State.Word);
+
+            // Handle resource associations
+            var currentResourceIds = State.AssociatedResources.Select(r => r.Id).ToHashSet();
+            var newResourceIds = State.SelectedResourceIds;
+
+            // Remove associations
+            foreach (var resourceId in currentResourceIds.Except(newResourceIds))
+            {
+                await _resourceRepo.RemoveVocabularyFromResourceAsync(resourceId, State.Word.Id);
+            }
+
+            // Add associations
+            foreach (var resourceId in newResourceIds.Except(currentResourceIds))
+            {
+                await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+            }
+
+            //await AppShell.DisplayToastAsync("✅ Vocabulary word updated successfully!");
+            await NavigateBack();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save vocabulary word");
+            SetState(s => s.ErrorMessage = $"Failed to save: {ex.Message}");
+        }
+        finally
+        {
+            SetState(s => s.IsSaving = false);
+        }
+    }
+
+    async Task DeleteVocabularyWord()
+    {
+        bool confirm = await Application.Current.MainPage.DisplayAlert(
+            "Confirm Delete",
+            $"Are you sure you want to delete '{State.Word.TargetLanguageTerm}'?\n\nThis action cannot be undone.",
+            "Delete", "Cancel");
+
+        if (!confirm) return;
+
+        SetState(s => s.IsSaving = true);
+
+        try
+        {
+            await _resourceRepo.DeleteVocabularyWordAsync(State.Word.Id);
+            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
+            await NavigateBack();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete vocabulary word");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
+        }
+        finally
+        {
+            SetState(s => s.IsSaving = false);
+        }
+    }
+
+    async Task NavigateBack()
+    {
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
+}

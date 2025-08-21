@@ -23,7 +23,7 @@ class DashboardPageState
 {
     public List<LearningResource> Resources { get; set; } = [];
     public List<SkillProfile> SkillProfiles { get; set; } = [];
-    
+
     public List<LearningResource> SelectedResources { get; set; } = [];
     public int SelectedSkillProfileIndex { get; set; } = -1; // Initialize to -1 (no selection)
     public int SelectedResourceIndex { get; set; } = -1; // Initialize to -1 (no selection)
@@ -43,7 +43,7 @@ partial class DashboardPage : Component<DashboardPageState>
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
-	{
+    {
         //Console.Writeline(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
 
@@ -239,7 +239,7 @@ partial class DashboardPage : Component<DashboardPageState>
         // Calculate indices for the selected items
         var selectedResourceIndex = -1;
         var selectedSkillIndex = -1;
-        
+
         if (selectedResources?.Any() == true)
         {
             var firstSelected = selectedResources.First();
@@ -252,7 +252,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 }
             }
         }
-        
+
         if (selectedSkill != null)
         {
             for (int i = 0; i < skills.Count; i++)
@@ -265,7 +265,7 @@ partial class DashboardPage : Component<DashboardPageState>
             }
         }
 
-        SetState(s => 
+        SetState(s =>
         {
             s.Resources = resources;
             s.SkillProfiles = skills;
@@ -324,7 +324,7 @@ partial class DashboardPage : Component<DashboardPageState>
     /// Load the user's saved selections from preferences
     /// </summary>
     private async Task<(List<LearningResource> selectedResources, SkillProfile selectedSkill)> LoadUserSelectionsFromPreferences(
-        List<LearningResource> availableResources, 
+        List<LearningResource> availableResources,
         List<SkillProfile> availableSkills)
     {
         var selectedResources = new List<LearningResource>();
@@ -408,23 +408,23 @@ public partial class ActivityBorder : MauiReactor.Component
             if (_parameters.Value.SelectedResources?.Any() != true)
             {
                 await Application.Current.MainPage.DisplayAlert(
-                    "Ahoy!", 
-                    "Ye need to select at least one learning resource before startin' this activity, matey!", 
+                    "Ahoy!",
+                    "Ye need to select at least one learning resource before startin' this activity, matey!",
                     "Aye, Captain!");
                 return;
             }
-            
+
             if (_parameters.Value.SelectedSkillProfile == null)
             {
                 await Application.Current.MainPage.DisplayAlert(
-                    "Avast!", 
-                    "Choose yer skill profile first, ye scallywag!", 
+                    "Avast!",
+                    "Choose yer skill profile first, ye scallywag!",
                     "Aye, Captain!");
                 return;
             }
-            
+
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ ActivityBorder: Navigating to {_route} with {_parameters.Value.SelectedResources.Count} resources and skill '{_parameters.Value.SelectedSkillProfile.Title}'");
-            
+
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 _route,
                 props =>
@@ -440,7 +440,7 @@ class ActivityProps
 {
     public List<LearningResource> Resources { get; set; } = new();
     public SkillProfile Skill { get; set; }
-    
+
     // Backward compatibility - returns first resource or null
     public LearningResource Resource => Resources?.FirstOrDefault();
 }

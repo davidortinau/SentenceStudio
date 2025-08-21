@@ -1,13 +1,10 @@
-using System.Diagnostics;
-using SentenceStudio.Shared.Models;
-
 namespace SentenceStudio.Services;
 
 public class VocabularyProgressService : IVocabularyProgressService
 {
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly VocabularyLearningContextRepository _contextRepo;
-    
+
     // Enhanced rigorous thresholds - Captain's orders! ⚓
     private const float MASTERY_THRESHOLD = 0.85f;        // Raised from 0.8f - more rigorous!
     private const float PHASE_ADVANCE_THRESHOLD = 0.75f;  // Raised from 0.7f - must prove competency!
@@ -31,42 +28,42 @@ public class VocabularyProgressService : IVocabularyProgressService
     public async Task<VocabularyProgress> RecordAttemptAsync(VocabularyAttempt attempt)
     {
         var progress = await GetOrCreateProgressAsync(attempt.VocabularyWordId, attempt.UserId);
-        
+
         // Update total and phase-specific counts
         progress.TotalAttempts++;
         if (attempt.WasCorrect)
             progress.CorrectAttempts++;
-        
+
         // Update phase-specific tracking
         UpdatePhaseMetrics(progress, attempt);
-        
+
         // Update legacy fields for backward compatibility
         UpdateLegacyFields(progress, attempt);
-        
+
         // Calculate new mastery score with RIGOROUS algorithm
         var newScore = await CalculateRigorousMasteryScoreAsync(progress, attempt);
         progress.MasteryScore = newScore;
-        
+
         // Update phase if appropriate (now with stricter requirements)
         UpdateLearningPhaseRigorous(progress);
-        
+
         // Update spaced repetition schedule
         UpdateSpacedRepetitionSchedule(progress, attempt);
-        
+
         // Update timestamps
         progress.LastPracticedAt = DateTime.Now;
         if (newScore >= MASTERY_THRESHOLD && !progress.MasteredAt.HasValue && HasMixedModeCompetency(progress))
             progress.MasteredAt = DateTime.Now;
-        
+
         // Save progress first
         progress = await _progressRepo.SaveAsync(progress);
-        
+
         // Record detailed context
         await RecordLearningContextAsync(progress.Id, attempt);
-        
+
         return progress;
     }
-    
+
     /// <summary>
     /// Gets progress for a specific vocabulary word and user
     /// </summary>
@@ -74,19 +71,19 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         return await GetOrCreateProgressAsync(vocabularyWordId, userId);
     }
-    
+
     /// <summary>
     /// Gets words due for review based on spaced repetition
     /// </summary>
     public async Task<List<VocabularyProgress>> GetReviewCandidatesAsync(int userId = 1)
     {
         var allProgress = await _progressRepo.ListAsync();
-        return allProgress.Where(p => 
-            p.UserId == userId && 
-            p.IsDueForReview && 
+        return allProgress.Where(p =>
+            p.UserId == userId &&
+            p.IsDueForReview &&
             !p.IsKnown).ToList();
     }
-    
+
     /// <summary>
     /// Gets all progress records for a user
     /// </summary>
@@ -102,13 +99,13 @@ public class VocabularyProgressService : IVocabularyProgressService
     public async Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 1)
     {
         var progressDict = new Dictionary<int, VocabularyProgress>();
-        
+
         foreach (var wordId in vocabularyWordIds)
         {
             var progress = await GetOrCreateProgressAsync(wordId, userId);
             progressDict[wordId] = progress;
         }
-        
+
         return progressDict;
     }
 
@@ -130,7 +127,7 @@ public class VocabularyProgressService : IVocabularyProgressService
                 break;
         }
     }
-    
+
     private void UpdateLegacyFields(VocabularyProgress progress, VocabularyAttempt attempt)
     {
         // Update legacy fields for backward compatibility
@@ -144,14 +141,14 @@ public class VocabularyProgressService : IVocabularyProgressService
             if (attempt.WasCorrect)
                 progress.TextEntryCorrect++;
         }
-        
+
         // Update promoted status based on phase
         progress.IsPromoted = progress.CurrentPhase >= LearningPhase.Production;
-        
+
         // Update completed status based on mastery
         progress.IsCompleted = progress.MasteryScore >= MASTERY_THRESHOLD && HasMixedModeCompetency(progress);
     }
-    
+
     /// <summary>
     /// RIGOROUS mastery score calculation - Captain's enhanced algorithm! 🏴‍☠️
     /// </summary>
@@ -159,44 +156,44 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         // Get last N attempts from context (increased from 5 to 8)
         var recentAttempts = await _contextRepo.GetRecentAttemptsAsync(
-            progress.Id, 
+            progress.Id,
             ROLLING_AVERAGE_COUNT
         );
-        
+
         // If this is the very first attempt, be much more conservative
         if (!recentAttempts.Any())
             return attempt.WasCorrect ? 0.1f : 0.0f; // Reduced from 0.2f to 0.1f
-        
+
         // Calculate base score using phase-specific accuracy requirements
         float baseScore = CalculatePhaseSpecificScore(progress);
-        
+
         // Apply weighted rolling average with penalties
         float rollingScore = CalculateWeightedRollingAverage(recentAttempts, attempt);
-        
+
         // Combine base score and rolling average (weighted toward requiring both phases)
         float combinedScore = (baseScore * 0.4f) + (rollingScore * 0.6f);
-        
+
         // Apply incorrect answer penalties
         float penalizedScore = ApplyIncorrectAnswerPenalties(combinedScore, recentAttempts);
-        
+
         // Apply mixed-mode requirement penalty
         float mixedModeScore = ApplyMixedModeRequirement(penalizedScore, progress);
-        
+
         // Add time decay factor (keep existing)
         var daysSinceLastPractice = (DateTime.Now - progress.LastPracticedAt).TotalDays;
         var timeFactor = Math.Max(0.8f, 1.0f - (float)(daysSinceLastPractice * 0.01));
-        
+
         var finalScore = Math.Min(1.0f, mixedModeScore * timeFactor);
-        
+
         // Debug output for Captain to monitor
         Debug.WriteLine($"🏴‍☠️ Word {progress.VocabularyWordId}: " +
                        $"Base={baseScore:F2}, Rolling={rollingScore:F2}, " +
                        $"Penalized={penalizedScore:F2}, Mixed={mixedModeScore:F2}, " +
                        $"Final={finalScore:F2}");
-        
+
         return finalScore;
     }
-    
+
     /// <summary>
     /// Calculate score based on phase-specific requirements
     /// </summary>
@@ -213,7 +210,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Partial credit but capped low until minimum attempts met
             recognitionScore = Math.Min(0.4f, progress.RecognitionAccuracy * 0.5f);
         }
-        
+
         // Production phase score (text entry)
         float productionScore = 0f;
         if (progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE)
@@ -225,9 +222,9 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Partial credit but capped low until minimum attempts met
             productionScore = Math.Min(0.4f, progress.ProductionAccuracy * 0.5f);
         }
-        
+
         // For true mastery, need competency in BOTH phases
-        if (progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE && 
+        if (progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
             progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE)
         {
             // Take the LOWER of the two scores (weakest link determines mastery)
@@ -244,7 +241,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             return Math.Min(0.6f, recognitionScore);
         }
     }
-    
+
     /// <summary>
     /// Calculate weighted rolling average of recent attempts
     /// </summary>
@@ -259,29 +256,29 @@ public class VocabularyProgressService : IVocabularyProgressService
             UserConfidence = currentAttempt.UserConfidence,
             LearnedAt = DateTime.Now
         });
-        
+
         float totalWeight = 0;
         float weightedScore = 0;
         int index = 0;
-        
+
         foreach (var context in allAttempts.OrderByDescending(c => c.LearnedAt))
         {
             // More recent attempts have higher weight, but less dramatic falloff
             float recencyWeight = 1.0f - (index * 0.1f); // Reduced from 0.15f
             float difficultyWeight = Math.Max(0.5f, context.DifficultyScore);
             float confidenceBoost = context.UserConfidence ?? 1.0f;
-            
+
             float weight = recencyWeight * difficultyWeight * confidenceBoost;
             weightedScore += (context.WasCorrect ? 1.0f : 0.0f) * weight;
             totalWeight += weight;
             index++;
-            
+
             if (index >= ROLLING_AVERAGE_COUNT) break;
         }
-        
+
         return totalWeight > 0 ? (weightedScore / totalWeight) : 0f;
     }
-    
+
     /// <summary>
     /// Apply penalties for incorrect answers - Captain's discipline! ⚓
     /// </summary>
@@ -289,10 +286,10 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         // Count recent incorrect answers
         var recentIncorrect = recentAttempts.Count(a => !a.WasCorrect);
-        
+
         // Apply cumulative penalty for recent mistakes
         float penalty = recentIncorrect * INCORRECT_PENALTY;
-        
+
         // Extra penalty for consecutive wrong answers
         var consecutiveWrong = 0;
         foreach (var attempt in recentAttempts.OrderByDescending(a => a.LearnedAt))
@@ -302,15 +299,15 @@ public class VocabularyProgressService : IVocabularyProgressService
             else
                 break;
         }
-        
+
         if (consecutiveWrong > 1)
         {
             penalty += (consecutiveWrong - 1) * 0.1f; // Additional penalty for consecutive errors
         }
-        
+
         return Math.Max(0f, baseScore - penalty);
     }
-    
+
     /// <summary>
     /// Apply mixed-mode requirement - must show competency in BOTH modes for mastery
     /// </summary>
@@ -318,43 +315,43 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         // For scores above 70%, start applying mixed-mode requirements
         if (score < 0.7f) return score;
-        
-        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE && 
+
+        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
                                       progress.RecognitionAccuracy >= MIXED_MODE_REQUIREMENT;
-        
-        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE && 
+
+        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE &&
                                      progress.ProductionAccuracy >= MIXED_MODE_REQUIREMENT;
-        
+
         // If attempting mastery (80%+) but missing mixed-mode competency, cap the score
         if (score >= 0.8f && (!hasRecognitionCompetency || !hasProductionCompetency))
         {
             return Math.Min(0.75f, score); // Cap at 75% until both modes proven
         }
-        
+
         return score;
     }
-    
+
     /// <summary>
     /// Check if word has demonstrated competency in both recognition and production
     /// </summary>
     private bool HasMixedModeCompetency(VocabularyProgress progress)
     {
-        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE && 
+        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
                                       progress.RecognitionAccuracy >= MIXED_MODE_REQUIREMENT;
-        
-        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE && 
+
+        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE &&
                                      progress.ProductionAccuracy >= MIXED_MODE_REQUIREMENT;
-        
+
         return hasRecognitionCompetency && hasProductionCompetency;
     }
-    
+
     /// <summary>
     /// RIGOROUS learning phase advancement - much stricter requirements!
     /// </summary>
     private void UpdateLearningPhaseRigorous(VocabularyProgress progress)
     {
         // Advance from Recognition to Production - stricter requirements
-        if (progress.CurrentPhase == LearningPhase.Recognition && 
+        if (progress.CurrentPhase == LearningPhase.Recognition &&
             progress.RecognitionAccuracy >= PHASE_ADVANCE_THRESHOLD &&
             progress.RecognitionAttempts >= MIN_ATTEMPTS_PER_PHASE &&
             progress.RecognitionCorrect >= MIN_CORRECT_PER_PHASE)
@@ -377,7 +374,7 @@ public class VocabularyProgressService : IVocabularyProgressService
                           $"({progress.ProductionAccuracy:P})");
         }
     }
-    
+
     private void UpdateSpacedRepetitionSchedule(VocabularyProgress progress, VocabularyAttempt attempt)
     {
         // Simple SM-2 algorithm implementation
@@ -400,7 +397,7 @@ public class VocabularyProgressService : IVocabularyProgressService
                 progress.EaseFactor = Math.Min(2.5f, progress.EaseFactor + 0.1f);
             }
         }
-        
+
         progress.NextReviewDate = DateTime.Now.AddDays(progress.ReviewInterval);
     }
 
@@ -423,7 +420,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Legacy field
             CorrectAnswersInContext = attempt.WasCorrect ? 1 : 0
         };
-        
+
         await _contextRepo.SaveAsync(context);
     }
 
@@ -452,7 +449,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     // Legacy method implementations for backward compatibility ⚓
-    
+
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)
     /// </summary>
@@ -460,14 +457,14 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         return GetOrCreateProgressAsync(vocabularyWordId, userId: 1);
     }
-    
+
     /// <summary>
     /// Legacy method: Records a correct answer (backward compatibility)
     /// </summary>
     public Task<VocabularyProgress> RecordCorrectAnswerAsync(
-        int vocabularyWordId, 
-        InputMode inputMode, 
-        string activity = "VocabularyQuiz", 
+        int vocabularyWordId,
+        InputMode inputMode,
+        string activity = "VocabularyQuiz",
         int? learningResourceId = null)
     {
         var attempt = new VocabularyAttempt
@@ -483,17 +480,17 @@ public class VocabularyProgressService : IVocabularyProgressService
             UserConfidence = null,
             ContextType = inputMode == InputMode.MultipleChoice ? "Isolated" : "Isolated"
         };
-        
+
         return RecordAttemptAsync(attempt);
     }
-    
+
     /// <summary>
     /// Legacy method: Records an incorrect answer (backward compatibility)
     /// </summary>
     public Task<VocabularyProgress> RecordIncorrectAnswerAsync(
-        int vocabularyWordId, 
-        InputMode inputMode, 
-        string activity = "VocabularyQuiz", 
+        int vocabularyWordId,
+        InputMode inputMode,
+        string activity = "VocabularyQuiz",
         int? learningResourceId = null)
     {
         var attempt = new VocabularyAttempt
@@ -509,10 +506,10 @@ public class VocabularyProgressService : IVocabularyProgressService
             UserConfidence = null,
             ContextType = inputMode == InputMode.MultipleChoice ? "Isolated" : "Isolated"
         };
-        
+
         return RecordAttemptAsync(attempt);
     }
-    
+
     /// <summary>
     /// Helper method to determine learning phase from input mode for legacy calls
     /// </summary>
@@ -525,7 +522,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             _ => LearningPhase.Recognition
         };
     }
-    
+
     /// <summary>
     /// Helper method to calculate difficulty weight for legacy calls
     /// </summary>

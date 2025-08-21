@@ -1,4 +1,17 @@
-﻿global using CommunityToolkit.Mvvm.ComponentModel;
+﻿global using System;
+
+global using Microsoft.Maui;
+global using Microsoft.Maui.Controls;
+global using Microsoft.Maui.Hosting;
+global using Microsoft.Maui.Graphics;
+global using Microsoft.Maui.Devices;
+global using MauiControls = Microsoft.Maui.Controls;
+global using Microsoft.Maui.ApplicationModel;
+global using Microsoft.Maui.Storage;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Maui.Networking;
+
+global using CommunityToolkit.Mvvm.ComponentModel;
 global using CommunityToolkit.Mvvm.Input;
 global using CommunityToolkit.Mvvm.Messaging;
 global using Scriban;
@@ -11,4 +24,8 @@ global using System.Diagnostics;
 global using SentenceStudio.Common;
 global using SentenceStudio.Pages.Controls;
 global using MauiReactor;
-global using MauiControls = Microsoft.Maui.Controls;
+global using System.Collections.Generic;
+global using System.Threading.Tasks;
+global using System.Threading;
+global using System.IO;
+global using System.Linq;

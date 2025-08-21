@@ -37,10 +37,11 @@ using Syncfusion.Licensing;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
 using ReactorTheme;
+using Microsoft.Maui.Controls.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 #if WINDOWS
 using System.Reflection;
-using ReactorTheme;
 #endif
 
 #if DEBUG
@@ -79,7 +80,7 @@ public static class MauiProgram
 					recordingOptions.Mode = AVFoundation.AVAudioSessionMode.Default;
 					recordingOptions.CategoryOptions = AVFoundation.AVAudioSessionCategoryOptions.MixWithOthers;
 #endif
-			})
+				})
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("Segoe-Ui-Bold.ttf", "SegoeBold");
@@ -98,7 +99,7 @@ public static class MauiProgram
 			.ConfigureFilePicker(100)
 			;
 
-			
+
 
 #if ANDROID || IOS || MACCATALYST
 		builder.Configuration.AddJsonPlatformBundle();
@@ -112,21 +113,21 @@ public static class MauiProgram
 
 		builder.Configuration.AddConfiguration(config);
 #endif
-		
+
 
 #if DEBUG
 		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
 #endif
 
 		RegisterRoutes();
-		RegisterServices(builder.Services);		
+		RegisterServices(builder.Services);
 
 		builder.Services.AddOpenTelemetry()
 			.WithTracing(tracerProviderBuilder =>
 			{
 				tracerProviderBuilder
 					.AddHttpClientInstrumentation() // Capture HttpClient requests
-					// .AddSource("IChatClient") // Custom source for OpenAI API calls
+													// .AddSource("IChatClient") // Custom source for OpenAI API calls
 					.AddConsoleExporter(); // Export traces to console for debugging
 			});
 
@@ -149,7 +150,7 @@ public static class MauiProgram
 
 		// Debug.WriteLine($"ElevenLabs from Env: {Environment.GetEnvironmentVariable("ElevenLabsKey")}");
 		// Debug.WriteLine($"ElevenLabs from Config: {builder.Configuration.GetRequiredSection("Settings").Get<Settings>().ElevenLabsKey}");
-			
+
 		var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
 			? Environment.GetEnvironmentVariable("ElevenLabsKey")!
 			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().ElevenLabsKey;
@@ -170,21 +171,21 @@ public static class MauiProgram
 		// 		builder.Services.AddSyncServices(dbPath, new Uri($"https://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
 		// #endif
 		builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
-		
+
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
-        var app = builder.Build();
+		var app = builder.Build();
 
 		// Initialize database and sync on startup using proper initialization pattern
 		Task.Run(async () =>
 		{
-			
+
 			var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
 			await syncService.InitializeDatabaseAsync();
 			await syncService.TriggerSyncAsync();
 			System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
-		
+
 		});
 
 		// Listen for connectivity changes to trigger sync when online
@@ -211,7 +212,7 @@ public static class MauiProgram
 		return app;
 	}
 
-	
+
 
 	private static void RegisterRoutes()
 	{
@@ -229,16 +230,20 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
 		MauiReactor.Routing.RegisterRoute<ReadingPage>("reading");
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
-		
+
 		// Register Learning Resources pages
 		MauiReactor.Routing.RegisterRoute<AddLearningResourcePage>(nameof(AddLearningResourcePage));
 		MauiReactor.Routing.RegisterRoute<EditLearningResourcePage>(nameof(EditLearningResourcePage));
-		
+
 		// Register Vocabulary Progress pages
 		MauiReactor.Routing.RegisterRoute<VocabularyLearningProgressPage>(nameof(VocabularyLearningProgressPage));
+
+		// Register Vocabulary Management pages
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyManagement.VocabularyManagementPage>(nameof(SentenceStudio.Pages.VocabularyManagement.VocabularyManagementPage));
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyManagement.EditVocabularyWordPage>(nameof(SentenceStudio.Pages.VocabularyManagement.EditVocabularyWordPage));
 	}
 
-	
+
 	static void RegisterServices(IServiceCollection services)
 	{
 		// #if DEBUG
@@ -289,23 +294,23 @@ public static class MauiProgram
 
 		// services.AddTransientPopup<PhraseClipboardPopup, PhraseClipboardViewModel>();
 		// services.AddTransientPopup<ExplanationPopup, ExplanationViewModel>();
-		
+
 		services.AddSingleton<IAppState, AppState>();
 	}
 
-	
+
 
 	private static void ModifyPicker()
 	{
-		
+
 
 		Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
 		{
-			#if ANDROID
-			handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);			
-			#elif IOS || MACCATALYST
+#if ANDROID
+			handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+#elif IOS || MACCATALYST
 			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
-			#endif
+#endif
 		});
 	}
 
