@@ -159,7 +159,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     null
             ).Padding(12)
         )
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .StrokeShape(new Rectangle())
         .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
         .StrokeThickness(State.SelectedResourceIds.Contains(resource.Id) ? 2 : 1)
         .Background(State.SelectedResourceIds.Contains(resource.Id) ?
@@ -315,8 +315,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
             }
 
-            //await AppShell.DisplayToastAsync("✅ Vocabulary word updated successfully!");
-            await NavigateBack();
+
         }
         catch (Exception ex)
         {
@@ -326,6 +325,8 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
+            await AppShell.DisplayToastAsync("✅ Vocabulary word updated successfully!");
+            await NavigateBack();
         }
     }
 
@@ -343,8 +344,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         try
         {
             await _resourceRepo.DeleteVocabularyWordAsync(State.Word.Id);
-            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
-            await NavigateBack();
+
         }
         catch (Exception ex)
         {
@@ -354,11 +354,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
+            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
+            await NavigateBack();
         }
     }
 
-    async Task NavigateBack()
+    Task NavigateBack()
     {
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 }

@@ -193,7 +193,7 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
-                        }.Spacing(20)
+                        }.Spacing(DeviceInfo.Idiom == DeviceIdiom.Phone ? 8 : 20)
                     )// vstack
                     .Padding(MyTheme.Size160)
                     .Spacing(MyTheme.Size240)
@@ -396,8 +396,8 @@ public partial class ActivityBorder : MauiReactor.Component
                     .HorizontalOptions(LayoutOptions.Center)
                     .Text($"{_labelText}")
             )
-            .WidthRequest(300)
-            .HeightRequest(120)
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 300)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 120)
         )
         .StrokeShape(Rectangle())
         .StrokeThickness(1)
