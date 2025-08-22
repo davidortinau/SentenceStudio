@@ -35,7 +35,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     public override VisualNode Render()
     {
-        return ContentPage("Edit Vocabulary Word",
+        return ContentPage(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Edit Vocabulary Word",
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
@@ -170,7 +170,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     VisualNode RenderActionButtons() =>
         VStack(spacing: 16,
             // Save button
-            Button("Save Changes")
+            Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
                 .ThemeKey("Primary")
                 .OnClicked(SaveVocabularyWord)
                 .IsEnabled(!State.IsSaving &&
@@ -192,34 +192,46 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 ).HCenter() :
                 null,
 
-            // Delete button
-            Button("Delete Vocabulary Word")
-                .ThemeKey("Danger")
-                .OnClicked(DeleteVocabularyWord)
-                .IsEnabled(!State.IsSaving)
-                .FontSize(14)
+            // Delete button (only show for existing words)
+            Props.VocabularyWordId > 0 ?
+                Button("Delete Vocabulary Word")
+                    .ThemeKey("Danger")
+                    .OnClicked(DeleteVocabularyWord)
+                    .IsEnabled(!State.IsSaving)
+                    .FontSize(14) :
+                null
         );
 
     async Task LoadData()
     {
-        if (Props.VocabularyWordId <= 0)
-        {
-            await Application.Current.MainPage.DisplayAlert("Error", "Invalid vocabulary word ID", "OK");
-            await NavigateBack();
-            return;
-        }
-
         SetState(s => s.IsLoading = true);
 
         try
         {
-            // Load the vocabulary word
-            var word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
-            if (word == null)
+            VocabularyWord? word = null;
+            
+            // Load existing word or create new one
+            if (Props.VocabularyWordId > 0)
             {
-                await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
-                await NavigateBack();
-                return;
+                word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
+                if (word == null)
+                {
+                    await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
+                    await NavigateBack();
+                    return;
+                }
+            }
+            else
+            {
+                // Create new word for adding
+                word = new VocabularyWord
+                {
+                    Id = 0,
+                    TargetLanguageTerm = string.Empty,
+                    NativeLanguageTerm = string.Empty,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
             }
 
             // Load all available resources
@@ -299,20 +311,31 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
             await _resourceRepo.SaveWordAsync(State.Word);
 
-            // Handle resource associations
-            var currentResourceIds = State.AssociatedResources.Select(r => r.Id).ToHashSet();
-            var newResourceIds = State.SelectedResourceIds;
-
-            // Remove associations
-            foreach (var resourceId in currentResourceIds.Except(newResourceIds))
+            // Handle resource associations (only for words with valid IDs)
+            if (State.Word.Id > 0)
             {
-                await _resourceRepo.RemoveVocabularyFromResourceAsync(resourceId, State.Word.Id);
+                var currentResourceIds = State.AssociatedResources.Select(r => r.Id).ToHashSet();
+                var newResourceIds = State.SelectedResourceIds;
+
+                // Remove associations
+                foreach (var resourceId in currentResourceIds.Except(newResourceIds))
+                {
+                    await _resourceRepo.RemoveVocabularyFromResourceAsync(resourceId, State.Word.Id);
+                }
+
+                // Add associations
+                foreach (var resourceId in newResourceIds.Except(currentResourceIds))
+                {
+                    await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+                }
             }
-
-            // Add associations
-            foreach (var resourceId in newResourceIds.Except(currentResourceIds))
+            else
             {
-                await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+                // For new words, just add the selected associations
+                foreach (var resourceId in State.SelectedResourceIds)
+                {
+                    await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+                }
             }
 
 
@@ -325,7 +348,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
-            await AppShell.DisplayToastAsync("✅ Vocabulary word updated successfully!");
+            await AppShell.DisplayToastAsync(Props.VocabularyWordId == 0 ? 
+                "✅ Vocabulary word added successfully!" : 
+                "✅ Vocabulary word updated successfully!");
             await NavigateBack();
         }
     }

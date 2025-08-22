@@ -2,6 +2,7 @@ using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
+using Fonts;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -47,12 +48,6 @@ class VocabularyManagementPageState
     public bool IsMultiSelectMode { get; set; } = false;
     public HashSet<int> SelectedWordIds { get; set; } = new();
 
-    // Quick add
-    public bool IsQuickAddExpanded { get; set; } = false;
-    public string QuickAddTargetTerm { get; set; } = string.Empty;
-    public string QuickAddNativeTerm { get; set; } = string.Empty;
-    public HashSet<int> QuickAddResourceIds { get; set; } = new();
-    public bool IsQuickAddSaving { get; set; } = false;
 }
 
 partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
@@ -63,13 +58,28 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     public override VisualNode Render()
     {
         return ContentPage("Vocabulary Management",
+            ToolbarItem()
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = FluentUI.add_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(async () => await ToggleQuickAdd()),
+            ToolbarItem()
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = State.IsMultiSelectMode ? FluentUI.dismiss_20_regular : FluentUI.select_all_on_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                Grid(rows: "Auto,Auto,*", columns: "*",
+                Grid(rows: "Auto,*", columns: "*",
                     RenderSearchAndFilters(),
-                    RenderQuickAdd(),
                     RenderVocabularyList()
                 )
         )
@@ -95,50 +105,49 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             )
             .ThemeKey(MyTheme.InputWrapper),
 
-            // Filter buttons with counts
-            ScrollView(
-                HStack(spacing: 8,
-                    Button($"All ({State.Stats.TotalWords})")
-                        .Background(State.SelectedFilter == VocabularyFilter.All ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
-                        .TextColor(State.SelectedFilter == VocabularyFilter.All ? Colors.White : MyTheme.Gray600)
-                        .OnClicked(() => OnFilterChanged(VocabularyFilter.All)),
-                    Button($"Associated ({State.Stats.AssociatedWords})")
-                        .Background(State.SelectedFilter == VocabularyFilter.Associated ? MyTheme.SupportSuccessDark : MyTheme.Gray200Brush)
-                        .TextColor(State.SelectedFilter == VocabularyFilter.Associated ? Colors.White : MyTheme.Gray600)
-                        .OnClicked(() => OnFilterChanged(VocabularyFilter.Associated)),
-                    Button($"Orphaned ({State.Stats.OrphanedWords})")
-                        .Background(State.SelectedFilter == VocabularyFilter.Orphaned ? MyTheme.SupportErrorDark : MyTheme.Gray200Brush)
-                        .TextColor(State.SelectedFilter == VocabularyFilter.Orphaned ? Colors.White : MyTheme.Gray600)
-                        .OnClicked(() => OnFilterChanged(VocabularyFilter.Orphaned)),
-                    Button("By Resource")
-                        .Background(State.SelectedFilter == VocabularyFilter.SpecificResource ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
-                        .TextColor(State.SelectedFilter == VocabularyFilter.SpecificResource ? Colors.White : MyTheme.Gray600)
-                        .OnClicked(() => OnFilterChanged(VocabularyFilter.SpecificResource))
-                )
-                .Padding(8, 0)
-            )
-            .Orientation(ScrollOrientation.Horizontal)
-            .HorizontalScrollBarVisibility(ScrollBarVisibility.Never),
+            // Filter pickers (hidden when in multi-select mode)
+            !State.IsMultiSelectMode ?
+                HStack(spacing: 12,
+                    // Status filter picker
+                    VStack(spacing: 4,
+                        Label("Status")
+                            .FontSize(12)
+                            .FontAttributes(FontAttributes.Bold)
+                            .TextColor(MyTheme.Gray600),
+                        Picker()
+                            .ItemsSource(new List<string>
+                            {
+                                $"All ({State.Stats.TotalWords})",
+                                $"Associated ({State.Stats.AssociatedWords})",
+                                $"Orphaned ({State.Stats.OrphanedWords})"
+                            })
+                            .SelectedIndex((int)State.SelectedFilter)
+                            .OnSelectedIndexChanged(index => OnStatusFilterChanged(index))
+                            .Title("Filter by status")
+                    ).HorizontalOptions(LayoutOptions.FillAndExpand),
 
-            // Resource picker (shown when SpecificResource filter is selected)
-            State.SelectedFilter == VocabularyFilter.SpecificResource ?
-                Picker()
-                    .ItemsSource(State.AvailableResources.Select(r => r.Title).ToList())
-                    .SelectedIndex(State.SelectedResource != null ?
-                        State.AvailableResources.ToList().FindIndex(r => r.Id == State.SelectedResource.Id) : -1)
-                    .OnSelectedIndexChanged(index => OnResourceFilterIndexChanged(index))
-                    .Title("Select Learning Resource") :
+                    // Resource filter picker
+                    VStack(spacing: 4,
+                        Label("Resource")
+                            .FontSize(12)
+                            .FontAttributes(FontAttributes.Bold)
+                            .TextColor(MyTheme.Gray600),
+                        Picker()
+                            .ItemsSource(GetResourcePickerItems())
+                            .SelectedIndex(GetResourcePickerSelectedIndex())
+                            .OnSelectedIndexChanged(index => OnResourcePickerIndexChanged(index))
+                            .Title("Filter by resource")
+                    ).HorizontalOptions(LayoutOptions.FillAndExpand)
+                ) :
                 null,
 
-            // Multi-select toggle and bulk actions
+            // Multi-select bulk actions (only shown when in multi-select mode)
             State.IsMultiSelectMode ?
                 HStack(spacing: 10,
-                    Button("Cancel Selection")
-                        .ThemeKey("Secondary")
-                        .OnClicked(ExitMultiSelectMode),
                     Label($"{State.SelectedWordIds.Count} selected")
                         .VCenter()
-                        .TextColor(MyTheme.Gray600),
+                        .TextColor(MyTheme.Gray600)
+                        .HorizontalOptions(LayoutOptions.FillAndExpand),
                     Button("Delete Selected")
                         .ThemeKey("Danger")
                         .OnClicked(BulkDeleteSelected)
@@ -148,98 +157,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 ) :
-                Button("Multi-Select")
-                    .ThemeKey("Secondary")
-                    .OnClicked(EnterMultiSelectMode)
-                    .HEnd()
+                null
         ).Padding(16, 8, 16, 8).GridRow(0);
 
-    VisualNode RenderQuickAdd() =>
-        VStack(spacing: 10,
-            Button(State.IsQuickAddExpanded ? "− Hide Quick Add" : "+ Quick Add Vocabulary")
-                .ThemeKey("Secondary")
-                .OnClicked(ToggleQuickAdd)
-                .HStart(),
-
-            State.IsQuickAddExpanded ?
-                Border(
-                    VStack(spacing: 12,
-                        HStack(spacing: 10,
-                            VStack(spacing: 5,
-                                Label("Target Language")
-                                    .FontSize(12)
-                                    .FontAttributes(FontAttributes.Bold),
-                                Entry()
-                                    .Text(State.QuickAddTargetTerm)
-                                    .OnTextChanged(text => SetState(s => s.QuickAddTargetTerm = text))
-                                    .Placeholder("e.g., 안녕하세요")
-                                    .ReturnType(ReturnType.Next)
-                            ).HorizontalOptions(LayoutOptions.FillAndExpand),
-
-                            VStack(spacing: 5,
-                                Label("Native Language")
-                                    .FontSize(12)
-                                    .FontAttributes(FontAttributes.Bold),
-                                Entry()
-                                    .Text(State.QuickAddNativeTerm)
-                                    .OnTextChanged(text => SetState(s => s.QuickAddNativeTerm = text))
-                                    .Placeholder("e.g., Hello")
-                                    .ReturnType(ReturnType.Done)
-                                    .OnCompleted(QuickAddVocabulary)
-                            ).HorizontalOptions(LayoutOptions.FillAndExpand)
-                        ),
-
-                        Label("Associate with Resources (optional)")
-                            .FontSize(12)
-                            .FontAttributes(FontAttributes.Bold)
-                            .HStart(),
-
-                        State.AvailableResources.Any() ?
-                            ScrollView(
-                                HStack(spacing: 8,
-                                    State.AvailableResources.Select(resource =>
-                                        Button(resource.Title ?? "Unknown")
-                                            .Background(State.QuickAddResourceIds.Contains(resource.Id) ?
-                                                MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
-                                            .TextColor(State.QuickAddResourceIds.Contains(resource.Id) ?
-                                                Colors.White : MyTheme.Gray600)
-                                            .OnClicked(() => ToggleQuickAddResource(resource.Id))
-                                            .FontSize(12)
-                                            .Padding(8, 6)
-                                    ).ToArray()
-                                ).Padding(8, 0)
-                            )
-                            .Orientation(ScrollOrientation.Horizontal)
-                            .HeightRequest(50) :
-                            Label("No learning resources available")
-                                .FontSize(12)
-                                .TextColor(MyTheme.Gray600),
-
-                        HStack(spacing: 10,
-                            Button("Add Vocabulary")
-                                .ThemeKey("Primary")
-                                .OnClicked(QuickAddVocabulary)
-                                .IsEnabled(!State.IsQuickAddSaving &&
-                                          !string.IsNullOrWhiteSpace(State.QuickAddTargetTerm?.Trim()) &&
-                                          !string.IsNullOrWhiteSpace(State.QuickAddNativeTerm?.Trim())),
-
-                            State.IsQuickAddSaving ?
-                                ActivityIndicator()
-                                    .IsRunning(true)
-                                    .Scale(0.8) :
-                                null,
-
-                            Button("Clear")
-                                .ThemeKey("Secondary")
-                                .OnClicked(ClearQuickAdd)
-                        ).HStart()
-                    ).Padding(16)
-                )
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Stroke(MyTheme.Gray300)
-                .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground) :
-                null
-        ).Padding(16, 8, 16, 8).GridRow(1);
 
     VisualNode RenderVocabularyList()
     {
@@ -248,7 +168,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             return VStack(
                 Label(State.AllVocabularyItems.Any() ?
                     "No vocabulary words match the current filter." :
-                    "No vocabulary words found. Use Quick Add to create your first vocabulary word.")
+                    "No vocabulary words found. Use the + button to create your first vocabulary word.")
                     .FontSize(16)
                     .TextColor(MyTheme.Gray600)
                     .Center(),
@@ -256,7 +176,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 !State.AllVocabularyItems.Any() ?
                     Button("Get Started")
                         .ThemeKey("Primary")
-                        .OnClicked(() => SetState(s => s.IsQuickAddExpanded = true))
+                        .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :
                     null
@@ -499,8 +419,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         _searchTimer = new System.Threading.Timer(_ => ApplyFilters(), null, 300, Timeout.Infinite);
     }
 
-    void OnFilterChanged(VocabularyFilter filter)
+    void OnStatusFilterChanged(int index)
     {
+        var filter = (VocabularyFilter)index;
         SetState(s =>
         {
             s.SelectedFilter = filter;
@@ -512,121 +433,55 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         ApplyFilters();
     }
 
-    void OnResourceFilterChanged(object selectedItem)
-    {
-        if (selectedItem is LearningResource resource)
-        {
-            SetState(s => s.SelectedResource = resource);
-            ApplyFilters();
-        }
-    }
 
-    void OnResourceFilterIndexChanged(int index)
+    void OnResourcePickerIndexChanged(int index)
     {
-        if (index >= 0 && index < State.AvailableResources.Count)
+        if (index == 0) // "All Resources" option
         {
-            var resource = State.AvailableResources[index];
-            SetState(s => s.SelectedResource = resource);
-            ApplyFilters();
-        }
-    }
-
-    void ToggleQuickAdd()
-    {
-        SetState(s => s.IsQuickAddExpanded = !s.IsQuickAddExpanded);
-    }
-
-    void ToggleQuickAddResource(int resourceId)
-    {
-        SetState(s =>
-        {
-            if (s.QuickAddResourceIds.Contains(resourceId))
+            SetState(s =>
             {
-                s.QuickAddResourceIds.Remove(resourceId);
-            }
-            else
+                s.SelectedFilter = VocabularyFilter.All;
+                s.SelectedResource = null;
+            });
+        }
+        else if (index > 0 && index <= State.AvailableResources.Count)
+        {
+            var resource = State.AvailableResources[index - 1]; // -1 because "All Resources" is at index 0
+            SetState(s =>
             {
-                s.QuickAddResourceIds.Add(resourceId);
-            }
-        });
+                s.SelectedFilter = VocabularyFilter.SpecificResource;
+                s.SelectedResource = resource;
+            });
+        }
+        ApplyFilters();
     }
 
-    async Task QuickAddVocabulary()
+    List<string> GetResourcePickerItems()
     {
-        SetState(s => s.IsQuickAddSaving = true);
-
-        try
-        {
-            var targetTerm = State.QuickAddTargetTerm.Trim();
-            var nativeTerm = State.QuickAddNativeTerm.Trim();
-
-            // Check for duplicate
-            var existingWord = await _resourceRepo.FindDuplicateVocabularyWordAsync(targetTerm, nativeTerm);
-            if (existingWord != null)
-            {
-                bool shouldProceed = await Application.Current.MainPage.DisplayAlert(
-                    "Duplicate Found",
-                    $"A vocabulary word with these terms already exists. Do you want to associate it with the selected resources instead?",
-                    "Yes", "No");
-
-                if (shouldProceed)
-                {
-                    // Associate existing word with selected resources
-                    foreach (var resourceId in State.QuickAddResourceIds)
-                    {
-                        await _resourceRepo.AddVocabularyToResourceAsync(resourceId, existingWord.Id);
-                    }
-
-                    await AppShell.DisplayToastAsync("✅ Existing vocabulary word associated with resources!");
-                }
-
-                ClearQuickAdd();
-                await LoadVocabularyData();
-                return;
-            }
-
-            var newWord = new VocabularyWord
-            {
-                TargetLanguageTerm = targetTerm,
-                NativeLanguageTerm = nativeTerm,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            // Save the word
-            await _resourceRepo.SaveWordAsync(newWord);
-
-            // Associate with selected resources
-            foreach (var resourceId in State.QuickAddResourceIds)
-            {
-                await _resourceRepo.AddVocabularyToResourceAsync(resourceId, newWord.Id);
-            }
-
-            await AppShell.DisplayToastAsync("✅ Vocabulary word added successfully!");
-
-            // Clear form and reload data
-            ClearQuickAdd();
-            await LoadVocabularyData();
-        }
-        catch (Exception ex)
-        {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to add vocabulary: {ex.Message}", "OK");
-        }
-        finally
-        {
-            SetState(s => s.IsQuickAddSaving = false);
-        }
+        var items = new List<string> { "All Resources" };
+        items.AddRange(State.AvailableResources.Select(r => r.Title ?? "Unknown"));
+        return items;
     }
 
-    void ClearQuickAdd()
+    int GetResourcePickerSelectedIndex()
     {
-        SetState(s =>
+        if (State.SelectedFilter != VocabularyFilter.SpecificResource || State.SelectedResource == null)
         {
-            s.QuickAddTargetTerm = string.Empty;
-            s.QuickAddNativeTerm = string.Empty;
-            s.QuickAddResourceIds.Clear();
-        });
+            return 0; // "All Resources"
+        }
+
+        var resourceIndex = State.AvailableResources.ToList().FindIndex(r => r.Id == State.SelectedResource.Id);
+        return resourceIndex >= 0 ? resourceIndex + 1 : 0; // +1 because "All Resources" is at index 0
     }
+
+    Task ToggleQuickAdd()
+    {
+        // Navigate to edit page with ID 0 to indicate new vocabulary word
+        return MauiControls.Shell.Current.GoToAsync<VocabularyWordProps>(
+            nameof(EditVocabularyWordPage),
+            props => props.VocabularyWordId = 0);
+    }
+
 
     void EnterMultiSelectMode()
     {
