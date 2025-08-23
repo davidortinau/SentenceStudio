@@ -58,7 +58,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     public override VisualNode Render()
     {
         return ContentPage("Vocabulary Management",
-            ToolbarItem()
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
                 .IconImageSource(new FontImageSource
                 {
                     FontFamily = FluentUI.FontFamily,
@@ -66,7 +66,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     Color = MyTheme.HighlightDarkest
                 })
                 .OnClicked(async () => await ToggleQuickAdd()),
-            ToolbarItem()
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Select")
                 .IconImageSource(new FontImageSource
                 {
                     FontFamily = FluentUI.FontFamily,
@@ -102,27 +102,28 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderCompactSearchBar()
         =>
                 Grid(rows: "Auto", columns: "*,Auto,Auto",
-                        // Compact search (icon + Entry), smaller height like iOS mail
-                        // SearchBar()
-                        //     .Text(State.SearchText)
-                        //     .OnAfterTextChanged(OnSearchTextChanged)
-                        //     .Placeholder("Search"),
-
-                        Grid(rows: "44", columns: "44,*",
-                            Image()
-                                .Source(MyTheme.IconSearch)
-                                .HeightRequest(MyTheme.IconSize)
-                                .WidthRequest(MyTheme.IconSize)
-                                .VCenter(),
+                        new SfTextInputLayout(
                             Entry()
                                 .Placeholder("Search")
                                 .Text(State.SearchText)
                                 .OnTextChanged(OnSearchTextChanged)
                                 .FontSize(13)
-                                .HeightRequest(44)
                                 .VCenter()
-                                .GridColumn(1)
-                        ),
+                        )
+                        .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
+                        .OutlineCornerRadius(27)
+                        .ShowHint(false)
+                        .LeadingView(
+                            Image()
+                                .Source(MyTheme.IconSearch)
+                                .HeightRequest(MyTheme.IconSize)
+                                .WidthRequest(MyTheme.IconSize)
+                        )
+                        .HeightRequest(54)
+                        .FocusedStrokeThickness(0)
+                        .UnfocusedStrokeThickness(0)
+                        .GridColumn(0)
+                        .VStart(),
                     // )
                     // .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
                     // .StrokeShape(new RoundRectangle().CornerRadius(16))
@@ -133,23 +134,27 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     // Status filter icon
                     ImageButton()
                         .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconStatus)
-                        .BackgroundColor(Colors.Transparent)
+                        .BackgroundColor(MyTheme.LightSecondaryBackground)
                         .HeightRequest(36)
                         .WidthRequest(36)
+                        .CornerRadius(24)
                         .Padding(6)
                         .OnClicked(async () => await ShowStatusFilterDialog())
-                        .GridColumn(1),
+                        .GridColumn(1)
+                        .VStart(),
 
                     // Resource filter icon
                     ImageButton()
                         .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
-                        .BackgroundColor(Colors.Transparent)
+                        .BackgroundColor(MyTheme.LightSecondaryBackground)
                         .HeightRequest(36)
                         .WidthRequest(36)
+                        .CornerRadius(18)
                         .Padding(6)
                         .OnClicked(async () => await ShowResourceFilterDialog())
                         .GridColumn(2)
-                )
+                        .VStart()
+                ).ColumnSpacing(8)
             .Padding(15, 0)
             .GridRow(1);
 

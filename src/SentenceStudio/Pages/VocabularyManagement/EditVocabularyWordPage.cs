@@ -166,8 +166,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
 
     VisualNode RenderActionButtons() =>
-        VStack(spacing: 16,
-            // Save button
+        Grid(
+            rows: "Auto,Auto",
+            columns: Props.VocabularyWordId > 0 ? "*,Auto" : "*",
+            // Save/Add button on the left
             Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
                 .ThemeKey("Primary")
                 .OnClicked(SaveVocabularyWord)
@@ -175,9 +177,26 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&
                           !string.IsNullOrWhiteSpace(State.NativeLanguageTerm.Trim()))
                 .FontSize(16)
-                .Padding(16, 12),
+                .Padding(16, 12)
+                .GridRow(0)
+                .GridColumn(0),
 
-            // Loading indicator
+            // Delete icon button on the right (only for existing words)
+            Props.VocabularyWordId > 0 ?
+                ImageButton()
+                    .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDelete)
+                    .BackgroundColor(MyTheme.LightSecondaryBackground)
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
+                    .OnClicked(DeleteVocabularyWord)
+                    .IsEnabled(!State.IsSaving)
+                    .GridRow(0)
+                    .GridColumn(1) :
+                null,
+
+            // Loading indicator row
             State.IsSaving ?
                 HStack(spacing: 8,
                     ActivityIndicator()
@@ -187,20 +206,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(14)
                         .TextColor(MyTheme.Gray600)
                         .VCenter()
-                ).HCenter() :
-                null,
-
-            // Delete button (only show for existing words)
-            Props.VocabularyWordId > 0 ?
-                Button("Delete Vocabulary Word")
-                    .ThemeKey("Danger")
-                    .OnClicked(DeleteVocabularyWord)
-                    .IsEnabled(!State.IsSaving)
-                    .FontSize(14) :
+                )
+                .HCenter()
+                .GridRow(1)
+                .GridColumnSpan(Props.VocabularyWordId > 0 ? 2 : 1) :
                 null
         )
         .ThemeKey(MyTheme.Surface1)
-        // .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         .GridRow(1);
 
     async Task LoadData()
