@@ -40,14 +40,17 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                ScrollView(
-                    VStack(spacing: 24,
-                        RenderWordForm(),
-                        RenderResourceAssociations(),
-                        RenderActionButtons()
-                    ).Padding(16)
-                )
+                Grid(rows: "*,Auto", columns: "*",
+                    ScrollView(
+                        VStack(spacing: 24,
+                            RenderWordForm(),
+                            RenderResourceAssociations()
+                        ).Padding(16)
+                    ),
+                    RenderActionButtons()
+                ).Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
+        .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         .OnAppearing(LoadData);
     }
 
@@ -149,14 +152,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .TextColor(MyTheme.Gray600)
                             .MaxLines(2) :
                         null
-                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand),
+                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand)
 
-                State.SelectedResourceIds.Contains(resource.Id) ?
-                    Label("✓")
-                        .FontSize(18)
-                        .TextColor(MyTheme.Success)
-                        .VCenter() :
-                    null
+
             ).Padding(12)
         )
         .StrokeShape(new Rectangle())
@@ -200,7 +198,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .IsEnabled(!State.IsSaving)
                     .FontSize(14) :
                 null
-        );
+        )
+        .ThemeKey(MyTheme.Surface1)
+        // .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
+        .GridRow(1);
 
     async Task LoadData()
     {
@@ -209,7 +210,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         try
         {
             VocabularyWord? word = null;
-            
+
             // Load existing word or create new one
             if (Props.VocabularyWordId > 0)
             {
@@ -348,8 +349,8 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
-            await AppShell.DisplayToastAsync(Props.VocabularyWordId == 0 ? 
-                "✅ Vocabulary word added successfully!" : 
+            await AppShell.DisplayToastAsync(Props.VocabularyWordId == 0 ?
+                "✅ Vocabulary word added successfully!" :
                 "✅ Vocabulary word updated successfully!");
             await NavigateBack();
         }

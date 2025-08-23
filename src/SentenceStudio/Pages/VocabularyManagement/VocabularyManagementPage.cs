@@ -78,10 +78,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                Grid(rows: "Auto,*", columns: "*",
-                    RenderSearchAndFilters(),
-                    RenderVocabularyList()
+                Grid(rows: "*,Auto", columns: "*",
+                    RenderVocabularyList(),
+                    RenderBottomBar()
                 )
+                .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
         .OnAppearing(async () =>
         {
@@ -94,61 +95,72 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         });
     }
 
-    VisualNode RenderSearchAndFilters() =>
-        VStack(spacing: 12,
-            // Search bar
-            Border(
-                Entry()
-                    .Placeholder("Search vocabulary...")
-                    .Text(State.SearchText)
-                    .OnTextChanged(OnSearchTextChanged)
-            )
-            .ThemeKey(MyTheme.InputWrapper),
+    // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
+    VisualNode RenderBottomBar()
+        => State.IsMultiSelectMode ? RenderBulkActionsBar() : RenderCompactSearchBar();
 
-            // Filter pickers (hidden when in multi-select mode)
-            !State.IsMultiSelectMode ?
-                HStack(spacing: 12,
-                    // Status filter picker
-                    VStack(spacing: 4,
-                        Label("Status")
-                            .FontSize(12)
-                            .FontAttributes(FontAttributes.Bold)
-                            .TextColor(MyTheme.Gray600),
-                        Picker()
-                            .ItemsSource(new List<string>
-                            {
-                                $"All ({State.Stats.TotalWords})",
-                                $"Associated ({State.Stats.AssociatedWords})",
-                                $"Orphaned ({State.Stats.OrphanedWords})"
-                            })
-                            .SelectedIndex((int)State.SelectedFilter)
-                            .OnSelectedIndexChanged(index => OnStatusFilterChanged(index))
-                            .Title("Filter by status")
-                    ).HorizontalOptions(LayoutOptions.FillAndExpand),
+    VisualNode RenderCompactSearchBar()
+        =>
+                Grid(rows: "Auto", columns: "*,Auto,Auto",
+                        // Compact search (icon + Entry), smaller height like iOS mail
+                        // SearchBar()
+                        //     .Text(State.SearchText)
+                        //     .OnAfterTextChanged(OnSearchTextChanged)
+                        //     .Placeholder("Search"),
 
-                    // Resource filter picker
-                    VStack(spacing: 4,
-                        Label("Resource")
-                            .FontSize(12)
-                            .FontAttributes(FontAttributes.Bold)
-                            .TextColor(MyTheme.Gray600),
-                        Picker()
-                            .ItemsSource(GetResourcePickerItems())
-                            .SelectedIndex(GetResourcePickerSelectedIndex())
-                            .OnSelectedIndexChanged(index => OnResourcePickerIndexChanged(index))
-                            .Title("Filter by resource")
-                    ).HorizontalOptions(LayoutOptions.FillAndExpand)
-                ) :
-                null,
+                        Grid(rows: "44", columns: "44,*",
+                            Image()
+                                .Source(MyTheme.IconSearch)
+                                .HeightRequest(MyTheme.IconSize)
+                                .WidthRequest(MyTheme.IconSize)
+                                .VCenter(),
+                            Entry()
+                                .Placeholder("Search")
+                                .Text(State.SearchText)
+                                .OnTextChanged(OnSearchTextChanged)
+                                .FontSize(13)
+                                .HeightRequest(44)
+                                .VCenter()
+                                .GridColumn(1)
+                        ),
+                    // )
+                    // .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
+                    // .StrokeShape(new RoundRectangle().CornerRadius(16))
+                    // .Stroke(MyTheme.Gray300)
+                    // .StrokeThickness(1)
+                    // .GridColumn(0),
 
-            // Multi-select bulk actions (only shown when in multi-select mode)
-            State.IsMultiSelectMode ?
+                    // Status filter icon
+                    ImageButton()
+                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconStatus)
+                        .BackgroundColor(Colors.Transparent)
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .Padding(6)
+                        .OnClicked(async () => await ShowStatusFilterDialog())
+                        .GridColumn(1),
+
+                    // Resource filter icon
+                    ImageButton()
+                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
+                        .BackgroundColor(Colors.Transparent)
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .Padding(6)
+                        .OnClicked(async () => await ShowResourceFilterDialog())
+                        .GridColumn(2)
+                )
+            .Padding(15, 0)
+            .GridRow(1);
+
+    VisualNode RenderBulkActionsBar()
+        => Border(
                 HStack(spacing: 10,
                     Label($"{State.SelectedWordIds.Count} selected")
                         .VCenter()
                         .TextColor(MyTheme.Gray600)
                         .HorizontalOptions(LayoutOptions.FillAndExpand),
-                    Button("Delete Selected")
+                    Button("Delete")
                         .ThemeKey("Danger")
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
@@ -156,9 +168,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .ThemeKey("Primary")
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
-                ) :
-                null
-        ).Padding(16, 8, 16, 8).GridRow(0);
+                )
+            )
+            .ThemeKey(MyTheme.Surface1)
+            .Padding(12, 8)
+            .Margin(12, 6, 12, 10)
+            .GridRow(1);
 
 
     VisualNode RenderVocabularyList()
@@ -183,7 +198,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             )
             .VCenter()
             .HCenter()
-            .GridRow(2);
+            .GridRow(0);
         }
 
         // Calculate optimal number of columns based on screen width
@@ -215,7 +230,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .BackgroundColor(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16)
-            .GridRow(2);
+            .GridRow(0);
     }
 
     VisualNode RenderVocabularyCardMobile(VocabularyCardViewModel item)
@@ -601,6 +616,41 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         return MauiControls.Shell.Current.GoToAsync<VocabularyWordProps>(
             nameof(EditVocabularyWordPage),
             props => props.VocabularyWordId = vocabularyWordId);
+    }
+
+    // Bottom bar dialogs
+    async Task ShowStatusFilterDialog()
+    {
+        var options = new[]
+        {
+            $"All ({State.Stats.TotalWords})",
+            $"Associated ({State.Stats.AssociatedWords})",
+            $"Orphaned ({State.Stats.OrphanedWords})"
+        };
+
+        var selection = await Application.Current.MainPage.DisplayActionSheet(
+            "Filter by Status", "Cancel", null, options);
+        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+            return;
+
+        var index = Array.IndexOf(options, selection);
+        if (index >= 0)
+        {
+            OnStatusFilterChanged(index);
+        }
+    }
+
+    async Task ShowResourceFilterDialog()
+    {
+        var items = GetResourcePickerItems();
+        var selection = await Application.Current.MainPage.DisplayActionSheet(
+            "Filter by Resource", "Cancel", null, items.ToArray());
+        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+            return;
+
+        var index = items.IndexOf(selection);
+        // Index maps 1..N => specific resource, 0 => All Resources
+        OnResourcePickerIndexChanged(index);
     }
 
     public void Dispose()

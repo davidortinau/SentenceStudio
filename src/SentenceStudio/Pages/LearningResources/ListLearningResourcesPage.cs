@@ -25,14 +25,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
-    
+
     LocalizationManager _localize => LocalizationManager.Instance;
-    
+
     List<string> _mediaTypes = new() { "All" };
     List<string> _languages = new() { "All" };
 
 
-    
+
 
     public override VisualNode Render()
     {
@@ -106,10 +106,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         .Hint("Language")
                         .GridColumn(1)
                     )
+                    .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
                     .Columns("*, *")
                     .ColumnSpacing(10)
                     .Margin(new Thickness(10, 5, 10, 10))
-                ),
+                ).Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None),
                 State.IsLoading ?
                         ActivityIndicator().IsRunning(true).VCenter().HCenter().GridRow(1) :
                         State.Resources.Count == 0 ?
@@ -151,8 +152,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 .GridRow(1)
                                 .SelectionMode(SelectionMode.None)
                                 .ItemsSource(State.Resources, RenderResourceItem)
+
             )
-        ).OnAppearing(LoadResources);
+            .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
+        )
+        .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
+        .OnAppearing(LoadResources);
     }
 
     VisualNode RenderResourceItem(LearningResource resource) =>
@@ -165,7 +170,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .HCenter()
                     .GridColumn(0)
                     .GridRowSpan(2),
-                
+
                 // Title and info
                 Label(resource.Title)
                     .FontSize(18)
@@ -173,17 +178,17 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .GridColumn(1)
                     .GridRow(0)
                     .LineBreakMode(LineBreakMode.TailTruncation),
-                    
+
                 HStack(
                     Label(resource.MediaType)
                         .FontSize(12)
                         .TextColor(Colors.DarkGray),
-                        
+
                     Label("•")
                         .FontSize(12)
                         .TextColor(Colors.DarkGray)
                         .Margin(new Thickness(5, 0)),
-                        
+
                     Label(resource.Language)
                         .FontSize(12)
                         .TextColor(Colors.DarkGray)
@@ -191,14 +196,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .GridColumn(1)
                 .GridRow(1)
                 .Spacing(5),
-                
+
                 // Date
                 VStack(
                     Label(resource.CreatedAt.ToString("d"))
                         .FontSize(12)
                         .TextColor(Colors.DarkGray)
                         .HEnd(),
-                        
+
                     Label("Details >")
                         .HEnd()
                 )
@@ -223,16 +228,17 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         _mediaTypes.AddRange(Constants.MediaTypes);
 
         _languages = new List<string> { "All" };
-        _languages.AddRange(Constants.Languages);       
-        
+        _languages.AddRange(Constants.Languages);
+
         var resources = await _resourceRepo.GetAllResourcesAsync();
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Resources = resources;
             s.IsLoading = false;
         });
     }
-    
+
     async Task SearchResources()
     {
         if (string.IsNullOrWhiteSpace(State.SearchText))
@@ -240,27 +246,28 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             await LoadResources();
             return;
         }
-        
+
         SetState(s => s.IsLoading = true);
-        
+
         var resources = await _resourceRepo.SearchResourcesAsync(State.SearchText);
-        
+
         // Apply current filters if necessary
         resources = FilterResourcesList(resources);
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Resources = resources;
             s.IsLoading = false;
         });
     }
-    
+
     async Task FilterResources()
     {
         SetState(s => s.IsLoading = true);
-        
+
         // Start with all resources or search results
         List<LearningResource> resources;
-        
+
         if (!string.IsNullOrWhiteSpace(State.SearchText))
         {
             resources = await _resourceRepo.SearchResourcesAsync(State.SearchText);
@@ -269,16 +276,17 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         {
             resources = await _resourceRepo.GetAllResourcesAsync();
         }
-        
+
         // Apply filters
         resources = FilterResourcesList(resources);
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Resources = resources;
             s.IsLoading = false;
         });
     }
-    
+
     // Helper method to filter a list of resources
     private List<LearningResource> FilterResourcesList(List<LearningResource> resources)
     {
@@ -287,13 +295,13 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         {
             resources = resources.Where(r => r.MediaType == State.FilterType).ToList();
         }
-        
+
         // Apply language filter
         if (State.FilterLanguage != "All")
         {
             resources = resources.Where(r => r.Language == State.FilterLanguage).ToList();
         }
-        
+
         return resources;
     }
 
@@ -308,7 +316,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             nameof(EditLearningResourcePage),
             props => props.ResourceID = resourceId);
     }
-    
+
     Task ViewVocabularyProgress()
     {
         return MauiControls.Shell.Current.GoToAsync(nameof(VocabularyLearningProgressPage));
@@ -319,36 +327,36 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         try
         {
             SetState(s => s.IsCreatingStarter = true);
-            
+
             // Get user profile to get language preferences
             var profile = await _userProfileRepo.GetOrCreateDefaultAsync();
-            
+
             if (string.IsNullOrEmpty(profile.NativeLanguage) || string.IsNullOrEmpty(profile.TargetLanguage))
             {
                 await Application.Current.MainPage.DisplayAlert(
-                    "Profile Required", 
-                    "Please set up your native and target languages in your profile first.", 
+                    "Profile Required",
+                    "Please set up your native and target languages in your profile first.",
                     "OK");
-                    
+
                 SetState(s => s.IsCreatingStarter = false);
                 return;
             }
-            
+
             // Create the starter vocabulary resource
             await _resourceRepo.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
-            
+
             // Reload resources to show the new starter resource
             await LoadResources();
-            
+
             SetState(s => s.IsCreatingStarter = false);
         }
         catch (Exception ex)
         {
             SetState(s => s.IsCreatingStarter = false);
-            
+
             await Application.Current.MainPage.DisplayAlert(
-                "Error", 
-                $"Failed to create starter resource: {ex.Message}", 
+                "Error",
+                $"Failed to create starter resource: {ex.Message}",
                 "OK");
         }
     }

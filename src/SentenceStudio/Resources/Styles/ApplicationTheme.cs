@@ -1,7 +1,7 @@
 using MauiReactor.Shapes;
 using Fonts;
 using OpenAI.VectorStores;
-﻿using ReactorTheme.Styles;
+using ReactorTheme.Styles;
 
 namespace SentenceStudio.Resources.Styles;
 
@@ -12,6 +12,7 @@ class MyTheme : ApplicationTheme
     public const string Caption1 = nameof(Caption1);
     public const string Body1 = nameof(Body1);
     public const string InputWrapper = nameof(InputWrapper);
+    public const string Surface1 = nameof(Surface1);
 
     // public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
     public static Color PrimaryDark { get; } = Color.FromRgba(172, 153, 234, 255); // #AC99EA
@@ -103,9 +104,9 @@ class MyTheme : ApplicationTheme
         Size = IconSize
     };
 
-    public static FontImageSource IconFontIncrease{ get; } = new FontImageSource
+    public static FontImageSource IconFontIncrease { get; } = new FontImageSource
     {
-        Glyph = FluentUI.font_increase_24_regular, 
+        Glyph = FluentUI.font_increase_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -121,7 +122,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconProjects { get; } = new FontImageSource
     {
-        Glyph = FluentUI.list_24_regular, 
+        Glyph = FluentUI.list_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -129,7 +130,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconMeta { get; } = new FontImageSource
     {
-        Glyph = FluentUI.info_24_regular, 
+        Glyph = FluentUI.info_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -137,7 +138,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconRibbon { get; } = new FontImageSource
     {
-        Glyph = FluentUI.ribbon_20_regular, 
+        Glyph = FluentUI.ribbon_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -145,7 +146,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconAdd { get; } = new FontImageSource
     {
-        Glyph = FluentUI.add_32_regular, 
+        Glyph = FluentUI.add_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? White : Black,
         Size = IconSize
@@ -153,7 +154,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconDelete { get; } = new FontImageSource
     {
-        Glyph = FluentUI.delete_32_regular, 
+        Glyph = FluentUI.delete_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -161,7 +162,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconClean { get; } = new FontImageSource
     {
-        Glyph = FluentUI.broom_32_regular, 
+        Glyph = FluentUI.broom_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -169,7 +170,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconLight { get; } = new FontImageSource
     {
-        Glyph = FluentUI.weather_sunny_28_regular, 
+        Glyph = FluentUI.weather_sunny_28_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -177,7 +178,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconDark { get; } = new FontImageSource
     {
-        Glyph = FluentUI.weather_moon_28_regular, 
+        Glyph = FluentUI.weather_moon_28_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size240
@@ -209,7 +210,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconPlay { get; } = new FontImageSource
     {
-        Glyph = FluentUI.play_32_regular, 
+        Glyph = FluentUI.play_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -217,7 +218,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconPause { get; } = new FontImageSource
     {
-        Glyph = FluentUI.pause_32_regular, 
+        Glyph = FluentUI.pause_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -225,7 +226,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconStop { get; } = new FontImageSource
     {
-        Glyph = FluentUI.record_stop_32_regular, 
+        Glyph = FluentUI.record_stop_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -233,15 +234,15 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconRewind { get; } = new FontImageSource
     {
-        Glyph = FluentUI.skip_back_10_32_regular, 
+        Glyph = FluentUI.skip_back_10_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
     };
-    
+
     public static FontImageSource IconPreviousSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.previous_32_regular, 
+        Glyph = FluentUI.previous_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -249,7 +250,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconNextSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.next_32_regular, 
+        Glyph = FluentUI.next_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size280
@@ -265,7 +266,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconPauseSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.pause_20_regular, 
+        Glyph = FluentUI.pause_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -273,7 +274,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconStopSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.stop_20_regular, 
+        Glyph = FluentUI.stop_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -281,7 +282,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconRewindSm { get; } = new FontImageSource
     {
-        Glyph = FluentUI.previous_20_regular, 
+        Glyph = FluentUI.previous_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = Size200
@@ -289,7 +290,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconNext { get; } = new FontImageSource
     {
-        Glyph = FluentUI.next_48_regular, 
+        Glyph = FluentUI.next_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -297,7 +298,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconPrevious { get; } = new FontImageSource
     {
-        Glyph = FluentUI.previous_48_regular, 
+        Glyph = FluentUI.previous_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -305,7 +306,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconKeyboard { get; } = new FontImageSource
     {
-        Glyph = FluentUI.keyboard_24_regular, 
+        Glyph = FluentUI.keyboard_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -313,7 +314,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconMultiSelect { get; } = new FontImageSource
     {
-        Glyph = FluentUI.multiselect_ltr_24_regular, 
+        Glyph = FluentUI.multiselect_ltr_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -321,7 +322,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconDictionary { get; } = new FontImageSource
     {
-        Glyph = FluentUI.book_24_regular, 
+        Glyph = FluentUI.book_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -329,7 +330,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconSave { get; } = new FontImageSource
     {
-        Glyph = FluentUI.save_24_regular, 
+        Glyph = FluentUI.save_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -337,7 +338,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconShare { get; } = new FontImageSource
     {
-        Glyph = FluentUI.share_24_regular, 
+        Glyph = FluentUI.share_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -345,7 +346,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCopy { get; } = new FontImageSource
     {
-        Glyph = FluentUI.copy_24_regular, 
+        Glyph = FluentUI.copy_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -353,7 +354,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconInfo { get; } = new FontImageSource
     {
-        Glyph = FluentUI.info_24_regular, 
+        Glyph = FluentUI.info_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -361,7 +362,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCircleCheckmark { get; } = new FontImageSource
     {
-        Glyph = FluentUI.checkmark_circle_16_regular, 
+        Glyph = FluentUI.checkmark_circle_16_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -369,7 +370,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCancel { get; } = new FontImageSource
     {
-        Glyph = FluentUI.calendar_cancel_16_regular, 
+        Glyph = FluentUI.calendar_cancel_16_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -377,7 +378,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconImageExport { get; } = new FontImageSource
     {
-        Glyph = FluentUI.arrow_export_ltr_24_regular, 
+        Glyph = FluentUI.arrow_export_ltr_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -385,7 +386,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconSwitch { get; } = new FontImageSource
     {
-        Glyph = FluentUI.arrow_turn_down_right_20_regular, 
+        Glyph = FluentUI.arrow_turn_down_right_20_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -393,7 +394,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconTranslate { get; } = new FontImageSource
     {
-        Glyph = FluentUI.translate_24_regular, 
+        Glyph = FluentUI.translate_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -401,7 +402,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconErase { get; } = new FontImageSource
     {
-        Glyph = FluentUI.eraser_24_regular, 
+        Glyph = FluentUI.eraser_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -409,14 +410,14 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCheckbox { get; } = new FontImageSource
     {
-        Glyph = FluentUI.checkbox_2_24_regular, 
+        Glyph = FluentUI.checkbox_2_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
     };
     public static FontImageSource IconCheckboxSelected { get; } = new FontImageSource
     {
-        Glyph = FluentUI.checkbox_checked_24_regular, 
+        Glyph = FluentUI.checkbox_checked_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -424,7 +425,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconSearch { get; } = new FontImageSource
     {
-        Glyph = FluentUI.search_48_regular, 
+        Glyph = FluentUI.search_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -432,7 +433,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconMore { get; } = new FontImageSource
     {
-        Glyph = FluentUI.more_horizontal_48_regular, 
+        Glyph = FluentUI.more_horizontal_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -440,7 +441,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconFileExplorer { get; } = new FontImageSource
     {
-        Glyph = FluentUI.folder_search_24_regular, 
+        Glyph = FluentUI.folder_search_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -448,7 +449,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconEdit { get; } = new FontImageSource
     {
-        Glyph = FluentUI.edit_48_regular, 
+        Glyph = FluentUI.edit_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -456,7 +457,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconStatus { get; } = new FontImageSource
     {
-        Glyph = FluentUI.status_48_regular, 
+        Glyph = FluentUI.status_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -464,7 +465,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconVideo { get; } = new FontImageSource
     {
-        Glyph = FluentUI.video_32_regular, 
+        Glyph = FluentUI.video_32_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -472,7 +473,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconPodcast { get; } = new FontImageSource
     {
-        Glyph = FluentUI.mic_48_regular, 
+        Glyph = FluentUI.mic_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -480,7 +481,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconImage { get; } = new FontImageSource
     {
-        Glyph = FluentUI.image_48_regular, 
+        Glyph = FluentUI.image_48_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -488,7 +489,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconVocabList { get; } = new FontImageSource
     {
-        Glyph = FluentUI.list_28_regular, 
+        Glyph = FluentUI.list_28_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -496,7 +497,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconArticle { get; } = new FontImageSource
     {
-        Glyph = FluentUI.document_100_24_regular, 
+        Glyph = FluentUI.document_100_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -712,6 +713,10 @@ class MyTheme : ApplicationTheme
         ImageButtonStyles.Default = _ => _
             .BackgroundColor(Colors.Transparent);
 
+        LayoutStyles.Themes["Surface1"] = _ => _
+            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
+
         ListViewStyles.Default = _ => _
             .SeparatorColor(IsLightTheme ? Gray200 : Gray500)
             .RefreshControlColor(IsLightTheme ? Gray900 : Gray200);
@@ -744,10 +749,10 @@ class MyTheme : ApplicationTheme
             .RefreshColor(IsLightTheme ? Gray900 : Gray200);
 
         SearchBarStyles.Default = _ => _
-            .TextColor(IsLightTheme ? Gray900 : White)
+            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
+            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
             .PlaceholderColor(Gray500)
             .CancelButtonColor(Gray500)
-            .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .MinimumHeightRequest(44)
@@ -809,6 +814,11 @@ class MyTheme : ApplicationTheme
 
         PageStyles.Default = _ => _
             .Padding(0)
+            // .Set(MauiControls.Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.Default, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None))
+            // .Set(Layout.SafeAreaEdgesProperty,
+            //         (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+            //         ? new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
+            //         : new SafeAreaEdges(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None))
             .BackgroundColor(IsLightTheme ? LightBackground : DarkBackground);
 
         ShellStyles.Default = _ => _
@@ -840,7 +850,7 @@ class MyTheme : ApplicationTheme
     {
         return mediaType switch
         {
-            "Video" =>IconVideo,
+            "Video" => IconVideo,
             "Podcast" => IconPodcast,
             "Image" => IconImage,
             "Vocabulary List" => IconVocabList,
