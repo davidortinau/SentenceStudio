@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using CommunityToolkit.Maui.Storage;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
+using Microsoft.Maui.Dispatching;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -19,17 +20,17 @@ class AudioCacheEntry
     /// Gets or sets the audio stream data.
     /// </summary>
     public Stream AudioStream { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the total audio duration in seconds.
     /// </summary>
     public double Duration { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the formatted duration display string.
     /// </summary>
     public string DurationDisplay { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the waveform data for visualization.
     /// </summary>
@@ -76,7 +77,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             )
             .RowSpacing(12)
         ).OnAppearing(OnPageAppearing)
-        .OnSizeChanged((size) => {
+        .OnSizeChanged((size) =>
+        {
             double width = size.Width;
             bool isNarrow = width < 500; // Threshold for narrow screens
             // Only update state if the layout mode changes
@@ -86,7 +88,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             }
         });
     }
-    
+
     /// <summary>
     /// Initializes the page and loads content when appearing
     /// </summary>
@@ -98,7 +100,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
             s.SelectedVoiceId = _speechService.DefaultVoiceId;
         });
-        
+
         // Load sentences if needed
         await Task.Delay(100); // Small delay to ensure UI is ready
         if (State.Sentences.Count == 0)
@@ -165,26 +167,27 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .GridColumn(1)
         )
         .OnTapped(() => SelectVoice(voiceId));
-    
+
     /// <summary>
     /// Handles voice selection.
     /// </summary>
     private void SelectVoice(string voiceId)
     {
         // Update the selected voice
-        SetState(s => {
+        SetState(s =>
+        {
             s.SelectedVoiceId = voiceId;
-            
+
             // Reset audio cache when voice changes
             _audioCache.Clear();
-            
+
             // Close the bottom sheet after selection
             s.IsVoiceSelectionVisible = false;
         });
-        
+
         Debug.WriteLine($"Selected voice: {voiceId}");
     }
-    
+
     /// <summary>
     /// Handles the bottom sheet closing event.
     /// </summary>
@@ -278,11 +281,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private void OnWaveformPositionSelected(float normalizedPosition)
     {
         Debug.WriteLine($"Waveform position selected: {normalizedPosition:F2}");
-        
+
         if (State.IsAudioPlaying)
         {
             // If audio is already playing, pause it first
-            PauseAudio().ContinueWith(async t => 
+            PauseAudio().ContinueWith(async t =>
             {
                 // Then seek to the new position and resume
                 await SeekAndResumeAudio(normalizedPosition);
@@ -299,7 +302,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         //     await PlayAudioFromPosition(normalizedPosition);
         // }
     }
-    
+
     /// <summary>
     /// Seeks to a specific position in the audio and resumes playback.
     /// </summary>
@@ -312,25 +315,25 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             await PlayAudioFromPosition(normalizedPosition);
             return;
         }
-        
+
         SeekAudio(normalizedPosition);
-        
+
         // Resume playback
         _audioPlayer.Play();
-        
+
         // Start the timer to track progress
         StartPlaybackTimer();
-        
+
         // Update state
-        SetState(s => 
+        SetState(s =>
         {
             s.IsAudioPlaying = true;
             s.IsPaused = false;
         });
-        
+
         Debug.WriteLine($"Seeked to position {normalizedPosition:F2} and resumed playback");
     }
-    
+
     /// <summary>
     /// Seeks the audio to a specific position without resuming playback.
     /// </summary>
@@ -353,7 +356,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
         Debug.WriteLine($"Audio seeked to position {normalizedPosition:F2}");
     }
-    
+
     /// <summary>
     /// Starts playing the audio from a specific position.
     /// </summary>
@@ -400,14 +403,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node representing the navigation footer.</returns>
     private VisualNode NavigationFooter() =>
             Grid(rows: "*", columns: "60,1,*,1,60",
-                
+
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
                     .Source(MyTheme.IconPrevious)
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
-            
+
                 ImageButton()
                     .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                     .Aspect(Aspect.Center)
@@ -415,7 +418,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .GridRow(0).GridColumn(2)
                     .HCenter()
                     .OnClicked(ToggleAudioPlayback),
-                
+
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
@@ -439,7 +442,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .WidthRequest(1)
                     .GridRow(0).GridColumn(3),
 
-                
+
 
                 // Different layout based on screen width
                 State.IsNarrowScreen ?
@@ -465,7 +468,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .Padding(0)
                         .Margin(0, 0, 12, 0)
                         .OnClicked(SaveAudioAsMp3),
-                        
+
                     new SfSegmentedControl(
                         new SfSegmentItem()
                                 .ImageSource(MyTheme.IconSpeedVerySlow),
@@ -511,10 +514,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .OnClicked(ShowVoiceSelection)
 
                 )
-                .Margin(0,0,10,0)
+                .Margin(0, 0, 10, 0)
                 .GridColumn(2).HEnd()
 
-                
+
             )
 
                   .GridRow(2);
@@ -542,7 +545,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         SetState(s => s.IsExportMenuVisible = true);
     }
-    
+
     /// <summary>
     /// Renders the bottom sheet menu for narrow screens.
     /// </summary>
@@ -668,8 +671,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Grid(
             Label("Thinking.....")
                 .FontSize(64)
-                .TextColor(Theme.IsLightTheme ? 
-                    MyTheme.DarkOnLightBackground : 
+                .TextColor(Theme.IsLightTheme ?
+                    MyTheme.DarkOnLightBackground :
                     MyTheme.LightOnDarkBackground)
                 .Center()
         )
@@ -690,8 +693,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                         .HCenter()
                         .Margin(0, 0, 0, 20),
-                    
-                    State.IsSavingAudio ? 
+
+                    State.IsSavingAudio ?
                     VStack(
                         ActivityIndicator()
                             .IsRunning(true)
@@ -708,7 +711,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .ThemeKey("Primary")
                             .OnClicked(SaveAudioAsMp3)
                             .Margin(0, 0, 0, 10),
-                        
+
                         !string.IsNullOrEmpty(State.LastSavedFilePath) ?
                         VStack(
                             Label("Last Saved:")
@@ -735,12 +738,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (State.IsBusy)
             return;
-            
+
         try
         {
             await StopAudio();
-            
-            SetState(s => 
+
+            SetState(s =>
             {
                 s.IsBusy = true;
                 s.Sentences.Clear();
@@ -748,24 +751,24 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.CurrentAudioStream = null;
                 s.PlaybackPosition = 0;
             });
-            
+
             // Clear audio cache when loading new sentences
             _audioCache.Clear();
-            
+
             // Use resource Id instead of vocabulary ID
             var resourceId = Props.Resource?.Id ?? 0;
-            
+
             var sentences = await _shadowingService.GenerateSentencesAsync(
-                resourceId, 
+                resourceId,
                 10,
                 Props.Skill?.Id ?? 0);
-                
-            SetState(s => 
+
+            SetState(s =>
             {
                 s.Sentences = sentences;
                 s.IsBusy = false;
             });
-            
+
             // Record this activity
             if (Props.Resource != null && Props.Skill != null)
             {
@@ -794,31 +797,32 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         if (State.CurrentSentenceIndex > 0)
         {
             await StopAudio();
-            SetState(s => 
+            SetState(s =>
             {
                 s.CurrentSentenceIndex--;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                
+
                 // Default time displays
                 s.CurrentTimeDisplay = "00:00.000";
                 s.DurationDisplay = "--:--.---";
-                
+
                 s.CurrentAudioStream = null; // Clear current audio stream
                 s.WaveformData = null; // Clear waveform data to force regeneration
             });
-            
+
             // Check if this sentence has cached audio info we can display right away
             var currentSentence = State.Sentences[State.CurrentSentenceIndex];
             if (_audioCache.TryGetValue(currentSentence.TargetLanguageText, out var cacheEntry))
             {
                 // Restore cached duration display
-                SetState(s => {
+                SetState(s =>
+                {
                     s.DurationDisplay = cacheEntry.DurationDisplay;
                     s.AudioDuration = cacheEntry.Duration;
                     s.WaveformData = cacheEntry.WaveformData;
                 });
-                
+
                 Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
             }
         }
@@ -832,31 +836,32 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
             await StopAudio();
-            SetState(s => 
+            SetState(s =>
             {
                 s.CurrentSentenceIndex++;
                 s.IsAudioPlaying = false;
                 s.PlaybackPosition = 0;
-                
+
                 // Default time displays
                 s.CurrentTimeDisplay = "00:00.000";
                 s.DurationDisplay = "--:--.---";
-                
+
                 s.CurrentAudioStream = null; // Clear current audio stream
                 s.WaveformData = null; // Clear waveform data to force regeneration
             });
-            
+
             // Check if this sentence has cached audio info we can display right away
             var currentSentence = State.Sentences[State.CurrentSentenceIndex];
             if (_audioCache.TryGetValue(currentSentence.TargetLanguageText, out var cacheEntry))
             {
                 // Restore cached duration display
-                SetState(s => {
+                SetState(s =>
+                {
                     s.DurationDisplay = cacheEntry.DurationDisplay;
                     s.AudioDuration = cacheEntry.Duration;
                     s.WaveformData = cacheEntry.WaveformData;
                 });
-                
+
                 Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
             }
         }
@@ -883,7 +888,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             await PlayAudio();
         }
     }
-    
+
     /// <summary>
     /// Pauses the currently playing audio.
     /// </summary>
@@ -893,16 +898,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         {
             _playbackTimer?.Stop();
             _audioPlayer.Pause();
-            
-            SetState(s => 
+
+            SetState(s =>
             {
                 s.IsAudioPlaying = false;
                 s.IsPaused = true;
             });
-            
+
             Debug.WriteLine("Audio playback paused");
         }
-        
+
         return Task.CompletedTask;
     }
 
@@ -914,19 +919,19 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         if (_audioPlayer != null && !_audioPlayer.IsPlaying)
         {
             _audioPlayer.Play();
-            
+
             // Restart the playback timer
             StartPlaybackTimer();
-            
-            SetState(s => 
+
+            SetState(s =>
             {
                 s.IsAudioPlaying = true;
                 s.IsPaused = false;
             });
-            
+
             Debug.WriteLine("Audio playback resumed");
         }
-        
+
         return Task.CompletedTask;
     }
 
@@ -950,62 +955,63 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     async Task PlayAudio()
     {
-        if (State.Sentences.Count == 0 || 
+        if (State.Sentences.Count == 0 ||
             State.CurrentSentenceIndex >= State.Sentences.Count)
             return;
-            
+
         try
         {
             SetState(s => s.IsBuffering = true);
-            
+
             var sentence = State.Sentences[State.CurrentSentenceIndex];
             string sentenceText = sentence.TargetLanguageText;
-            
+
             // Create a cache key that includes the sentence and the selected voice
             string cacheKey = $"{sentenceText}_{State.SelectedVoiceId}";
-            
+
             Stream audioStream = null;
             AudioCacheEntry cacheEntry = null;
-            
+
             // Check if audio is already in cache
             if (_audioCache.TryGetValue(cacheKey, out cacheEntry))
             {
                 // Use cached audio stream
                 cacheEntry.AudioStream.Position = 0; // Reset position to beginning
                 audioStream = cacheEntry.AudioStream;
-                
+
                 // Immediately display cached duration info
-                SetState(s => {
+                SetState(s =>
+                {
                     s.AudioDuration = cacheEntry.Duration;
                     s.DurationDisplay = cacheEntry.DurationDisplay;
                 });
-                
+
                 Debug.WriteLine($"Using cached audio for: {cacheKey}");
             }
             else
             {
                 // Generate new audio stream if not in cache, passing the selected voice Id and speed
                 audioStream = await _shadowingService.GenerateAudioAsync(
-                    sentenceText, 
+                    sentenceText,
                     State.SelectedVoiceId,  // Use the selected voice ID
-                    State.PlaybackSpeed); 
-                
+                    State.PlaybackSpeed);
+
                 if (audioStream == null)
                 {
                     SetState(s => s.IsBuffering = false);
                     return;
                 }
             }
-            
+
             // Create the audio player
             _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
             _audioPlayer.Speed = State.PlaybackSpeed; // Set the playback speed based on the selected speed
-            
+
             // Capture audio duration for waveform scaling
             double audioDuration = _audioPlayer.Duration;
             string durationFormatted = FormatTimeDisplay(audioDuration);
             Debug.WriteLine($"Audio duration: {audioDuration} seconds");
-            
+
             // If this is a new audio stream, create a new cache entry
             if (cacheEntry == null)
             {
@@ -1017,7 +1023,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 };
                 _audioCache[cacheKey] = cacheEntry;
             }
-            
+
             // Analyze the audio stream to extract waveform data if not already cached
             if (cacheEntry.WaveformData == null)
             {
@@ -1030,16 +1036,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     memStream.Position = 0;
 
                     var audioWidth = _audioPlayer.Duration * Constants.PixelsPerSecond;
-                    
+
                     // Extract waveform data from the audio stream
                     var waveformData = await _audioAnalyzer.GetWaveformAsync(memStream, (int)audioWidth);
-                    
+
                     // Store waveform in cache
                     cacheEntry.WaveformData = waveformData;
-                    
+
                     // Reset the original stream position
                     audioStream.Position = 0;
-                    
+
                     Debug.WriteLine($"Extracted waveform data: {waveformData.Length} samples with duration {audioDuration}s");
                 }
                 catch (Exception ex)
@@ -1048,9 +1054,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     // Continue even if waveform analysis fails
                 }
             }
-            
+
             // Update state with audio info
-            SetState(s => 
+            SetState(s =>
             {
                 s.WaveformData = cacheEntry.WaveformData;
                 s.CurrentAudioStream = audioStream;
@@ -1058,16 +1064,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.DurationDisplay = durationFormatted;
                 s.CurrentTimeDisplay = "00:00.000"; // Reset current time display
             });
-            
+
             // Setup event handler and start playback
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
-            
+
             // Start playback tracking timer
             StartPlaybackTimer();
-            
+
             // Update state
-            SetState(s => 
+            SetState(s =>
             {
                 s.IsAudioPlaying = true;
                 s.IsBuffering = false;
@@ -1077,14 +1083,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         catch (Exception ex)
         {
             Debug.WriteLine($"Error playing audio: {ex.Message}");
-            SetState(s => 
+            SetState(s =>
             {
                 s.IsAudioPlaying = false;
                 s.IsBuffering = false;
             });
         }
     }
-    
+
     /// <summary>
     /// Starts the timer to track audio playback position.
     /// </summary>
@@ -1092,14 +1098,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         // Stop any existing timer
         _playbackTimer?.Stop();
-        
+
         // Create a new timer that ticks 10 times per second
         _playbackTimer = Application.Current.Dispatcher.CreateTimer();
         _playbackTimer.Interval = TimeSpan.FromMilliseconds(100);
         _playbackTimer.Tick += (s, e) => UpdatePlaybackPosition();
         _playbackTimer.Start();
     }
-    
+
     /// <summary>
     /// Updates the playback position for the waveform display.
     /// </summary>
@@ -1107,28 +1113,29 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (_audioPlayer == null)
             return;
-        
+
         // Update the position if we know the duration
         if (_audioPlayer.Duration > 0)
         {
             // Calculate the position as a float between 0-1
             float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
-            
+
             // Format time displays
             string currentTime = FormatTimeDisplay(_audioPlayer.CurrentPosition);
             string totalDuration = FormatTimeDisplay(_audioPlayer.Duration);
-            
-            SetState(s => {
+
+            SetState(s =>
+            {
                 s.PlaybackPosition = position;
                 s.CurrentTimeDisplay = currentTime;
                 s.DurationDisplay = totalDuration;
             });
-            
+
             // Auto-scroll the waveform to keep the playhead visible
             EnsurePlayheadIsVisible(position);
         }
     }
-    
+
     /// <summary>
     /// Ensures the playhead is visible by scrolling the waveform view if necessary.
     /// </summary>
@@ -1141,39 +1148,39 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
         // Calculate the total width of the waveform based on duration and pixels per second
         double totalWidth = _audioPlayer.Duration * Constants.PixelsPerSecond;
-        
+
         // Calculate the target X position of the playhead
         double playheadX = totalWidth * position;
-        
+
         // Get the current visible region
         double scrollViewWidth = _waveformScrollView.Width;
         double currentScrollX = _waveformScrollView.ScrollX;
-        
+
         // Define margins to keep the playhead within visible area (% of view width)
         double leadingMargin = 0.1;  // 10% from the left edge
         double trailingMargin = 0.8; // 80% from the left edge (20% from right edge)
-        
+
         // Calculate visible range
         double visibleStart = currentScrollX;
         double visibleEnd = currentScrollX + scrollViewWidth;
-        
+
         // Check if playhead is outside the desired visible region
         if (playheadX < visibleStart + (scrollViewWidth * leadingMargin) ||
             playheadX > visibleStart + (scrollViewWidth * trailingMargin))
         {
             // Calculate new scroll position to center playhead with slight lead
             double newScrollX = playheadX - (scrollViewWidth * 0.3); // 30% from the left
-            
+
             // Ensure we don't scroll past the edges
             newScrollX = Math.Max(0, Math.Min(newScrollX, totalWidth - scrollViewWidth));
-            
+
             // Scroll to the new position
             _waveformScrollView.ScrollToAsync(newScrollX, 0, false);
         }
     }
-    
-    
-    
+
+
+
     /// <summary>
     /// Formats a time value in seconds to a mm:ss.ms display format.
     /// </summary>
@@ -1183,7 +1190,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (timeInSeconds < 0)
             return "--:--.---";
-            
+
         TimeSpan time = TimeSpan.FromSeconds(timeInSeconds);
         return $"{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
     }
@@ -1194,14 +1201,15 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     private void OnAudioPlaybackEnded(object sender, EventArgs e)
     {
         _playbackTimer?.Stop();
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.IsAudioPlaying = false;
             s.IsPaused = true; // Reset the pause state
             s.PlaybackPosition = 1.0f; // Show as fully played
             s.CurrentTimeDisplay = s.DurationDisplay; // Set current time to total duration
         });
-        
+
         RewindAudioStream();
     }
 
@@ -1222,28 +1230,28 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     Task StopAudio()
     {
         _playbackTimer?.Stop();
-        
+
         if (_audioPlayer != null)
         {
             if (_audioPlayer.IsPlaying)
             {
                 _audioPlayer.Stop();
             }
-            
+
             _audioPlayer.PlaybackEnded -= OnAudioPlaybackEnded;
             _audioPlayer.Dispose();
             _audioPlayer = null;
         }
-        
-        SetState(s => 
+
+        SetState(s =>
         {
             s.IsAudioPlaying = false;
             s.IsPaused = false; // Reset the pause state as well
             s.PlaybackPosition = 0; // Reset position to beginning
         });
-        
+
         RewindAudioStream();
-        
+
         return Task.CompletedTask;
     }
 
@@ -1252,7 +1260,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     private async Task SaveAudioAsMp3()
     {
-        if (State.CurrentAudioStream == null) 
+        if (State.CurrentAudioStream == null)
         {
             await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
             return;
@@ -1260,34 +1268,36 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
         try
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsSavingAudio = true;
                 s.ExportProgressMessage = "Preparing audio for export...";
             });
-            
+
             // Create a unique filename based on text and timestamp
             string safeFilename = MakeSafeFileName(State.CurrentSentenceText);
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string fileName = $"{safeFilename}_{timestamp}.mp3";
-            
+
             SetState(s => s.ExportProgressMessage = "Saving audio file...");
-            
+
             // Clone the stream to a memory stream to avoid position issues
             MemoryStream memoryStream = new MemoryStream();
             State.CurrentAudioStream.Position = 0;
             await State.CurrentAudioStream.CopyToAsync(memoryStream);
             memoryStream.Position = 0;
-            
+
             // Reset original stream position
             State.CurrentAudioStream.Position = 0;
-            
+
             // Use the FileSaver to save the audio
             var fileSaverResult = await _fileSaver.SaveAsync(fileName, memoryStream, new CancellationToken());
-            
+
             // Check if the save was successful
             if (fileSaverResult.IsSuccessful)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsSavingAudio = false;
                     s.LastSavedFilePath = fileSaverResult.FilePath;
                     s.ExportProgressMessage = "File saved successfully!";
@@ -1295,7 +1305,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
                 // Show success message
                 await Toast.Make("Audio saved successfully!").Show();
-                
+
                 // Close the export menu after successful save
                 SetState(s => s.IsExportMenuVisible = false);
             }
@@ -1304,21 +1314,22 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Show error if save was canceled or failed
                 if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
                 {
-                    await App.Current.MainPage.DisplayAlert("Error", 
+                    await App.Current.MainPage.DisplayAlert("Error",
                         $"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
                 }
-                
+
                 SetState(s => s.IsSavingAudio = false);
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error saving audio: {ex.Message}");
-            SetState(s => { 
+            SetState(s =>
+            {
                 s.IsSavingAudio = false;
                 s.ExportProgressMessage = $"Error: {ex.Message}";
             });
-            
+
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
         }
     }
@@ -1330,16 +1341,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (string.IsNullOrEmpty(text))
             return "audio";
-            
+
         // Replace invalid filename characters with underscores
         string invalidChars = new string(System.IO.Path.GetInvalidFileNameChars());
         string invalidRegStr = string.Format(@"[{0}]", Regex.Escape(invalidChars));
         string safe = Regex.Replace(text, invalidRegStr, "_");
-        
+
         // Trim to reasonable length
         if (safe.Length > 50)
             safe = safe.Substring(0, 50);
-            
+
         return safe;
     }
 

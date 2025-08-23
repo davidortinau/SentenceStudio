@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -10,7 +11,7 @@ partial class SelectableLabel : Component
 	[Prop]
 	string _text;
 
-	public override VisualNode Render() 
+	public override VisualNode Render()
 		=> Label(labelRef => _labelRef = labelRef)
 			.Text(_text)
 			.ThemeKey(MyTheme.Body1)
@@ -29,5 +30,5 @@ partial class SelectableLabel : Component
 					await toast.Show(cancellationTokenSource.Token);
 				}
 			});
-	
+
 }

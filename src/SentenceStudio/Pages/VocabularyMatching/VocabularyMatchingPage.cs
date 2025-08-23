@@ -772,9 +772,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         });
     }
 
-    async Task NavigateBack()
+    Task NavigateBack()
     {
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 
     async Task RecordMatchActivity(bool isCorrect)

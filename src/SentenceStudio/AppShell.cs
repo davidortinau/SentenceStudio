@@ -7,29 +7,31 @@ using SentenceStudio.Pages.Onboarding;
 using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.YouTube;
 using SentenceStudio.Pages.LearningResources;
+using SentenceStudio.Pages.VocabularyManagement;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 
 namespace SentenceStudio;
 
 interface IAppState
 {
-    AppTheme CurrentAppTheme { get; set; }
+    Microsoft.Maui.ApplicationModel.AppTheme CurrentAppTheme { get; set; }
     UserProfile CurrentUserProfile { get; set; }
 }
 
 public class AppState : IAppState
 {
-    public AppTheme CurrentAppTheme { get; set; }
+    public Microsoft.Maui.ApplicationModel.AppTheme CurrentAppTheme { get; set; }
 
     public UserProfile CurrentUserProfile { get; set; }
 }
 
 public partial class AppShell : Component
-    {
-        [Param]
-        private readonly IParameter<AppState> state;
-        
-        [Inject] ILogger<AppShell> _logger;
+{
+    [Param]
+    private readonly IParameter<AppState> state;
+
+    [Inject] ILogger<AppShell> _logger;
 
     // public AppShell()
     // {
@@ -48,7 +50,7 @@ public partial class AppShell : Component
     //         throw (Exception)args.ExceptionObject;
     //     };
     // }
-    
+
     private bool _initialized = false;
     // private UserProfile _currentUserProfile;
 
@@ -85,7 +87,7 @@ public partial class AppShell : Component
             _initialized = true;
             Task.Run(async () =>
             {
-                if(state != null && _userProfileRepository != null)
+                if (state != null && _userProfileRepository != null)
                     state.Value.CurrentUserProfile = await _userProfileRepository.GetAsync();
             }).Wait();
         }
@@ -124,6 +126,12 @@ public partial class AppShell : Component
                     .RenderContent(() => new ListLearningResourcesPage())
                     .Route(nameof(ListLearningResourcesPage))
             ),
+            FlyoutItem("Vocabulary",
+                ShellContent()
+                    .Title("Vocabulary")
+                    .RenderContent(() => new VocabularyManagementPage())
+                    .Route(nameof(VocabularyManagementPage))
+            ),
             FlyoutItem("Skills",
                 ShellContent()
                     .Title("Skills")
@@ -144,31 +152,31 @@ public partial class AppShell : Component
             )
         );
     }
-        // .FlyoutFooter(
-        //     Grid(            
-        //         new SfSegmentedControl{
-        //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconLight")),
-        //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconDark"))
-        //         }
-        //         .Background(Microsoft.Maui.Graphics.Colors.Transparent)
-        //         .ShowSeparator(true)
-        //         .SegmentCornerRadius(0)
-        //         .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
-        //         .StrokeThickness(1)
-        //         .SelectedIndex(Theme.CurrentAppTheme == AppTheme.Light ? 0 : 1)
-        //         .OnSelectionChanged((s, e) => Theme.UserTheme = e.NewIndex == 0 ? AppTheme.Light : AppTheme.Dark)
-        //         .SegmentWidth(40)
-        //         .SegmentHeight(40)
+    // .FlyoutFooter(
+    //     Grid(            
+    //         new SfSegmentedControl{
+    //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconLight")),
+    //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconDark"))
+    //         }
+    //         .Background(Microsoft.Maui.Graphics.Colors.Transparent)
+    //         .ShowSeparator(true)
+    //         .SegmentCornerRadius(0)
+    //         .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
+    //         .StrokeThickness(1)
+    //         .SelectedIndex(Theme.CurrentAppTheme == AppTheme.Light ? 0 : 1)
+    //         .OnSelectionChanged((s, e) => Theme.UserTheme = e.NewIndex == 0 ? AppTheme.Light : AppTheme.Dark)
+    //         .SegmentWidth(40)
+    //         .SegmentHeight(40)
 
-        //     )
-        //     .Padding(15)
-        
-        public static Task DisplayToastAsync(string message)
-        {
-            ToastDuration duration = ToastDuration.Long;
-            double fontSize = 14;
-            var toast = Toast.Make(message, duration, fontSize);
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            return toast.Show(cancellationTokenSource.Token);
-        }
+    //     )
+    //     .Padding(15)
+
+    public static Task DisplayToastAsync(string message)
+    {
+        ToastDuration duration = ToastDuration.Long;
+        double fontSize = 14;
+        var toast = Toast.Make(message, duration, fontSize);
+        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        return toast.Show(cancellationTokenSource.Token);
     }
+}

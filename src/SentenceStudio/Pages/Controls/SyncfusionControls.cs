@@ -25,7 +25,7 @@ partial class SfPullToRefresh
         {
             NativeControl.PullableContent = view;
         }
-        
+
 
         base.OnAddChild(widget, childControl);
     }
@@ -55,11 +55,13 @@ partial class SfTextInputLayout
 
 partial interface ISfTextInputLayout
 {
+    public VisualNode? LeadingView { get; set; }
     public VisualNode? TrailingView { get; set; }
 }
 
 partial class SfTextInputLayout<T>
 {
+    VisualNode? ISfTextInputLayout.LeadingView { get; set; }
     VisualNode? ISfTextInputLayout.TrailingView { get; set; }
 
     protected override IEnumerable<VisualNode> RenderChildren()
@@ -67,6 +69,11 @@ partial class SfTextInputLayout<T>
         var thisAsISfTextInputLayout = (ISfTextInputLayout)this;
 
         var children = base.RenderChildren();
+
+        if (thisAsISfTextInputLayout.LeadingView != null)
+        {
+            children = children.Concat(new[] { thisAsISfTextInputLayout.LeadingView });
+        }
 
         if (thisAsISfTextInputLayout.TrailingView != null)
         {
@@ -82,7 +89,11 @@ partial class SfTextInputLayout<T>
 
         var thisAsISfTextInputLayout = (ISfTextInputLayout)this;
 
-        if (widget == thisAsISfTextInputLayout.TrailingView)
+        if (widget == thisAsISfTextInputLayout.LeadingView)
+        {
+            NativeControl.LeadingView = (View)childControl;
+        }
+        else if (widget == thisAsISfTextInputLayout.TrailingView)
         {
             NativeControl.TrailingView = (View)childControl;
         }
@@ -95,6 +106,11 @@ partial class SfTextInputLayout<T>
 
 partial class SfTextInputLayoutExtensions
 {
+    public static T LeadingView<T>(this T textInputLayout, VisualNode? leadingView) where T : ISfTextInputLayout
+    {
+        textInputLayout.LeadingView = leadingView;
+        return textInputLayout;
+    }
     public static T TrailingView<T>(this T textInputLayout, VisualNode? trailingView) where T : ISfTextInputLayout
     {
         textInputLayout.TrailingView = trailingView;
@@ -105,7 +121,7 @@ partial class SfTextInputLayoutExtensions
 [Scaffold(typeof(Syncfusion.Maui.Toolkit.Shimmer.SfShimmer))]
 partial class SfShimmer
 {
-    
+
 }
 
 partial interface ISfShimmer
@@ -234,7 +250,7 @@ partial class SfCircularChart
             NativeControl.Legend = chartLegend;
         }
         else if (childControl is Syncfusion.Maui.Toolkit.Charts.ChartSeries chartSeries)
-        { 
+        {
             NativeControl.Series.Add(chartSeries);
         }
 
@@ -369,7 +385,7 @@ public partial class SfComboBox : MauiReactor.VisualNode<Syncfusion.Maui.Inputs.
     {
         _nativeControl ??= new Syncfusion.Maui.Inputs.SfComboBox();
         base.OnMount();
-        
+
         if (_selectionChangedHandler != null && NativeControl != null)
         {
             ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged += _selectionChangedHandler;
@@ -382,7 +398,7 @@ public partial class SfComboBox : MauiReactor.VisualNode<Syncfusion.Maui.Inputs.
         {
             ((Syncfusion.Maui.Inputs.SfComboBox)NativeControl).SelectionChanged -= _selectionChangedHandler;
         }
-        
+
         base.OnUnmount();
     }
 

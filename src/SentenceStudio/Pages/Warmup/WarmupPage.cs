@@ -2,6 +2,7 @@ using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Controls;
+using Microsoft.Maui.Dispatching;
 
 namespace SentenceStudio.Pages.Warmup;
 
@@ -21,13 +22,14 @@ class WarmupPageState
 }
 
 partial class WarmupPage : Component<WarmupPageState>
-{    [Inject] TeacherService _teacherService;
+{
+    [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
-    
+
     private IAudioPlayer _audioPlayer;
     private FloatingAudioPlayer _floatingPlayer;
     private IDispatcherTimer _playbackTimer;
@@ -44,7 +46,7 @@ partial class WarmupPage : Component<WarmupPageState>
             "한국어로 말해 주세요.",
             "한국어로 쓰세요.",
             "한국어로 번역해 주세요."
-        };    public override VisualNode Render()
+        }; public override VisualNode Render()
     {
         return ContentPage("Warmup",
             ToolbarItem($"{_localize["New Conversation"]}").OnClicked(StartNewConversation),
@@ -57,7 +59,7 @@ partial class WarmupPage : Component<WarmupPageState>
             )
         ).OnAppearing(ResumeConversation);
     }
-    
+
     VisualNode CreateFloatingAudioPlayer() =>
         _floatingPlayer = new FloatingAudioPlayer(
             _audioPlayer,
@@ -82,7 +84,8 @@ partial class WarmupPage : Component<WarmupPageState>
                     Label(State.Explanation),
 
                     Button("Close")
-                        .OnClicked(() => SetState(s => {
+                        .OnClicked(() => SetState(s =>
+                        {
                             s.IsExplanationShown = false;
                             s.PopupResult = false;
                         }))
@@ -91,7 +94,7 @@ partial class WarmupPage : Component<WarmupPageState>
                 .Padding(20)
             )
         )
-        .GridRowSpan(2)       
+        .GridRowSpan(2)
         .IsOpen(State.IsExplanationShown);
 
     VisualNode RenderPhrasesPopup() =>
@@ -102,7 +105,8 @@ partial class WarmupPage : Component<WarmupPageState>
                         phrases.Select(text =>
                             Label()
                             .Text(text)
-                            .OnTapped((sender, args) => {
+                            .OnTapped((sender, args) =>
+                            {
                                 SetState(s =>
                                 {
                                     s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text;
@@ -156,7 +160,8 @@ partial class WarmupPage : Component<WarmupPageState>
             .Stroke(MyTheme.HighlightMedium)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
             .HorizontalOptions(LayoutOptions.End)
-            .OnTapped(()=>{
+            .OnTapped(() =>
+            {
                 ShowExplanation(chunk);
             });
         }
@@ -166,13 +171,17 @@ partial class WarmupPage : Component<WarmupPageState>
     {
         string explanation = $"Comprehension Score: {s.Comprehension}" + Environment.NewLine + Environment.NewLine;
         explanation += $"{s.ComprehensionNotes}" + Environment.NewLine + Environment.NewLine;
-        
-        try{
-            SetState(s =>{
+
+        try
+        {
+            SetState(s =>
+            {
                 s.Explanation = explanation;
                 s.IsExplanationShown = true;
             });
-        }catch(Exception e){
+        }
+        catch (Exception e)
+        {
             Debug.WriteLine(e.Message);
         }
     }
@@ -190,7 +199,7 @@ partial class WarmupPage : Component<WarmupPageState>
                     {
                         await SendMessage();
                     })
-                    // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
+            // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
             )
             .Background(Colors.Transparent)
             .Stroke(MyTheme.Gray300)
@@ -220,15 +229,16 @@ partial class WarmupPage : Component<WarmupPageState>
         {
             var chunk = new ConversationChunk(
                 _conversation.Id,
-                DateTime.Now, 
-                $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}", 
+                DateTime.Now,
+                $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}",
                 State.UserInput
             );
-            
-            
+
+
             await _conversationService.SaveConversationChunk(chunk);
-            
-            SetState(s => {
+
+            SetState(s =>
+            {
                 s.Chunks.Add(chunk);
                 s.UserInput = string.Empty;
             });
@@ -258,7 +268,8 @@ partial class WarmupPage : Component<WarmupPageState>
             chunks.Add(chunk);
         }
 
-        SetState(s =>{
+        SetState(s =>
+        {
             s.Chunks = chunks;
             s.IsBusy = false;
         });
@@ -271,19 +282,20 @@ partial class WarmupPage : Component<WarmupPageState>
     {
         // Show a confirmation dialog
         bool shouldStart = await Application.Current.MainPage.DisplayAlert(
-            "Start New Conversation", 
+            "Start New Conversation",
             "This will clear the current conversation. Are you sure?",
             "Yes", "No");
-            
+
         if (!shouldStart)
             return;
-            
+
         // Clear the current conversation and chunks
-        SetState(s => {
+        SetState(s =>
+        {
             s.Chunks.Clear();
             s.UserInput = string.Empty;
         });
-        
+
         // Start a fresh conversation
         await StartConversation();
     }
@@ -291,7 +303,7 @@ partial class WarmupPage : Component<WarmupPageState>
     async Task StartConversation()
     {
         await Task.Delay(100);
-        
+
         SetState(s => s.IsBusy = true);
 
         _conversation = new Conversation();
@@ -338,20 +350,21 @@ partial class WarmupPage : Component<WarmupPageState>
         SetState(s => s.IsBusy = false);
 
         // await PlayAudio(response.Message);
-    }    async Task PlayAudio(string text)
+    }
+    async Task PlayAudio(string text)
     {
         try
         {
             // Stop any currently playing audio
             StopAudio();
-            
+
             // Show the loading state immediately
             if (_floatingPlayer != null)
             {
                 _floatingPlayer.SetTitle($"Loading: {(text.Length > 15 ? text.Substring(0, 15) + "..." : text)}");
                 _floatingPlayer.ShowLoading();
             }
-            
+
             // Use ElevenLabsSpeechService to generate audio with Korean voice
             var audioStream = await _speechService.TextToSpeechAsync(
                 text,
@@ -361,7 +374,7 @@ partial class WarmupPage : Component<WarmupPageState>
             {
                 // Create the audio player
                 _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
-                
+
                 // Set up the floating player
                 if (_floatingPlayer != null)
                 {
@@ -369,15 +382,16 @@ partial class WarmupPage : Component<WarmupPageState>
                     _floatingPlayer.SetReady(); // Switch from loading to ready state
                     _floatingPlayer.SetPlaying();
                 }
-                
+
                 // Start playback
                 _audioPlayer.Play();
-                
+
                 // Start tracking playback position
                 StartPlaybackTimer();
-                
+
                 // Set up auto-hide when audio finishes
-                _audioPlayer.PlaybackEnded += (s, e) => {
+                _audioPlayer.PlaybackEnded += (s, e) =>
+                {
                     if (_floatingPlayer != null)
                     {
                         _floatingPlayer.Hide();
@@ -396,7 +410,7 @@ partial class WarmupPage : Component<WarmupPageState>
         catch (Exception ex)
         {
             Debug.WriteLine($"Error playing audio: {ex.Message}");
-            
+
             // Hide the player on error
             if (_floatingPlayer != null)
             {
@@ -404,7 +418,7 @@ partial class WarmupPage : Component<WarmupPageState>
             }
         }
     }
-    
+
     /// <summary>
     /// Pauses the currently playing audio.
     /// </summary>
@@ -414,14 +428,14 @@ partial class WarmupPage : Component<WarmupPageState>
         {
             _audioPlayer.Pause();
             _playbackTimer?.Stop();
-            
+
             if (_floatingPlayer != null)
             {
                 _floatingPlayer.SetPaused();
             }
         }
     }
-    
+
     /// <summary>
     /// Resumes playback from the paused position.
     /// </summary>
@@ -431,14 +445,14 @@ partial class WarmupPage : Component<WarmupPageState>
         {
             _audioPlayer.Play();
             StartPlaybackTimer();
-            
+
             if (_floatingPlayer != null)
             {
                 _floatingPlayer.SetPlaying();
             }
         }
     }
-    
+
     /// <summary>
     /// Rewinds the audio to the beginning.
     /// </summary>
@@ -447,14 +461,14 @@ partial class WarmupPage : Component<WarmupPageState>
         if (_audioPlayer != null)
         {
             _audioPlayer.Seek(0);
-            
+
             if (_floatingPlayer != null)
             {
                 _floatingPlayer.UpdatePosition(0f);
             }
         }
     }
-    
+
     /// <summary>
     /// Stops and disposes the audio playback.
     /// </summary>
@@ -463,22 +477,22 @@ partial class WarmupPage : Component<WarmupPageState>
         if (_audioPlayer != null)
         {
             _playbackTimer?.Stop();
-            
+
             if (_audioPlayer.IsPlaying)
             {
                 _audioPlayer.Stop();
             }
-            
+
             _audioPlayer.Dispose();
             _audioPlayer = null;
-            
+
             if (_floatingPlayer != null)
             {
                 _floatingPlayer.Hide();
             }
         }
     }
-    
+
     /// <summary>
     /// Starts a timer to track audio playback progress.
     /// </summary>
@@ -486,14 +500,14 @@ partial class WarmupPage : Component<WarmupPageState>
     {
         // Stop any existing timer
         _playbackTimer?.Stop();
-        
+
         // Create a new timer that ticks 10 times per second
         _playbackTimer = Application.Current.Dispatcher.CreateTimer();
         _playbackTimer.Interval = TimeSpan.FromMilliseconds(100);
         _playbackTimer.Tick += (s, e) => UpdatePlaybackPosition();
         _playbackTimer.Start();
     }
-    
+
     /// <summary>
     /// Updates the playback position for the floating player.
     /// </summary>
@@ -501,7 +515,7 @@ partial class WarmupPage : Component<WarmupPageState>
     {
         if (_audioPlayer == null || _floatingPlayer == null)
             return;
-            
+
         // Only update if we have a valid duration
         if (_audioPlayer.Duration > 0)
         {

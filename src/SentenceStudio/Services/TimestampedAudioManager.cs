@@ -32,7 +32,7 @@ public class TimestampedAudioManager : IDisposable
 
     private List<(int StartCharIdx, int EndCharIdx)> _sentenceCharRanges = new();
     private List<string> _sentences = new();
-    
+
     // Pre-calculated sentence timing lookup for super-fast sentence detection
     private Dictionary<double, int> _timestampToSentenceMap = new();
     private List<(double StartTime, double EndTime, int SentenceIndex)> _sentenceTimings = new();
@@ -81,7 +81,7 @@ public class TimestampedAudioManager : IDisposable
         for (int i = 0; i < _sentenceCharRanges.Count; i++)
         {
             var (start, end) = _sentenceCharRanges[i];
-            _logger.LogTrace("Sentence {Index}: CharIdx {StartIdx} to {EndIdx} => \"{Text}\"", 
+            _logger.LogTrace("Sentence {Index}: CharIdx {StartIdx} to {EndIdx} => \"{Text}\"",
                 i, start, end, audio.FullTranscript.Substring(start, end - start + 1));
         }
 
@@ -158,27 +158,27 @@ public class TimestampedAudioManager : IDisposable
     /// 🎯 Pre-calculate sentence timings from character ranges for super-fast lookup
     /// </summary>
     private List<(double StartTime, double EndTime, int SentenceIndex)> BuildSentenceTimings(
-        List<(int StartCharIdx, int EndCharIdx)> sentenceRanges, 
+        List<(int StartCharIdx, int EndCharIdx)> sentenceRanges,
         TimestampedTranscriptCharacter[] characters)
     {
         var timings = new List<(double, double, int)>();
-        
+
         for (int sentenceIdx = 0; sentenceIdx < sentenceRanges.Count; sentenceIdx++)
         {
             var (startCharIdx, endCharIdx) = sentenceRanges[sentenceIdx];
-            
+
             // Clamp indices to valid range
             startCharIdx = Math.Max(0, Math.Min(startCharIdx, characters.Length - 1));
             endCharIdx = Math.Max(0, Math.Min(endCharIdx, characters.Length - 1));
-            
+
             var startTime = characters[startCharIdx].StartTime;
             var endTime = characters[endCharIdx].EndTime;
-            
+
             timings.Add((startTime, endTime, sentenceIdx));
-            
+
             _logger.LogTrace("Sentence {Index}: {StartTime:F2}s - {EndTime:F2}s", sentenceIdx, startTime, endTime);
         }
-        
+
         return timings;
     }
 
@@ -189,19 +189,19 @@ public class TimestampedAudioManager : IDisposable
     private Dictionary<double, int> BuildTimestampLookupTable(List<(double StartTime, double EndTime, int SentenceIndex)> sentenceTimings)
     {
         var lookupTable = new Dictionary<double, int>();
-        
+
         if (!sentenceTimings.Any()) return lookupTable;
-        
+
         // Resolution: every 100ms for balance of accuracy vs memory
         const double resolution = 0.1; // 100ms
-        
+
         var maxTime = sentenceTimings.Max(t => t.EndTime);
-        
+
         for (double time = 0; time <= maxTime; time += resolution)
         {
             // Find which sentence this timestamp belongs to
             var sentenceIndex = -1;
-            
+
             for (int i = 0; i < sentenceTimings.Count; i++)
             {
                 var (startTime, endTime, idx) = sentenceTimings[i];
@@ -211,14 +211,14 @@ public class TimestampedAudioManager : IDisposable
                     break;
                 }
             }
-            
+
             // Store the mapping (round to resolution to ensure exact key matches)
             var key = Math.Round(time, 1);
             lookupTable[key] = sentenceIndex;
         }
-        
+
         _logger.LogDebug("Built timestamp lookup table with {Count} entries (0.0s to {MaxTime:F1}s)", lookupTable.Count, maxTime);
-        
+
         return lookupTable;
     }
 
@@ -273,8 +273,8 @@ public class TimestampedAudioManager : IDisposable
 
         // Get sentence timing info calculated in real-time from character timestamps
         var sentenceInfo = _timingCalculator.GetSentenceTimingInfo(
-            sentenceIndex, 
-            _currentAudio.Characters, 
+            sentenceIndex,
+            _currentAudio.Characters,
             _currentAudio.FullTranscript
         );
 
@@ -288,13 +288,13 @@ public class TimestampedAudioManager : IDisposable
         {
             _player.Seek(sentenceInfo.StartTime);
             _currentSentenceIndex = sentenceIndex;
-            
+
             if (!IsPlaying)
             {
                 Play();
             }
 
-            _logger.LogInformation("TimestampedAudioManager: Playing from sentence {SentenceIndex} at {StartTime:F2}s - '{TextPreview}...'", 
+            _logger.LogInformation("TimestampedAudioManager: Playing from sentence {SentenceIndex} at {StartTime:F2}s - '{TextPreview}...'",
                 sentenceIndex, sentenceInfo.StartTime, sentenceInfo.Text.Substring(0, Math.Min(40, sentenceInfo.Text.Length)));
         }
         catch (Exception ex)
@@ -350,15 +350,15 @@ public class TimestampedAudioManager : IDisposable
     /// </summary>
     private void OnProgressTimerElapsed(object? sender, ElapsedEventArgs e)
     {
-        if (_player?.IsPlaying != true || _currentAudio == null) 
+        if (_player?.IsPlaying != true || _currentAudio == null)
             return;
-            
+
         var currentTime = _player.CurrentPosition;
         ProgressUpdated?.Invoke(this, currentTime);
-        
+
         // 🎯 FAST LOOKUP: Round to our resolution and check lookup table
         var lookupKey = Math.Round(currentTime, 1); // Round to 100ms resolution
-        
+
         int newSentenceIndex = -1;
         if (_timestampToSentenceMap.TryGetValue(lookupKey, out var sentenceIdx))
         {
@@ -371,17 +371,17 @@ public class TimestampedAudioManager : IDisposable
                 .Where(k => Math.Abs(k - currentTime) < 0.2) // Within 200ms
                 .OrderBy(k => Math.Abs(k - currentTime))
                 .FirstOrDefault();
-                
+
             if (closestKey > 0 && _timestampToSentenceMap.TryGetValue(closestKey, out var fallbackIdx))
             {
                 newSentenceIndex = fallbackIdx;
             }
         }
-        
+
         // Update sentence if it changed
         if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0 && newSentenceIndex < _sentences.Count)
         {
-            _logger.LogTrace("[FAST LOOKUP] Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s", 
+            _logger.LogTrace("[FAST LOOKUP] Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s",
                 _currentSentenceIndex, newSentenceIndex, currentTime);
             _currentSentenceIndex = newSentenceIndex;
             SentenceChanged?.Invoke(this, _currentSentenceIndex);
@@ -436,10 +436,10 @@ public class TimestampedAudioManager : IDisposable
     private bool IsEndOfSentence(string text, int delimiterIndex)
     {
         if (delimiterIndex + 1 >= text.Length) return true;
-        
+
         var nextChar = text[delimiterIndex + 1];
         if (!char.IsWhiteSpace(nextChar)) return false;
-        
+
         for (int i = delimiterIndex + 1; i < text.Length; i++)
         {
             if (!char.IsWhiteSpace(text[i]))
@@ -447,7 +447,7 @@ public class TimestampedAudioManager : IDisposable
                 return char.IsUpper(text[i]) || char.IsDigit(text[i]);
             }
         }
-        
+
         return true;
     }
 

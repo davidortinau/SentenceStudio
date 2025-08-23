@@ -23,10 +23,15 @@ class DashboardPageState
 {
     public List<LearningResource> Resources { get; set; } = [];
     public List<SkillProfile> SkillProfiles { get; set; } = [];
-    
+
     public List<LearningResource> SelectedResources { get; set; } = [];
     public int SelectedSkillProfileIndex { get; set; } = -1; // Initialize to -1 (no selection)
     public int SelectedResourceIndex { get; set; } = -1; // Initialize to -1 (no selection)
+
+    public DisplayOrientation Orientation { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Orientation;
+    public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
+    public double Height { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Height;
+    public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
 }
 
 partial class DashboardPage : Component<DashboardPageState>
@@ -42,8 +47,56 @@ partial class DashboardPage : Component<DashboardPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    protected override void OnMounted()
+    {
+        // Initialize from current display info
+        var info = DeviceDisplay.Current.MainDisplayInfo;
+        SetState(s =>
+        {
+            s.Orientation = info.Orientation;
+            s.Width = info.Width;
+            s.Height = info.Height;
+            s.Density = info.Density;
+        });
+
+        // Subscribe to changes (rotation, size, density)
+        DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+        base.OnMounted();
+    }
+    protected override void OnWillUnmount()
+    {
+        DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
+
+        base.OnWillUnmount();
+    }
+
+    private void OnMainDisplayInfoChanged(object? sender, DisplayInfoChangedEventArgs e)
+    {
+        // var info = e.DisplayInfo;
+        var info = DeviceDisplay.Current.MainDisplayInfo;
+
+        // SetState triggers a rerender in MauiReactor
+        SetState(s =>
+        {
+            s.Orientation = info.Orientation;
+            s.Width = info.Width;
+            s.Height = info.Height;
+            s.Density = info.Density;
+        });
+    }
+
     public override VisualNode Render()
-	{
+    {
+        SafeAreaEdges safeEdges =
+            DeviceDisplay.Current.MainDisplayInfo.Rotation switch
+            {
+                DisplayRotation.Rotation0 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation90 => new(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation180 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation270 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.All, SafeAreaRegions.None),
+                _ => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
+            };
+
         //Console.Writeline(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
 
@@ -193,14 +246,18 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
-                        }.Spacing(20)
+                        }.Spacing(DeviceInfo.Idiom == DeviceIdiom.Phone ? 8 : 20)
                     )// vstack
                     .Padding(MyTheme.Size160)
                     .Spacing(MyTheme.Size240)
                 )// vscrollview
+                .Set(Layout.SafeAreaEdgesProperty, safeEdges)
             )// grid
+            .Set(Layout.SafeAreaEdgesProperty, safeEdges)
 
-        ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
+        )
+        .Set(Layout.SafeAreaEdgesProperty, safeEdges)
+        .OnAppearing(LoadOrRefreshDataAsync);// contentpage
     }
 
     async Task LoadOrRefreshDataAsync()
@@ -239,7 +296,7 @@ partial class DashboardPage : Component<DashboardPageState>
         // Calculate indices for the selected items
         var selectedResourceIndex = -1;
         var selectedSkillIndex = -1;
-        
+
         if (selectedResources?.Any() == true)
         {
             var firstSelected = selectedResources.First();
@@ -252,7 +309,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 }
             }
         }
-        
+
         if (selectedSkill != null)
         {
             for (int i = 0; i < skills.Count; i++)
@@ -265,7 +322,7 @@ partial class DashboardPage : Component<DashboardPageState>
             }
         }
 
-        SetState(s => 
+        SetState(s =>
         {
             s.Resources = resources;
             s.SkillProfiles = skills;
@@ -324,7 +381,7 @@ partial class DashboardPage : Component<DashboardPageState>
     /// Load the user's saved selections from preferences
     /// </summary>
     private async Task<(List<LearningResource> selectedResources, SkillProfile selectedSkill)> LoadUserSelectionsFromPreferences(
-        List<LearningResource> availableResources, 
+        List<LearningResource> availableResources,
         List<SkillProfile> availableSkills)
     {
         var selectedResources = new List<LearningResource>();
@@ -396,8 +453,8 @@ public partial class ActivityBorder : MauiReactor.Component
                     .HorizontalOptions(LayoutOptions.Center)
                     .Text($"{_labelText}")
             )
-            .WidthRequest(300)
-            .HeightRequest(120)
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 300)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 120)
         )
         .StrokeShape(Rectangle())
         .StrokeThickness(1)
@@ -408,23 +465,23 @@ public partial class ActivityBorder : MauiReactor.Component
             if (_parameters.Value.SelectedResources?.Any() != true)
             {
                 await Application.Current.MainPage.DisplayAlert(
-                    "Ahoy!", 
-                    "Ye need to select at least one learning resource before startin' this activity, matey!", 
+                    "Ahoy!",
+                    "Ye need to select at least one learning resource before startin' this activity, matey!",
                     "Aye, Captain!");
                 return;
             }
-            
+
             if (_parameters.Value.SelectedSkillProfile == null)
             {
                 await Application.Current.MainPage.DisplayAlert(
-                    "Avast!", 
-                    "Choose yer skill profile first, ye scallywag!", 
+                    "Avast!",
+                    "Choose yer skill profile first, ye scallywag!",
                     "Aye, Captain!");
                 return;
             }
-            
+
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ ActivityBorder: Navigating to {_route} with {_parameters.Value.SelectedResources.Count} resources and skill '{_parameters.Value.SelectedSkillProfile.Title}'");
-            
+
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 _route,
                 props =>
@@ -440,7 +497,7 @@ class ActivityProps
 {
     public List<LearningResource> Resources { get; set; } = new();
     public SkillProfile Skill { get; set; }
-    
+
     // Backward compatibility - returns first resource or null
     public LearningResource Resource => Resources?.FirstOrDefault();
 }

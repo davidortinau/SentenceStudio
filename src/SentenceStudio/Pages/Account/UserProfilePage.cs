@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Maui.Storage;
 using MauiReactor.Parameters;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 
 namespace SentenceStudio.Pages.Account;
 
@@ -16,7 +17,7 @@ class UserProfilePageState
     public int TargetLanguageIndex { get; internal set; }
     public int DisplayLanguageIndex { get; internal set; }
     public int ProfileID { get; internal set; }
-    
+
     // Export-related properties
     public bool IsExporting { get; set; } = false;
     public string ExportProgressMessage { get; set; } = string.Empty;
@@ -44,7 +45,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Name)
                             .OnTextChanged(text => SetState(s => s.Name = text))
                     }
-                    .Hint($"{_localize["Name"]}"),
+                        .Hint($"{_localize["Name"]}"),
 
                     new SfTextInputLayout
                     {
@@ -52,7 +53,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Email)
                             .OnTextChanged(text => SetState(s => s.Email = text))
                     }
-                    .Hint($"{_localize["Email"]}"),                    new SfTextInputLayout
+                        .Hint($"{_localize["Email"]}"),
+                    new SfTextInputLayout
                     {
                         Picker()
                             .ItemsSource(Constants.Languages)
@@ -62,7 +64,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 s.NativeLanguageIndex = index; // Save the index too!
                             }))
                     }
-                    .Hint($"{_localize["NativeLanguage"]}"),
+                        .Hint($"{_localize["NativeLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -74,7 +76,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 s.TargetLanguageIndex = index; // Save the index too!
                             }))
                     }
-                    .Hint($"{_localize["TargetLanguage"]}"),
+                        .Hint($"{_localize["TargetLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -93,7 +95,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 _localize.SetCulture(culture);
                             })
                     }
-                    .Hint($"{_localize["DisplayLanguage"]}"),
+                        .Hint($"{_localize["DisplayLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -102,7 +104,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.OpenAI_APIKey)
                             .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
                     }
-                    .Hint($"{_localize["OpenAI_APIKey"]}"),
+                        .Hint($"{_localize["OpenAI_APIKey"]}"),
 
                     Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
                         .TextDecorations(TextDecorations.Underline)
@@ -126,7 +128,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .TextColor(Colors.Gray)
                             .Margin(0, 0, 0, 15),
 
-                        State.IsExporting ? 
+                        State.IsExporting ?
                         VStack(
                             ActivityIndicator()
                                 .IsRunning(true)
@@ -185,7 +187,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
             s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
             s.DisplayLanguageIndex = Array.IndexOf(DisplayLanguages, profile.DisplayLanguage);
         });
-    }    async Task Save()
+    }
+    async Task Save()
     {
         var profile = new UserProfile
         {
@@ -199,63 +202,64 @@ partial class UserProfilePage : Component<UserProfilePageState>
         };
 
         await _userProfileRepository.SaveAsync(profile);
-        
+
         // Make sure to call SaveDisplayCultureAsync to properly update the culture
         string cultureCode = State.DisplayLanguage == "English" ? "en-US" : "ko-KR";
         await _userProfileRepository.SaveDisplayCultureAsync(cultureCode);
-        
+
         await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
 
-        
-    }    
-    
+
+    }
+
     async Task Reset()
     {
         var response = await Application.Current.MainPage.DisplayAlert(
-            _localize["Reset"].ToString(), 
-            _localize["ResetProfileConfirmation"].ToString() ?? "Are you sure you want to reset your profile?", 
-            _localize["Yes"].ToString(), 
+            _localize["Reset"].ToString(),
+            _localize["ResetProfileConfirmation"].ToString() ?? "Are you sure you want to reset your profile?",
+            _localize["Yes"].ToString(),
             _localize["No"].ToString());
-            
-        if(response)
+
+        if (response)
         {
             await _userProfileRepository.DeleteAsync();
-            
+
             // Clear the onboarding preference so user goes through onboarding again
             Preferences.Default.Remove("is_onboarded");
-            
+
             // Update the app state to reflect no profile exists
             _appState.Set(s => s.CurrentUserProfile = null);
-            
+
             // Set culture back to English after reset
             _localize.SetCulture(new CultureInfo("en-US"));
-            
+
             await AppShell.DisplayToastAsync(_localize["ProfileReset"].ToString() ?? "Profile reset");
-            
+
             // Navigate back to root which should trigger the AppShell to re-evaluate and show onboarding
             await MauiControls.Shell.Current.GoToAsync("//");
         }
     }
 
-    Task GoToOpenAI() => 
+    Task GoToOpenAI() =>
         Browser.OpenAsync("https://platform.openai.com/account/api-keys");
 
     async Task ExportDataToFile()
     {
         try
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsExporting = true;
                 s.ExportProgressMessage = "Starting export...";
             });
 
-            var progress = new Progress<string>(message => 
+            var progress = new Progress<string>(message =>
             {
                 SetState(s => s.ExportProgressMessage = message);
             });
 
             using var zipStream = await _dataExportService.ExportAllDataAsZipAsync(progress);
-            
+
             SetState(s => s.ExportProgressMessage = "Saving file...");
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -265,7 +269,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
             if (result.IsSuccessful)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsExporting = false;
                     s.LastExportFilePath = result.FilePath;
                     s.ExportProgressMessage = "Export completed!";
@@ -275,23 +280,25 @@ partial class UserProfilePage : Component<UserProfilePageState>
             }
             else
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsExporting = false;
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
                     result.Exception?.Message ?? "Failed to save export file", "OK");
             }
         }
         catch (Exception ex)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsExporting = false;
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
                 $"An error occurred during export: {ex.Message}", "OK");
         }
     }
@@ -300,18 +307,19 @@ partial class UserProfilePage : Component<UserProfilePageState>
     {
         try
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsExporting = true;
                 s.ExportProgressMessage = "Preparing export for sharing...";
             });
 
-            var progress = new Progress<string>(message => 
+            var progress = new Progress<string>(message =>
             {
                 SetState(s => s.ExportProgressMessage = message);
             });
 
             using var zipStream = await _dataExportService.ExportAllDataAsZipAsync(progress);
-            
+
             SetState(s => s.ExportProgressMessage = "Opening share dialog...");
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -329,7 +337,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     File = new ShareFile(tempResult.FilePath)
                 });
 
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsExporting = false;
                     s.LastExportFilePath = tempResult.FilePath;
                     s.ExportProgressMessage = "Export shared!";
@@ -337,23 +346,25 @@ partial class UserProfilePage : Component<UserProfilePageState>
             }
             else
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsExporting = false;
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
                     tempResult.Exception?.Message ?? "Failed to prepare export for sharing", "OK");
             }
         }
         catch (Exception ex)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsExporting = false;
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(), 
+            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
                 $"An error occurred during export: {ex.Message}", "OK");
         }
     }
