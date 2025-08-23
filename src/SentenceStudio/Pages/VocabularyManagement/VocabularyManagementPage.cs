@@ -54,6 +54,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 {
     [Inject] LearningResourceRepository _resourceRepo;
     private System.Threading.Timer? _searchTimer;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
     {
@@ -104,7 +105,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Grid(rows: "Auto", columns: "*,Auto,Auto",
                         new SfTextInputLayout(
                             Entry()
-                                .Placeholder("Search")
+                                .Placeholder($"{_localize["Search"]}...")
                                 .Text(State.SearchText)
                                 .OnTextChanged(OnSearchTextChanged)
                                 .FontSize(13)
@@ -124,12 +125,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .UnfocusedStrokeThickness(0)
                         .GridColumn(0)
                         .VStart(),
-                    // )
-                    // .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
-                    // .StrokeShape(new RoundRectangle().CornerRadius(16))
-                    // .Stroke(MyTheme.Gray300)
-                    // .StrokeThickness(1)
-                    // .GridColumn(0),
 
                     // Status filter icon
                     ImageButton()
@@ -137,7 +132,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .BackgroundColor(MyTheme.LightSecondaryBackground)
                         .HeightRequest(36)
                         .WidthRequest(36)
-                        .CornerRadius(24)
+                        .CornerRadius(18)
                         .Padding(6)
                         .OnClicked(async () => await ShowStatusFilterDialog())
                         .GridColumn(1)

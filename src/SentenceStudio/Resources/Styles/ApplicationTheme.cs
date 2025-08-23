@@ -503,6 +503,14 @@ class MyTheme : ApplicationTheme
         Size = IconSize
     };
 
+    public static FontImageSource IconGlobe { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.globe_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     protected override void OnApply()
     {
         SfTextInputLayoutStyles.Default = _ => _

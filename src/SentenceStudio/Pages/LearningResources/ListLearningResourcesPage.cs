@@ -37,126 +37,79 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["LearningResources"]}",
-            ToolbarItem("Search").OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
-            ToolbarItem("Add").OnClicked(AddResource),
-            ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Search")
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = FluentUI.search_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = FluentUI.add_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(AddResource),
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = FluentUI.chart_multiple_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(ViewVocabularyProgress),
 
-            Grid(rows: "Auto, *", columns: "*",
-                VStack(
-                    // Search bar
-                    Border(
-                        Grid(
-                            Entry()
-                                .Placeholder($"{_localize["Search"]}...")
-                                .Text(State.SearchText)
-                                .OnTextChanged(text =>
-                                {
-                                    SetState(s => s.SearchText = text);
-                                    SearchResources();
-                                }),
-
-                            Button()
-                                .ImageSource(MyTheme.IconSearch)
-                                .BackgroundColor(Colors.Transparent)
-                                .OnClicked(SearchResources)
-                                .GridColumn(1)
-                                .Padding(10)
-                                .HEnd()
-                        )
-                        .Columns("*, Auto")
-                    )
-                    .ThemeKey(MyTheme.InputWrapper)
-                    .Margin(new Thickness(10, 10, 10, 5)),
-
-                    // Filters
-                    Grid(
-                        // Type filter
-                        new SfTextInputLayout(
-                            Picker()
-                                .ItemsSource(_mediaTypes)
-                                .SelectedIndex(State.FilterTypeIndex)
-                                .OnSelectedIndexChanged(index =>
-                                {
-                                    SetState(s =>
-                                    {
-                                        s.FilterTypeIndex = index;
-                                        s.FilterType = _mediaTypes[index];
-                                    });
-                                    FilterResources();
-                                })
-                        )
-                        .Hint("Type")
-                        .GridColumn(0),
-
-                        // Language filter
-                        new SfTextInputLayout(
-                            Picker()
-                                .ItemsSource(_languages)
-                                .SelectedIndex(State.FilterLanguageIndex)
-                                .OnSelectedIndexChanged(index =>
-                                {
-                                    SetState(s =>
-                                    {
-                                        s.FilterLanguageIndex = index;
-                                        s.FilterLanguage = _languages[index];
-                                    });
-                                    FilterResources();
-                                })
-                        )
-                        .Hint("Language")
-                        .GridColumn(1)
-                    )
-                    .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
-                    .Columns("*, *")
-                    .ColumnSpacing(10)
-                    .Margin(new Thickness(10, 5, 10, 10))
-                ).Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None),
                 State.IsLoading ?
-                        ActivityIndicator().IsRunning(true).VCenter().HCenter().GridRow(1) :
-                        State.Resources.Count == 0 ?
-                            VStack(
-                                Label($"{_localize["NoResourcesFound"]}")
-                                    .VCenter().HCenter(),
-
-                                State.IsCreatingStarter ?
-                                VStack(
-                                    ActivityIndicator()
-                                        .IsRunning(true)
-                                        .HCenter()
-                                        .HeightRequest(30)
-                                        .WidthRequest(30),
-                                    Label("Creating starter vocabulary...")
-                                        .HCenter()
-                                        .FontSize(14)
-                                        .TextColor(Colors.Gray)
-                                )
-                                .Spacing(10) :
-                                VStack(
-                                    Button("Add Your First Resource")
-                                        .OnClicked(AddResource)
-                                        .HCenter()
-                                        .WidthRequest(200),
-
-                                    Button("Create a Starter Resource")
-                                        .OnClicked(CreateStarterResource)
-                                        .HCenter()
-                                        .WidthRequest(200)
-                                        .BackgroundColor(MyTheme.HighlightDarkest)
-                                )
-                                .Spacing(10)
-                            )
-                            .GridRow(1)
-                            .Spacing(15)
-                            .VCenter() :
+                    VStack(
+                        ActivityIndicator().IsRunning(true).Center()
+                    ).VCenter().HCenter() :
+                    Grid(rows: "*,Auto", columns: "*",
                             CollectionView()
-                                .GridRow(1)
+                                .GridRow(0)
                                 .SelectionMode(SelectionMode.None)
                                 .ItemsSource(State.Resources, RenderResourceItem)
+                                .EmptyView(
+                                    VStack(
+                                        Label($"{_localize["NoResourcesFound"]}")
+                                            .VCenter().HCenter(),
 
-            )
-            .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
-        )
-        .Set(Layout.SafeAreaEdgesProperty, SafeAreaEdges.None)
+                                        State.IsCreatingStarter ?
+                                        VStack(
+                                            ActivityIndicator()
+                                                .IsRunning(true)
+                                                .HCenter()
+                                                .HeightRequest(30)
+                                                .WidthRequest(30),
+                                            Label("Creating starter vocabulary...")
+                                                .HCenter()
+                                                .FontSize(14)
+                                                .TextColor(Colors.Gray)
+                                        )
+                                        .Spacing(10) :
+                                        VStack(
+                                            Button("Add Your First Resource")
+                                                .OnClicked(AddResource)
+                                                .HCenter()
+                                                .WidthRequest(200),
+
+                                            Button("Create a Starter Resource")
+                                                .OnClicked(CreateStarterResource)
+                                                .HCenter()
+                                                .WidthRequest(200)
+                                                .BackgroundColor(MyTheme.HighlightDarkest)
+                                        )
+                                        .Spacing(10)
+                                    )
+                                    .Spacing(15)
+                                    .VCenter()
+                                ),
+                            RenderBottomBar()
+                        ) // Grid
+                        .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
+        )// contentpage
         .OnAppearing(LoadResources);
     }
 
@@ -219,6 +172,63 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .Margin(new Thickness(10, 5));
+
+    VisualNode RenderBottomBar() =>
+        Grid(rows: "Auto", columns: "*,Auto,Auto",
+            new SfTextInputLayout(
+                Entry()
+                    .Placeholder($"{_localize["Search"]}...")
+                    .Text(State.SearchText)
+                    .OnTextChanged(text =>
+                    {
+                        SetState(s => s.SearchText = text);
+                        SearchResources();
+                    })
+                    .FontSize(13)
+                    .VCenter()
+            )
+            .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
+            .OutlineCornerRadius(27)
+            .ShowHint(false)
+            .LeadingView(
+                Image()
+                    .Source(MyTheme.IconSearch)
+                    .HeightRequest(MyTheme.IconSize)
+                    .WidthRequest(MyTheme.IconSize)
+            )
+            .HeightRequest(54)
+            .FocusedStrokeThickness(0)
+            .UnfocusedStrokeThickness(0)
+            .GridColumn(0)
+            .VStart(),
+
+            // Type filter icon
+            ImageButton()
+                .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
+                .BackgroundColor(MyTheme.LightSecondaryBackground)
+                .HeightRequest(36)
+                .WidthRequest(36)
+                .CornerRadius(18)
+                .Padding(6)
+                .OnClicked(ShowTypeFilterDialog)
+                .GridColumn(1)
+                .VStart(),
+
+            // Language filter icon
+            ImageButton()
+                .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconGlobe)
+                .BackgroundColor(MyTheme.LightSecondaryBackground)
+                .HeightRequest(36)
+                .WidthRequest(36)
+                .CornerRadius(18)
+                .Padding(6)
+                .OnClicked(ShowLanguageFilterDialog)
+                .GridColumn(2)
+                .VStart()
+        )
+        .ColumnSpacing(8)
+        .Padding(15, 15, 15, 0)
+        .GridRow(1);
 
     async Task LoadResources()
     {
@@ -358,6 +368,44 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 "Error",
                 $"Failed to create starter resource: {ex.Message}",
                 "OK");
+        }
+    }
+
+    async Task ShowTypeFilterDialog()
+    {
+        var selection = await Application.Current.MainPage.DisplayActionSheet(
+            "Filter by Type", "Cancel", null, _mediaTypes.ToArray());
+        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+            return;
+
+        var index = _mediaTypes.IndexOf(selection);
+        if (index >= 0)
+        {
+            SetState(s =>
+            {
+                s.FilterTypeIndex = index;
+                s.FilterType = _mediaTypes[index];
+            });
+            FilterResources();
+        }
+    }
+
+    async Task ShowLanguageFilterDialog()
+    {
+        var selection = await Application.Current.MainPage.DisplayActionSheet(
+            "Filter by Language", "Cancel", null, _languages.ToArray());
+        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+            return;
+
+        var index = _languages.IndexOf(selection);
+        if (index >= 0)
+        {
+            SetState(s =>
+            {
+                s.FilterLanguageIndex = index;
+                s.FilterLanguage = _languages[index];
+            });
+            FilterResources();
         }
     }
 }
