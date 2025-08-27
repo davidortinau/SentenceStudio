@@ -1,0 +1,3 @@
+[submodule "Plugin.Maui.DebugOverlay"]
+	path = Plugin.Maui.DebugOverlay
+	url = git@github.com:davidortinau/Plugin.Maui.DebugOverlay.git

@@ -4,7 +4,9 @@
       "Bash(claude mcp:*)",
       "Bash(dotnet build:*)",
       "Bash(move:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebSearch",
+      "WebFetch(domain:context7.com)"
     ],
     "defaultMode": "acceptEdits"
   }

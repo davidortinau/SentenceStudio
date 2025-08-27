@@ -6,7 +6,6 @@ using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Controls;
 using SentenceStudio.Pages.Reading;
 using MauiReactor.Shapes;
 using Microsoft.Maui.Storage;
@@ -101,6 +100,7 @@ partial class DashboardPage : Component<DashboardPageState>
         return ContentPage($"{_localize["Dashboard"]}",
 
             Grid(
+
                 VScrollView(
                     VStack(
                         ContentView()

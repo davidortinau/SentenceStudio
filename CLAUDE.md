@@ -232,3 +232,13 @@ dotnet build SentenceStudio/SentenceStudio.csproj -f net10.0-windows10.0.19041.0
 - **iOS/macOS**: Requires Xcode and proper provisioning profiles
 - **Android**: Requires Android SDK and USB debugging enabled
 - **Windows**: Requires Windows App SDK and appropriate Windows version
+
+## Documentation Resources
+
+Context7 MCP provides comprehensive documentation for the technology stack:
+- **.NET MAUI**: https://context7.com/dotnet/maui/llms.txt
+- **Community Toolkit for .NET MAUI**: https://context7.com/communitytoolkit/maui.git/llms.txt
+- **MauiReactor**: https://context7.com/adospace/reactorui-maui/llms.txt
+- **SkiaSharp**: https://context7.com/mono/skiasharp/llms.txt
+- **ElevenLabs API Official Docs**: https://context7.com/elevenlabs/elevenlabs-docs/llms.txt
+- **ElevenLabs-DotNet SDK**: https://context7.com/rageagainstthepixel/elevenlabs-dotnet/llms.txt

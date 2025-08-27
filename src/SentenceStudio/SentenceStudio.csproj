@@ -138,7 +138,7 @@
 		<PackageReference Include="The49.Maui.BottomSheet" Version="8.0.3" />
 		<PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.0" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.0" />
-		<PackageReference Include="Plugin.Maui.DebugOverlay" Version="1.0.0-preview3" />
+
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.5" />
 		<PackageReference Include="Reactor.Maui" Version="3.0.34" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-preview.7.25380.108" />
@@ -197,6 +197,7 @@
 
 	<ItemGroup>
 		<!-- <ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" /> -->
+		<ProjectReference Include="../../Plugin.Maui.DebugOverlay/src/Plugin.Maui.DebugOverlay/Plugin.Maui.DebugOverlay.csproj" />
 		<ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>
 
