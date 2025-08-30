@@ -22,11 +22,11 @@ public class MatchingTile
     public bool IsSelected { get; set; }
     public bool IsMatched { get; set; }
     public bool IsVisible { get; set; } = true;
-    
+
     // Enhanced progress tracking
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
     public VocabularyWord? Word { get; set; }
-    
+
     // Enhanced computed properties
     public bool IsKnown => Progress?.IsKnown ?? false;
     public float MasteryProgress => Progress?.MasteryScore ?? 0f;
@@ -66,12 +66,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             Grid(rows: "Auto, *", columns: "*",
                 // Header with progress
                 RenderHeader(),
-                
+
                 // Game area
                 ContentView(
-                    State.IsBusy ? 
+                    State.IsBusy ?
                         RenderLoading() :
-                        State.IsGameComplete ? 
+                        State.IsGameComplete ?
                             RenderGameComplete() :
                             RenderGameBoard()
                 ).GridRow(1)
@@ -110,10 +110,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             Label(_localize["Congratulations"].ToString())
                 .ThemeKey(MyTheme.Title1)
                 .HCenter(),
-            
+
             Label(_localize["AllPairsMatched"].ToString())
                 .HCenter(),
-                
+
             Button(_localize["PlayAgain"].ToString())
                 .OnClicked(RestartGame)
                 .HCenter()
@@ -284,7 +284,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         if (State.Tiles.Count > 0) return; // Already loaded
 
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsBusy = true;
             s.GameMessage = "";
         });
@@ -308,11 +309,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     }
                 }
             }
-            
+
             // If no words from resources, get some default words for demo
             if (words.Count == 0)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsBusy = false;
                     s.GameMessage = _localize["NoVocabularyAvailable"].ToString();
                 });
@@ -320,15 +322,16 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             }
 
             // Remove duplicates based on both native and target terms
-            words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && 
+            words = words.Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) &&
                                    !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
                          .GroupBy(w => new { Native = w.NativeLanguageTerm?.Trim(), Target = w.TargetLanguageTerm?.Trim() })
                          .Select(g => g.First())
                          .ToList();
-            
+
             if (words.Count == 0)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsBusy = false;
                     s.GameMessage = "No vocabulary available. Please add words to your vocabulary list.";
                 });
@@ -348,24 +351,26 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
             // Filter and prioritize words for matching activity
             var selectedWords = SelectWordsForMatching(wordsWithProgress).Take(8).ToList();
-            
+
             // Create tiles with enhanced progress information
             var tiles = await CreateTilesFromWordsAsync(selectedWords);
-            
-            SetState(s => {
+
+            SetState(s =>
+            {
                 s.Tiles = tiles;
                 s.TotalPairs = selectedWords.Count;
                 s.MatchedPairs = 0;
                 s.IsBusy = false;
                 s.IsGameComplete = false;
-                s.GameMessage = s.HideNativeWordsMode ? 
-                    _localize["TapTargetToReveal"].ToString() : 
+                s.GameMessage = s.HideNativeWordsMode ?
+                    _localize["TapTargetToReveal"].ToString() :
                     _localize["MatchPairs"].ToString();
             });
         }
         catch (Exception ex)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsBusy = false;
                 s.GameMessage = _localize["ErrorLoadingVocabulary"].ToString();
             });
@@ -395,7 +400,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             var word = wp.Word;
             var progress = wp.Progress;
-            
+
             if (!string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
             {
                 tiles.Add(new MatchingTile
@@ -416,7 +421,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             var word = wp.Word;
             var progress = wp.Progress;
-            
+
             if (!string.IsNullOrWhiteSpace(word.TargetLanguageTerm))
             {
                 tiles.Add(new MatchingTile
@@ -526,7 +531,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         // If in hide native words mode and a target language word was selected, show native words
         if (State.HideNativeWordsMode && tile.Language == "target" && State.SelectedTiles.Count == 1)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 foreach (var nativeTile in s.Tiles.Where(t => t.Language == "native" && !t.IsMatched))
                 {
                     nativeTile.IsVisible = true;
@@ -537,21 +543,22 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (State.SelectedTiles.Count == 2)
         {
             // Check for match after a short delay for visual feedback
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 await Task.Delay(800);
-                MainThread.BeginInvokeOnMainThread(CheckForMatch);
+                MainThread.BeginInvokeOnMainThread(() => CheckForMatch().ConfigureAwait(false));
             });
         }
     }
 
     void SelectTile(MatchingTile tile)
     {
-        SetState(s => {
+        SetState(s =>
+        {
             var tileToUpdate = s.Tiles.First(t => t.Id == tile.Id);
             tileToUpdate.IsSelected = true;
             s.SelectedTiles.Add(tileToUpdate);
-            
+
             if (s.SelectedTiles.Count == 1)
                 s.GameMessage = _localize["SelectAnotherTile"].ToString();
             else if (s.SelectedTiles.Count == 2)
@@ -561,14 +568,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     void DeselectTile(MatchingTile tile)
     {
-        SetState(s => {
+        SetState(s =>
+        {
             var tileToUpdate = s.Tiles.First(t => t.Id == tile.Id);
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
-            s.GameMessage = s.HideNativeWordsMode && s.SelectedTiles.Count == 0 ? 
-                _localize["TapTargetToReveal"].ToString() : 
+            s.GameMessage = s.HideNativeWordsMode && s.SelectedTiles.Count == 0 ?
+                _localize["TapTargetToReveal"].ToString() :
                 _localize["MatchPairs"].ToString();
-            
+
             // If in hide native words mode and we're deselecting the last tile, hide native words again
             if (s.HideNativeWordsMode && s.SelectedTiles.Count == 0)
             {
@@ -580,7 +588,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         });
     }
 
-    async void CheckForMatch()
+    async Task CheckForMatch()
     {
         if (State.SelectedTiles.Count != 2)
             return;
@@ -588,7 +596,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         var tile1 = State.SelectedTiles[0];
         var tile2 = State.SelectedTiles[1];
 
-        bool isMatch = tile1.VocabularyWordId == tile2.VocabularyWordId && 
+        bool isMatch = tile1.VocabularyWordId == tile2.VocabularyWordId &&
                        tile1.Language != tile2.Language;
 
         // Enhanced tracking: Stop response timer
@@ -609,7 +617,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (isMatch)
         {
             // It's a match!
-            SetState(s => {
+            SetState(s =>
+            {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
                 var tileToUpdate2 = s.Tiles.First(t => t.Id == tile2.Id);
                 tileToUpdate1.IsMatched = true;
@@ -619,7 +628,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.MatchedPairs++;
                 s.GameMessage = _localize["GreatMatch"].ToString();
-                
+
                 // Hide native words again if in hide mode
                 if (s.HideNativeWordsMode)
                 {
@@ -628,7 +637,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                         nativeTile.IsVisible = false;
                     }
                 }
-                
+
                 // Check if game is complete
                 if (s.MatchedPairs >= s.TotalPairs)
                 {
@@ -641,12 +650,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                     }
                 }
             });
-            
+
         }
         else
         {
             // Not a match
-            SetState(s => {
+            SetState(s =>
+            {
                 var tileToUpdate1 = s.Tiles.First(t => t.Id == tile1.Id);
                 var tileToUpdate2 = s.Tiles.First(t => t.Id == tile2.Id);
                 tileToUpdate1.IsSelected = false;
@@ -654,7 +664,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.SelectedTiles.Clear();
                 s.IncorrectGuesses++;
                 s.GameMessage = _localize["NotAMatch"].ToString();
-                
+
                 // Hide native words again if in hide mode
                 if (s.HideNativeWordsMode)
                 {
@@ -673,7 +683,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             // Get current resource ID for context tracking
             var currentResourceId = GetCurrentResourceId();
-            
+
             // Create detailed attempt record
             var attempt = new VocabularyAttempt
             {
@@ -690,24 +700,24 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 ResponseTimeMs = (int)_responseTimer.ElapsedMilliseconds,
                 UserConfidence = null // Not captured in matching activity
             };
-            
+
             // Record attempt using enhanced service
             var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
-            
+
             // Update the tiles with new progress
             var tilesForWord = State.Tiles.Where(t => t.VocabularyWordId == word.Id).ToList();
             foreach (var tile in tilesForWord)
             {
                 tile.Progress = updatedProgress;
             }
-            
+
             System.Diagnostics.Debug.WriteLine($"Enhanced progress tracking: Word {word.Id} - Correct: {isCorrect}, Mastery: {updatedProgress.MasteryScore:F2}");
         }
         catch (Exception ex)
         {
             // Log error but don't break game flow
             System.Diagnostics.Debug.WriteLine($"Error recording enhanced match activity: {ex.Message}");
-            
+
             // Fallback to legacy recording
             await RecordMatchActivity(isCorrect);
         }
@@ -727,14 +737,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             return Props.Resources.First().Id;
         }
-        
+
         // Fallback to Props.Resource for backward compatibility
         return Props.Resource?.Id;
     }
 
     void RestartGame()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.Tiles.Clear();
             s.SelectedTiles.Clear();
             s.MatchedPairs = 0;
@@ -748,9 +759,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     void ToggleHideNativeWordsMode()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.HideNativeWordsMode = !s.HideNativeWordsMode;
-            
+
             // Update visibility of native tiles based on new mode
             if (s.HideNativeWordsMode)
             {
@@ -772,9 +784,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         });
     }
 
-    async Task NavigateBack()
+    Task NavigateBack()
     {
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 
     async Task RecordMatchActivity(bool isCorrect)
@@ -783,7 +795,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         {
             // Get the target language word from the selected tiles
             var targetLanguageWord = State.SelectedTiles.FirstOrDefault(t => t.Language == "target")?.Text ?? "unknown";
-            
+
             var activity = new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.VocabularyMatching.ToString(),

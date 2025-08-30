@@ -35,19 +35,22 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     public override VisualNode Render()
     {
-        return ContentPage("Edit Vocabulary Word",
+        return ContentPage(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Edit Vocabulary Word",
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                ScrollView(
-                    VStack(spacing: 24,
-                        RenderWordForm(),
-                        RenderResourceAssociations(),
-                        RenderActionButtons()
-                    ).Padding(16)
-                )
+                Grid(rows: "*,Auto", columns: "*",
+                    ScrollView(
+                        VStack(spacing: 24,
+                            RenderWordForm(),
+                            RenderResourceAssociations()
+                        ).Padding(16)
+                    ),
+                    RenderActionButtons()
+                ).Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
+        .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         .OnAppearing(LoadData);
     }
 
@@ -149,17 +152,12 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .TextColor(MyTheme.Gray600)
                             .MaxLines(2) :
                         null
-                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand),
+                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand)
 
-                State.SelectedResourceIds.Contains(resource.Id) ?
-                    Label("✓")
-                        .FontSize(18)
-                        .TextColor(MyTheme.Success)
-                        .VCenter() :
-                    null
+
             ).Padding(12)
         )
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .StrokeShape(new Rectangle())
         .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
         .StrokeThickness(State.SelectedResourceIds.Contains(resource.Id) ? 2 : 1)
         .Background(State.SelectedResourceIds.Contains(resource.Id) ?
@@ -168,18 +166,37 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
 
     VisualNode RenderActionButtons() =>
-        VStack(spacing: 16,
-            // Save button
-            Button("Save Changes")
+        Grid(
+            rows: "Auto,Auto",
+            columns: Props.VocabularyWordId > 0 ? "*,Auto" : "*",
+            // Save/Add button on the left
+            Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
                 .ThemeKey("Primary")
                 .OnClicked(SaveVocabularyWord)
                 .IsEnabled(!State.IsSaving &&
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&
                           !string.IsNullOrWhiteSpace(State.NativeLanguageTerm.Trim()))
                 .FontSize(16)
-                .Padding(16, 12),
+                .Padding(16, 12)
+                .GridRow(0)
+                .GridColumn(0),
 
-            // Loading indicator
+            // Delete icon button on the right (only for existing words)
+            Props.VocabularyWordId > 0 ?
+                ImageButton()
+                    .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDelete)
+                    .BackgroundColor(MyTheme.LightSecondaryBackground)
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
+                    .OnClicked(DeleteVocabularyWord)
+                    .IsEnabled(!State.IsSaving)
+                    .GridRow(0)
+                    .GridColumn(1) :
+                null,
+
+            // Loading indicator row
             State.IsSaving ?
                 HStack(spacing: 8,
                     ActivityIndicator()
@@ -189,37 +206,45 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(14)
                         .TextColor(MyTheme.Gray600)
                         .VCenter()
-                ).HCenter() :
-                null,
-
-            // Delete button
-            Button("Delete Vocabulary Word")
-                .ThemeKey("Danger")
-                .OnClicked(DeleteVocabularyWord)
-                .IsEnabled(!State.IsSaving)
-                .FontSize(14)
-        );
+                )
+                .HCenter()
+                .GridRow(1)
+                .GridColumnSpan(Props.VocabularyWordId > 0 ? 2 : 1) :
+                null
+        )
+        .ThemeKey(MyTheme.Surface1)
+        .GridRow(1);
 
     async Task LoadData()
     {
-        if (Props.VocabularyWordId <= 0)
-        {
-            await Application.Current.MainPage.DisplayAlert("Error", "Invalid vocabulary word ID", "OK");
-            await NavigateBack();
-            return;
-        }
-
         SetState(s => s.IsLoading = true);
 
         try
         {
-            // Load the vocabulary word
-            var word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
-            if (word == null)
+            VocabularyWord? word = null;
+
+            // Load existing word or create new one
+            if (Props.VocabularyWordId > 0)
             {
-                await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
-                await NavigateBack();
-                return;
+                word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
+                if (word == null)
+                {
+                    await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
+                    await NavigateBack();
+                    return;
+                }
+            }
+            else
+            {
+                // Create new word for adding
+                word = new VocabularyWord
+                {
+                    Id = 0,
+                    TargetLanguageTerm = string.Empty,
+                    NativeLanguageTerm = string.Empty,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
             }
 
             // Load all available resources
@@ -299,24 +324,34 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
             await _resourceRepo.SaveWordAsync(State.Word);
 
-            // Handle resource associations
-            var currentResourceIds = State.AssociatedResources.Select(r => r.Id).ToHashSet();
-            var newResourceIds = State.SelectedResourceIds;
-
-            // Remove associations
-            foreach (var resourceId in currentResourceIds.Except(newResourceIds))
+            // Handle resource associations (only for words with valid IDs)
+            if (State.Word.Id > 0)
             {
-                await _resourceRepo.RemoveVocabularyFromResourceAsync(resourceId, State.Word.Id);
+                var currentResourceIds = State.AssociatedResources.Select(r => r.Id).ToHashSet();
+                var newResourceIds = State.SelectedResourceIds;
+
+                // Remove associations
+                foreach (var resourceId in currentResourceIds.Except(newResourceIds))
+                {
+                    await _resourceRepo.RemoveVocabularyFromResourceAsync(resourceId, State.Word.Id);
+                }
+
+                // Add associations
+                foreach (var resourceId in newResourceIds.Except(currentResourceIds))
+                {
+                    await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+                }
+            }
+            else
+            {
+                // For new words, just add the selected associations
+                foreach (var resourceId in State.SelectedResourceIds)
+                {
+                    await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
+                }
             }
 
-            // Add associations
-            foreach (var resourceId in newResourceIds.Except(currentResourceIds))
-            {
-                await _resourceRepo.AddVocabularyToResourceAsync(resourceId, State.Word.Id);
-            }
 
-            //await AppShell.DisplayToastAsync("✅ Vocabulary word updated successfully!");
-            await NavigateBack();
         }
         catch (Exception ex)
         {
@@ -326,6 +361,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
+            await AppShell.DisplayToastAsync(Props.VocabularyWordId == 0 ?
+                "✅ Vocabulary word added successfully!" :
+                "✅ Vocabulary word updated successfully!");
+            await NavigateBack();
         }
     }
 
@@ -343,8 +382,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         try
         {
             await _resourceRepo.DeleteVocabularyWordAsync(State.Word.Id);
-            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
-            await NavigateBack();
+
         }
         catch (Exception ex)
         {
@@ -354,11 +392,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
+            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
+            await NavigateBack();
         }
     }
 
-    async Task NavigateBack()
+    Task NavigateBack()
     {
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 }

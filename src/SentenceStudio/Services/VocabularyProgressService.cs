@@ -67,9 +67,9 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// Gets progress for a specific vocabulary word and user
     /// </summary>
-    public async Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 1)
+    public Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 1)
     {
-        return await GetOrCreateProgressAsync(vocabularyWordId, userId);
+        return GetOrCreateProgressAsync(vocabularyWordId, userId);
     }
 
     /// <summary>
@@ -401,7 +401,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         progress.NextReviewDate = DateTime.Now.AddDays(progress.ReviewInterval);
     }
 
-    private async Task RecordLearningContextAsync(int vocabularyProgressId, VocabularyAttempt attempt)
+    private Task RecordLearningContextAsync(int vocabularyProgressId, VocabularyAttempt attempt)
     {
         var context = new VocabularyLearningContext
         {
@@ -421,7 +421,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             CorrectAnswersInContext = attempt.WasCorrect ? 1 : 0
         };
 
-        await _contextRepo.SaveAsync(context);
+        return _contextRepo.SaveAsync(context);
     }
 
     private async Task<VocabularyProgress> GetOrCreateProgressAsync(int vocabularyWordId, int userId)

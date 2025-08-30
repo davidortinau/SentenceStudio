@@ -6,7 +6,6 @@ using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Controls;
 using SentenceStudio.Pages.Reading;
 using MauiReactor.Shapes;
 using Microsoft.Maui.Storage;
@@ -27,6 +26,11 @@ class DashboardPageState
     public List<LearningResource> SelectedResources { get; set; } = [];
     public int SelectedSkillProfileIndex { get; set; } = -1; // Initialize to -1 (no selection)
     public int SelectedResourceIndex { get; set; } = -1; // Initialize to -1 (no selection)
+
+    public DisplayOrientation Orientation { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Orientation;
+    public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
+    public double Height { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Height;
+    public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
 }
 
 partial class DashboardPage : Component<DashboardPageState>
@@ -42,12 +46,61 @@ partial class DashboardPage : Component<DashboardPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    protected override void OnMounted()
+    {
+        // Initialize from current display info
+        var info = DeviceDisplay.Current.MainDisplayInfo;
+        SetState(s =>
+        {
+            s.Orientation = info.Orientation;
+            s.Width = info.Width;
+            s.Height = info.Height;
+            s.Density = info.Density;
+        });
+
+        // Subscribe to changes (rotation, size, density)
+        DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+        base.OnMounted();
+    }
+    protected override void OnWillUnmount()
+    {
+        DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
+
+        base.OnWillUnmount();
+    }
+
+    private void OnMainDisplayInfoChanged(object? sender, DisplayInfoChangedEventArgs e)
+    {
+        // var info = e.DisplayInfo;
+        var info = DeviceDisplay.Current.MainDisplayInfo;
+
+        // SetState triggers a rerender in MauiReactor
+        SetState(s =>
+        {
+            s.Orientation = info.Orientation;
+            s.Width = info.Width;
+            s.Height = info.Height;
+            s.Density = info.Density;
+        });
+    }
+
     public override VisualNode Render()
     {
+        SafeAreaEdges safeEdges =
+            DeviceDisplay.Current.MainDisplayInfo.Rotation switch
+            {
+                DisplayRotation.Rotation0 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation90 => new(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation180 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+                DisplayRotation.Rotation270 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.All, SafeAreaRegions.None),
+                _ => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
+            };
+
         //Console.Writeline(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
 
             Grid(
+
                 VScrollView(
                     VStack(
                         ContentView()
@@ -193,14 +246,18 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
-                        }.Spacing(20)
+                        }.Spacing(DeviceInfo.Idiom == DeviceIdiom.Phone ? 8 : 20)
                     )// vstack
                     .Padding(MyTheme.Size160)
                     .Spacing(MyTheme.Size240)
                 )// vscrollview
+                .Set(Layout.SafeAreaEdgesProperty, safeEdges)
             )// grid
+            .Set(Layout.SafeAreaEdgesProperty, safeEdges)
 
-        ).OnAppearing(LoadOrRefreshDataAsync);// contentpage
+        )
+        .Set(Layout.SafeAreaEdgesProperty, safeEdges)
+        .OnAppearing(LoadOrRefreshDataAsync);// contentpage
     }
 
     async Task LoadOrRefreshDataAsync()
@@ -396,8 +453,8 @@ public partial class ActivityBorder : MauiReactor.Component
                     .HorizontalOptions(LayoutOptions.Center)
                     .Text($"{_labelText}")
             )
-            .WidthRequest(200)
-            .HeightRequest(80)
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 80)
         )
         .StrokeShape(Rectangle())
         .StrokeThickness(1)

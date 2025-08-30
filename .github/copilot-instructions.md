@@ -19,7 +19,7 @@ When converting code from C# Markup to MauiReactor, keep these details in mind:
 
 For doing CoreSync work, refer to the sample project https://github.com/adospace/mauireactor-core-sync
 
-Documentation via Context 7 is here:
+Documentation via Context7 mcp is here:
 - .NET MAUI https://context7.com/dotnet/maui/llms.txt
 - Community Toolkit for .NET MAUI https://context7.com/communitytoolkit/maui.git/llms.txt
 - MauiReactor https://context7.com/adospace/reactorui-maui/llms.txt

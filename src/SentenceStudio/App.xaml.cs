@@ -96,7 +96,7 @@ public abstract class MauiReactorApplication : ReactorApplication<AppShell>
 			
 			//Console.Writeline($"MauiReactorApplication constructor completed");
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			//Console.Writeline($"Exception in MauiReactorApplication constructor: {ex}");
 			//Console.Writeline($"MauiReactor exception stack trace: {Environment.StackTrace}");
@@ -118,7 +118,7 @@ public abstract class MauiReactorApplication : ReactorApplication<AppShell>
 			//Console.Writeline($"CreateWindow completed successfully");
 			return window;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			//Console.Writeline($"Exception in CreateWindow: {ex}");
 			//Console.Writeline($"CreateWindow exception stack trace: {Environment.StackTrace}");

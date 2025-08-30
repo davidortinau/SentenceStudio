@@ -45,7 +45,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Name)
                             .OnTextChanged(text => SetState(s => s.Name = text))
                     }
-                    .Hint($"{_localize["Name"]}"),
+                        .Hint($"{_localize["Name"]}"),
 
                     new SfTextInputLayout
                     {
@@ -53,7 +53,8 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.Email)
                             .OnTextChanged(text => SetState(s => s.Email = text))
                     }
-                    .Hint($"{_localize["Email"]}"), new SfTextInputLayout
+                        .Hint($"{_localize["Email"]}"),
+                    new SfTextInputLayout
                     {
                         Picker()
                             .ItemsSource(Constants.Languages)
@@ -63,7 +64,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 s.NativeLanguageIndex = index; // Save the index too!
                             }))
                     }
-                    .Hint($"{_localize["NativeLanguage"]}"),
+                        .Hint($"{_localize["NativeLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -75,7 +76,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 s.TargetLanguageIndex = index; // Save the index too!
                             }))
                     }
-                    .Hint($"{_localize["TargetLanguage"]}"),
+                        .Hint($"{_localize["TargetLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -94,7 +95,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 _localize.SetCulture(culture);
                             })
                     }
-                    .Hint($"{_localize["DisplayLanguage"]}"),
+                        .Hint($"{_localize["DisplayLanguage"]}"),
 
                     new SfTextInputLayout
                     {
@@ -103,7 +104,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             .Text(State.OpenAI_APIKey)
                             .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
                     }
-                    .Hint($"{_localize["OpenAI_APIKey"]}"),
+                        .Hint($"{_localize["OpenAI_APIKey"]}"),
 
                     Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
                         .TextDecorations(TextDecorations.Underline)

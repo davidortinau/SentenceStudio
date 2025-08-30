@@ -39,6 +39,7 @@ using SentenceStudio.Pages.VocabularyProgress;
 using ReactorTheme;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Plugin.Maui.DebugOverlay;
 
 #if WINDOWS
 using System.Reflection;
@@ -53,6 +54,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
@@ -117,6 +119,7 @@ public static class MauiProgram
 
 #if DEBUG
 		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
+		builder.UseDebugRibbon();
 #endif
 
 		RegisterRoutes();
@@ -264,6 +267,11 @@ public static class MauiProgram
 		services.AddSingleton<ElevenLabsSpeechService>();
 		services.AddSingleton<DataExportService>();
 		services.AddSingleton<NameGenerationService>();
+
+#if DEBUG
+		// Debug services - only available in debug builds
+		services.AddSingleton<VisualTreeDumpService>();
+#endif
 
 		// services.AddSingleton<AppShellModel>();
 		services.AddSingleton<StoryRepository>();
