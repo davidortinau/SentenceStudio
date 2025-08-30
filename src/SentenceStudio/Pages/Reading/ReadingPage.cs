@@ -183,32 +183,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         .GridRow(0)
         .IsVisible(State.IsGeneratingAudio);
 
-    VisualNode RenderHeader() =>
-        Grid(rows: "*", columns: "*,Auto,Auto,Auto",
-            ImageButton()
-                .Source(MyTheme.IconFontDecrease)
-                .OnClicked(DecreaseFontSize)
-                .GridColumn(1)
-                .Padding(4),
-            ImageButton()
-                .Source(MyTheme.IconFontIncrease)
-                .OnClicked(IncreaseFontSize)
-                .GridColumn(2)
-                .Padding(4),
-            ImageButton()
-                .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
-                .OnClicked(TogglePlayback)
-                .GridColumn(3)
-            // Label($"{State.PlaybackSpeed:F1}x")
-            //     .OnTapped(CyclePlaybackSpeed)
-            //     .GridColumn(4)
-            //     .VCenter()
-            //     .Padding(MyTheme.Size80)
-        )
-        .ColumnSpacing(MyTheme.LayoutSpacing)
-        .Padding(MyTheme.Size160)
-        .GridRow(0);
-    
     VisualNode RenderReadingContent() =>
         ScrollView(
             VStack(
