@@ -313,6 +313,10 @@
     <value>어떻게 말합니까?</value>
     <comment/>
   </data>
+  <data name="Reading" xml:space="preserve">
+    <value>읽기</value>
+    <comment/>
+  </data>
   <data name="Done" xml:space="preserve">
     <value>완료</value>
     <comment/>

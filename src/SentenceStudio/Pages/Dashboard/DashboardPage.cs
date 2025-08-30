@@ -241,7 +241,7 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
                             new ActivityBorder().LabelText($"{_localize["Clozures"]}").Route(nameof(ClozurePage)),
-                            new ActivityBorder().LabelText($"📖 Reading").Route("reading"),
+                            new ActivityBorder().LabelText($"{_localize["Reading"]}").Route("reading"),
                             new ActivityBorder().LabelText($"{_localize["VocabularyQuiz"]}").Route(nameof(VocabularyQuizPage)),
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
@@ -453,8 +453,8 @@ public partial class ActivityBorder : MauiReactor.Component
                     .HorizontalOptions(LayoutOptions.Center)
                     .Text($"{_labelText}")
             )
-            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 300)
-            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 120)
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 80)
         )
         .StrokeShape(Rectangle())
         .StrokeThickness(1)
