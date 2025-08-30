@@ -128,19 +128,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged((sender, e) =>
-                                                {
-                                                    if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
-                                                    {
-                                                        SetState(s =>
-                                                        {
-                                                            s.SelectedResources = selectedResources;
-                                                            s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
-                                                        });
-                                                        _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
-                                                        SaveUserSelectionsToPreferences();
-                                                    }
-                                                })
+                                                .OnSelectionChanged(OnResourcesSelectionChanged)
                                         ).Spacing(MyTheme.LayoutSpacing)
                                     ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border
@@ -159,16 +147,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                                .OnSelectionChanged((sender, e) =>
-                                                {
-                                                    if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
-                                                    {
-                                                        var index = State.SkillProfiles.IndexOf(selectedProfile);
-                                                        SetState(s => s.SelectedSkillProfileIndex = index);
-                                                        _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
-                                                        SaveUserSelectionsToPreferences();
-                                                    }
-                                                })
+                                                .OnSelectionChanged(OnSkillSelectionChanged)
                                         ).Spacing(MyTheme.LayoutSpacing)
                                     ).Padding(MyTheme.Size160, MyTheme.Size80)
                             ) :
@@ -187,19 +166,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged((sender, e) =>
-                                                {
-                                                    if (e.AddedItems?.Cast<LearningResource>().ToList() is var selectedResources && selectedResources.Any())
-                                                    {
-                                                        SetState(s =>
-                                                        {
-                                                            s.SelectedResources = selectedResources;
-                                                            s.SelectedResourceIndex = State.Resources.IndexOf(selectedResources.FirstOrDefault());
-                                                        });
-                                                        _parameters.Set(p => p.SelectedResources = selectedResources.ToList());
-                                                        SaveUserSelectionsToPreferences();
-                                                    }
-                                                })
+                                                .OnSelectionChanged(OnResourcesSelectionChanged)
                                         ).Spacing(MyTheme.LayoutSpacing)
                                     ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border
@@ -215,16 +182,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                                 .DisplayMemberPath("Title")
                                                 .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
                                                 .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                                .OnSelectionChanged((sender, e) =>
-                                                {
-                                                    if (e.AddedItems?.FirstOrDefault() is SkillProfile selectedProfile)
-                                                    {
-                                                        var index = State.SkillProfiles.IndexOf(selectedProfile);
-                                                        SetState(s => s.SelectedSkillProfileIndex = index);
-                                                        _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
-                                                        SaveUserSelectionsToPreferences();
-                                                    }
-                                                })
+                                                .OnSelectionChanged(OnSkillSelectionChanged)
                                         ).Spacing(MyTheme.LayoutSpacing)
                                     )
                                     .Padding(MyTheme.Size160, MyTheme.Size80)
@@ -338,6 +296,48 @@ partial class DashboardPage : Component<DashboardPageState>
         if (State.SelectedResources.Any())
         {
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Selected resource titles: {string.Join(", ", State.SelectedResources.Select(r => r.Title))}");
+        }
+    }
+
+    // Selection handlers that are resilient to chip removals (e.AddedItems can be null)
+    private void OnResourcesSelectionChanged(object sender, Syncfusion.Maui.Inputs.SelectionChangedEventArgs e)
+    {
+        try
+        {
+            var combo = sender as Syncfusion.Maui.Inputs.SfComboBox;
+            var selected = combo?.SelectedItems?.OfType<LearningResource>().ToList() ?? new List<LearningResource>();
+
+            SetState(s =>
+            {
+                s.SelectedResources = selected;
+                s.SelectedResourceIndex = selected.Any() ? State.Resources.IndexOf(selected.First()) : -1;
+            });
+
+            _parameters.Set(p => p.SelectedResources = selected);
+            SaveUserSelectionsToPreferences();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"OnResourcesSelectionChanged error: {ex.Message}");
+        }
+    }
+
+    private void OnSkillSelectionChanged(object sender, Syncfusion.Maui.Inputs.SelectionChangedEventArgs e)
+    {
+        try
+        {
+            var combo = sender as Syncfusion.Maui.Inputs.SfComboBox;
+            // Single selection mode: use SelectedItem
+            var selectedProfile = combo?.SelectedItem as SkillProfile;
+            var index = selectedProfile != null ? State.SkillProfiles.IndexOf(selectedProfile) : -1;
+
+            SetState(s => s.SelectedSkillProfileIndex = index);
+            _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
+            SaveUserSelectionsToPreferences();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"OnSkillSelectionChanged error: {ex.Message}");
         }
     }
 
