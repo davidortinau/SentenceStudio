@@ -376,13 +376,11 @@ public partial class OnboardingPage : Component<OnboardingState>
                             Label("🎯 Create Starter Content")
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
-                                .HCenter()
-                                .TextColor(MyTheme.LightOnDarkBackground),
+                                .HCenter(),
 
                             Label($"Let me create a beginner vocabulary list and skill profile for {State.TargetLanguage} to get you started!")
                                 .FontSize(14)
                                 .HCenter()
-                                .TextColor(MyTheme.LightOnDarkBackground)
                                 .Margin(0, 8, 0, 0)
                         )
                         .Spacing(4)
