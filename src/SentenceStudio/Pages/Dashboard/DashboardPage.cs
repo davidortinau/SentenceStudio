@@ -31,6 +31,12 @@ class DashboardPageState
     public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
     public double Height { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Height;
     public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
+    
+    // Progress visuals
+    public SentenceStudio.Services.Progress.VocabProgressSummary? VocabSummary { get; set; }
+    public List<SentenceStudio.Services.Progress.ResourceProgress> ResourceProgress { get; set; } = [];
+    public SentenceStudio.Services.Progress.SkillProgress? SelectedSkillProgress { get; set; }
+    public List<SentenceStudio.Services.Progress.PracticeHeatPoint> PracticeHeat { get; set; } = [];
 }
 
 partial class DashboardPage : Component<DashboardPageState>
@@ -41,6 +47,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] SkillProfileRepository _skillService;
+    [Inject] SentenceStudio.Services.Progress.IProgressService _progressService;
 
     [Param] IParameter<DashboardParameters> _parameters;
 
@@ -189,6 +196,82 @@ partial class DashboardPage : Component<DashboardPageState>
                                     .GridColumn(1)
                             ).Columns("*,*").ColumnSpacing(15),
 
+                        // --- Progress Section ---
+                        Label("Your Progress").ThemeKey(MyTheme.Title1).HStart().Margin(0, 20, 0, 10),
+                        
+                        // Responsive progress layout
+                        DeviceInfo.Idiom == DeviceIdiom.Phone || DeviceDisplay.MainDisplayInfo.Width < 800 ?
+                            // Phone: Vertical stack
+                            VStack(spacing: 12,
+                                // Vocabulary progress
+                                (State.VocabSummary != null
+                                    ? new VocabProgressCard()
+                                        .Summary(State.VocabSummary)
+                                        .IsVisible(true)
+                                    : ContentView().HeightRequest(0)
+                                ),
+                                
+                                // Skill progress
+                                (State.SelectedSkillProgress != null
+                                    ? new SkillProgressCard()
+                                        .Skill(State.SelectedSkillProgress)
+                                        .IsVisible(true)
+                                    : ContentView().HeightRequest(0)
+                                ),
+                                
+                                // Resource progress
+                                (State.ResourceProgress?.Any() == true
+                                    ? new ResourceProgressCard()
+                                        .Resources(State.ResourceProgress)
+                                        .IsVisible(true)
+                                    : ContentView().HeightRequest(0)
+                                ),
+                                
+                                // Practice streak
+                                (State.PracticeHeat?.Any() == true
+                                    ? new PracticeStreakCard()
+                                        .HeatData(State.PracticeHeat)
+                                        .IsVisible(true)
+                                    : ContentView().HeightRequest(0)
+                                )
+                            ) :
+                            // Tablet/Desktop: 2x2 grid
+                            Grid(
+                                // Row 1
+                                (State.VocabSummary != null
+                                    ? new VocabProgressCard()
+                                        .Summary(State.VocabSummary)
+                                        .IsVisible(true)
+                                        .GridRow(0).GridColumn(0)
+                                    : ContentView().HeightRequest(0).GridRow(0).GridColumn(0)
+                                ),
+                                
+                                (State.SelectedSkillProgress != null
+                                    ? new SkillProgressCard()
+                                        .Skill(State.SelectedSkillProgress)
+                                        .IsVisible(true)
+                                        .GridRow(0).GridColumn(1)
+                                    : ContentView().HeightRequest(0).GridRow(0).GridColumn(1)
+                                ),
+                                
+                                // Row 2
+                                (State.ResourceProgress?.Any() == true
+                                    ? new ResourceProgressCard()
+                                        .Resources(State.ResourceProgress)
+                                        .IsVisible(true)
+                                        .GridRow(1).GridColumn(0)
+                                    : ContentView().HeightRequest(0).GridRow(1).GridColumn(0)
+                                ),
+                                
+                                (State.PracticeHeat?.Any() == true
+                                    ? new PracticeStreakCard()
+                                        .HeatData(State.PracticeHeat)
+                                        .IsVisible(true)
+                                        .GridRow(1).GridColumn(1)
+                                    : ContentView().HeightRequest(0).GridRow(1).GridColumn(1)
+                                )
+                            ).Rows("auto,auto").Columns("*,*").RowSpacing(12).ColumnSpacing(12),
+
                         Label()
                             .ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
@@ -251,7 +334,7 @@ partial class DashboardPage : Component<DashboardPageState>
             p.SelectedSkillProfile = selectedSkill;
         });
 
-        // Calculate indices for the selected items
+    // Calculate indices for the selected items
         var selectedResourceIndex = -1;
         var selectedSkillIndex = -1;
 
@@ -279,6 +362,41 @@ partial class DashboardPage : Component<DashboardPageState>
                 }
             }
         }
+
+        // Load vocab progress summary in background (doesn't block main UI)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var fromUtc = DateTime.UtcNow.AddDays(-30);
+                
+                // Load all progress data in parallel
+                var vocabTask = _progressService.GetVocabSummaryAsync(fromUtc);
+                var resourceTask = _progressService.GetRecentResourceProgressAsync(fromUtc, 3);
+                var heatTask = _progressService.GetPracticeHeatAsync(fromUtc.AddDays(-56), DateTime.UtcNow); // 8 weeks
+                
+                await Task.WhenAll(vocabTask, resourceTask, heatTask);
+                
+                // Load skill progress for selected skill if available
+                SentenceStudio.Services.Progress.SkillProgress? skillProgress = null;
+                if (selectedSkill != null)
+                {
+                    skillProgress = await _progressService.GetSkillProgressAsync(selectedSkill.Id);
+                }
+                
+                SetState(st => 
+                {
+                    st.VocabSummary = vocabTask.Result;
+                    st.ResourceProgress = resourceTask.Result;
+                    st.SelectedSkillProgress = skillProgress;
+                    st.PracticeHeat = heatTask.Result.ToList();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Progress data load error: {ex.Message}");
+            }
+        });
 
         SetState(s =>
         {

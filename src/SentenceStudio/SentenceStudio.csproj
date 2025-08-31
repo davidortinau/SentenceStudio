@@ -155,6 +155,9 @@
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.113" />
 		<PackageReference Include="CoreSync.Sqlite" Version="0.1.113" />
 		<PackageReference Include="Syncfusion.Maui.Inputs" Version="30.1.39" />
+		<PackageReference Include="Syncfusion.Maui.Charts" Version="30.1.39" />
+		<PackageReference Include="Syncfusion.Maui.Gauges" Version="30.1.39" />
+		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="30.1.39" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="9.0.0">
 			<PrivateAssets>all</PrivateAssets>
