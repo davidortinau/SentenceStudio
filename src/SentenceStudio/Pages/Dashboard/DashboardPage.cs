@@ -31,7 +31,7 @@ class DashboardPageState
     public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
     public double Height { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Height;
     public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
-    
+
     // Progress visuals
     public SentenceStudio.Services.Progress.VocabProgressSummary? VocabSummary { get; set; }
     public List<SentenceStudio.Services.Progress.ResourceProgress> ResourceProgress { get; set; } = [];
@@ -198,7 +198,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
                         // --- Progress Section ---
                         Label("Your Progress").ThemeKey(MyTheme.Title1).HStart().Margin(0, 20, 0, 10),
-                        
+
                         // Responsive progress layout
                         DeviceInfo.Idiom == DeviceIdiom.Phone || DeviceDisplay.MainDisplayInfo.Width < 800 ?
                             // Phone: Vertical stack
@@ -210,7 +210,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .IsVisible(true)
                                     : ContentView().HeightRequest(0)
                                 ),
-                                
+
                                 // Skill progress
                                 (State.SelectedSkillProgress != null
                                     ? new SkillProgressCard()
@@ -218,7 +218,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .IsVisible(true)
                                     : ContentView().HeightRequest(0)
                                 ),
-                                
+
                                 // Resource progress
                                 (State.ResourceProgress?.Any() == true
                                     ? new ResourceProgressCard()
@@ -226,7 +226,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .IsVisible(true)
                                     : ContentView().HeightRequest(0)
                                 ),
-                                
+
                                 // Practice streak
                                 (State.PracticeHeat?.Any() == true
                                     ? new PracticeStreakCard()
@@ -245,7 +245,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .GridRow(0).GridColumn(0)
                                     : ContentView().HeightRequest(0).GridRow(0).GridColumn(0)
                                 ),
-                                
+
                                 (State.SelectedSkillProgress != null
                                     ? new SkillProgressCard()
                                         .Skill(State.SelectedSkillProgress)
@@ -253,7 +253,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .GridRow(0).GridColumn(1)
                                     : ContentView().HeightRequest(0).GridRow(0).GridColumn(1)
                                 ),
-                                
+
                                 // Row 2
                                 (State.ResourceProgress?.Any() == true
                                     ? new ResourceProgressCard()
@@ -262,7 +262,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .GridRow(1).GridColumn(0)
                                     : ContentView().HeightRequest(0).GridRow(1).GridColumn(0)
                                 ),
-                                
+
                                 (State.PracticeHeat?.Any() == true
                                     ? new PracticeStreakCard()
                                         .HeatData(State.PracticeHeat)
@@ -334,7 +334,7 @@ partial class DashboardPage : Component<DashboardPageState>
             p.SelectedSkillProfile = selectedSkill;
         });
 
-    // Calculate indices for the selected items
+        // Calculate indices for the selected items
         var selectedResourceIndex = -1;
         var selectedSkillIndex = -1;
 
@@ -369,22 +369,22 @@ partial class DashboardPage : Component<DashboardPageState>
             try
             {
                 var fromUtc = DateTime.UtcNow.AddDays(-30);
-                
+
                 // Load all progress data in parallel
                 var vocabTask = _progressService.GetVocabSummaryAsync(fromUtc);
                 var resourceTask = _progressService.GetRecentResourceProgressAsync(fromUtc, 3);
-                var heatTask = _progressService.GetPracticeHeatAsync(fromUtc.AddDays(-56), DateTime.UtcNow); // 8 weeks
-                
+                var heatTask = _progressService.GetPracticeHeatAsync(DateTime.UtcNow.AddDays(-364), DateTime.UtcNow); // 8 weeks
+
                 await Task.WhenAll(vocabTask, resourceTask, heatTask);
-                
+
                 // Load skill progress for selected skill if available
                 SentenceStudio.Services.Progress.SkillProgress? skillProgress = null;
                 if (selectedSkill != null)
                 {
                     skillProgress = await _progressService.GetSkillProgressAsync(selectedSkill.Id);
                 }
-                
-                SetState(st => 
+
+                SetState(st =>
                 {
                     st.VocabSummary = vocabTask.Result;
                     st.ResourceProgress = resourceTask.Result;

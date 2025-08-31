@@ -15,67 +15,133 @@ public partial class PracticeStreakCard : Component
     {
         if (!_isVisible || _heatData?.Any() != true) return ContentView();
 
-        var recent14Days = _heatData.TakeLast(14).ToList();
-        var currentStreak = CalculateCurrentStreak(recent14Days);
-        var maxStreak = CalculateMaxStreak(_heatData);
+        var allDays = _heatData.ToList();
+        var currentStreak = CalculateCurrentStreak(allDays);
+        var maxStreak = CalculateMaxStreak(allDays);
+        var totalPractice = allDays.Sum(d => d.Count);
+
+        // Generate GitHub-style calendar for last year (52 weeks)
+        var calendarData = GenerateCalendarData(allDays, 52);
 
         return Border(
             VStack(
-                Label("Practice Streak").FontSize(16).FontAttributes(FontAttributes.Bold),
-                
-                // Streak stats
                 HStack(
-                    VStack(
-                        Label($"{currentStreak}")
-                            .FontSize(28)
-                            .FontAttributes(FontAttributes.Bold)
-                            .TextColor(currentStreak > 0 ? Colors.Green : Colors.Gray)
-                            .HorizontalOptions(LayoutOptions.Center),
-                        Label("Current Streak")
-                            .FontSize(10)
-                            .TextColor(Colors.Gray)
-                            .HorizontalOptions(LayoutOptions.Center)
-                    ).Spacing(2),
-                    
-                    VStack(
-                        Label($"{maxStreak}")
-                            .FontSize(20)
-                            .FontAttributes(FontAttributes.Bold)
-                            .TextColor(Colors.Orange)
-                            .HorizontalOptions(LayoutOptions.Center),
-                        Label("Best Streak")
-                            .FontSize(10)
-                            .TextColor(Colors.Gray)
-                            .HorizontalOptions(LayoutOptions.Center)
-                    ).Spacing(2)
-                ).Spacing(40).HorizontalOptions(LayoutOptions.Center),
+                    Label("Practice Activity").FontSize(16).FontAttributes(FontAttributes.Bold),
+                    Label($"{totalPractice} practices in the last year")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                        .HorizontalOptions(LayoutOptions.End)
+                ).Spacing(10),
 
-                // Visual representation of last 14 days
-                Label("Last 14 days").FontSize(12).TextColor(Colors.Gray).HorizontalOptions(LayoutOptions.Center),
-                HStack(
-                    recent14Days.Select(day =>
-                        Border(
-                            ContentView()
-                                .WidthRequest(16)
-                                .HeightRequest(16)
-                        )
-                        .BackgroundColor(GetHeatColor(day.Count))
-                        .StrokeThickness(0)
-                        .Margin(1)
-                    ).ToArray()
-                ).HorizontalOptions(LayoutOptions.Center).Spacing(2)
-            ).Spacing(12).Padding(16)
+                // GitHub-style contribution calendar
+                VStack(
+                    // Month labels
+                    HStack(
+                        Label("").WidthRequest(15), // Space for day labels
+                        HStack(
+                            GetMonthLabels(calendarData).Select(month =>
+                                Label(month.Label)
+                                    .FontSize(10)
+                                    .TextColor(Colors.Gray)
+                                    .WidthRequest(month.Width * 13) // 11px squares + 2px spacing
+                                    .HorizontalTextAlignment(TextAlignment.Start)
+                            ).ToArray()
+                        ).Spacing(0)
+                    ).Margin(0, 0, 0, 4),
+
+                    // Main calendar grid with day labels
+                    HStack(
+                        // Day of week labels
+                        VStack(
+                            Label("").HeightRequest(11), // Sun (hidden)
+                            Label("Mon").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                            Label("").HeightRequest(11), // Tue (hidden)
+                            Label("Wed").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                            Label("").HeightRequest(11), // Thu (hidden)
+                            Label("Fri").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                            Label("").HeightRequest(11)  // Sat (hidden)
+                        ).Spacing(2).WidthRequest(15),
+
+                        // Calendar squares grid
+                        HStack(
+                            calendarData.Select(week =>
+                                VStack(
+                                    week.Select(day =>
+                                        Border()
+                                            .WidthRequest(11)
+                                            .HeightRequest(11)
+                                            .Padding(0)
+                                            .StrokeShape(Rectangle())
+                                            .Background(GetGitHubColor(day?.Count ?? 0))
+                                            .StrokeThickness(1)
+                                            .Stroke(Color.FromRgba(0, 0, 0, 30)) // Very light border
+                                    ).ToArray()
+                                ).Spacing(2)
+                            ).ToArray()
+                        ).Spacing(2)
+                    ).Spacing(0),
+
+                    // Legend and stats
+                    HStack(
+                        // Current stats
+                        HStack(
+                            VStack(
+                                Label($"{currentStreak}")
+                                    .FontSize(16)
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .TextColor(currentStreak > 0 ? Colors.Green : Colors.Gray),
+                                Label("Current streak")
+                                    .FontSize(10)
+                                    .TextColor(Colors.Gray)
+                            ).Spacing(0),
+
+                            VStack(
+                                Label($"{maxStreak}")
+                                    .FontSize(16)
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .TextColor(Colors.Orange),
+                                Label("Longest streak")
+                                    .FontSize(10)
+                                    .TextColor(Colors.Gray)
+                            ).Spacing(0)
+                        ).Spacing(20),
+
+                        // Activity level legend
+                        HStack(
+                            Label("Less").FontSize(10).TextColor(Colors.Gray),
+                            HStack(
+                                Border().WidthRequest(10).HeightRequest(10).StrokeShape(Rectangle()).Padding(0)
+                                    .Background(GetGitHubColor(0)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
+                                Border().WidthRequest(10).HeightRequest(10).StrokeShape(Rectangle()).Padding(0)
+                                    .Background(GetGitHubColor(1)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
+                                Border().WidthRequest(10).HeightRequest(10).StrokeShape(Rectangle()).Padding(0)
+                                    .Background(GetGitHubColor(2)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
+                                Border().WidthRequest(10).HeightRequest(10).StrokeShape(Rectangle()).Padding(0)
+                                    .Background(GetGitHubColor(4)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
+                                Border().WidthRequest(10).HeightRequest(10).StrokeShape(Rectangle()).Padding(0)
+                                    .Background(GetGitHubColor(5)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30))
+                            ).Spacing(2),
+                            Label("More").FontSize(10).TextColor(Colors.Gray)
+                        ).Spacing(4).HorizontalOptions(LayoutOptions.End)
+                    ).HorizontalOptions(LayoutOptions.Fill).Margin(8, 8, 0, 0)
+                ).Spacing(6)
+            ).Spacing(15).Padding(16)
         ).StrokeThickness(1).Stroke(Colors.LightGray);
     }
 
-    private int CalculateCurrentStreak(List<PracticeHeatPoint> recent14Days)
+    private int CalculateCurrentStreak(List<PracticeHeatPoint> allData)
     {
+        var today = DateTime.Now.Date;
         int streak = 0;
-        for (int i = recent14Days.Count - 1; i >= 0; i--)
+
+        for (int i = 0; i < 365; i++) // Check last 365 days
         {
-            if (recent14Days[i].Count > 0)
+            var checkDate = today.AddDays(-i);
+            var dayData = allData.FirstOrDefault(d => d.Date.Date == checkDate);
+
+            if (dayData?.Count > 0)
                 streak++;
-            else
+            else if (i > 0) // Don't break on today if no activity
                 break;
         }
         return streak;
@@ -85,10 +151,13 @@ public partial class PracticeStreakCard : Component
     {
         int maxStreak = 0;
         int currentStreak = 0;
-        
-        foreach (var day in allData)
+        var dataDict = allData.ToDictionary(d => d.Date.Date, d => d.Count);
+
+        // Check last 365 days
+        for (int i = 364; i >= 0; i--)
         {
-            if (day.Count > 0)
+            var checkDate = DateTime.Now.Date.AddDays(-i);
+            if (dataDict.GetValueOrDefault(checkDate, 0) > 0)
             {
                 currentStreak++;
                 maxStreak = Math.Max(maxStreak, currentStreak);
@@ -98,19 +167,111 @@ public partial class PracticeStreakCard : Component
                 currentStreak = 0;
             }
         }
-        
+
         return maxStreak;
     }
 
-    private Color GetHeatColor(int count)
+    private List<List<PracticeHeatPoint?>> GenerateCalendarData(List<PracticeHeatPoint> allData, int weeks)
     {
+        var endDate = DateTime.Now.Date;
+        var startDate = endDate.AddDays(-(weeks * 7 - 1));
+
+        // Adjust start date to be a Sunday (GitHub style)
+        while (startDate.DayOfWeek != DayOfWeek.Sunday)
+        {
+            startDate = startDate.AddDays(-1);
+        }
+
+        var calendar = new List<List<PracticeHeatPoint?>>();
+        var dataDict = allData.ToDictionary(d => d.Date.Date, d => d);
+
+        // Add some sample data for demonstration if no real data exists
+        if (!allData.Any())
+        {
+            // Add some sample practice days to show color variation
+            var sampleDates = new[]
+            {
+                endDate.AddDays(-7),  // 1 practice
+                endDate.AddDays(-14), // 2 practices
+                endDate.AddDays(-21), // 3 practices
+                endDate.AddDays(-28), // 4 practices
+                endDate.AddDays(-35)  // 5 practices
+            };
+
+            for (int i = 0; i < sampleDates.Length; i++)
+            {
+                dataDict[sampleDates[i]] = new PracticeHeatPoint(sampleDates[i], i + 1);
+            }
+        }
+
+        // Generate weeks
+        for (int week = 0; week < weeks; week++)
+        {
+            var weekData = new List<PracticeHeatPoint?>();
+
+            // Generate days for this week (Sunday to Saturday)
+            for (int day = 0; day < 7; day++)
+            {
+                var currentDate = startDate.AddDays(week * 7 + day);
+                dataDict.TryGetValue(currentDate, out var dayData);
+                weekData.Add(dayData);
+            }
+
+            calendar.Add(weekData);
+        }
+
+        return calendar;
+    }
+
+    private List<(string Label, int Width)> GetMonthLabels(List<List<PracticeHeatPoint?>> calendarData)
+    {
+        var labels = new List<(string Label, int Width)>();
+        string? lastMonth = null;
+        int weeksSinceLastLabel = 0;
+
+        for (int week = 0; week < calendarData.Count; week++)
+        {
+            var firstDay = calendarData[week].FirstOrDefault(d => d != null);
+            if (firstDay == null && week < calendarData.Count - 1)
+            {
+                // If no data for this week, use the date we would have generated
+                var endDate = DateTime.Now.Date;
+                var startDate = endDate.AddDays(-(52 * 7 - 1));
+                while (startDate.DayOfWeek != DayOfWeek.Sunday)
+                    startDate = startDate.AddDays(-1);
+                firstDay = new PracticeHeatPoint(startDate.AddDays(week * 7), 0);
+            }
+
+            if (firstDay != null)
+            {
+                var month = firstDay.Date.ToString("MMM");
+                if (month != lastMonth && (weeksSinceLastLabel >= 3 || lastMonth == null)) // Show if different month and enough space
+                {
+                    labels.Add((month, weeksSinceLastLabel + 1));
+                    lastMonth = month;
+                    weeksSinceLastLabel = 0;
+                }
+                else
+                {
+                    weeksSinceLastLabel++;
+                }
+            }
+        }
+
+        return labels;
+    }
+
+    private Color GetGitHubColor(int count)
+    {
+        // GitHub contribution graph colors (proper progression)
         return count switch
         {
-            0 => Color.FromRgba(200, 200, 200, 128),
-            1 => Color.FromRgba(144, 238, 144, 180),
-            2 => Color.FromRgba(50, 205, 50, 200),
-            3 => Color.FromRgba(34, 139, 34, 220),
-            _ => Color.FromRgba(0, 100, 0, 255)
+            0 => Color.FromRgba(235, 237, 240, 255), // #ebedf0 - No contributions (light gray)
+            1 => Color.FromRgba(155, 233, 168, 255), // #9be9a8 - Low contributions (light green)
+            2 => Color.FromRgba(64, 196, 99, 255),   // #40c463 - Medium-low contributions (medium green)
+            3 => Color.FromRgba(48, 161, 78, 255),   // #30a14e - Medium contributions (darker green)
+            4 => Color.FromRgba(33, 110, 57, 255),   // #216e39 - High contributions (dark green)
+            _ => Color.FromRgba(22, 77, 40, 255)     // #164d28 - Very high contributions (darkest green)
         };
     }
 }

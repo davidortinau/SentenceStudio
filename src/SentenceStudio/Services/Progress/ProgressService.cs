@@ -147,7 +147,15 @@ public class ProgressService : IProgressService
 
     public async Task<IReadOnlyList<PracticeHeatPoint>> GetPracticeHeatAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
-        var all = await _vocabService.GetAllProgressAsync();
+        // Use UserActivity as the single source of truth for all practice activities
+        var userActivities = await _activityRepo.GetByDateRangeAsync(fromUtc, toUtc);
+
+        // Group by day
+        var dailyActivities = userActivities
+            .GroupBy(a => a.CreatedAt.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Generate all days in the range
         var days = Enumerable.Range(0, (int)(toUtc.Date - fromUtc.Date).TotalDays + 1)
             .Select(i => fromUtc.Date.AddDays(i))
             .ToList();
@@ -155,8 +163,8 @@ public class ProgressService : IProgressService
         var results = new List<PracticeHeatPoint>();
         foreach (var day in days)
         {
-            // Approximate: count words practiced that day based on LastPracticedAt rounded
-            int count = all.Count(p => p.LastPracticedAt.Date == day.Date);
+            // Get activity count for this day
+            int count = dailyActivities.GetValueOrDefault(day.Date, 0);
             results.Add(new PracticeHeatPoint(day, count));
         }
 

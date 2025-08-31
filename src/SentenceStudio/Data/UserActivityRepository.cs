@@ -27,11 +27,20 @@ public class UserActivityRepository
         return await db.UserActivities.Where(i => i.Activity == activity.ToString()).ToListAsync();
     }
 
+    public async Task<List<UserActivity>> GetByDateRangeAsync(DateTime fromUtc, DateTime toUtc)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserActivities
+            .Where(a => a.CreatedAt >= fromUtc && a.CreatedAt <= toUtc)
+            .ToListAsync();
+    }
+
     public async Task<int> SaveAsync(UserActivity item)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             if (item.Id != 0)
@@ -42,11 +51,11 @@ public class UserActivityRepository
             {
                 db.UserActivities.Add(item);
             }
-            
+
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -64,14 +73,14 @@ public class UserActivityRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             db.UserActivities.Remove(item);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)

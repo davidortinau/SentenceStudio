@@ -23,7 +23,7 @@ public partial class SkillProgressCard : Component
                         .FontSize(18)
                         .FontAttributes(FontAttributes.Bold)
                         .HorizontalOptions(LayoutOptions.Center),
-                    
+
                     // Circular progress indicator (simulated with a large progress bar)
                     VStack(
                         Label($"{Math.Round(_skill.Proficiency * 100)}%")
