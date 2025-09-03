@@ -370,7 +370,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCancel { get; } = new FontImageSource
     {
-        Glyph = FluentUI.calendar_cancel_16_regular,
+        Glyph = FluentUI.error_circle_16_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
