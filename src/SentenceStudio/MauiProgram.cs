@@ -270,7 +270,7 @@ public static class MauiProgram
 
 #if DEBUG
 		// Debug services - only available in debug builds
-		services.AddSingleton<VisualTreeDumpService>();
+		// services.AddSingleton<VisualTreeDumpService>();
 #endif
 
 		// services.AddSingleton<AppShellModel>();

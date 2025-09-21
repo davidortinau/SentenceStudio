@@ -98,12 +98,26 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public async Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 1)
     {
+        // Get existing progress records in a single query
+        var existingProgress = await _progressRepo.ListAsync();
+        var existingDict = existingProgress
+            .Where(p => vocabularyWordIds.Contains(p.VocabularyWordId) && p.UserId == userId)
+            .ToDictionary(p => p.VocabularyWordId, p => p);
+
         var progressDict = new Dictionary<int, VocabularyProgress>();
 
         foreach (var wordId in vocabularyWordIds)
         {
-            var progress = await GetOrCreateProgressAsync(wordId, userId);
-            progressDict[wordId] = progress;
+            if (existingDict.TryGetValue(wordId, out var existingEntry))
+            {
+                progressDict[wordId] = existingEntry;
+            }
+            else
+            {
+                // Only create new progress records if needed
+                var newProgress = await GetOrCreateProgressAsync(wordId, userId);
+                progressDict[wordId] = newProgress;
+            }
         }
 
         return progressDict;

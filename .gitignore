@@ -426,3 +426,4 @@ src/.github/prompts/dotnet/maui/maui-memory-leaks.prompt.md
 src/.github/prompts/dotnet/maui/maui-upgrade.prompt.md
 src/.github/prompts/dotnet/maui/maui.prompt.md
 src/SentenceStudio/.vscode/settings.json
+src/.claude/settings.local.json

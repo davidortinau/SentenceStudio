@@ -532,7 +532,6 @@ class MyTheme : ApplicationTheme
             .StrokeThickness(0)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
-
         BoxViewStyles.Default = _ => _
             .BackgroundColor(IsLightTheme ? Gray950 : Gray200);
 
@@ -598,12 +597,6 @@ class MyTheme : ApplicationTheme
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.Entry.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
-
-        FrameStyles.Default = _ => _
-            .HasShadow(false)
-            .BorderColor(IsLightTheme ? Gray200 : Gray950)
-            .CornerRadius(8)
-            .BackgroundColor(IsLightTheme ? White : Black);
 
         ImageButtonStyles.Default = _ => _
             .Opacity(1)
@@ -724,10 +717,6 @@ class MyTheme : ApplicationTheme
         LayoutStyles.Themes["Surface1"] = _ => _
             .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
-
-        ListViewStyles.Default = _ => _
-            .SeparatorColor(IsLightTheme ? Gray200 : Gray500)
-            .RefreshControlColor(IsLightTheme ? Gray900 : Gray200);
 
         PickerStyles.Default = _ => _
             .TextColor(IsLightTheme ? Gray900 : White)

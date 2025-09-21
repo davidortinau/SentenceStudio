@@ -1,6 +1,9 @@
 using MauiReactor;
 using SentenceStudio.Services.Progress;
 using Syncfusion.Maui.Charts;
+using SentenceStudio.Pages.VocabularyProgress;
+using System.Diagnostics;
+using Syncfusion.Maui.DataSource;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -11,6 +14,11 @@ public partial class VocabProgressCard : Component
 
     [Prop]
     private bool _isVisible;
+
+    [Prop]
+    private Action<VocabularyFilterType>? _onSegmentTapped;
+
+    private List<VocabChartData> _chartData = new(); // stored only to map selection indexes
 
     public override VisualNode Render()
     {
@@ -28,80 +36,115 @@ public partial class VocabProgressCard : Component
             new VocabChartData("New", _summary.New, Colors.Gray)
         }.Where(x => x.Value > 0).ToList(); // Only show segments with data
 
-        return Border(
+        _chartData = chartData; // keep for selection mapping
+
+        return
             VStack(
                 Label("Vocabulary Progress").FontSize(16).FontAttributes(FontAttributes.Bold),
 
-                // Donut chart using MauiReactor ContentView
-                new MauiReactor.ContentView<Microsoft.Maui.Controls.ContentView>((contentView) =>
-                {
-                    contentView.Content = CreateDonutChart(chartData, total);
-                })
-                .HeightRequest(200),
+                BuildDonutChart(chartData, total),
+                // Button("Go To Progress")
+                //     .OnPressed(async () =>
+                //     {
+                //         await MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
+                //             nameof(VocabularyLearningProgressPage),
+                //             props =>
+                //             {
+                //                 props.InitialFilter = VocabularyFilterType.Learning;
+                //                 props.Title = $"Vocabulary Progress - Learning";
+                //             });
+                //     }),
 
                 Label($"7d accuracy: {Math.Round(_summary.SuccessRate7d * 100)}%")
                     .TextColor(Colors.Gray)
                     .FontSize(12)
                     .HorizontalOptions(LayoutOptions.Center)
-            ).Spacing(8).Padding(12)
-        ).StrokeThickness(1).Stroke(Colors.LightGray);
+            ).Spacing(8).Padding(12);
     }
 
-    private Microsoft.Maui.Controls.View CreateDonutChart(List<VocabChartData> chartData, int total)
+    private VisualNode BuildDonutChart(List<VocabChartData> chartData, int total)
     {
-        var chart = new Syncfusion.Maui.Charts.SfCircularChart();
-        chart.HeightRequest = 200;
-
-        // Enable the built-in legend
-        chart.Legend = new Syncfusion.Maui.Charts.ChartLegend()
+        return new MauiReactor.ContentView<Microsoft.Maui.Controls.ContentView>(cv =>
         {
-            IsVisible = true
-        };
-
-        var series = new Syncfusion.Maui.Charts.DoughnutSeries()
-        {
-            ItemsSource = chartData,
-            XBindingPath = nameof(VocabChartData.Category),
-            YBindingPath = nameof(VocabChartData.Value),
-            PaletteBrushes = chartData.Select(x => new SolidColorBrush(x.Color)).Cast<Microsoft.Maui.Controls.Brush>().ToList(),
-            ShowDataLabels = true,
-            InnerRadius = 0.7
-        };
-
-        // Configure data labels to show outside the chart
-        series.DataLabelSettings = new Syncfusion.Maui.Charts.CircularDataLabelSettings()
-        {
-            LabelPosition = Syncfusion.Maui.Charts.ChartDataLabelPosition.Outside
-        };
-
-        // Use the built-in CenterView property on the DoughnutSeries
-        series.CenterView = new Microsoft.Maui.Controls.StackLayout
-        {
-            Orientation = Microsoft.Maui.Controls.StackOrientation.Vertical,
-            HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center,
-            VerticalOptions = Microsoft.Maui.Controls.LayoutOptions.Center,
-            Children =
+            var chart = new Syncfusion.Maui.Charts.SfCircularChart
             {
-                new Microsoft.Maui.Controls.Label
-                {
-                    Text = total.ToString(),
-                    FontSize = 24,
-                    FontAttributes = Microsoft.Maui.Controls.FontAttributes.Bold,
-                    HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center,
-                    TextColor = Microsoft.Maui.Graphics.Colors.Black
-                },
-                new Microsoft.Maui.Controls.Label
-                {
-                    Text = "total words",
-                    FontSize = 12,
-                    TextColor = Microsoft.Maui.Graphics.Colors.Gray,
-                    HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center
-                }
-            }
-        };
+                Legend = new Syncfusion.Maui.Charts.ChartLegend { IsVisible = true },
+                HeightRequest = 200
+            };
 
-        chart.Series.Add(series);
-        return chart;
+            var series = new Syncfusion.Maui.Charts.DoughnutSeries
+            {
+                ItemsSource = chartData,
+                XBindingPath = nameof(VocabChartData.Category),
+                YBindingPath = nameof(VocabChartData.Value),
+                PaletteBrushes = chartData.Select(x => new SolidColorBrush(x.Color)).Cast<Microsoft.Maui.Controls.Brush>().ToList(),
+                ShowDataLabels = true,
+                InnerRadius = 0.7,
+                DataLabelSettings = new Syncfusion.Maui.Charts.CircularDataLabelSettings
+                {
+                    LabelPosition = Syncfusion.Maui.Charts.ChartDataLabelPosition.Outside
+                },
+                CenterView = new Microsoft.Maui.Controls.VerticalStackLayout
+                {
+                    Spacing = 0,
+                    HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center,
+                    VerticalOptions = Microsoft.Maui.Controls.LayoutOptions.Center,
+                    Children =
+                    {
+                        new Microsoft.Maui.Controls.Label
+                        {
+                            Text = total.ToString(),
+                            FontSize = 24,
+                            FontAttributes = Microsoft.Maui.Controls.FontAttributes.Bold,
+                            HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center
+                        },
+                        new Microsoft.Maui.Controls.Label
+                        {
+                            Text = "total words",
+                            FontSize = 12,
+                            TextColor = Microsoft.Maui.Graphics.Colors.Gray,
+                            HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center
+                        }
+                    }
+                }
+            };
+
+            if (_onSegmentTapped != null)
+            {
+                var sel = new Syncfusion.Maui.Charts.DataPointSelectionBehavior();
+                sel.SelectionChanged += (s, e) =>
+                {
+                    if (_onSegmentTapped == null || !_isVisible) return;
+                    var prop = e.GetType().GetProperty("NewIndexes");
+                    if (prop?.GetValue(e) is List<int> list && list.Count > 0)
+                    {
+                        var idx = list[0];
+                        if (idx >= 0 && idx < _chartData.Count)
+                        {
+                            var filter = MapCategoryToFilter(_chartData[idx].Category);
+                            if (filter.HasValue)
+                                _onSegmentTapped(filter.Value);
+                        }
+                    }
+                };
+                series.SelectionBehavior = sel;
+            }
+
+            chart.Series.Add(series);
+            cv.Content = chart;
+        }).HeightRequest(200);
+    }
+
+    private static VocabularyFilterType? MapCategoryToFilter(string category)
+    {
+        return category switch
+        {
+            "Known" => VocabularyFilterType.Known,
+            "Learning" => VocabularyFilterType.Learning,
+            "Review" => VocabularyFilterType.Learning, // Map Review to Learning filter
+            "New" => VocabularyFilterType.Unknown,
+            _ => null
+        };
     }
 }
 

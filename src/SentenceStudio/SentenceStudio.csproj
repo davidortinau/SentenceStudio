@@ -21,7 +21,8 @@
 		<Nullable>disable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>Sentence Studio</ApplicationTitle>
+		<!-- Use no-space variant for bundle folder; user-facing spaced name handled via CFBundleDisplayName in platform plist -->
+		<ApplicationTitle>SentenceStudio</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.simplyprofound.sentencestudio</ApplicationId>
@@ -41,6 +42,10 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<UseMonoRuntime>false</UseMonoRuntime>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-ios|AnyCPU'">
@@ -134,12 +139,12 @@
 
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.5" />
 		<PackageReference Include="Reactor.Maui" Version="3.0.34" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-preview.7.25380.108" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-preview.7.25380.108" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-rc.1.25451.107" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-rc.1.25451.107" />
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.6.0" />
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.4.0-preview.1.25207.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-preview.7.25380.108" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-preview.7.25380.108" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-rc.1.25451.107" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.1.25451.107" />
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.5.1" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
@@ -154,16 +159,21 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.113" />
 		<PackageReference Include="CoreSync.Sqlite" Version="0.1.113" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" Version="30.1.39" />
-		<PackageReference Include="Syncfusion.Maui.Charts" Version="30.1.39" />
-		<PackageReference Include="Syncfusion.Maui.Gauges" Version="30.1.39" />
-		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="30.1.39" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" Version="31.1.19" />
+		<PackageReference Include="Syncfusion.Maui.Charts" Version="31.1.19" />
+		<PackageReference Include="Syncfusion.Maui.Gauges" Version="31.1.19" />
+		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="31.1.19" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="9.0.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="ReactorTheme" Version="1.0.0" />
+
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(Configuration)'=='Debug'">
+		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
 	</ItemGroup>
 
 
@@ -223,13 +233,6 @@
 			<Kind>Framework</Kind>
 			<SmartLink>True</SmartLink>
 		</NativeReference>
-	</ItemGroup> -->
-
-	<!-- <ItemGroup Condition="'$(Configuration)'=='Debug'">
-		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
-	</ItemGroup>
-	<ItemGroup Condition="'$(Configuration)'=='Release'">
-		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="false" Trim="true" />
 	</ItemGroup> -->
 
 

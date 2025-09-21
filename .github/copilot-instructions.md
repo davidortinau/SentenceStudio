@@ -72,6 +72,8 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
 
 ## MauiReactor Layout and UI Guidelines
 
+Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes for Start, End, and Fill options. And the same for vertical options.
+
 **CRITICAL: NEVER wrap VisualNodes in unnecessary layout containers!**
 
 1. **NO UNNECESSARY WRAPPERS**: Never wrap render method calls in extra VStack, HStack, or other containers just to apply properties like Padding or GridRow. Put these properties INSIDE the render methods where they belong.

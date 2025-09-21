@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<!-- Explicit bundle naming to decouple on-disk .app folder (CFBundleName) from user-facing display (CFBundleDisplayName) -->
+		<key>CFBundleName</key>
+		<string>SentenceStudio</string>
+		<key>CFBundleDisplayName</key>
+		<string>Sentence Studio</string>
 		<!-- The Mac App Store requires you specify if the app uses encryption. -->
 		<!-- Please consult https://developer.apple.com/documentation/bundleresources/information_property_list/itsappusesnonexemptencryption -->
 		<!-- <key>ITSAppUsesNonExemptEncryption</key> -->
