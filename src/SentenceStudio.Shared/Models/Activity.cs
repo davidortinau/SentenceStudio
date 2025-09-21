@@ -12,5 +12,6 @@ public enum Activity
     VocabularyMatching,
     Clozure,
     HowDoYouSay,
-    VocabularyQuiz
+    VocabularyQuiz,
+    Reading
 }

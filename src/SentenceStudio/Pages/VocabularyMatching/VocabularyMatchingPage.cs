@@ -602,17 +602,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         // Enhanced tracking: Stop response timer
         _responseTimer.Stop();
 
-        // Find the vocabulary word being matched
         var matchedWord = tile1.Word ?? tile2.Word;
-        if (matchedWord != null)
-        {
-            await RecordEnhancedMatchActivity(matchedWord, isMatch);
-        }
-        else
-        {
-            // Fallback to legacy recording
-            await RecordMatchActivity(isMatch);
-        }
+        await RecordEnhancedMatchActivity(matchedWord, isMatch);
+        await RecordMatchActivity(isMatch);
+
 
         if (isMatch)
         {

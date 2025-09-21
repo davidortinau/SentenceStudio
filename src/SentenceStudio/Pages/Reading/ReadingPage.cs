@@ -22,27 +22,27 @@ class ReadingPageState
     public LearningResource Resource { get; set; }
     public List<string> Sentences { get; set; } = new();
     public List<VocabularyWord> VocabularyWords { get; set; } = new();
-    
+
     // Timestamped Audio System (NEW)
     public TimestampedAudio TimestampedAudio { get; set; }
     public bool IsTimestampedAudioLoaded { get; set; } = false;
     public bool IsGeneratingAudio { get; set; } = false;
     public string AudioGenerationStatus { get; set; } = "Ready";
     public double AudioGenerationProgress { get; set; } = 0.0;
-    
+
     // Audio Playback State
     public bool IsAudioPlaying { get; set; } = false;
     public bool IsPlaying { get; set; } = false;  // For compatibility with some code paths
     public double CurrentPlaybackTime { get; set; } = 0.0;
     public double AudioDuration { get; set; } = 0.0;
     public float PlaybackSpeed { get; set; } = 1.0f;
-    
+
     // Reading state
     public int CurrentSentenceIndex { get; set; } = -1;
     public int SelectedSentenceIndex { get; set; } = -1;
     public VocabularyWord SelectedVocabulary { get; set; }
     public bool IsVocabularyBottomSheetVisible { get; set; } = false;
-    
+
     // 🎯 NEW: Dictionary lookup state
     public string DictionaryWord { get; set; }
     public string DictionaryDefinition { get; set; }
@@ -50,14 +50,14 @@ class ReadingPageState
     public bool IsLookingUpWord { get; set; } = false;
     public bool CanRememberWord { get; set; } = false; // 🏴‍☠️ NEW: Can save word to vocabulary
     public bool IsSavingWord { get; set; } = false; // 🏴‍☠️ NEW: Is saving word
-    
+
     // UI state
     public bool IsBusy { get; set; } = false;
     public double FontSize { get; set; } = 18.0;
     public string ErrorMessage { get; set; }
     public bool HasShownJumpHint { get; set; } = false;
     public bool HasDismissedInstructions { get; set; } = false;
-    
+
     // 🎯 NEW: Cached UI content for performance
     public VisualNode[] CachedParagraphs { get; set; } = Array.Empty<VisualNode>();
     public List<List<TextSegment>> CachedSentenceSegments { get; set; } = new();
@@ -65,17 +65,17 @@ class ReadingPageState
     public double CachedFontSize { get; set; } = 0.0;
     public int CachedCurrentSentence { get; set; } = -2; // Use -2 to force initial cache
     public bool CachedIsAudioPlaying { get; set; } = false;
-    
+
     // 🚀 PERFORMANCE: Smart highlighting cache - avoids rebuilding everything
     public Dictionary<int, VisualNode> CachedParagraphsByIndex { get; set; } = new();
     public Dictionary<int, List<(string, int)>> CachedParagraphSentences { get; set; } = new();
     public bool IsStructuralCacheValid { get; set; } = false;
-    
+
     // 🎯 NEW: FormattedString caching to avoid span recreation
     public Dictionary<int, Microsoft.Maui.Controls.FormattedString> CachedFormattedStrings { get; set; } = new();
     public Dictionary<int, int> CachedParagraphHighlightedSentence { get; set; } = new();
     public int LastHighlightedSentence { get; set; } = -1;
-    
+
     // 🏴‍☠️ NEW: Navigation hiding for immersive reading
     public bool IsNavigationVisible { get; set; } = true;
     public double LastScrollY { get; set; } = 0.0;
@@ -88,13 +88,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] TranslationService _translationService;
+    [Inject] UserActivityRepository _userActivityRepository;
     [Inject] ILogger<TimestampedAudioManager> _audioManagerLogger;
     [Inject] ILogger<ReadingPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
-    
+
     private TimestampedAudioManager _audioManager;
     private SentenceTimingCalculator _timingCalculator;
-    
+
     public override VisualNode Render()
     {
         if (State.IsBusy)
@@ -113,7 +114,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .HCenter()
             );
         }
-        
+
         if (!string.IsNullOrEmpty(State.ErrorMessage))
         {
             return ContentPage($"{_localize["Reading"]}",
@@ -147,7 +148,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             ToolbarItem()
                 .IconImageSource(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                 .OnClicked(TogglePlayback),
-            Grid(rows:"Auto,Auto,*,Auto", columns:"*",
+            Grid(rows: "Auto,Auto,*,Auto", columns: "*",
                 RenderAudioLoadingBanner(),
                 // RenderHeader(),
                 RenderReadingContent(),
@@ -159,7 +160,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         .Set(MauiControls.Shell.NavBarIsVisibleProperty, State.IsNavigationVisible)
         .OnAppearing(LoadContentAsync);
     }
-    
+
     VisualNode RenderAudioLoadingBanner() =>
         Border(
             HStack(
@@ -201,17 +202,18 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     {
                         // 🎯 NEW: Handle sentence double-tap to jump to that sentence
                         _logger.LogDebug("Sentence double-tapped: {SentenceIndex}", sentenceIndex);
-                        
+
                         // Show helpful hint for first-time users
                         if (!State.HasShownJumpHint)
                         {
-                            _ = Task.Run(async () => {
+                            _ = Task.Run(async () =>
+                            {
                                 await AppShell.DisplayToastAsync("🏴‍☠️ Jumping to that sentence, Captain!");
                                 SetState(s => s.HasShownJumpHint = true);
                                 Preferences.Set("ReadingActivity_HasShownJumpHint", true);
                             });
                         }
-                        
+
                         _ = Task.Run(() => StartPlaybackFromSentence(sentenceIndex));
                     })
                     .HorizontalOptions(LayoutOptions.FillAndExpand)
@@ -223,16 +225,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         .GridRow(2);
 
     List<List<SentenceStudio.Components.TextSegment>> PrepareSegments()
-{
-    var segments = new List<List<SentenceStudio.Components.TextSegment>>();
-    
-    foreach (var sentence in State.Sentences)
     {
-        // 🏴‍☠️ NEW: Handle paragraph break markers
-        if (sentence == "PARAGRAPH_BREAK")
+        var segments = new List<List<SentenceStudio.Components.TextSegment>>();
+
+        foreach (var sentence in State.Sentences)
         {
-            // Add a special paragraph break segment
-            var paragraphBreakSegments = new List<SentenceStudio.Components.TextSegment>
+            // 🏴‍☠️ NEW: Handle paragraph break markers
+            if (sentence == "PARAGRAPH_BREAK")
+            {
+                // Add a special paragraph break segment
+                var paragraphBreakSegments = new List<SentenceStudio.Components.TextSegment>
             {
                 new SentenceStudio.Components.TextSegment
                 {
@@ -242,53 +244,53 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     VocabularyWord = null
                 }
             };
-            segments.Add(paragraphBreakSegments);
-            continue;
-        }
-        
-        var sentenceSegments = new List<SentenceStudio.Components.TextSegment>();
-        var words = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        
-        foreach (var word in words)
-        {
-            var vocab = State.VocabularyWords?.FirstOrDefault(v => 
-                v.TargetLanguageTerm?.ToLowerInvariant() == word.ToLowerInvariant());
-            
-            sentenceSegments.Add(new SentenceStudio.Components.TextSegment
+                segments.Add(paragraphBreakSegments);
+                continue;
+            }
+
+            var sentenceSegments = new List<SentenceStudio.Components.TextSegment>();
+            var words = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var word in words)
             {
-                Text = word,
-                IsVocabulary = vocab != null,
-                IsWord = true,
-                VocabularyWord = vocab
-            });
-            
-            if (word != words.Last())
-            {
+                var vocab = State.VocabularyWords?.FirstOrDefault(v =>
+                    v.TargetLanguageTerm?.ToLowerInvariant() == word.ToLowerInvariant());
+
                 sentenceSegments.Add(new SentenceStudio.Components.TextSegment
                 {
-                    Text = " ",
-                    IsVocabulary = false,
-                    IsWord = false
+                    Text = word,
+                    IsVocabulary = vocab != null,
+                    IsWord = true,
+                    VocabularyWord = vocab
                 });
+
+                if (word != words.Last())
+                {
+                    sentenceSegments.Add(new SentenceStudio.Components.TextSegment
+                    {
+                        Text = " ",
+                        IsVocabulary = false,
+                        IsWord = false
+                    });
+                }
             }
+
+            segments.Add(sentenceSegments);
         }
-        
-        segments.Add(sentenceSegments);
+
+        return segments;
     }
-    
-    return segments;
-}
-    
+
     VisualNode[] RenderParagraphs()
     {
         return PerformanceLogger.Time("RenderParagraphs", () =>
         {
             // 🚀 PERFORMANCE: Check if only sentence highlighting changed (most common case)
-            bool onlyHighlightingChanged = State.IsStructuralCacheValid && 
+            bool onlyHighlightingChanged = State.IsStructuralCacheValid &&
                 State.CachedFontSize == State.FontSize &&
                 State.CachedCurrentSentence != State.CurrentSentenceIndex &&
                 State.CachedIsAudioPlaying == State.IsAudioPlaying;
-                
+
             if (onlyHighlightingChanged)
             {
                 // Fast path: Only update paragraph colors without rebuilding structure
@@ -300,9 +302,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     return updatedParagraphs;
                 }, 2.0); // Warn if > 2ms
             }
-            
+
             // 🚀 PERFORMANCE: Check full cache validity 
-            if (State.IsContentCached && 
+            if (State.IsContentCached &&
                 State.CachedFontSize == State.FontSize &&
                 State.CachedCurrentSentence == State.CurrentSentenceIndex &&
                 State.CachedIsAudioPlaying == State.IsAudioPlaying)
@@ -311,9 +313,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 return State.CachedParagraphs;
             }
 
-            _logger.LogDebug("Cache miss - rebuilding content (FontSize: {CachedFontSize}->{FontSize}, Sentence: {CachedCurrentSentence}->{CurrentSentenceIndex}, Playing: {CachedIsAudioPlaying}->{IsAudioPlaying})", 
+            _logger.LogDebug("Cache miss - rebuilding content (FontSize: {CachedFontSize}->{FontSize}, Sentence: {CachedCurrentSentence}->{CurrentSentenceIndex}, Playing: {CachedIsAudioPlaying}->{IsAudioPlaying})",
                 State.CachedFontSize, State.FontSize, State.CachedCurrentSentence, State.CurrentSentenceIndex, State.CachedIsAudioPlaying, State.IsAudioPlaying);
-            
+
             // Cache is invalid or doesn't exist - rebuild content
             return PerformanceLogger.Time("FullContentRebuild", () =>
             {
@@ -322,29 +324,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }, 20.0); // Warn if > 20ms
         }, 5.0); // Warn if total > 5ms
     }
-    
+
     VisualNode[] UpdateParagraphHighlighting()
     {
         return PerformanceLogger.Time("FastHighlightingUpdate", () =>
         {
             // 🚀 PERFORMANCE: New strategy - only update what changed, reuse everything else
             _logger.LogTrace("Fast highlighting update started");
-            
+
             // Find which paragraphs actually need updates
             var paragraphGroups = GroupSentencesIntoParagraphs();
             var updatedParagraphs = new VisualNode[paragraphGroups.Count];
             var hasAnyChanges = false;
-            
+
             for (int paragraphIndex = 0; paragraphIndex < paragraphGroups.Count; paragraphIndex++)
             {
                 var paragraphSentences = paragraphGroups[paragraphIndex];
                 var sentenceIndices = paragraphSentences.Select(s => s.Item2).ToList();
-                
+
                 // Check if this paragraph needs updating
                 bool containsCurrentSentence = sentenceIndices.Contains(State.CurrentSentenceIndex);
                 bool containsPreviousSentence = sentenceIndices.Contains(State.CachedCurrentSentence);
                 bool needsUpdate = containsCurrentSentence || containsPreviousSentence;
-                
+
                 if (needsUpdate && State.CachedParagraphsByIndex.ContainsKey(paragraphIndex))
                 {
                     // Rebuild this specific paragraph
@@ -363,7 +365,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     hasAnyChanges = true;
                 }
             }
-            
+
             if (hasAnyChanges)
             {
                 State.CachedParagraphs = updatedParagraphs;
@@ -373,11 +375,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             {
                 _logger.LogTrace("No changes needed - reusing cached paragraphs");
             }
-            
+
             return State.CachedParagraphs;
         }, 10.0); // Warn if > 10ms
     }
-    
+
     VisualNode BuildSingleParagraph(List<(string, int)> paragraphSentences, int paragraphIndex)
     {
         return PerformanceLogger.Time($"BuildSingleParagraph[{paragraphIndex}]", () =>
@@ -385,22 +387,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             var spans = PerformanceLogger.Time("CreateSpans", () =>
             {
                 var spanList = new List<VisualNode>();
-                
+
                 foreach (var (sentence, sentenceIndex) in paragraphSentences)
                 {
-                    var segments = PerformanceLogger.Time("ParseSentence", () => 
+                    var segments = PerformanceLogger.Time("ParseSentence", () =>
                         ParseSentenceForVocabularyAndWords(sentence), 5.0);
-                    
+
                     foreach (var segment in segments)
                     {
                         var textColor = GetTextColorForSentence(sentenceIndex);
-                        
+
                         if (segment.IsVocabulary)
                         {
                             // Vocabulary word with interaction
                             spanList.Add(
-                                Span(segment.Text, 
-                                    MyTheme.HighlightDarkest, 
+                                Span(segment.Text,
+                                    MyTheme.HighlightDarkest,
                                     FontAttributes.None,
                                     TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
                                     .TextDecorations(TextDecorations.Underline)
@@ -410,8 +412,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         {
                             // Regular word with dictionary lookup capability
                             spanList.Add(
-                                Span(segment.Text, 
-                                    textColor, 
+                                Span(segment.Text,
+                                    textColor,
                                     FontAttributes.None,
                                     TapGestureRecognizer().OnTapped(() => LookupWordInDictionary(segment.Text)))
                             );
@@ -422,20 +424,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             spanList.Add(Span(segment.Text, textColor));
                         }
                     }
-                    
+
                     // Add space between sentences
                     if (sentence != paragraphSentences.Last().Item1)
                     {
                         spanList.Add(Span(" "));
                     }
                 }
-                
+
                 return spanList;
             }, 15.0);
-            
+
             var formattedString = PerformanceLogger.Time("CreateFormattedString", () =>
                 FormattedString(spans.ToArray()), 5.0);
-            
+
             var paragraph = PerformanceLogger.Time("CreateParagraphLayout", () =>
             {
                 return VStack(
@@ -446,11 +448,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Padding(MyTheme.Size120)
                 .OnTapped(() => StartPlaybackFromSentence(paragraphSentences.First().Item2), 2);
             }, 5.0);
-            
+
             // Cache this paragraph
             State.CachedParagraphsByIndex[paragraphIndex] = paragraph;
             State.CachedParagraphSentences[paragraphIndex] = paragraphSentences;
-            
+
             return paragraph;
         }, 8.0); // Warn if total > 8ms
     }
@@ -461,13 +463,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             var paragraphs = new List<VisualNode>();
             var paragraphGroups = GroupSentencesIntoParagraphs();
-            
+
             _logger.LogDebug("Building cache for {SentenceCount} sentences in {ParagraphCount} paragraphs", State.Sentences.Count, paragraphGroups.Count);
-            
+
             // Clear previous caches
             State.CachedParagraphsByIndex.Clear();
             State.CachedParagraphSentences.Clear();
-            
+
             foreach (var (paragraphSentences, paragraphIndex) in paragraphGroups.Select((p, i) => (p, i)))
             {
                 var paragraph = BuildSingleParagraph(paragraphSentences, paragraphIndex);
@@ -481,22 +483,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             State.CachedFontSize = State.FontSize;
             State.CachedCurrentSentence = State.CurrentSentenceIndex;
             State.CachedIsAudioPlaying = State.IsAudioPlaying;
-            
+
             _logger.LogDebug("Cache built for {ParagraphCount} paragraphs", paragraphs.Count);
         }, 30.0); // Warn if > 30ms
     }
-    
+
     List<List<(string, int)>> GroupSentencesIntoParagraphs()
     {
         // Simple paragraph grouping - every 3-4 sentences for now
         // In the future, this could be enhanced with ML or natural language processing
         var paragraphs = new List<List<(string, int)>>();
         var currentParagraph = new List<(string, int)>();
-        
+
         for (int i = 0; i < State.Sentences.Count; i++)
         {
             currentParagraph.Add((State.Sentences[i], i));
-            
+
             // Start new paragraph every 3-4 sentences or at natural breaks
             if (currentParagraph.Count >= 3 && (i == State.Sentences.Count - 1 || ShouldBreakParagraph(State.Sentences[i])))
             {
@@ -504,23 +506,23 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 currentParagraph = new List<(string, int)>();
             }
         }
-        
+
         // Add any remaining sentences
         if (currentParagraph.Any())
         {
             paragraphs.Add(currentParagraph);
         }
-        
+
         return paragraphs;
     }
-    
+
     bool ShouldBreakParagraph(string sentence)
     {
         // Natural paragraph break indicators
         var breakIndicators = new[] { "However", "Meanwhile", "In addition", "Furthermore", "Therefore", "Consequently" };
         return breakIndicators.Any(indicator => sentence.StartsWith(indicator, StringComparison.OrdinalIgnoreCase));
     }
-    
+
     Color GetTextColorForSentence(int sentenceIndex)
     {
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
@@ -528,7 +530,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         else
             return MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
     }
-    
+
     VisualNode RenderReadingInstructions() =>
         Border(
             HStack(
@@ -562,13 +564,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             .Padding(MyTheme.Size120)
             .Margin(MyTheme.Size160)
             .IsVisible(!State.HasDismissedInstructions);
-    
+
     void DismissInstructions()
     {
         SetState(s => s.HasDismissedInstructions = true);
         Preferences.Set("ReadingActivity_HasDismissedInstructions", true);
     }
-    
+
     VisualNode RenderAudioControls() =>
         Grid("*", "Auto,*,Auto",
             ImageButton()
@@ -592,16 +594,16 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Source(MyTheme.IconNextSm)
                 .OnClicked(NextSentence)
                 .GridColumn(2)
-            // Label($"{State.PlaybackSpeed:F1}x")
-            //     .OnTapped(CyclePlaybackSpeed)
-            //     .GridColumn(4)
-            //     .VCenter()
-            //     .Padding(MyTheme.Size80)
+        // Label($"{State.PlaybackSpeed:F1}x")
+        //     .OnTapped(CyclePlaybackSpeed)
+        //     .GridColumn(4)
+        //     .VCenter()
+        //     .Padding(MyTheme.Size80)
         )
         .Padding(MyTheme.Size160)
         .GridRow(3)
         .IsVisible(State.Sentences.Any() && State.IsNavigationVisible);
-    
+
     VisualNode RenderVocabularyBottomSheet() =>
         new SfBottomSheet(
             ScrollView(
@@ -625,7 +627,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .GridRowSpan(4)
         .IsOpen(State.IsVocabularyBottomSheetVisible);
-    
+
     VisualNode RenderDictionaryBottomSheet() =>
         new SfBottomSheet(
             ScrollView(
@@ -635,7 +637,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontAttributes(FontAttributes.Bold)
                         .ThemeKey(MyTheme.Title1)
                         .HCenter(),
-                    State.IsLookingUpWord 
+                    State.IsLookingUpWord
                         ? VStack(
                             ActivityIndicator()
                                 .IsRunning(true)
@@ -652,7 +654,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                 .FontSize(18)
                                 .ThemeKey(MyTheme.Body1)
                                 .HCenter(),
-                            
+
                             // 🏴‍☠️ NEW: Remember vocabulary word button
                             State.CanRememberWord
                                 ? State.IsSavingWord
@@ -673,7 +675,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                 : null
                         )
                         .Spacing(MyTheme.Size120),
-                    
+
                     Button("Close")
                         .OnClicked(CloseDictionaryBottomSheet)
                         .HCenter()
@@ -684,26 +686,27 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .GridRowSpan(4)
         .IsOpen(State.IsDictionaryBottomSheetVisible);
-    
+
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)
     {
-        if (_audioManager == null || !State.IsTimestampedAudioLoaded) 
+        if (_audioManager == null || !State.IsTimestampedAudioLoaded)
         {
             await AppShell.DisplayToastAsync("🏴‍☠️ Audio not ready yet, Captain!");
             return;
         }
-        
+
         if (startIndex < 0 || startIndex >= State.Sentences.Count)
             return;
 
         StopCurrentPlayback();
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.CurrentSentenceIndex = startIndex;
             s.IsAudioPlaying = true;
         });
-        
+
         try
         {
             // Use timestamp-based playback
@@ -714,19 +717,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             await AppShell.DisplayToastAsync($"🏴‍☠️ Playback error: {ex.Message}");
         }
     }
-    
+
     Task PlaySentenceFromCache(int index, string audioFilePath)
     {
         // This method is now handled by StartPlaybackFromSentence with timestamps
         return StartPlaybackFromSentence(index);
     }
-    
+
     Task PlaySentence(int index)
     {
         // This method is now handled by StartPlaybackFromSentence with timestamps
         return StartPlaybackFromSentence(index);
     }
-    
+
     private void OnSentencePlaybackEnded(object sender, EventArgs e)
     {
         // Auto-advance to next sentence
@@ -738,23 +741,24 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         else
         {
             // End of reading
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsAudioPlaying = false;
                 s.CurrentSentenceIndex = -1;
             });
         }
     }
-    
+
     void StopCurrentPlayback()
     {
         if (_audioManager != null)
         {
             _audioManager.Stop();
         }
-        
+
         SetState(s => s.IsAudioPlaying = false);
     }
-    
+
     async Task TogglePlayback()
     {
         // Check if audio is still loading
@@ -763,7 +767,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             await AppShell.DisplayToastAsync("🏴‍☠️ Hold yer horses! Audio is still loading, Captain!");
             return;
         }
-        
+
         if (!State.IsTimestampedAudioLoaded)
         {
             await AppShell.DisplayToastAsync("🏴‍☠️ No audio loaded yet, Captain! Try again in a moment.");
@@ -777,12 +781,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         else
         {
             // Resume from current position or start from beginning
-            var startIndex = State.CurrentSentenceIndex >= 0 ? 
+            var startIndex = State.CurrentSentenceIndex >= 0 ?
                 State.CurrentSentenceIndex : 0;
             await StartPlaybackFromSentence(startIndex);
         }
     }
-    
+
     async Task PreviousSentence()
     {
         // Handle case where no sentence is currently selected
@@ -791,15 +795,15 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s => s.CurrentSentenceIndex = 0);
             return;
         }
-        
+
         if (State.CurrentSentenceIndex > 0)
         {
             var newIndex = State.CurrentSentenceIndex - 1;
-            
+
             // ALWAYS update the visual highlighting immediately for responsive UI
             SetState(s => s.CurrentSentenceIndex = newIndex);
             _logger.LogDebug("PreviousSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
-            
+
             // If audio is playing and we have an audio manager, also update audio position
             if (_audioManager != null && State.IsAudioPlaying)
             {
@@ -808,7 +812,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
         }
     }
-    
+
     async Task NextSentence()
     {
         // Handle case where no sentence is currently selected
@@ -817,15 +821,15 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s => s.CurrentSentenceIndex = 0);
             return;
         }
-        
+
         if (State.CurrentSentenceIndex < State.Sentences.Count - 1)
         {
             var newIndex = State.CurrentSentenceIndex + 1;
-            
+
             // ALWAYS update the visual highlighting immediately for responsive UI
             SetState(s => s.CurrentSentenceIndex = newIndex);
             _logger.LogDebug("NextSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
-            
+
             // If audio is playing and we have an audio manager, also update audio position
             if (_audioManager != null && State.IsAudioPlaying)
             {
@@ -834,21 +838,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
         }
     }
-    
+
     void CyclePlaybackSpeed()
     {
         var speeds = new[] { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
         var currentIndex = Array.IndexOf(speeds, State.PlaybackSpeed);
         var nextIndex = (currentIndex + 1) % speeds.Length;
-        
+
         SetState(s => s.PlaybackSpeed = speeds[nextIndex]);
         Preferences.Set("ReadingActivity_PlaybackSpeed", State.PlaybackSpeed);
     }
-    
+
     void IncreaseFontSize()
     {
         var newSize = Math.Min(State.FontSize + 2, 100.0); // Max font size 72 for better accessibility
-        SetState(s => {
+        SetState(s =>
+        {
             s.FontSize = newSize;
             // 🚀 PERFORMANCE: Invalidate cache when font size changes
             s.IsContentCached = false;
@@ -856,11 +861,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         });
         Preferences.Set("ReadingActivity_FontSize", State.FontSize);
     }
-    
+
     void DecreaseFontSize()
     {
         var newSize = Math.Max(State.FontSize - 2, 32.0); // Min font size 12
-        SetState(s => {
+        SetState(s =>
+        {
             s.FontSize = newSize;
             // 🚀 PERFORMANCE: Invalidate cache when font size changes
             s.IsContentCached = false;
@@ -868,7 +874,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         });
         Preferences.Set("ReadingActivity_FontSize", State.FontSize);
     }
-    
+
     string FormatPlaybackTime(double timeSeconds)
     {
         var time = TimeSpan.FromSeconds(timeSeconds);
@@ -881,37 +887,38 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             return $"{time:m\\:ss}";
         }
     }
-    
+
     async Task ClearAudioCache()
     {
         try
         {
             // Stop any current playback
             StopCurrentPlayback();
-            
+
             // Show performance summary before clearing
             var summary = PerformanceLogger.GetPerformanceSummary();
             _logger.LogDebug("{PerformanceSummary}", summary);
-            
+
             // Clear timestamped audio (real-time system doesn't use cache files)
-            SetState(s => {
+            SetState(s =>
+            {
                 s.TimestampedAudio = null;
                 s.IsTimestampedAudioLoaded = false;
                 s.IsAudioPlaying = false;
                 s.IsPlaying = false;
                 s.CurrentPlaybackTime = 0.0;
                 s.CurrentSentenceIndex = -1;
-                
+
                 // Clear performance cache too
                 s.IsContentCached = false;
                 s.IsStructuralCacheValid = false;
                 s.CachedParagraphsByIndex.Clear();
                 s.CachedParagraphSentences.Clear();
             });
-            
+
             // Reset performance measurements
             PerformanceLogger.Reset();
-            
+
             await AppShell.DisplayToastAsync("🏴‍☠️ Audio cache cleared! Fresh voices ahead, Captain!");
         }
         catch (Exception ex)
@@ -919,22 +926,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             await AppShell.DisplayToastAsync($"Failed to clear cache: {ex.Message}");
         }
     }
-    
+
     // Content Processing
     List<string> SplitIntoSentences(string transcript)
     {
         if (string.IsNullOrWhiteSpace(transcript))
             return new List<string>();
-        
+
         // 🏴‍☠️ NEW: Preserve paragraph structure by first splitting on double line breaks
         var paragraphs = transcript.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries);
         var sentences = new List<string>();
-        
+
         foreach (var paragraph in paragraphs)
         {
             // Clean up the paragraph and split into sentences
             var paragraphText = paragraph.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
-            
+
             // Handle multiple sentence delimiters and clean whitespace
             var paragraphSentences = paragraphText
                 .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
@@ -942,29 +949,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
                 .ToList();
-            
+
             // Add sentences from this paragraph
             sentences.AddRange(paragraphSentences);
-            
+
             // 🏴‍☠️ NEW: Add a paragraph break marker if this isn't the last paragraph
             if (paragraph != paragraphs.Last() && paragraphSentences.Any())
             {
                 sentences.Add("PARAGRAPH_BREAK"); // Special marker for paragraph breaks
             }
         }
-        
+
         return sentences;
     }
-    
+
     List<TextSegment> ParseSentenceForVocabularyAndWords(string sentence)
     {
         var segments = new List<TextSegment>();
         var words = sentence.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var word in words)
         {
             var vocabularyMatch = FindVocabularyMatch(word);
-            
+
             if (vocabularyMatch != null)
             {
                 segments.Add(new TextSegment
@@ -979,7 +986,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             {
                 // Check if this is a word (contains letters) vs punctuation/whitespace
                 var isWord = Regex.IsMatch(word, @"\p{L}"); // Unicode letter check
-                
+
                 segments.Add(new TextSegment
                 {
                     Text = word,
@@ -987,19 +994,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     IsWord = isWord // Regular words can be tapped for dictionary lookup
                 });
             }
-            
+
             // Add space after each word except the last
             if (word != words.Last())
             {
-                segments.Add(new TextSegment 
-                { 
-                    Text = " ", 
-                    IsVocabulary = false, 
-                    IsWord = false 
+                segments.Add(new TextSegment
+                {
+                    Text = " ",
+                    IsVocabulary = false,
+                    IsWord = false
                 });
             }
         }
-        
+
         return segments;
     }
 
@@ -1007,11 +1014,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         var segments = new List<TextSegment>();
         var words = sentence.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var word in words)
         {
             var vocabularyMatch = FindVocabularyMatch(word);
-            
+
             if (vocabularyMatch != null)
             {
                 segments.Add(new TextSegment
@@ -1029,57 +1036,60 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     IsVocabulary = false
                 });
             }
-            
+
             // Add space after each word except the last
             if (word != words.Last())
             {
                 segments.Add(new TextSegment { Text = " ", IsVocabulary = false });
             }
         }
-        
+
         return segments;
     }
-    
+
     VocabularyWord FindVocabularyMatch(string word)
     {
         var cleanWord = word.Trim().ToLowerInvariant()
             .TrimEnd('.', ',', '!', '?', ';', ':');
-        
-        return State.VocabularyWords?.FirstOrDefault(v => 
+
+        return State.VocabularyWords?.FirstOrDefault(v =>
             v.TargetLanguageTerm?.ToLowerInvariant() == cleanWord ||
             v.TargetLanguageTerm?.ToLowerInvariant().Contains(cleanWord) == true
         );
     }
-    
+
     // Vocabulary UI
     void ShowVocabularyBottomSheet(VocabularyWord vocabularyWord)
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.SelectedVocabulary = vocabularyWord;
             s.IsVocabularyBottomSheetVisible = true;
         });
     }
-    
+
     void LookupWordInDictionary(string word)
     {
         // 🎯 NEW: Dictionary lookup for regular words using bottom sheet UI
-        _ = Task.Run(async () => {
+        _ = Task.Run(async () =>
+        {
             try
             {
                 _logger.LogDebug("Looking up word: {Word}", word);
-                
+
                 // Clean the word - remove punctuation for better lookup
                 var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
-                
+
                 // 🏴‍☠️ NEW: Get the current sentence for context
                 string currentSentence = null;
                 if (State.CurrentSentenceIndex >= 0 && State.CurrentSentenceIndex < State.Sentences.Count)
                 {
                     currentSentence = State.Sentences[State.CurrentSentenceIndex];
                 }
-                
+
                 // Show loading state in the dictionary bottom sheet
-                SetState(s => {
+                SetState(s =>
+                {
                     s.DictionaryWord = cleanWord;
                     s.DictionaryDefinition = null;
                     s.IsDictionaryBottomSheetVisible = true;
@@ -1087,41 +1097,55 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.CanRememberWord = false;
                     s.IsSavingWord = false;
                 });
-                
+
                 // First check if we have this word in our local vocabulary
                 var vocabularyWords = State.VocabularyWords;
-                var localWord = vocabularyWords?.FirstOrDefault(v => 
+                var localWord = vocabularyWords?.FirstOrDefault(v =>
                     v.TargetLanguageTerm.Equals(cleanWord, StringComparison.OrdinalIgnoreCase));
-                
+
                 if (localWord != null && !string.IsNullOrEmpty(localWord.NativeLanguageTerm))
                 {
                     // Found in local vocabulary - show definition, no need to remember
                     _logger.LogDebug("Found local translation: {TargetTerm} = {NativeTerm}", localWord.TargetLanguageTerm, localWord.NativeLanguageTerm);
-                    SetState(s => {
+                    SetState(s =>
+                    {
                         s.DictionaryDefinition = localWord.NativeLanguageTerm;
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = false; // Already in vocabulary
                     });
                     return;
                 }
-                
+
                 // Not found locally - use AI translation service with context
                 _logger.LogDebug("Word not found locally, using AI translation for: {CleanWord} with context: {Context}", cleanWord, currentSentence ?? "(no context)");
                 var translation = await _translationService.TranslateAsync(cleanWord, currentSentence);
-                
+
                 if (!string.IsNullOrEmpty(translation))
                 {
                     _logger.LogDebug("AI translation found: {CleanWord} = {Translation}", cleanWord, translation);
-                    SetState(s => {
+                    SetState(s =>
+                    {
                         s.DictionaryDefinition = translation;
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = true; // Allow saving new word
+                    });
+
+                    // Record dictionary lookup activity
+                    await _userActivityRepository.SaveAsync(new UserActivity
+                    {
+                        Activity = SentenceStudio.Shared.Models.Activity.Reading.ToString(),
+                        Input = $"Dictionary lookup: {cleanWord}",
+                        Accuracy = 100, // Successfully looked up word
+                        Fluency = 100,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
                     });
                 }
                 else
                 {
                     _logger.LogWarning("No translation found for: {CleanWord}", cleanWord);
-                    SetState(s => {
+                    SetState(s =>
+                    {
                         s.DictionaryDefinition = "No definition found";
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = false;
@@ -1131,7 +1155,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in dictionary lookup for word: {Word}", word);
-                SetState(s => {
+                SetState(s =>
+                {
                     s.DictionaryDefinition = "Unable to lookup word definition";
                     s.IsLookingUpWord = false;
                     s.CanRememberWord = false;
@@ -1139,25 +1164,26 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
         });
     }
-    
+
     void CloseVocabularyBottomSheet()
     {
         SetState(s => s.IsVocabularyBottomSheetVisible = false);
     }
-    
+
     void CloseDictionaryBottomSheet()
     {
         SetState(s => s.IsDictionaryBottomSheetVisible = false);
     }
-    
+
     // 🏴‍☠️ NEW: Remember vocabulary word from dictionary lookup
     void RememberVocabularyWord()
     {
-        _ = Task.Run(async () => {
+        _ = Task.Run(async () =>
+        {
             try
             {
                 SetState(s => s.IsSavingWord = true);
-                
+
                 // Create new vocabulary word
                 var newWord = new VocabularyWord
                 {
@@ -1166,19 +1192,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                
+
                 // Save to database
                 var result = await _resourceRepository.SaveWordAsync(newWord);
-                
+
                 if (result > 0)
                 {
                     // Add to current reading resource if we have one
                     if (State.Resource?.Id > 0)
                     {
                         await _resourceRepository.AddVocabularyToResourceAsync(State.Resource.Id, newWord.Id);
-                        
+
                         // Update local vocabulary list
-                        SetState(s => {
+                        SetState(s =>
+                        {
                             if (s.VocabularyWords == null)
                                 s.VocabularyWords = new List<VocabularyWord>();
                             s.VocabularyWords.Add(newWord);
@@ -1190,7 +1217,18 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     {
                         SetState(s => s.IsSavingWord = false);
                     }
-                    
+
+                    // Record vocabulary learning activity
+                    await _userActivityRepository.SaveAsync(new UserActivity
+                    {
+                        Activity = SentenceStudio.Shared.Models.Activity.Reading.ToString(),
+                        Input = $"Added vocabulary: {State.DictionaryWord}",
+                        Accuracy = 100, // Successfully added word
+                        Fluency = 100,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+
                     await AppShell.DisplayToastAsync($"🏴‍☠️ Word '{State.DictionaryWord}' added to vocabulary, Captain!");
                 }
                 else
@@ -1207,25 +1245,26 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
         });
     }
-    
+
     // 🏴‍☠️ NEW: Immersive scroll-based navigation hiding
     void OnScrollViewScrolled(object sender, ScrolledEventArgs e)
     {
         // Calculate scroll direction and distance
         var currentScrollY = e.ScrollY;
         var deltaY = currentScrollY - State.LastScrollY;
-        
+
         // Only trigger changes if we've scrolled a significant amount
         if (Math.Abs(deltaY) > 5) // Small threshold to avoid excessive updates
         {
             var isScrollingDown = deltaY > 0;
             var shouldHideNavigation = isScrollingDown && currentScrollY > State.ScrollThreshold;
             var shouldShowNavigation = !isScrollingDown || currentScrollY <= 20; // Show when scrolling up or near top
-            
+
             // Update navigation visibility if it needs to change
             if (shouldHideNavigation && State.IsNavigationVisible)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsNavigationVisible = false;
                     s.IsScrollingDown = true;
                 });
@@ -1233,40 +1272,55 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
             else if (shouldShowNavigation && !State.IsNavigationVisible)
             {
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsNavigationVisible = true;
                     s.IsScrollingDown = false;
                 });
                 _logger.LogDebug("Showing navigation - scrolled up or near top");
             }
-            
+
             // Update last scroll position
             SetState(s => s.LastScrollY = currentScrollY);
         }
     }
-    
+
     // Navigation
     async Task GoBack()
     {
         StopCurrentPlayback();
-        
+
+        // Record reading activity when user finishes reading session
+        if (State.Resource != null)
+        {
+            await _userActivityRepository.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Reading.ToString(),
+                Input = $"Reading session: {State.Resource.Title}",
+                Accuracy = 100, // Reading activity is considered successful
+                Fluency = 100,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+
         // 🏴‍☠️ Ensure navigation is visible when leaving the page
         SetState(s => s.IsNavigationVisible = true);
-        
+
         MauiControls.Shell.Current.GoToAsync("..");
     }
-    
+
     // Lifecycle
     protected override void OnMounted()
     {
         base.OnMounted();
-        
+
         if (Props?.Resource == null)
         {
             SetState(s => s.ErrorMessage = "No resource provided");
             return;
         }
-        
+
         if (string.IsNullOrWhiteSpace(Props.Resource.Transcript))
         {
             SetState(s => s.ErrorMessage = "Resource has no transcript");
@@ -1274,20 +1328,21 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
         // Removed: Initialization logic that called InitializeAudioSystemAsync
     }
-    
+
     private async Task InitializeAudioSystemAsync()
     {
         if (State.Resource?.Transcript == null) return;
 
         // Show loading state
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsGeneratingAudio = true;
             s.AudioGenerationStatus = "🏴‍☠️ Initializing audio system...";
             s.AudioGenerationProgress = 0.1;
         });
 
         _logger.LogDebug("InitializeAudioSystemAsync: Loading state set, should be visible now");
-        
+
         // Add a small delay to ensure loading UI shows
         await Task.Delay(500);
 
@@ -1297,27 +1352,29 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
             _timingCalculator = new SentenceTimingCalculator();
             _audioManager = new TimestampedAudioManager(_timingCalculator, _audioManagerLogger);
-            
+
             // Update progress
-            SetState(s => {
+            SetState(s =>
+            {
                 s.AudioGenerationStatus = "🏴‍☠️ Generating timestamped audio...";
                 s.AudioGenerationProgress = 0.3;
             });
-            
+
             // Generate timestamped audio for the entire resource
             _logger.LogDebug("InitializeAudioSystemAsync: Generating audio for transcript length: {TranscriptLength}", State.Resource.Transcript.Length);
             var timestampedAudioResult = await _speechService.GenerateTimestampedAudioAsync(State.Resource);
-            
+
             if (timestampedAudioResult != null)
             {
                 _logger.LogDebug("InitializeAudioSystemAsync: Generated audio with {CharacterCount} characters, duration: {Duration:F1}s", timestampedAudioResult.Characters.Length, timestampedAudioResult.Duration.TotalSeconds);
-                
+
                 // Update progress
-                SetState(s => {
+                SetState(s =>
+                {
                     s.AudioGenerationStatus = "🏴‍☠️ Processing character timestamps...";
                     s.AudioGenerationProgress = 0.7;
                 });
-                
+
                 // Convert to the new TimestampedAudio model
                 var timestampedAudio = new TimestampedAudio
                 {
@@ -1326,21 +1383,22 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     FullTranscript = State.Resource.Transcript,
                     Duration = timestampedAudioResult.Duration.TotalSeconds
                 };
-                
+
                 // Update progress
-                SetState(s => {
+                SetState(s =>
+                {
                     s.AudioGenerationStatus = "🏴‍☠️ Loading audio into player...";
                     s.AudioGenerationProgress = 0.9;
                 });
-                
+
                 // Load audio into manager (no pre-calculated timings needed!)
                 await _audioManager.LoadAudioAsync(timestampedAudio);
                 _audioManager.SentenceChanged += OnCurrentSentenceChanged;
                 _audioManager.ProgressUpdated += OnProgressUpdated;
                 _audioManager.PlaybackEnded += OnPlaybackEnded;
-                
+
                 // Update state with loaded status
-                SetState(s => 
+                SetState(s =>
                 {
                     s.IsTimestampedAudioLoaded = true;
                     s.TimestampedAudio = timestampedAudio;
@@ -1348,13 +1406,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.AudioGenerationStatus = "🏴‍☠️ Audio ready for playback!";
                     s.AudioGenerationProgress = 1.0;
                 });
-                
+
                 System.Diagnostics.Debug.WriteLine("🏴‍☠️ Real-time audio system initialized with character-level timestamps!");
             }
             else
             {
                 System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Failed to generate timestamped audio");
-                SetState(s => {
+                SetState(s =>
+                {
                     s.IsGeneratingAudio = false;
                     s.AudioGenerationStatus = "⚠️ Failed to generate audio";
                     s.AudioGenerationProgress = 0.0;
@@ -1364,7 +1423,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error initializing audio: {ex.Message}");
-            SetState(s => {
+            SetState(s =>
+            {
                 s.IsGeneratingAudio = false;
                 s.AudioGenerationStatus = $"⚠️ Audio error: {ex.Message}";
                 s.AudioGenerationProgress = 0.0;
@@ -1377,22 +1437,23 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         PerformanceLogger.StartTimer("OnCurrentSentenceChanged");
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {sentenceIndex}");
         System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {State.CurrentSentenceIndex}");
-        
+
         // Only update if the sentence index actually changed to avoid unnecessary re-renders
         if (State.CurrentSentenceIndex != sentenceIndex)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Setting state from {s.CurrentSentenceIndex} to {sentenceIndex}");
                 s.CurrentSentenceIndex = sentenceIndex;
             });
-            
+
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
         }
         else
         {
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: No change needed, already at sentence {sentenceIndex}");
         }
-        
+
         PerformanceLogger.EndTimer("OnCurrentSentenceChanged", 5.0); // Warn if > 5ms
     }
 
@@ -1406,14 +1467,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         System.Diagnostics.Debug.WriteLine("🏴‍☠️ OnPlaybackEnded: Playback finished");
         SetState(s => s.IsPlaying = false);
     }
-    
+
     protected override void OnWillUnmount()
     {
         base.OnWillUnmount();
-        
+
         // Clean up audio resources
         StopCurrentPlayback();
-        
+
         // Clean up TimestampedAudioManager
         if (_audioManager != null)
         {
@@ -1423,17 +1484,18 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             _audioManager.Dispose();
         }
     }
-    
+
     async Task LoadContentAsync()
     {
         SetState(s => s.IsBusy = true);
-        
+
         try
         {
             // Load complete resource with vocabulary
             var fullResource = await _resourceRepository.GetResourceAsync(Props.Resource.Id);
-            
-            SetState(s => {
+
+            SetState(s =>
+            {
                 s.Resource = fullResource;
                 s.Sentences = SplitIntoSentences(fullResource.Transcript);
                 s.VocabularyWords = fullResource.Vocabulary ?? new List<VocabularyWord>();
@@ -1442,18 +1504,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 s.HasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
                 s.HasDismissedInstructions = Preferences.Get("ReadingActivity_HasDismissedInstructions", false);
                 s.IsBusy = false;
-                
+
                 // 🚀 PERFORMANCE: Invalidate cache when new content is loaded
                 s.IsContentCached = false;
                 s.IsStructuralCacheValid = false;
             });
-            
+
             // Initialize timestamped audio system
             await InitializeAudioSystemAsync();
         }
         catch (Exception ex)
         {
-            SetState(s => {
+            SetState(s =>
+            {
                 s.ErrorMessage = $"Failed to load content: {ex.Message}";
                 s.IsBusy = false;
             });

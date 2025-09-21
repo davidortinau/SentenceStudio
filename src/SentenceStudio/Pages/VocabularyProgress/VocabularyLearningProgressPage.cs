@@ -16,6 +16,7 @@ class VocabularyProgressProps
 {
     public int? ResourceId { get; set; }
     public string Title { get; set; } = "Vocabulary Progress";
+    public VocabularyFilterType? InitialFilter { get; set; }
 }
 
 public class VocabularyProgressItem
@@ -233,6 +234,12 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 SetState(s => s.SelectedResource = new LearningResource { Id = -1, Title = "All Resources" });
             }
 
+            // Set initial vocabulary filter if provided
+            if (Props?.InitialFilter.HasValue == true)
+            {
+                SetState(s => s.SelectedFilter = Props.InitialFilter.Value);
+            }
+
             await LoadVocabularyData();
         }
         catch (Exception ex)
@@ -281,30 +288,23 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 return;
             }
 
-            // Get progress for all words (this will create progress records for new words)
+            // Get progress for all words efficiently
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressData = await _progressService.GetProgressForWordsAsync(wordIds);
-            
-            // Get learning contexts for analytics
-            var allContexts = await _contextRepo.ListAsync();
-            var relevantContexts = allContexts.Where(c => 
-                c.VocabularyProgress?.VocabularyWordId != null && 
-                wordIds.Contains(c.VocabularyProgress.VocabularyWordId)).ToList();
 
-            // Build vocabulary items
+            // Build vocabulary items (simplified without contexts to improve performance)
             var vocabularyItems = new List<VocabularyProgressItem>();
             
             foreach (var word in allWords)
             {
                 var progress = progressData.ContainsKey(word.Id) ? progressData[word.Id] : null;
-                var contexts = relevantContexts.Where(c => c.VocabularyProgress?.VocabularyWordId == word.Id).ToList();
                 
                 var item = new VocabularyProgressItem
                 {
                     Word = word,
                     Progress = progress,
-                    ResourceNames = contexts.Select(c => c.LearningResource?.Title ?? "Unknown").Distinct().ToList(),
-                    ActivitiesUsed = contexts.Select(c => c.Activity ?? "Unknown").Distinct().ToList()
+                    ResourceNames = new List<string>(), // Simplified - can be loaded on demand if needed
+                    ActivitiesUsed = new List<string>() // Simplified - can be loaded on demand if needed
                 };
                 
                 vocabularyItems.Add(item);

@@ -270,7 +270,7 @@ public static class MauiProgram
 
 #if DEBUG
 		// Debug services - only available in debug builds
-		services.AddSingleton<VisualTreeDumpService>();
+		// services.AddSingleton<VisualTreeDumpService>();
 #endif
 
 		// services.AddSingleton<AppShellModel>();
@@ -284,6 +284,9 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyLearningContextRepository>();
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
+
+		// Progress aggregation service for dashboard visuals
+		services.AddSingleton<SentenceStudio.Services.Progress.IProgressService, SentenceStudio.Services.Progress.ProgressService>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 

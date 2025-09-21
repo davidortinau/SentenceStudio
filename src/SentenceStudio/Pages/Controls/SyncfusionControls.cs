@@ -1,4 +1,5 @@
 using MauiReactor.Internals;
+using Syncfusion.Maui.Inputs;
 using System.Linq;
 
 namespace SentenceStudio.Pages.Controls;
@@ -475,6 +476,12 @@ public static partial class SfComboBoxExtensions
         return comboBox;
     }
 
+    public static SfComboBox DropDownBackgroundColor(this SfComboBox comboBox, Color brush)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase.BackgroundColorProperty, brush);
+        return comboBox;
+    }
+
     public static SfComboBox BackgroundColor(this SfComboBox comboBox, Color color)
     {
         comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.BackgroundColorProperty, color);
@@ -520,6 +527,136 @@ public static partial class SfComboBoxExtensions
     public static SfComboBox TextColor(this SfComboBox comboBox, Color value)
     {
         comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.TextColorProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox MinimumHeightRequest(this SfComboBox comboBox, double value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.MinimumHeightRequestProperty, value);
+        return comboBox;
+    }
+
+    // --- Additional helpers and property wrappers ---
+    static BindableProperty? FindBindableProperty(string propertyName)
+    {
+        // Try candidate types where properties may be declared
+        var candidates = new[] {
+            typeof(Syncfusion.Maui.Inputs.SfComboBox),
+            typeof(Syncfusion.Maui.Inputs.DropDownControls.DropDownListBase)
+        };
+
+        foreach (var t in candidates)
+        {
+            var field = t.GetField(propertyName + "Property", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (field != null && field.GetValue(null) is BindableProperty bp)
+                return bp;
+        }
+
+        return null;
+    }
+
+    static void SetIfBindableExists(this SfComboBox comboBox, string propertyName, object? value)
+    {
+        var bp = FindBindableProperty(propertyName);
+        if (bp != null)
+        {
+            comboBox.Set(bp, value);
+        }
+    }
+
+    public static SfComboBox ItemTemplate(this SfComboBox comboBox, DataTemplate? template)
+    {
+        comboBox.SetIfBindableExists("ItemTemplate", template);
+        return comboBox;
+    }
+
+    public static SfComboBox SelectedValue(this SfComboBox comboBox, object? value)
+    {
+        comboBox.SetIfBindableExists("SelectedValue", value);
+        return comboBox;
+    }
+
+    public static SfComboBox SelectedValuePath(this SfComboBox comboBox, string? path)
+    {
+        comboBox.SetIfBindableExists("SelectedValuePath", path);
+        return comboBox;
+    }
+
+    public static SfComboBox AllowFiltering(this SfComboBox comboBox, bool allow)
+    {
+        comboBox.SetIfBindableExists("AllowFiltering", allow);
+        return comboBox;
+    }
+
+    public static SfComboBox ShowDropDownOnFocus(this SfComboBox comboBox, bool show)
+    {
+        comboBox.SetIfBindableExists("ShowDropDownOnFocus", show);
+        return comboBox;
+    }
+
+    public static SfComboBox DropDownHeight(this SfComboBox comboBox, double height)
+    {
+        comboBox.SetIfBindableExists("DropDownHeight", height);
+        return comboBox;
+    }
+
+    public static SfComboBox MultiSelectionDisplayMode(this SfComboBox comboBox, ComboBoxMultiSelectionDisplayMode value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.MultiSelectionDisplayModeProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox ShowBorder(this SfComboBox comboBox, bool value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.ShowBorderProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox FontSize(this SfComboBox comboBox, bool value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.FontSizeProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox Background(this SfComboBox comboBox, Brush value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.BackgroundProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox ClearButtonIconColor(this SfComboBox comboBox, Color value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.ClearButtonIconColorProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox TokensWrapMode(this SfComboBox comboBox, ComboBoxTokensWrapMode value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.TokensWrapModeProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox EnableAutoSize(this SfComboBox comboBox, bool value)
+    {
+        comboBox.Set(Syncfusion.Maui.Inputs.SfComboBox.EnableAutoSizeProperty, value);
+        return comboBox;
+    }
+
+    public static SfComboBox DropDownWidth(this SfComboBox comboBox, double width)
+    {
+        comboBox.SetIfBindableExists("DropDownWidth", width);
+        return comboBox;
+    }
+
+    public static SfComboBox IsDropDownOpen(this SfComboBox comboBox, bool isOpen)
+    {
+        comboBox.SetIfBindableExists("IsDropDownOpen", isOpen);
+        return comboBox;
+    }
+
+    public static SfComboBox MaxDropDownHeight(this SfComboBox comboBox, double maxHeight)
+    {
+        comboBox.SetIfBindableExists("MaxDropDownHeight", maxHeight);
         return comboBox;
     }
 

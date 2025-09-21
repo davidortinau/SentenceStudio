@@ -1,14 +1,19 @@
-﻿using MauiReactor.Parameters;
+﻿using MauiReactor;
+using MauiReactor.Parameters;
 using ReactorCustomLayouts;
+using MauiReactor.Shapes;
+using Microsoft.Maui.Layouts;
+using Microsoft.Maui.Storage;
 using SentenceStudio.Pages.Clozure;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.VocabularyMatching;
+using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Pages.Reading;
-using MauiReactor.Shapes;
-using Microsoft.Maui.Storage;
+using SentenceStudio.Services.Progress;
+using SentenceStudio; // LocalizationManager
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -24,31 +29,36 @@ class DashboardPageState
     public List<SkillProfile> SkillProfiles { get; set; } = [];
 
     public List<LearningResource> SelectedResources { get; set; } = [];
-    public int SelectedSkillProfileIndex { get; set; } = -1; // Initialize to -1 (no selection)
-    public int SelectedResourceIndex { get; set; } = -1; // Initialize to -1 (no selection)
+    public int SelectedSkillProfileIndex { get; set; } = -1;
+    public int SelectedResourceIndex { get; set; } = -1;
 
     public DisplayOrientation Orientation { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Orientation;
     public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
     public double Height { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Height;
     public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
+
+    public VocabProgressSummary? VocabSummary { get; set; }
+    public List<ResourceProgress> ResourceProgress { get; set; } = [];
+    public SkillProgress? SelectedSkillProgress { get; set; }
+    public List<PracticeHeatPoint> PracticeHeat { get; set; } = [];
 }
 
 partial class DashboardPage : Component<DashboardPageState>
 {
-    // Preference keys for storing user selections
     private const string PREF_SELECTED_RESOURCE_IDS = "SelectedResourceIds";
     private const string PREF_SELECTED_SKILL_PROFILE_ID = "SelectedSkillProfileId";
 
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] SkillProfileRepository _skillService;
+    [Inject] IProgressService _progressService;
 
     [Param] IParameter<DashboardParameters> _parameters;
 
     LocalizationManager _localize => LocalizationManager.Instance;
+    private int _progressFetchVersion = 0;
 
     protected override void OnMounted()
     {
-        // Initialize from current display info
         var info = DeviceDisplay.Current.MainDisplayInfo;
         SetState(s =>
         {
@@ -57,15 +67,13 @@ partial class DashboardPage : Component<DashboardPageState>
             s.Height = info.Height;
             s.Density = info.Density;
         });
-
-        // Subscribe to changes (rotation, size, density)
         DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
         base.OnMounted();
     }
+
     protected override void OnWillUnmount()
     {
         DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
-
         base.OnWillUnmount();
     }
 
@@ -86,115 +94,143 @@ partial class DashboardPage : Component<DashboardPageState>
 
     public override VisualNode Render()
     {
-        SafeAreaEdges safeEdges =
-            DeviceDisplay.Current.MainDisplayInfo.Rotation switch
-            {
-                DisplayRotation.Rotation0 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
-                DisplayRotation.Rotation90 => new(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
-                DisplayRotation.Rotation180 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
-                DisplayRotation.Rotation270 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.All, SafeAreaRegions.None),
-                _ => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
-            };
+        SafeAreaEdges safeEdges = DeviceDisplay.Current.MainDisplayInfo.Rotation switch
+        {
+            DisplayRotation.Rotation0 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+            DisplayRotation.Rotation90 => new(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+            DisplayRotation.Rotation180 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
+            DisplayRotation.Rotation270 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.All, SafeAreaRegions.None),
+            _ => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
+        };
 
-        //Console.Writeline(">> DashboardPage Render <<");
         return ContentPage($"{_localize["Dashboard"]}",
-
             Grid(
-
                 VScrollView(
                     VStack(
-                        ContentView()
-                            .Height(600)
-                            .Width(800)
-                            .IsVisible(false),
-                        // Responsive layout: horizontal on wide screens, vertical on narrow screens
-                        DeviceInfo.Idiom == DeviceIdiom.Phone || DeviceDisplay.MainDisplayInfo.Width < 600 ?
-                            // Vertical layout for narrow screens
+                        DeviceInfo.Idiom == DeviceIdiom.Phone || (DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density) < 600 ?
                             VStack(spacing: 15,
-                                Border
-                                    (
-                                        VStack(
-                                            Label()
-                                                .Text("Learning Resource(s)"),
-                                            new SfComboBox()
-                                                .HeightRequest(44)
-                                                .BackgroundColor(Colors.Transparent)
-                                                .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground) // doesn't help bc mult selection chips
-                                                .TokenItemStyle(MyTheme.ChipStyle)
-                                                .ItemPadding(MyTheme.LayoutPadding)
-                                                .PlaceholderText("Select resource(s)")
-                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                                .ItemsSource(State.Resources)
-                                                .DisplayMemberPath("Title")
-                                                .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
-                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged(OnResourcesSelectionChanged)
-                                        ).Spacing(MyTheme.LayoutSpacing)
-                                    ).Padding(MyTheme.Size160, MyTheme.Size80),
-                                Border
-                                    (
-                                        VStack(
-                                            Label()
-                                                .Text("Skill(s)"),
-                                            new SfComboBox()
-                                                .HeightRequest(44)
-                                                .BackgroundColor(Colors.Transparent)
-                                                .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
-                                                .ItemPadding(MyTheme.LayoutPadding)
-                                                .PlaceholderText("Select skill(s)")
-                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                                .ItemsSource(State.SkillProfiles)
-                                                .DisplayMemberPath("Title")
-                                                .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
-                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                                .OnSelectionChanged(OnSkillSelectionChanged)
-                                        ).Spacing(MyTheme.LayoutSpacing)
-                                    ).Padding(MyTheme.Size160, MyTheme.Size80)
-                            ) :
-                            // Horizontal layout for wide screens
+                                Border(
+                                    new SfTextInputLayout{
+
+                                        new SfComboBox()
+                                            .MinimumHeightRequest(44)
+                                            .BackgroundColor(Colors.Transparent)
+                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                                            .TokenItemStyle(MyTheme.ChipStyle)
+                                            .ItemPadding(MyTheme.LayoutPadding)
+                                            .PlaceholderText("Select resource(s)")
+                                            .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
+                                            .ItemsSource(State.Resources)
+                                            .DisplayMemberPath("Title")
+                                            .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
+                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
+                                            .OnSelectionChanged(OnResourcesSelectionChanged)
+                                    }.Hint("Learning Resource(s)")
+                                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
+                                ).Padding(MyTheme.Size160, MyTheme.Size80),
+                                Border(
+                                    VStack(
+                                        Label("Skill(s)"),
+                                        new SfComboBox()
+                                            .HeightRequest(44)
+                                            .BackgroundColor(Colors.Transparent)
+                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                                            .ItemPadding(MyTheme.LayoutPadding)
+                                            .PlaceholderText("Select skill(s)")
+                                            .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
+                                            .ItemsSource(State.SkillProfiles)
+                                            .DisplayMemberPath("Title")
+                                            .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
+                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
+                                            .OnSelectionChanged(OnSkillSelectionChanged)
+                                    ).Spacing(MyTheme.LayoutSpacing)
+                                ).Padding(MyTheme.Size160, MyTheme.Size80)
+                            ) : // Desktop
                             Grid(
-                                Border
-                                    (
-                                        VStack(
-                                            Label()
-                                                .Text("Learning Resource(s)"),
-                                            new SfComboBox()
-                                                .BackgroundColor(Colors.Transparent)
-                                                .PlaceholderText("Select resource(s)")
-                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                                .ItemsSource(State.Resources)
-                                                .DisplayMemberPath("Title")
-                                                .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
-                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                                .OnSelectionChanged(OnResourcesSelectionChanged)
-                                        ).Spacing(MyTheme.LayoutSpacing)
-                                    ).Padding(MyTheme.Size160, MyTheme.Size80),
-                                Border
-                                    (
-                                        VStack(
-                                            Label()
-                                                .Text("Skill(s)"),
-                                            new SfComboBox()
-                                                .BackgroundColor(Colors.Transparent)
-                                                .PlaceholderText("Select skill(s)")
-                                                .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                                .ItemsSource(State.SkillProfiles)
-                                                .DisplayMemberPath("Title")
-                                                .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
-                                                .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                                .OnSelectionChanged(OnSkillSelectionChanged)
-                                        ).Spacing(MyTheme.LayoutSpacing)
-                                    )
-                                    .Padding(MyTheme.Size160, MyTheme.Size80)
-                                    .GridColumn(1)
+                                Border(
+                                    VStack(
+                                        Label("Resource"),
+                                        new SfComboBox()
+                                            // .HeightRequest(60)
+                                            .BackgroundColor(Colors.Transparent)
+                                            .ShowBorder(false)
+                                            // .MultiSelectionDisplayMode(Syncfusion.Maui.Inputs.ComboBoxMultiSelectionDisplayMode.Token)
+                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                                            .TokenItemStyle(MyTheme.ChipStyle)
+                                            .TokensWrapMode(Syncfusion.Maui.Inputs.ComboBoxTokensWrapMode.Wrap)
+                                            .EnableAutoSize(true)
+                                            // .ItemPadding(MyTheme.LayoutPadding)
+                                            .PlaceholderText("Select resource(s)")
+                                            // .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
+                                            .ItemsSource(State.Resources)
+                                            .DisplayMemberPath("Title")
+                                            .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
+                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
+                                            .OnSelectionChanged(OnResourcesSelectionChanged)
+                                    ).Spacing(MyTheme.LayoutSpacing)
+                                ).Padding(MyTheme.Size160, MyTheme.Size80),
+                                Border(
+                                    VStack(
+                                        Label("Resource"),
+                                        new SfComboBox()
+                                            .BackgroundColor(Colors.Transparent)
+                                            .ShowBorder(false)
+                                            .PlaceholderText("Select skill(s)")
+                                            //.DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
+                                            .ItemsSource(State.SkillProfiles)
+                                            .DisplayMemberPath("Title")
+                                            .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
+                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
+                                            .OnSelectionChanged(OnSkillSelectionChanged)
+                                    ).Spacing(MyTheme.LayoutSpacing)
+                                ).Padding(MyTheme.Size160, MyTheme.Size80).GridColumn(1)
                             ).Columns("*,*").ColumnSpacing(15),
 
-                        Label()
-                            .ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
+                        // Progress Section
+                        Label("Vocab Progress")
+                            .ThemeKey(MyTheme.H1).HStart().Margin(0, 20, 0, 10),
+                        FlexLayout(
+                            (State.VocabSummary != null
+                                ? Border(
+                                    new VocabProgressCard()
+                                        .Summary(State.VocabSummary)
+                                        .IsVisible(true)
+                                        .OnSegmentTapped(NavigateToVocabularyProgress)
+                                )
+                                .StrokeThickness(0)
+                                .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                .Set(View.MinimumWidthRequestProperty, 340d)
+                                .Margin(0, 0, 12, 12)
+                                : ContentView().HeightRequest(0)
+                            ),
+                            (State.PracticeHeat?.Any() == true
+                                ? Border(
+                                    new PracticeStreakCard()
+                                        .HeatData(State.PracticeHeat)
+                                        .IsVisible(true)
+                                )
+                                .StrokeThickness(0)
+                                .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                .Set(View.MinimumWidthRequestProperty, 340d)
+                                .Margin(0, 0, 12, 12)
+                                : ContentView().HeightRequest(0)
+                            )
+                        )
+                        // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
+                        .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
+                        .Wrap(FlexWrap.Wrap)
+                        .AlignItems(FlexAlignItems.Stretch)
+                        .JustifyContent(FlexJustify.Start)
+                        .Padding(0),
+
+                        // Activities
+                        Label().ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
-                            new ActivityBorder()
-                                .LabelText($"{_localize["Warmup"]}")
-                                .Route("warmup"),
+                            new ActivityBorder().LabelText($"{_localize["Warmup"]}").Route("warmup"),
                             new ActivityBorder().LabelText($"{_localize["DescribeAScene"]}").Route(nameof(DescribeAScenePage)),
                             new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
@@ -205,18 +241,19 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
                         }.Spacing(DeviceInfo.Idiom == DeviceIdiom.Phone ? 8 : 20)
-                    )// vstack
+                    )
                     .Padding(MyTheme.Size160)
                     .Spacing(MyTheme.Size240)
-                )// vscrollview
+                )
                 .Set(Layout.SafeAreaEdgesProperty, safeEdges)
-            )// grid
+            )
             .Set(Layout.SafeAreaEdgesProperty, safeEdges)
-
         )
         .Set(Layout.SafeAreaEdgesProperty, safeEdges)
-        .OnAppearing(LoadOrRefreshDataAsync);// contentpage
+        .OnAppearing(LoadOrRefreshDataAsync);
     }
+
+    // (Removed duplicate class & render implementation above during consolidation)
 
     async Task LoadOrRefreshDataAsync()
     {
@@ -280,6 +317,9 @@ partial class DashboardPage : Component<DashboardPageState>
             }
         }
 
+        // Eagerly refresh progress (awaited) so returning to dashboard shows up-to-date data.
+        await RefreshProgressDataAsync(selectedSkill?.Id);
+
         SetState(s =>
         {
             s.Resources = resources;
@@ -296,6 +336,43 @@ partial class DashboardPage : Component<DashboardPageState>
         if (State.SelectedResources.Any())
         {
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Selected resource titles: {string.Join(", ", State.SelectedResources.Select(r => r.Title))}");
+        }
+    }
+
+    private async Task RefreshProgressDataAsync(int? skillId)
+    {
+        int myVersion = Interlocked.Increment(ref _progressFetchVersion);
+        try
+        {
+            var vocabFromUtc = DateTime.UtcNow.AddDays(-30);
+            var heatFromUtc = DateTime.UtcNow.AddDays(-364);
+            var heatToUtc = DateTime.UtcNow;
+
+            var vocabTask = _progressService.GetVocabSummaryAsync(vocabFromUtc);
+            var resourceTask = _progressService.GetRecentResourceProgressAsync(vocabFromUtc, 3);
+            var heatTask = _progressService.GetPracticeHeatAsync(heatFromUtc, heatToUtc); // full year for heat map
+            Task<SentenceStudio.Services.Progress.SkillProgress?> skillTask = Task.FromResult<SentenceStudio.Services.Progress.SkillProgress?>(null);
+            if (skillId.HasValue)
+            {
+                skillTask = _progressService.GetSkillProgressAsync(skillId.Value);
+            }
+
+            await Task.WhenAll(vocabTask, resourceTask, heatTask, skillTask);
+
+            // If a newer request started meanwhile, abandon these results
+            if (myVersion != _progressFetchVersion) return;
+
+            SetState(st =>
+            {
+                st.VocabSummary = vocabTask.Result;
+                st.ResourceProgress = resourceTask.Result;
+                st.SelectedSkillProgress = skillTask.Result;
+                st.PracticeHeat = heatTask.Result.ToList();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Progress data load error: {ex.Message}");
         }
     }
 
@@ -432,6 +509,28 @@ partial class DashboardPage : Component<DashboardPageState>
         }
 
         return (selectedResources, selectedSkill);
+    }
+
+    private void NavigateToVocabularyProgress(VocabularyFilterType filterType)
+    {
+        // Invoke on main thread (selection event should already be on UI thread, this is extra safety)
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                _ = MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
+                    nameof(VocabularyLearningProgressPage),
+                    props =>
+                    {
+                        props.InitialFilter = filterType;
+                        props.Title = $"Vocabulary Progress - {filterType}";
+                    });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Navigation error: {ex.Message}");
+            }
+        });
     }
 }
 
