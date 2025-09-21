@@ -1,5 +1,4 @@
 using MauiReactor.Shapes;
-using The49.Maui.BottomSheet;
 using System.Collections.Immutable;
 using SentenceStudio.Services;
 using System.Diagnostics;
@@ -25,6 +24,9 @@ class DescribeAScenePageState
     public string FeedbackMessage { get; set; }
     public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
     public bool ShowFeedback { get; set; }
+
+    // Added: controls the new SfBottomSheet visibility for mobile
+    public bool IsGalleryBottomSheetOpen { get; set; } = false;
 }
 
 partial class DescribeAScenePage : Component<DescribeAScenePageState>
@@ -46,25 +48,24 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .IconImageSource(MyTheme.IconInfo)
                 .OnClicked(ViewDescription),
 
-            ToolbarItem()
-                .IconImageSource(MyTheme.IconImageExport)
-                .OnClicked(LoadImage),
+            // Removed direct toolbar Add/Image button — image add is now inside the gallery bottom sheet
 
             ToolbarItem()
                 .IconImageSource(MyTheme.IconSwitch)
                 .OnClicked(ManageImages),
 
+            // Main grid (the single child of the ContentPage)
             Grid("Auto,*,Auto", "*",
                 RenderMainContent(),
                 RenderInput(),
                 RenderExplanationPopup(),
-                RenderGalleryPopup(),
-                RenderLoadingOverlay()
+                RenderLoadingOverlay(),
+                RenderGalleryBottomSheet()
             )
         ).OnAppearing(LoadScene);
     }
 
-    VisualNode RenderMainContent() => Grid("","*,*",
+    VisualNode RenderMainContent() => Grid("", "*,*",
             Grid(
                 Image()
                     .Source(State.ImageUrl)
@@ -83,9 +84,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                                 .Padding(MyTheme.Size160)
                         )
                     ),
-                
+
                 // Enhanced feedback display
-                State.ShowFeedback ? 
+                State.ShowFeedback ?
                     Border(
                         Label(State.FeedbackMessage)
                             .FontSize(16)
@@ -95,7 +96,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
                     .StrokeThickness(0)
-                    .Margin(MyTheme.Size160, 8) 
+                    .Margin(MyTheme.Size160, 8)
                     : null
             )
             .GridColumn(1)
@@ -151,53 +152,41 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
         .IsShown(State.IsExplanationShown);
 
-    VisualNode RenderGalleryPopup() => new PopupHost(r => _popup = r)
-        {
-            Grid("Auto,*,Auto", "",
-                RenderHeader(),
-                RenderGallery(),
-                Button("Close")
-                    .OnClicked(() => _ = _popup.CloseAsync())
-                    .GridRow(2)
-            )
-                .Padding(MyTheme.Size240)
-                .RowSpacing(MyTheme.Size120)
-                .Margin(MyTheme.Size240),
-        }
-        .IsShown(State.IsGalleryVisible && DeviceInfo.Idiom != DeviceIdiom.Phone);
+    /// <summary>
+    /// Renders a mobile/desktop SfBottomSheet that contains the full gallery management UI.
+    /// Top-aligned actions (Add, MultiSelect, Delete, Close) and a boxy card style.
+    /// </summary>
+    VisualNode RenderGalleryBottomSheet() =>
+        new SfBottomSheet(
 
-    VisualNode RenderHeader() => Grid(
-            Label("Choose an image")
-                .ThemeKey(MyTheme.Title1)
-                .HStart(),
+                Grid("Auto,Auto,*,Auto", "*",
 
-            HStack(spacing: MyTheme.Size60,
-                Button()
-                    .ImageSource(MyTheme.IconImageExport)
-                    .Background(Colors.Transparent)
-                    .Padding(0)
-                    .Margin(0)
-                    .VCenter()
-                    .IsVisible(!State.IsDeleteVisible),
+                    Label("Gallery")
+                        .FontSize(18)
+                        .FontAttributes(FontAttributes.Bold),
 
-                Button()
-                    .ImageSource(MyTheme.IconCheckbox)
-                    .Background(Colors.Transparent)
-                    .Padding(0)
-                    .Margin(0)
-                    .VCenter(),
+                    HStack(
+                        Button().ImageSource(MyTheme.IconImageExport).Background(Colors.Transparent).OnClicked(LoadImage),
 
-                Button()
-                    .ImageSource(MyTheme.IconDelete)
-                    .Background(Colors.Transparent)
-                    .TextColor(Colors.Black)
-                    .Padding(0)
-                    .Margin(0)
-                    .VCenter()
-                    .IsVisible(State.IsDeleteVisible)
-            )
-            .HEnd()
-        );
+                        Button().ImageSource(MyTheme.IconMultiSelect).Background(Colors.Transparent).OnClicked(ToggleSelection),
+
+                        Button().ImageSource(MyTheme.IconDelete).Background(Colors.Transparent).OnClicked(DeleteImages).IsVisible(State.IsDeleteVisible),
+
+                        Button().ImageSource(MyTheme.IconClose).Background(Colors.Transparent).OnClicked(() => SetState(s => s.IsGalleryBottomSheetOpen = false))
+                    ).Spacing(MyTheme.Size40).HEnd().GridRow(1),
+
+
+                    // Gallery content row
+                    RenderGallery(),
+
+                    // Small status row under the gallery (keeps hierarchy but is unobtrusive)
+                    Label(State.IsSelecting ? $"Selected: {State.SelectedImages.Count}" : "Tap an image to select it")
+                        .Padding(MyTheme.Size160).GridRow(3)
+                )//grid
+
+        )
+        .GridRowSpan(3)
+        .IsOpen(State.IsGalleryBottomSheetOpen);
 
     VisualNode RenderGallery() => CollectionView()
             .ItemsSource(State.Images, RenderGalleryItem)
@@ -207,9 +196,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 new HorizontalGridItemsLayout(4)
                     .VerticalItemSpacing(MyTheme.Size240)
                     .HorizontalItemSpacing(MyTheme.Size240)
-            )
-            .GridRow(1);
-    
+            ).GridRow(2);
+
 
     VisualNode RenderGalleryItem(SceneImage image) => Grid(
             Image()
@@ -218,19 +206,30 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 .HeightRequest(100)
                 .OnTapped(() => OnImageSelected(image)),
 
-            Image()
-                .Source(MyTheme.IconCheckbox)
-                .VEnd()
-                .HEnd()
-                .IsVisible(State.IsSelecting)
-                .Margin(4),
+            // Checkbox background to avoid overlapping text/artifacts
+            Border(
+                Image().Source(MyTheme.IconCheckbox).WidthRequest(24).HeightRequest(24)
+            )
+            .StrokeThickness(0)
+            .BackgroundColor(Color.FromArgb("#CCFFFFFF"))
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Padding(4)
+            .VEnd()
+            .HEnd()
+            .IsVisible(State.IsSelecting)
+            .Margin(4),
 
-            Image()
-                .Source(MyTheme.IconCheckboxSelected)
-                .VEnd()
-                .HEnd()
-                .IsVisible(image.IsSelected)
-                .Margin(4)
+            Border(
+                Image().Source(MyTheme.IconCheckboxSelected).WidthRequest(24).HeightRequest(24)
+            )
+            .StrokeThickness(0)
+            .BackgroundColor(Color.FromArgb("#CCFFFFFF"))
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Padding(4)
+            .VEnd()
+            .HEnd()
+            .IsVisible(image.IsSelected)
+            .Margin(4)
         );
 
     VisualNode RenderLoadingOverlay() => Grid(
@@ -277,28 +276,16 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         var imgs = await _sceneImageService.ListAsync();
         SetState(s => s.Images = ImmutableList.CreateRange(imgs));
 
-        if (DeviceInfo.Idiom == DeviceIdiom.Phone)
+        Debug.WriteLine($"DescribeAScenePage: ManageImages invoked, loaded {imgs?.Count ?? 0} images");
+
+        // Always use the SfBottomSheet for managing images on all platforms.
+        SetState(s =>
         {
-            await BottomSheetManager.ShowAsync(
-                () => new ImageGalleryBottomSheet()
-                    .State(State),
-                sheet =>
-                {
-                    sheet.HasBackdrop = true;
-                    sheet.HasHandle = true;
-                    sheet.CornerRadius = MyTheme.Size120;
-                    sheet.Detents = new Detent[]
-                    {
-                        new FullscreenDetent(),
-                        new MediumDetent()
-                    };
-                }
-            );
-        }
-        else
-        {
-            SetState(s => s.IsGalleryVisible = true);
-        }
+            s.IsGalleryBottomSheetOpen = true;
+            s.IsGalleryVisible = false; // ensure popup is not shown
+        });
+
+        Debug.WriteLine($"DescribeAScenePage: IsGalleryBottomSheetOpen={State.IsGalleryBottomSheetOpen}, IsGalleryVisible={State.IsGalleryVisible}");
     }
 
     async Task ViewDescription()
@@ -308,7 +295,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
     void ShowExplanation(Sentence sentence)
     {
-        SetState(s => 
+        SetState(s =>
         {
             s.ExplanationText = $"Original: {sentence.Answer}\n\n" +
                                $"Recommended: {sentence.RecommendedSentence}\n\n" +
@@ -324,19 +311,19 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
         Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting grading for user input: '{State.UserInput}'");
-        
+
         var stopwatch = Stopwatch.StartNew();
         SetState(s => s.IsBusy = true);
-        
+
         try
         {
             var grade = await _teacherService.GradeDescription(State.UserInput, State.Description);
             stopwatch.Stop();
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grading completed! Accuracy: {grade.Accuracy:F2}, Fluency: {grade.Fluency:F2}, Response time: {stopwatch.ElapsedMilliseconds}ms");
-            
-            var sentence = new Sentence 
-            { 
+
+            var sentence = new Sentence
+            {
                 Answer = State.UserInput,
                 Accuracy = grade.Accuracy,
                 Fluency = grade.Fluency,
@@ -345,7 +332,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RecommendedSentence = grade.RecommendedTranslation,
                 GrammarNotes = grade.GrammarNotes?.Explanation
             };
-            
+
             // Track user activity (legacy)
             await _userActivityRepository.SaveAsync(new UserActivity
             {
@@ -356,22 +343,22 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 CreatedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now
             });
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Legacy activity tracking saved");
-            
+
             // Enhanced vocabulary tracking - extract words from user input and process each
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting enhanced vocabulary tracking...");
             await ProcessVocabularyFromDescription(State.UserInput, grade, (int)stopwatch.ElapsedMilliseconds);
-            
+
             // Show enhanced feedback
             ShowEnhancedFeedback(grade, State.UserInput);
-            
+
             SetState(s =>
             {
                 s.UserInput = string.Empty;
                 s.Sentences = s.Sentences.Insert(0, sentence);
             });
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grading process completed successfully!");
         }
         catch (Exception ex)
@@ -394,7 +381,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         {
             var translation = await _translationService.TranslateAsync(State.UserInput);
             await AppShell.DisplayToastAsync(translation);
-            SetState(s => {
+            SetState(s =>
+            {
                 s.Sentences = s.Sentences.Insert(0, new Sentence { Answer = translation, Accuracy = 100 });
                 s.UserInput = string.Empty;
             });
@@ -425,7 +413,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
             var description = await _aiService.SendImage(State.ImageUrl.AbsoluteUri, prompt);
             SetState(s => s.Description = description);
-            
+
             await _sceneImageService.SaveAsync(new SceneImage
             {
                 Id = State.Id,
@@ -443,16 +431,16 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     async Task LoadImage()
     {
         var result = await Application.Current.MainPage.DisplayPromptAsync(
-            "Enter Image URL", 
-            "Please enter the URL of the image you would like to describe.", 
-            "OK", 
-            "Cancel", 
+            "Enter Image URL",
+            "Please enter the URL of the image you would like to describe.",
+            "OK",
+            "Cancel",
             "https://example.com/something.jpg"
         );
-        
+
         if (result != null)
         {
-            SetState(s => 
+            SetState(s =>
             {
                 s.ImageUrl = new Uri(result);
                 s.Sentences = ImmutableList<Sentence>.Empty;
@@ -467,8 +455,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     async Task OnImageSelected(SceneImage image)
     {
         if (State.SelectionMode != SelectionMode.None)
-        {             
-            SetState(s => {
+        {
+            SetState(s =>
+            {
                 if (s.SelectedImages.Contains(image))
                 {
                     s.SelectedImages = s.SelectedImages.Remove(image);
@@ -483,28 +472,41 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         }
         else
         {
-            SetState(s => 
+            SetState(s =>
             {
                 s.ImageUrl = new Uri(image.Url);
                 s.Description = image.Description;
                 s.Sentences = ImmutableList<Sentence>.Empty;
+                // Close both sheet and popup flags to ensure UI is hidden
+                s.IsGalleryBottomSheetOpen = false;
+                s.IsGalleryVisible = false;
             });
-            
-            if(string.IsNullOrWhiteSpace(image.Description))
+
+            try
+            {
+                // Persist selection (ensure the image is saved/updated server-side if needed)
+                await _sceneImageService.SaveAsync(image);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving selected image: {ex.Message}");
+            }
+
+            if (string.IsNullOrWhiteSpace(image.Description))
                 await GetDescription();
         }
     }
 
     void ToggleSelection()
     {
-        SetState(s => 
+        SetState(s =>
         {
-            s.SelectionMode = s.SelectionMode == SelectionMode.None ? 
+            s.SelectionMode = s.SelectionMode == SelectionMode.None ?
                 SelectionMode.Multiple : SelectionMode.None;
             s.IsDeleteVisible = s.SelectionMode != SelectionMode.None;
             s.IsSelecting = s.SelectionMode != SelectionMode.None;
-            
-            foreach(var img in s.SelectedImages)
+
+            foreach (var img in s.SelectedImages)
             {
                 img.IsSelected = false;
             }
@@ -514,17 +516,25 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
 
     async Task DeleteImages()
     {
-        if(State.SelectedImages.Count == 0)
+        if (State.SelectedImages.Count == 0)
             return;
 
-        foreach(var img in State.SelectedImages)
+        foreach (var img in State.SelectedImages)
         {
             await _sceneImageService.DeleteAsync(img);
             SetState(s => s.Images = s.Images.Remove(img));
         }
-        SetState(s => s.SelectedImages = ImmutableList<SceneImage>.Empty);
+
+        // Clear selections and exit selection mode
+        SetState(s =>
+        {
+            s.SelectedImages = ImmutableList<SceneImage>.Empty;
+            s.SelectionMode = SelectionMode.None;
+            s.IsDeleteVisible = false;
+            s.IsSelecting = false;
+        });
     }
-    
+
     Task ShowError()
     {
         return Application.Current.MainPage.DisplayAlert(
@@ -533,7 +543,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             "OK"
         );
     }
-    
+
     // Enhanced tracking helper methods
     async Task ProcessVocabularyFromDescription(string userInput, GradeResponse grade, int responseTimeMs)
     {
@@ -541,24 +551,24 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         {
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting vocabulary processing for input: '{userInput}'");
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grade accuracy: {grade.Accuracy:F2}");
-            
+
             // Extract vocabulary words from the user's description
             // For scene descriptions, we'll attempt to identify key vocabulary terms
             var words = await ExtractVocabularyFromUserInput(userInput, grade);
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extracted {words.Count} vocabulary words to process");
-            
+
             foreach (var vocabularyWord in words)
             {
                 // Try to find specific usage information from AI analysis
-                var vocabularyAnalysis = grade.VocabularyAnalysis?.FirstOrDefault(va => 
+                var vocabularyAnalysis = grade.VocabularyAnalysis?.FirstOrDefault(va =>
                     string.Equals(va.DictionaryForm, vocabularyWord.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(va.UsedForm, vocabularyWord.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase));
-                
+
                 // Determine if the usage was correct - use AI analysis if available, otherwise use overall accuracy
                 bool wasCorrect;
                 string actualUsedForm;
-                
+
                 if (vocabularyAnalysis != null)
                 {
                     wasCorrect = vocabularyAnalysis.UsageCorrect;
@@ -571,7 +581,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     actualUsedForm = vocabularyWord.TargetLanguageTerm ?? "";
                     Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: No specific AI analysis for '{vocabularyWord.TargetLanguageTerm}', using overall accuracy: {wasCorrect}");
                 }
-                
+
                 var attempt = new VocabularyAttempt
                 {
                     VocabularyWordId = vocabularyWord.Id,
@@ -586,14 +596,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                     ResponseTimeMs = responseTimeMs,
                     UserConfidence = null // Could be added later with user self-assessment
                 };
-                
+
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Recording vocabulary attempt for Word ID: {vocabularyWord.Id}, '{vocabularyWord.TargetLanguageTerm}' - Correct: {wasCorrect}");
-                
+
                 var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
-                
+
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Progress updated! Word ID: {vocabularyWord.Id}, MasteryScore: {updatedProgress.MasteryScore:F2}, Phase: {updatedProgress.CurrentPhase}");
             }
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Completed processing {words.Count} vocabulary words");
         }
         catch (Exception ex)
@@ -602,25 +612,25 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Stack trace: {ex.StackTrace}");
         }
     }
-    
+
     async Task<List<VocabularyWord>> ExtractVocabularyFromUserInput(string userInput, GradeResponse grade)
     {
         try
         {
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extracting vocabulary from input: '{userInput}'");
-            
+
             var matchedWords = new List<VocabularyWord>();
-            
+
             // Check if we have AI-powered vocabulary analysis
             if (grade.VocabularyAnalysis != null && grade.VocabularyAnalysis.Any())
             {
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Using AI vocabulary analysis - found {grade.VocabularyAnalysis.Count} analyzed words");
-                
+
                 // Get available vocabulary from learning resources
                 var resources = await _resourceRepo.GetAllResourcesAsync();
                 var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Loaded {allVocabulary.Count} vocabulary words from {resources.Count} resources");
-                
+
                 // Debug: Log details about each resource
                 foreach (var resource in resources)
                 {
@@ -632,30 +642,30 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                         Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Sample words from '{resource.Title}': [{string.Join(", ", sampleWords)}]");
                     }
                 }
-                
+
                 foreach (var analysis in grade.VocabularyAnalysis)
                 {
                     Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
-                    
+
                     // Try to match by dictionary form (target language)
-                    var matchedWord = allVocabulary.FirstOrDefault(v => 
+                    var matchedWord = allVocabulary.FirstOrDefault(v =>
                         string.Equals(v.TargetLanguageTerm?.Trim(), analysis.DictionaryForm.Trim(), StringComparison.OrdinalIgnoreCase));
-                    
+
                     if (matchedWord == null)
                     {
                         // Try to match by used form in case the dictionary form wasn't identified correctly
-                        matchedWord = allVocabulary.FirstOrDefault(v => 
+                        matchedWord = allVocabulary.FirstOrDefault(v =>
                             string.Equals(v.TargetLanguageTerm?.Trim(), analysis.UsedForm.Trim(), StringComparison.OrdinalIgnoreCase));
                     }
-                    
+
                     if (matchedWord == null && !string.IsNullOrEmpty(analysis.Meaning))
                     {
                         // Try to match by English meaning
-                        matchedWord = allVocabulary.FirstOrDefault(v => 
-                            !string.IsNullOrEmpty(v.NativeLanguageTerm) && 
+                        matchedWord = allVocabulary.FirstOrDefault(v =>
+                            !string.IsNullOrEmpty(v.NativeLanguageTerm) &&
                             v.NativeLanguageTerm.Contains(analysis.Meaning, StringComparison.OrdinalIgnoreCase));
                     }
-                    
+
                     if (matchedWord != null)
                     {
                         if (!matchedWords.Any(w => w.Id == matchedWord.Id))
@@ -677,29 +687,29 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             else
             {
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: ⚠️ No AI vocabulary analysis available, falling back to simple matching");
-                
+
                 // Fallback to simple string matching (legacy behavior)
                 var resources = await _resourceRepo.GetAllResourcesAsync();
                 var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Found {allVocabulary.Count} total vocabulary words in {resources.Count} resources");
-                
+
                 var inputWords = userInput.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Input words: [{string.Join(", ", inputWords)}]");
-                
+
                 foreach (var vocab in allVocabulary)
                 {
                     // Check if any form of the vocabulary word appears in the user input
-                    if (!string.IsNullOrWhiteSpace(vocab.TargetLanguageTerm) && 
-                        inputWords.Any(w => w.Contains(vocab.TargetLanguageTerm.ToLower()) || 
+                    if (!string.IsNullOrWhiteSpace(vocab.TargetLanguageTerm) &&
+                        inputWords.Any(w => w.Contains(vocab.TargetLanguageTerm.ToLower()) ||
                                            vocab.TargetLanguageTerm.ToLower().Contains(w)))
                     {
                         matchedWords.Add(vocab);
                         Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: MATCH found! '{vocab.TargetLanguageTerm}' matches in user input");
                     }
-                    
+
                     // Also check native language terms (in case user mixed languages)
-                    if (!string.IsNullOrWhiteSpace(vocab.NativeLanguageTerm) && 
-                        inputWords.Any(w => w.Contains(vocab.NativeLanguageTerm.ToLower()) || 
+                    if (!string.IsNullOrWhiteSpace(vocab.NativeLanguageTerm) &&
+                        inputWords.Any(w => w.Contains(vocab.NativeLanguageTerm.ToLower()) ||
                                            vocab.NativeLanguageTerm.ToLower().Contains(w)))
                     {
                         if (!matchedWords.Contains(vocab)) // Avoid duplicates
@@ -709,17 +719,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                         }
                     }
                 }
-                
+
                 // Limit to avoid overwhelming
                 matchedWords = matchedWords.Take(5).ToList();
             }
-            
+
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extraction completed - found {matchedWords.Count} vocabulary words");
             foreach (var word in matchedWords)
             {
                 Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Final matched word - Target: '{word.TargetLanguageTerm}', Native: '{word.NativeLanguageTerm}'");
             }
-            
+
             return matchedWords;
         }
         catch (Exception ex)
@@ -729,28 +739,28 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             return new List<VocabularyWord>();
         }
     }
-    
+
     float CalculateDescriptionDifficulty(string userInput, VocabularyWord vocabularyWord)
     {
         float difficulty = 1.0f;
-        
+
         // Longer descriptions are generally more challenging
         int wordCount = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         if (wordCount > 10) difficulty += 0.3f;
         if (wordCount > 20) difficulty += 0.3f;
-        
+
         // Complex sentence structures increase difficulty
         if (userInput.Contains(",") || userInput.Contains("and") || userInput.Contains("but"))
             difficulty += 0.2f;
-            
+
         // Note: VocabularyWord doesn't have Notes property, so we'll skip that check
         // Could add difficulty based on word length or other factors
         if (!string.IsNullOrWhiteSpace(vocabularyWord.TargetLanguageTerm) && vocabularyWord.TargetLanguageTerm.Length > 6)
             difficulty += 0.2f;
-            
+
         return Math.Min(difficulty, 2.0f); // Cap at 2.0
     }
-    
+
     void ShowEnhancedFeedback(GradeResponse grade, string userInput)
     {
         try
@@ -772,7 +782,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             {
                 ShowFeedback("🔍 Try focusing on simpler sentences first", "hint");
             }
-            
+
             // Additional context-specific feedback
             if (userInput.Length > 100)
             {
@@ -784,16 +794,16 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Error showing feedback: {ex.Message}");
         }
     }
-    
+
     void ShowFeedback(string message, string type)
     {
-        SetState(s => 
+        SetState(s =>
         {
             s.FeedbackMessage = message;
             s.FeedbackType = type;
             s.ShowFeedback = true;
         });
-        
+
         // Auto-hide feedback after 4 seconds
         Task.Run(async () =>
         {
@@ -801,14 +811,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
             SetState(s => s.ShowFeedback = false);
         });
     }
-    
+
     int GetCurrentUserId()
     {
         // For now, return a default user ID
         // This should be replaced with actual user management
         return 1;
     }
-    
+
     Color GetFeedbackBackgroundColor(string feedbackType)
     {
         return feedbackType switch

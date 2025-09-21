@@ -376,9 +376,18 @@ class MyTheme : ApplicationTheme
         Size = IconSize
     };
 
+    // Close/dismiss icon used for dialogs and bottom sheets
+    public static FontImageSource IconClose { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.dismiss_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconImageExport { get; } = new FontImageSource
     {
-        Glyph = FluentUI.arrow_export_ltr_24_regular,
+        Glyph = FluentUI.arrow_export_up_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
@@ -386,7 +395,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconSwitch { get; } = new FontImageSource
     {
-        Glyph = FluentUI.arrow_turn_down_right_20_regular,
+        Glyph = FluentUI.camera_switch_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize
