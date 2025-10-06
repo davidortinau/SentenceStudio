@@ -1,7 +1,4 @@
 using MauiReactor.Shapes;
-using SentenceStudio.Data;
-using SentenceStudio.Shared.Models;
-using SentenceStudio.Services;
 using LukeMauiFilePicker;
 using SentenceStudio.Pages.VocabularyProgress;
 
@@ -27,12 +24,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] AiService _aiService;
     [Inject] IFilePickerService _picker;
-    
+
     // Track whether we need to save resource relationship (only for new words)
     private bool _shouldSaveResourceRelationship = false;
-    
+
     LocalizationManager _localize => LocalizationManager.Instance;
-    
+
     static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
     {
         { DevicePlatform.Android, new[] { "text/*" } },
@@ -49,9 +46,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             State.IsEditing ? ToolbarItem("Save").OnClicked(SaveResource) : null,
             State.IsEditing ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
             ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
-                
+
             Grid(
-                State.IsLoading ? 
+                State.IsLoading ?
                     VStack(
                         ActivityIndicator().IsRunning(true)
                     )
@@ -60,14 +57,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Grid(
                         ScrollView(
                             VStack(
-                                State.IsEditing ? 
-                                    RenderEditMode() : 
+                                State.IsEditing ?
+                                    RenderEditMode() :
                                     RenderViewMode()
                             )
                             .Padding(new Thickness(15))
                             .Spacing(15)
                         ),
-                        
+
                         // Vocabulary word editor overlay
                         State.IsVocabularySheetVisible ?
                             RenderVocabularyWordEditor() :
@@ -80,7 +77,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     private VisualNode RenderVocabularyWordEditor()
     {
         return new VocabularyWordEditorSheet(
-            State.CurrentVocabularyWord, 
+            State.CurrentVocabularyWord,
             State.IsAddingNewWord,
             word => _ = SaveVocabularyWordAsync(word), // Async wrapper
             () => SetState(s => s.IsVocabularySheetVisible = false)
@@ -92,16 +89,16 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         return VStack(
             // Show media content based on type
             // RenderMediaContent(),
-            
+
             // Title
             Label(State.Resource.Title ?? string.Empty)
                 .FontSize(24)
                 .FontAttributes(FontAttributes.Bold),
-                
+
             // Description
             Label(State.Resource.Description ?? string.Empty)
                 .FontSize(16),
-                
+
             // Metadata
             Border(
                 Grid(rows: "Auto, Auto, Auto, Auto, Auto", columns: "Auto, *",
@@ -129,7 +126,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .GridRow(2)
                         .GridColumn(1)
                         .TextDecorations(TextDecorations.Underline)
-                        .OnTapped(() => 
+                        .OnTapped(() =>
                             {
                                 if (!string.IsNullOrEmpty(State.Resource.MediaUrl))
                                 {
@@ -157,14 +154,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ColumnSpacing(10)
             )
             .Stroke(Colors.LightGray),
-            
+
             // Transcript if available
             !string.IsNullOrEmpty(State.Resource.Transcript) ?
                 VStack(
                     Label("Transcript")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(18),
-                        
+
                     Border(
                         Label(State.Resource.Transcript)
                     )
@@ -173,14 +170,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Spacing(10) :
                 null,
-                
+
             // Translation if available
             !string.IsNullOrEmpty(State.Resource.Translation) ?
                 VStack(
                     Label("Translation")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(18),
-                        
+
                     Border(
                         Label(State.Resource.Translation)
                     )
@@ -189,7 +186,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Spacing(10) :
                 null,
-                
+
             // Vocabulary section - always show for all media types
             VStack(
                 Grid(
@@ -197,14 +194,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(18)
                         .GridColumn(0),
-                        
+
                     HStack(
                         Button("Generate")
                             .ThemeKey("Secondary")
                             .OnClicked(GenerateVocabulary)
                             .IsEnabled(!State.IsGeneratingVocabulary)
                             .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-                            
+
                         ActivityIndicator()
                             .IsRunning(State.IsGeneratingVocabulary)
                             .IsVisible(State.IsGeneratingVocabulary)
@@ -215,18 +212,18 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     .HEnd()
                 )
                 .Columns("*, Auto"),
-                    
+
                 State.Resource.Vocabulary?.Count > 0 ?
                     CollectionView()
                         .SelectionMode(SelectionMode.None)
-                        .ItemsSource(State.Resource.Vocabulary, word => 
+                        .ItemsSource(State.Resource.Vocabulary, word =>
                             Border(
                                 Grid(
                                     VStack(
                                         Label(word.TargetLanguageTerm)
                                             .FontAttributes(FontAttributes.Bold)
                                             .FontSize(16),
-                                            
+
                                         Label(word.NativeLanguageTerm)
                                             .FontSize(14)
                                     )
@@ -268,7 +265,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Description
             VStack(
                 Label("Description")
@@ -283,7 +280,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Media Type
             VStack(
                 Label("Media Type")
@@ -293,7 +290,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Picker()
                         .ItemsSource(Constants.MediaTypes)
                         .SelectedIndex(State.MediaTypeIndex)
-                        .OnSelectedIndexChanged(index => SetState(s => {
+                        .OnSelectedIndexChanged(index => SetState(s =>
+                        {
                             s.MediaTypeIndex = index;
                             s.Resource.MediaType = Constants.MediaTypes[index];
                         }))
@@ -301,7 +299,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .Hint("Media Type")
             )
             .Spacing(5),
-            
+
             // Language
             VStack(
                 Label("Language")
@@ -311,15 +309,16 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Picker()
                         .ItemsSource(Constants.Languages)
                         .SelectedIndex(State.LanguageIndex)
-                        .OnSelectedIndexChanged(index => SetState(s => {
-                            s.LanguageIndex = index; 
+                        .OnSelectedIndexChanged(index => SetState(s =>
+                        {
+                            s.LanguageIndex = index;
                             s.Resource.Language = Constants.Languages[index];
                         }))
                 )
                 .Hint("Language")
             )
             .Spacing(5),
-            
+
             // Media URL
             VStack(
                 Label("Media URL")
@@ -334,7 +333,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Transcript
             VStack(
                 Label("Transcript")
@@ -349,7 +348,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Translation
             VStack(
                 Label("Translation")
@@ -364,7 +363,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Tags
             VStack(
                 Label("Tags (comma separated)")
@@ -378,13 +377,13 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .ThemeKey(MyTheme.InputWrapper)
             )
             .Spacing(5),
-            
+
             // Vocabulary section
             VStack(
                 Label("Vocabulary")
                         .ThemeKey(MyTheme.Title1)
                         .GridColumn(0),
-                        
+
                 HStack(
                     Button("+ Add Word")
                         .ThemeKey("Secondary")
@@ -395,16 +394,16 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnClicked(GenerateVocabulary)
                         .IsEnabled(!State.IsGeneratingVocabulary)
                         .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-                        
+
                     ActivityIndicator()
                         .IsRunning(State.IsGeneratingVocabulary)
                         .IsVisible(State.IsGeneratingVocabulary)
                         .Scale(0.8)
                 )
                 .Spacing(10),
-                
+
                 // Vocabulary import section
-                
+
                 Label("Import Vocabulary from File or Paste Text")
                     .FontAttributes(FontAttributes.Bold)
                     .HStart(),
@@ -444,23 +443,23 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                 )
                 .Spacing(MyTheme.Size320),
-                
+
                 CollectionView()
                     .SelectionMode(SelectionMode.None)
-                    .ItemsSource(State.Resource.Vocabulary, word => 
+                    .ItemsSource(State.Resource.Vocabulary, word =>
                         Border(
                             Grid(
                                 VStack(
                                     Label(word.TargetLanguageTerm)
                                         .FontAttributes(FontAttributes.Bold)
                                         .FontSize(16),
-                                            
+
                                     Label(word.NativeLanguageTerm)
                                         .FontSize(14)
                                 )
                                 .Spacing(5)
                                 .GridColumn(0),
-                                
+
                                 HStack(
                                     Button("Edit")
                                         .OnClicked(() => EditVocabularyWord(word))
@@ -493,8 +492,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         if (Props.ResourceID == 0)
         {
             // Creating a new resource
-            SetState(s => {
-                s.Resource = new LearningResource {
+            SetState(s =>
+            {
+                s.Resource = new LearningResource
+                {
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -503,27 +504,28 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             });
             return;
         }
-        
+
         SetState(s => s.IsLoading = true);
-        
+
         var resource = await _resourceRepo.GetResourceAsync(Props.ResourceID);
-        
+
         // Set the indexes for the pickers
         int mediaTypeIndex = Array.IndexOf(Constants.MediaTypes, resource.MediaType);
         int languageIndex = Array.IndexOf(Constants.Languages, resource.Language);
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Resource = resource;
             s.MediaTypeIndex = mediaTypeIndex >= 0 ? mediaTypeIndex : 0;
             s.LanguageIndex = languageIndex >= 0 ? languageIndex : 0;
             s.IsLoading = false;
         });
     }
-    
+
     async Task SaveResource()
     {
         SetState(s => s.IsLoading = true);
-        
+
         // Validate required fields
         if (string.IsNullOrWhiteSpace(State.Resource.Title))
         {
@@ -531,64 +533,67 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             SetState(s => s.IsLoading = false);
             return;
         }
-        
+
         if (string.IsNullOrWhiteSpace(State.Resource.MediaType))
         {
             SetState(s => s.Resource.MediaType = "Other");
         }
-        
+
         if (string.IsNullOrWhiteSpace(State.Resource.Language))
         {
             SetState(s => s.Resource.Language = "Other");
         }
-        
+
         // Save the resource
         await _resourceRepo.SaveResourceAsync(State.Resource);
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.IsLoading = false;
             s.IsEditing = false;
         });
-        
+
         // If this is a new resource, navigate back to the list
         if (Props.ResourceID == 0)
         {
             await MauiControls.Shell.Current.GoToAsync("..");
         }
     }
-    
+
     async Task DeleteResource()
     {
         bool confirm = await App.Current.MainPage.DisplayAlert(
-            "Confirm Delete", 
-            "Are you sure you want to delete this resource?", 
+            "Confirm Delete",
+            "Are you sure you want to delete this resource?",
             "Yes", "No");
-            
+
         if (confirm)
         {
             SetState(s => s.IsLoading = true);
-            
+
             await _resourceRepo.DeleteResourceAsync(State.Resource);
-            
+
             SetState(s => s.IsLoading = false);
-            
+
             await MauiControls.Shell.Current.GoToAsync("..");
         }
     }
-    
+
     void AddVocabularyWord()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.CurrentVocabularyWord = new VocabularyWord();
             s.IsAddingNewWord = true;
             s.IsVocabularySheetVisible = true;
         });
     }
-    
+
     void EditVocabularyWord(VocabularyWord word)
     {
-        SetState(s => {
-            s.CurrentVocabularyWord = new VocabularyWord 
+        SetState(s =>
+        {
+            s.CurrentVocabularyWord = new VocabularyWord
             {
                 Id = word.Id,
                 TargetLanguageTerm = word.TargetLanguageTerm,
@@ -598,27 +603,27 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             s.IsVocabularySheetVisible = true;
         });
     }
-    
+
     async Task SaveVocabularyWordAsync(VocabularyWord word)
     {
         try
         {
             SetState(s => s.IsLoading = true);
-            
+
             // Set timestamps
             if (word.CreatedAt == default)
                 word.CreatedAt = DateTime.UtcNow;
             word.UpdatedAt = DateTime.UtcNow;
-            
+
             // Save the vocabulary word to database
             var result = await _resourceRepo.SaveWordAsync(word);
-            
+
             if (result <= 0)
             {
                 throw new Exception("Failed to save vocabulary word to database");
             }
-            
-            SetState(s => 
+
+            SetState(s =>
             {
                 if (s.IsAddingNewWord)
                 {
@@ -628,7 +633,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         s.Resource.Vocabulary = new List<VocabularyWord>();
                     }
                     s.Resource.Vocabulary.Add(word);
-                    
+
                     // Only save resource for new words to establish relationship
                     _shouldSaveResourceRelationship = true;
                 }
@@ -645,13 +650,13 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 s.IsVocabularySheetVisible = false;
                 s.IsLoading = false;
             });
-            
+
             // Only save resource relationship for new words
             if (State.Resource.Id > 0 && _shouldSaveResourceRelationship)
             {
                 await _resourceRepo.SaveResourceAsync(State.Resource);
             }
-            
+
             await AppShell.DisplayToastAsync("✅ Vocabulary word saved successfully!");
         }
         catch (Exception ex)
@@ -661,33 +666,33 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             System.Diagnostics.Debug.WriteLine($"SaveVocabularyWordAsync error: {ex}");
         }
     }
-    
+
     async Task DeleteVocabularyWord(VocabularyWord word)
     {
         bool confirm = await App.Current.MainPage.DisplayAlert(
-            "Confirm Delete", 
-            $"Are you sure you want to delete '{word.TargetLanguageTerm}'?", 
+            "Confirm Delete",
+            $"Are you sure you want to delete '{word.TargetLanguageTerm}'?",
             "Yes", "No");
-            
+
         if (!confirm) return;
-        
+
         try
         {
             SetState(s => s.IsLoading = true);
-            
+
             // Remove from the resource relationship first if word has an ID
             if (word.Id > 0 && State.Resource.Id > 0)
             {
                 await _resourceRepo.RemoveVocabularyFromResourceAsync(State.Resource.Id, word.Id);
             }
-            
+
             // Remove from local state
-            SetState(s => 
+            SetState(s =>
             {
                 s.Resource.Vocabulary.Remove(word);
                 s.IsLoading = false;
             });
-            
+
             await AppShell.DisplayToastAsync("🗑️ Vocabulary word removed successfully!");
         }
         catch (Exception ex)
@@ -697,7 +702,43 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             System.Diagnostics.Debug.WriteLine($"DeleteVocabularyWord error: {ex}");
         }
     }
-    
+
+    /// <summary>
+    /// Get existing vocabulary word from database or create new one.
+    /// This ensures we reuse existing words and properly track many-to-many relationships.
+    /// </summary>
+    async Task<VocabularyWord> GetOrCreateVocabularyWordAsync(string targetTerm, string nativeTerm)
+    {
+        // Search for existing word by target term (case-insensitive)
+        var existingWord = await _resourceRepo.GetWordByTargetTermAsync(targetTerm);
+
+        if (existingWord != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found existing word: {targetTerm}");
+            return existingWord;
+        }
+
+        // Create new word
+        var newWord = new VocabularyWord
+        {
+            TargetLanguageTerm = targetTerm,
+            NativeLanguageTerm = nativeTerm,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Save to database
+        var result = await _resourceRepo.SaveWordAsync(newWord);
+
+        if (result <= 0)
+        {
+            throw new Exception($"Failed to save vocabulary word: {targetTerm}");
+        }
+
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Created new word: {targetTerm} (ID: {newWord.Id})");
+        return newWord;
+    }
+
     async Task GenerateVocabulary()
     {
         // Check if there's a transcript to analyze
@@ -706,72 +747,161 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             await App.Current.MainPage.DisplayAlert("Error", "No transcript available to generate vocabulary from", "OK");
             return;
         }
-        
+
         SetState(s => s.IsGeneratingVocabulary = true);
-        
+
         try
         {
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ GenerateVocabulary: Starting vocabulary generation for language '{State.Resource.Language}'");
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Transcript length: {State.Resource.Transcript.Length} chars");
+
+            // Build AI prompt - no need to fetch existing words, let AI extract everything
             string prompt = $@"
-You are a language learning assistant. Given the following transcript in {State.Resource.Language}, 
-create a vocabulary list with important and useful words or phrases.
-For each word, provide:
-1. The word or phrase in {State.Resource.Language} (TargetLanguageTerm)
+You are a language learning assistant. Analyze this {State.Resource.Language} transcript and extract ALL vocabulary words that would be useful for a learner.
+
+For EACH word or phrase you find in the transcript, provide:
+1. The word in {State.Resource.Language} (TargetLanguageTerm) - use dictionary/base form when appropriate
 2. The English translation (NativeLanguageTerm)
-Include a variety of nouns, verbs, adjectives, and useful expressions.
-Format your response as a valid JSON array of objects.
+
+Include:
+- Nouns, verbs, adjectives, adverbs
+- Common expressions and phrases
+- Grammar patterns if useful
+- ALL words that appear in the transcript, even if they seem basic
+
+Be generous with vocabulary extraction. Extract as many useful vocabulary words as possible from this transcript.
+
+Format your response as a valid JSON array of objects with TargetLanguageTerm and NativeLanguageTerm properties.
 
 Transcript:
 {State.Resource.Transcript}
 ";
 
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Sending prompt to AI (length: {prompt.Length} chars)");
+
             var vocabulary = await _aiService.SendPrompt<List<VocabularyWord>>(prompt);
-            
+
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI returned {vocabulary?.Count ?? 0} vocabulary words");
+
             if (vocabulary != null && vocabulary.Any())
             {
-                SetState(s => {
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Processing {vocabulary.Count} words from AI...");
+
+                int newWordsCreated = 0;
+                int existingWordsLinked = 0;
+                int localDuplicatesSkipped = 0;
+                List<VocabularyWord> wordsToAssociate = new List<VocabularyWord>();
+
+                // Process each word: get or create, then prepare for association
+                foreach (var wordData in vocabulary)
+                {
+                    if (string.IsNullOrWhiteSpace(wordData.TargetLanguageTerm))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Skipping word with empty target term");
+                        continue;
+                    }
+
+                    // Check if this word is already associated with this resource
+                    bool alreadyInResource = State.Resource.Vocabulary?.Any(w =>
+                        w.TargetLanguageTerm?.Trim().Equals(wordData.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true) ?? false;
+
+                    if (alreadyInResource)
+                    {
+                        localDuplicatesSkipped++;
+                        System.Diagnostics.Debug.WriteLine($"⏭️ Already in resource: {wordData.TargetLanguageTerm}");
+                        continue;
+                    }
+
+                    try
+                    {
+                        // Get existing word or create new one
+                        var word = await GetOrCreateVocabularyWordAsync(
+                            wordData.TargetLanguageTerm.Trim(),
+                            wordData.NativeLanguageTerm?.Trim() ?? ""
+                        );
+
+                        // Track if this was new or existing
+                        if (word.CreatedAt == word.UpdatedAt &&
+                            (DateTime.UtcNow - word.CreatedAt).TotalSeconds < 5)
+                        {
+                            newWordsCreated++;
+                            System.Diagnostics.Debug.WriteLine($"✨ New word: {word.TargetLanguageTerm} = {word.NativeLanguageTerm}");
+                        }
+                        else
+                        {
+                            existingWordsLinked++;
+                            System.Diagnostics.Debug.WriteLine($"🔗 Linking existing: {word.TargetLanguageTerm} = {word.NativeLanguageTerm}");
+                        }
+
+                        wordsToAssociate.Add(word);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ Error processing word '{wordData.TargetLanguageTerm}': {ex.Message}");
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Prepared {wordsToAssociate.Count} words to associate with resource");
+
+                // Add all words to the resource vocabulary collection
+                SetState(s =>
+                {
                     if (s.Resource.Vocabulary == null)
                     {
                         s.Resource.Vocabulary = new List<VocabularyWord>();
                     }
-                    
-                    // Add the new words, avoiding duplicates
-                    foreach (var word in vocabulary)
+
+                    foreach (var word in wordsToAssociate)
                     {
-                        if (!s.Resource.Vocabulary.Any(w => 
-                            w.TargetLanguageTerm == word.TargetLanguageTerm &&
-                            w.NativeLanguageTerm == word.NativeLanguageTerm))
-                        {
-                            word.CreatedAt = DateTime.UtcNow;
-                            word.UpdatedAt = DateTime.UtcNow;
-                            s.Resource.Vocabulary.Add(word);
-                        }
+                        s.Resource.Vocabulary.Add(word);
                     }
-                    
-                    s.IsGeneratingVocabulary = false;
                 });
-                
-                await App.Current.MainPage.DisplayAlert("Success", $"Generated {vocabulary.Count} vocabulary items", "OK");
+
+                // Save the resource to persist all word associations
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Saving resource to persist {wordsToAssociate.Count} word associations...");
+                await _resourceRepo.SaveResourceAsync(State.Resource);
+                System.Diagnostics.Debug.WriteLine($"✅ Resource saved successfully!");
+
+                SetState(s => s.IsGeneratingVocabulary = false);
+
+                // Build success message with statistics
+                var message = $"AI extracted {vocabulary.Count} vocabulary words\n\n";
+                message += $"✨ Created {newWordsCreated} new word{(newWordsCreated != 1 ? "s" : "")}\n";
+                message += $"🔗 Linked {existingWordsLinked} existing word{(existingWordsLinked != 1 ? "s" : "")}";
+
+                if (localDuplicatesSkipped > 0)
+                {
+                    message += $"\n⏭️ Skipped {localDuplicatesSkipped} already in this resource";
+                }
+
+                message += $"\n\n📚 Total vocabulary for this resource: {State.Resource.Vocabulary.Count}";
+
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Final stats: {newWordsCreated} new, {existingWordsLinked} existing, {localDuplicatesSkipped} skipped");
+
+                await App.Current.MainPage.DisplayAlert("Vocabulary Generated!", message, "OK");
             }
             else
             {
+                System.Diagnostics.Debug.WriteLine($"⚠️ AI returned null or empty vocabulary list");
                 SetState(s => s.IsGeneratingVocabulary = false);
-                await App.Current.MainPage.DisplayAlert("Error", "Failed to generate vocabulary", "OK");
+                await App.Current.MainPage.DisplayAlert("Error", "AI did not generate any vocabulary. There might be an issue with the AI service.", "OK");
             }
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"❌ GenerateVocabulary error: {ex}");
             SetState(s => s.IsGeneratingVocabulary = false);
             await App.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
         }
     }
-    
+
     Task ViewVocabularyProgress()
     {
         return MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
             nameof(VocabularyLearningProgressPage),
             props => props.ResourceId = State.Resource.Id);
     }
-    
+
     async Task ChooseFile()
     {
         var file = await _picker.PickFileAsync("Select a file", FileType);
@@ -784,7 +914,7 @@ Transcript:
             SetState(s => s.VocabList = content);
         }
     }
-    
+
     async Task ImportVocabulary()
     {
         if (string.IsNullOrWhiteSpace(State.VocabList))
@@ -792,37 +922,38 @@ Transcript:
             await App.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
             return;
         }
-        
+
         try
         {
             // Parse vocabulary words from the input
             var newWords = VocabularyWord.ParseVocabularyWords(State.VocabList, State.Delimiter);
-            
+
             if (!newWords.Any())
             {
                 await App.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
                 return;
             }
-            
+
             int addedCount = 0;
             int duplicateCount = 0;
-            
-            SetState(s => {
+
+            SetState(s =>
+            {
                 // Initialize vocabulary list if it doesn't exist
                 if (s.Resource.Vocabulary == null)
                 {
                     s.Resource.Vocabulary = new List<VocabularyWord>();
                 }
-                
+
                 // Add new words, checking for duplicates
                 foreach (var word in newWords)
                 {
                     // Check for duplicates based on both terms
-                    bool isDuplicate = s.Resource.Vocabulary.Any(existing => 
+                    bool isDuplicate = s.Resource.Vocabulary.Any(existing =>
                         (existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true &&
                          existing.NativeLanguageTerm?.Trim().Equals(word.NativeLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true) ||
                         existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
-                    
+
                     if (!isDuplicate)
                     {
                         word.CreatedAt = DateTime.UtcNow;
@@ -835,18 +966,18 @@ Transcript:
                         duplicateCount++;
                     }
                 }
-                
+
                 // Clear the input after successful import
                 s.VocabList = string.Empty;
             });
-            
+
             // Show result message
             var message = $"Added {addedCount} new vocabulary words.";
             if (duplicateCount > 0)
             {
                 message += $" Skipped {duplicateCount} duplicates.";
             }
-            
+
             await App.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
         }
         catch (Exception ex)
