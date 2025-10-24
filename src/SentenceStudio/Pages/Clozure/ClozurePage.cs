@@ -23,6 +23,16 @@ class ClozurePageState
 	public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
 	public bool ShowFeedback { get; set; }
 	public float? UserConfidence { get; set; }
+
+	// Tile-based multiple choice state
+	public string SelectedOption { get; set; }
+	public bool HasBeenGraded { get; set; }
+	public string CorrectAnswer { get; set; }
+
+	// Session wrapup state
+	public bool ShowSessionSummary { get; set; }
+	public int SessionCorrectCount { get; set; }
+	public int SessionTotalCount { get; set; }
 }
 
 partial class ClozurePage : Component<ClozurePageState, ActivityProps>
@@ -47,7 +57,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				),
 				NavigationFooter(),
 				AutoTransitionBar(),
-				LoadingOverlay()
+				LoadingOverlay(),
+				SessionSummaryOverlay()
 			).RowSpacing(12)
 		)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
@@ -74,6 +85,101 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.Background(Color.FromArgb("#80000000"))
 		.GridRowSpan(2)
 		.IsVisible(State.IsBusy);
+
+	VisualNode SessionSummaryOverlay() =>
+		Grid(
+			ScrollView(
+				VStack(spacing: MyTheme.LayoutSpacing,
+					// Header
+					Label("📚 Session Complete!")
+						.FontSize(24)
+						.FontAttributes(FontAttributes.Bold)
+						.TextColor(MyTheme.HighlightDarkest)
+						.Center(),
+
+					Label("Great work! Here's your progress:")
+						.FontSize(16)
+						.Center()
+						.TextColor(Theme.IsLightTheme ?
+							MyTheme.DarkOnLightBackground :
+							MyTheme.LightOnDarkBackground),
+
+					// Session stats
+					Border(
+						VStack(spacing: 12,
+							Label("📊 Session Results")
+								.FontSize(18)
+								.FontAttributes(FontAttributes.Bold)
+								.Center()
+								.TextColor(MyTheme.HighlightDarkest),
+
+							HStack(spacing: 30,
+								VStack(spacing: 4,
+									Label($"{State.SessionCorrectCount}")
+										.FontSize(32)
+										.FontAttributes(FontAttributes.Bold)
+										.TextColor(MyTheme.Success)
+										.Center(),
+									Label("Correct")
+										.FontSize(14)
+										.Center()
+								),
+								VStack(spacing: 4,
+									Label($"{State.SessionTotalCount - State.SessionCorrectCount}")
+										.FontSize(32)
+										.FontAttributes(FontAttributes.Bold)
+										.TextColor(MyTheme.Error)
+										.Center(),
+									Label("Incorrect")
+										.FontSize(14)
+										.Center()
+								),
+								VStack(spacing: 4,
+									Label($"{(State.SessionTotalCount > 0 ? (int)((float)State.SessionCorrectCount / State.SessionTotalCount * 100) : 0)}%")
+										.FontSize(32)
+										.FontAttributes(FontAttributes.Bold)
+										.TextColor(MyTheme.HighlightDarkest)
+										.Center(),
+									Label("Accuracy")
+										.FontSize(14)
+										.Center()
+								)
+							).Center()
+						)
+						.Padding(16)
+					)
+					.Background(Theme.IsLightTheme ?
+						MyTheme.LightSecondaryBackground :
+						MyTheme.DarkSecondaryBackground)
+					.StrokeShape(new RoundRectangle().CornerRadius(8))
+					.Margin(0, 16),
+
+					// Sentences review
+					Label($"You practiced {State.SessionTotalCount} sentence{(State.SessionTotalCount == 1 ? "" : "s")}")
+						.FontSize(14)
+						.Center()
+						.TextColor(Theme.IsLightTheme ?
+							MyTheme.DarkOnLightBackground :
+							MyTheme.LightOnDarkBackground)
+						.Margin(0, 8),
+
+					// Continue button
+					Button("Continue Practice")
+						.OnClicked(ContinueAfterSummary)
+						.Background(MyTheme.HighlightDarkest)
+						.TextColor(Colors.White)
+						.CornerRadius(8)
+						.Padding(20, 12)
+						.Margin(0, 16)
+				)
+				.Padding(MyTheme.LayoutPadding)
+			)
+		)
+		.Background(Theme.IsLightTheme ?
+			MyTheme.LightBackground :
+			MyTheme.DarkBackground)
+		.GridRowSpan(2)
+		.IsVisible(State.ShowSessionSummary);
 
 	VisualNode NavigationFooter() =>
 		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
@@ -212,30 +318,144 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
 		.Margin(0,0,0,12);
 
-	VisualNode RenderMultipleChoice() =>
-		VStack(spacing: 4,
-			CollectionView()
-				.ItemsSource(State.GuessOptions, RenderOption)
-		)
-		.GridRow(0);
+	VisualNode RenderMultipleChoice()
+	{
+		if (State.GuessOptions == null || State.GuessOptions.Length == 0)
+			return VStack();
 
-    VisualNode RenderOption(string option) =>
-		RadioButton()
-			.Content(option)
-			.Value(option)
-			.IsChecked(State.UserGuess == option)
-			.OnCheckedChanged(() => {
-				SetState(s => s.UserGuess = option);
-				GradeMe();
-			});
+		// Single column layout for longer words
+		var tiles = new List<VisualNode>();
+		for (int i = 0; i < State.GuessOptions.Length; i++)
+		{
+			tiles.Add(RenderOptionTile(State.GuessOptions[i], i));
+		}
+
+		return VStack(spacing: 8,
+			tiles.ToArray()
+		)
+		.Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30, 0) : new Thickness(15, 0))
+		.GridRow(0)
+		.GridColumnSpan(4);
+	}
+
+	VisualNode RenderOptionTile(string option, int index)
+	{
+		return Border(
+			Label(option)
+				.FontSize(20)
+				.Center()
+				.TextColor(GetOptionTileTextColor(option))
+				.Padding(16, 12)
+		)
+		.Background(GetOptionTileBackgroundColor(option))
+		.Stroke(GetOptionTileBorderColor(option))
+		.StrokeThickness(2)
+		.StrokeShape(new RoundRectangle().CornerRadius(8))
+		.Margin(0, 4)
+		.OnTapped(() => OnOptionTapped(option));
+	}
 
     ImageSource UserActivityToImageSource(UserActivity activity)
 	{
 		if (activity == null) return null;
-		
-		return activity.Accuracy == 100 ? 
-			MyTheme.IconCircleCheckmark : 
+
+		return activity.Accuracy == 100 ?
+			MyTheme.IconCircleCheckmark :
 			MyTheme.IconCancel;
+	}
+
+	// Option tile color methods matching VocabularyQuizPage style
+	Color GetOptionTileBackgroundColor(string option)
+	{
+		var isSelected = State.SelectedOption == option;
+		var showFeedback = State.HasBeenGraded;
+		var isCorrect = option == State.CorrectAnswer;
+
+		Color backgroundColor = Colors.Transparent;
+
+		if (showFeedback)
+		{
+			if (isCorrect)
+			{
+				backgroundColor = MyTheme.Success;
+			}
+			else if (isSelected && !isCorrect)
+			{
+				backgroundColor = MyTheme.Error;
+			}
+		}
+		else if (isSelected)
+		{
+			backgroundColor = MyTheme.HighlightDarkest.WithAlpha(0.1f);
+		}
+
+		return backgroundColor;
+	}
+
+	Color GetOptionTileTextColor(string option)
+	{
+		var isSelected = State.SelectedOption == option;
+		var showFeedback = State.HasBeenGraded;
+		var isCorrect = option == State.CorrectAnswer;
+
+		Color textColor = Theme.IsLightTheme ?
+			MyTheme.DarkOnLightBackground :
+			MyTheme.LightOnDarkBackground;
+
+		if (showFeedback)
+		{
+			if (isCorrect)
+			{
+				textColor = Colors.White;
+			}
+			else if (isSelected && !isCorrect)
+			{
+				textColor = Colors.White;
+			}
+		}
+
+		return textColor;
+	}
+
+	Color GetOptionTileBorderColor(string option)
+	{
+		var isSelected = State.SelectedOption == option;
+		var showFeedback = State.HasBeenGraded;
+		var isCorrect = option == State.CorrectAnswer;
+
+		Color borderColor = MyTheme.Gray200;
+
+		if (showFeedback)
+		{
+			if (isCorrect)
+			{
+				borderColor = MyTheme.Success;
+			}
+			else if (isSelected && !isCorrect)
+			{
+				borderColor = MyTheme.Error;
+			}
+		}
+		else if (isSelected)
+		{
+			borderColor = MyTheme.HighlightDarkest;
+		}
+
+		return borderColor;
+	}
+
+	void OnOptionTapped(string option)
+	{
+		if (State.HasBeenGraded) return; // Don't allow changes after grading
+
+		SetState(s =>
+		{
+			s.SelectedOption = option;
+			s.UserGuess = option; // Keep for compatibility with existing GradeMe logic
+		});
+
+		// Auto-grade immediately
+		GradeMe();
 	}
 
 	async Task JumpTo(Challenge challenge)
@@ -249,7 +469,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}
 		challenge.IsCurrent = true;
 
-		SetState(s => 
+		SetState(s =>
 		{
 			// 🏴‍☠️ CRITICAL: Replace the vocabulary word with __ placeholder for display
 			s.CurrentSentence = challenge.SentenceText.Replace(challenge.VocabularyWordAsUsed, "__");
@@ -257,6 +477,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			s.GuessOptions = challenge.VocabularyWordGuesses?.Split(",").Select(x => x.Trim()).OrderBy(x => Guid.NewGuid()).ToArray();
 			s.UserInput = challenge.UserActivity?.Input ?? string.Empty;
 			s.UserGuess = null;
+
+			// Reset tile state for new challenge
+			s.SelectedOption = null;
+			s.HasBeenGraded = false;
+			s.CorrectAnswer = challenge.VocabularyWordAsUsed;
 		});
 	}
 
@@ -290,6 +515,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.Select(x => x.Trim())
 						.OrderBy(x => Guid.NewGuid())
 						.ToArray();
+
+					// Initialize tile state
+					s.SelectedOption = null;
+					s.HasBeenGraded = false;
+					s.CorrectAnswer = first.VocabularyWordAsUsed;
 				});
 
 				if (sentences.Count() < 10)
@@ -470,6 +700,17 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		currentChallenge.UserActivity = activity;
 		await _userActivityRepository.SaveAsync(activity);
 
+		// Set graded state to show visual feedback on tiles
+		SetState(s => s.HasBeenGraded = true);
+
+		// Track session statistics
+		SetState(s =>
+		{
+			s.SessionTotalCount++;
+			if (isCorrect)
+				s.SessionCorrectCount++;
+		});
+
 		if (isCorrect)
 		{
 			// 🏴‍☠️ Fill in the blank space with the correct answer (show complete sentence)
@@ -477,9 +718,16 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				s.UserInput = string.Empty;
 				s.CurrentSentence = currentChallenge.SentenceText; // Show complete sentence
 			});
-			
+
+			// Delay to show visual feedback before transitioning
+			await Task.Delay(1000);
 			TransitionToNextSentence();
-		}		
+		}
+		else
+		{
+			// For incorrect answers, show feedback for a longer duration
+			await Task.Delay(2000);
+		}
 	}
 
 	System.Timers.Timer autoNextTimer;
@@ -524,8 +772,29 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		
 		if (currentIndex >= State.Sentences.Count - 1)
 		{
+			// Show session summary instead of dialog
+			SetState(s => s.ShowSessionSummary = true);
+			return;
+		}
+
+		var nextChallenge = State.Sentences[currentIndex + 1];
+		JumpTo(nextChallenge);
+	}
+
+	// Method to continue after summary (load more sentences)
+	async Task ContinueAfterSummary()
+	{
+		SetState(s => s.ShowSessionSummary = false);
+
+		// Reset session stats for next round
+		SetState(s =>
+		{
+			s.SessionCorrectCount = 0;
+			s.SessionTotalCount = 0;
+		});
+
 			var result = await Application.Current.MainPage.DisplayAlert(
-				_localize["End of Sentences"].ToString(),
+				_localize["Continue Practice"].ToString(),
 				_localize["Would you like to get more sentences?"].ToString(),
 				_localize["Yes"].ToString(),
 				_localize["No"].ToString()
@@ -549,7 +818,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 								s.Sentences.Add(sentence);
 							}
 						});
-						JumpTo(State.Sentences[currentIndex + 1]);
+
+						// Find the current index and jump to the next sentence
+						var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+						if (currentIndex >= 0 && currentIndex < State.Sentences.Count - 1)
+						{
+							JumpTo(State.Sentences[currentIndex + 1]);
+						}
 					}
 					else 
 					{
@@ -574,14 +849,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					SetState(s => s.IsBuffering = false);
 				}
 			}
-			return;
 		}
 
-		var nextChallenge = State.Sentences[currentIndex + 1];
-		JumpTo(nextChallenge);
-	}
-
-	async Task PreviousSentence()
+		async Task PreviousSentence()
 	{
 		autoNextTimer?.Stop();
 		SetState(s => s.UserMode = InputMode.Text.ToString());
@@ -732,16 +1002,6 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			
 			// Show helpful hints based on the error type
 			ShowContextualHints(challenge, attempt);
-		}
-		
-		// Show spaced repetition information
-		if (progress.NextReviewDate.HasValue)
-		{
-			var daysUntilReview = (progress.NextReviewDate.Value - DateTime.Now).Days;
-			if (daysUntilReview > 0)
-			{
-				ShowFeedback($"📅 Next review in {daysUntilReview} day{(daysUntilReview == 1 ? "" : "s")}", "info");
-			}
 		}
 	}
 	

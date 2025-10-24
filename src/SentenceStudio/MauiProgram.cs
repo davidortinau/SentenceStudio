@@ -118,8 +118,8 @@ public static class MauiProgram
 
 
 #if DEBUG
-		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.Trace);
-		builder.UseDebugRibbon();
+		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.None);
+		// builder.UseDebugRibbon();
 #endif
 
 		RegisterRoutes();

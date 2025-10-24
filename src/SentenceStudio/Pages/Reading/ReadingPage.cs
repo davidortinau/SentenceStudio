@@ -668,7 +668,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                     .HCenter()
                                     .Spacing(MyTheme.Size80)
                                     : Button("Remember this word")
-                                        .OnClicked(RememberVocabularyWord)
+                                        .OnClicked(() => RememberVocabularyWord())
                                         .Background(MyTheme.HighlightMedium)
                                         .TextColor(MyTheme.HighlightDarkest)
                                         .HCenter()
@@ -677,7 +677,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .Spacing(MyTheme.Size120),
 
                     Button("Close")
-                        .OnClicked(CloseDictionaryBottomSheet)
+                        .OnClicked(() => CloseDictionaryBottomSheet())
                         .HCenter()
                 )
                 .Spacing(MyTheme.Size160)
