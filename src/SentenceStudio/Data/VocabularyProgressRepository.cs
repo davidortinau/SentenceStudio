@@ -167,7 +167,7 @@ public class VocabularyProgressRepository
             .Select(vp => new
             {
                 vp.TotalAttempts,
-                vp.IsKnown,
+                vp.MasteryScore,
                 vp.NextReviewDate
             })
             .ToListAsync();
@@ -177,9 +177,9 @@ public class VocabularyProgressRepository
 
         var now = DateTime.Now;
         var newCount = allProgress.Count(p => p.TotalAttempts == 0);
-        var learning = allProgress.Count(p => !p.IsKnown && p.TotalAttempts > 0 && (p.NextReviewDate == null || p.NextReviewDate > now));
-        var review = allProgress.Count(p => !p.IsKnown && p.NextReviewDate != null && p.NextReviewDate <= now);
-        var known = allProgress.Count(p => p.IsKnown);
+        var learning = allProgress.Count(p => p.MasteryScore < 0.8f && p.TotalAttempts > 0 && (p.NextReviewDate == null || p.NextReviewDate > now));
+        var review = allProgress.Count(p => p.MasteryScore < 0.8f && p.NextReviewDate != null && p.NextReviewDate <= now);
+        var known = allProgress.Count(p => p.MasteryScore >= 0.8f);
 
         return (newCount, learning, review, known);
     }
@@ -263,7 +263,7 @@ public class VocabularyProgressRepository
                     AverageMasteryScore = g.Average(x => x.Progress.MasteryScore),
                     TotalAttempts = g.Sum(x => x.Progress.TotalAttempts),
                     TotalCorrectAttempts = g.Sum(x => x.Progress.CorrectAttempts),
-                    KnownCount = g.Count(x => x.Progress.IsKnown)
+                    KnownCount = g.Count(x => x.Progress.MasteryScore >= 0.8f)
                 }
             })
             .ToDictionaryAsync(x => x.ResourceId, x => x.Aggregation);
@@ -287,7 +287,7 @@ public class VocabularyProgressRepository
                 AverageMasteryScore = g.Average(p => p.MasteryScore),
                 TotalAttempts = g.Sum(p => p.TotalAttempts),
                 TotalCorrectAttempts = g.Sum(p => p.CorrectAttempts),
-                KnownCount = g.Count(p => p.IsKnown)
+                KnownCount = g.Count(p => p.MasteryScore >= 0.8f)
             })
             .FirstOrDefaultAsync();
 

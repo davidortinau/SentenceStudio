@@ -211,53 +211,60 @@ partial class DashboardPage : Component<DashboardPageState>
                                     .FontSize(14)
                                     .HorizontalOptions(LayoutOptions.Center)
                             ).Padding(20).Spacing(10)
-                            : FlexLayout(
-                                (State.VocabSummary != null
-                                    ? Border(
-                                        new VocabProgressCard()
-                                            .Summary(State.VocabSummary)
-                                            .IsVisible(true)
-                                            .OnSegmentTapped(NavigateToVocabularyProgress)
-                                    )
-                                    .StrokeThickness(0)
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                    .Set(View.MinimumWidthRequestProperty, 340d)
-                                    .Margin(0, 0, 12, 12)
-                                    : (!State.IsLoadingProgress && State.HasLoadedProgressOnce
-                                        ? Label("No vocabulary progress data available yet. Start practicing!")
+                            : (State.HasLoadedProgressOnce
+                                ? FlexLayout(
+                                    // Vocab Progress Card - always render if we have data
+                                    (State.VocabSummary != null
+                                        ? Border(
+                                            new VocabProgressCard()
+                                                .Summary(State.VocabSummary)
+                                                .IsVisible(true)
+                                                .OnSegmentTapped(NavigateToVocabularyProgress)
+                                        )
+                                        .StrokeThickness(0)
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                        .Set(View.MinimumWidthRequestProperty, 340d)
+                                        .Margin(0, 0, 12, 12)
+                                        : Label("No vocabulary progress data available yet. Start practicing!")
                                             .TextColor(Colors.Gray)
                                             .FontSize(14)
                                             .Padding(20)
-                                        : ContentView().HeightRequest(0))
-                                ),
-                                (State.PracticeHeat?.Any() == true
-                                    ? Border(
-                                        new PracticeStreakCard()
-                                            .HeatData(State.PracticeHeat)
-                                            .IsVisible(true)
-                                    )
-                                    .StrokeThickness(0)
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                    .Set(View.MinimumWidthRequestProperty, 340d)
-                                    .Margin(0, 0, 12, 12)
-                                    : (!State.IsLoadingProgress && State.HasLoadedProgressOnce
-                                        ? Label("No practice activity data yet. Start practicing!")
+                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                            .Margin(0, 0, 12, 12)
+                                    ),
+                                    // Practice Heat Card - always render if we have data
+                                    (State.PracticeHeat?.Any() == true
+                                        ? Border(
+                                            new PracticeStreakCard()
+                                                .HeatData(State.PracticeHeat)
+                                                .IsVisible(true)
+                                        )
+                                        .StrokeThickness(0)
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                        .Set(View.MinimumWidthRequestProperty, 340d)
+                                        .Margin(0, 0, 12, 12)
+                                        : Label("No practice activity data yet. Start practicing!")
                                             .TextColor(Colors.Gray)
                                             .FontSize(14)
                                             .Padding(20)
-                                        : ContentView().HeightRequest(0))
+                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                            .Margin(0, 0, 12, 12)
+                                    )
                                 )
+                                // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
+                                .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
+                                .Wrap(FlexWrap.Wrap)
+                                .AlignItems(FlexAlignItems.Stretch)
+                                .JustifyContent(FlexJustify.Start)
+                                .Padding(0)
+                                : ContentView().HeightRequest(0) // While loading for the first time, don't show cards
                             )
-                            // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
-                            .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
-                            .Wrap(FlexWrap.Wrap)
-                            .AlignItems(FlexAlignItems.Stretch)
-                            .JustifyContent(FlexJustify.Start)
-                            .Padding(0)
                         ),
 
                         // Activities
@@ -424,6 +431,9 @@ partial class DashboardPage : Component<DashboardPageState>
             // If a newer request started meanwhile, abandon these results
             if (myVersion != _progressFetchVersion || ct.IsCancellationRequested) return;
 
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Setting progress data in state - VocabSummary: New={vocabTask.Result.New}, Learning={vocabTask.Result.Learning}, Review={vocabTask.Result.Review}, Known={vocabTask.Result.Known}");
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PracticeHeat has {heatTask.Result.Count()} data points");
+
             SetState(st =>
             {
                 st.VocabSummary = vocabTask.Result;
@@ -434,6 +444,9 @@ partial class DashboardPage : Component<DashboardPageState>
                 st.HasLoadedProgressOnce = true;
             });
 
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - VocabSummary is {(State.VocabSummary != null ? "NOT NULL" : "NULL")}");
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - PracticeHeat count: {State.PracticeHeat?.Count ?? 0}");
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - HasLoadedProgressOnce: {State.HasLoadedProgressOnce}");
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Progress data loaded - VocabSummary is {(State.VocabSummary != null ? "not null" : "null")}, PracticeHeat count: {State.PracticeHeat.Count}");
         }
         catch (OperationCanceledException)
