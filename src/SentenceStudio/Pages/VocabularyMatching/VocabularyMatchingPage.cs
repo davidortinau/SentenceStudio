@@ -189,7 +189,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
             return 13;
-        return 16;
+        return 24;
     }
 
     double GetTileHeight()
