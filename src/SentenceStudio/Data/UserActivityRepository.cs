@@ -6,11 +6,13 @@ public class UserActivityRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
+    private readonly SentenceStudio.Services.Progress.ProgressCacheService? _cacheService;
 
-    public UserActivityRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
+    public UserActivityRepository(IServiceProvider serviceProvider, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
     {
         _serviceProvider = serviceProvider;
         _syncService = syncService;
+        _cacheService = cacheService;
     }
 
     public async Task<List<UserActivity>> ListAsync()
@@ -55,6 +57,9 @@ public class UserActivityRepository
             int result = await db.SaveChangesAsync();
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            // PHASE 2 OPTIMIZATION: Invalidate progress cache when new activities are recorded
+            _cacheService?.InvalidateAll();
 
             return result;
         }

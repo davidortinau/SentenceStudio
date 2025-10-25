@@ -14,11 +14,13 @@ public class ClozureService
     private SkillProfileRepository _skillRepository;
     private LearningResourceRepository _resourceRepository;
     private ISyncService _syncService;
-    
+
     private List<VocabularyWord> _words;
 
-    public List<VocabularyWord> Words {
-        get {
+    public List<VocabularyWord> Words
+    {
+        get
+        {
             return _words;
         }
     }
@@ -69,13 +71,13 @@ public class ClozureService
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
         Debug.WriteLine($"🏴‍☠️ ClozureService: Skill profile retrieved: {skillProfile?.Title ?? "null"}");
-        
-        var prompt = string.Empty;     
+
+        var prompt = string.Empty;
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(await reader.ReadToEndAsync());
-            prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description}); 
+            prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
         }
 
         Debug.WriteLine($"🏴‍☠️ ClozureService: Prompt created, length: {prompt.Length}");
@@ -83,26 +85,33 @@ public class ClozureService
         {
             IChatClient client =
             new OpenAIClient(_openAiApiKey)
-                .AsChatClient(modelId: "gpt-4o-mini");
+                .GetChatClient(model: "gpt-4o-mini").AsIChatClient();
 
             Debug.WriteLine("🏴‍☠️ ClozureService: Sending prompt to AI service");
+
+            // Use GetResponseAsync which handles structured outputs properly
             var reply = await client.GetResponseAsync<ClozureResponse>(prompt);
-            
-            if (reply != null && reply.Result.Sentences != null)
+
+            if (reply != null && reply?.Result?.Sentences != null)
             {
                 Debug.WriteLine($"🏴‍☠️ ClozureService: AI returned {reply.Result.Sentences.Count} sentences");
-                
+
                 // 🏴‍☠️ IMPORTANT: Convert ClozureDto objects to Challenge objects and link vocabulary
                 Debug.WriteLine($"🏴‍☠️ ClozureService: Converting {reply.Result.Sentences.Count} ClozureDto objects to Challenge objects");
                 var challenges = new List<Challenge>();
-                
+
                 foreach (var clozureDto in reply.Result.Sentences)
                 {
                     Debug.WriteLine($"🏴‍☠️ ClozureService: === Processing clozure DTO ===");
                     Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWord: '{clozureDto.VocabularyWord}'");
                     Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordAsUsed: '{clozureDto.VocabularyWordAsUsed}'");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordGuesses: '{clozureDto.VocabularyWordGuesses}'");
-                    
+                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordGuesses: {clozureDto.VocabularyWordGuesses?.Count ?? 0} items");
+
+                    // Convert the list of guesses to a comma-separated string for storage
+                    var guessesString = clozureDto.VocabularyWordGuesses != null && clozureDto.VocabularyWordGuesses.Any()
+                        ? string.Join(", ", clozureDto.VocabularyWordGuesses)
+                        : string.Empty;
+
                     // Create Challenge object from DTO - keep it simple
                     var challenge = new Challenge
                     {
@@ -110,15 +119,13 @@ public class ClozureService
                         RecommendedTranslation = clozureDto.RecommendedTranslation,
                         VocabularyWord = clozureDto.VocabularyWord,
                         VocabularyWordAsUsed = clozureDto.VocabularyWordAsUsed,
-                        VocabularyWordGuesses = clozureDto.VocabularyWordGuesses,
+                        VocabularyWordGuesses = guessesString,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
-                    };
-                    
-                    // Try to find matching vocabulary word for progress tracking
-                    var matchingWord = _words.FirstOrDefault(w => 
+                    };                    // Try to find matching vocabulary word for progress tracking
+                    var matchingWord = _words.FirstOrDefault(w =>
                         string.Equals(w.TargetLanguageTerm, clozureDto.VocabularyWord, StringComparison.OrdinalIgnoreCase));
-                    
+
                     if (matchingWord != null)
                     {
                         challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
@@ -129,11 +136,11 @@ public class ClozureService
                         Debug.WriteLine($"🏴‍☠️ ClozureService: ⚠️ Could not find vocabulary word '{clozureDto.VocabularyWord}' in lesson vocabulary");
                         challenge.Vocabulary = new List<VocabularyWord>();
                     }
-                    
+
                     challenges.Add(challenge);
                     Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ Added clozure challenge");
                 }
-                
+
                 return challenges;
             }
             else
@@ -155,13 +162,13 @@ public class ClozureService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         // Set timestamps
         if (item.CreatedAt == default)
             item.CreatedAt = DateTime.UtcNow;
-            
+
         item.UpdatedAt = DateTime.UtcNow;
-        
+
         try
         {
             if (item.Id != 0)
@@ -172,9 +179,9 @@ public class ClozureService
             {
                 db.Challenges.Add(item);
             }
-            
+
             await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -188,11 +195,11 @@ public class ClozureService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         // Set timestamps
         if (item.CreatedAt == default)
             item.CreatedAt = DateTime.UtcNow;
-        
+
         try
         {
             if (item.Id != 0)
@@ -203,16 +210,16 @@ public class ClozureService
             {
                 db.GradeResponses.Add(item);
             }
-            
+
             await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"An error occurred SaveGrade: {ex.Message}");
         }
-        
+
         return item.Id;
     }
 
@@ -255,12 +262,12 @@ public class ClozureService
     {
         try
         {
-            var prompt = string.Empty;     
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput});
+                prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput });
 
                 //Debug.WriteLine(prompt);
             }
@@ -280,19 +287,21 @@ public class ClozureService
     {
         try
         {
-            var prompt = string.Empty;     
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Translate.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { user_input = userInput});
+                prompt = await template.RenderAsync(new { user_input = userInput });
 
                 //Debug.WriteLine(prompt);
             }
 
             var response = await _aiService.SendPrompt<string>(prompt);
             return response;
-        }catch(Exception ex){
+        }
+        catch (Exception ex)
+        {
             Debug.WriteLine($"An error occurred Translate: {ex.Message}");
             return string.Empty;
         }
@@ -302,12 +311,12 @@ public class ClozureService
     {
         try
         {
-            var prompt = string.Empty;     
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning});
+                prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning });
 
                 //Debug.WriteLine(prompt);
             }
@@ -322,17 +331,17 @@ public class ClozureService
             return new GradeResponse();
         }
     }
-    
+
     public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription)
     {
         try
         {
-            var prompt = string.Empty;     
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription});
+                prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription });
 
                 //Debug.WriteLine(prompt);
             }
@@ -346,5 +355,5 @@ public class ClozureService
             Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
             return new GradeResponse();
         }
-    }   
+    }
 }

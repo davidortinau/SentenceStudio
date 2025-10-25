@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CoreSync.Http.Server" Version="0.1.113" />
-    <PackageReference Include="CoreSync.Sqlite" Version="0.1.113" />
+    <PackageReference Include="CoreSync.Http.Server" Version="0.1.122" />
+    <PackageReference Include="CoreSync.Sqlite" Version="0.1.122" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.7" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.6">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

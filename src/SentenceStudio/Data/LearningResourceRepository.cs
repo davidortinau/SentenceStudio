@@ -134,6 +134,19 @@ public class LearningResourceRepository
             .ToListAsync();
     }
 
+    /// <summary>
+    /// PHASE 1 OPTIMIZATION: Get all resources WITHOUT vocabulary for lightweight queries (e.g., dropdowns)
+    /// </summary>
+    public async Task<List<LearningResource>> GetAllResourcesLightweightAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.LearningResources
+            .OrderByDescending(r => r.UpdatedAt)
+            .ThenByDescending(r => r.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task<LearningResource> GetResourceAsync(int resourceId)
     {
         using var scope = _serviceProvider.CreateScope();

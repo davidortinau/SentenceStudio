@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using Shiny;
 #endif
 using CommunityToolkit.Maui.Media;
-using The49.Maui.BottomSheet;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using Plugin.Maui.Audio;
 using Fonts;
@@ -64,7 +63,6 @@ public static class MauiProgram
 			.UseShiny()
 #endif
 			.UseMauiCommunityToolkit()
-			.UseBottomSheet()
 			.UseSkiaSharp()
 			.ConfigureSyncfusionToolkit()
 			.ConfigureSyncfusionCore()
@@ -146,7 +144,8 @@ public static class MauiProgram
 
 		builder.Services
 			// .AddChatClient(new OllamaChatClient("http://localhost:11434", "deepseek-r1"))
-			.AddChatClient(new OpenAIClient(openAiApiKey).AsChatClient(modelId: "gpt-4o-mini"))
+			.AddChatClient(new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient())
+			//.AsChatClient(modelId: "gpt-4o-mini"))
 			// .UseFunctionInvocation()
 			.UseLogging();
 		// .UseOpenTelemetry();
@@ -284,6 +283,9 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyLearningContextRepository>();
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
+
+		// PHASE 2 OPTIMIZATION: Progress cache service for faster dashboard loading
+		services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();
 
 		// Progress aggregation service for dashboard visuals
 		services.AddSingleton<SentenceStudio.Services.Progress.IProgressService, SentenceStudio.Services.Progress.ProgressService>();

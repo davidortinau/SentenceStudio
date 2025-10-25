@@ -1,9 +1,7 @@
-﻿using MauiReactor;
-using MauiReactor.Parameters;
+﻿using MauiReactor.Parameters;
 using ReactorCustomLayouts;
 using MauiReactor.Shapes;
 using Microsoft.Maui.Layouts;
-using Microsoft.Maui.Storage;
 using SentenceStudio.Pages.Clozure;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.Translation;
@@ -11,9 +9,7 @@ using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Reading;
 using SentenceStudio.Services.Progress;
-using SentenceStudio; // LocalizationManager
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -41,6 +37,10 @@ class DashboardPageState
     public List<ResourceProgress> ResourceProgress { get; set; } = [];
     public SkillProgress? SelectedSkillProgress { get; set; }
     public List<PracticeHeatPoint> PracticeHeat { get; set; } = [];
+
+    // PHASE 2 OPTIMIZATION: Loading states for lazy loading
+    public bool IsLoadingProgress { get; set; } = false;
+    public bool HasLoadedProgressOnce { get; set; } = false;
 }
 
 partial class DashboardPage : Component<DashboardPageState>
@@ -56,6 +56,10 @@ partial class DashboardPage : Component<DashboardPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
     private int _progressFetchVersion = 0;
+
+    // PHASE 2 OPTIMIZATION: Debounce timer for preference saves
+    private System.Timers.Timer? _preferenceSaveTimer;
+    private CancellationTokenSource? _progressLoadCts;
 
     protected override void OnMounted()
     {
@@ -74,6 +78,13 @@ partial class DashboardPage : Component<DashboardPageState>
     protected override void OnWillUnmount()
     {
         DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
+
+        // PHASE 2 OPTIMIZATION: Clean up debounce timer and cancel any in-flight operations
+        _preferenceSaveTimer?.Stop();
+        _preferenceSaveTimer?.Dispose();
+        _progressLoadCts?.Cancel();
+        _progressLoadCts?.Dispose();
+
         base.OnWillUnmount();
     }
 
@@ -189,43 +200,65 @@ partial class DashboardPage : Component<DashboardPageState>
                         // Progress Section
                         Label("Vocab Progress")
                             .ThemeKey(MyTheme.H1).HStart().Margin(0, 20, 0, 10),
-                        FlexLayout(
-                            (State.VocabSummary != null
-                                ? Border(
-                                    new VocabProgressCard()
-                                        .Summary(State.VocabSummary)
-                                        .IsVisible(true)
-                                        .OnSegmentTapped(NavigateToVocabularyProgress)
+                        (State.IsLoadingProgress && !State.HasLoadedProgressOnce
+                            ? VStack(
+                                ActivityIndicator()
+                                    .IsRunning(true)
+                                    .Color(MyTheme.HighlightDarkest)
+                                    .HeightRequest(50),
+                                Label("Loading progress data...")
+                                    .TextColor(Colors.Gray)
+                                    .FontSize(14)
+                                    .HorizontalOptions(LayoutOptions.Center)
+                            ).Padding(20).Spacing(10)
+                            : FlexLayout(
+                                (State.VocabSummary != null
+                                    ? Border(
+                                        new VocabProgressCard()
+                                            .Summary(State.VocabSummary)
+                                            .IsVisible(true)
+                                            .OnSegmentTapped(NavigateToVocabularyProgress)
+                                    )
+                                    .StrokeThickness(0)
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                    .Set(View.MinimumWidthRequestProperty, 340d)
+                                    .Margin(0, 0, 12, 12)
+                                    : (!State.IsLoadingProgress && State.HasLoadedProgressOnce
+                                        ? Label("No vocabulary progress data available yet. Start practicing!")
+                                            .TextColor(Colors.Gray)
+                                            .FontSize(14)
+                                            .Padding(20)
+                                        : ContentView().HeightRequest(0))
+                                ),
+                                (State.PracticeHeat?.Any() == true
+                                    ? Border(
+                                        new PracticeStreakCard()
+                                            .HeatData(State.PracticeHeat)
+                                            .IsVisible(true)
+                                    )
+                                    .StrokeThickness(0)
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
+                                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                                    .Set(View.MinimumWidthRequestProperty, 340d)
+                                    .Margin(0, 0, 12, 12)
+                                    : (!State.IsLoadingProgress && State.HasLoadedProgressOnce
+                                        ? Label("No practice activity data yet. Start practicing!")
+                                            .TextColor(Colors.Gray)
+                                            .FontSize(14)
+                                            .Padding(20)
+                                        : ContentView().HeightRequest(0))
                                 )
-                                .StrokeThickness(0)
-                                .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                .Set(View.MinimumWidthRequestProperty, 340d)
-                                .Margin(0, 0, 12, 12)
-                                : ContentView().HeightRequest(0)
-                            ),
-                            (State.PracticeHeat?.Any() == true
-                                ? Border(
-                                    new PracticeStreakCard()
-                                        .HeatData(State.PracticeHeat)
-                                        .IsVisible(true)
-                                )
-                                .StrokeThickness(0)
-                                .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                .Set(View.MinimumWidthRequestProperty, 340d)
-                                .Margin(0, 0, 12, 12)
-                                : ContentView().HeightRequest(0)
                             )
-                        )
-                        // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
-                        .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
-                        .Wrap(FlexWrap.Wrap)
-                        .AlignItems(FlexAlignItems.Stretch)
-                        .JustifyContent(FlexJustify.Start)
-                        .Padding(0),
+                            // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
+                            .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
+                            .Wrap(FlexWrap.Wrap)
+                            .AlignItems(FlexAlignItems.Stretch)
+                            .JustifyContent(FlexJustify.Start)
+                            .Padding(0)
+                        ),
 
                         // Activities
                         Label().ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
@@ -258,7 +291,8 @@ partial class DashboardPage : Component<DashboardPageState>
     async Task LoadOrRefreshDataAsync()
     {
         //Console.Writeline(">> DashboardPage OnAppearing <<");
-        var resources = await _resourceRepository.GetAllResourcesAsync();
+        // PHASE 1 OPTIMIZATION: Use lightweight query for resources (no vocabulary loaded) FOR DROPDOWN ONLY
+        var resourcesLightweight = await _resourceRepository.GetAllResourcesLightweightAsync();
         var skills = await _skillService.ListAsync();
 
         // Check if we have existing parameter values (from navigation) or load from preferences
@@ -277,27 +311,42 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         else
         {
-            // Load from preferences or use defaults
-            (selectedResources, selectedSkill) = await LoadUserSelectionsFromPreferences(resources, skills);
+            // Load from preferences or use defaults (this gives us lightweight resources)
+            (selectedResources, selectedSkill) = await LoadUserSelectionsFromPreferences(resourcesLightweight, skills);
+
+            // CRITICAL FIX: Reload selected resources WITH vocabulary for activities
+            if (selectedResources?.Any() == true)
+            {
+                var selectedIds = selectedResources.Select(r => r.Id).ToList();
+                var fullResources = new List<LearningResource>();
+                foreach (var id in selectedIds)
+                {
+                    var fullResource = await _resourceRepository.GetResourceAsync(id);
+                    if (fullResource != null)
+                        fullResources.Add(fullResource);
+                }
+                selectedResources = fullResources;
+                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Reloaded {fullResources.Count} resources WITH vocabulary for activities");
+            }
         }
 
-        // Set the parameter values
+        // Set the parameter values with FULL resources (including vocabulary)
         _parameters.Set(p =>
         {
             p.SelectedResources = selectedResources;
             p.SelectedSkillProfile = selectedSkill;
         });
 
-        // Calculate indices for the selected items
+        // Calculate indices for the selected items (using lightweight resources for dropdown)
         var selectedResourceIndex = -1;
         var selectedSkillIndex = -1;
 
         if (selectedResources?.Any() == true)
         {
             var firstSelected = selectedResources.First();
-            for (int i = 0; i < resources.Count; i++)
+            for (int i = 0; i < resourcesLightweight.Count; i++)
             {
-                if (resources[i].Id == firstSelected.Id)
+                if (resourcesLightweight[i].Id == firstSelected.Id)
                 {
                     selectedResourceIndex = i;
                     break;
@@ -317,16 +366,15 @@ partial class DashboardPage : Component<DashboardPageState>
             }
         }
 
-        // Eagerly refresh progress (awaited) so returning to dashboard shows up-to-date data.
-        await RefreshProgressDataAsync(selectedSkill?.Id);
-
+        // PHASE 2 OPTIMIZATION: Update UI immediately with resources/skills, then load progress asynchronously
+        // Use lightweight resources for dropdown, but full resources are in parameters for navigation
         SetState(s =>
         {
-            s.Resources = resources;
+            s.Resources = resourcesLightweight;
             s.SkillProfiles = skills;
             s.SelectedResources = selectedResources ?? new List<LearningResource>();
             s.SelectedSkillProfileIndex = selectedSkillIndex >= 0 ? selectedSkillIndex : (skills.Any() ? 0 : -1);
-            s.SelectedResourceIndex = selectedResourceIndex >= 0 ? selectedResourceIndex : (resources.Any() ? 0 : -1);
+            s.SelectedResourceIndex = selectedResourceIndex >= 0 ? selectedResourceIndex : (resourcesLightweight.Any() ? 0 : -1);
         });
 
         // Debug logging to verify state
@@ -337,30 +385,44 @@ partial class DashboardPage : Component<DashboardPageState>
         {
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Selected resource titles: {string.Join(", ", State.SelectedResources.Select(r => r.Title))}");
         }
+
+        // Load progress data asynchronously without blocking UI
+        _ = RefreshProgressDataAsync(selectedSkill?.Id);
     }
 
     private async Task RefreshProgressDataAsync(int? skillId)
     {
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ RefreshProgressDataAsync called");
+        // PHASE 2 OPTIMIZATION: Cancel any previous in-flight progress loads
+        await (_progressLoadCts?.CancelAsync() ?? Task.CompletedTask);
+        _progressLoadCts?.Dispose();
+        _progressLoadCts = new CancellationTokenSource();
+        var ct = _progressLoadCts.Token;
+
         int myVersion = Interlocked.Increment(ref _progressFetchVersion);
+
+        // Set loading state
+        SetState(s => s.IsLoadingProgress = true);
+
         try
         {
             var vocabFromUtc = DateTime.UtcNow.AddDays(-30);
             var heatFromUtc = DateTime.UtcNow.AddDays(-364);
             var heatToUtc = DateTime.UtcNow;
 
-            var vocabTask = _progressService.GetVocabSummaryAsync(vocabFromUtc);
-            var resourceTask = _progressService.GetRecentResourceProgressAsync(vocabFromUtc, 3);
-            var heatTask = _progressService.GetPracticeHeatAsync(heatFromUtc, heatToUtc); // full year for heat map
+            var vocabTask = _progressService.GetVocabSummaryAsync(vocabFromUtc, ct);
+            var resourceTask = _progressService.GetRecentResourceProgressAsync(vocabFromUtc, 3, ct);
+            var heatTask = _progressService.GetPracticeHeatAsync(heatFromUtc, heatToUtc, ct); // full year for heat map
             Task<SentenceStudio.Services.Progress.SkillProgress?> skillTask = Task.FromResult<SentenceStudio.Services.Progress.SkillProgress?>(null);
             if (skillId.HasValue)
             {
-                skillTask = _progressService.GetSkillProgressAsync(skillId.Value);
+                skillTask = _progressService.GetSkillProgressAsync(skillId.Value, ct);
             }
 
             await Task.WhenAll(vocabTask, resourceTask, heatTask, skillTask);
 
             // If a newer request started meanwhile, abandon these results
-            if (myVersion != _progressFetchVersion) return;
+            if (myVersion != _progressFetchVersion || ct.IsCancellationRequested) return;
 
             SetState(st =>
             {
@@ -368,11 +430,20 @@ partial class DashboardPage : Component<DashboardPageState>
                 st.ResourceProgress = resourceTask.Result;
                 st.SelectedSkillProgress = skillTask.Result;
                 st.PracticeHeat = heatTask.Result.ToList();
+                st.IsLoadingProgress = false;
+                st.HasLoadedProgressOnce = true;
             });
+
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Progress data loaded - VocabSummary is {(State.VocabSummary != null ? "not null" : "null")}, PracticeHeat count: {State.PracticeHeat.Count}");
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("Progress data load cancelled");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Progress data load error: {ex.Message}");
+            SetState(s => s.IsLoadingProgress = false);
         }
     }
 
@@ -390,8 +461,36 @@ partial class DashboardPage : Component<DashboardPageState>
                 s.SelectedResourceIndex = selected.Any() ? State.Resources.IndexOf(selected.First()) : -1;
             });
 
-            _parameters.Set(p => p.SelectedResources = selected);
-            SaveUserSelectionsToPreferences();
+            // CRITICAL FIX: Reload selected resources WITH vocabulary for activities
+            Task.Run(async () =>
+            {
+                if (selected?.Any() == true)
+                {
+                    var selectedIds = selected.Select(r => r.Id).ToList();
+                    var fullResources = new List<LearningResource>();
+                    foreach (var id in selectedIds)
+                    {
+                        var fullResource = await _resourceRepository.GetResourceAsync(id);
+                        if (fullResource != null)
+                            fullResources.Add(fullResource);
+                    }
+
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        _parameters.Set(p => p.SelectedResources = fullResources);
+                        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Reloaded {fullResources.Count} resources WITH vocabulary after selection change");
+                    });
+                }
+                else
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        _parameters.Set(p => p.SelectedResources = new List<LearningResource>());
+                    });
+                }
+            });
+
+            DebouncedSaveUserSelectionsToPreferences();
         }
         catch (Exception ex)
         {
@@ -410,12 +509,34 @@ partial class DashboardPage : Component<DashboardPageState>
 
             SetState(s => s.SelectedSkillProfileIndex = index);
             _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
-            SaveUserSelectionsToPreferences();
+            DebouncedSaveUserSelectionsToPreferences();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"OnSkillSelectionChanged error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// PHASE 2 OPTIMIZATION: Debounced save to prevent excessive writes during rapid selection changes
+    /// </summary>
+    private void DebouncedSaveUserSelectionsToPreferences()
+    {
+        // Reset the timer - if user makes another selection within 500ms, we'll wait again
+        _preferenceSaveTimer?.Stop();
+        _preferenceSaveTimer?.Dispose();
+
+        _preferenceSaveTimer = new System.Timers.Timer(500); // 500ms debounce
+        _preferenceSaveTimer.AutoReset = false;
+        _preferenceSaveTimer.Elapsed += (s, e) =>
+        {
+            // Execute on main thread
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                SaveUserSelectionsToPreferences();
+            });
+        };
+        _preferenceSaveTimer.Start();
     }
 
     /// <summary>

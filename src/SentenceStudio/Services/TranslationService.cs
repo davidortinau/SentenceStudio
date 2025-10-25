@@ -17,11 +17,13 @@ namespace SentenceStudio.Services
         private readonly ISyncService _syncService;
         private readonly ILogger<TranslationService> _logger;
         private readonly string _openAiApiKey;
-        
+
         private List<VocabularyWord> _words;
 
-        public List<VocabularyWord> Words {
-            get {
+        public List<VocabularyWord> Words
+        {
+            get
+            {
                 return _words;
             }
         }
@@ -70,13 +72,13 @@ namespace SentenceStudio.Services
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
             _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");
-            
-            var prompt = string.Empty;     
+
+            var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description}); 
+                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
             }
 
             _logger.LogTrace("Prompt created, length: {PromptLength}", prompt.Length);
@@ -84,26 +86,26 @@ namespace SentenceStudio.Services
             {
                 IChatClient client =
                 new OpenAIClient(_openAiApiKey)
-                    .AsChatClient(modelId: "gpt-4o-mini");
+                    .GetChatClient(model: "gpt-4o-mini").AsIChatClient();
 
                 _logger.LogDebug("Sending prompt to AI service");
                 var reply = await client.GetResponseAsync<TranslationResponse>(prompt);
-                
+
                 if (reply != null && reply.Result.Sentences != null)
                 {
                     _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Result.Sentences.Count);
-                    
+
                     // Convert TranslationDto objects to Challenge objects and link vocabulary
                     _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Result.Sentences.Count);
                     var challenges = new List<Challenge>();
-                    
+
                     foreach (var translationDto in reply.Result.Sentences)
                     {
                         _logger.LogTrace("=== Processing translation DTO ===");
                         _logger.LogTrace("DTO.SentenceText: '{SentenceText}'", translationDto.SentenceText);
                         _logger.LogTrace("DTO.RecommendedTranslation: '{RecommendedTranslation}'", translationDto.RecommendedTranslation);
                         _logger.LogTrace("DTO.TranslationVocabulary: [{TranslationVocabulary}]", string.Join(", ", translationDto.TranslationVocabulary));
-                        
+
                         // Create Challenge object from DTO - simply map TranslationVocabulary to Challenge.Vocabulary
                         var challenge = new Challenge
                         {
@@ -119,11 +121,11 @@ namespace SentenceStudio.Services
                             CreatedAt = DateTime.UtcNow,
                             UpdatedAt = DateTime.UtcNow
                         };
-                        
+
                         challenges.Add(challenge);
                         _logger.LogTrace($"🏴‍☠️ TranslationService: ✅ Added challenge with {translationDto.TranslationVocabulary.Count} vocabulary building blocks");
                     }
-                    
+
                     watch.Stop();
                     _logger.LogTrace($"🏴‍☠️ TranslationService: Generated {challenges.Count} translation challenges in {watch.Elapsed}");
                     return challenges;
@@ -162,9 +164,10 @@ namespace SentenceStudio.Services
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { 
-                        user_input = text, 
-                        context = context ?? string.Empty 
+                    prompt = await template.RenderAsync(new
+                    {
+                        user_input = text,
+                        context = context ?? string.Empty
                     });
                 }
 

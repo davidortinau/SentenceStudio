@@ -9,7 +9,8 @@
       "WebFetch(domain:context7.com)",
       "mcp__microsoft_docs_mcp__microsoft_docs_search",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(dotnet restore:*)"
     ],
     "defaultMode": "acceptEdits"
   }
