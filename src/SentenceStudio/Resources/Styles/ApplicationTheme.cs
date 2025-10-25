@@ -362,7 +362,7 @@ class MyTheme : ApplicationTheme
 
     public static FontImageSource IconCircleCheckmark { get; } = new FontImageSource
     {
-        Glyph = FluentUI.checkmark_circle_16_regular,
+        Glyph = FluentUI.checkmark_16_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize

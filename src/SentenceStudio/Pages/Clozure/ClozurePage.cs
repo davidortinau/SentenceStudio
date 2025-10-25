@@ -184,8 +184,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	VisualNode NavigationFooter() =>
 		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
-				.TextColor(Theme.IsLightTheme ? 
-					MyTheme.DarkOnLightBackground : 
+				.TextColor(Theme.IsLightTheme ?
+					MyTheme.DarkOnLightBackground :
 					MyTheme.LightOnDarkBackground)
 				.Background(Colors.Transparent)
 				.GridRow(1).GridColumn(4)
@@ -237,8 +237,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				ActivityIndicator()
 					.IsRunning(State.IsBuffering)
 					.IsVisible(State.IsBuffering)
-					.Color(Theme.IsLightTheme ? 
-						MyTheme.DarkOnLightBackground : 
+					.Color(Theme.IsLightTheme ?
+						MyTheme.DarkOnLightBackground :
 						MyTheme.LightOnDarkBackground)
 					.VCenter(),
 				HStack(spacing: 4,
@@ -251,17 +251,17 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 								.Source(UserActivityToImageSource(sentence.UserActivity))
 								.OnClicked(() => JumpTo(sentence))
 						)
-						.WidthRequest(20).HeightRequest(20)
-						.StrokeShape(new RoundRectangle().CornerRadius(10))
+						.WidthRequest(40).HeightRequest(40)
+						.StrokeShape(new RoundRectangle().CornerRadius(20))
 						.StrokeThickness(2)
-						.Stroke(sentence.IsCurrent ? 
-							MyTheme.HighlightDark : 
-							MyTheme.Gray200)
-					)					
+						.Stroke(
+							GetIndicatorBorderColor(sentence.UserActivity, sentence.IsCurrent))
+						.Background(GetIndicatorBackgroundColor(sentence.UserActivity))
+					)
 				)
 			)
-			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ? 
-				new Thickness(16, 6) : 
+			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ?
+				new Thickness(16, 6) :
 				new Thickness(MyTheme.Size240))
 		)
 		.Orientation(ScrollOrientation.Horizontal)
@@ -273,29 +273,15 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		VStack(spacing: 16,
 			Label(State.CurrentSentence)
 				.FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32),
-			Label(State.RecommendedTranslation),
-			
-			// Enhanced feedback display
-			State.ShowFeedback ? 
-				Border(
-					Label(State.FeedbackMessage)
-						.FontSize(16)
-						.Padding(12)
-						.Center()
-				)
-				.BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
-				.StrokeShape(new RoundRectangle().CornerRadius(8))
-				.StrokeThickness(0)
-				.Margin(0, 8) 
-				: null
+			Label(State.RecommendedTranslation)
 		)
 		.Margin(30)
 		.GridRow(1);
 
 	VisualNode UserInput() =>
 		Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
-			State.UserMode == InputMode.MultipleChoice.ToString() ? 
-				RenderMultipleChoice() : 
+			State.UserMode == InputMode.MultipleChoice.ToString() ?
+				RenderMultipleChoice() :
 				RenderTextInput()
 		)
 		.RowSpacing(DeviceInfo.Platform == DevicePlatform.WinUI ? 0 : 5)
@@ -316,7 +302,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridRow(1)
 		.GridColumn(0)
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-		.Margin(0,0,0,12);
+		.Margin(0, 0, 0, 12);
 
 	VisualNode RenderMultipleChoice()
 	{
@@ -355,13 +341,35 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.OnTapped(() => OnOptionTapped(option));
 	}
 
-    ImageSource UserActivityToImageSource(UserActivity activity)
+	ImageSource UserActivityToImageSource(UserActivity activity)
 	{
 		if (activity == null) return null;
 
 		return activity.Accuracy == 100 ?
 			MyTheme.IconCircleCheckmark :
 			MyTheme.IconCancel;
+	}
+
+	Color GetIndicatorBackgroundColor(UserActivity activity)
+	{
+		if (activity == null) return Colors.Transparent;
+
+		return activity.Accuracy == 100 ?
+			MyTheme.Success :
+			MyTheme.Error;
+	}
+
+	Color GetIndicatorBorderColor(UserActivity activity, bool isCurrent)
+	{
+		if (isCurrent)
+			return MyTheme.HighlightDark;
+
+		if (activity == null)
+			return MyTheme.Gray200;
+
+		return activity.Accuracy == 100 ?
+			MyTheme.Success :
+			MyTheme.Error;
 	}
 
 	// Option tile color methods matching VocabularyQuizPage style
@@ -495,10 +503,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			// Use the resource Id if available, or fallback to 0
 			var resourceId = Props.Resource?.Id ?? 0;
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Resource ID = {resourceId}, Skill ID = {Props.Skill?.Id}");
-			
-			var sentences = await _clozureService.GetSentences(resourceId, 2, Props.Skill.Id);
+
+			var sentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Retrieved {sentences?.Count() ?? 0} sentences");
-			
+
 			if (sentences?.Any() == true)
 			{
 				Debug.WriteLine("🏴‍☠️ ClozurePage: Setting up first sentence");
@@ -522,24 +530,24 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					s.CorrectAnswer = first.VocabularyWordAsUsed;
 				});
 
-				if (sentences.Count() < 10)
-				{
-					Debug.WriteLine("🏴‍☠️ ClozurePage: Loading more sentences in background");
-					SetState(s => s.IsBuffering = true);
-					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
-					Debug.WriteLine($"🏴‍☠️ ClozurePage: Retrieved {moreSentences?.Count() ?? 0} additional sentences");
-					SetState(s =>
-					{
-						if (moreSentences != null && moreSentences.Any())
-						{
-							foreach (var sentence in moreSentences)
-							{
-								s.Sentences.Add(sentence);
-							}
-						}
-						s.IsBuffering = false;
-					});
-				}
+				// if (sentences.Count() < 10)
+				// {
+				// 	Debug.WriteLine("🏴‍☠️ ClozurePage: Loading more sentences in background");
+				// 	SetState(s => s.IsBuffering = true);
+				// 	var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
+				// 	Debug.WriteLine($"🏴‍☠️ ClozurePage: Retrieved {moreSentences?.Count() ?? 0} additional sentences");
+				// 	SetState(s =>
+				// 	{
+				// 		if (moreSentences != null && moreSentences.Any())
+				// 		{
+				// 			foreach (var sentence in moreSentences)
+				// 			{
+				// 				s.Sentences.Add(sentence);
+				// 			}
+				// 		}
+				// 		s.IsBuffering = false;
+				// 	});
+				// }
 			}
 			else
 			{
@@ -563,31 +571,31 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	{
 		var currentChallenge = State.Sentences.FirstOrDefault(s => s.IsCurrent);
 		if (currentChallenge == null) return;
-		
+
 		var stopwatch = Stopwatch.StartNew();
-		
-		var answer = State.UserMode == InputMode.MultipleChoice.ToString() ? 
+
+		var answer = State.UserMode == InputMode.MultipleChoice.ToString() ?
 			State.UserGuess : State.UserInput;
-		
+
 		if (string.IsNullOrWhiteSpace(answer)) return;
-		
-		var isCorrect = answer.Equals(currentChallenge.VocabularyWordAsUsed, 
+
+		var isCorrect = answer.Equals(currentChallenge.VocabularyWordAsUsed,
 			StringComparison.CurrentCultureIgnoreCase);
-		
+
 		stopwatch.Stop();
-		
+
 		// Determine context type based on word usage in sentence
 		var contextType = DetermineClozureContextType(currentChallenge);
-		
+
 		// Calculate difficulty based on sentence complexity and word usage
 		var difficultyWeight = CalculateClozureDifficulty(currentChallenge, answer);
-		
+
 		// Enhanced vocabulary lookup with comprehensive debugging
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: === VOCABULARY LOOKUP DEBUG ===");
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: Challenge.VocabularyWord: '{currentChallenge.VocabularyWord}'");
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: Challenge.VocabularyWordAsUsed: '{currentChallenge.VocabularyWordAsUsed}'");
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: Challenge has {currentChallenge.Vocabulary?.Count ?? 0} vocabulary words");
-		
+
 		if (currentChallenge.Vocabulary?.Any() == true)
 		{
 			for (int i = 0; i < currentChallenge.Vocabulary.Count; i++)
@@ -600,41 +608,41 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: WARNING - Challenge.Vocabulary is null or empty!");
 		}
-		
+
 		// Try multiple matching strategies like ClozureService does
 		VocabularyWord vocabularyWord = null;
-		
+
 		if (currentChallenge.Vocabulary?.Any() == true)
 		{
 			// Strategy 1: Exact match with VocabularyWord
-			vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v => 
+			vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v =>
 				string.Equals(v.TargetLanguageTerm, currentChallenge.VocabularyWord, StringComparison.OrdinalIgnoreCase));
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Strategy 1 (exact VocabularyWord match): {(vocabularyWord != null ? $"Found ID {vocabularyWord.Id}" : "Not found")}");
-			
+
 			// Strategy 2: Exact match with VocabularyWordAsUsed
 			if (vocabularyWord == null)
 			{
-				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v => 
+				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v =>
 					string.Equals(v.TargetLanguageTerm, currentChallenge.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase));
 				Debug.WriteLine($"🏴‍☠️ ClozurePage: Strategy 2 (exact VocabularyWordAsUsed match): {(vocabularyWord != null ? $"Found ID {vocabularyWord.Id}" : "Not found")}");
 			}
-			
+
 			// Strategy 3: Contains match - VocabularyWord contains target term
 			if (vocabularyWord == null)
 			{
-				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v => 
+				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v =>
 					currentChallenge.VocabularyWord?.Contains(v.TargetLanguageTerm, StringComparison.OrdinalIgnoreCase) == true);
 				Debug.WriteLine($"🏴‍☠️ ClozurePage: Strategy 3 (VocabularyWord contains target): {(vocabularyWord != null ? $"Found ID {vocabularyWord.Id}" : "Not found")}");
 			}
-			
+
 			// Strategy 4: Contains match - target term contains VocabularyWord
 			if (vocabularyWord == null)
 			{
-				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v => 
+				vocabularyWord = currentChallenge.Vocabulary.FirstOrDefault(v =>
 					v.TargetLanguageTerm?.Contains(currentChallenge.VocabularyWord, StringComparison.OrdinalIgnoreCase) == true);
 				Debug.WriteLine($"🏴‍☠️ ClozurePage: Strategy 4 (target contains VocabularyWord): {(vocabularyWord != null ? $"Found ID {vocabularyWord.Id}" : "Not found")}");
 			}
-			
+
 			// Strategy 5: Fallback - just take the first one if only one exists
 			if (vocabularyWord == null && currentChallenge.Vocabulary.Count == 1)
 			{
@@ -642,14 +650,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				Debug.WriteLine($"🏴‍☠️ ClozurePage: Strategy 5 (fallback single word): Found ID {vocabularyWord.Id}");
 			}
 		}
-		
+
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: Final result - Found vocabulary word: {vocabularyWord?.Id ?? 0} ('{vocabularyWord?.TargetLanguageTerm}')");
 		Debug.WriteLine($"🏴‍☠️ ClozurePage: === END VOCABULARY LOOKUP DEBUG ===");
-		
+
 		if (vocabularyWord != null)
 		{
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Recording attempt for vocabulary word ID {vocabularyWord.Id}");
-			
+
 			var attempt = new VocabularyAttempt
 			{
 				VocabularyWordId = vocabularyWord.Id,
@@ -665,18 +673,18 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds,
 				UserConfidence = State.UserConfidence
 			};
-			
+
 			// Record attempt using enhanced service
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Calling RecordAttemptAsync for word ID {vocabularyWord.Id}");
 			var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
 			Debug.WriteLine($"🏴‍☠️ ClozurePage: Progress recorded! IsLearning: {updatedProgress.IsLearning}, IsKnown: {updatedProgress.IsKnown}, MasteryScore: {updatedProgress.MasteryScore:F2}");
-			
+
 			// Update challenge with new progress information
 			UpdateChallengeProgress(currentChallenge, updatedProgress);
-			
+
 			// Provide enhanced feedback based on progress
 			ShowEnhancedFeedback(currentChallenge, updatedProgress, isCorrect, attempt);
-			
+
 			// Update learning analytics
 			await UpdateLearningAnalytics(currentChallenge, attempt, updatedProgress);
 		}
@@ -714,7 +722,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (isCorrect)
 		{
 			// 🏴‍☠️ Fill in the blank space with the correct answer (show complete sentence)
-			SetState(s => {
+			SetState(s =>
+			{
 				s.UserInput = string.Empty;
 				s.CurrentSentence = currentChallenge.SentenceText; // Show complete sentence
 			});
@@ -747,7 +756,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		ElapsedEventHandler handler = null;
 		handler = (sender, e) =>
 		{
-			SetState(s => s.AutoTransitionProgress = (e.SignalTime - startedTime).TotalMilliseconds / 5000);
+			SetState(s => s.AutoTransitionProgress = (e.SignalTime - startedTime).TotalMilliseconds / 4000);
 
 			if (State.AutoTransitionProgress >= 1)
 			{
@@ -765,11 +774,15 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	async Task NextSentence()
 	{
 		autoNextTimer?.Stop();
-		SetState(s => s.UserMode = InputMode.Text.ToString());
+		SetState(s =>
+		{
+			s.UserMode = InputMode.Text.ToString();
+			s.AutoTransitionProgress = 0; // Reset progress bar
+		});
 
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
 		if (currentIndex == -1) currentIndex = State.Sentences.Count - 1; // Handle case where no sentence is current
-		
+
 		if (currentIndex >= State.Sentences.Count - 1)
 		{
 			// Show session summary instead of dialog
@@ -793,68 +806,72 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			s.SessionTotalCount = 0;
 		});
 
-			var result = await Application.Current.MainPage.DisplayAlert(
-				_localize["Continue Practice"].ToString(),
-				_localize["Would you like to get more sentences?"].ToString(),
-				_localize["Yes"].ToString(),
-				_localize["No"].ToString()
-			);
+		var result = await Application.Current.MainPage.DisplayAlert(
+			_localize["Continue Practice"].ToString(),
+			_localize["Would you like to get more sentences?"].ToString(),
+			_localize["Yes"].ToString(),
+			_localize["No"].ToString()
+		);
 
-			if (result)
+		if (result)
+		{
+			SetState(s => s.IsBuffering = true);
+			try
 			{
-				SetState(s => s.IsBuffering = true);
-				try 
-				{
-					// Use resource Id instead of vocabulary ID
-					var resourceId = Props.Resource?.Id ?? 0;
-					var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
-					
-					if (moreSentences?.Any() == true)
-					{
-						SetState(s =>
-						{
-							foreach (var sentence in moreSentences)
-							{
-								s.Sentences.Add(sentence);
-							}
-						});
+				// Use resource Id instead of vocabulary ID
+				var resourceId = Props.Resource?.Id ?? 0;
+				var moreSentences = await _clozureService.GetSentences(resourceId, 8, Props.Skill.Id);
 
-						// Find the current index and jump to the next sentence
-						var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
-						if (currentIndex >= 0 && currentIndex < State.Sentences.Count - 1)
-						{
-							JumpTo(State.Sentences[currentIndex + 1]);
-						}
-					}
-					else 
+				if (moreSentences?.Any() == true)
+				{
+					SetState(s =>
 					{
-						await Application.Current.MainPage.DisplayAlert(
-							_localize["No More Sentences"].ToString(),
-							_localize["There are no more sentences available for this resource."].ToString(),
-							_localize["OK"].ToString()
-						);
+						foreach (var sentence in moreSentences)
+						{
+							s.Sentences.Add(sentence);
+						}
+					});
+
+					// Find the current index and jump to the next sentence
+					var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
+					if (currentIndex >= 0 && currentIndex < State.Sentences.Count - 1)
+					{
+						JumpTo(State.Sentences[currentIndex + 1]);
 					}
 				}
-				catch (Exception ex)
+				else
 				{
-					Debug.WriteLine(ex.Message);
 					await Application.Current.MainPage.DisplayAlert(
-						_localize["Error"].ToString(),
-						_localize["Unable to load more sentences."].ToString(),
+						_localize["No More Sentences"].ToString(),
+						_localize["There are no more sentences available for this resource."].ToString(),
 						_localize["OK"].ToString()
 					);
 				}
-				finally
-				{
-					SetState(s => s.IsBuffering = false);
-				}
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine(ex.Message);
+				await Application.Current.MainPage.DisplayAlert(
+					_localize["Error"].ToString(),
+					_localize["Unable to load more sentences."].ToString(),
+					_localize["OK"].ToString()
+				);
+			}
+			finally
+			{
+				SetState(s => s.IsBuffering = false);
 			}
 		}
+	}
 
-		async Task PreviousSentence()
+	async Task PreviousSentence()
 	{
 		autoNextTimer?.Stop();
-		SetState(s => s.UserMode = InputMode.Text.ToString());
+		SetState(s =>
+		{
+			s.UserMode = InputMode.Text.ToString();
+			s.AutoTransitionProgress = 0; // Reset progress bar
+		});
 
 		var currentIndex = State.Sentences.IndexOf(State.Sentences.FirstOrDefault(s => s.IsCurrent));
 		if (currentIndex == -1) return; // Handle case where no sentence is current
@@ -882,27 +899,27 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	{
 		var originalWord = currentChallenge.VocabularyWord ?? "";
 		var wordAsUsed = currentChallenge.VocabularyWordAsUsed ?? "";
-		
+
 		// Check if word appears in conjugated or modified form
 		if (!string.Equals(originalWord, wordAsUsed, StringComparison.CurrentCultureIgnoreCase))
 		{
 			return "Conjugated"; // Word is conjugated/modified
 		}
-		
+
 		// Check sentence complexity (could be enhanced with NLP analysis)
 		var sentence = currentChallenge.SentenceText ?? "";
 		if (sentence.Split(' ').Length > 10)
 		{
 			return "Complex"; // Long, complex sentence
 		}
-		
+
 		return "Sentence"; // Standard sentence context
 	}
-	
+
 	private float CalculateClozureDifficulty(Challenge currentChallenge, string userAnswer)
 	{
 		float difficulty = 1.0f; // Base difficulty for clozure
-		
+
 		// Adjust based on context type
 		var contextType = DetermineClozureContextType(currentChallenge);
 		switch (contextType)
@@ -917,13 +934,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				difficulty *= 1.2f; // Standard sentence context is moderately challenging
 				break;
 		}
-		
+
 		// Adjust based on input mode
 		if (State.UserMode == InputMode.Text.ToString())
 		{
 			difficulty *= 1.3f; // Text entry is harder than multiple choice in context
 		}
-		
+
 		// Adjust based on sentence length and complexity
 		var sentence = currentChallenge.SentenceText ?? "";
 		var wordCount = sentence.Split(' ').Length;
@@ -931,36 +948,36 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			difficulty *= 1.2f; // Very long sentences are harder
 		}
-		
+
 		// Adjust based on position of missing word
 		var wordPosition = GetWordPositionInSentence(currentChallenge);
 		if (wordPosition == "middle")
 		{
 			difficulty *= 1.1f; // Words in middle are slightly harder due to more context needed
 		}
-		
+
 		return Math.Min(2.0f, Math.Max(0.8f, difficulty)); // Clamp between 0.8 and 2.0
 	}
-	
+
 	private int GetCurrentUserId()
 	{
 		// TODO: Get actual user ID from user service
 		return 1; // Default user for now
 	}
-	
+
 	private void UpdateChallengeProgress(Challenge challenge, SentenceStudio.Shared.Models.VocabularyProgress progress)
 	{
 		// Update challenge display with progress information
 		// This could update visual indicators showing mastery level
 	}
-	
+
 	private void ShowEnhancedFeedback(Challenge challenge, SentenceStudio.Shared.Models.VocabularyProgress progress, bool isCorrect, VocabularyAttempt attempt)
 	{
 		if (isCorrect)
 		{
 			var masteryScore = progress.MasteryScore;
 			var phaseText = GetPhaseDisplayText(progress.CurrentPhase);
-			
+
 			// Show mastery-based feedback
 			if (masteryScore >= 0.8f)
 			{
@@ -974,7 +991,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			{
 				ShowFeedback($"✅ Correct! Building mastery - {(int)(masteryScore * 100)}%", "success");
 			}
-			
+
 			// Show context-specific achievements
 			if (attempt.ContextType == "Conjugated")
 			{
@@ -989,7 +1006,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			var masteryScore = progress.MasteryScore;
 			var phaseText = GetPhaseDisplayText(progress.CurrentPhase);
-			
+
 			// Show encouraging feedback with context
 			if (attempt.ContextType == "Conjugated")
 			{
@@ -999,12 +1016,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			{
 				ShowFeedback($"🔍 Keep practicing! Current mastery: {(int)(masteryScore * 100)}% ({phaseText})", "info");
 			}
-			
+
 			// Show helpful hints based on the error type
 			ShowContextualHints(challenge, attempt);
 		}
 	}
-	
+
 	private async Task UpdateLearningAnalytics(Challenge challenge, VocabularyAttempt attempt, SentenceStudio.Shared.Models.VocabularyProgress progress)
 	{
 		// Track error patterns for personalized feedback
@@ -1013,7 +1030,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			// User struggles with conjugated forms - could suggest focused practice
 			await LogLearningInsight(attempt.VocabularyWordId, "conjugation_difficulty");
 		}
-		
+
 		// Track response time patterns
 		if (attempt.ResponseTimeMs > 10000) // More than 10 seconds
 		{
@@ -1023,34 +1040,34 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			await LogLearningInsight(attempt.VocabularyWordId, "quick_correct");
 		}
-		
+
 		// Track difficulty adaptation
 		if (attempt.DifficultyWeight > 1.5f && attempt.WasCorrect)
 		{
 			await LogLearningInsight(attempt.VocabularyWordId, "high_difficulty_success");
 		}
 	}
-	
+
 	private string GetPhaseDisplayText(LearningPhase phase)
 	{
 		return phase switch
 		{
 			LearningPhase.Recognition => "Recognition Phase",
-			LearningPhase.Production => "Production Phase", 
+			LearningPhase.Production => "Production Phase",
 			LearningPhase.Application => "Application Phase",
 			_ => "Learning"
 		};
 	}
-	
+
 	private string GetWordPositionInSentence(Challenge challenge)
 	{
 		// Simplified position detection - could be enhanced
 		var sentence = challenge.SentenceText ?? "";
 		var words = sentence.Split(' ');
 		var blankIndex = Array.FindIndex(words, w => w.Contains("__") || w.Contains("..."));
-		
+
 		if (blankIndex == -1) return "unknown";
-		
+
 		var position = (float)blankIndex / words.Length;
 		return position switch
 		{
@@ -1059,23 +1076,23 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			_ => "middle"
 		};
 	}
-	
+
 	private void ShowFeedback(string message, string type)
 	{
-		SetState(s => 
+		SetState(s =>
 		{
 			s.FeedbackMessage = message;
 			s.FeedbackType = type;
 			s.ShowFeedback = true;
 		});
-		
+
 		// Auto-hide feedback after a few seconds
-		Task.Delay(4000).ContinueWith(_ => 
+		Task.Delay(4000).ContinueWith(_ =>
 		{
 			SetState(s => s.ShowFeedback = false);
 		});
 	}
-	
+
 	private void ShowContextualHints(Challenge challenge, VocabularyAttempt attempt)
 	{
 		if (attempt.ContextType == "Conjugated")
@@ -1087,14 +1104,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ShowFeedback("💡 Hint: Pay attention to the exact spelling and form", "hint");
 		}
 	}
-	
+
 	private async Task LogLearningInsight(int wordId, string insightType)
 	{
 		// Log learning insights for analytics
 		Debug.WriteLine($"Learning insight for word {wordId}: {insightType}");
 		// TODO: Implement actual insight logging to analytics service
 	}
-	
+
 	private Color GetFeedbackBackgroundColor(string feedbackType)
 	{
 		return feedbackType switch
