@@ -66,6 +66,13 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(vlc => vlc.LearningResourceId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Configure Conversation to ConversationChunk relationship
+        modelBuilder.Entity<Conversation>()
+            .HasMany(c => c.Chunks)
+            .WithOne()
+            .HasForeignKey(cc => cc.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Create unique constraint to ensure one progress record per vocabulary word per user
         modelBuilder.Entity<VocabularyProgress>()
             .HasIndex(vp => new { vp.VocabularyWordId, vp.UserId })

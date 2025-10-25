@@ -49,7 +49,7 @@ partial class WarmupPage : Component<WarmupPageState>
         }; public override VisualNode Render()
     {
         return ContentPage("Warmup",
-            ToolbarItem($"{_localize["New Conversation"]}").OnClicked(StartNewConversation),
+            ToolbarItem($"{_localize["NewConversation"]}").OnClicked(StartNewConversation),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),
