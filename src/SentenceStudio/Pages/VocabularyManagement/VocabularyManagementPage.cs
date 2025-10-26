@@ -1,8 +1,5 @@
 using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
-using SentenceStudio.Data;
-using SentenceStudio.Shared.Models;
-using Fonts;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -47,6 +44,9 @@ class VocabularyManagementPageState
     // Multi-select and bulk operations
     public bool IsMultiSelectMode { get; set; } = false;
     public HashSet<int> SelectedWordIds { get; set; } = new();
+
+    // Platform cache
+    public bool IsPhoneIdiom { get; set; }
 
 }
 
@@ -96,6 +96,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         });
     }
 
+    protected override void OnMounted()
+    {
+        base.OnMounted();
+        // Cache device idiom check for performance optimization
+        SetState(s => s.IsPhoneIdiom = DeviceInfo.Idiom == DeviceIdiom.Phone);
+    }
+
     // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
     VisualNode RenderBottomBar()
         => State.IsMultiSelectMode ? RenderBulkActionsBar() : RenderCompactSearchBar();
@@ -105,7 +112,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Grid(rows: "Auto", columns: "*,Auto,Auto",
                         new SfTextInputLayout(
                             Entry()
-                                .Placeholder($"{_localize["Search"]}...")
+                                .Placeholder($"{_localize["Search"]}")
                                 .Text(State.SearchText)
                                 .OnTextChanged(OnSearchTextChanged)
                                 .FontSize(13)
@@ -128,7 +135,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
                     // Status filter icon
                     ImageButton()
-                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconStatus)
+                        .Source(MyTheme.IconFilter)
                         .BackgroundColor(MyTheme.LightSecondaryBackground)
                         .HeightRequest(36)
                         .WidthRequest(36)
@@ -149,16 +156,16 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .OnClicked(async () => await ShowResourceFilterDialog())
                         .GridColumn(2)
                         .VStart()
-                ).ColumnSpacing(8)
+                ).ColumnSpacing(MyTheme.LayoutSpacing)
             .Padding(15, 0)
             .GridRow(1);
 
     VisualNode RenderBulkActionsBar()
         => Border(
-                HStack(spacing: 10,
+                HStack(spacing: MyTheme.LayoutSpacing,
                     Label($"{State.SelectedWordIds.Count} selected")
+                        .ThemeKey(MyTheme.Body2)
                         .VCenter()
-                        .TextColor(MyTheme.Gray600)
                         .HorizontalOptions(LayoutOptions.FillAndExpand),
                     Button("Delete")
                         .ThemeKey("Danger")
@@ -184,8 +191,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Label(State.AllVocabularyItems.Any() ?
                     "No vocabulary words match the current filter." :
                     "No vocabulary words found. Use the + button to create your first vocabulary word.")
-                    .FontSize(16)
-                    .TextColor(MyTheme.Gray600)
+                    .ThemeKey(MyTheme.Body1)
                     .Center(),
 
                 !State.AllVocabularyItems.Any() ?
@@ -204,8 +210,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Calculate optimal number of columns based on screen width
         var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
         var cardWidth = 300; // Minimum card width for good readability
-        var horizontalSpacing = 16;
-        var containerPadding = 32;
+        var horizontalSpacing = MyTheme.LayoutSpacing;
+        var containerPadding = MyTheme.LayoutPadding.Left;
 
         var availableWidth = screenWidth - containerPadding;
         var itemWidthWithSpacing = cardWidth + horizontalSpacing;
@@ -214,18 +220,18 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
         var gridLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
         {
-            VerticalItemSpacing = 16,
-            HorizontalItemSpacing = 16
+            VerticalItemSpacing = MyTheme.LayoutSpacing,
+            HorizontalItemSpacing = MyTheme.LayoutSpacing
         };
 
         return CollectionView()
             .ItemsSource(State.FilteredVocabularyItems,
-                DeviceInfo.Idiom == DeviceIdiom.Phone
+                State.IsPhoneIdiom
                     ? RenderVocabularyCardMobile
                     : RenderVocabularyCard)
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
-                DeviceInfo.Idiom == DeviceIdiom.Phone
-                    ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 8 }
+                State.IsPhoneIdiom
+                    ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = MyTheme.LayoutSpacing }
                     : gridLayout)
             .BackgroundColor(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
@@ -236,7 +242,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderVocabularyCardMobile(VocabularyCardViewModel item)
     {
         return Border(
-            HStack(spacing: 8,
+            HStack(spacing: MyTheme.LayoutSpacing,
                 // Header with select checkbox (if in multi-select mode)
                 State.IsMultiSelectMode
                     ? CheckBox()
@@ -247,12 +253,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 // Main content - view mode only
                 VStack(spacing: 2,
                     Label(item.Word.TargetLanguageTerm ?? "")
-                        .FontSize(16)
-                        .FontAttributes(FontAttributes.Bold)
-                        .TextColor(MyTheme.HighlightDarkest),
+                        .ThemeKey(MyTheme.Body2Strong),
                     Label(item.Word.NativeLanguageTerm ?? "")
-                        .FontSize(14)
-                        .TextColor(MyTheme.Gray600)
+                        .ThemeKey(MyTheme.Caption1)
                 )
             ).Padding(4)
         )
@@ -269,7 +272,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderVocabularyCard(VocabularyCardViewModel item)
     {
         return Border(
-            VStack(spacing: 8,
+            VStack(
                 // Header with select checkbox (if in multi-select mode)
                 State.IsMultiSelectMode ?
                     HStack(
@@ -277,56 +280,33 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                             .IsChecked(item.IsSelected)
                             .OnCheckedChanged(isChecked => ToggleItemSelection(item.Word.Id, isChecked)),
                         Label("Select")
-                            .FontSize(12)
-                            .TextColor(MyTheme.Gray600)
+                            .ThemeKey(MyTheme.Caption2)
                             .VCenter()
                     ).HStart() :
                     null,
 
                 // Main content - view mode only
                 RenderVocabularyCardViewMode(item)
-            ).Padding(16)
+            )
         )
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
-        .StrokeThickness(2)
-        .Stroke(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray300)
-        .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
-        .WidthRequest(280)
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
             () => NavigateToEditPage(item.Word.Id));
     }
 
     VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item) =>
-        VStack(spacing: 8,
-            // Terms
-            VStack(spacing: 4,
-                Label(item.Word.TargetLanguageTerm ?? "")
-                    .FontSize(18)
-                    .FontAttributes(FontAttributes.Bold)
-                    .TextColor(MyTheme.HighlightDarkest),
-                Label(item.Word.NativeLanguageTerm ?? "")
-                    .FontSize(16)
-                    .TextColor(MyTheme.Gray600)
-            ),
+        VStack(
+            // Terms            
+            Label(item.Word.TargetLanguageTerm ?? "")
+                .ThemeKey(MyTheme.Body1Strong),
+            Label(item.Word.NativeLanguageTerm ?? "")
+                .ThemeKey(MyTheme.Body2),
 
             // Status and resources
-            VStack(spacing: 6,
-                Label(item.IsOrphaned ? "⚠️ Orphaned" : $"📚 {item.AssociatedResources.Count} resource(s)")
-                    .FontSize(12)
-                    .FontAttributes(FontAttributes.Bold)
-                    .TextColor(item.IsOrphaned ? MyTheme.Warning : MyTheme.Success)
-            ),
+            Label(item.IsOrphaned ? "⚠️ Orphaned" : $"📚 {item.AssociatedResources.Count} resource(s)")
+                .ThemeKey(MyTheme.Caption2)
+                .FontAttributes(FontAttributes.Bold)
 
-            // Edit button (only show if not in multi-select mode)
-            !State.IsMultiSelectMode ?
-                Button("Edit")
-                    .ThemeKey("Secondary")
-                    .OnClicked(() => NavigateToEditPage(item.Word.Id))
-                    .FontSize(12)
-                    .Padding(8, 6)
-                    .HEnd() :
-                null
         );
 
     // Event handlers and logic methods

@@ -198,8 +198,8 @@ partial class DashboardPage : Component<DashboardPageState>
                             ).Columns("*,*").ColumnSpacing(15),
 
                         // Progress Section
-                        Label("Vocab Progress")
-                            .ThemeKey(MyTheme.H1).HStart().Margin(0, 20, 0, 10),
+                        Label($"{_localize["VocabProgress"]}")
+                            .ThemeKey(MyTheme.Title1).HStart().Margin(0, 20, 0, 10),
                         (State.IsLoadingProgress && !State.HasLoadedProgressOnce
                             ? VStack(
                                 ActivityIndicator()

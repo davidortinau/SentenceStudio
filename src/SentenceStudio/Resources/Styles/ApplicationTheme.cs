@@ -9,10 +9,16 @@ class MyTheme : ApplicationTheme
 {
     public const string Title1 = nameof(Title1);
     public const string Title3 = nameof(Title3);
-    public const string Caption1 = nameof(Caption1);
     public const string Body1 = nameof(Body1);
+    public const string Body1Strong = nameof(Body1Strong);
+    public const string Body2 = nameof(Body2);
+    public const string Body2Strong = nameof(Body2Strong);
+    public const string Caption1 = nameof(Caption1);
+    public const string Caption1Strong = nameof(Caption1Strong);
+    public const string Caption2 = nameof(Caption2);
     public const string InputWrapper = nameof(InputWrapper);
     public const string Surface1 = nameof(Surface1);
+
 
     // public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
     public static Color PrimaryDark { get; } = Color.FromRgba(172, 153, 234, 255); // #AC99EA
@@ -83,11 +89,11 @@ class MyTheme : ApplicationTheme
     public static double Size520 { get; } = 52;
     public static double Size560 { get; } = 56;
 
-    public static double IconSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 32 : 20;
-    public static double IconSizeSmall { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 18 : 12;
-    public static Thickness LayoutPadding { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15);
-    public static double LayoutSpacing { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 15 : 5;
-    public static double ButtonMinimumSize { get; } = DeviceInfo.Platform == DevicePlatform.WinUI ? 60 : 44;
+    public static double IconSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 32 : 20;
+    public static double IconSizeSmall { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 18 : 12;
+    public static Thickness LayoutPadding { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? new Thickness(30) : new Thickness(15);
+    public static double LayoutSpacing { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 15 : 8;
+    public static double ButtonMinimumSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 60 : 44;
 
     public static Style ChipStyle { get; } = new Style(typeof(Syncfusion.Maui.Core.SfChipGroup))
     {
@@ -203,6 +209,14 @@ class MyTheme : ApplicationTheme
     public static FontImageSource IconSpeedNormal { get; } = new FontImageSource
     {
         Glyph = FluentUI.animal_cat_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
+    public static FontImageSource IconFilter { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.filter_24_regular,
         FontFamily = FluentUI.FontFamily,
         Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
         Size = IconSize

@@ -629,4 +629,8 @@
     <value>This resource has no vocabulary to study.</value>
     <comment>Error message when no vocabulary is available</comment>
   </data>
+  <data name="LearningProgress" xml:space="preserve">
+    <value>Learning Progress</value>
+    <comment/>
+  </data>
 </root>

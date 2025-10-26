@@ -472,6 +472,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Learning Progress.
+        /// </summary>
+        internal static string LearningProgress {
+            get {
+                return ResourceManager.GetString("LearningProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Learning Resources.
         /// </summary>
         internal static string LearningResources {

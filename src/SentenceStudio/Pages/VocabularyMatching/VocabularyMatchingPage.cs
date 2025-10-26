@@ -83,13 +83,13 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     VisualNode RenderHeader() =>
         VStack(spacing: 2,
             Label(string.Format(_localize["MatchedAndMisses"].ToString(), State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
+                .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
-                    .ThemeKey(MyTheme.Caption1)
-                    .HCenter()
-                    .TextColor(MyTheme.HighlightDarkest) :
+                    .ThemeKey(MyTheme.Caption1Strong)
+                    .HCenter() :
                 null
         )
         .Padding(MyTheme.Size60);
@@ -100,6 +100,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .IsRunning(true)
                 .HCenter(),
             Label(_localize["LoadingVocabulary"].ToString())
+                .ThemeKey(MyTheme.Body2)
                 .HCenter()
         )
         .VCenter()
@@ -112,6 +113,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .HCenter(),
 
             Label(_localize["AllPairsMatched"].ToString())
+                .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
             Button(_localize["PlayAgain"].ToString())
@@ -185,13 +187,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     }
 
     // Tile size be fixed for all, so it don't change when selected!
-    double GetTileFontSize()
-    {
-        if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
-            return 13;
-        return 24;
-    }
-
     double GetTileHeight()
     {
         if (DeviceInfo.Idiom == DeviceIdiom.Phone && DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
@@ -208,7 +203,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderTile(MatchingTile tile, int row, int col)
     {
-        double fontSize = GetTileFontSize();
         double height = GetTileHeight();
         double width = GetTileWidth();
 
@@ -222,7 +216,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         return Border(
             Label(tile.Text)
-                .FontSize(fontSize)
+                .ThemeKey(MyTheme.Title3)
                 .HCenter()
                 .VCenter()
                 .TextColor(GetTileTextColor(tile))

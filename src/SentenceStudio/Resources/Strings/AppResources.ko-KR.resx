@@ -605,4 +605,12 @@
     <value>오답입니다. 다시 시도하세요!</value>
     <comment>Incorrect match message</comment>
   </data>
+  <data name="LearningProgress" xml:space="preserve">
+    <value>학습 진행</value>
+    <comment/>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>검색</value>
+    <comment/>
+  </data>
 </root>
