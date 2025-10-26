@@ -1,8 +1,5 @@
 using Microsoft.Extensions.Logging;
 using MauiReactor.Shapes;
-using SentenceStudio.Data;
-using SentenceStudio.Shared.Models;
-using System.Collections.ObjectModel;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -135,7 +132,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     VisualNode RenderResourceItem(LearningResource resource) =>
         Border(
-            HStack(spacing: 12,
+            HStack(
                 CheckBox()
                     .IsChecked(State.SelectedResourceIds.Contains(resource.Id))
                     .OnCheckedChanged(isChecked => ToggleResourceSelection(resource.Id, isChecked))
@@ -154,15 +151,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         null
                 ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand)
 
-
-            ).Padding(12)
+            )
         )
-        .StrokeShape(new Rectangle())
         .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
-        .StrokeThickness(State.SelectedResourceIds.Contains(resource.Id) ? 2 : 1)
+        .StrokeThickness(1)
         .Background(State.SelectedResourceIds.Contains(resource.Id) ?
             (Theme.IsLightTheme ? MyTheme.SupportSuccessLight : MyTheme.DarkSecondaryBackground) :
-            (Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground))
+            (Theme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground))  // Let the theme handle the default background
         .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
 
     VisualNode RenderActionButtons() =>

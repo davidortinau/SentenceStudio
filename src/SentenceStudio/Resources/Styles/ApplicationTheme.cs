@@ -711,7 +711,7 @@ class MyTheme : ApplicationTheme
             .LineHeight(1.17)
             .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
 
-        BorderStyles.Themes["Default"] = _ => _
+        BorderStyles.Default = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))
             .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
             .StrokeThickness(0)
