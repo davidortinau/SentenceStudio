@@ -1,5 +1,6 @@
 using MauiReactor.Shapes;
 using ReactorCustomLayouts;
+using SentenceStudio.Helpers;
 using System.Collections.ObjectModel;
 
 namespace SentenceStudio.Pages.VocabularyProgress;
@@ -8,7 +9,7 @@ public enum VocabularyFilterType
 {
     All,
     Known,
-    Learning, 
+    Learning,
     Unknown
 }
 
@@ -25,21 +26,21 @@ public class VocabularyProgressItem
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
     public List<string> ResourceNames { get; set; } = new();
     public List<string> ActivitiesUsed { get; set; } = new();
-    
+
     // Status helpers
     public bool IsKnown => Progress?.IsKnown ?? false;
     public bool IsLearning => Progress?.IsLearning ?? false;
     public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
-    
+
     // Color coding
-    public Color StatusColor => IsKnown ? MyTheme.Success : 
-                                IsLearning ? MyTheme.Warning : 
+    public Color StatusColor => IsKnown ? MyTheme.Success :
+                                IsLearning ? MyTheme.Warning :
                                 MyTheme.Gray400;
-    
-    public string StatusText => IsKnown ? "Known" : 
-                                IsLearning ? "Learning" : 
+
+    public string StatusText => IsKnown ? "Known" :
+                                IsLearning ? "Learning" :
                                 "Unknown";
-    
+
     public double MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0.0;
     public double TextEntryProgress => Progress?.TextEntryProgress ?? 0.0;
 }
@@ -54,7 +55,7 @@ class VocabularyLearningProgressPageState
     public VocabularyFilterType SelectedFilter { get; set; } = VocabularyFilterType.All;
     public string SearchText { get; set; } = string.Empty;
     public double ScreenWidth { get; set; }
-    
+
     // Computed stats
     public int TotalWords => VocabularyItems.Count;
     public int KnownWords => VocabularyItems.Count(v => v.IsKnown);
@@ -79,7 +80,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     RenderHeaderStats(),
                     RenderFilters(),
                     RenderVocabularyCollectionView()
-                )
+                ).Padding(MyTheme.LayoutPadding)
         )
         .OnAppearing(LoadData)
         .OnSizeChanged(() => OnPageSizeChanged());
@@ -88,7 +89,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     VisualNode RenderHeaderStats() =>
         VStack(
             Border(
-                HStack(spacing: 20,
+                HStack(spacing: MyTheme.SectionSpacing,
                     RenderStatCard("Total", State.TotalWords, MyTheme.HighlightDarkest),
                     RenderStatCard("Known", State.KnownWords, MyTheme.Success),
                     RenderStatCard("Learning", State.LearningWords, MyTheme.Warning),
@@ -96,14 +97,14 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 ).HCenter()
             )
             .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.CardPadding))
             .StrokeThickness(1)
             .Stroke(MyTheme.Gray200)
-            .Padding(16)
-        ).Padding(16, 16, 16, 0).GridRow(0);
+            .Padding(MyTheme.LayoutSpacing)
+        ).Padding(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0).GridRow(0);
 
     VisualNode RenderStatCard(string title, int count, Color color) =>
-        VStack(spacing: 4,
+        VStack(spacing: MyTheme.MicroSpacing,
             Label(title)
                 .FontSize(12)
                 .TextColor(MyTheme.Gray600)
@@ -116,7 +117,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         );
 
     VisualNode RenderFilters() =>
-        VStack(spacing: 12,
+        VStack(spacing: MyTheme.CardPadding,
             // Resource picker - simplified for now
             Label("All Resources")
                 .FontSize(16)
@@ -124,7 +125,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .HCenter(),
 
             // Status filter buttons
-            HStack(spacing: 8,
+            HStack(spacing: MyTheme.ComponentSpacing,
                 Button("All")
                     .Background(State.SelectedFilter == VocabularyFilterType.All ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
                     .TextColor(State.SelectedFilter == VocabularyFilterType.All ? Colors.White : MyTheme.Gray600)
@@ -148,64 +149,38 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .Placeholder("Search vocabulary...")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
-        ).Padding(16, 8, 16, 8).GridRow(1);
+        ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing, MyTheme.LayoutSpacing, MyTheme.ComponentSpacing).GridRow(1);
 
     VisualNode RenderVocabularyCollectionView()
     {
-        // Calculate optimal number of columns based on screen width
-        var screenWidth = State.ScreenWidth > 0 ? State.ScreenWidth : 
-            DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
-        var cardWidth = 120; // From RenderVocabularyCard WidthRequest
-        var horizontalSpacing = MyTheme.LayoutSpacing;
-        var containerPadding = 32; // 16 left + 16 right padding
-        
-        // Calculate how many cards can fit: (screenWidth - padding) / (cardWidth + spacing) 
-        var availableWidth = screenWidth - containerPadding;
-        var itemWidthWithSpacing = cardWidth + horizontalSpacing;
-        var calculatedSpan = Math.Max(1, (int)(availableWidth / itemWidthWithSpacing));
-        
-        // Clamp between reasonable bounds
-        var span = Math.Max(2, calculatedSpan);
-
-        var gridLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
-        {
-            VerticalItemSpacing = MyTheme.LayoutSpacing,
-            HorizontalItemSpacing = MyTheme.LayoutSpacing
-        };
-
         return CollectionView()
                 .ItemsSource(State.FilteredVocabularyItems, RenderVocabularyCard)
-                .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty, gridLayout)
+                .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
+                        GridLayoutHelper.CalculateResponsiveLayout(
+                                        desiredItemWidth: 300,
+                                        orientation: ItemsLayoutOrientation.Vertical,
+                                        maxColumns: 6))
                 .BackgroundColor(Colors.Transparent)
-                .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
+                // .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
                 .GridRow(2);
     }
 
     VisualNode RenderVocabularyCard(VocabularyProgressItem item) =>
         Border(
-            VStack(spacing: 4,
+            VStack(spacing: MyTheme.MicroSpacing,
                 Label(item.Word.TargetLanguageTerm ?? "")
-                    .FontSize(14)
-                    .FontAttributes(FontAttributes.Bold)
-                    .TextColor(MyTheme.HighlightDarkest)
-                    .Center(),
+                    .ThemeKey(MyTheme.Title3),
                 Label(item.Word.NativeLanguageTerm ?? "")
-                    .FontSize(12)
-                    .TextColor(MyTheme.Gray600)
-                    .Center(),
+                    .ThemeKey(MyTheme.Subtitle),
                 Label(item.StatusText)
-                    .FontSize(10)
-                    .FontAttributes(FontAttributes.Bold)
+                    .ThemeKey(MyTheme.Caption1)
                     .TextColor(item.StatusColor)
-                    .Center()
-            ).Padding(8)
+            )
         )
-        .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .StrokeThickness(2)
-        .Stroke(item.StatusColor)
-        .WidthRequest(120)
-        .HeightRequest(80);
+        // .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
+        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.ComponentSpacing))
+        .StrokeThickness(1)
+        .Stroke(item.StatusColor);
 
     async Task LoadData()
     {
@@ -294,11 +269,11 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
 
             // Build vocabulary items (simplified without contexts to improve performance)
             var vocabularyItems = new List<VocabularyProgressItem>();
-            
+
             foreach (var word in allWords)
             {
                 var progress = progressData.ContainsKey(word.Id) ? progressData[word.Id] : null;
-                
+
                 var item = new VocabularyProgressItem
                 {
                     Word = word,
@@ -306,12 +281,12 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     ResourceNames = new List<string>(), // Simplified - can be loaded on demand if needed
                     ActivitiesUsed = new List<string>() // Simplified - can be loaded on demand if needed
                 };
-                
+
                 vocabularyItems.Add(item);
             }
 
             SetState(s => s.VocabularyItems = new ObservableCollection<VocabularyProgressItem>(vocabularyItems));
-            
+
             ApplyFilters();
         }
         catch (Exception ex)
@@ -337,7 +312,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         if (!string.IsNullOrWhiteSpace(State.SearchText))
         {
             var searchLower = State.SearchText.ToLower();
-            filtered = filtered.Where(v => 
+            filtered = filtered.Where(v =>
                 (v.Word.TargetLanguageTerm?.ToLower().Contains(searchLower) == true) ||
                 (v.Word.NativeLanguageTerm?.ToLower().Contains(searchLower) == true));
         }
