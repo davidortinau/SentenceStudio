@@ -74,13 +74,13 @@ partial class WarmupPage : Component<WarmupPageState>
             VStack(
                 State.Chunks.Select(c => RenderChunk(c)).ToArray()
             )
-            .Spacing(15)
+            .Spacing(MyTheme.LayoutSpacing)
         );
 
     VisualNode RenderExplanationPopup() =>
         new SfBottomSheet(
             Grid("*", "*",
-                VStack(spacing: 10,
+                VStack(spacing: MyTheme.ComponentSpacing,
                     Label(State.Explanation),
 
                     Button("Close")
@@ -91,7 +91,7 @@ partial class WarmupPage : Component<WarmupPageState>
                         }))
                 )
                 .BackgroundColor(MyTheme.LightBackground)
-                .Padding(20)
+                .Padding(MyTheme.SectionSpacing)
             )
         )
         .GridRowSpan(2)
@@ -114,7 +114,7 @@ partial class WarmupPage : Component<WarmupPageState>
                                 });
                             })
                         )
-                    ).Spacing(20)
+                    ).Spacing(MyTheme.SectionSpacing)
                 )
                 .GridRow(0),
                 Button("Cancel")
@@ -122,8 +122,8 @@ partial class WarmupPage : Component<WarmupPageState>
                     .OnClicked(() => SetState(s => s.IsPhraseListShown = false))
             )
             .BackgroundColor(MyTheme.LightBackground)
-            .Padding(15)
-            .Margin(15)
+            .Padding(MyTheme.LayoutPadding)
+            .Margin(MyTheme.LayoutPadding)
             .HorizontalOptions(LayoutOptions.Fill)
             .MinimumWidthRequest(320)
         )
@@ -141,8 +141,8 @@ partial class WarmupPage : Component<WarmupPageState>
                     )
 
             )
-            .Margin(new Thickness(15, 5))
-            .Padding(new Thickness(12, 4, 12, 8))
+            .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
+            .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
             .Background(MyTheme.HighlightDarkest)
             .Stroke(MyTheme.HighlightDarkest)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 10, 2, 10))
@@ -154,8 +154,8 @@ partial class WarmupPage : Component<WarmupPageState>
                 new SelectableLabel()
                     .Text(chunk.Text)
             )
-            .Margin(new Thickness(15, 5))
-            .Padding(new Thickness(12, 4, 12, 8))
+            .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
+            .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
             .Background(MyTheme.HighlightMedium)
             .Stroke(MyTheme.HighlightMedium)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
@@ -204,7 +204,7 @@ partial class WarmupPage : Component<WarmupPageState>
             .Background(Colors.Transparent)
             .Stroke(MyTheme.Gray300)
             .StrokeShape(new RoundRectangle().CornerRadius(6))
-            .Padding(new Thickness(15, 0))
+            .Padding(new Thickness(MyTheme.LayoutSpacing, 0))
             .StrokeThickness(1)
             .VerticalOptions(LayoutOptions.End),
             Button()
@@ -219,8 +219,8 @@ partial class WarmupPage : Component<WarmupPageState>
                 })
         )
         .GridRow(1)
-        .Margin(new Thickness(15))
-        .ColumnSpacing(15)
+        .Margin(MyTheme.LayoutPadding)
+        .ColumnSpacing(MyTheme.LayoutSpacing)
         .VEnd();
 
     async Task SendMessage()

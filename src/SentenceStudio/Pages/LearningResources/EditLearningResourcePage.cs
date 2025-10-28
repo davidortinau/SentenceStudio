@@ -62,7 +62,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     RenderViewMode()
                             )
                             .Padding(new Thickness(15))
-                            .Spacing(15)
+                            .Spacing(MyTheme.LayoutSpacing)
                         ),
 
                         // Vocabulary word editor overlay
@@ -150,8 +150,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .GridRow(4)
                         .GridColumn(1)
                 )
-                .RowSpacing(5)
-                .ColumnSpacing(10)
+                .RowSpacing(MyTheme.MicroSpacing)
+                .ColumnSpacing(MyTheme.ComponentSpacing)
             )
             .Stroke(Colors.LightGray),
 
@@ -166,9 +166,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         Label(State.Resource.Transcript)
                     )
                     .Stroke(Colors.LightGray)
-                    .Padding(10)
+                    .Padding(MyTheme.ComponentSpacing)
                 )
-                .Spacing(10) :
+                .Spacing(MyTheme.ComponentSpacing) :
                 null,
 
             // Translation if available
@@ -182,9 +182,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         Label(State.Resource.Translation)
                     )
                     .Stroke(Colors.LightGray)
-                    .Padding(10)
+                    .Padding(MyTheme.ComponentSpacing)
                 )
-                .Spacing(10) :
+                .Spacing(MyTheme.ComponentSpacing) :
                 null,
 
             // Vocabulary section - always show for all media types
@@ -207,7 +207,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .IsVisible(State.IsGeneratingVocabulary)
                             .Scale(0.8)
                     )
-                    .Spacing(10)
+                    .Spacing(MyTheme.ComponentSpacing)
                     .GridColumn(1)
                     .HEnd()
                 )
@@ -227,9 +227,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                         Label(word.NativeLanguageTerm)
                                             .FontSize(14)
                                     )
-                                    .Spacing(5)
+                                    .Spacing(MyTheme.MicroSpacing)
                                 )
-                                .Padding(10)
+                                .Padding(MyTheme.ComponentSpacing)
                             )
                             .Stroke(Colors.LightGray)
                             .StrokeThickness(1)
@@ -246,7 +246,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             )
             .Spacing(10)
         )
-        .Spacing(15);
+        .Spacing(MyTheme.LayoutSpacing);
     }
 
     private VisualNode RenderEditMode()
@@ -264,7 +264,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Description
             VStack(
@@ -279,7 +279,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Media Type
             VStack(
@@ -298,7 +298,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Hint("Media Type")
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Language
             VStack(
@@ -317,7 +317,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Hint("Language")
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Media URL
             VStack(
@@ -332,7 +332,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Transcript
             VStack(
@@ -347,7 +347,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Translation
             VStack(
@@ -362,7 +362,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Tags
             VStack(
@@ -376,7 +376,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .ThemeKey(MyTheme.InputWrapper)
             )
-            .Spacing(5),
+            .Spacing(MyTheme.MicroSpacing),
 
             // Vocabulary section
             VStack(
@@ -400,7 +400,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .IsVisible(State.IsGeneratingVocabulary)
                         .Scale(0.8)
                 )
-                .Spacing(10),
+                .Spacing(MyTheme.ComponentSpacing),
 
                 // Vocabulary import section
 
@@ -457,7 +457,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     Label(word.NativeLanguageTerm)
                                         .FontSize(14)
                                 )
-                                .Spacing(5)
+                                .Spacing(MyTheme.MicroSpacing)
                                 .GridColumn(0),
 
                                 HStack(
@@ -471,10 +471,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                 )
                                 .GridColumn(1)
                                 .HEnd()
-                                .Spacing(5)
+                                .Spacing(MyTheme.MicroSpacing)
                             )
                             .Columns("*, Auto")
-                            .Padding(10)
+                            .Padding(MyTheme.ComponentSpacing)
                         )
                         .Stroke(Colors.LightGray)
                         .StrokeThickness(1)

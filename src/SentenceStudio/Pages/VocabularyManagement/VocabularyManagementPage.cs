@@ -1,5 +1,6 @@
 using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
+using SentenceStudio.Helpers;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -157,7 +158,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .GridColumn(2)
                         .VStart()
                 ).ColumnSpacing(MyTheme.LayoutSpacing)
-            .Padding(15, 0)
+            .Padding(MyTheme.LayoutSpacing, 0)
             .GridRow(1);
 
     VisualNode RenderBulkActionsBar()
@@ -178,8 +179,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 )
             )
             .ThemeKey(MyTheme.Surface1)
-            .Padding(12, 8)
-            .Margin(12, 6, 12, 10)
+            .Padding(MyTheme.CardPadding, MyTheme.ComponentSpacing)
+            .Margin(new Thickness(MyTheme.CardMargin, MyTheme.MicroSpacing, MyTheme.CardMargin, MyTheme.ComponentSpacing))
             .GridRow(1);
 
 
@@ -207,23 +208,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .GridRow(0);
         }
 
-        // Calculate optimal number of columns based on screen width
-        var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
-        var cardWidth = 300; // Minimum card width for good readability
-        var horizontalSpacing = MyTheme.LayoutSpacing;
-        var containerPadding = MyTheme.LayoutPadding.Left;
-
-        var availableWidth = screenWidth - containerPadding;
-        var itemWidthWithSpacing = cardWidth + horizontalSpacing;
-        var calculatedSpan = Math.Max(1, (int)(availableWidth / itemWidthWithSpacing));
-        var span = Math.Max(1, Math.Min(3, calculatedSpan)); // Clamp between 1-3 columns
-
-        var gridLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
-        {
-            VerticalItemSpacing = MyTheme.LayoutSpacing,
-            HorizontalItemSpacing = MyTheme.LayoutSpacing
-        };
-
         return CollectionView()
             .ItemsSource(State.FilteredVocabularyItems,
                 State.IsPhoneIdiom
@@ -232,10 +216,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = MyTheme.LayoutSpacing }
-                    : gridLayout)
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
             .BackgroundColor(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
-            .Margin(16)
+            .Margin(MyTheme.LayoutPadding)
             .GridRow(0);
     }
 
@@ -251,15 +235,15 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     : null,
 
                 // Main content - view mode only
-                VStack(spacing: 2,
+                VStack(spacing: MyTheme.MicroSpacing,
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .ThemeKey(MyTheme.Body2Strong),
                     Label(item.Word.NativeLanguageTerm ?? "")
                         .ThemeKey(MyTheme.Caption1)
                 )
-            ).Padding(4)
+            ).Padding(MyTheme.MicroSpacing)
         )
-        .Padding(8, 4)
+        .Padding(MyTheme.ComponentSpacing, MyTheme.MicroSpacing)
         .StrokeShape(new Rectangle())
         .StrokeThickness(1)
         .Stroke(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray300)

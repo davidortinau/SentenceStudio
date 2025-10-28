@@ -89,12 +89,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     Grid(rows: "*,Auto", columns: "*",
                         TermDisplay(),
                         UserInputSection()
-                    ).RowSpacing(8)
+                    ).RowSpacing(MyTheme.ComponentSpacing)
                 ).GridRow(1),
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 SessionSummaryOverlay()
-            ).RowSpacing(12)
+            ).RowSpacing(MyTheme.CardMargin)
         )
         .OnAppearing(LoadVocabulary);
     }
@@ -185,13 +185,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                 )
                             ).Center()
                         )
-                        .Padding(16)
+                        .Padding(MyTheme.LayoutSpacing)
                     )
                     .Background(Theme.IsLightTheme ?
                         MyTheme.LightSecondaryBackground :
                         MyTheme.DarkSecondaryBackground)
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
-                    .Margin(0, 16),
+                    .Margin(0, MyTheme.LayoutSpacing),
 
                     // Continue button
                     Button("Continue to Next Session")
@@ -199,7 +199,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         .Background(MyTheme.HighlightDarkest)
                         .TextColor(Colors.White)
                         .CornerRadius(8)
-                        .Padding(20, 12)
+                        .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
                         .Margin(0, 16)
                 )
                 .Padding(MyTheme.LayoutPadding)
@@ -257,7 +257,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 )
                 .HEnd()
             )
-            .Padding(12)
+            .Padding(MyTheme.CardPadding)
         )
         .Background(Theme.IsLightTheme ? 
             Colors.White : 
@@ -265,7 +265,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .Stroke(statusColor.WithAlpha(0.3f))
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(6))
-        .Margin(0, 2);
+        .Margin(0, MyTheme.MicroSpacing);
     }
 
     VisualNode LearningProgressBar() =>
@@ -295,7 +295,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .HeightRequest(6)
                 .GridColumn(1)
                 .VCenter()
-                .Margin(12, 0),
+                .Margin(MyTheme.CardMargin, 0),
             
             // Right bubble shows total count
             Border(
@@ -312,7 +312,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Padding(MyTheme.Size160, 2)
             .GridColumn(2)
             .VCenter()
-        ).Padding(16, 8);
+        ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing);
     
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
@@ -345,7 +345,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             //     .TextColor(MyTheme.HighlightMedium)
             //     .IsVisible(State.IsAutoAdvancing)
         )
-        .Margin(30)
+        .Margin(MyTheme.SectionSpacing)
         .GridRow(0)
         // Allow manual advance by tapping during countdown
         .OnTapped(async () => {
@@ -385,7 +385,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .GridRow(1)
         .GridColumn(0)
         .GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-        .Margin(0,0,0,12);
+        .Margin(0,0,0,MyTheme.CardMargin);
 
     VisualNode RenderMultipleChoice() =>
         VStack(spacing: 8,
@@ -431,13 +431,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(20)
                 .Center()
                 .TextColor(textColor)
-                .Padding(16, 12)
+                .Padding(MyTheme.LayoutSpacing, MyTheme.CardPadding)
         )
         .Background(backgroundColor)
         .Stroke(borderColor)
         .StrokeThickness(2)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Margin(0, 4)
+        .Margin(0, MyTheme.MicroSpacing)
         .OnTapped(async () => {
             if (!State.ShowAnswer)
             {

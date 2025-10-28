@@ -1,5 +1,6 @@
 using MauiReactor.Shapes;
 using SentenceStudio.Pages.VocabularyProgress;
+using SentenceStudio.Helpers;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -68,8 +69,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     ).VCenter().HCenter() :
                     Grid(rows: "*,Auto", columns: "*",
                             CollectionView()
+                                .Margin(MyTheme.LayoutPadding)
                                 .GridRow(0)
                                 .SelectionMode(SelectionMode.None)
+                                .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
+                                    GridLayoutHelper.CalculateResponsiveLayout(
+                                        desiredItemWidth: 350,
+                                        orientation: ItemsLayoutOrientation.Vertical,
+                                        maxColumns: 3))
                                 .ItemsSource(State.Resources, RenderResourceItem)
                                 .EmptyView(
                                     VStack(
@@ -88,7 +95,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .FontSize(14)
                                                 .TextColor(Colors.Gray)
                                         )
-                                        .Spacing(10) :
+                                        .Spacing(MyTheme.ComponentSpacing) :
                                         VStack(
                                             Button("Add Your First Resource")
                                                 .OnClicked(AddResource)
@@ -101,11 +108,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .WidthRequest(200)
                                                 .BackgroundColor(MyTheme.HighlightDarkest)
                                         )
-                                        .Spacing(10)
+                                        .Spacing(MyTheme.ComponentSpacing)
                                     )
-                                    .Spacing(15)
+                                    .Spacing(MyTheme.LayoutSpacing)
                                     .VCenter()
-                                ),
+                                ),// emptyview, end of CollectionView
                             RenderBottomBar()
                         ) // Grid
                         .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
@@ -140,7 +147,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     Label("•")
                         .FontSize(12)
                         .TextColor(Colors.DarkGray)
-                        .Margin(new Thickness(5, 0)),
+                        .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
 
                     Label(resource.Language)
                         .FontSize(12)
@@ -148,7 +155,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 )
                 .GridColumn(1)
                 .GridRow(1)
-                .Spacing(5),
+                .Spacing(MyTheme.MicroSpacing),
 
                 // Date
                 VStack(
@@ -164,14 +171,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .GridRowSpan(2)
                 .VCenter()
             )
-            .Padding(10)
-            .ColumnSpacing(20).RowSpacing(5)
+            .Padding(MyTheme.ComponentSpacing)
+            .ColumnSpacing(MyTheme.SectionSpacing).RowSpacing(MyTheme.MicroSpacing)
             .OnTapped(() => ViewResource(resource.Id))
         )
         .Stroke(Colors.LightGray)
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Margin(new Thickness(10, 5));
+        .Margin(new Thickness(MyTheme.ComponentSpacing, MyTheme.MicroSpacing));
 
     VisualNode RenderBottomBar() =>
         Grid(rows: "Auto", columns: "*,Auto,Auto",
@@ -226,8 +233,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .GridColumn(2)
                 .VStart()
         )
-        .ColumnSpacing(8)
-        .Padding(15, 15, 15, 0)
+        .ColumnSpacing(MyTheme.ComponentSpacing)
+        .Padding(new Thickness(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0))
         .GridRow(1);
 
     async Task LoadResources()

@@ -35,8 +35,8 @@ public partial class SkillProgressCard : Component
                             .Progress(_skill.Proficiency)
                             .ProgressColor(GetProficiencyColor(_skill.Proficiency))
                             .ScaleY(3)
-                            .Margin(20, 0)
-                    ).Spacing(8),
+                            .Margin(MyTheme.SectionSpacing, 0)
+                    ).Spacing(MyTheme.ComponentSpacing),
 
                     // Delta indicator
                     HStack(
@@ -47,15 +47,15 @@ public partial class SkillProgressCard : Component
                             .FontSize(12)
                             .FontAttributes(FontAttributes.Bold)
                             .TextColor(_skill.Delta7d >= 0 ? Colors.Green : Colors.Red)
-                    ).Spacing(4).HorizontalOptions(LayoutOptions.Center),
+                    ).Spacing(MyTheme.MicroSpacing).HorizontalOptions(LayoutOptions.Center),
 
                     Label($"Last activity: {_skill.LastActivityUtc.ToString("MMM dd")}")
                         .FontSize(10)
                         .TextColor(Colors.Gray)
                         .HorizontalOptions(LayoutOptions.Center)
-                        .Margin(0, 8, 0, 0)
-                ).Spacing(12)
-            ).Spacing(8).Padding(16)
+                        .Margin(0, MyTheme.ComponentSpacing, 0, 0)
+                ).Spacing(MyTheme.CardMargin)
+            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.LayoutSpacing)
         ).StrokeThickness(1).Stroke(Colors.LightGray);
     }
 

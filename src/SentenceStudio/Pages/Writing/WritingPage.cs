@@ -67,7 +67,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                         RenderDesktopSentence(sentence) :
                         RenderMobileSentence(sentence)
                 )
-            ).Margin(16, 0)
+            ).Margin(MyTheme.LayoutSpacing, 0)
         ).GridRow(1);
 
     VisualNode InputUI() =>

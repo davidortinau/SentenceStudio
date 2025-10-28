@@ -89,17 +89,17 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 Border(
                     Label(State.FeedbackMessage)
                         .FontSize(16)
-                        .Padding(12)
+                        .Padding(MyTheme.CardPadding)
                         .Center()
                 )
                 .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
                 .StrokeShape(new RoundRectangle().CornerRadius(8))
                 .StrokeThickness(0)
-                .Margin(0, 8) 
+                .Margin(0, MyTheme.ComponentSpacing)
                 : null
         )
         .GridRow(1)
-        .Margin(30);
+        .Margin(MyTheme.SectionSpacing);
 
     VisualNode RenderInputUI() =>
         Grid("*,*", "*,auto,auto,auto",
@@ -108,8 +108,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 RenderUserInput()
         )
         .RowSpacing(MyTheme.Size40)
-        .Padding(30)
-        .ColumnSpacing(15)
+        .Padding(MyTheme.SectionSpacing)
+        .ColumnSpacing(MyTheme.LayoutSpacing)
         .GridRow(2);
 
     VisualNode RenderUserInput() =>
@@ -137,7 +137,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .OnClicked(() => UseVocab(word))
             )
 		)
-		.Spacing(4)
+		.Spacing(MyTheme.MicroSpacing)
         .GridRow(0)
         .GridColumnSpan(4);    
 
@@ -158,7 +158,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     MyTheme.LightOnDarkBackground)
 		)
 		.Spacing(8)
-        .Padding(30)
+        .Padding(MyTheme.SectionSpacing)
         .HorizontalOptions(LayoutOptions.End)
         .VerticalOptions(LayoutOptions.Start)
         .GridRowSpan(2);
@@ -225,8 +225,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .Select(word => RenderVocabularyWordStatusSync(word))
                     .ToArray() ?? Array.Empty<VisualNode>()
             )
-            .Spacing(8)
-            .Margin(0, 8)
+            .Spacing(MyTheme.ComponentSpacing)
+            .Margin(0, MyTheme.ComponentSpacing)
             .HorizontalOptions(LayoutOptions.Center)
             : null;
 
@@ -262,7 +262,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     }
     VisualNode RenderPopOverLabel() =>
         Label()
-            .Padding(8)
+            .Padding(MyTheme.ComponentSpacing)
             .LineHeight(1)
             .IsVisible(false)
             .ZIndex(10)
@@ -1133,7 +1133,7 @@ partial class FeedbackPanel : Component
             MyTheme.LightBackground : 
             MyTheme.DarkBackground)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Padding(20)
+        .Padding(MyTheme.SectionSpacing)
         .IsVisible(IsVisible);
     }
 }

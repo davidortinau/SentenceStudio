@@ -75,7 +75,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 RenderExportBottomSheet(),
                 RenderNarrowScreenMenu()
             )
-            .RowSpacing(12)
+            .RowSpacing(MyTheme.CardMargin)
         ).OnAppearing(OnPageAppearing)
         .OnSizeChanged((size) =>
         {
@@ -122,7 +122,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .FontSize(18)
                             .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                             .HCenter()
-                            .Margin(0, 0, 0, 10),
+                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
                         CreateVoiceOption("yuna", _localize["VoiceYuna"].ToString(), _localize["VoiceYunaDesc"].ToString()),
                         CreateVoiceOption("jiyoung", _localize["VoiceJiyoung"].ToString(), _localize["VoiceJiyoungDesc"].ToString()),
                         CreateVoiceOption("jina", _localize["VoiceJina"].ToString(), _localize["VoiceJinaDesc"].ToString()),
@@ -131,8 +131,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         CreateVoiceOption("dohyeon", _localize["VoiceDohyeon"].ToString(), _localize["VoiceDohyeonDesc"].ToString()),
                         CreateVoiceOption("yohankoo", _localize["VoiceYohankoo"].ToString(), _localize["VoiceYohankooDesc"].ToString())
                     )
-                    .Spacing(15)
-                    .Padding(20, 10)
+                    .Spacing(MyTheme.LayoutSpacing)
+                    .Padding(MyTheme.SectionSpacing, MyTheme.ComponentSpacing)
                 )
             )
         )
@@ -266,7 +266,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             .IsVisible(true)
         )
             .Spacing(MyTheme.Size160)
-            .Margin(20, 0)
+            .Margin(MyTheme.SectionSpacing, 0)
             .GridRow(1);
 
     private void OnWaveformInteractionStarted()
@@ -455,7 +455,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .Padding(0)
                     .GridColumn(2)
                     .HEnd()
-                    .Margin(0, 0, 10, 0)
+                    .Margin(0, 0, MyTheme.ComponentSpacing, 0)
                     .OnClicked(ShowNarrowScreenMenu)
                 :
                 // Wide layout - show all controls
@@ -466,7 +466,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .HeightRequest(35)
                         .WidthRequest(35)
                         .Padding(0)
-                        .Margin(0, 0, 12, 0)
+                        .Margin(0, 0, MyTheme.CardMargin, 0)
                         .OnClicked(SaveAudioAsMp3),
 
                     new SfSegmentedControl(
@@ -483,7 +483,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .Stroke(MyTheme.Gray300)
                         .SegmentWidth(40)
                         .SegmentHeight(44)
-                        .Margin(0, 0, 12, 0)
+                        .Margin(0, 0, MyTheme.CardMargin, 0)
                         .SelectionIndicatorSettings(
                             new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
                             {
@@ -514,7 +514,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .OnClicked(ShowVoiceSelection)
 
                 )
-                .Margin(0, 0, 10, 0)
+                .Margin(0, 0, MyTheme.ComponentSpacing, 0)
                 .GridColumn(2).HEnd()
 
 
@@ -558,7 +558,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .FontSize(20)
                         .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                         .HCenter()
-                        .Margin(0, 0, 0, 20),
+                        .Margin(0, 0, 0, MyTheme.SectionSpacing),
 
                     // Playback Speed Section
                     VStack(
@@ -583,7 +583,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .SegmentCornerRadius(4)
                             .Stroke(MyTheme.Gray300)
                             .SegmentHeight(44)
-                            .Margin(0, 5, 0, 0)
+                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
                             .SelectionIndicatorSettings(
                                 new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
                                 {
@@ -628,7 +628,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                                     s.IsVoiceSelectionVisible = true;
                                 });
                             })
-                            .Margin(0, 5, 0, 0)
+                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
                     )
                     .Margin(0, 0, 0, 20),
 
@@ -647,10 +647,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                                 SetState(s => s.IsNarrowScreenMenuVisible = false);
                                 SaveAudioAsMp3();
                             })
-                            .Margin(0, 5, 0, 0)
+                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
                     )
                 )
-                .Padding(20)
+                .Padding(MyTheme.SectionSpacing)
             )
         )
         .IsOpen(State.IsNarrowScreenMenuVisible)
@@ -692,7 +692,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .FontSize(20)
                         .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                         .HCenter()
-                        .Margin(0, 0, 0, 20),
+                        .Margin(0, 0, 0, MyTheme.SectionSpacing),
 
                     State.IsSavingAudio ?
                     VStack(
@@ -701,7 +701,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HCenter()
                             .HeightRequest(50)
                             .WidthRequest(50)
-                            .Margin(0, 0, 0, 10),
+                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
                         Label(State.ExportProgressMessage)
                             .FontSize(16)
                             .HCenter()
@@ -710,7 +710,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         Button("Save as MP3")
                             .ThemeKey("Primary")
                             .OnClicked(SaveAudioAsMp3)
-                            .Margin(0, 0, 0, 10),
+                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
 
                         !string.IsNullOrEmpty(State.LastSavedFilePath) ?
                         VStack(
@@ -725,7 +725,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         ) : null
                     )
                 )
-                .Padding(20)
+                .Padding(MyTheme.SectionSpacing)
                 .HCenter()
             )
         )

@@ -65,16 +65,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	private const int SENTENCE_FONT_SIZE_DESKTOP = 64;
 	private const int SENTENCE_FONT_SIZE_MOBILE = 32;
 
-	// Spacing values
-	private const int SPACING_DESKTOP = 0;
-	private const int SPACING_MOBILE = 5;
-
-	// Padding values (Desktop)
-	private static readonly Thickness PADDING_DESKTOP_STANDARD = new Thickness(30);
-	private static readonly Thickness PADDING_DESKTOP_HORIZONTAL = new Thickness(30, 0);
-
-	// Padding values (Mobile)
-	private static readonly Thickness PADDING_MOBILE_HORIZONTAL = new Thickness(15, 0);
+	// Note: Spacing and padding values now use MyTheme semantic constants
+	// (LayoutPadding, LayoutSpacing, CardPadding, CardMargin, SectionSpacing, ComponentSpacing, MicroSpacing)
 
 	#endregion
 
@@ -89,13 +81,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						SentenceScoreboard(),
 						SentenceDisplay(),
 						UserInput()
-					).RowSpacing(8)
+					).RowSpacing(MyTheme.ComponentSpacing)
 				),
 				NavigationFooter(),
 				AutoTransitionBar(),
 				LoadingOverlay(),
 				SessionSummaryOverlay()
-			).RowSpacing(12)
+			).RowSpacing(MyTheme.CardMargin)
 		)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
 		.OnAppearing(LoadSentences);
@@ -163,15 +155,15 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 					// Session stats
 					Border(
-						VStack(spacing: 12,
+						VStack(spacing: MyTheme.CardMargin,
 							Label("📊 Session Results")
 								.FontSize(18)
 								.FontAttributes(FontAttributes.Bold)
 								.Center()
 								.TextColor(MyTheme.HighlightDarkest),
 
-							HStack(spacing: 30,
-								VStack(spacing: 4,
+							HStack(spacing: MyTheme.SectionSpacing,
+								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{State.SessionCorrectCount}")
 										.FontSize(32)
 										.FontAttributes(FontAttributes.Bold)
@@ -181,7 +173,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 										.FontSize(14)
 										.Center()
 								),
-								VStack(spacing: 4,
+								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{State.SessionTotalCount - State.SessionCorrectCount}")
 										.FontSize(32)
 										.FontAttributes(FontAttributes.Bold)
@@ -191,7 +183,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 										.FontSize(14)
 										.Center()
 								),
-								VStack(spacing: 4,
+								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{(State.SessionTotalCount > 0 ? (int)((float)State.SessionCorrectCount / State.SessionTotalCount * 100) : 0)}%")
 										.FontSize(32)
 										.FontAttributes(FontAttributes.Bold)
@@ -203,13 +195,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 								)
 							).Center()
 						)
-						.Padding(16)
+						.Padding(MyTheme.LayoutPadding)
 					)
 					.Background(Theme.IsLightTheme ?
 						MyTheme.LightSecondaryBackground :
 						MyTheme.DarkSecondaryBackground)
 					.StrokeShape(new RoundRectangle().CornerRadius(8))
-					.Margin(0, 16),
+					.Margin(0, MyTheme.LayoutSpacing),
 
 					// Sentences review
 					Label($"You practiced {State.SessionTotalCount} sentence{(State.SessionTotalCount == 1 ? "" : "s")}")
@@ -218,7 +210,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.TextColor(Theme.IsLightTheme ?
 							MyTheme.DarkOnLightBackground :
 							MyTheme.LightOnDarkBackground)
-						.Margin(0, 8),
+						.Margin(0, MyTheme.ComponentSpacing),
 
 					// Continue button
 					Button("Continue Practice")
@@ -226,8 +218,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						.Background(MyTheme.HighlightDarkest)
 						.TextColor(Colors.White)
 						.CornerRadius(8)
-						.Padding(20, 12)
-						.Margin(0, 16)
+						.Padding(MyTheme.SectionSpacing, MyTheme.CardMargin)
+						.Margin(0, MyTheme.LayoutSpacing)
 				)
 				.Padding(MyTheme.LayoutPadding)
 			)
@@ -332,7 +324,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.FontSize(State.IsDesktopPlatform ? SENTENCE_FONT_SIZE_DESKTOP : SENTENCE_FONT_SIZE_MOBILE),
 			Label(State.RecommendedTranslation)
 		)
-		.Margin(30)
+		.Margin(MyTheme.SectionSpacing)
 		.GridRow(1);
 
 	#endregion
@@ -345,8 +337,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				RenderMultipleChoice() :
 				RenderTextInput()
 		)
-		.RowSpacing(State.IsDesktopPlatform ? SPACING_DESKTOP : SPACING_MOBILE)
-		.Padding(State.IsDesktopPlatform ? PADDING_DESKTOP_STANDARD : PADDING_MOBILE_HORIZONTAL)
+		.RowSpacing(State.IsDesktopPlatform ? 0 : MyTheme.MicroSpacing)
+		.Padding(State.IsDesktopPlatform ? MyTheme.SectionSpacing : new Thickness(MyTheme.LayoutSpacing, 0))
 		.GridRow(2);
 
 	VisualNode RenderTextInput() =>
@@ -362,7 +354,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridRow(1)
 		.GridColumn(0)
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-		.Margin(0, 0, 0, 12);
+		.Margin(0, 0, 0, MyTheme.CardMargin);
 
 	VisualNode RenderMultipleChoice()
 	{
@@ -379,7 +371,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		return VStack(spacing: 8,
 			tiles.ToArray()
 		)
-		.Padding(State.IsDesktopPlatform ? PADDING_DESKTOP_HORIZONTAL : PADDING_MOBILE_HORIZONTAL)
+		.Padding(State.IsDesktopPlatform ? new Thickness(MyTheme.SectionSpacing, 0) : new Thickness(MyTheme.LayoutSpacing, 0))
 		.GridRow(0)
 		.GridColumnSpan(4);
 	}
@@ -391,13 +383,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.FontSize(20)
 				.Center()
 				.TextColor(GetOptionTileTextColor(option))
-				.Padding(16, 12)
+				.Padding(MyTheme.LayoutSpacing, MyTheme.CardMargin)
 		)
 		.Background(GetOptionTileBackgroundColor(option))
 		.Stroke(GetOptionTileBorderColor(option))
 		.StrokeThickness(2)
 		.StrokeShape(new RoundRectangle().CornerRadius(8))
-		.Margin(0, 4)
+		.Margin(0, MyTheme.MicroSpacing)
 		.OnTapped(() => OnOptionTapped(option));
 	}
 

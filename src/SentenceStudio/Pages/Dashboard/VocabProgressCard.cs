@@ -59,7 +59,7 @@ public partial class VocabProgressCard : Component
                     .TextColor(Colors.Gray)
                     .FontSize(12)
                     .HorizontalOptions(LayoutOptions.Center)
-            ).Spacing(8).Padding(12);
+            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding);
     }
 
     private VisualNode BuildDonutChart(List<VocabChartData> chartData, int total)

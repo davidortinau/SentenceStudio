@@ -30,11 +30,11 @@ public partial class ResourceProgressCard : Component
                                     Label($"{Math.Round(resource.Proficiency * 100)}%")
                                         .FontSize(12)
                                         .TextColor(GetProficiencyColor(resource.Proficiency))
-                                ).Spacing(8),
+                                ).Spacing(MyTheme.ComponentSpacing),
                                 ProgressBar()
                                     .Progress(resource.Proficiency)
                                     .ProgressColor(GetProficiencyColor(resource.Proficiency))
-                                    .Margin(0, 4, 0, 0),
+                                    .Margin(0, MyTheme.MicroSpacing, 0, 0),
                                 HStack(
                                     Label($"{resource.Attempts} attempts")
                                         .FontSize(10)
@@ -46,12 +46,12 @@ public partial class ResourceProgressCard : Component
                                         .FontSize(10)
                                         .TextColor(Colors.Gray)
                                         .HorizontalOptions(LayoutOptions.End)
-                                ).Spacing(8)
-                            ).Spacing(4).Padding(8)
-                        ).StrokeThickness(0.5).Stroke(Colors.LightGray).Margin(0, 2)
+                                ).Spacing(MyTheme.ComponentSpacing)
+                            ).Spacing(MyTheme.MicroSpacing).Padding(MyTheme.ComponentSpacing)
+                        ).StrokeThickness(0.5).Stroke(Colors.LightGray).Margin(0, MyTheme.MicroSpacing)
                     ).ToArray()
-                ).Spacing(4)
-            ).Spacing(8).Padding(12)
+                ).Spacing(MyTheme.MicroSpacing)
+            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding)
         ).StrokeThickness(1).Stroke(Colors.LightGray);
     }
 

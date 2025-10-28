@@ -551,7 +551,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             .FontSize(12)
                             .ThemeKey(MyTheme.Body1)
                     )
-                    .Spacing(2),
+                    .Spacing(MyTheme.MicroSpacing),
                     Button("✕")
                         .FontSize(12)
                         .OnClicked(DismissInstructions)
@@ -589,7 +589,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             )
             .GridColumn(1)
             .VCenter()
-            .Spacing(4),
+            .Spacing(MyTheme.MicroSpacing),
             ImageButton()
                 .Source(MyTheme.IconNextSm)
                 .OnClicked(NextSentence)

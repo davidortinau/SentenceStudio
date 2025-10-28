@@ -10,7 +10,9 @@
       "mcp__microsoft_docs_mcp__microsoft_docs_search",
       "Bash(find:*)",
       "Bash(cat:*)",
-      "Bash(dotnet restore:*)"
+      "Bash(dotnet restore:*)",
+      "Bash(for file in *Card.cs)",
+      "Bash(do echo \"=== $file ===\" grep -n \"\\.Padding([0-9]\\|\\.Margin([0-9]\\|\\.Spacing([0-9]\" \"$file\")"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -199,9 +199,9 @@ public partial class OnboardingPage : Component<OnboardingState>
                                 .IsEnabled(CanProceedToNext())
                                 .OnClicked(End)
                         )
-                        .ColumnSpacing(8)
+                        .ColumnSpacing(MyTheme.ComponentSpacing)
                         .GridRow(1)
-                        .RowSpacing(20) :
+                        .RowSpacing(MyTheme.SectionSpacing) :
                     null
                 )
                 .Padding(MyTheme.Size160)
@@ -262,7 +262,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(2), 2),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(3), 3)
                         )
-                        .ColumnSpacing(8),
+                        .ColumnSpacing(MyTheme.ComponentSpacing),
                         
                         // Second row - feminine names  
                         Grid(rows:"auto",columns: "*, *, *, *",
@@ -271,9 +271,9 @@ public partial class OnboardingPage : Component<OnboardingState>
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(6), 2),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(7), 3)
                         )
-                        .ColumnSpacing(8)
+                        .ColumnSpacing(MyTheme.ComponentSpacing)
                     )
-                    .Spacing(8)
+                    .Spacing(MyTheme.ComponentSpacing)
                     : null
             )
             .Spacing(MyTheme.Size160)
@@ -290,7 +290,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             .TextColor(MyTheme.Gray900)
             .FontSize(14)
             .CornerRadius(8)
-            .Padding(8, 6)
+            .Padding(MyTheme.ComponentSpacing, MyTheme.MicroSpacing)
             .OnClicked(() => SetState(s => s.Name = name));
     }
 
@@ -381,14 +381,14 @@ public partial class OnboardingPage : Component<OnboardingState>
                             Label($"Let me create a beginner vocabulary list and skill profile for {State.TargetLanguage} to get you started!")
                                 .FontSize(14)
                                 .HCenter()
-                                .Margin(0, 8, 0, 0)
+                                .Margin(0, MyTheme.ComponentSpacing, 0, 0)
                         )
-                        .Spacing(4)
+                        .Spacing(MyTheme.MicroSpacing)
                         .Padding(MyTheme.Size160)
                     )
                     .BackgroundColor(MyTheme.HighlightDarkest)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
-                    .Padding(4)
+                    .Padding(MyTheme.MicroSpacing)
                     .OnTapped(CreateStarterContent),
 
                     // Skip option
@@ -404,15 +404,15 @@ public partial class OnboardingPage : Component<OnboardingState>
                                 .FontSize(14)
                                 .HCenter()
                                 .TextColor(MyTheme.DarkOnLightBackground)
-                                .Margin(0, 8, 0, 0)
+                                .Margin(0, MyTheme.ComponentSpacing, 0, 0)
                         )
-                        .Spacing(4)
+                        .Spacing(MyTheme.MicroSpacing)
                         .Padding(MyTheme.Size160)
                     )
                     .BackgroundColor(MyTheme.Gray100)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
                     .Stroke(MyTheme.Gray300)
-                    .Padding(4)
+                    .Padding(MyTheme.MicroSpacing)
                     .OnTapped(SkipAndStart)
                 )
                 .Spacing(MyTheme.Size160)

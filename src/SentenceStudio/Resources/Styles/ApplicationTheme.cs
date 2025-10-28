@@ -19,9 +19,13 @@ partial class MyTheme : ApplicationTheme
     public const string Caption1 = nameof(Caption1);
     public const string Caption1Strong = nameof(Caption1Strong);
     public const string Caption2 = nameof(Caption2);
+    public const string Title = nameof(Title);
+    public const string Subtitle = nameof(Subtitle);
 
     // Button theme styles
     public new const string Secondary = nameof(Secondary);
+    public const string Primary = nameof(Primary);
+    public const string Danger = nameof(Danger);
 
     // Border theme styles
     public const string CardStyle = nameof(CardStyle);
@@ -53,11 +57,19 @@ partial class MyTheme : ApplicationTheme
     public static double Size560 { get; } = 56;
 
     // Layout constants
-    public static double IconSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 32 : 20;
-    public static double IconSizeSmall { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 18 : 12;
-    public static Thickness LayoutPadding { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? new Thickness(30) : new Thickness(15);
-    public static double LayoutSpacing { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 15 : 8;
-    public static double ButtonMinimumSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? 60 : 44;
+    public static double IconSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size240 : Size200;
+    public static double IconSizeSmall { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size160 : Size120;
+    public static Thickness LayoutPadding { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? new Thickness(Size160) : new Thickness(Size120);
+    public static double LayoutSpacing { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size160 : Size120;
+    public static double ButtonMinimumSize { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size160 : Size120;
+
+    // Content spacing constants
+    public static double CardPadding { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size120 : Size80;
+    public static double CardMargin { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size120 : Size80;
+    public static double SectionSpacing { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size240 : Size200;
+    public static double ComponentSpacing { get; } = Size80;
+    public static double MicroSpacing { get; } = Size40;
+    public static double GridSpacing { get; } = DeviceInfo.Idiom == DeviceIdiom.Desktop ? Size120 : Size80;
 
     // Special styles
     public static Style ChipStyle { get; } = new Style(typeof(Syncfusion.Maui.Core.SfChipGroup))

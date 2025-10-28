@@ -56,7 +56,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .ThemeKey(MyTheme.InputWrapper)
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Description
                             VStack(
@@ -71,7 +71,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .ThemeKey(MyTheme.InputWrapper)
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Media Type
                             VStack(
@@ -89,7 +89,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .Hint("Media Type")
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Language
                             VStack(
@@ -107,7 +107,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .Hint("Language")
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Media URL - show for all types except Vocabulary List
                             State.Resource.MediaType != "Vocabulary List" ?
@@ -123,7 +123,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Transcript - show for all types except Vocabulary List
@@ -140,7 +140,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Translation - show for all types except Vocabulary List
@@ -157,7 +157,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Tags
@@ -172,7 +172,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .ThemeKey(MyTheme.InputWrapper)
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Vocabulary section - show for ALL media types
                             VStack(
@@ -220,7 +220,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .HStart() :
                                     null
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Media URL - show for all types except Vocabulary List
                             State.Resource.MediaType != "Vocabulary List" ?
@@ -236,7 +236,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Transcript - show for all types except Vocabulary List
@@ -253,7 +253,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Translation - show for all types except Vocabulary List
@@ -270,7 +270,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     )
                                     .ThemeKey(MyTheme.InputWrapper)
                                 )
-                                .Spacing(5) : 
+                                .Spacing(MyTheme.MicroSpacing) : 
                                 null,
                             
                             // Tags
@@ -285,7 +285,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 )
                                 .ThemeKey(MyTheme.InputWrapper)
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             // Vocabulary section - show for ALL media types
                             VStack(
@@ -333,14 +333,14 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .HStart() :
                                     null
                             )
-                            .Spacing(5),
+                            .Spacing(MyTheme.MicroSpacing),
                             
                             Button($"{_localize["Save"]}")
                                 .OnClicked(SaveResource)
                                 .HorizontalOptions(LayoutOptions.Fill)
                         )
                         .Padding(new Thickness(15))
-                        .Spacing(15)
+                        .Spacing(MyTheme.LayoutSpacing)
                     )
             )
         );

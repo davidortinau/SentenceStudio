@@ -39,10 +39,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 ).VCenter().HCenter() :
                 Grid(rows: "*,Auto", columns: "*",
                     ScrollView(
-                        VStack(spacing: 24,
+                        VStack(spacing: MyTheme.SectionSpacing,
                             RenderWordForm(),
                             RenderResourceAssociations()
-                        ).Padding(16)
+                        ).Padding(MyTheme.LayoutSpacing)
                     ),
                     RenderActionButtons()
                 ).Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
@@ -70,7 +70,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(16)
                 )
                 .ThemeKey(MyTheme.InputWrapper)
-                .Padding(12)
+                .Padding(MyTheme.CardPadding)
             ),
 
             // Native Language  
@@ -86,7 +86,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(16)
                 )
                 .ThemeKey(MyTheme.InputWrapper)
-                .Padding(12)
+                .Padding(MyTheme.CardPadding)
             ),
 
             // Error message
@@ -172,7 +172,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&
                           !string.IsNullOrWhiteSpace(State.NativeLanguageTerm.Trim()))
                 .FontSize(16)
-                .Padding(16, 12)
+                .Padding(MyTheme.LayoutSpacing, MyTheme.CardPadding)
                 .GridRow(0)
                 .GridColumn(0),
 
@@ -184,7 +184,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)
-                    .Padding(6)
+                    .Padding(MyTheme.MicroSpacing)
                     .OnClicked(DeleteVocabularyWord)
                     .IsEnabled(!State.IsSaving)
                     .GridRow(0)

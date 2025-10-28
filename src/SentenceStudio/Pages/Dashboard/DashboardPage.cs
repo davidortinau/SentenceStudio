@@ -119,7 +119,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 VScrollView(
                     VStack(
                         DeviceInfo.Idiom == DeviceIdiom.Phone || (DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density) < 600 ?
-                            VStack(spacing: 15,
+                            VStack(spacing: MyTheme.LayoutSpacing,
                                 Border(
                                     new SfTextInputLayout{
 
@@ -195,11 +195,11 @@ partial class DashboardPage : Component<DashboardPageState>
                                             .OnSelectionChanged(OnSkillSelectionChanged)
                                     ).Spacing(MyTheme.LayoutSpacing)
                                 ).Padding(MyTheme.Size160, MyTheme.Size80).GridColumn(1)
-                            ).Columns("*,*").ColumnSpacing(15),
+                            ).Columns("*,*").ColumnSpacing(MyTheme.LayoutSpacing),
 
                         // Progress Section
                         Label($"{_localize["VocabProgress"]}")
-                            .ThemeKey(MyTheme.Title1).HStart().Margin(0, 20, 0, 10),
+                            .ThemeKey(MyTheme.Title1).HStart().Margin(0, MyTheme.SectionSpacing, 0, MyTheme.ComponentSpacing),
                         (State.IsLoadingProgress && !State.HasLoadedProgressOnce
                             ? VStack(
                                 ActivityIndicator()
@@ -210,7 +210,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                     .TextColor(Colors.Gray)
                                     .FontSize(14)
                                     .HorizontalOptions(LayoutOptions.Center)
-                            ).Padding(20).Spacing(10)
+                            ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
                             : (State.HasLoadedProgressOnce
                                 ? FlexLayout(
                                     // Vocab Progress Card - always render if we have data
@@ -226,14 +226,14 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
                                         .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
                                         .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, 12, 12)
+                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
                                         : Label("No vocabulary progress data available yet. Start practicing!")
                                             .TextColor(Colors.Gray)
                                             .FontSize(14)
-                                            .Padding(20)
+                                            .Padding(MyTheme.SectionSpacing)
                                             .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
                                             .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, 12, 12)
+                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
                                     ),
                                     // Practice Heat Card - always render if we have data
                                     (State.PracticeHeat?.Any() == true
@@ -247,14 +247,14 @@ partial class DashboardPage : Component<DashboardPageState>
                                         .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
                                         .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
                                         .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, 12, 12)
+                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
                                         : Label("No practice activity data yet. Start practicing!")
                                             .TextColor(Colors.Gray)
                                             .FontSize(14)
-                                            .Padding(20)
+                                            .Padding(MyTheme.SectionSpacing)
                                             .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
                                             .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, 12, 12)
+                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
                                     )
                                 )
                                 // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
@@ -280,10 +280,10 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
                             new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
-                        }.Spacing(DeviceInfo.Idiom == DeviceIdiom.Phone ? 8 : 20)
+                        }.Spacing(MyTheme.LayoutSpacing)
                     )
-                    .Padding(MyTheme.Size160)
-                    .Spacing(MyTheme.Size240)
+                    .Padding(MyTheme.LayoutPadding)
+                    .Spacing(MyTheme.LayoutSpacing)
                 )
                 .Set(Layout.SafeAreaEdgesProperty, safeEdges)
             )

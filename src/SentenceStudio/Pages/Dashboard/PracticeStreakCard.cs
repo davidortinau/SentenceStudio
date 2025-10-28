@@ -43,7 +43,7 @@ public partial class PracticeStreakCard : Component
                                         .HorizontalTextAlignment(TextAlignment.Start)
                                 ).ToArray()
                             ).Spacing(0)
-                        ).Margin(0, 0, 0, 4),
+                        ).Margin(0, 0, 0, MyTheme.MicroSpacing),
 
                         // Main calendar grid with day labels
                         HStack(
@@ -56,7 +56,7 @@ public partial class PracticeStreakCard : Component
                                 Label("").HeightRequest(11), // Thu (hidden)
                                 Label("Fri").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
                                 Label("").HeightRequest(11)  // Sat (hidden)
-                            ).Spacing(2).WidthRequest(15),
+                            ).Spacing(MyTheme.MicroSpacing).WidthRequest(15),
 
                             // Calendar squares grid
                             HStack(
@@ -73,9 +73,9 @@ public partial class PracticeStreakCard : Component
                                                 .Stroke(Color.FromRgba(0, 0, 0, 30)) // Very light border
                                                 .Set(ToolTipProperties.TextProperty, day.Date.ToShortDateString())
                                         ).ToArray()
-                                    ).Spacing(2)
+                                    ).Spacing(MyTheme.MicroSpacing)
                                 ).ToArray()
-                            ).Spacing(2)
+                            ).Spacing(MyTheme.MicroSpacing)
                         ).Spacing(0)
                     )
                 ),
@@ -93,10 +93,10 @@ public partial class PracticeStreakCard : Component
                             .Background(GetGitHubColor(4)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
                         Border().WidthRequest(11).HeightRequest(11).StrokeShape(Rectangle()).Padding(0)
                             .Background(GetGitHubColor(5)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30))
-                    ).Spacing(2).VCenter(),
+                    ).Spacing(MyTheme.MicroSpacing).VCenter(),
                     Label("More").FontSize(10).TextColor(Colors.Gray).VCenter()
-                ).Spacing(4).HEnd()
-            ).Spacing(15).Padding(16);
+                ).Spacing(MyTheme.MicroSpacing).HEnd()
+            ).Spacing(MyTheme.LayoutSpacing).Padding(MyTheme.LayoutSpacing);
     }
 
     private int CalculateCurrentStreak(List<PracticeHeatPoint> allData)
