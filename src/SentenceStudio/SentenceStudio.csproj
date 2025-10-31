@@ -208,7 +208,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- <ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" /> -->
+		<ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" />
 		<ProjectReference Include="../../Plugin.Maui.DebugOverlay/src/Plugin.Maui.DebugOverlay/Plugin.Maui.DebugOverlay.csproj" />
 		<ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>

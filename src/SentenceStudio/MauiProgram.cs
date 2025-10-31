@@ -58,7 +58,7 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 			.UseReactorThemeFonts()
-			// .AddServiceDefaults()
+			.AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 #endif
@@ -123,14 +123,15 @@ public static class MauiProgram
 		RegisterRoutes();
 		RegisterServices(builder.Services);
 
-		builder.Services.AddOpenTelemetry()
-			.WithTracing(tracerProviderBuilder =>
-			{
-				tracerProviderBuilder
-					.AddHttpClientInstrumentation() // Capture HttpClient requests
-													// .AddSource("IChatClient") // Custom source for OpenAI API calls
-					.AddConsoleExporter(); // Export traces to console for debugging
-			});
+		// TODO: Is this still necessary or move to ServiceDefaults?
+		// builder.Services.AddOpenTelemetry()
+		// 	.WithTracing(tracerProviderBuilder =>
+		// 	{
+		// 		tracerProviderBuilder
+		// 			.AddHttpClientInstrumentation() // Capture HttpClient requests
+		// 											// .AddSource("IChatClient") // Custom source for OpenAI API calls
+		// 			.AddConsoleExporter(); // Export traces to console for debugging
+		// 	});
 
 		var sfKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
 			? Environment.GetEnvironmentVariable("SyncfusionKey")!
