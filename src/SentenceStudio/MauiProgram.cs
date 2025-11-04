@@ -8,7 +8,6 @@ using Shiny;
 using CommunityToolkit.Maui.Media;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using Plugin.Maui.Audio;
-using Fonts;
 using Syncfusion.Maui.Toolkit.Hosting;
 using SentenceStudio.Pages.Warmup;
 using SentenceStudio.Pages.HowDoYouSay;
@@ -20,25 +19,16 @@ using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Reading;
-using SentenceStudio.Services;
-using SentenceStudio.Data;
-using SentenceStudio.Common;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
 using ElevenLabs;
 using CommunityToolkit.Maui.Storage;
-using CoreSync;
-using CoreSync.Http.Client;
-using Microsoft.Extensions.Hosting;
 using Syncfusion.Maui.Core.Hosting;
-using Syncfusion.Licensing;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
 using ReactorTheme;
 using Microsoft.Maui.Controls.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Plugin.Maui.DebugOverlay;
 
 #if WINDOWS
 using System.Reflection;
@@ -266,6 +256,15 @@ public static class MauiProgram
 		services.AddSingleton<ElevenLabsSpeechService>();
 		services.AddSingleton<DataExportService>();
 		services.AddSingleton<NameGenerationService>();
+
+		// Transcript formatting services - register segmenters as enumerable
+		services.AddSingleton<KoreanLanguageSegmenter>();
+		services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
+			new List<ILanguageSegmenter>
+			{
+				provider.GetRequiredService<KoreanLanguageSegmenter>()
+			});
+		services.AddSingleton<TranscriptFormattingService>();
 
 #if DEBUG
 		// Debug services - only available in debug builds
