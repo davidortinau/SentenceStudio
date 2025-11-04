@@ -23,3 +23,11 @@ mauiapp.AddWindowsDevice()
     .WithReference(webapi);
 
 builder.Build().Run();
+
+// var existingFoundryName = builder.AddParameter("existingFoundryName")
+//     .WithDescription("The name of the existing Azure Foundry resource.");
+// var existingFoundryResourceGroup = builder.AddParameter("existingFoundryResourceGroup")
+//     .WithDescription("The resource group of the existing Azure Foundry resource.");
+
+// var foundry = builder.AddAzureAIFoundry("foundry")
+//     .AsExisting(existingFoundryName, existingFoundryResourceGroup);
