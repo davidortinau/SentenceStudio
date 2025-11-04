@@ -17,6 +17,8 @@ class EditLearningResourceState
     public bool IsGeneratingVocabulary { get; set; } = false;
     public string VocabList { get; set; } = string.Empty;
     public string Delimiter { get; set; } = "comma";
+    public bool IsCleaningTranscript { get; set; } = false;
+    public bool IsPolishingTranscript { get; set; } = false;
 }
 
 partial class EditLearningResourcePage : Component<EditLearningResourceState, ResourceProps>
@@ -24,6 +26,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] AiService _aiService;
     [Inject] IFilePickerService _picker;
+    [Inject] TranscriptFormattingService _formattingService;
 
     // Track whether we need to save resource relationship (only for new words)
     private bool _shouldSaveResourceRelationship = false;
@@ -161,6 +164,26 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Label("Transcript")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(18),
+
+                    // Formatting buttons
+                    HStack(
+                        Button("Clean Up Format")
+                            .OnClicked(CleanUpTranscript)
+                            .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
+                            .ThemeKey("Secondary"),
+
+                        Button("Polish with AI")
+                            .OnClicked(PolishTranscriptWithAi)
+                            .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
+                            .ThemeKey("Secondary"),
+
+                        ActivityIndicator()
+                            .IsRunning(State.IsCleaningTranscript || State.IsPolishingTranscript)
+                            .IsVisible(State.IsCleaningTranscript || State.IsPolishingTranscript)
+                            .Scale(0.8)
+                    )
+                    .Spacing(MyTheme.ComponentSpacing)
+                    .HStart(),
 
                     Border(
                         Label(State.Resource.Transcript)
@@ -983,6 +1006,70 @@ Transcript:
         catch (Exception ex)
         {
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
+        }
+    }
+
+    async Task CleanUpTranscript()
+    {
+        if (string.IsNullOrWhiteSpace(State.Resource.Transcript))
+            return;
+
+        try
+        {
+            SetState(s => s.IsCleaningTranscript = true);
+
+            var cleanedTranscript = _formattingService.SmartCleanup(
+                State.Resource.Transcript,
+                State.Resource.Language
+            );
+
+            SetState(s =>
+            {
+                s.Resource.Transcript = cleanedTranscript;
+                s.IsCleaningTranscript = false;
+            });
+
+            // Auto-save after cleaning
+            await _resourceRepo.SaveResourceAsync(State.Resource);
+
+            await AppShell.DisplayToastAsync("✨ Transcript cleaned up and saved!");
+        }
+        catch (Exception ex)
+        {
+            SetState(s => s.IsCleaningTranscript = false);
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to clean up transcript: {ex.Message}", "OK");
+        }
+    }
+
+    async Task PolishTranscriptWithAi()
+    {
+        if (string.IsNullOrWhiteSpace(State.Resource.Transcript))
+            return;
+
+        try
+        {
+            SetState(s => s.IsPolishingTranscript = true);
+
+            var polishedTranscript = await _formattingService.PolishWithAiAsync(
+                State.Resource.Transcript,
+                State.Resource.Language
+            );
+
+            SetState(s =>
+            {
+                s.Resource.Transcript = polishedTranscript;
+                s.IsPolishingTranscript = false;
+            });
+
+            // Auto-save after polishing
+            await _resourceRepo.SaveResourceAsync(State.Resource);
+
+            await AppShell.DisplayToastAsync("✨ Transcript polished with AI and saved!");
+        }
+        catch (Exception ex)
+        {
+            SetState(s => s.IsPolishingTranscript = false);
+            await App.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
         }
     }
 }
