@@ -173,17 +173,57 @@ public class LearningResourceRepository
 
         try
         {
+            // Capture vocabulary words before they get detached
+            var vocabularyWords = resource.Vocabulary?.ToList() ?? new List<VocabularyWord>();
+            var vocabularyWordIds = vocabularyWords.Select(v => v.Id).ToList();
+
             if (resource.Id != 0)
             {
-                db.LearningResources.Update(resource);
+                // For existing resources, attach it to the context
+                var existingResource = await db.LearningResources
+                    .Include(r => r.Vocabulary)
+                    .FirstOrDefaultAsync(r => r.Id == resource.Id);
+
+                if (existingResource != null)
+                {
+                    // Update resource properties
+                    db.Entry(existingResource).CurrentValues.SetValues(resource);
+                    
+                    // Handle vocabulary associations
+                    // Get the actual vocabulary words from the database in this context
+                    var dbVocabularyWords = await db.VocabularyWords
+                        .Where(v => vocabularyWordIds.Contains(v.Id))
+                        .ToListAsync();
+
+                    // Clear existing and add new associations
+                    existingResource.Vocabulary.Clear();
+                    foreach (var word in dbVocabularyWords)
+                    {
+                        existingResource.Vocabulary.Add(word);
+                    }
+                }
             }
             else
             {
+                // For new resources
                 db.LearningResources.Add(resource);
+                await db.SaveChangesAsync(); // Save to get the resource ID
+                
+                // Now associate vocabulary words
+                if (vocabularyWordIds.Any())
+                {
+                    var dbVocabularyWords = await db.VocabularyWords
+                        .Where(v => vocabularyWordIds.Contains(v.Id))
+                        .ToListAsync();
+
+                    resource.Vocabulary.Clear();
+                    foreach (var word in dbVocabularyWords)
+                    {
+                        resource.Vocabulary.Add(word);
+                    }
+                }
             }
 
-            // EF Core will handle the many-to-many relationship automatically
-            // when we add/update vocabulary words to the resource.Vocabulary collection
             int result = await db.SaveChangesAsync();
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
@@ -192,6 +232,8 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"❌ SaveResourceAsync error: {ex}");
+            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
             await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return -1;
         }
@@ -561,6 +603,37 @@ public class LearningResourceRepository
         catch (Exception ex)
         {
             await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Updates vocabulary word terms by ID, avoiding context tracking issues
+    /// </summary>
+    public async Task<bool> UpdateVocabularyWordTermsAsync(int wordId, string targetTerm, string nativeTerm)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            var word = await db.VocabularyWords.FindAsync(wordId);
+            if (word == null)
+                return false;
+
+            word.TargetLanguageTerm = targetTerm;
+            word.NativeLanguageTerm = nativeTerm;
+            word.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error updating vocabulary word terms: {ex.Message}");
             return false;
         }
     }

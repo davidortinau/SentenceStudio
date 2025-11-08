@@ -48,7 +48,7 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 			.UseReactorThemeFonts()
-			.AddServiceDefaults()
+			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 #endif

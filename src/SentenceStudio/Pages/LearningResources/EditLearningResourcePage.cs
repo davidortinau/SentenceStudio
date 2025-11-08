@@ -27,6 +27,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] AiService _aiService;
     [Inject] IFilePickerService _picker;
     [Inject] TranscriptFormattingService _formattingService;
+    [Inject] UserProfileRepository _userProfileRepo;
 
     // Track whether we need to save resource relationship (only for new words)
     private bool _shouldSaveResourceRelationship = false;
@@ -45,7 +46,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     {
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
             State.IsEditing ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
-            State.IsEditing ? null : ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)),
+            State.IsEditing ? ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)) : null,
             State.IsEditing ? ToolbarItem("Save").OnClicked(SaveResource) : null,
             State.IsEditing ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
             ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
@@ -762,6 +763,38 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         return newWord;
     }
 
+    /// <summary>
+    /// Detects if a string is likely English text (uses basic Latin alphabet)
+    /// </summary>
+    bool IsLikelyEnglish(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        // Count how many characters are basic Latin (A-Z, a-z)
+        int latinCount = 0;
+        int totalLetters = 0;
+
+        foreach (char c in text)
+        {
+            if (char.IsLetter(c))
+            {
+                totalLetters++;
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                {
+                    latinCount++;
+                }
+            }
+        }
+
+        // If we have no letters, it's not English
+        if (totalLetters == 0)
+            return false;
+
+        // If more than 80% of letters are basic Latin, it's likely English
+        return (latinCount / (double)totalLetters) > 0.8;
+    }
+
     async Task GenerateVocabulary()
     {
         // Check if there's a transcript to analyze
@@ -775,16 +808,37 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
         try
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ GenerateVocabulary: Starting vocabulary generation for language '{State.Resource.Language}'");
+            // Get user profile for fallback languages
+            var userProfile = await _userProfileRepo.GetOrCreateDefaultAsync();
+            
+            // Determine the target and native languages
+            var targetLanguage = !string.IsNullOrWhiteSpace(State.Resource.Language) 
+                ? State.Resource.Language 
+                : userProfile?.TargetLanguage ?? "Korean";
+            
+            var nativeLanguage = userProfile?.NativeLanguage ?? "English";
+
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ GenerateVocabulary: Starting vocabulary generation for language '{targetLanguage}'");
             System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Transcript length: {State.Resource.Transcript.Length} chars");
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Using: Target={targetLanguage}, Native={nativeLanguage}");
 
             // Build AI prompt - no need to fetch existing words, let AI extract everything
             string prompt = $@"
-You are a language learning assistant. Analyze this {State.Resource.Language} transcript and extract ALL vocabulary words that would be useful for a learner.
+You are a language learning assistant. Analyze this {targetLanguage} transcript and extract ALL vocabulary words that would be useful for a learner.
+
+CRITICAL: Pay close attention to which field is which:
+- TargetLanguageTerm = The word in {targetLanguage} (the language being learned, NOT {nativeLanguage})
+- NativeLanguageTerm = The {nativeLanguage} translation
 
 For EACH word or phrase you find in the transcript, provide:
-1. The word in {State.Resource.Language} (TargetLanguageTerm) - use dictionary/base form when appropriate
-2. The English translation (NativeLanguageTerm)
+1. TargetLanguageTerm: The word in {targetLanguage} - use dictionary/base form when appropriate
+2. NativeLanguageTerm: The {nativeLanguage} translation
+
+Example for {targetLanguage}:
+{{
+  ""TargetLanguageTerm"": ""[word in {targetLanguage}]"",
+  ""NativeLanguageTerm"": ""[translation in {nativeLanguage}]""
+}}
 
 Include:
 - Nouns, verbs, adjectives, adverbs
@@ -793,6 +847,11 @@ Include:
 - ALL words that appear in the transcript, even if they seem basic
 
 Be generous with vocabulary extraction. Extract as many useful vocabulary words as possible from this transcript.
+
+IMPORTANT: 
+- TargetLanguageTerm MUST be in {targetLanguage}
+- NativeLanguageTerm MUST be in {nativeLanguage}
+- Do NOT swap these fields
 
 Format your response as a valid JSON array of objects with TargetLanguageTerm and NativeLanguageTerm properties.
 
@@ -837,11 +896,30 @@ Transcript:
 
                     try
                     {
+                        // Validate and potentially swap if AI got confused
+                        var targetTerm = wordData.TargetLanguageTerm?.Trim() ?? "";
+                        var nativeTerm = wordData.NativeLanguageTerm?.Trim() ?? "";
+
+                        // Detect if terms are swapped (English in target, non-English in native)
+                        bool targetIsEnglish = IsLikelyEnglish(targetTerm);
+                        bool nativeIsEnglish = IsLikelyEnglish(nativeTerm);
+
+                        if (targetIsEnglish && !nativeIsEnglish)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"⚠️ SWAPPED TERMS DETECTED! Swapping: '{targetTerm}' <-> '{nativeTerm}'");
+                            // Swap them
+                            var temp = targetTerm;
+                            targetTerm = nativeTerm;
+                            nativeTerm = temp;
+                        }
+                        else if (targetIsEnglish && nativeIsEnglish)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"⚠️ Both terms appear to be English, skipping: '{targetTerm}' / '{nativeTerm}'");
+                            continue;
+                        }
+
                         // Get existing word or create new one
-                        var word = await GetOrCreateVocabularyWordAsync(
-                            wordData.TargetLanguageTerm.Trim(),
-                            wordData.NativeLanguageTerm?.Trim() ?? ""
-                        );
+                        var word = await GetOrCreateVocabularyWordAsync(targetTerm, nativeTerm);
 
                         // Track if this was new or existing
                         if (word.CreatedAt == word.UpdatedAt &&
@@ -1050,10 +1128,27 @@ Transcript:
         {
             SetState(s => s.IsPolishingTranscript = true);
 
+            var originalTranscript = State.Resource.Transcript;
             var polishedTranscript = await _formattingService.PolishWithAiAsync(
                 State.Resource.Transcript,
                 State.Resource.Language
             );
+
+            // Check if we actually got a result
+            if (string.IsNullOrWhiteSpace(polishedTranscript))
+            {
+                SetState(s => s.IsPolishingTranscript = false);
+                await App.Current.MainPage.DisplayAlert("Error", "AI service returned empty result. Check your internet connection and API key.", "OK");
+                return;
+            }
+
+            // Check if the result is actually different
+            if (polishedTranscript.Trim() == originalTranscript.Trim())
+            {
+                SetState(s => s.IsPolishingTranscript = false);
+                await AppShell.DisplayToastAsync("ℹ️ Transcript already well-formatted (no changes needed)");
+                return;
+            }
 
             SetState(s =>
             {
@@ -1069,6 +1164,7 @@ Transcript:
         catch (Exception ex)
         {
             SetState(s => s.IsPolishingTranscript = false);
+            Debug.WriteLine($"❌ Polish transcript error: {ex}");
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
         }
     }

@@ -181,16 +181,16 @@ Transcript to format:
 
             var polished = await _aiService.SendPrompt<string>(prompt);
 
-            if (!string.IsNullOrWhiteSpace(polished))
+            if (string.IsNullOrWhiteSpace(polished))
             {
-                // Cache the result
-                _aiPolishCache[hash] = polished;
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI polish complete, cached result");
-                return polished;
+                System.Diagnostics.Debug.WriteLine($"❌ AI returned empty/null result");
+                throw new Exception("AI service returned empty result. Check your internet connection and API configuration.");
             }
 
-            System.Diagnostics.Debug.WriteLine($"⚠️ AI returned empty result, returning original");
-            return transcript;
+            // Cache the result
+            _aiPolishCache[hash] = polished;
+            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI polish complete, cached result (length: {polished.Length} chars)");
+            return polished;
         }
         catch (Exception ex)
         {

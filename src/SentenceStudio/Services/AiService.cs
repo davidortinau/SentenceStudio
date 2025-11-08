@@ -24,19 +24,24 @@ public class AiService {
     public async Task<T> SendPrompt<T>(string prompt)
     {
         if(Connectivity.NetworkAccess != NetworkAccess.Internet){
+            Debug.WriteLine("❌ No internet connection available");
             WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
             return default(T);
         }
 
         try
         {
+            Debug.WriteLine($"🤖 Sending prompt to AI (length: {prompt?.Length ?? 0} chars)");
             var response = await _client.GetResponseAsync<T>(prompt);
+            var hasResult = response != null && response.Result != null;
+            Debug.WriteLine($"✅ AI response received: {hasResult}");
             return response.Result;            
         }
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred SendPrompt: {ex.Message}");
+            Debug.WriteLine($"❌ An error occurred SendPrompt: {ex.Message}");
+            Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
             return default(T);
         }
     }

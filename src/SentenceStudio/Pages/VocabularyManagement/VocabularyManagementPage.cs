@@ -46,6 +46,10 @@ class VocabularyManagementPageState
     public bool IsMultiSelectMode { get; set; } = false;
     public HashSet<int> SelectedWordIds { get; set; } = new();
 
+    // Cleanup operations
+    public bool IsCleanupSheetOpen { get; set; } = false;
+    public bool IsCleanupRunning { get; set; } = false;
+
     // Platform cache
     public bool IsPhoneIdiom { get; set; }
 
@@ -54,6 +58,7 @@ class VocabularyManagementPageState
 partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
 {
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] UserProfileRepository _userProfileRepo;
     private System.Threading.Timer? _searchTimer;
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -76,13 +81,22 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     Color = MyTheme.HighlightDarkest
                 })
                 .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Cleanup")
+                .IconImageSource(new FontImageSource
+                {
+                    FontFamily = FluentUI.FontFamily,
+                    Glyph = FluentUI.broom_20_regular,
+                    Color = MyTheme.HighlightDarkest
+                })
+                .OnClicked(() => SetState(s => s.IsCleanupSheetOpen = true)),
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
                 Grid(rows: "*,Auto", columns: "*",
                     RenderVocabularyList(),
-                    RenderBottomBar()
+                    RenderBottomBar(),
+                    RenderCleanupSheet()
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
@@ -615,6 +629,204 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var index = items.IndexOf(selection);
         // Index maps 1..N => specific resource, 0 => All Resources
         OnResourcePickerIndexChanged(index);
+    }
+
+    VisualNode RenderCleanupSheet()
+        => new SfBottomSheet(
+            VStack(
+                Label("Vocabulary Cleanup")
+                    .FontSize(20)
+                    .FontAttributes(MauiControls.FontAttributes.Bold)
+                    .Margin(0, 0, 0, 8),
+
+                Label("Fix Swapped Languages")
+                    .FontSize(16)
+                    .FontAttributes(MauiControls.FontAttributes.Bold),
+                Label("Swap words where target language appears to be English and native language appears to be Korean")
+                    .FontSize(12)
+                    .Opacity(0.7)
+                    .Margin(0, 0, 0, 4),
+                Button("Run Language Swap Cleanup")
+                    .OnClicked(RunLanguageSwapCleanup)
+                    .IsEnabled(!State.IsCleanupRunning),
+
+                BoxView()
+                    .HeightRequest(1)
+                    .BackgroundColor(Colors.Gray.WithAlpha(0.3f))
+                    .Margin(0, 8),
+
+                Label("Assign Orphaned Words")
+                    .FontSize(16)
+                    .FontAttributes(MauiControls.FontAttributes.Bold),
+                Label("Associate words without a learning resource to a general vocabulary list")
+                    .FontSize(12)
+                    .Opacity(0.7)
+                    .Margin(0, 0, 0, 4),
+                Button("Run Orphan Assignment")
+                    .OnClicked(RunOrphanAssignment)
+                    .IsEnabled(!State.IsCleanupRunning),
+
+                State.IsCleanupRunning
+                    ? HStack(
+                        ActivityIndicator().IsRunning(true),
+                        Label("Running cleanup...").VCenter()
+                    ).Spacing(8).HCenter().Margin(8, 16, 8, 0)
+                    : null
+            )
+            .Spacing(16)
+            .Padding(24)
+        )
+        .IsOpen(State.IsCleanupSheetOpen)
+        .OnStateChanged((sender, args) => SetState(s => s.IsCleanupSheetOpen = !s.IsCleanupSheetOpen));
+
+    async Task RunLanguageSwapCleanup()
+    {
+        SetState(s => s.IsCleanupRunning = true);
+
+        try
+        {
+            var allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+            int swappedCount = 0;
+            int mergedCount = 0;
+
+            // Collect words that need swapping to avoid context issues
+            var wordsToSwap = new List<(int Id, string NewTarget, string NewNative)>();
+            var wordsToMerge = new List<(int FromId, int ToId)>();
+
+            foreach (var word in allWords)
+            {
+                if (string.IsNullOrWhiteSpace(word.TargetLanguageTerm) || 
+                    string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
+                    continue;
+
+                bool targetIsEnglish = IsEnglish(word.TargetLanguageTerm);
+                bool nativeIsKorean = IsKorean(word.NativeLanguageTerm);
+
+                if (targetIsEnglish && nativeIsKorean)
+                {
+                    var swappedTarget = word.NativeLanguageTerm;
+                    var swappedNative = word.TargetLanguageTerm;
+
+                    var existingWord = await _resourceRepo.FindDuplicateVocabularyWordAsync(swappedTarget, swappedNative);
+
+                    if (existingWord != null && existingWord.Id != word.Id)
+                    {
+                        // Mark for merge
+                        wordsToMerge.Add((word.Id, existingWord.Id));
+                    }
+                    else
+                    {
+                        // Mark for swap
+                        wordsToSwap.Add((word.Id, swappedTarget, swappedNative));
+                    }
+                }
+            }
+
+            // Now perform the actual updates in separate operations
+            foreach (var (fromId, toId) in wordsToMerge)
+            {
+                var wordResources = await _resourceRepo.GetResourcesContainingWordAsync(fromId);
+                foreach (var resource in wordResources)
+                {
+                    await _resourceRepo.AddVocabularyToResourceAsync(resource.Id, toId);
+                }
+                await _resourceRepo.DeleteVocabularyWordAsync(fromId);
+                mergedCount++;
+            }
+
+            foreach (var (id, newTarget, newNative) in wordsToSwap)
+            {
+                await _resourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative);
+                swappedCount++;
+            }
+
+            await AppShell.DisplayToastAsync($"🔄 Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)!");
+            await LoadVocabularyData();
+        }
+        catch (Exception ex)
+        {
+            await Application.Current.MainPage.DisplayAlert("Error", $"Cleanup failed: {ex.Message}", "OK");
+        }
+        finally
+        {
+            SetState(s =>
+            {
+                s.IsCleanupRunning = false;
+                s.IsCleanupSheetOpen = false;
+            });
+        }
+    }
+
+    async Task RunOrphanAssignment()
+    {
+        SetState(s => s.IsCleanupRunning = true);
+
+        try
+        {
+            // Get user profile for fallback language
+            var userProfile = await _userProfileRepo.GetOrCreateDefaultAsync();
+            var targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+            var generalResource = State.AvailableResources.FirstOrDefault(r => 
+                r.Title == "General Vocabulary" && r.MediaType == "Vocabulary List");
+
+            if (generalResource == null)
+            {
+                generalResource = new LearningResource
+                {
+                    Title = "General Vocabulary",
+                    Description = "Catch-all vocabulary list for words without a specific learning resource",
+                    MediaType = "Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "general,unassigned",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _resourceRepo.SaveResourceAsync(generalResource);
+            }
+
+            var orphanedWords = await _resourceRepo.GetOrphanedVocabularyWordsAsync();
+            
+            if (orphanedWords.Any())
+            {
+                var orphanIds = orphanedWords.Select(w => w.Id).ToList();
+                await _resourceRepo.BulkAssociateWordsWithResourceAsync(generalResource.Id, orphanIds);
+                
+                await AppShell.DisplayToastAsync($"📦 Assigned {orphanedWords.Count} orphaned word(s) to 'General Vocabulary'!");
+                await LoadVocabularyData();
+            }
+            else
+            {
+                await AppShell.DisplayToastAsync("✨ No orphaned words found!");
+            }
+        }
+        catch (Exception ex)
+        {
+            await Application.Current.MainPage.DisplayAlert("Error", $"Cleanup failed: {ex.Message}", "OK");
+        }
+        finally
+        {
+            SetState(s =>
+            {
+                s.IsCleanupRunning = false;
+                s.IsCleanupSheetOpen = false;
+            });
+        }
+    }
+
+    static bool IsEnglish(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        return text.All(c => c <= 127 || char.IsWhiteSpace(c));
+    }
+
+    static bool IsKorean(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        return text.Any(c => 
+            (c >= 0xAC00 && c <= 0xD7AF) ||
+            (c >= 0x1100 && c <= 0x11FF) ||
+            (c >= 0x3130 && c <= 0x318F));
     }
 
     public void Dispose()
