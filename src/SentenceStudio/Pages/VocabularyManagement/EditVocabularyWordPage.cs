@@ -29,10 +29,11 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] ILogger<EditVocabularyWordPage> _logger;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
     {
-        return ContentPage(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Edit Vocabulary Word",
+        return ContentPage(Props.VocabularyWordId == 0 ? $"{_localize["AddVocabularyWord"]}" : $"{_localize["EditVocabularyWord"]}",
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
@@ -53,20 +54,20 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     VisualNode RenderWordForm() =>
         VStack(spacing: 16,
-            Label("Vocabulary Terms")
+            Label($"{_localize["VocabularyTerms"]}")
                 .FontSize(20)
                 .FontAttributes(FontAttributes.Bold),
 
             // Target Language
             VStack(spacing: 8,
-                Label("Target Language Term")
+                Label($"{_localize["TargetLanguageTerm"]}")
                     .FontSize(14)
                     .FontAttributes(FontAttributes.Bold),
                 Border(
                     Entry()
                         .Text(State.TargetLanguageTerm)
                         .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
-                        .Placeholder("Enter target language term (e.g., 안녕하세요)")
+                        .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
                         .FontSize(16)
                 )
                 .ThemeKey(MyTheme.InputWrapper)
@@ -75,14 +76,14 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
             // Native Language  
             VStack(spacing: 8,
-                Label("Native Language Term")
+                Label($"{_localize["NativeLanguageTerm"]}")
                     .FontSize(14)
                     .FontAttributes(FontAttributes.Bold),
                 Border(
                     Entry()
                         .Text(State.NativeLanguageTerm)
                         .OnTextChanged(text => SetState(s => s.NativeLanguageTerm = text))
-                        .Placeholder("Enter native language term (e.g., Hello)")
+                        .Placeholder($"{_localize["EnterNativeLanguageTerm"]}")
                         .FontSize(16)
                 )
                 .ThemeKey(MyTheme.InputWrapper)
@@ -101,19 +102,19 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     VisualNode RenderResourceAssociations() =>
         VStack(spacing: 16,
             HStack(spacing: 10,
-                Label("Learning Resource Associations")
+                Label($"{_localize["ResourceAssociations"]}")
                     .FontSize(20)
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HorizontalOptions(LayoutOptions.FillAndExpand),
 
-                Label($"{State.SelectedResourceIds.Count} selected")
+                Label(string.Format($"{_localize["Selected"]}", State.SelectedResourceIds.Count))
                     .FontSize(12)
                     .TextColor(MyTheme.Gray600)
                     .VCenter()
             ),
 
-            Label("Select which learning resources should include this vocabulary word:")
+            Label($"{_localize["SelectResourceToAssociate"]}")
                 .FontSize(14)
                 .TextColor(MyTheme.Gray600),
 
@@ -123,7 +124,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         RenderResourceItem(resource)
                     ).ToArray()
                 ) :
-                Label("No learning resources available")
+                Label($"{_localize["NoResourcesAvailable"]}")
                     .FontSize(14)
                     .TextColor(MyTheme.Gray500)
                     .FontAttributes(FontAttributes.Italic)

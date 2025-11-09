@@ -897,9 +897,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SetState(s => s.IsBusy = false);
                 System.Diagnostics.Debug.WriteLine("No vocabulary found - showing alert");
                 await Application.Current.MainPage.DisplayAlert(
-                    _localize["No Vocabulary"].ToString(),
-                    _localize["This resource has no vocabulary to study."].ToString(),
-                    _localize["OK"].ToString());
+                    $"{_localize["No Vocabulary"]}",
+                    $"{_localize["This resource has no vocabulary to study."]}",
+                    $"{_localize["OK"]}");
                 return;
             }
 

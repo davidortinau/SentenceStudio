@@ -11,6 +11,8 @@ public partial class PracticeStreakCard : Component
     [Prop]
     private bool _isVisible;
 
+    LocalizationManager _localize => LocalizationManager.Instance;
+
     public override VisualNode Render()
     {
         if (!_isVisible || _heatData?.Any() != true) return ContentView();
@@ -25,7 +27,7 @@ public partial class PracticeStreakCard : Component
 
         return
             VStack(
-                Label($"{totalPractice} practices in the last year")
+                Label(string.Format($"{_localize["PracticesInYear"]}", totalPractice))
                     .ThemeKey(MyTheme.H2),
 
                 HScrollView(
@@ -50,11 +52,11 @@ public partial class PracticeStreakCard : Component
                             // Day of week labels
                             VStack(
                                 Label("").HeightRequest(11), // Sun (hidden)
-                                Label("Mon").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                                Label($"{_localize["Mon"]}").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
                                 Label("").HeightRequest(11), // Tue (hidden)
-                                Label("Wed").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                                Label($"{_localize["Wed"]}").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
                                 Label("").HeightRequest(11), // Thu (hidden)
-                                Label("Fri").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
+                                Label($"{_localize["Fri"]}").FontSize(9).TextColor(Colors.Gray).HeightRequest(11),
                                 Label("").HeightRequest(11)  // Sat (hidden)
                             ).Spacing(MyTheme.MicroSpacing).WidthRequest(15),
 
@@ -81,7 +83,7 @@ public partial class PracticeStreakCard : Component
                 ),
 
                 HStack(
-                    Label("Less").FontSize(10).TextColor(Colors.Gray).VCenter(),
+                    Label($"{_localize["Less"]}").FontSize(10).TextColor(Colors.Gray).VCenter(),
                     HStack(
                         Border().WidthRequest(11).HeightRequest(11).StrokeShape(Rectangle()).Padding(0)
                             .Background(GetGitHubColor(0)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
@@ -94,7 +96,7 @@ public partial class PracticeStreakCard : Component
                         Border().WidthRequest(11).HeightRequest(11).StrokeShape(Rectangle()).Padding(0)
                             .Background(GetGitHubColor(5)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30))
                     ).Spacing(MyTheme.MicroSpacing).VCenter(),
-                    Label("More").FontSize(10).TextColor(Colors.Gray).VCenter()
+                    Label($"{_localize["More"]}").FontSize(10).TextColor(Colors.Gray).VCenter()
                 ).Spacing(MyTheme.MicroSpacing).HEnd()
             ).Spacing(MyTheme.LayoutSpacing).Padding(MyTheme.LayoutSpacing);
     }

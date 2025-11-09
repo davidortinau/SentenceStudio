@@ -58,10 +58,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     public override VisualNode Render()
     {
-        return ContentPage(_localize["VocabularyMatchingTitle"].ToString(),
-            ToolbarItem(_localize["NewGame"].ToString())
+        return ContentPage($"{_localize["VocabularyMatchingTitle"]}",
+            ToolbarItem($"{_localize["NewGame"]}")
                 .OnClicked(RestartGame),
-            ToolbarItem(State.HideNativeWordsMode ? _localize["ShowAllWords"].ToString() : _localize["HideNativeWords"].ToString())
+            ToolbarItem(State.HideNativeWordsMode ? $"{_localize["ShowAllWords"]}" : $"{_localize["HideNativeWords"]}")
                 .OnClicked(ToggleHideNativeWordsMode),
             Grid(rows: "Auto, *", columns: "*",
                 // Header with progress
@@ -82,7 +82,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderHeader() =>
         VStack(spacing: 2,
-            Label(string.Format(_localize["MatchedAndMisses"].ToString(), State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
+            Label(string.Format($"{_localize["MatchedAndMisses"]}", State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
                 .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
@@ -99,7 +99,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             ActivityIndicator()
                 .IsRunning(true)
                 .HCenter(),
-            Label(_localize["LoadingVocabulary"].ToString())
+            Label($"{_localize["LoadingVocabulary"]}")
                 .ThemeKey(MyTheme.Body2)
                 .HCenter()
         )
@@ -108,15 +108,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     VisualNode RenderGameComplete() =>
         VStack(spacing: 20,
-            Label(_localize["Congratulations"].ToString())
+            Label($"{_localize["Congratulations"]}")
                 .ThemeKey(MyTheme.Title1)
                 .HCenter(),
 
-            Label(_localize["AllPairsMatched"].ToString())
+            Label($"{_localize["AllPairsMatched"]}")
                 .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
-            Button(_localize["PlayAgain"].ToString())
+            Button($"{_localize["PlayAgain"]}")
                 .OnClicked(RestartGame)
                 .HCenter()
         )
@@ -310,7 +310,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 SetState(s =>
                 {
                     s.IsBusy = false;
-                    s.GameMessage = _localize["NoVocabularyAvailable"].ToString();
+                    s.GameMessage = $"{_localize["NoVocabularyAvailable"]}";
                 });
                 return;
             }
@@ -357,8 +357,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IsBusy = false;
                 s.IsGameComplete = false;
                 s.GameMessage = s.HideNativeWordsMode ?
-                    _localize["TapTargetToReveal"].ToString() :
-                    _localize["MatchPairs"].ToString();
+                    $"{_localize["TapTargetToReveal"]}" :
+                    $"{_localize["MatchPairs"]}";
             });
         }
         catch (Exception ex)
@@ -366,7 +366,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             SetState(s =>
             {
                 s.IsBusy = false;
-                s.GameMessage = _localize["ErrorLoadingVocabulary"].ToString();
+                s.GameMessage = $"{_localize["ErrorLoadingVocabulary"]}";
             });
             System.Diagnostics.Debug.WriteLine($"Error loading vocabulary: {ex.Message}");
         }
@@ -509,7 +509,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (State.SelectedTiles.Count >= 2)
         {
             // Already have 2 tiles selected, ignore tap
-            SetState(s => s.GameMessage = _localize["WaitCheckingMatch"].ToString());
+            SetState(s => s.GameMessage = $"{_localize["WaitCheckingMatch"]}");
             return;
         }
 
@@ -554,9 +554,9 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.SelectedTiles.Add(tileToUpdate);
 
             if (s.SelectedTiles.Count == 1)
-                s.GameMessage = _localize["SelectAnotherTile"].ToString();
+                s.GameMessage = $"{_localize["SelectAnotherTile"]}";
             else if (s.SelectedTiles.Count == 2)
-                s.GameMessage = _localize["CheckingMatch"].ToString();
+                s.GameMessage = $"{_localize["CheckingMatch"]}";
         });
     }
 
@@ -568,8 +568,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             tileToUpdate.IsSelected = false;
             s.SelectedTiles.RemoveAll(t => t.Id == tile.Id);
             s.GameMessage = s.HideNativeWordsMode && s.SelectedTiles.Count == 0 ?
-                _localize["TapTargetToReveal"].ToString() :
-                _localize["MatchPairs"].ToString();
+                $"{_localize["TapTargetToReveal"]}" :
+                $"{_localize["MatchPairs"]}";
 
             // If in hide native words mode and we're deselecting the last tile, hide native words again
             if (s.HideNativeWordsMode && s.SelectedTiles.Count == 0)
@@ -614,7 +614,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 tileToUpdate2.IsSelected = false;
                 s.SelectedTiles.Clear();
                 s.MatchedPairs++;
-                s.GameMessage = _localize["GreatMatch"].ToString();
+                s.GameMessage = $"{_localize["GreatMatch"]}";
 
                 // Hide native words again if in hide mode
                 if (s.HideNativeWordsMode)
@@ -650,7 +650,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 tileToUpdate2.IsSelected = false;
                 s.SelectedTiles.Clear();
                 s.IncorrectGuesses++;
-                s.GameMessage = _localize["NotAMatch"].ToString();
+                s.GameMessage = $"{_localize["NotAMatch"]}";
 
                 // Hide native words again if in hide mode
                 if (s.HideNativeWordsMode)

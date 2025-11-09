@@ -27,7 +27,7 @@ class ReadingPageState
     public TimestampedAudio TimestampedAudio { get; set; }
     public bool IsTimestampedAudioLoaded { get; set; } = false;
     public bool IsGeneratingAudio { get; set; } = false;
-    public string AudioGenerationStatus { get; set; } = "Ready";
+    public string AudioGenerationStatus { get; set; } = string.Empty;
     public double AudioGenerationProgress { get; set; } = 0.0;
 
     // Audio Playback State
@@ -106,7 +106,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .IsRunning(true)
                         .VCenter()
                         .HCenter(),
-                    Label("Loading content...")
+                    Label($"{_localize["LoadingContent"]}")
                         .HCenter()
                         .ThemeKey(MyTheme.Body1)
                 )
@@ -125,7 +125,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     Label(State.ErrorMessage)
                         .HCenter()
                         .ThemeKey(MyTheme.Body1),
-                    Button("Go Back")
+                    Button($"{_localize["GoBack"]}")
                         .OnClicked(GoBack)
                         .HCenter()
                 )
@@ -537,7 +537,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 Label("💡")
                     .FontSize(16),
                 VStack(
-                    Label("Reading Controls:")
+                    Label($"{_localize["ReadingControls"]}")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(14)
                             .ThemeKey(MyTheme.Caption1),
@@ -578,7 +578,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .OnClicked(PreviousSentence)
                 .GridColumn(0),
             VStack(
-                Label($"Sentence {State.CurrentSentenceIndex + 1} of {State.Sentences.Count}")
+                Label(string.Format($"{_localize["SentenceProgress"]}", State.CurrentSentenceIndex + 1, State.Sentences.Count))
                     .HCenter()
                     .ThemeKey(MyTheme.Caption1),
                 Label(FormatPlaybackTime(State.CurrentPlaybackTime))
@@ -617,7 +617,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontSize(18)
                         .ThemeKey(MyTheme.Body1)
                         .HCenter(),
-                    Button("Close")
+                    Button($"{_localize["Close"]}")
                         .OnClicked(CloseVocabularyBottomSheet)
                         .HCenter()
                 )
@@ -643,7 +643,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                 .IsRunning(true)
                                 .Color(MyTheme.HighlightDarkest)
                                 .HCenter(),
-                            Label("Looking up definition...")
+                            Label($"{_localize["LookingUpDefinition"]}")
                                 .FontSize(16)
                                 .ThemeKey(MyTheme.Body1)
                                 .HCenter()
@@ -662,12 +662,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                         ActivityIndicator()
                                             .IsRunning(true)
                                             .Color(MyTheme.HighlightDarkest),
-                                        Label("Saving word...")
+                                        Label($"{_localize["SavingWord"]}")
                                             .ThemeKey(MyTheme.Body1)
                                     )
                                     .HCenter()
                                     .Spacing(MyTheme.Size80)
-                                    : Button("Remember this word")
+                                    : Button($"{_localize["RememberThisWord"]}")
                                         .OnClicked(() => RememberVocabularyWord())
                                         .Background(MyTheme.HighlightMedium)
                                         .TextColor(MyTheme.HighlightDarkest)
@@ -676,7 +676,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         )
                         .Spacing(MyTheme.Size120),
 
-                    Button("Close")
+                    Button($"{_localize["Close"]}")
                         .OnClicked(() => CloseDictionaryBottomSheet())
                         .HCenter()
                 )
@@ -1146,7 +1146,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     _logger.LogWarning("No translation found for: {CleanWord}", cleanWord);
                     SetState(s =>
                     {
-                        s.DictionaryDefinition = "No definition found";
+                        s.DictionaryDefinition = $"{_localize["NoDefinitionFound"]}";
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = false;
                     });

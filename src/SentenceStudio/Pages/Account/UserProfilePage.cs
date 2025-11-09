@@ -39,72 +39,78 @@ partial class UserProfilePage : Component<UserProfilePageState>
             ToolbarItem($"{_localize["Reset"]}").OnClicked(Reset),
             VScrollView(
                 VStack(
-                    new SfTextInputLayout
-                    {
+                    Label($"{_localize["Name"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Border(
                         Entry()
                             .Text(State.Name)
                             .OnTextChanged(text => SetState(s => s.Name = text))
-                    }
-                        .Hint($"{_localize["Name"]}"),
+                    ).ThemeKey(MyTheme.InputWrapper),
 
-                    new SfTextInputLayout
-                    {
+                    Label($"{_localize["Email"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Border(
                         Entry()
                             .Text(State.Email)
                             .OnTextChanged(text => SetState(s => s.Email = text))
-                    }
-                        .Hint($"{_localize["Email"]}"),
-                    new SfTextInputLayout
-                    {
+                    ).ThemeKey(MyTheme.InputWrapper),
+
+                    Label($"{_localize["NativeLanguage"]}")
+                                    .ThemeKey(MyTheme.Body1Strong),
+                    Border(
                         Picker()
                             .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.NativeLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => {
+                            .OnSelectedIndexChanged(index => SetState(s =>
+                            {
                                 s.NativeLanguage = Constants.Languages[index];
                                 s.NativeLanguageIndex = index; // Save the index too!
                             }))
-                    }
-                        .Hint($"{_localize["NativeLanguage"]}"),
+                    ).ThemeKey(MyTheme.InputWrapper),
 
-                    new SfTextInputLayout
-                    {
+                    Label($"{_localize["TargetLanguage"]}")
+                                    .ThemeKey(MyTheme.Body1Strong),
+                    Border(
                         Picker()
                             .ItemsSource(Constants.Languages)
                             .SelectedIndex(State.TargetLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s => {
+                            .OnSelectedIndexChanged(index => SetState(s =>
+                            {
                                 s.TargetLanguage = Constants.Languages[index];
                                 s.TargetLanguageIndex = index; // Save the index too!
                             }))
-                    }
-                        .Hint($"{_localize["TargetLanguage"]}"),
+                    ).ThemeKey(MyTheme.InputWrapper),
 
-                    new SfTextInputLayout
-                    {
+                    Label($"{_localize["DisplayLanguage"]}")
+                                    .ThemeKey(MyTheme.Body1Strong),
+
+                    Border(
                         Picker()
                             .ItemsSource(DisplayLanguages)
                             .SelectedIndex(State.DisplayLanguageIndex)
-                            .OnSelectedIndexChanged(index => {
+                            .OnSelectedIndexChanged(index =>
+                            {
                                 string newDisplayLanguage = DisplayLanguages[index];
-                                SetState(s => {
+                                SetState(s =>
+                                {
                                     s.DisplayLanguage = newDisplayLanguage;
                                     s.DisplayLanguageIndex = index; // Save the index too!
                                 });
-                                
+
                                 // Set culture based on display language selection
                                 var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
                                 _localize.SetCulture(culture);
                             })
-                    }
-                        .Hint($"{_localize["DisplayLanguage"]}"),
+                    ).ThemeKey(MyTheme.InputWrapper),
 
-                    new SfTextInputLayout
-                    {
+                    Label($"{_localize["OpenAI_APIKey"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Border(
                         Entry()
                             .IsPassword(true)
                             .Text(State.OpenAI_APIKey)
                             .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
-                    }
-                        .Hint($"{_localize["OpenAI_APIKey"]}"),
+                    ).ThemeKey(MyTheme.InputWrapper),
 
                     Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
                         .TextDecorations(TextDecorations.Underline)
@@ -207,7 +213,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
         string cultureCode = State.DisplayLanguage == "English" ? "en-US" : "ko-KR";
         await _userProfileRepository.SaveDisplayCultureAsync(cultureCode);
 
-        await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
+        await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
 
 
     }
@@ -215,10 +221,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
     async Task Reset()
     {
         var response = await Application.Current.MainPage.DisplayAlert(
-            _localize["Reset"].ToString(),
-            _localize["ResetProfileConfirmation"].ToString() ?? "Are you sure you want to reset your profile?",
-            _localize["Yes"].ToString(),
-            _localize["No"].ToString());
+            $"{_localize["Reset"]}",
+            $"{_localize["ResetProfileConfirmation"]}" ?? "Are you sure you want to reset your profile?",
+            $"{_localize["Yes"]}",
+            $"{_localize["No"]}");
 
         if (response)
         {
@@ -233,7 +239,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
             // Set culture back to English after reset
             _localize.SetCulture(new CultureInfo("en-US"));
 
-            await AppShell.DisplayToastAsync(_localize["ProfileReset"].ToString() ?? "Profile reset");
+            await AppShell.DisplayToastAsync($"{_localize["ProfileReset"]}" ?? "Profile reset");
 
             // Navigate back to root which should trigger the AppShell to re-evaluate and show onboarding
             await MauiControls.Shell.Current.GoToAsync("//");
@@ -276,7 +282,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     s.ExportProgressMessage = "Export completed!";
                 });
 
-                await AppShell.DisplayToastAsync(_localize["ExportCompleted"].ToString());
+                await AppShell.DisplayToastAsync($"{_localize["ExportCompleted"]}");
             }
             else
             {
@@ -286,7 +292,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
+                await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
                     result.Exception?.Message ?? "Failed to save export file", "OK");
             }
         }
@@ -298,7 +304,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
+            await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
                 $"An error occurred during export: {ex.Message}", "OK");
         }
     }
@@ -352,7 +358,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
+                await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
                     tempResult.Exception?.Message ?? "Failed to prepare export for sharing", "OK");
             }
         }
@@ -364,7 +370,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert(_localize["ExportError"].ToString(),
+            await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
                 $"An error occurred during export: {ex.Message}", "OK");
         }
     }

@@ -106,7 +106,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     .ImageSource(MyTheme.IconDictionary)
                     .OnClicked(TranslateInput)
             )
-            .Hint(_localize["WhatDoYouWantToSay"].ToString())
+            .Hint($"{_localize["WhatDoYouWantToSay"]}")
             .GridRow(1)
             .GridColumn(0)
 
@@ -200,9 +200,9 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         if (grade == null)
         {
             await Application.Current.MainPage.DisplayAlert(
-                _localize["Error"].ToString(),
-                _localize["Something went wrong. Check the server."].ToString(),
-                _localize["OK"].ToString());
+                $"{_localize["Error"]}",
+                $"{_localize["Something went wrong. Check the server."]}",
+                $"{_localize["OK"]}");
             return;
         }
 
@@ -295,9 +295,9 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             $"Additional Notes: {sentence.GrammarNotes}";
 
         return Application.Current.MainPage.DisplayAlert(
-            _localize["Explanation"].ToString(),
+            $"{_localize["Explanation"]}",
             explanation,
-            _localize["OK"].ToString());
+            $"{_localize["OK"]}");
     }
 
     /// <summary>

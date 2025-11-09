@@ -150,3 +150,41 @@ Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes 
 
 ADDITIONAL NOTE:
 - IMPORTANT: A `ContentPage` may only have a single child element (ToolbarItems do not count). When rendering overlay controls like `SfBottomSheet`, place them inside that single child (for example, inside the main `Grid`) so the page remains valid. Do not add the bottom sheet as a sibling to the page's root content.
+
+## Command Line Tool Usage Guidelines
+
+**CRITICAL: Avoid triggering directory access prompts by following these patterns:**
+
+1. **NEVER create temporary files** outside the working directory:
+   - ❌ WRONG: `cat > /tmp/summary.md`
+   - ✅ CORRECT: Output directly or use files in the working directory
+
+2. **GREP usage - avoid path interpretation issues**:
+   - When grepping for strings with special characters or patterns, be careful with comment syntax
+   - The pattern `grep -v "//"` can be interpreted as trying to access the `//` directory
+   - ❌ WRONG: `grep '"text"' file | grep -v "//" | grep -v "pattern"`
+   - ✅ CORRECT: Use single grep with extended regex: `grep -E '"text"' file | grep -vE '(//|pattern)'`
+   - ✅ CORRECT: Or escape properly: `grep -v '\\/\\/'`
+   - ✅ CORRECT: Or use alternative patterns that don't look like paths
+
+3. **Safe grep patterns for finding hardcoded strings**:
+   ```bash
+   # Find quoted strings (basic)
+   grep -n '"[A-Za-z]' file.cs
+   
+   # Exclude patterns safely with -v in separate command
+   grep '"text"' file.cs | grep -v 'namespace' | grep -v 'using'
+   
+   # Or use awk/sed if complex filtering needed
+   grep '"text"' file.cs | awk '!/namespace/ && !/using/'
+   ```
+
+4. **When outputting summaries**: 
+   - Write to stdout, not temp files
+   - Or write to a file in the workspace if persistence is needed
+   - Never use `/tmp/` or other system directories
+
+5. **Working directory awareness**:
+   - You are always in `/Users/davidortinau/work/SentenceStudio`
+   - All paths should be relative to this or absolute within this tree
+   - Use `find src/` not `find /tmp/`

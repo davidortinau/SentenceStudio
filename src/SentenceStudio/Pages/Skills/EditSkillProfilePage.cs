@@ -78,7 +78,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
         
         var result = await _skillsRepository.SaveAsync(State.Profile);
         if (result > 0)
-            await AppShell.DisplayToastAsync(_localize["Saved"].ToString());
+            await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
             
         await MauiControls.Shell.Current.GoToAsync("..");
     }
@@ -87,7 +87,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
     {
         var result = await _skillsRepository.DeleteAsync(State.Profile);
         if (result > 0)
-            await AppShell.DisplayToastAsync(_localize["Deleted"].ToString());
+            await AppShell.DisplayToastAsync($"{_localize["Deleted"]}");
             
         await MauiControls.Shell.Current.GoToAsync("..");
     }

@@ -633,4 +633,548 @@
     <value>Learning Progress</value>
     <comment/>
   </data>
+  <data name="VocabularyWords" xml:space="preserve">
+    <value>Vocabulary Words</value>
+    <comment/>
+  </data>
+  <data name="ImportFromFile" xml:space="preserve">
+    <value>Import from File</value>
+    <comment/>
+  </data>
+  <data name="UploadFile" xml:space="preserve">
+    <value>Upload File</value>
+    <comment/>
+  </data>
+  <data name="ImportVocabulary" xml:space="preserve">
+    <value>Import Vocabulary</value>
+    <comment/>
+  </data>
+  <data name="BulkAddVocabulary" xml:space="preserve">
+    <value>Bulk Add Vocabulary</value>
+    <comment/>
+  </data>
+  <data name="EnterVocabularyPairs" xml:space="preserve">
+    <value>Enter vocabulary pairs (one per line)</value>
+    <comment/>
+  </data>
+  <data name="Format" xml:space="preserve">
+    <value>Format</value>
+    <comment/>
+  </data>
+  <data name="CommaDelimiter" xml:space="preserve">
+    <value>Comma (term, translation)</value>
+    <comment/>
+  </data>
+  <data name="ColonDelimiter" xml:space="preserve">
+    <value>Colon (term: translation)</value>
+    <comment/>
+  </data>
+  <data name="HyphenDelimiter" xml:space="preserve">
+    <value>Hyphen (term - translation)</value>
+    <comment/>
+  </data>
+  <data name="TabDelimiter" xml:space="preserve">
+    <value>Tab (term	translation)</value>
+    <comment/>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Error</value>
+    <comment/>
+  </data>
+  <data name="NoVocabularyToImport" xml:space="preserve">
+    <value>No vocabulary to import</value>
+    <comment/>
+  </data>
+  <data name="NoValidVocabularyFound" xml:space="preserve">
+    <value>No valid vocabulary words found in the input</value>
+    <comment/>
+  </data>
+  <data name="ImportComplete" xml:space="preserve">
+    <value>Import Complete</value>
+    <comment/>
+  </data>
+  <data name="VocabularyImportSuccess" xml:space="preserve">
+    <value>Added {0} new vocabulary words.</value>
+    <comment/>
+  </data>
+  <data name="VocabularyImportWithDuplicates" xml:space="preserve">
+    <value>Added {0} new vocabulary words. Skipped {1} duplicates.</value>
+    <comment/>
+  </data>
+  <data name="FailedToImportVocabulary" xml:space="preserve">
+    <value>Failed to import vocabulary: {0}</value>
+    <comment/>
+  </data>
+  <data name="SelectFile" xml:space="preserve">
+    <value>Select a file</value>
+    <comment/>
+  </data>
+  <data name="ValidationError" xml:space="preserve">
+    <value>Validation Error</value>
+    <comment/>
+  </data>
+  <data name="TitleRequired" xml:space="preserve">
+    <value>Title is required</value>
+    <comment/>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+    <comment>Dashboard page title</comment>
+  </data>
+  <data name="VocabProgress" xml:space="preserve">
+    <value>Vocabulary Progress</value>
+    <comment>Vocabulary progress section title</comment>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Search</value>
+    <comment>Search placeholder</comment>
+  </data>
+  <data name="LoadingContent" xml:space="preserve">
+    <value>Loading content...</value>
+    <comment>Loading message</comment>
+  </data>
+  <data name="GoBack" xml:space="preserve">
+    <value>Go Back</value>
+    <comment>Button text to go back</comment>
+  </data>
+  <data name="ReadingControls" xml:space="preserve">
+    <value>Reading Controls:</value>
+    <comment>Reading instructions header</comment>
+  </data>
+  <data name="AdjustTextSize" xml:space="preserve">
+    <value>• Use A-/A+ buttons to adjust text size</value>
+    <comment>Reading instruction</comment>
+  </data>
+  <data name="TapVocabulary" xml:space="preserve">
+    <value>• Tap vocabulary words for translations</value>
+    <comment>Reading instruction</comment>
+  </data>
+  <data name="DoubleTapSentence" xml:space="preserve">
+    <value>• Double-tap any sentence to jump to that point</value>
+    <comment>Reading instruction</comment>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+    <comment>Close button</comment>
+  </data>
+  <data name="LookingUpDefinition" xml:space="preserve">
+    <value>Looking up definition...</value>
+    <comment>Loading message for dictionary</comment>
+  </data>
+  <data name="SavingWord" xml:space="preserve">
+    <value>Saving word...</value>
+    <comment>Saving vocabulary word message</comment>
+  </data>
+  <data name="RememberThisWord" xml:space="preserve">
+    <value>Remember this word</value>
+    <comment>Button to save vocabulary word</comment>
+  </data>
+  <data name="ShadowingOptions" xml:space="preserve">
+    <value>Shadowing Options</value>
+    <comment>Shadowing bottom sheet title</comment>
+  </data>
+  <data name="PlaybackSpeed" xml:space="preserve">
+    <value>Playback Speed</value>
+    <comment>Playback speed label</comment>
+  </data>
+  <data name="Voice" xml:space="preserve">
+    <value>Voice</value>
+    <comment>Voice selection label</comment>
+  </data>
+  <data name="Export" xml:space="preserve">
+    <value>Export</value>
+    <comment>Export section label</comment>
+  </data>
+  <data name="SaveAsMp3" xml:space="preserve">
+    <value>Save as MP3</value>
+    <comment>Button to save audio as MP3</comment>
+  </data>
+  <data name="Thinking" xml:space="preserve">
+    <value>Thinking.....</value>
+    <comment>Loading/thinking message</comment>
+  </data>
+  <data name="ExportAudio" xml:space="preserve">
+    <value>Export Audio</value>
+    <comment>Export audio dialog title</comment>
+  </data>
+  <data name="LastSaved" xml:space="preserve">
+    <value>Last Saved:</value>
+    <comment>Last saved file label</comment>
+  </data>
+  <data name="NoAudioAvailable" xml:space="preserve">
+    <value>No audio available to save</value>
+    <comment>Error message when no audio to save</comment>
+  </data>
+  <data name="ImportFromYouTube" xml:space="preserve">
+    <value>Import from YouTube</value>
+    <comment>Page title for YouTube import</comment>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>Clear</value>
+    <comment>Clear button</comment>
+  </data>
+  <data name="ImportAudioClip" xml:space="preserve">
+    <value>Import audio clip from YouTube video</value>
+    <comment>YouTube import instruction</comment>
+  </data>
+  <data name="YouTubeURL" xml:space="preserve">
+    <value>YouTube URL</value>
+    <comment>YouTube URL field hint</comment>
+  </data>
+  <data name="StartTimeSeconds" xml:space="preserve">
+    <value>Start time (seconds)</value>
+    <comment>Start time field hint</comment>
+  </data>
+  <data name="DurationSeconds" xml:space="preserve">
+    <value>Duration (seconds)</value>
+    <comment>Duration field hint</comment>
+  </data>
+  <data name="ImportClip" xml:space="preserve">
+    <value>Import Clip</value>
+    <comment>Import clip button</comment>
+  </data>
+  <data name="FetchTranscripts" xml:space="preserve">
+    <value>Fetch Transcripts</value>
+    <comment>Fetch transcripts button</comment>
+  </data>
+  <data name="Preview" xml:space="preserve">
+    <value>Preview</value>
+    <comment>Preview section title</comment>
+  </data>
+  <data name="UseThisClip" xml:space="preserve">
+    <value>Use This Clip</value>
+    <comment>Button to use imported clip</comment>
+  </data>
+  <data name="SelectTranscriptLanguage" xml:space="preserve">
+    <value>Select Transcript Language</value>
+    <comment>Transcript language picker hint</comment>
+  </data>
+  <data name="AutoGenerated" xml:space="preserve">
+    <value>⚠️ Auto-generated</value>
+    <comment>Auto-generated transcript label</comment>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>✓ Manual</value>
+    <comment>Manual transcript label</comment>
+  </data>
+  <data name="PolishWithAI" xml:space="preserve">
+    <value>Polish with AI</value>
+    <comment>Polish transcript button</comment>
+  </data>
+  <data name="SaveAsLearningResource" xml:space="preserve">
+    <value>Save as Learning Resource</value>
+    <comment>Save as learning resource button</comment>
+  </data>
+  <data name="TranslationPlaceholder" xml:space="preserve">
+    <value>그건 한국어로 어떻게 말해요?</value>
+    <comment>Translation input placeholder (Korean)</comment>
+  </data>
+  <data name="GO" xml:space="preserve">
+    <value>GO</value>
+    <comment>GO button text</comment>
+  </data>
+  <data name="PracticesInYear" xml:space="preserve">
+    <value>{0} practices in the last year</value>
+    <comment>Practice heat card title with count</comment>
+  </data>
+  <data name="Mon" xml:space="preserve">
+    <value>Mon</value>
+    <comment>Monday abbreviation</comment>
+  </data>
+  <data name="Wed" xml:space="preserve">
+    <value>Wed</value>
+    <comment>Wednesday abbreviation</comment>
+  </data>
+  <data name="Fri" xml:space="preserve">
+    <value>Fri</value>
+    <comment>Friday abbreviation</comment>
+  </data>
+  <data name="Less" xml:space="preserve">
+    <value>Less</value>
+    <comment>Heat map legend - less</comment>
+  </data>
+  <data name="More" xml:space="preserve">
+    <value>More</value>
+    <comment>Heat map legend - more</comment>
+  </data>
+  <data name="Total" xml:space="preserve">
+    <value>Total</value>
+    <comment>Total stat label</comment>
+  </data>
+  <data name="Known" xml:space="preserve">
+    <value>Known</value>
+    <comment>Known stat label</comment>
+  </data>
+  <data name="Learning" xml:space="preserve">
+    <value>Learning</value>
+    <comment>Learning stat label</comment>
+  </data>
+  <data name="Unknown" xml:space="preserve">
+    <value>Unknown</value>
+    <comment>Unknown stat label</comment>
+  </data>
+  <data name="AllResources" xml:space="preserve">
+    <value>All Resources</value>
+    <comment>All resources filter option</comment>
+  </data>
+  <data name="SearchVocabulary" xml:space="preserve">
+    <value>Search vocabulary...</value>
+    <comment>Search vocabulary placeholder</comment>
+  </data>
+  <data name="VocabularyManagement" xml:space="preserve">
+    <value>Vocabulary Management</value>
+    <comment>Vocabulary management page title</comment>
+  </data>
+  <data name="Select" xml:space="preserve">
+    <value>Select</value>
+    <comment>Select button/mode</comment>
+  </data>
+  <data name="Cleanup" xml:space="preserve">
+    <value>Cleanup</value>
+    <comment>Cleanup button</comment>
+  </data>
+  <data name="NoMatchFilter" xml:space="preserve">
+    <value>No vocabulary words match the current filter.</value>
+    <comment>No matches message</comment>
+  </data>
+  <data name="NoVocabularyWords" xml:space="preserve">
+    <value>No vocabulary words found. Use the + button to create your first vocabulary word.</value>
+    <comment>No vocabulary message</comment>
+  </data>
+  <data name="GetStarted" xml:space="preserve">
+    <value>Get Started</value>
+    <comment>Get started button</comment>
+  </data>
+  <data name="Orphaned" xml:space="preserve">
+    <value>⚠️ Orphaned</value>
+    <comment>Orphaned word label</comment>
+  </data>
+  <data name="ResourceCount" xml:space="preserve">
+    <value>📚 {0} resource(s)</value>
+    <comment>Resource count label with count parameter</comment>
+  </data>
+  <data name="Selected" xml:space="preserve">
+    <value>{0} selected</value>
+    <comment>Selected count label</comment>
+  </data>
+  <data name="Associate" xml:space="preserve">
+    <value>Associate</value>
+    <comment>Associate button</comment>
+  </data>
+  <data name="VocabularyCleanup" xml:space="preserve">
+    <value>Vocabulary Cleanup</value>
+    <comment>Cleanup dialog title</comment>
+  </data>
+  <data name="FixSwappedLanguages" xml:space="preserve">
+    <value>Fix Swapped Languages</value>
+    <comment>Cleanup option title</comment>
+  </data>
+  <data name="SwapLanguagesDescription" xml:space="preserve">
+    <value>Swap words where target language appears to be English and native language appears to be Korean</value>
+    <comment>Swap languages cleanup description</comment>
+  </data>
+  <data name="RunLanguageSwapCleanup" xml:space="preserve">
+    <value>Run Language Swap Cleanup</value>
+    <comment>Run cleanup button</comment>
+  </data>
+  <data name="AssignOrphanedWords" xml:space="preserve">
+    <value>Assign Orphaned Words</value>
+    <comment>Cleanup option title</comment>
+  </data>
+  <data name="AssignOrphanedDescription" xml:space="preserve">
+    <value>Associate words without a learning resource to a general vocabulary list</value>
+    <comment>Assign orphaned description</comment>
+  </data>
+  <data name="RunOrphanAssignment" xml:space="preserve">
+    <value>Run Orphan Assignment</value>
+    <comment>Run orphan assignment button</comment>
+  </data>
+  <data name="RunningCleanup" xml:space="preserve">
+    <value>Running cleanup...</value>
+    <comment>Running cleanup message</comment>
+  </data>
+  <data name="ConfirmDelete" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Confirm delete dialog title</comment>
+  </data>
+  <data name="ConfirmDeleteMultiple" xml:space="preserve">
+    <value>Are you sure you want to delete {0} vocabulary word(s)?</value>
+    <comment>Confirm delete message with count</comment>
+  </data>
+  <data name="Success" xml:space="preserve">
+    <value>Success</value>
+    <comment>Success message</comment>
+  </data>
+  <data name="SessionComplete" xml:space="preserve">
+    <value>📚 Session Complete!</value>
+    <comment>Session complete title</comment>
+  </data>
+  <data name="GreatWorkProgress" xml:space="preserve">
+    <value>Great work! Here's your progress:</value>
+    <comment>Session complete message</comment>
+  </data>
+  <data name="SessionResults" xml:space="preserve">
+    <value>📊 Session Results</value>
+    <comment>Session results title</comment>
+  </data>
+  <data name="Correct" xml:space="preserve">
+    <value>Correct</value>
+    <comment>Correct label</comment>
+  </data>
+  <data name="Incorrect" xml:space="preserve">
+    <value>Incorrect</value>
+    <comment>Incorrect label</comment>
+  </data>
+  <data name="YouPracticed" xml:space="preserve">
+    <value>You practiced {0} sentence{1}</value>
+    <comment>Session practice count message</comment>
+  </data>
+  <data name="ContinuePractice" xml:space="preserve">
+    <value>Continue Practice</value>
+    <comment>Continue practice button</comment>
+  </data>
+  <data name="Answer" xml:space="preserve">
+    <value>Answer</value>
+    <comment>Answer label</comment>
+  </data>
+  <data name="ContinuePracticeQuestion" xml:space="preserve">
+    <value>Would you like to get more sentences?</value>
+    <comment>Continue practice question</comment>
+  </data>
+  <data name="NoMoreSentences" xml:space="preserve">
+    <value>No More Sentences</value>
+    <comment>No more sentences dialog title</comment>
+  </data>
+  <data name="NoMoreSentencesMessage" xml:space="preserve">
+    <value>There are no more sentences available for this resource.</value>
+    <comment>No more sentences message</comment>
+  </data>
+  <data name="UnableToLoadSentences" xml:space="preserve">
+    <value>Unable to load more sentences.</value>
+    <comment>Error loading sentences message</comment>
+  </data>
+  <data name="Ready" xml:space="preserve">
+    <value>Ready</value>
+    <comment>Ready status message</comment>
+  </data>
+  <data name="VocabularyProgress" xml:space="preserve">
+    <value>Vocabulary Progress</value>
+    <comment>Vocabulary progress page default title</comment>
+  </data>
+  <data name="AddVocabularyWord" xml:space="preserve">
+    <value>Add Vocabulary Word</value>
+    <comment>Add vocabulary word page title</comment>
+  </data>
+  <data name="EditVocabularyWord" xml:space="preserve">
+    <value>Edit Vocabulary Word</value>
+    <comment>Edit vocabulary word page title</comment>
+  </data>
+  <data name="VocabularyTerms" xml:space="preserve">
+    <value>Vocabulary Terms</value>
+    <comment>Vocabulary terms section title</comment>
+  </data>
+  <data name="TargetLanguageTerm" xml:space="preserve">
+    <value>Target Language Term</value>
+    <comment>Target language term label</comment>
+  </data>
+  <data name="EnterTargetLanguageTerm" xml:space="preserve">
+    <value>Enter target language term (e.g., 안녕하세요)</value>
+    <comment>Target language term placeholder</comment>
+  </data>
+  <data name="NativeLanguageTerm" xml:space="preserve">
+    <value>Native Language Term</value>
+    <comment>Native language term label</comment>
+  </data>
+  <data name="EnterNativeLanguageTerm" xml:space="preserve">
+    <value>Enter native language term (e.g., Hello)</value>
+    <comment>Native language term placeholder</comment>
+  </data>
+  <data name="ResourceAssociations" xml:space="preserve">
+    <value>Resource Associations</value>
+    <comment>Resource associations section title</comment>
+  </data>
+  <data name="AssociateWithResources" xml:space="preserve">
+    <value>Associate with learning resources</value>
+    <comment>Associate with resources instruction</comment>
+  </data>
+  <data name="NoResources" xml:space="preserve">
+    <value>No Resources</value>
+    <comment>No resources alert title</comment>
+  </data>
+  <data name="NoResourcesAvailable" xml:space="preserve">
+    <value>No learning resources available for association.</value>
+    <comment>No resources alert message</comment>
+  </data>
+  <data name="SelectResourceToAssociate" xml:space="preserve">
+    <value>Select a resource to associate this word with:</value>
+    <comment>Resource selection instruction</comment>
+  </data>
+  <data name="ImportAudioClipFromYouTube" xml:space="preserve">
+    <value>Import audio clip from YouTube video</value>
+    <comment>YouTube import page subtitle</comment>
+  </data>
+  <data name="ImportClipButton" xml:space="preserve">
+    <value>Import Clip</value>
+    <comment>Import clip button text</comment>
+  </data>
+  <data name="FetchTranscriptsButton" xml:space="preserve">
+    <value>Fetch Transcripts</value>
+    <comment>Fetch transcripts button text</comment>
+  </data>
+  <data name="UseThisClipButton" xml:space="preserve">
+    <value>Use This Clip</value>
+    <comment>Use this clip button text</comment>
+  </data>
+  <data name="FailedToLoadData" xml:space="preserve">
+    <value>Failed to load data: {0}</value>
+    <comment>Failed to load data error message with exception</comment>
+  </data>
+  <data name="FailedToLoadVocabulary" xml:space="preserve">
+    <value>Failed to load vocabulary: {0}</value>
+    <comment>Failed to load vocabulary error message with exception</comment>
+  </data>
+  <data name="FailedToLoadVocabularyData" xml:space="preserve">
+    <value>Failed to load vocabulary data. Please try again.</value>
+    <comment>Failed to load vocabulary data error message</comment>
+  </data>
+  <data name="FailedToDeleteVocabulary" xml:space="preserve">
+    <value>Failed to delete vocabulary: {0}</value>
+    <comment>Failed to delete vocabulary error message with exception</comment>
+  </data>
+  <data name="FailedToAssociateVocabulary" xml:space="preserve">
+    <value>Failed to associate vocabulary: {0}</value>
+    <comment>Failed to associate vocabulary error message with exception</comment>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+    <comment>No button text</comment>
+  </data>
+  <data name="ResetProfileConfirmation" xml:space="preserve">
+    <value>Are you sure you want to reset your profile?</value>
+    <comment>Reset profile confirmation message</comment>
+  </data>
+  <data name="ProfileReset" xml:space="preserve">
+    <value>Profile reset</value>
+    <comment>Profile reset toast message</comment>
+  </data>
+  <data name="Deleted" xml:space="preserve">
+    <value>Deleted</value>
+    <comment>Deleted toast message</comment>
+  </data>
+  <data name="SomethingWentWrong" xml:space="preserve">
+    <value>Something went wrong. Check the server.</value>
+    <comment>Generic error message</comment>
+  </data>
+  <data name="Explanation" xml:space="preserve">
+    <value>Explanation</value>
+    <comment>Explanation dialog title</comment>
+  </data>
+  <data name="NoDefinitionFound" xml:space="preserve">
+    <value>No definition found</value>
+    <comment>Message when word definition lookup fails</comment>
+  </data>
+  <data name="SentenceProgress" xml:space="preserve">
+    <value>Sentence {0} of {1}</value>
+    <comment>Shows current sentence number and total. {0} = current sentence, {1} = total sentences</comment>
+  </data>
 </root>

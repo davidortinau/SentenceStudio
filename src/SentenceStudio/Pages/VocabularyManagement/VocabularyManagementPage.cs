@@ -64,8 +64,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     public override VisualNode Render()
     {
-        return ContentPage("Vocabulary Management",
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
+        return ContentPage($"{_localize["VocabularyManagement"]}",
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
                 .IconImageSource(new FontImageSource
                 {
                     FontFamily = FluentUI.FontFamily,
@@ -73,7 +73,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     Color = MyTheme.HighlightDarkest
                 })
                 .OnClicked(async () => await ToggleQuickAdd()),
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Select")
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Select"]}")
                 .IconImageSource(new FontImageSource
                 {
                     FontFamily = FluentUI.FontFamily,
@@ -81,7 +81,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     Color = MyTheme.HighlightDarkest
                 })
                 .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Cleanup")
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Cleanup"]}")
                 .IconImageSource(new FontImageSource
                 {
                     FontFamily = FluentUI.FontFamily,
@@ -204,13 +204,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         {
             return VStack(
                 Label(State.AllVocabularyItems.Any() ?
-                    "No vocabulary words match the current filter." :
-                    "No vocabulary words found. Use the + button to create your first vocabulary word.")
+                    $"{_localize["NoMatchFilter"]}" :
+                    $"{_localize["NoVocabularyWords"]}")
                     .ThemeKey(MyTheme.Body1)
                     .Center(),
 
                 !State.AllVocabularyItems.Any() ?
-                    Button("Get Started")
+                    Button($"{_localize["GetStarted"]}")
                         .ThemeKey("Primary")
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
@@ -277,7 +277,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         CheckBox()
                             .IsChecked(item.IsSelected)
                             .OnCheckedChanged(isChecked => ToggleItemSelection(item.Word.Id, isChecked)),
-                        Label("Select")
+                        Label($"{_localize["Select"]}")
                             .ThemeKey(MyTheme.Caption2)
                             .VCenter()
                     ).HStart() :
@@ -301,7 +301,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .ThemeKey(MyTheme.Body2),
 
             // Status and resources
-            Label(item.IsOrphaned ? "⚠️ Orphaned" : $"📚 {item.AssociatedResources.Count} resource(s)")
+            Label(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))
                 .ThemeKey(MyTheme.Caption2)
                 .FontAttributes(FontAttributes.Bold)
 
@@ -324,7 +324,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"LoadData error: {ex}");
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to load vocabulary data. Please try again.", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["FailedToLoadVocabularyData"]}", $"{_localize["OK"]}");
 
             // Set safe defaults on error
             SetState(s =>
@@ -529,9 +529,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         if (!State.SelectedWordIds.Any()) return;
 
         bool confirm = await Application.Current.MainPage.DisplayAlert(
-            "Confirm Delete",
-            $"Are you sure you want to delete {State.SelectedWordIds.Count} vocabulary word(s)?",
-            "Yes", "No");
+            $"{_localize["ConfirmDelete"]}",
+            string.Format($"{_localize["ConfirmDeleteMultiple"]}", State.SelectedWordIds.Count),
+            $"{_localize["Yes"]}", $"{_localize["No"]}");
 
         if (!confirm) return;
 
@@ -545,7 +545,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToDeleteVocabulary"]}", ex.Message), $"{_localize["OK"]}");
         }
     }
 
@@ -567,7 +567,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to associate vocabulary: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToAssociateVocabulary"]}", ex.Message), $"{_localize["OK"]}");
         }
     }
 
@@ -575,7 +575,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         if (!State.AvailableResources.Any())
         {
-            await Application.Current.MainPage.DisplayAlert("No Resources", "No learning resources available for association.", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["NoResources"]}", "No learning resources available for association.", $"{_localize["OK"]}");
             return null;
         }
 
@@ -634,19 +634,19 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderCleanupSheet()
         => new SfBottomSheet(
             VStack(
-                Label("Vocabulary Cleanup")
+                Label($"{_localize["VocabularyCleanup"]}")
                     .FontSize(20)
                     .FontAttributes(MauiControls.FontAttributes.Bold)
                     .Margin(0, 0, 0, 8),
 
-                Label("Fix Swapped Languages")
+                Label($"{_localize["FixSwappedLanguages"]}")
                     .FontSize(16)
                     .FontAttributes(MauiControls.FontAttributes.Bold),
-                Label("Swap words where target language appears to be English and native language appears to be Korean")
+                Label($"{_localize["SwapLanguagesDescription"]}")
                     .FontSize(12)
                     .Opacity(0.7)
                     .Margin(0, 0, 0, 4),
-                Button("Run Language Swap Cleanup")
+                Button($"{_localize["RunLanguageSwapCleanup"]}")
                     .OnClicked(RunLanguageSwapCleanup)
                     .IsEnabled(!State.IsCleanupRunning),
 
@@ -655,21 +655,21 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .BackgroundColor(Colors.Gray.WithAlpha(0.3f))
                     .Margin(0, 8),
 
-                Label("Assign Orphaned Words")
+                Label($"{_localize["AssignOrphanedWords"]}")
                     .FontSize(16)
                     .FontAttributes(MauiControls.FontAttributes.Bold),
-                Label("Associate words without a learning resource to a general vocabulary list")
+                Label($"{_localize["AssignOrphanedDescription"]}")
                     .FontSize(12)
                     .Opacity(0.7)
                     .Margin(0, 0, 0, 4),
-                Button("Run Orphan Assignment")
+                Button($"{_localize["RunOrphanAssignment"]}")
                     .OnClicked(RunOrphanAssignment)
                     .IsEnabled(!State.IsCleanupRunning),
 
                 State.IsCleanupRunning
                     ? HStack(
                         ActivityIndicator().IsRunning(true),
-                        Label("Running cleanup...").VCenter()
+                        Label($"{_localize["RunningCleanup"]}").VCenter()
                     ).Spacing(8).HCenter().Margin(8, 16, 8, 0)
                     : null
             )

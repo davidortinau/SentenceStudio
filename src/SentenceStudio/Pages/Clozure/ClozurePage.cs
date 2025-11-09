@@ -342,15 +342,18 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		.GridRow(2);
 
 	VisualNode RenderTextInput() =>
-		new SfTextInputLayout(
-			Entry()
-				.FontSize(32)
-				.Text(State.UserInput)
-				.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-				.ReturnType(ReturnType.Go)
-				.OnCompleted(GradeMe)
+
+		VStack(
+			Label("Answer").ThemeKey(MyTheme.Body1Strong),
+			Border(
+				Entry()
+					.FontSize(32)
+					.Text(State.UserInput)
+					.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+					.ReturnType(ReturnType.Go)
+					.OnCompleted(GradeMe)
+			).ThemeKey(MyTheme.InputWrapper)
 		)
-		.Hint("Answer")
 		.GridRow(1)
 		.GridColumn(0)
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
@@ -822,10 +825,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		});
 
 		var result = await Application.Current.MainPage.DisplayAlert(
-			_localize["Continue Practice"].ToString(),
-			_localize["Would you like to get more sentences?"].ToString(),
-			_localize["Yes"].ToString(),
-			_localize["No"].ToString()
+			$"{_localize["Continue Practice"]}",
+			$"{_localize["Would you like to get more sentences?"]}",
+			$"{_localize["Yes"]}",
+			$"{_localize["No"]}"
 		);
 
 		if (result)
@@ -857,9 +860,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				else
 				{
 					await Application.Current.MainPage.DisplayAlert(
-						_localize["No More Sentences"].ToString(),
-						_localize["There are no more sentences available for this resource."].ToString(),
-						_localize["OK"].ToString()
+						$"{_localize["No More Sentences"]}",
+						$"{_localize["There are no more sentences available for this resource."]}",
+						$"{_localize["OK"]}"
 					);
 				}
 			}
@@ -867,9 +870,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			{
 				Debug.WriteLine(ex.Message);
 				await Application.Current.MainPage.DisplayAlert(
-					_localize["Error"].ToString(),
-					_localize["Unable to load more sentences."].ToString(),
-					_localize["OK"].ToString()
+					$"{_localize["Error"]}",
+					$"{_localize["Unable to load more sentences."]}",
+					$"{_localize["OK"]}"
 				);
 			}
 			finally

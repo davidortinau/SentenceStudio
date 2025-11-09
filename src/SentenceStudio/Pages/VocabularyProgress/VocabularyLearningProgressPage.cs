@@ -16,7 +16,7 @@ public enum VocabularyFilterType
 class VocabularyProgressProps
 {
     public int? ResourceId { get; set; }
-    public string Title { get; set; } = "Vocabulary Progress";
+    public string Title { get; set; } = string.Empty;
     public VocabularyFilterType? InitialFilter { get; set; }
 }
 
@@ -37,9 +37,14 @@ public class VocabularyProgressItem
                                 IsLearning ? MyTheme.Warning :
                                 MyTheme.Gray400;
 
-    public string StatusText => IsKnown ? "Known" :
-                                IsLearning ? "Learning" :
-                                "Unknown";
+    public string StatusText {
+        get {
+            var localize = LocalizationManager.Instance;
+            return IsKnown ? $"{localize["Known"]}" :
+                            IsLearning ? $"{localize["Learning"]}" :
+                            $"{localize["Unknown"]}";
+        }
+    }
 
     public double MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0.0;
     public double TextEntryProgress => Progress?.TextEntryProgress ?? 0.0;
@@ -68,10 +73,11 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] VocabularyLearningContextRepository _contextRepo;
+    LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
     {
-        return ContentPage(Props?.Title ?? "Vocabulary Progress",
+        return ContentPage(Props?.Title ?? $"{_localize["VocabularyProgress"]}",
             State.IsBusy ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
@@ -90,10 +96,10 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         VStack(
             Border(
                 HStack(spacing: MyTheme.SectionSpacing,
-                    RenderStatCard("Total", State.TotalWords, MyTheme.HighlightDarkest),
-                    RenderStatCard("Known", State.KnownWords, MyTheme.Success),
-                    RenderStatCard("Learning", State.LearningWords, MyTheme.Warning),
-                    RenderStatCard("Unknown", State.UnknownWords, MyTheme.Gray400)
+                    RenderStatCard($"{_localize["Total"]}", State.TotalWords, MyTheme.HighlightDarkest),
+                    RenderStatCard($"{_localize["Known"]}", State.KnownWords, MyTheme.Success),
+                    RenderStatCard($"{_localize["Learning"]}", State.LearningWords, MyTheme.Warning),
+                    RenderStatCard($"{_localize["Unknown"]}", State.UnknownWords, MyTheme.Gray400)
                 ).HCenter()
             )
             .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
@@ -119,26 +125,26 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     VisualNode RenderFilters() =>
         VStack(spacing: MyTheme.CardPadding,
             // Resource picker - simplified for now
-            Label("All Resources")
+            Label($"{_localize["AllResources"]}")
                 .FontSize(16)
                 .FontAttributes(FontAttributes.Bold)
                 .HCenter(),
 
             // Status filter buttons
             HStack(spacing: MyTheme.ComponentSpacing,
-                Button("All")
+                Button($"{_localize["All"]}")
                     .Background(State.SelectedFilter == VocabularyFilterType.All ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
                     .TextColor(State.SelectedFilter == VocabularyFilterType.All ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.All)),
-                Button("Known")
+                Button($"{_localize["Known"]}")
                     .Background(State.SelectedFilter == VocabularyFilterType.Known ? MyTheme.SupportSuccessDark : MyTheme.Gray200Brush)
                     .TextColor(State.SelectedFilter == VocabularyFilterType.Known ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Known)),
-                Button("Learning")
+                Button($"{_localize["Learning"]}")
                     .Background(State.SelectedFilter == VocabularyFilterType.Learning ? MyTheme.SupportErrorDark : MyTheme.Gray200Brush)
                     .TextColor(State.SelectedFilter == VocabularyFilterType.Learning ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Learning)),
-                Button("Unknown")
+                Button($"{_localize["Unknown"]}")
                     .Background(State.SelectedFilter == VocabularyFilterType.Unknown ? MyTheme.Gray400Brush : MyTheme.Gray200Brush)
                     .TextColor(State.SelectedFilter == VocabularyFilterType.Unknown ? Colors.White : MyTheme.Gray600)
                     .OnClicked(() => OnFilterChanged(VocabularyFilterType.Unknown))
@@ -146,7 +152,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
 
             // Search entry
             Entry()
-                .Placeholder("Search vocabulary...")
+                .Placeholder($"{_localize["SearchVocabulary"]}")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
         ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing, MyTheme.LayoutSpacing, MyTheme.ComponentSpacing).GridRow(1);
@@ -219,7 +225,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to load data: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadData"]}", ex.Message), $"{_localize["OK"]}");
         }
         finally
         {
@@ -291,7 +297,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to load vocabulary: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message), $"{_localize["OK"]}");
         }
     }
 

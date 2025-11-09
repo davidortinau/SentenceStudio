@@ -117,19 +117,19 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             Grid("*", "*",
                 ScrollView(
                     VStack(
-                        Label(_localize["KoreanVoices"].ToString())
+                        Label($"{_localize["KoreanVoices"]}")
                             .FontAttributes(FontAttributes.Bold)
                             .FontSize(18)
                             .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                             .HCenter()
                             .Margin(0, 0, 0, MyTheme.ComponentSpacing),
-                        CreateVoiceOption("yuna", _localize["VoiceYuna"].ToString(), _localize["VoiceYunaDesc"].ToString()),
-                        CreateVoiceOption("jiyoung", _localize["VoiceJiyoung"].ToString(), _localize["VoiceJiyoungDesc"].ToString()),
-                        CreateVoiceOption("jina", _localize["VoiceJina"].ToString(), _localize["VoiceJinaDesc"].ToString()),
-                        CreateVoiceOption("jennie", _localize["VoiceJennie"].ToString(), _localize["VoiceJennieDesc"].ToString()),
-                        CreateVoiceOption("hyunbin", _localize["VoiceHyunbin"].ToString(), _localize["VoiceHyunbinDesc"].ToString()),
-                        CreateVoiceOption("dohyeon", _localize["VoiceDohyeon"].ToString(), _localize["VoiceDohyeonDesc"].ToString()),
-                        CreateVoiceOption("yohankoo", _localize["VoiceYohankoo"].ToString(), _localize["VoiceYohankooDesc"].ToString())
+                        CreateVoiceOption("yuna", $"{_localize["VoiceYuna"]}", $"{_localize["VoiceYunaDesc"]}"),
+                        CreateVoiceOption("jiyoung", $"{_localize["VoiceJiyoung"]}", $"{_localize["VoiceJiyoungDesc"]}"),
+                        CreateVoiceOption("jina", $"{_localize["VoiceJina"]}", $"{_localize["VoiceJinaDesc"]}"),
+                        CreateVoiceOption("jennie", $"{_localize["VoiceJennie"]}", $"{_localize["VoiceJennieDesc"]}"),
+                        CreateVoiceOption("hyunbin", $"{_localize["VoiceHyunbin"]}", $"{_localize["VoiceHyunbinDesc"]}"),
+                        CreateVoiceOption("dohyeon", $"{_localize["VoiceDohyeon"]}", $"{_localize["VoiceDohyeonDesc"]}"),
+                        CreateVoiceOption("yohankoo", $"{_localize["VoiceYohankoo"]}", $"{_localize["VoiceYohankooDesc"]}")
                     )
                     .Spacing(MyTheme.LayoutSpacing)
                     .Padding(MyTheme.SectionSpacing, MyTheme.ComponentSpacing)
