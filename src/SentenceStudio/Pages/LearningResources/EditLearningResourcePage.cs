@@ -72,7 +72,34 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         // Vocabulary word editor overlay
                         State.IsVocabularySheetVisible ?
                             RenderVocabularyWordEditor() :
-                            null
+                            null,
+
+                        // Activity indicator overlay for AI polishing/cleaning
+                        (State.IsPolishingTranscript || State.IsCleaningTranscript) ?
+                            Grid(
+                                BoxView()
+                                    .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
+                                
+                                VStack(spacing: 15,
+                                    ActivityIndicator()
+                                        .IsRunning(true)
+                                        .Color(Colors.White),
+                                    
+                                    Label(State.IsPolishingTranscript ? "✨ Polishing transcript with AI..." : "🧹 Cleaning up transcript...")
+                                        .TextColor(Colors.White)
+                                        .FontSize(16)
+                                        .HorizontalTextAlignment(TextAlignment.Center),
+                                    
+                                    Label("Please wait, this may take a moment")
+                                        .TextColor(Colors.White.WithAlpha(0.8f))
+                                        .FontSize(14)
+                                        .HorizontalTextAlignment(TextAlignment.Center)
+                                )
+                                .VCenter()
+                                .HCenter()
+                                .Padding(30)
+                            )
+                            : null
                     )
             )
         ).OnAppearing(LoadResource);
@@ -176,12 +203,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         Button("Polish with AI")
                             .OnClicked(PolishTranscriptWithAi)
                             .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                            .ThemeKey("Secondary"),
-
-                        ActivityIndicator()
-                            .IsRunning(State.IsCleaningTranscript || State.IsPolishingTranscript)
-                            .IsVisible(State.IsCleaningTranscript || State.IsPolishingTranscript)
-                            .Scale(0.8)
+                            .ThemeKey("Secondary")
                     )
                     .Spacing(MyTheme.ComponentSpacing)
                     .HStart(),

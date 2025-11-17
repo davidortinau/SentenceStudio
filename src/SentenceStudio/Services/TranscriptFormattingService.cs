@@ -132,11 +132,20 @@ public class TranscriptFormattingService
         if (string.IsNullOrWhiteSpace(transcript))
             return transcript;
 
+        System.Diagnostics.Debug.WriteLine($"🚀 PolishWithAiAsync started");
+        System.Diagnostics.Debug.WriteLine($"📏 Input length: {transcript.Length} chars");
+        System.Diagnostics.Debug.WriteLine($"🌍 Language: {language ?? "null"}");
+
+        // Check for speaker markers in input
+        var speakerMarkerCount = transcript.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+            .Count(line => line.TrimStart().StartsWith(">> "));
+        System.Diagnostics.Debug.WriteLine($"🎤 Found {speakerMarkerCount} speaker markers (>> ) in input");
+
         // Check cache first
         var hash = ComputeHash(transcript);
         if (_aiPolishCache.TryGetValue(hash, out var cachedResult))
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Using cached AI polish result");
+            System.Diagnostics.Debug.WriteLine($"✅ Using cached AI polish result");
             return cachedResult;
         }
 
@@ -153,6 +162,7 @@ CRITICAL RULES:
 4. Join incomplete sentences that were broken mid-sentence
 5. Group complete sentences into natural paragraphs (2-4 sentences per paragraph)
 6. Keep standalone lines separate (greetings like ""안녕하세요"", closings like ""감사합니다"", music notations like ""[음악]"")
+7. SPEAKER MARKERS: Lines starting with "">> "" indicate a new speaker - ALWAYS keep these on a new line, never merge them with previous text
 
 EXAMPLES:
 
@@ -170,6 +180,16 @@ GOOD (properly formatted):
 
 한국어 한조각의 전문
 
+BAD (speaker marker merged):
+Hello everyone. >> Welcome to the show. >> Let's get started.
+
+GOOD (speaker markers on new lines):
+Hello everyone.
+
+>> Welcome to the show.
+
+>> Let's get started.
+
 ---
 
 Return ONLY the formatted text with no explanations, markdown, or additional commentary.
@@ -177,7 +197,7 @@ Return ONLY the formatted text with no explanations, markdown, or additional com
 Transcript to format:
 {transcript}";
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Sending transcript to AI for polishing (length: {transcript.Length} chars)");
+            System.Diagnostics.Debug.WriteLine($"🤖 Sending to AI...");
 
             var polished = await _aiService.SendPrompt<string>(prompt);
 
@@ -187,9 +207,19 @@ Transcript to format:
                 throw new Exception("AI service returned empty result. Check your internet connection and API configuration.");
             }
 
+            // Verify speaker markers are preserved
+            var polishedSpeakerCount = polished.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                .Count(line => line.TrimStart().StartsWith(">> "));
+            System.Diagnostics.Debug.WriteLine($"🎤 Speaker markers in output: {polishedSpeakerCount}");
+            
+            if (speakerMarkerCount != polishedSpeakerCount)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Speaker marker count mismatch! Input: {speakerMarkerCount}, Output: {polishedSpeakerCount}");
+            }
+
             // Cache the result
             _aiPolishCache[hash] = polished;
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI polish complete, cached result (length: {polished.Length} chars)");
+            System.Diagnostics.Debug.WriteLine($"✅ AI polish complete, cached result (length: {polished.Length} chars)");
             return polished;
         }
         catch (Exception ex)

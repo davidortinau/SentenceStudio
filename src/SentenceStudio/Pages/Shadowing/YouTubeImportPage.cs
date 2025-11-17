@@ -5,13 +5,8 @@ namespace SentenceStudio.Pages.YouTube;
 class YouTubeImportState
 {
     public string VideoUrl { get; set; } = string.Empty;
-    public double StartTimeSeconds { get; set; } = 0;
-    public double DurationSeconds { get; set; } = 5;
-    public bool IsImporting { get; set; } = false;
     public string ErrorMessage { get; set; } = string.Empty;
-    public StreamHistory ImportedClip { get; set; }
 
-    // Transcript-related properties
     public List<TranscriptTrack> AvailableTranscripts { get; set; } = new();
     public TranscriptTrack SelectedTranscript { get; set; }
     public string TranscriptText { get; set; } = string.Empty;
@@ -37,9 +32,10 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             ToolbarItem($"{_localize["Clear"]}")
                 .OnClicked(ClearPage),
 
-            ScrollView(
-                VStack(spacing: MyTheme.LayoutSpacing,
-                    Label($"{_localize["ImportAudioClipFromYouTube"]}")
+            Grid(
+                ScrollView(
+                    VStack(spacing: MyTheme.LayoutSpacing,
+                        Label($"{_localize["ImportAudioClipFromYouTube"]}")
                         .ThemeKey("Title"),
 
                     new SfTextInputLayout
@@ -50,72 +46,16 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     }
                         .Hint($"{_localize["YouTubeURL"]}"),
 
-                    Grid(rows: "Auto", columns: "*,*",
-                        new SfTextInputLayout
-                        {
-                            Entry()
-                                .Keyboard(Keyboard.Numeric)
-                                .Text(State.StartTimeSeconds.ToString())
-                                .OnTextChanged((val) =>
-                                {
-                                    if (double.TryParse(val, out double seconds))
-                                        SetState(s => s.StartTimeSeconds = seconds);
-                                })
-                        }
-                            .Hint($"{_localize["StartTimeSeconds"]}")
-                            .GridColumn(0),
-
-                        new SfTextInputLayout
-                        {
-                            Entry()
-                                .Keyboard(Keyboard.Numeric)
-                                .Text(State.DurationSeconds.ToString())
-                                .OnTextChanged((val) =>
-                                {
-                                    if (double.TryParse(val, out double seconds))
-                                        SetState(s => s.DurationSeconds = seconds);
-                                })
-                        }
-                            .Hint($"{_localize["DurationSeconds"]}")
-                            .GridColumn(1)
-                    ).ColumnSpacing(MyTheme.LayoutSpacing),
-
-                HStack(
-                    Button($"{_localize["ImportClip"]}")
-                        .OnClicked(ImportClipAsync)
-                        .IsEnabled(!State.IsImporting && !string.IsNullOrEmpty(State.VideoUrl))
-                        .HStart(),
-
                     Button($"{_localize["FetchTranscripts"]}")
                         .OnClicked(FetchTranscriptsAsync)
                         .IsEnabled(!State.IsLoadingTranscripts && !string.IsNullOrEmpty(State.VideoUrl))
-                        .HEnd()
-                ).Spacing(MyTheme.LayoutSpacing),
+                        .HStart(),
 
                 Label(State.ErrorMessage)
                     .IsVisible(!string.IsNullOrEmpty(State.ErrorMessage)),
 
                 Label(State.TranscriptMessage)
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptMessage)),
-
-                VStack(spacing: 10,
-                    Label("Preview")
-                        .ThemeKey("Subtitle")
-                        .HStart(),
-
-                    new WaveformView()
-                        .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-                        .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
-                        .Amplitude(Constants.Amplitude)
-                        .ShowTimeScale(true)
-                        .WaveformData(State.ImportedClip?.WaveformData)
-                        .AudioDuration(State.ImportedClip?.Duration ?? 0)
-                ),
-                // .IsVisible(State.ImportedClip != null),
-
-                Button("Use This Clip")
-                    .IsEnabled(State.ImportedClip != null)
-                    .OnClicked(AddClipToLibrary),
 
                 // Transcript picker (when multiple transcripts available)
                 new SfTextInputLayout
@@ -133,14 +73,14 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                             }
                         })
                 }
-                    .Hint("Select Transcript Language")
+                    .Hint($"{_localize["SelectTranscriptLanguage"]}")
                     .IsVisible(State.ShowTranscriptPicker),
 
                 VStack(
-                    Label($"Language: {State.SelectedTranscript?.LanguageName ?? "None"}")
+                    Label($"{_localize["Language"]}: {State.SelectedTranscript?.LanguageName ?? "None"}")
                         .IsVisible(State.SelectedTranscript != null),
 
-                    Label(State.SelectedTranscript?.IsAutoGenerated == true ? "⚠️ Auto-generated" : "✓ Manual")
+                    Label(State.SelectedTranscript?.IsAutoGenerated == true ? $"{_localize["AutoGenerated"]}" : $"{_localize["Manual"]}")
                         .IsVisible(State.SelectedTranscript != null)
                         .FontSize(12)
                 )
@@ -155,64 +95,53 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                         .MinimumHeightRequest(200)
                         .AutoSize(EditorAutoSizeOption.TextChanges)
                 }
-                    .Hint("Transcript")
+                    .Hint($"{_localize["Transcript"]}")
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText)),
 
                 // Polish with AI button
-                Button("Polish with AI")
+                Button($"{_localize["PolishWithAI"]}")
                     .OnClicked(PolishTranscriptWithAi)
                     .IsEnabled(!State.IsPolishingTranscript && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText))
                     .HStart(),
 
                 // Save transcript button
-                Button("Save as Learning Resource")
+                Button($"{_localize["SaveAsLearningResource"]}")
                     .OnClicked(SaveTranscriptAsResource)
                     .IsEnabled(!State.IsSavingResource && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText) && State.SavedResourceId == null)
             )
             .Padding(new Thickness(15))
+            ),
+
+            // Activity indicator overlay for polishing
+            State.IsPolishingTranscript ?
+                Grid(
+                    BoxView()
+                        .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
+                    
+                    VStack(spacing: 15,
+                        ActivityIndicator()
+                            .IsRunning(true)
+                            .Color(Colors.White),
+                        
+                        Label($"{_localize["PolishingTranscriptWithAI"]}")
+                            .TextColor(Colors.White)
+                            .FontSize(16)
+                            .HorizontalTextAlignment(TextAlignment.Center),
+                        
+                        Label("Please wait, this may take a moment")
+                            .TextColor(Colors.White.WithAlpha(0.8f))
+                            .FontSize(14)
+                            .HorizontalTextAlignment(TextAlignment.Center)
+                    )
+                    .VCenter()
+                    .HCenter()
+                    .Padding(30)
+                )
+                : null
             )
         );
-    }
-
-    async Task ImportClipAsync()
-    {
-        try
-        {
-            SetState(s =>
-            {
-                s.IsImporting = true;
-                s.ErrorMessage = string.Empty;
-                s.ImportedClip = null;
-            });
-
-            var importedClip = await _youtubeImportService.ExtractAudioClipAsync(
-                State.VideoUrl,
-                State.StartTimeSeconds,
-                State.DurationSeconds
-            );
-
-            SetState(s =>
-            {
-                s.ImportedClip = importedClip;
-                s.IsImporting = false;
-            });
-        }
-        catch (Exception ex)
-        {
-            SetState(s =>
-            {
-                s.ErrorMessage = $"Import failed: {ex.Message}";
-                s.IsImporting = false;
-            });
-        }
-    }
-
-    async Task AddClipToLibrary()
-    {
-        // Add code to save this clip to your app's library
-        // This would depend on how you're managing audio in your app
     }
 
     async Task FetchTranscriptsAsync()
@@ -328,6 +257,31 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
         _ => "en"
     };
 
+    string CleanLanguageName(string languageName)
+    {
+        if (string.IsNullOrWhiteSpace(languageName))
+            return languageName;
+
+        // Remove common YouTube transcript suffixes
+        var patterns = new[]
+        {
+            " (auto-generated)",
+            " (auto generated)",
+            " (autogenerated)",
+            " - auto-generated",
+            " [auto-generated]",
+            " (automatic)"
+        };
+
+        var cleaned = languageName;
+        foreach (var pattern in patterns)
+        {
+            cleaned = cleaned.Replace(pattern, "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return cleaned.Trim();
+    }
+
     async Task SaveTranscriptAsResource()
     {
         try
@@ -338,9 +292,53 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             var videoId = YoutubeExplode.Videos.VideoId.Parse(State.VideoUrl);
             var video = await _youtubeImportService.GetVideoMetadataAsync(videoId.ToString());
 
+            // Check for duplicates
+            var duplicateByUrl = await _learningResourceRepository.FindDuplicateByMediaUrlAsync(State.VideoUrl);
+            var duplicateByTitle = await _learningResourceRepository.FindDuplicateByTitleAsync(video.Title);
+
+            if (duplicateByUrl != null)
+            {
+                SetState(s => s.IsSavingResource = false);
+                
+                var overwrite = await Application.Current.MainPage.DisplayAlert(
+                    "⚠️ Duplicate Found",
+                    $"A resource with this YouTube URL already exists:\n\n\"{duplicateByUrl.Title}\"\n\nDo you want to view the existing resource instead of creating a duplicate?",
+                    "View Existing",
+                    "Create Anyway");
+
+                if (overwrite)
+                {
+                    // Navigate to existing resource
+                    await MauiControls.Shell.Current.GoToAsync<LearningResources.ResourceProps>(
+                        nameof(LearningResources.EditLearningResourcePage),
+                        props => props.ResourceID = duplicateByUrl.Id);
+                    return;
+                }
+            }
+            else if (duplicateByTitle != null)
+            {
+                SetState(s => s.IsSavingResource = false);
+                
+                var proceed = await Application.Current.MainPage.DisplayAlert(
+                    "⚠️ Similar Title Found",
+                    $"A resource with a similar title already exists:\n\n\"{duplicateByTitle.Title}\"\n\nAre you sure you want to create a new resource?",
+                    "Create New",
+                    "Cancel");
+
+                if (!proceed)
+                {
+                    return;
+                }
+                
+                SetState(s => s.IsSavingResource = true);
+            }
+
             // Get user profile for language
             var profile = await _userProfileRepository.GetAsync();
-            var language = State.SelectedTranscript?.LanguageName ?? profile?.TargetLanguage ?? "Korean";
+            var rawLanguage = State.SelectedTranscript?.LanguageName ?? profile?.TargetLanguage ?? "Korean";
+            var language = CleanLanguageName(rawLanguage);
+
+            System.Diagnostics.Debug.WriteLine($"🔧 Language mapping: '{rawLanguage}' -> '{language}'");
 
             // Create learning resource
             var resource = new LearningResource
@@ -397,11 +395,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
         SetState(s =>
         {
             s.VideoUrl = string.Empty;
-            s.StartTimeSeconds = 0;
-            s.DurationSeconds = 5;
-            s.IsImporting = false;
             s.ErrorMessage = string.Empty;
-            s.ImportedClip = null;
             s.AvailableTranscripts = new();
             s.SelectedTranscript = null;
             s.TranscriptText = string.Empty;
@@ -424,7 +418,10 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 s.TranscriptMessage = "Polishing transcript with AI...";
             });
 
-            var language = State.SelectedTranscript?.LanguageName;
+            var rawLanguage = State.SelectedTranscript?.LanguageName;
+            var language = CleanLanguageName(rawLanguage);
+            System.Diagnostics.Debug.WriteLine($"🔧 Language for AI polishing: '{rawLanguage}' -> '{language}'");
+            
             var polished = await _formattingService.PolishWithAiAsync(State.TranscriptText, language);
 
             SetState(s =>

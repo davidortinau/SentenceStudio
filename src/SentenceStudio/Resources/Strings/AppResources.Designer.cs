@@ -886,7 +886,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Import audio clip from YouTube video.
+        ///   Looks up a localized string similar to Import transcript from YouTube video.
         /// </summary>
         internal static string ImportAudioClipFromYouTube {
             get {
@@ -1413,6 +1413,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string PlaybackSpeed {
             get {
                 return ResourceManager.GetString("PlaybackSpeed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ✨ Polishing transcript with AI....
+        /// </summary>
+        internal static string PolishingTranscriptWithAI {
+            get {
+                return ResourceManager.GetString("PolishingTranscriptWithAI", resourceCulture);
             }
         }
         

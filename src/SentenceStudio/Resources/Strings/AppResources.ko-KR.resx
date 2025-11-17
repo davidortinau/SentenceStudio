@@ -753,6 +753,10 @@
     <value>AI로 다듬기</value>
     <comment>Polish transcript button</comment>
   </data>
+  <data name="PolishingTranscriptWithAI" xml:space="preserve">
+    <value>✨ AI로 자막을 다듬는 중...</value>
+    <comment>Polishing transcript progress message</comment>
+  </data>
   <data name="SaveAsLearningResource" xml:space="preserve">
     <value>학습 자료로 저장</value>
     <comment>Save as learning resource button</comment>
@@ -1002,7 +1006,7 @@
     <comment>Resource selection instruction</comment>
   </data>
   <data name="ImportAudioClipFromYouTube" xml:space="preserve">
-    <value>YouTube 비디오에서 오디오 클립 가져오기</value>
+    <value>YouTube 비디오에서 자막 가져오기</value>
     <comment>YouTube import page subtitle</comment>
   </data>
   <data name="ImportClipButton" xml:space="preserve">

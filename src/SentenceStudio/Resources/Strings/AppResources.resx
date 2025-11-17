@@ -861,6 +861,10 @@
     <value>Polish with AI</value>
     <comment>Polish transcript button</comment>
   </data>
+  <data name="PolishingTranscriptWithAI" xml:space="preserve">
+    <value>✨ Polishing transcript with AI...</value>
+    <comment>Polishing transcript progress message</comment>
+  </data>
   <data name="SaveAsLearningResource" xml:space="preserve">
     <value>Save as Learning Resource</value>
     <comment>Save as learning resource button</comment>
@@ -1110,7 +1114,7 @@
     <comment>Resource selection instruction</comment>
   </data>
   <data name="ImportAudioClipFromYouTube" xml:space="preserve">
-    <value>Import audio clip from YouTube video</value>
+    <value>Import transcript from YouTube video</value>
     <comment>YouTube import page subtitle</comment>
   </data>
   <data name="ImportClipButton" xml:space="preserve">

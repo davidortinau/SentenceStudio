@@ -14,7 +14,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<!-- <MauiVersion>9.0.90</MauiVersion> -->
+		<MauiVersion>10.0.10</MauiVersion>
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -115,7 +115,6 @@
 
 	<ItemGroup Condition=" '$(UseMaui)' == 'true' ">
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(UseMaui)' != 'true' ">
@@ -128,7 +127,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="12.2.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
@@ -138,11 +137,11 @@
 
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.7" />
 		<PackageReference Include="Reactor.Maui" Version="3.0.37" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-rc.2.25475.105" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-rc.2.25475.105" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-rc.2.25475.105" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0-rc.2.25475.105" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.2.25475.105" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.6.0" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />

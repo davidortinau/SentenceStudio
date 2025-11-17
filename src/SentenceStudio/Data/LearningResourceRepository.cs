@@ -785,4 +785,42 @@ public class LearningResourceRepository
                 .Any(rvm => rvm.VocabularyWordId == vocabularyWordId && rvm.ResourceId == lr.Id))
             .ToListAsync();
     }
+
+    /// <summary>
+    /// Check if a learning resource exists with the same MediaUrl (YouTube URL)
+    /// </summary>
+    public async Task<LearningResource?> FindDuplicateByMediaUrlAsync(string mediaUrl)
+    {
+        if (string.IsNullOrWhiteSpace(mediaUrl))
+            return null;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var normalizedUrl = mediaUrl.Trim().ToLower();
+        
+        return await db.LearningResources
+            .FirstOrDefaultAsync(lr => 
+                lr.MediaUrl != null && 
+                lr.MediaUrl.Trim().ToLower() == normalizedUrl);
+    }
+
+    /// <summary>
+    /// Check if a learning resource exists with a similar title
+    /// </summary>
+    public async Task<LearningResource?> FindDuplicateByTitleAsync(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return null;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var normalizedTitle = title.Trim().ToLower();
+        
+        return await db.LearningResources
+            .FirstOrDefaultAsync(lr => 
+                lr.Title != null && 
+                lr.Title.Trim().ToLower() == normalizedTitle);
+    }
 }
