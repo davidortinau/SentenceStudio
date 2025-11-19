@@ -718,6 +718,12 @@ public class ProgressService : IProgressService
                     SkillId = item.SkillId,
                     IsCompleted = false,
                     MinutesSpent = 0,
+                    EstimatedMinutes = item.EstimatedMinutes,
+                    Priority = item.Priority,
+                    TitleKey = item.TitleKey,
+                    DescriptionKey = item.DescriptionKey,
+                    Route = item.Route,
+                    RouteParametersJson = System.Text.Json.JsonSerializer.Serialize(item.RouteParameters),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
