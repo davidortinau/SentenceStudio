@@ -669,44 +669,46 @@ partial class DashboardPage : Component<DashboardPageState>
 
     async Task OnPlanItemTapped(DailyPlanItem item)
     {
-        System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped called with item: {item?.TitleKey ?? "NULL"}");
-        System.Diagnostics.Debug.WriteLine($"🎯 ActivityType: {item?.ActivityType}");
-        
-        if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
+        try
         {
-            System.Diagnostics.Debug.WriteLine("❌ OnPlanItemTapped: Missing resources or skill profile");
-            await Application.Current.MainPage.DisplayAlert(
-                "Ahoy!",
-                "Something went wrong with your selections. Please try again!",
-                "Aye!");
-            return;
-        }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ OnPlanItemTapped: Resources and skill profile are set");
-
-        // Map activity type to route
-        var route = item.ActivityType switch
-        {
-            PlanActivityType.VocabularyReview => nameof(VocabularyQuizPage),
-            PlanActivityType.Reading => "reading",
-            PlanActivityType.Listening => "listening",
-            PlanActivityType.VideoWatching => await HandleVideoActivity(item),
-            PlanActivityType.Shadowing => "shadowing",
-            PlanActivityType.Cloze => nameof(ClozurePage),
-            PlanActivityType.Translation => nameof(TranslationPage),
-            PlanActivityType.Conversation => "conversation",
-            PlanActivityType.VocabularyGame => nameof(VocabularyMatchingPage),
-            _ => null
-        };
-        
-        System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped: Mapped route = '{route}'");
-
-        if (!string.IsNullOrEmpty(route))
-        {
-            System.Diagnostics.Debug.WriteLine($"✅ Route is not empty, proceeding with resource loading...");
+            System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped called with item: {item?.TitleKey ?? "NULL"}");
+            System.Diagnostics.Debug.WriteLine($"🎯 ActivityType: {item?.ActivityType}");
             
-            // Pre-load resource if needed for VocabularyReview
-            List<LearningResource>? resourcesToUse = null;
+            if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
+            {
+                System.Diagnostics.Debug.WriteLine("❌ OnPlanItemTapped: Missing resources or skill profile");
+                await Application.Current.MainPage.DisplayAlert(
+                    "Ahoy!",
+                    "Something went wrong with your selections. Please try again!",
+                    "Aye!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"✅ OnPlanItemTapped: Resources and skill profile are set");
+
+            // Map activity type to route
+            var route = item.ActivityType switch
+            {
+                PlanActivityType.VocabularyReview => nameof(VocabularyQuizPage),
+                PlanActivityType.Reading => "reading",
+                PlanActivityType.Listening => "listening",
+                PlanActivityType.VideoWatching => await HandleVideoActivity(item),
+                PlanActivityType.Shadowing => "shadowing",
+                PlanActivityType.Cloze => nameof(ClozurePage),
+                PlanActivityType.Translation => nameof(TranslationPage),
+                PlanActivityType.Conversation => "conversation",
+                PlanActivityType.VocabularyGame => nameof(VocabularyMatchingPage),
+                _ => null
+            };
+            
+            System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped: Mapped route = '{route}'");
+
+            if (!string.IsNullOrEmpty(route))
+            {
+                System.Diagnostics.Debug.WriteLine($"✅ Route is not empty, proceeding with resource loading...");
+                
+                // Pre-load resource if needed for VocabularyReview
+                List<LearningResource>? resourcesToUse = null;
             
             System.Diagnostics.Debug.WriteLine($"🔍 Checking if VocabularyReview with ResourceId...");
             System.Diagnostics.Debug.WriteLine($"🔍 ActivityType: {item.ActivityType}");
@@ -717,41 +719,54 @@ partial class DashboardPage : Component<DashboardPageState>
                 item.RouteParameters?.ContainsKey("ResourceId") == true)
             {
                 System.Diagnostics.Debug.WriteLine($"✅ VocabularyReview with ResourceId detected");
-                var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
-                System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
                 
-                // First try to find in selected resources
-                var specificResource = _parameters.Value.SelectedResources?
-                    .FirstOrDefault(r => r.Id == resourceId);
-                
-                if (specificResource != null)
+                try
                 {
-                    resourcesToUse = new List<LearningResource> { specificResource };
-                    System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
-                }
-                else
-                {
-                    // Resource not in selected list - load from database
-                    System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
-                    try
+                    System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] value: {item.RouteParameters["ResourceId"]}");
+                    System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] type: {item.RouteParameters["ResourceId"]?.GetType().Name ?? "NULL"}");
+                    
+                    var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                    System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
+                    
+                    // First try to find in selected resources
+                    var specificResource = _parameters.Value.SelectedResources?
+                        .FirstOrDefault(r => r.Id == resourceId);
+                    
+                    if (specificResource != null)
                     {
-                        var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
-                        if (dbResource != null)
+                        resourcesToUse = new List<LearningResource> { specificResource };
+                        System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
+                    }
+                    else
+                    {
+                        // Resource not in selected list - load from database
+                        System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
+                        try
                         {
-                            resourcesToUse = new List<LearningResource> { dbResource };
-                            System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                            var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
+                            if (dbResource != null)
+                            {
+                                resourcesToUse = new List<LearningResource> { dbResource };
+                                System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                                resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                            }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                            System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
                             resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
-                        resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"❌ CRITICAL ERROR in ResourceId handling: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+                    resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                 }
             }
             else
@@ -774,6 +789,16 @@ partial class DashboardPage : Component<DashboardPageState>
                     props.PlanItemId = item.Id;   // Track which plan item this is
                 }
             );
+        }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ FATAL ERROR in OnPlanItemTapped: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            await Application.Current.MainPage.DisplayAlert(
+                "Error",
+                $"Failed to start activity: {ex.Message}",
+                "OK");
         }
     }
 
