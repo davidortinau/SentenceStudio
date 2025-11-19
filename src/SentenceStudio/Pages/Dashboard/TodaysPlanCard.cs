@@ -137,7 +137,20 @@ partial class TodaysPlanCard : MauiReactor.Component
                         .ThemeKey(MyTheme.Primary)
                         .HEnd()
                         .VCenter()
-                        .OnClicked(() => _onItemTapped?.Invoke(nextItem))
+                        .OnClicked(() =>
+                        {
+                            System.Diagnostics.Debug.WriteLine($"🔘 Resume button clicked! nextItem={nextItem?.TitleKey ?? "NULL"}");
+                            if (nextItem != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"🔘 Invoking _onItemTapped with item: {nextItem.TitleKey}");
+                                _onItemTapped?.Invoke(nextItem);
+                                System.Diagnostics.Debug.WriteLine($"🔘 _onItemTapped invoked");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine("❌ Resume button: nextItem is NULL!");
+                            }
+                        })
                     : Label("✅ Complete!")
                         .ThemeKey(MyTheme.Caption1Strong)
                         .TextColor(MyTheme.ProgressBarFill)

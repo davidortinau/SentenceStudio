@@ -669,14 +669,20 @@ partial class DashboardPage : Component<DashboardPageState>
 
     async Task OnPlanItemTapped(DailyPlanItem item)
     {
+        System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped called with item: {item?.TitleKey ?? "NULL"}");
+        System.Diagnostics.Debug.WriteLine($"🎯 ActivityType: {item?.ActivityType}");
+        
         if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
         {
+            System.Diagnostics.Debug.WriteLine("❌ OnPlanItemTapped: Missing resources or skill profile");
             await Application.Current.MainPage.DisplayAlert(
                 "Ahoy!",
                 "Something went wrong with your selections. Please try again!",
                 "Aye!");
             return;
         }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ OnPlanItemTapped: Resources and skill profile are set");
 
         // Map activity type to route
         var route = item.ActivityType switch
@@ -692,13 +698,17 @@ partial class DashboardPage : Component<DashboardPageState>
             PlanActivityType.VocabularyGame => nameof(VocabularyMatchingPage),
             _ => null
         };
+        
+        System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped: Mapped route = '{route}'");
 
         if (!string.IsNullOrEmpty(route))
         {
+            System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 route,
                 props =>
                 {
+                    System.Diagnostics.Debug.WriteLine($"🔧 OnPlanItemTapped: Configuring ActivityProps...");
                     // For VocabularyReview with specific ResourceId, filter to that resource only
                     if (item.ActivityType == PlanActivityType.VocabularyReview && 
                         item.RouteParameters?.ContainsKey("ResourceId") == true)

@@ -86,7 +86,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["VocabularyQuiz"]}",
-            Grid(rows: "Auto,Auto,*", columns: "*",
+            Grid(rows: "60,Auto,*", columns: "*",
                 Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null,
                 LearningProgressBar(),
                 ScrollView(
@@ -411,9 +411,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .HeightRequest(30)
             .Padding(MyTheme.Size160, 2)
             .GridColumn(2)
-            .GridRow(1)
             .VCenter()
-        ).Padding(MyTheme.LayoutSpacing);
+        ).Padding(MyTheme.LayoutSpacing).GridRow(1);
 
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
@@ -1156,7 +1155,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     async Task CheckAnswer()
     {
         System.Diagnostics.Debug.WriteLine("🔍 CheckAnswer() START");
-        
+
         var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
         if (currentItem == null)
         {
@@ -1172,12 +1171,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             System.Diagnostics.Debug.WriteLine("❌ CheckAnswer: Answer is empty");
             return;
         }
-        
+
         System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: answer='{answer}', expected='{State.CurrentTargetLanguageTerm}'");
 
         var isCorrect = string.Equals(answer.Trim(), State.CurrentTargetLanguageTerm.Trim(),
             StringComparison.OrdinalIgnoreCase);
-        
+
         System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: isCorrect={isCorrect}");
 
         // Enhanced tracking: Stop response timer
@@ -1251,7 +1250,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             {
                 System.Diagnostics.Debug.WriteLine("⚠️ CheckAnswer: ShowAnswer is FALSE - not auto-advancing");
             }
-            
+
             System.Diagnostics.Debug.WriteLine("✅ CheckAnswer() COMPLETE");
         }
         catch (Exception ex)
