@@ -119,6 +119,7 @@ public class SentenceTimingCalculator
 
     /// <summary>
     /// Finds the exact character position where a sentence starts in the full transcript
+    /// 🎯 CRITICAL: Skips PARAGRAPH_BREAK markers - they don't exist in the transcript
     /// </summary>
     private int FindSentenceStartPosition(int sentenceIndex, List<string> sentences, string fullTranscript)
     {
@@ -127,8 +128,13 @@ public class SentenceTimingCalculator
         var currentPos = 0;
         for (int i = 0; i < sentenceIndex; i++)
         {
-            // Find this sentence in the transcript
             var sentenceText = sentences[i].Trim();
+            
+            // 🏴‍☠️ Skip PARAGRAPH_BREAK markers
+            if (sentenceText == "PARAGRAPH_BREAK")
+                continue;
+            
+            // Find this sentence in the transcript
             var foundPos = fullTranscript.IndexOf(sentenceText, currentPos, StringComparison.Ordinal);
             
             if (foundPos == -1)
@@ -149,6 +155,7 @@ public class SentenceTimingCalculator
     
     /// <summary>
     /// Finds the exact character position where a sentence ends in the full transcript
+    /// 🎯 CRITICAL: Skips PARAGRAPH_BREAK markers - they don't exist in the transcript
     /// </summary>
     private int FindSentenceEndPosition(int sentenceIndex, List<string> sentences, string fullTranscript)
     {
@@ -156,6 +163,11 @@ public class SentenceTimingCalculator
         if (startPos == -1) return -1;
         
         var sentenceText = sentences[sentenceIndex].Trim();
+        
+        // 🏴‍☠️ PARAGRAPH_BREAK markers should never be queried for timing
+        if (sentenceText == "PARAGRAPH_BREAK")
+            return -1;
+        
         var foundPos = fullTranscript.IndexOf(sentenceText, startPos, StringComparison.Ordinal);
         
         if (foundPos == -1)
@@ -166,6 +178,7 @@ public class SentenceTimingCalculator
 
     /// <summary>
     /// Determines which sentence the character at the given index belongs to
+    /// 🎯 CRITICAL: Skips PARAGRAPH_BREAK markers when calculating character positions
     /// </summary>
     private int GetSentenceIndexForCharacter(int charIndex, string fullTranscript)
     {
@@ -174,61 +187,75 @@ public class SentenceTimingCalculator
             System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Char index {charIndex} out of bounds for transcript length {fullTranscript.Length}");
             return -1;
         }
+        
         var sentences = SplitIntoSentences(fullTranscript);
         var currentPos = 0;
+        
         for (int sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)
         {
             var sentenceText = sentences[sentenceIndex];
+            
+            // 🏴‍☠️ Skip PARAGRAPH_BREAK markers - they don't exist in the actual transcript
+            if (sentenceText == "PARAGRAPH_BREAK")
+                continue;
+            
             var sentenceLength = sentenceText.Length;
+            
             if (charIndex >= currentPos && charIndex < currentPos + sentenceLength)
             {
                 return sentenceIndex;
             }
+            
             currentPos += sentenceLength;
-            while (currentPos < fullTranscript.Length && (IsSentenceDelimiter(fullTranscript[currentPos]) || char.IsWhiteSpace(fullTranscript[currentPos])))
+            
+            // Skip whitespace and delimiters between sentences
+            while (currentPos < fullTranscript.Length && 
+                   (IsSentenceDelimiter(fullTranscript[currentPos]) || char.IsWhiteSpace(fullTranscript[currentPos])))
             {
                 currentPos++;
             }
         }
+        
         System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Could not map char index {charIndex} to a sentence");
         return -1;
     }
 
     /// <summary>
-    /// Splits text into sentences using proper sentence boundaries
+    /// Splits text into sentences WITH paragraph break markers to match ReadingPage
+    /// 🎯 CRITICAL: Must match ReadingPage.SplitIntoSentences exactly for correct index mapping
     /// </summary>
     public static List<string> SplitIntoSentences(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return new List<string>();
 
+        // 🏴‍☠️ MATCH ReadingPage logic: Preserve paragraph structure
+        var paragraphs = text.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries);
         var sentences = new List<string>();
-        var currentSentence = "";
-        for (int i = 0; i < text.Length; i++)
+
+        foreach (var paragraph in paragraphs)
         {
-            var c = text[i];
-            currentSentence += c;
-            if (IsSentenceDelimiter(c))
+            // Clean up the paragraph and split into sentences
+            var paragraphText = paragraph.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+
+            // Split by sentence delimiters
+            var paragraphSentences = paragraphText
+                .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
+                .ToList();
+
+            // Add sentences from this paragraph
+            sentences.AddRange(paragraphSentences);
+
+            // 🏴‍☠️ Add paragraph break marker if this isn't the last paragraph
+            if (paragraph != paragraphs.Last() && paragraphSentences.Any())
             {
-                if (IsEndOfSentence(text, i))
-                {
-                    var trimmedSentence = currentSentence.Trim();
-                    if (!string.IsNullOrWhiteSpace(trimmedSentence))
-                    {
-                        sentences.Add(trimmedSentence);
-                    }
-                    currentSentence = "";
-                }
+                sentences.Add("PARAGRAPH_BREAK"); // Special marker for paragraph breaks
             }
         }
-        if (!string.IsNullOrWhiteSpace(currentSentence))
-        {
-            var trimmedSentence = currentSentence.Trim();
-            if (!string.IsNullOrWhiteSpace(trimmedSentence))
-            {
-                sentences.Add(trimmedSentence);
-            }
-        }
+
         return sentences;
     }
 
