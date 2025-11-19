@@ -1,4 +1,5 @@
 using SentenceStudio.Data;
+using SentenceStudio.Services.PlanGeneration;
 using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services.Progress;
@@ -12,6 +13,7 @@ public class ProgressService : IProgressService
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly ProgressCacheService _cache;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILlmPlanGenerationService _llmPlanService;
 
     public ProgressService(
         LearningResourceRepository resourceRepo,
@@ -20,7 +22,8 @@ public class ProgressService : IProgressService
         VocabularyProgressService vocabService,
         VocabularyProgressRepository progressRepo,
         ProgressCacheService cache,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        ILlmPlanGenerationService llmPlanService)
     {
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
@@ -29,6 +32,7 @@ public class ProgressService : IProgressService
         _progressRepo = progressRepo;
         _cache = cache;
         _serviceProvider = serviceProvider;
+        _llmPlanService = llmPlanService;
     }
 
     public async Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default)
@@ -198,9 +202,83 @@ public class ProgressService : IProgressService
         if (existingPlan != null)
             return existingPlan;
 
-        var planItems = new List<DailyPlanItem>();
+        System.Diagnostics.Debug.WriteLine("🤖 Generating new plan with LLM...");
 
+        try
+        {
+            // Use LLM to generate the plan
+            var llmResponse = await _llmPlanService.GeneratePlanAsync(ct);
+            
+            if (llmResponse == null || !llmResponse.Activities.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("⚠️ LLM returned no activities, falling back to basic plan");
+                return await GenerateFallbackPlanAsync(today, ct);
+            }
+
+            // Get vocab due count for enrichment
+            var vocabDueCount = await GetVocabDueCountAsync(today, ct);
+
+            // Build lookup dictionaries for resource and skill names
+            var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+            var skills = await _skillRepo.ListAsync();
+
+            var resourceTitles = resources.ToDictionary(r => r.Id, r => r.Title ?? "Untitled");
+            var skillNames = skills.ToDictionary(s => s.Id, s => s.Title ?? "Untitled");
+
+            // Convert LLM response to TodaysPlan
+            var plan = PlanConverter.ConvertToTodaysPlan(
+                llmResponse,
+                today,
+                resourceTitles,
+                skillNames,
+                vocabDueCount
+            );
+
+            // Add streak info
+            var streak = await GetStreakInfoAsync(ct);
+
+            // Build display strings
+            var uniqueResourceTitles = plan.Items
+                .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
+                .Select(i => i.ResourceTitle!)
+                .Distinct()
+                .ToList();
+            var skillTitle = plan.Items
+                .FirstOrDefault(i => !string.IsNullOrEmpty(i.SkillName))?.SkillName;
+
+            var enrichedPlan = new TodaysPlan(
+                GeneratedForDate: today,
+                Items: plan.Items,
+                EstimatedTotalMinutes: plan.Items.Sum(i => i.EstimatedMinutes),
+                CompletedCount: 0,
+                TotalCount: plan.Items.Count,
+                CompletionPercentage: 0.0,
+                Streak: streak,
+                ResourceTitles: uniqueResourceTitles.Any() ? string.Join(", ", uniqueResourceTitles) : null,
+                SkillTitle: skillTitle
+            );
+
+            // Enrich with any existing completion data from database (resume support)
+            enrichedPlan = await EnrichPlanWithCompletionDataAsync(enrichedPlan, ct);
+
+            await CachePlanAsync(enrichedPlan, ct);
+            return enrichedPlan;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ LLM plan generation failed: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine("⚠️ Falling back to basic plan");
+            return await GenerateFallbackPlanAsync(today, ct);
+        }
+    }
+
+    private async Task<TodaysPlan> GenerateFallbackPlanAsync(DateTime today, CancellationToken ct)
+    {
+        System.Diagnostics.Debug.WriteLine("📝 Generating fallback plan (vocab review only)");
+        
+        var planItems = new List<DailyPlanItem>();
         var vocabDueCount = await GetVocabDueCountAsync(today, ct);
+
         if (vocabDueCount >= 5)
         {
             planItems.Add(new DailyPlanItem(
@@ -223,151 +301,7 @@ public class ProgressService : IProgressService
             ));
         }
 
-        var recentHistory = await GetRecentActivityHistoryAsync(7, ct);
-        var selectedResource = await SelectOptimalResourceAsync(recentHistory, ct);
-        var selectedSkill = await SelectOptimalSkillAsync(recentHistory, ct);
-
-        if (selectedResource != null && selectedSkill != null)
-        {
-            var inputActivityType = DetermineInputActivity(selectedResource, recentHistory);
-
-            if (inputActivityType == PlanActivityType.Reading)
-            {
-                planItems.Add(new DailyPlanItem(
-                    Id: GeneratePlanItemId(today, PlanActivityType.Reading, selectedResource.Id, selectedSkill.Id),
-                    TitleKey: "plan_item_reading_title",
-                    DescriptionKey: "plan_item_reading_desc",
-                    ActivityType: PlanActivityType.Reading,
-                    EstimatedMinutes: 10,
-                    Priority: 2,
-                    IsCompleted: false,
-                    CompletedAt: null,
-                    Route: "/reading",
-                    RouteParameters: new()
-                    {
-                        ["ResourceId"] = selectedResource.Id,
-                        ["SkillId"] = selectedSkill.Id
-                    },
-                    ResourceId: selectedResource.Id,
-                    ResourceTitle: selectedResource.Title,
-                    SkillId: selectedSkill.Id,
-                    SkillName: selectedSkill.Title,
-                    VocabDueCount: null,
-                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
-                ));
-            }
-            else if (inputActivityType == PlanActivityType.Listening)
-            {
-                planItems.Add(new DailyPlanItem(
-                    Id: GeneratePlanItemId(today, PlanActivityType.Listening, selectedResource.Id, selectedSkill.Id),
-                    TitleKey: "plan_item_listening_title",
-                    DescriptionKey: "plan_item_listening_desc",
-                    ActivityType: PlanActivityType.Listening,
-                    EstimatedMinutes: 12,
-                    Priority: 2,
-                    IsCompleted: false,
-                    CompletedAt: null,
-                    Route: "/listening",
-                    RouteParameters: new()
-                    {
-                        ["ResourceId"] = selectedResource.Id,
-                        ["SkillId"] = selectedSkill.Id
-                    },
-                    ResourceId: selectedResource.Id,
-                    ResourceTitle: selectedResource.Title,
-                    SkillId: selectedSkill.Id,
-                    SkillName: selectedSkill.Title,
-                    VocabDueCount: null,
-                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
-                ));
-            }
-
-            var outputActivityType = DetermineOutputActivity(selectedSkill, recentHistory);
-
-            if (outputActivityType == PlanActivityType.Shadowing)
-            {
-                planItems.Add(new DailyPlanItem(
-                    Id: GeneratePlanItemId(today, PlanActivityType.Shadowing, selectedResource.Id, selectedSkill.Id),
-                    TitleKey: "plan_item_shadowing_title",
-                    DescriptionKey: "plan_item_shadowing_desc",
-                    ActivityType: PlanActivityType.Shadowing,
-                    EstimatedMinutes: 10,
-                    Priority: 2,
-                    IsCompleted: false,
-                    CompletedAt: null,
-                    Route: "/shadowing",
-                    RouteParameters: new()
-                    {
-                        ["ResourceId"] = selectedResource.Id,
-                        ["SkillId"] = selectedSkill.Id
-                    },
-                    ResourceId: selectedResource.Id,
-                    ResourceTitle: selectedResource.Title,
-                    SkillId: selectedSkill.Id,
-                    SkillName: selectedSkill.Title,
-                    VocabDueCount: null,
-                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
-                ));
-            }
-            else if (outputActivityType == PlanActivityType.Cloze)
-            {
-                planItems.Add(new DailyPlanItem(
-                    Id: GeneratePlanItemId(today, PlanActivityType.Cloze, selectedResource.Id, selectedSkill.Id),
-                    TitleKey: "plan_item_cloze_title",
-                    DescriptionKey: "plan_item_cloze_desc",
-                    ActivityType: PlanActivityType.Cloze,
-                    EstimatedMinutes: 8,
-                    Priority: 2,
-                    IsCompleted: false,
-                    CompletedAt: null,
-                    Route: "/cloze",
-                    RouteParameters: new()
-                    {
-                        ["ResourceId"] = selectedResource.Id,
-                        ["SkillId"] = selectedSkill.Id
-                    },
-                    ResourceId: selectedResource.Id,
-                    ResourceTitle: selectedResource.Title,
-                    SkillId: selectedSkill.Id,
-                    SkillName: selectedSkill.Title,
-                    VocabDueCount: null,
-                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
-                ));
-            }
-
-            if (planItems.Count < 4 && vocabDueCount < 20)
-            {
-                planItems.Add(new DailyPlanItem(
-                    Id: GeneratePlanItemId(today, PlanActivityType.VocabularyGame, null, selectedSkill.Id),
-                    TitleKey: "plan_item_vocab_game_title",
-                    DescriptionKey: "plan_item_vocab_game_desc",
-                    ActivityType: PlanActivityType.VocabularyGame,
-                    EstimatedMinutes: 5,
-                    Priority: 3,
-                    IsCompleted: false,
-                    CompletedAt: null,
-                    Route: "/vocabulary-matching",
-                    RouteParameters: new() { ["SkillId"] = selectedSkill.Id },
-                    ResourceId: null,
-                    ResourceTitle: null,
-                    SkillId: selectedSkill.Id,
-                    SkillName: selectedSkill.Title,
-                    VocabDueCount: null,
-                    DifficultyLevel: null
-                ));
-            }
-        }
-
         var streak = await GetStreakInfoAsync(ct);
-
-        // Collect unique resource titles and skill title for context display
-        var resourceTitles = planItems
-            .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
-            .Select(i => i.ResourceTitle!)
-            .Distinct()
-            .ToList();
-        var skillTitle = planItems
-            .FirstOrDefault(i => !string.IsNullOrEmpty(i.SkillName))?.SkillName;
 
         var plan = new TodaysPlan(
             GeneratedForDate: today,
@@ -377,13 +311,11 @@ public class ProgressService : IProgressService
             TotalCount: planItems.Count,
             CompletionPercentage: 0.0,
             Streak: streak,
-            ResourceTitles: resourceTitles.Any() ? string.Join(", ", resourceTitles) : null,
-            SkillTitle: skillTitle
+            ResourceTitles: null,
+            SkillTitle: null
         );
 
-        // Enrich with any existing completion data from database (resume support)
         plan = await EnrichPlanWithCompletionDataAsync(plan, ct);
-
         await CachePlanAsync(plan, ct);
         return plan;
     }
