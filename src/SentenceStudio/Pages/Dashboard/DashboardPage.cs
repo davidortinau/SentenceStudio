@@ -699,7 +699,30 @@ partial class DashboardPage : Component<DashboardPageState>
                 route,
                 props =>
                 {
-                    props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                    // For VocabularyReview with specific ResourceId, filter to that resource only
+                    if (item.ActivityType == PlanActivityType.VocabularyReview && 
+                        item.RouteParameters?.ContainsKey("ResourceId") == true)
+                    {
+                        var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                        var specificResource = _parameters.Value.SelectedResources?
+                            .FirstOrDefault(r => r.Id == resourceId);
+                        
+                        if (specificResource != null)
+                        {
+                            props.Resources = new List<LearningResource> { specificResource };
+                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to resource: {specificResource.Title}");
+                        }
+                        else
+                        {
+                            props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not found, using all selected resources");
+                        }
+                    }
+                    else
+                    {
+                        props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                    }
+                    
                     props.Skill = _parameters.Value.SelectedSkillProfile;
                     props.FromTodaysPlan = true;  // Enable timer for Today's Plan activities
                     props.PlanItemId = item.Id;   // Track which plan item this is

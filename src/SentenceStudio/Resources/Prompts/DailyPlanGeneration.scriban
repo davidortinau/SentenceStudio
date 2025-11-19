@@ -83,7 +83,8 @@ No skill profiles configured yet.
 - Multiple choice → text entry progression
 - CRITICAL: Always include if vocab_due_count >= 5
 - Typical: 4 words/minute throughput
-- REQUIRES: Nothing (uses system's SRS queue)
+- CAN SPECIFY ResourceId: If provided, only reviews vocabulary from that resource (for focused practice)
+- OPTIONAL: ResourceId (if not provided, reviews all due vocabulary across all resources)
 
 **VocabularyGame** (Route: /vocabulary-matching, 5-8min)
 - Matching game for vocabulary reinforcement
@@ -115,10 +116,12 @@ Studies show optimal engagement with:
 - Output practice: Daily output activity (even 5-10min) accelerates speaking proficiency
 
 ## TASK
-Generate {{ preferred_minutes }}-minute study plan for today.
+CRITICAL: The user wants EXACTLY {{ preferred_minutes }} minutes of practice today. DO NOT EXCEED THIS TIME.
+
+Generate a {{ preferred_minutes }}-minute study plan for today.
 
 Return 1-5 activities that:
-- Total to approximately {{ preferred_minutes }} minutes (±5min acceptable)
+- **MUST total to {{ preferred_minutes }} minutes (±3min max)** - This is a hard constraint!
 - Include VocabularyReview if vocab_due_count >= 5
 - Select 1-2 resources from available list (prefer variety)
 - Include at least 1 input and 1 output activity (unless vocab review takes most time)
@@ -126,10 +129,15 @@ Return 1-5 activities that:
 - Sequence activities in logical cognitive load progression
 
 IMPORTANT CONSTRAINTS:
+- **TOTAL TIME MUST BE CLOSE TO {{ preferred_minutes }} minutes** - User has limited time!
 - All activities requiring ResourceId MUST also have SkillId (they're paired)
+- VocabularyReview CAN optionally specify ResourceId to focus on specific resource vocabulary
 - VocabularyGame requires SkillId
-- VocabularyReview requires neither ResourceId nor SkillId
 - Only use resource IDs and skill IDs from the available lists above
 - If no resources available, only generate VocabularyReview or VocabularyGame activities
+
+COHERENCE RECOMMENDATION:
+If you select a specific resource for Reading/Listening/etc, consider also using that same ResourceId
+for VocabularyReview to keep the session focused on related vocabulary.
 
 Return ONLY the structured plan data with activity types, resource IDs, skill IDs, estimated minutes, and priority order.

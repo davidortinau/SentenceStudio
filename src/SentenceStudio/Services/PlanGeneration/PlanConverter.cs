@@ -102,6 +102,9 @@ public static class PlanConverter
         {
             parameters["Mode"] = "SRS";
             parameters["DueOnly"] = true;
+            // NEW: If ResourceId is provided, scope vocabulary to that resource
+            if (activity.ResourceId.HasValue)
+                parameters["ResourceId"] = activity.ResourceId.Value;
         }
         else if (activityType == PlanActivityType.VocabularyGame)
         {

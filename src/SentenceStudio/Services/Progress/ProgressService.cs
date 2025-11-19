@@ -331,7 +331,18 @@ public class ProgressService : IProgressService
         var cachedPlan = _cache.GetTodaysPlan();
         if (cachedPlan == null)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in cache");
+            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in memory cache - checking database...");
+            
+            // Try to reconstruct from database
+            var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+            if (reconstructedPlan != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"✅ Reconstructed plan from database with {reconstructedPlan.Items.Count} items");
+                _cache.SetTodaysPlan(reconstructedPlan);
+                return reconstructedPlan;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in database either - need to generate new one");
             return null;
         }
         
@@ -342,6 +353,16 @@ public class ProgressService : IProgressService
         {
             System.Diagnostics.Debug.WriteLine($"❌ Cache date mismatch: requested={date.Date:yyyy-MM-dd}, cached={cachedPlan.GeneratedForDate.Date:yyyy-MM-dd}");
             _cache.InvalidateTodaysPlan();
+            
+            // Try database before giving up
+            var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+            if (reconstructedPlan != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"✅ Found plan in database for correct date");
+                _cache.SetTodaysPlan(reconstructedPlan);
+                return reconstructedPlan;
+            }
+            
             return null;
         }
         
@@ -738,6 +759,99 @@ public class ProgressService : IProgressService
         
         await db.SaveChangesAsync(ct);
         System.Diagnostics.Debug.WriteLine($"💾 Initialized {plan.Items.Count} DailyPlanCompletion records");
+    }
+
+    /// <summary>
+    /// Reconstruct a TodaysPlan from DailyPlanCompletion records in the database.
+    /// This allows the plan to survive app restarts.
+    /// </summary>
+    private async Task<TodaysPlan?> ReconstructPlanFromDatabase(DateTime date, CancellationToken ct)
+    {
+        System.Diagnostics.Debug.WriteLine($"🔨 Attempting to reconstruct plan from database for {date:yyyy-MM-dd}");
+        
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var completions = await db.DailyPlanCompletions
+            .Where(c => c.Date == date.Date)
+            .OrderBy(c => c.Priority)
+            .ToListAsync(ct);
+        
+        if (!completions.Any())
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ No DailyPlanCompletion records found for {date:yyyy-MM-dd}");
+            return null;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"📊 Found {completions.Count} completion records, reconstructing plan...");
+        
+        // Convert DailyPlanCompletion records back to PlanItems
+        var planItems = new List<DailyPlanItem>();
+        
+        foreach (var completion in completions)
+        {
+            // Deserialize route parameters
+            Dictionary<string, object>? routeParams = null;
+            if (!string.IsNullOrEmpty(completion.RouteParametersJson))
+            {
+                try
+                {
+                    routeParams = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(completion.RouteParametersJson);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Failed to deserialize route params: {ex.Message}");
+                }
+            }
+            
+            var planItem = new DailyPlanItem(
+                Id: completion.PlanItemId,
+                TitleKey: completion.TitleKey,
+                DescriptionKey: completion.DescriptionKey,
+                ActivityType: Enum.Parse<PlanActivityType>(completion.ActivityType),
+                EstimatedMinutes: completion.EstimatedMinutes,
+                Priority: completion.Priority,
+                IsCompleted: completion.IsCompleted,
+                CompletedAt: completion.CompletedAt,
+                Route: completion.Route,
+                RouteParameters: routeParams,
+                ResourceId: completion.ResourceId,
+                ResourceTitle: null, // Will be enriched later if needed
+                SkillId: completion.SkillId,
+                SkillName: null, // Will be enriched later if needed
+                VocabDueCount: null,
+                DifficultyLevel: null,
+                MinutesSpent: completion.MinutesSpent
+            );
+            
+            planItems.Add(planItem);
+            System.Diagnostics.Debug.WriteLine($"  ✅ Reconstructed: {completion.TitleKey} ({completion.MinutesSpent}/{completion.EstimatedMinutes} min)");
+        }
+        
+        // Calculate overall plan statistics
+        var totalMinutesSpent = planItems.Sum(i => i.MinutesSpent);
+        var totalEstimatedMinutes = planItems.Sum(i => i.EstimatedMinutes);
+        var completionPercentage = totalEstimatedMinutes > 0 
+            ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
+            : 0;
+        
+        // Get streak info
+        var streak = await GetStreakInfoAsync(ct);
+        
+        var reconstructedPlan = new TodaysPlan(
+            GeneratedForDate: date,
+            Items: planItems,
+            EstimatedTotalMinutes: totalEstimatedMinutes,
+            CompletedCount: planItems.Count(i => i.IsCompleted),
+            TotalCount: planItems.Count,
+            CompletionPercentage: completionPercentage,
+            Streak: streak,
+            ResourceTitles: null, // Will be enriched later if needed
+            SkillTitle: null
+        );
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Reconstructed plan: {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+        return reconstructedPlan;
     }
 
     /// <summary>
