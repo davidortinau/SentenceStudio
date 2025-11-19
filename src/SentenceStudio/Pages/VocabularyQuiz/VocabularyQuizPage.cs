@@ -1155,67 +1155,109 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task CheckAnswer()
     {
+        System.Diagnostics.Debug.WriteLine("🔍 CheckAnswer() START");
+        
         var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
-        if (currentItem == null) return;
+        if (currentItem == null)
+        {
+            System.Diagnostics.Debug.WriteLine("❌ CheckAnswer: No current item found");
+            return;
+        }
 
         var answer = State.UserMode == InputMode.MultipleChoice.ToString() ?
             State.UserGuess : State.UserInput;
 
-        if (string.IsNullOrWhiteSpace(answer)) return;
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            System.Diagnostics.Debug.WriteLine("❌ CheckAnswer: Answer is empty");
+            return;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: answer='{answer}', expected='{State.CurrentTargetLanguageTerm}'");
 
         var isCorrect = string.Equals(answer.Trim(), State.CurrentTargetLanguageTerm.Trim(),
             StringComparison.OrdinalIgnoreCase);
+        
+        System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: isCorrect={isCorrect}");
 
         // Enhanced tracking: Stop response timer
         _responseTimer.Stop();
 
-        // Save legacy user activity for backward compatibility
-        var activity = new UserActivity
+        try
         {
-            Activity = SentenceStudio.Shared.Models.Activity.VocabularyQuiz.ToString(),
-            Input = answer,
-            Accuracy = isCorrect ? 100 : 0,
-            CreatedAt = DateTime.Now,
-            UpdatedAt = DateTime.Now
-        };
+            // Save legacy user activity for backward compatibility
+            var activity = new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.VocabularyQuiz.ToString(),
+                Input = answer,
+                Accuracy = isCorrect ? 100 : 0,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
 
-        currentItem.UserActivity = activity;
-        await _userActivityRepository.SaveAsync(activity);
+            currentItem.UserActivity = activity;
+            System.Diagnostics.Debug.WriteLine("💾 CheckAnswer: Saving user activity...");
+            await _userActivityRepository.SaveAsync(activity);
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: User activity saved");
 
-        // Enhanced tracking: Record answer with detailed context
-        await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
+            // Enhanced tracking: Record answer with detailed context
+            System.Diagnostics.Debug.WriteLine("📊 CheckAnswer: Recording enhanced tracking...");
+            await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Enhanced tracking recorded");
 
-        // Update quiz-specific streak counters based on correct/incorrect answers
-        await UpdateQuizSpecificProgress(currentItem, isCorrect);
+            // Update quiz-specific streak counters based on correct/incorrect answers
+            System.Diagnostics.Debug.WriteLine("🔄 CheckAnswer: Updating quiz progress...");
+            await UpdateQuizSpecificProgress(currentItem, isCorrect);
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Quiz progress updated");
 
-        // Enhanced feedback: Update UI based on enhanced progress
-        await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
+            // Enhanced feedback: Update UI based on enhanced progress
+            System.Diagnostics.Debug.WriteLine("🎨 CheckAnswer: Updating UI feedback...");
+            await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: UI feedback updated");
 
-        // 🏴‍☠️ CHECK FOR IMMEDIATE MASTERY: If word is now mastered, prepare for rotation
-        if (currentItem.ReadyToRotateOut)
-        {
-            System.Diagnostics.Debug.WriteLine($"🎯 Word '{currentItem.Word.NativeLanguageTerm}' is now ready to rotate out!");
-            // Note: Actual rotation happens in NextItem() to ensure proper flow
+            // 🏴‍☠️ CHECK FOR IMMEDIATE MASTERY: If word is now mastered, prepare for rotation
+            if (currentItem.ReadyToRotateOut)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎯 Word '{currentItem.Word.NativeLanguageTerm}' is now ready to rotate out!");
+                // Note: Actual rotation happens in NextItem() to ensure proper flow
+            }
+
+            // Increment turn counter and update term counts
+            System.Diagnostics.Debug.WriteLine("🔢 CheckAnswer: Incrementing turn counter...");
+            SetState(s => s.CurrentTurn++);
+            UpdateTermCounts();
+            System.Diagnostics.Debug.WriteLine($"✅ CheckAnswer: Turn counter = {State.CurrentTurn}/{State.MaxTurnsPerSession}");
+
+            // Check for session completion (10 turns)
+            if (State.CurrentTurn > State.MaxTurnsPerSession)
+            {
+                System.Diagnostics.Debug.WriteLine("🏁 CheckAnswer: Session complete!");
+                await CompleteSession();
+                return;
+            }
+
+            // Check if we can proceed to next round
+            System.Diagnostics.Debug.WriteLine("🔄 CheckAnswer: Checking round completion...");
+            await CheckRoundCompletion();
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Round check complete");
+
+            // Auto-advance after showing feedback
+            if (State.ShowAnswer)
+            {
+                System.Diagnostics.Debug.WriteLine("➡️ CheckAnswer: Auto-advancing to next item...");
+                TransitionToNextItem();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("⚠️ CheckAnswer: ShowAnswer is FALSE - not auto-advancing");
+            }
+            
+            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer() COMPLETE");
         }
-
-        // Increment turn counter and update term counts
-        SetState(s => s.CurrentTurn++);
-        UpdateTermCounts();
-
-        // Check for session completion (10 turns)
-        if (State.CurrentTurn > State.MaxTurnsPerSession)
+        catch (Exception ex)
         {
-            await CompleteSession();
-            return;
-        }
-
-        // Check if we can proceed to next round
-        await CheckRoundCompletion();
-
-        // Auto-advance after showing feedback
-        if (State.ShowAnswer)
-        {
-            TransitionToNextItem();
+            System.Diagnostics.Debug.WriteLine($"❌ CheckAnswer: EXCEPTION - {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
         }
     }
 

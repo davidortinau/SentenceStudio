@@ -704,18 +704,51 @@ partial class DashboardPage : Component<DashboardPageState>
                         item.RouteParameters?.ContainsKey("ResourceId") == true)
                     {
                         var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                        
+                        // First try to find in selected resources
                         var specificResource = _parameters.Value.SelectedResources?
                             .FirstOrDefault(r => r.Id == resourceId);
                         
                         if (specificResource != null)
                         {
                             props.Resources = new List<LearningResource> { specificResource };
-                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to resource: {specificResource.Title}");
+                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
                         }
                         else
                         {
-                            props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not found, using all selected resources");
+                            // Resource not in selected list - load from database
+                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
+                            Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
+                                    if (dbResource != null)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                                        MainThread.BeginInvokeOnMainThread(() =>
+                                        {
+                                            props.Resources = new List<LearningResource> { dbResource };
+                                        });
+                                    }
+                                    else
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                                        MainThread.BeginInvokeOnMainThread(() =>
+                                        {
+                                            props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                                        });
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
+                                    MainThread.BeginInvokeOnMainThread(() =>
+                                    {
+                                        props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                                    });
+                                }
+                            }).Wait(); // Wait for async load before navigating
                         }
                     }
                     else
