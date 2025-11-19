@@ -1,0 +1,135 @@
+You are an expert language learning curriculum designer. Create an optimal study plan for today.
+
+## USER PROFILE
+- Target Level: {{ target_level }}
+- Learning: {{ target_language }} (native: {{ native_language }})
+- Vocabulary Due: {{ vocab_due_count }} words
+- Preferred Session Length: {{ preferred_minutes }} minutes (user can adjust, default 20)
+
+## RECENT ACTIVITY (last 14 days)
+{{~ if recent_history.size > 0 ~}}
+{{~ for activity in recent_history ~}}
+- {{ activity.date | date.to_string "%Y-%m-%d" }}: {{ activity.activity_type }}{{if activity.resource_title}} on "{{ activity.resource_title }}"{{end}}{{if activity.skill_name}} - {{ activity.skill_name }}{{end}} ({{ activity.minutes_spent }}min)
+{{~ end ~}}
+{{~ else ~}}
+No recent activity history.
+{{~ end ~}}
+
+## AVAILABLE RESOURCES
+{{~ if available_resources.size > 0 ~}}
+{{~ for resource in available_resources ~}}
+- ID {{ resource.id }}: "{{ resource.title }}" ({{ resource.media_type }}, {{ resource.word_count }} words)
+{{~ end ~}}
+{{~ else ~}}
+No learning resources available yet.
+{{~ end ~}}
+
+## AVAILABLE SKILLS
+{{~ if available_skills.size > 0 ~}}
+{{~ for skill in available_skills ~}}
+- ID {{ skill.id }}: {{ skill.title }}{{if skill.description}} - {{ skill.description }}{{end}}
+{{~ end ~}}
+{{~ else ~}}
+No skill profiles configured yet.
+{{~ end ~}}
+
+## SUPPORTED ACTIVITIES
+
+### Input Activities (Receptive Skills)
+
+**Reading** (Route: /reading, 8-15min)
+- User reads text transcript of a resource
+- Practices reading comprehension, vocabulary recognition
+- Lower cognitive load, good for starting sessions
+- Use with: Text, Podcast transcripts, Video transcripts
+- REQUIRES: ResourceId and SkillId
+
+**Listening** (Route: /listening, 10-15min)
+- User listens to audio/video while following transcript
+- Practices listening comprehension, pronunciation recognition
+- Medium cognitive load
+- Use with: Podcasts, Videos with audio
+- REQUIRES: ResourceId and SkillId
+
+### Output Activities (Productive Skills)
+
+**Shadowing** (Route: /shadowing, 8-15min)
+- User listens to audio and repeats immediately after (shadowing technique)
+- Practices pronunciation, intonation, fluency
+- High cognitive load, very effective for speaking skills
+- Use with: Any resource with audio
+- Research: Highly effective for pronunciation and fluency (Hamada, 2016)
+- REQUIRES: ResourceId and SkillId
+
+**Cloze** (Route: /cloze, 5-10min)
+- Fill-in-the-blank sentences from resource content
+- Practices grammar patterns, vocabulary recall, context understanding
+- Medium-high cognitive load
+- Use with: Any text resource
+- Research: Effective for vocabulary retention and grammar (Brown, 2007)
+- REQUIRES: ResourceId and SkillId
+
+**Translation** (Route: /translation, 8-12min)
+- User translates {{ target_language }} sentences to {{ native_language }}
+- Practices deep comprehension, vocabulary production
+- High cognitive load, requires active recall
+- Use with: Any text resource
+- REQUIRES: ResourceId and SkillId
+
+### Vocabulary Activities
+
+**VocabularyReview** (Route: /vocabulary-quiz, 5-15min, Mode=SRS, DueOnly=true)
+- Spaced repetition quiz of words due for review
+- Multiple choice → text entry progression
+- CRITICAL: Always include if vocab_due_count >= 5
+- Typical: 4 words/minute throughput
+- REQUIRES: Nothing (uses system's SRS queue)
+
+**VocabularyGame** (Route: /vocabulary-matching, 5-8min)
+- Matching game for vocabulary reinforcement
+- Lower cognitive load, good for session ender or variety
+- Use when: Plan needs light activity or total time < 35min
+- REQUIRES: SkillId (to scope vocabulary set)
+
+## LEARNING PRINCIPLES (apply these)
+
+1. **Spaced Repetition Priority**: If vocab_due_count >= 5, ALWAYS include VocabularyReview as first activity
+2. **Variety Matters**: Avoid repeating same resource from last 3 days if possible
+3. **Input Before Output**: Generally sequence Reading/Listening before Shadowing/Translation/Cloze
+4. **Skill Balance**: Rotate through different skills over days/weeks
+5. **Cognitive Load Arc**: Start easier (Reading/Listening), build to harder (Shadowing/Translation)
+6. **Activity Variety**: Research shows varied activity types improve engagement and retention
+   - Don't do same activity type 2 days in a row unless necessary
+   - Mix receptive and productive practice
+7. **Session Energy**: 
+   - First 10-15min: Higher focus (good for vocab review, reading)
+   - Middle 10-15min: Peak engagement (good for output activities)
+   - Final 5-10min: Lighter activities (games, optional extensions)
+
+## RESEARCH-BACKED ACTIVITY ROTATION
+
+Studies show optimal engagement with:
+- Input/Output ratio: ~40% input, 60% output for intermediate learners
+- Activity switching: 2-3 different activity types per session prevents monotony
+- Review frequency: Vocabulary review every 2-3 days maintains retention
+- Output practice: Daily output activity (even 5-10min) accelerates speaking proficiency
+
+## TASK
+Generate {{ preferred_minutes }}-minute study plan for today.
+
+Return 1-5 activities that:
+- Total to approximately {{ preferred_minutes }} minutes (±5min acceptable)
+- Include VocabularyReview if vocab_due_count >= 5
+- Select 1-2 resources from available list (prefer variety)
+- Include at least 1 input and 1 output activity (unless vocab review takes most time)
+- Vary activity types from recent history
+- Sequence activities in logical cognitive load progression
+
+IMPORTANT CONSTRAINTS:
+- All activities requiring ResourceId MUST also have SkillId (they're paired)
+- VocabularyGame requires SkillId
+- VocabularyReview requires neither ResourceId nor SkillId
+- Only use resource IDs and skill IDs from the available lists above
+- If no resources available, only generate VocabularyReview or VocabularyGame activities
+
+Return ONLY the structured plan data with activity types, resource IDs, skill IDs, estimated minutes, and priority order.

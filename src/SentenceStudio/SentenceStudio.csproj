@@ -111,6 +111,9 @@
 
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+		
+		<!-- Embedded Resources (Prompt Templates) -->
+		<EmbeddedResource Include="Resources\Prompts\*.scriban" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(UseMaui)' == 'true' ">
@@ -131,7 +134,7 @@
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
-		<PackageReference Include="Scriban" Version="6.4.0" />
+		<PackageReference Include="Scriban" Version="6.5.1" />
 		<!-- <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.1" /> -->
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
 

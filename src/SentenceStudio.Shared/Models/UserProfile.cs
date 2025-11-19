@@ -13,6 +13,8 @@ public class UserProfile
     public string? DisplayLanguage { get; set; }
     public string? Email { get; set; }
     public string? OpenAI_APIKey { get; set; }
+    public int PreferredSessionMinutes { get; set; } = 20;
+    public string? TargetCEFRLevel { get; set; }
     public DateTime CreatedAt { get; set; }
     
     [NotMapped]

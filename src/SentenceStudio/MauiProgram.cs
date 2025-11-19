@@ -321,6 +321,9 @@ public static class MauiProgram
 		// Activity timer service for Today's Plan tracking
 		services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
 
+		// LLM-based plan generation
+		services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.PlanGeneration.LlmPlanGenerationService>();
+
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 
 		// services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();
