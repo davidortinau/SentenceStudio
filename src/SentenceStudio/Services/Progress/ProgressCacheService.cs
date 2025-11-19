@@ -13,6 +13,7 @@ public class ProgressCacheService
     private CacheEntry<IReadOnlyList<PracticeHeatPoint>>? _practiceHeatCache;
     private CacheEntry<List<ResourceProgress>>? _resourceProgressCache;
     private readonly Dictionary<int, CacheEntry<SkillProgress>> _skillProgressCache = new();
+    private CacheEntry<TodaysPlan>? _todaysPlanCache;
 
     /// <summary>
     /// Get cached vocab summary or null if expired/not cached
@@ -107,6 +108,7 @@ public class ProgressCacheService
         _practiceHeatCache = null;
         _resourceProgressCache = null;
         _skillProgressCache.Clear();
+        _todaysPlanCache = null;
         System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache INVALIDATED: All");
     }
 
@@ -117,6 +119,29 @@ public class ProgressCacheService
     public void InvalidatePracticeHeat() => _practiceHeatCache = null;
     public void InvalidateResourceProgress() => _resourceProgressCache = null;
     public void InvalidateSkillProgress(int skillId) => _skillProgressCache.Remove(skillId);
+
+    public TodaysPlan? GetTodaysPlan()
+    {
+        if (_todaysPlanCache?.IsExpired() != false)
+            return null;
+
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache HIT: TodaysPlan");
+        return _todaysPlanCache.Data;
+    }
+
+    public void SetTodaysPlan(TodaysPlan data)
+    {
+        _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache SET: TodaysPlan");
+    }
+
+    public void InvalidateTodaysPlan() => _todaysPlanCache = null;
+
+    public void UpdateTodaysPlan(TodaysPlan data)
+    {
+        _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
+        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache UPDATE: TodaysPlan");
+    }
 
     /// <summary>
     /// Internal cache entry with expiration

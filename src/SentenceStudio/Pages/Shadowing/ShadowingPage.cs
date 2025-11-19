@@ -8,6 +8,7 @@ using CommunityToolkit.Maui.Storage;
 using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
 using Microsoft.Maui.Dispatching;
+using SentenceStudio.Components;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -47,6 +48,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] AudioAnalyzer _audioAnalyzer;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] IFileSaver _fileSaver;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
 
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
@@ -76,7 +78,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 RenderNarrowScreenMenu()
             )
             .RowSpacing(MyTheme.CardMargin)
-        ).OnAppearing(OnPageAppearing)
+        )
+        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
+        .OnAppearing(OnPageAppearing)
         .OnSizeChanged((size) =>
         {
             double width = size.Width;
@@ -94,6 +98,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     private async Task OnPageAppearing()
     {
+        // Start activity timer if launched from Today's Plan
+        if (Props?.FromTodaysPlan == true)
+        {
+            _timerService.StartSession("Shadowing", Props.PlanItemId);
+        }
+
         // Initialize voice display names from the service
         SetState(s =>
         {
@@ -1359,6 +1369,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// </summary>
     protected override void OnWillUnmount()
     {
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            _timerService.Pause();
+        }
+
         // Stop and dispose the playback timer
         _playbackTimer?.Stop();
         _playbackTimer = null;

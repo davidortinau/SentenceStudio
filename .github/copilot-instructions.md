@@ -95,11 +95,112 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
 
 ## MauiReactor Layout and UI Guidelines
 
-Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes for Start, End, and Fill options. And the same for vertical options.
+**CRITICAL PRINCIPLES:**
 
-**CRITICAL: NEVER wrap VisualNodes in unnecessary layout containers!**
+0. **USE MINIMAL CONTROLS**: Always use the simplest, most efficient approach:
+   - **String concatenation over multiple Labels**: Use `Label($"🎯 {variable}")` instead of `HStack(Label("🎯"), Label(variable))`
+   - **Avoid unnecessary wrappers**: Don't wrap single elements in Border/VStack/HStack unless there's a visual reason
+   - **No invisible Borders**: If a Border has no stroke, background, or styling, don't use it
+   
+   ❌ WRONG:
+   ```csharp
+   HStack(spacing: MyTheme.MicroSpacing,
+       Label("📚"),
+       Label(resourceTitle)
+   )
+   // Or
+   Border(
+       Label("Text")
+   ) // Border serves no purpose
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Label($"📚 {resourceTitle}")
+   ```
 
-1. **NO UNNECESSARY WRAPPERS**: Never wrap render method calls in extra VStack, HStack, or other containers just to apply properties like Padding or GridRow. Put these properties INSIDE the render methods where they belong.
+1. **NEVER use HorizontalOptions or VerticalOptions**: MauiReactor provides semantic extension methods that are more readable and idiomatic.
+
+   ❌ WRONG:
+   ```csharp
+   Label("Text").HorizontalOptions(LayoutOptions.End)
+   Label("Text").VerticalOptions(LayoutOptions.Center)
+   Label("Text").HorizontalOptions(LayoutOptions.Center).VerticalOptions(LayoutOptions.Center)
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Label("Text").HEnd()
+   Label("Text").VCenter()
+   Label("Text").Center()  // Both horizontal and vertical center
+   ```
+
+2. **Semantic alignment methods to use**:
+   - **Horizontal**: `.HStart()`, `.HCenter()`, `.HEnd()`, `.HFill()`
+   - **Vertical**: `.VStart()`, `.VCenter()`, `.VEnd()`, `.VFill()`
+   - **Both directions**: `.Center()` (equivalent to HCenter + VCenter)
+
+3. **NEVER use FillAndExpand**: This is a legacy pattern from XAML. Use the semantic methods above instead.
+
+   ❌ WRONG:
+   ```csharp
+   Label("Text").HorizontalOptions(LayoutOptions.FillAndExpand)
+   VStack(...).VerticalOptions(LayoutOptions.FillAndExpand)
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Label("Text").HFill()
+   VStack(...).VFill()
+   ```
+
+4. **USE THEME KEY STYLES**: Always use `.ThemeKey()` to apply theme styles from MyTheme.cs instead of applying styling properties directly. This ensures consistent visual design and makes theme changes easier.
+
+   ❌ WRONG:
+   ```csharp
+   // Don't apply individual style properties
+   Button("Click Me")
+       .BackgroundColor(Colors.Blue)
+       .TextColor(Colors.White)
+       .BorderColor(Colors.Gray)
+       .BorderWidth(1)
+       .CornerRadius(8)
+       .Padding(14, 10)
+   
+   Label("Text")
+       .TextColor(Colors.Black)
+       .FontSize(16)
+       .FontAttributes(FontAttributes.Bold)
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   // Use theme keys for components with defined styles
+   Button("Click Me")
+       .ThemeKey(MyTheme.Primary)  // or MyTheme.Secondary, MyTheme.Danger
+   
+   Label("Text")
+       .ThemeKey(MyTheme.Title1)  // or Body1, Headline, Caption1, etc.
+   
+   Border()
+       .ThemeKey(MyTheme.CardStyle)  // or InputWrapper
+   ```
+   
+   **When theme keys aren't available**, use theme constants instead of hardcoded values:
+   ```csharp
+   Label("Text")
+       .TextColor(MyTheme.PrimaryText)  // Not Colors.Black
+       .FontSize(MyTheme.Size160)       // Not 16
+       .Margin(MyTheme.Size80)          // Not 8
+   ```
+   
+   **Available theme keys**:
+   - **Buttons**: `Primary`, `Secondary`, `Danger`
+   - **Labels**: `Title1`, `Title2`, `Title3`, `LargeTitle`, `Display`, `Headline`, `SubHeadline`, `Body1`, `Body1Strong`, `Body2`, `Body2Strong`, `Caption1`, `Caption1Strong`, `Caption2`
+   - **Borders**: `CardStyle`, `InputWrapper`
+   - **Layouts**: `Surface1`
+
+5. **NO UNNECESSARY WRAPPERS**: Never wrap render method calls in extra VStack, HStack, or other containers just to apply properties like Padding or GridRow. Put these properties INSIDE the render methods where they belong.
 
    ❌ WRONG:
    ```csharp
@@ -115,7 +216,7 @@ Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes 
    VStack(...).Padding(16).GridRow(0)
    ```
 
-2. **GRID SYNTAX**: Use the proper MauiReactor Grid syntax with inline parameters:
+6. **GRID SYNTAX**: Use the proper MauiReactor Grid syntax with inline parameters:
    ```csharp
    Grid(rows: "Auto,Auto,*", columns: "*",
        RenderHeader(),
@@ -124,7 +225,7 @@ Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes 
    )
    ```
 
-3. **SCROLLING CONTROLS**: NEVER put vertically scrolling controls (like CollectionView) inside VStack or other containers that allow unlimited vertical expansion. This causes infinite item rendering and performance issues.
+7. **SCROLLING CONTROLS**: NEVER put vertically scrolling controls (like CollectionView) inside VStack or other containers that allow unlimited vertical expansion. This causes infinite item rendering and performance issues.
 
    ❌ WRONG:
    ```csharp
@@ -144,12 +245,14 @@ Instead of `.HorizontalOptions(LayoutOptions.End)` use `.HEnd()`. The same goes 
    )
    ```
 
-4. **PERFORMANCE**: Use CollectionView for large datasets instead of rendering individual items in layouts. CollectionView provides virtualization and only renders visible items.
+8. **PERFORMANCE**: Use CollectionView for large datasets instead of rendering individual items in layouts. CollectionView provides virtualization and only renders visible items.
 
-5. **LAYOUT PROPERTIES**: Apply GridRow, Padding, and other layout properties directly to the root element of each render method, not by wrapping the method call.
+9. **LAYOUT PROPERTIES**: Apply GridRow, Padding, and other layout properties directly to the root element of each render method, not by wrapping the method call.
 
-ADDITIONAL NOTE:
+ADDITIONAL NOTES:
 - IMPORTANT: A `ContentPage` may only have a single child element (ToolbarItems do not count). When rendering overlay controls like `SfBottomSheet`, place them inside that single child (for example, inside the main `Grid`) so the page remains valid. Do not add the bottom sheet as a sibling to the page's root content.
+- **Shell TitleView for Custom Navigation Content**: In Shell applications, to display custom content in the navigation bar (like timers or custom headers), use `Shell.TitleView` attached property, NOT `NavigationPage.TitleView` or `ToolbarItem`. Apply it using `.Set(MauiControls.Shell.TitleViewProperty, customView)` on the ContentPage.
+- **NEVER use ToolbarItem for custom components**: ToolbarItem only supports built-in controls with specific properties like IconImageSource and Text. Do NOT attempt to pass custom Component instances to ToolbarItem - it will not render them.
 
 ## Command Line Tool Usage Guidelines
 
@@ -188,3 +291,139 @@ ADDITIONAL NOTE:
    - You are always in `/Users/davidortinau/work/SentenceStudio`
    - All paths should be relative to this or absolute within this tree
    - Use `find src/` not `find /tmp/`
+
+## Debugging and Logging by Platform
+
+**IMPORTANT: Logging locations vary by target framework. Use the correct method for each platform:**
+
+### macOS (net10.0-maccatalyst)
+
+**System.Diagnostics.Debug.WriteLine()** output goes to:
+- **Xcode Console**: Open Console.app → select your Mac device → filter by process "SentenceStudio"
+- **Terminal command**: `log show --predicate 'process == "SentenceStudio"' --last 5m --style compact`
+- **VS Code Debug Console**: When running with debugger attached
+
+**File logging** (recommended for complex debugging):
+```csharp
+var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
+File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} - Log message\n");
+// Location: ~/Library/Containers/com.companyname.sentencestudio/Data/Library/Application Support/debug.log
+```
+
+### iOS (net10.0-ios)
+
+**System.Diagnostics.Debug.WriteLine()** output goes to:
+- **Xcode Console**: Window → Devices and Simulators → select device → View Device Logs
+- **Terminal (Simulator)**: `xcrun simctl spawn booted log stream --predicate 'processImagePath contains "SentenceStudio"' --level debug`
+- **VS Code Debug Console**: When running with debugger attached
+
+**File logging**:
+```csharp
+var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
+// Location (device): Cannot directly access, use Xcode → Window → Devices → Download Container
+// Location (simulator): ~/Library/Developer/CoreSimulator/Devices/[UUID]/data/Containers/Data/Application/[UUID]/Library/debug.log
+```
+
+### Android (net10.0-android)
+
+**System.Diagnostics.Debug.WriteLine()** output goes to:
+- **Android Studio Logcat**: View → Tool Windows → Logcat, filter by package name
+- **Terminal command**: `adb logcat | grep SentenceStudio`
+- **VS Code Debug Console**: When running with debugger attached
+
+**File logging**:
+```csharp
+var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
+// Location: /data/data/com.companyname.sentencestudio/files/debug.log
+// Access via: adb shell run-as com.companyname.sentencestudio cat files/debug.log
+```
+
+### Windows (net10.0-windows)
+
+**System.Diagnostics.Debug.WriteLine()** output goes to:
+- **VS Code Debug Console**: When running with debugger attached
+- **DebugView** (SysInternals): Download from Microsoft, shows all debug output
+- **Event Viewer**: Windows Logs → Application (if using EventLog)
+
+**File logging**:
+```csharp
+var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
+// Location: C:\Users\[Username]\AppData\Local\Packages\[PackageId]\LocalState\debug.log
+```
+
+### Best Practices for Cross-Platform Logging
+
+1. **Use emoji prefixes** for easy log scanning:
+   - 🚀 Process start
+   - ✅ Success
+   - ❌ Errors
+   - ⚠️ Warnings
+   - 📏 Measurements
+   - 🔧 Configuration
+
+2. **Include timestamps and context**:
+   ```csharp
+   System.Diagnostics.Debug.WriteLine($"⏱️ {DateTime.Now:HH:mm:ss.fff} [Component] Action: value={data}");
+   ```
+
+3. **For complex debugging, use file logging**:
+   - Persists across app restarts
+   - Can be read at any time
+   - Works consistently across all platforms
+   - Use `FileSystem.AppDataDirectory` for cross-platform compatibility
+
+4. **Platform-specific debugging tools**:
+   - **macOS**: Console.app is most reliable
+   - **iOS**: Xcode Console for device debugging
+   - **Android**: adb logcat is standard
+   - **Windows**: DebugView for system-wide debug output
+
+## Localization Guidelines
+
+**CRITICAL: Always use string interpolation with LocalizationManager!**
+
+1. **NEVER access localized strings without string interpolation**:
+
+   ❌ WRONG:
+   ```csharp
+   Label(_localize["Key"])  // Returns object, not string!
+   Button(_localize["ButtonText"])  // Returns object, not string!
+   ContentPage(_localize["Title"], ...)  // Returns object, not string!
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Label($"{_localize["Key"]}")
+   Button($"{_localize["ButtonText"]}")
+   ContentPage($"{_localize["Title"]}", ...)
+   ```
+
+2. **Use Button/ImageButton for buttons**: Don't compose buttons from Border + Label unless there's a compelling reason MauiReactor's Button doesn't meet your needs.
+
+   ❌ WRONG:
+   ```csharp
+   Border(
+       Label($"{_localize["ButtonText"]}")
+           .Center()
+   )
+   .BackgroundColor(MyTheme.ButtonBackground)
+   .OnTapped(() => DoSomething())
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   Button($"{_localize["ButtonText"]}")
+       .BackgroundColor(MyTheme.ButtonBackground)
+       .OnTapped(() => DoSomething())
+   ```
+
+3. **LocalizationManager pattern**: Ensure components have the localization manager property:
+   ```csharp
+   LocalizationManager _localize => LocalizationManager.Instance;
+   ```
+
+4. **For complete localization guidelines**, refer to `.github/agents/localize.agent.md` which includes:
+   - Resource file format and naming conventions
+   - Korean translation guidelines
+   - String interpolation patterns
+   - Common translation reference

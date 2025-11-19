@@ -25,7 +25,8 @@ public class UserProfileRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.EnsureCreatedAsync(); // TODO find a more reliable place to call this, if needed. It is one of the first data calls in every app run right now
+        await db.Database.EnsureCreatedAsync();
+        
         var profile = await db.UserProfiles.FirstOrDefaultAsync();
         
         // Ensure DisplayLanguage is never null or empty for existing profiles

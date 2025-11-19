@@ -79,6 +79,31 @@ partial class MyTheme : ApplicationTheme
         }
     };
 
+    // Today's Plan colors
+    public static Color CardBackground => IsLightTheme ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1E1E1E");
+    public static Color CardBorder => IsLightTheme ? Color.FromArgb("#E0E0E0") : Color.FromArgb("#3A3A3A");
+    public static Color ItemBackground => IsLightTheme ? Color.FromArgb("#F5F5F5") : Color.FromArgb("#2A2A2A");
+    public static Color ItemBorder => IsLightTheme ? Color.FromArgb("#D0D0D0") : Color.FromArgb("#404040");
+    public static Color CompletedItemBackground => IsLightTheme ? Color.FromArgb("#E8F5E9") : Color.FromArgb("#1A3A1A");
+    public static Color CompletedItemBorder => IsLightTheme ? Color.FromArgb("#A5D6A7") : Color.FromArgb("#2E5A2E");
+    public static Color PriorityHighColor => Color.FromArgb("#EF5350");
+    public static Color PriorityMediumColor => Color.FromArgb("#FF9800");
+    public static Color PriorityLowColor => Color.FromArgb("#9E9E9E");
+    public static Color BadgeBackground => IsLightTheme ? Color.FromArgb("#E0E0E0") : Color.FromArgb("#424242");
+    public static Color BadgeText => IsLightTheme ? Color.FromArgb("#424242") : Color.FromArgb("#FFFFFF");
+    public static Color StreakBadgeBackground => Color.FromArgb("#FF6F00");
+    public static Color ProgressBarFill => Color.FromArgb("#66BB6A");
+    public static Color PrimaryButtonBackground => Color.FromArgb("#1976D2");
+    public static Color PrimaryButtonText => Colors.White;
+    public static Color SecondaryButtonBackground => IsLightTheme ? Color.FromArgb("#F5F5F5") : Color.FromArgb("#424242");
+    public static Color SecondaryButtonText => IsLightTheme ? Color.FromArgb("#424242") : Color.FromArgb("#FFFFFF");
+    public static Color TertiaryButtonBackground => Colors.Transparent;
+    public static Color TertiaryButtonText => Color.FromArgb("#1976D2");
+    public static Color CheckboxColor => Color.FromArgb("#1976D2");
+    public static Color PrimaryText => IsLightTheme ? Color.FromArgb("#212121") : Color.FromArgb("#FFFFFF");
+    public static Color SecondaryText => IsLightTheme ? Color.FromArgb("#757575") : Color.FromArgb("#B0B0B0");
+    public static Color AccentText => Color.FromArgb("#1976D2");
+
     protected override void OnApply()
     {
         ApplyStyles();

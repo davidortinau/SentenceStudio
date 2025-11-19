@@ -46,6 +46,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
+        modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
 
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()
@@ -115,5 +116,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<ResourceVocabularyMapping> ResourceVocabularyMappings => Set<ResourceVocabularyMapping>();
     public DbSet<VocabularyProgress> VocabularyProgresses => Set<VocabularyProgress>();
     public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();
+    public DbSet<DailyPlanCompletion> DailyPlanCompletions => Set<DailyPlanCompletion>();
 
 }

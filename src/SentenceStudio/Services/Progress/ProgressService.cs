@@ -1,4 +1,5 @@
 using SentenceStudio.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentenceStudio.Services.Progress;
 
@@ -10,6 +11,7 @@ public class ProgressService : IProgressService
     private readonly VocabularyProgressService _vocabService;
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly ProgressCacheService _cache;
+    private readonly IServiceProvider _serviceProvider;
 
     public ProgressService(
         LearningResourceRepository resourceRepo,
@@ -17,7 +19,8 @@ public class ProgressService : IProgressService
         UserActivityRepository activityRepo,
         VocabularyProgressService vocabService,
         VocabularyProgressRepository progressRepo,
-        ProgressCacheService cache)
+        ProgressCacheService cache,
+        IServiceProvider serviceProvider)
     {
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
@@ -25,6 +28,7 @@ public class ProgressService : IProgressService
         _vocabService = vocabService;
         _progressRepo = progressRepo;
         _cache = cache;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default)
@@ -184,5 +188,620 @@ public class ProgressService : IProgressService
         // PHASE 2 OPTIMIZATION: Cache the result
         _cache.SetPracticeHeat(results);
         return results;
+    }
+
+    public async Task<TodaysPlan> GenerateTodaysPlanAsync(CancellationToken ct = default)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        var existingPlan = await GetCachedPlanAsync(today, ct);
+        if (existingPlan != null)
+            return existingPlan;
+
+        var planItems = new List<DailyPlanItem>();
+
+        var vocabDueCount = await GetVocabDueCountAsync(today, ct);
+        if (vocabDueCount >= 5)
+        {
+            planItems.Add(new DailyPlanItem(
+                Id: GeneratePlanItemId(today, PlanActivityType.VocabularyReview),
+                TitleKey: "plan_item_vocab_review_title",
+                DescriptionKey: "plan_item_vocab_review_desc",
+                ActivityType: PlanActivityType.VocabularyReview,
+                EstimatedMinutes: Math.Min(vocabDueCount / 4, 15),
+                Priority: 1,
+                IsCompleted: false,
+                CompletedAt: null,
+                Route: "/vocabulary-quiz",
+                RouteParameters: new() { ["Mode"] = "SRS", ["DueOnly"] = true },
+                ResourceId: null,
+                ResourceTitle: null,
+                SkillId: null,
+                SkillName: null,
+                VocabDueCount: vocabDueCount,
+                DifficultyLevel: null
+            ));
+        }
+
+        var recentHistory = await GetRecentActivityHistoryAsync(7, ct);
+        var selectedResource = await SelectOptimalResourceAsync(recentHistory, ct);
+        var selectedSkill = await SelectOptimalSkillAsync(recentHistory, ct);
+
+        if (selectedResource != null && selectedSkill != null)
+        {
+            var inputActivityType = DetermineInputActivity(selectedResource, recentHistory);
+
+            if (inputActivityType == PlanActivityType.Reading)
+            {
+                planItems.Add(new DailyPlanItem(
+                    Id: GeneratePlanItemId(today, PlanActivityType.Reading, selectedResource.Id, selectedSkill.Id),
+                    TitleKey: "plan_item_reading_title",
+                    DescriptionKey: "plan_item_reading_desc",
+                    ActivityType: PlanActivityType.Reading,
+                    EstimatedMinutes: 10,
+                    Priority: 2,
+                    IsCompleted: false,
+                    CompletedAt: null,
+                    Route: "/reading",
+                    RouteParameters: new()
+                    {
+                        ["ResourceId"] = selectedResource.Id,
+                        ["SkillId"] = selectedSkill.Id
+                    },
+                    ResourceId: selectedResource.Id,
+                    ResourceTitle: selectedResource.Title,
+                    SkillId: selectedSkill.Id,
+                    SkillName: selectedSkill.Title,
+                    VocabDueCount: null,
+                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
+                ));
+            }
+            else if (inputActivityType == PlanActivityType.Listening)
+            {
+                planItems.Add(new DailyPlanItem(
+                    Id: GeneratePlanItemId(today, PlanActivityType.Listening, selectedResource.Id, selectedSkill.Id),
+                    TitleKey: "plan_item_listening_title",
+                    DescriptionKey: "plan_item_listening_desc",
+                    ActivityType: PlanActivityType.Listening,
+                    EstimatedMinutes: 12,
+                    Priority: 2,
+                    IsCompleted: false,
+                    CompletedAt: null,
+                    Route: "/listening",
+                    RouteParameters: new()
+                    {
+                        ["ResourceId"] = selectedResource.Id,
+                        ["SkillId"] = selectedSkill.Id
+                    },
+                    ResourceId: selectedResource.Id,
+                    ResourceTitle: selectedResource.Title,
+                    SkillId: selectedSkill.Id,
+                    SkillName: selectedSkill.Title,
+                    VocabDueCount: null,
+                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
+                ));
+            }
+
+            var outputActivityType = DetermineOutputActivity(selectedSkill, recentHistory);
+
+            if (outputActivityType == PlanActivityType.Shadowing)
+            {
+                planItems.Add(new DailyPlanItem(
+                    Id: GeneratePlanItemId(today, PlanActivityType.Shadowing, selectedResource.Id, selectedSkill.Id),
+                    TitleKey: "plan_item_shadowing_title",
+                    DescriptionKey: "plan_item_shadowing_desc",
+                    ActivityType: PlanActivityType.Shadowing,
+                    EstimatedMinutes: 10,
+                    Priority: 2,
+                    IsCompleted: false,
+                    CompletedAt: null,
+                    Route: "/shadowing",
+                    RouteParameters: new()
+                    {
+                        ["ResourceId"] = selectedResource.Id,
+                        ["SkillId"] = selectedSkill.Id
+                    },
+                    ResourceId: selectedResource.Id,
+                    ResourceTitle: selectedResource.Title,
+                    SkillId: selectedSkill.Id,
+                    SkillName: selectedSkill.Title,
+                    VocabDueCount: null,
+                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
+                ));
+            }
+            else if (outputActivityType == PlanActivityType.Cloze)
+            {
+                planItems.Add(new DailyPlanItem(
+                    Id: GeneratePlanItemId(today, PlanActivityType.Cloze, selectedResource.Id, selectedSkill.Id),
+                    TitleKey: "plan_item_cloze_title",
+                    DescriptionKey: "plan_item_cloze_desc",
+                    ActivityType: PlanActivityType.Cloze,
+                    EstimatedMinutes: 8,
+                    Priority: 2,
+                    IsCompleted: false,
+                    CompletedAt: null,
+                    Route: "/cloze",
+                    RouteParameters: new()
+                    {
+                        ["ResourceId"] = selectedResource.Id,
+                        ["SkillId"] = selectedSkill.Id
+                    },
+                    ResourceId: selectedResource.Id,
+                    ResourceTitle: selectedResource.Title,
+                    SkillId: selectedSkill.Id,
+                    SkillName: selectedSkill.Title,
+                    VocabDueCount: null,
+                    DifficultyLevel: null  // TODO: Add DifficultyLevel to LearningResource model
+                ));
+            }
+
+            if (planItems.Count < 4 && vocabDueCount < 20)
+            {
+                planItems.Add(new DailyPlanItem(
+                    Id: GeneratePlanItemId(today, PlanActivityType.VocabularyGame, null, selectedSkill.Id),
+                    TitleKey: "plan_item_vocab_game_title",
+                    DescriptionKey: "plan_item_vocab_game_desc",
+                    ActivityType: PlanActivityType.VocabularyGame,
+                    EstimatedMinutes: 5,
+                    Priority: 3,
+                    IsCompleted: false,
+                    CompletedAt: null,
+                    Route: "/vocabulary-matching",
+                    RouteParameters: new() { ["SkillId"] = selectedSkill.Id },
+                    ResourceId: null,
+                    ResourceTitle: null,
+                    SkillId: selectedSkill.Id,
+                    SkillName: selectedSkill.Title,
+                    VocabDueCount: null,
+                    DifficultyLevel: null
+                ));
+            }
+        }
+
+        var streak = await GetStreakInfoAsync(ct);
+
+        // Collect unique resource titles and skill title for context display
+        var resourceTitles = planItems
+            .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
+            .Select(i => i.ResourceTitle!)
+            .Distinct()
+            .ToList();
+        var skillTitle = planItems
+            .FirstOrDefault(i => !string.IsNullOrEmpty(i.SkillName))?.SkillName;
+
+        var plan = new TodaysPlan(
+            GeneratedForDate: today,
+            Items: planItems,
+            EstimatedTotalMinutes: planItems.Sum(i => i.EstimatedMinutes),
+            CompletedCount: 0,
+            TotalCount: planItems.Count,
+            CompletionPercentage: 0.0,
+            Streak: streak,
+            ResourceTitles: resourceTitles.Any() ? string.Join(", ", resourceTitles) : null,
+            SkillTitle: skillTitle
+        );
+
+        // Enrich with any existing completion data from database (resume support)
+        plan = await EnrichPlanWithCompletionDataAsync(plan, ct);
+
+        await CachePlanAsync(plan, ct);
+        return plan;
+    }
+
+    public async Task<TodaysPlan?> GetCachedPlanAsync(DateTime date, CancellationToken ct = default)
+    {
+        System.Diagnostics.Debug.WriteLine($"🔍 GetCachedPlanAsync for {date:yyyy-MM-dd} (Kind={date.Kind})");
+        
+        var cachedPlan = _cache.GetTodaysPlan();
+        if (cachedPlan == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in cache");
+            return null;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"📊 Cache contains plan for {cachedPlan.GeneratedForDate:yyyy-MM-dd} (Kind={cachedPlan.GeneratedForDate.Kind})");
+        
+        // Validate cached plan is for the requested date
+        if (cachedPlan.GeneratedForDate.Date != date.Date)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Cache date mismatch: requested={date.Date:yyyy-MM-dd}, cached={cachedPlan.GeneratedForDate.Date:yyyy-MM-dd}");
+            _cache.InvalidateTodaysPlan();
+            return null;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Cache date matches - enriching with latest completion data");
+        
+        // Enrich with latest completion data from database
+        var enrichedPlan = await EnrichPlanWithCompletionDataAsync(cachedPlan, ct);
+        
+        // Update cache with enriched data
+        _cache.UpdateTodaysPlan(enrichedPlan);
+        
+        return enrichedPlan;
+    }
+
+    public async Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
+    {
+        System.Diagnostics.Debug.WriteLine($"📊 MarkPlanItemCompleteAsync - planItemId={planItemId}, minutesSpent={minutesSpent}");
+        
+        // CRITICAL: Use UTC date to match plan generation
+        var today = DateTime.UtcNow.Date;
+        System.Diagnostics.Debug.WriteLine($"📅 Using UTC date: {today:yyyy-MM-dd}");
+        
+        var plan = _cache.GetTodaysPlan();
+
+        if (plan == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ No cached plan found for today");
+            return;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Found cached plan for {plan.GeneratedForDate:yyyy-MM-dd}");
+
+        var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
+        if (item == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ Plan item '{planItemId}' not found in cached plan");
+            System.Diagnostics.Debug.WriteLine($"📊 Available plan item IDs: {string.Join(", ", plan.Items.Select(i => i.Id))}");
+            return;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Found plan item: {item.TitleKey}");
+
+        // Mark in database
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Check if record already exists
+        var existing = await db.DailyPlanCompletions
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId, ct);
+
+        if (existing != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"💾 Updating existing completion record in database");
+            existing.IsCompleted = true;
+            existing.CompletedAt = DateTime.UtcNow;
+            existing.MinutesSpent = minutesSpent;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"💾 Creating new completion record in database");
+            var completion = new DailyPlanCompletion
+            {
+                Date = today,
+                PlanItemId = planItemId,
+                ActivityType = item.ActivityType.ToString(),
+                ResourceId = item.ResourceId,
+                SkillId = item.SkillId,
+                IsCompleted = true,
+                CompletedAt = DateTime.UtcNow,
+                MinutesSpent = minutesSpent,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await db.DailyPlanCompletions.AddAsync(completion, ct);
+        }
+
+        await db.SaveChangesAsync(ct);
+        System.Diagnostics.Debug.WriteLine($"✅ Database updated");
+
+        // Update cache - create new record with updated completion status
+        var updatedItem = item with 
+        { 
+            IsCompleted = true, 
+            CompletedAt = DateTime.UtcNow,
+            MinutesSpent = minutesSpent
+        };
+        
+        var itemIndex = plan.Items.IndexOf(item);
+        if (itemIndex >= 0)
+        {
+            plan.Items[itemIndex] = updatedItem;
+        }
+
+        // Recalculate plan completion percentage based on time
+        var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
+        var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
+        var completionPercentage = totalEstimatedMinutes > 0 
+            ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
+            : 0;
+        
+        var updatedPlan = plan with 
+        { 
+            CompletedCount = plan.Items.Count(i => i.IsCompleted),
+            CompletionPercentage = completionPercentage
+        };
+        
+        _cache.UpdateTodaysPlan(updatedPlan);
+        System.Diagnostics.Debug.WriteLine($"✅ Cache updated - {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+    }
+
+    public async Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
+    {
+        System.Diagnostics.Debug.WriteLine($"📊 UpdatePlanItemProgressAsync - planItemId={planItemId}, minutesSpent={minutesSpent}");
+        
+        // CRITICAL: Use UTC date to match plan generation
+        var today = DateTime.UtcNow.Date;
+        System.Diagnostics.Debug.WriteLine($"📅 Using UTC date: {today:yyyy-MM-dd}");
+        
+        var plan = _cache.GetTodaysPlan();
+
+        if (plan == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ No cached plan found - cannot update progress");
+            return;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Found cached plan for {plan.GeneratedForDate:yyyy-MM-dd}");
+
+        var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
+        if (item == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ Plan item '{planItemId}' not found in cached plan");
+            System.Diagnostics.Debug.WriteLine($"📊 Available plan item IDs: {string.Join(", ", plan.Items.Select(i => i.Id))}");
+            return;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Found plan item: {item.TitleKey}");
+
+        // Update or create in database
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var existing = await db.DailyPlanCompletions
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId, ct);
+
+        if (existing != null)
+        {
+            existing.MinutesSpent = minutesSpent;
+            existing.UpdatedAt = DateTime.UtcNow;
+            System.Diagnostics.Debug.WriteLine($"💾 Updated existing database record to {minutesSpent} minutes");
+        }
+        else
+        {
+            var completion = new DailyPlanCompletion
+            {
+                Date = today,
+                PlanItemId = planItemId,
+                ActivityType = item.ActivityType.ToString(),
+                ResourceId = item.ResourceId,
+                SkillId = item.SkillId,
+                IsCompleted = false,
+                MinutesSpent = minutesSpent,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await db.DailyPlanCompletions.AddAsync(completion, ct);
+            System.Diagnostics.Debug.WriteLine($"💾 Created new record with {minutesSpent} minutes");
+        }
+
+        await db.SaveChangesAsync(ct);
+        System.Diagnostics.Debug.WriteLine($"💾 Database SaveChanges completed - {db.ChangeTracker.Entries().Count()} entities in tracker");
+
+        // Update cache
+        var updatedItem = item with { MinutesSpent = minutesSpent };
+        var itemIndex = plan.Items.IndexOf(item);
+        if (itemIndex >= 0)
+        {
+            plan.Items[itemIndex] = updatedItem;
+        }
+
+        // Recalculate completion percentage
+        var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
+        var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
+        var completionPercentage = totalEstimatedMinutes > 0 
+            ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
+            : 0;
+
+        var updatedPlan = plan with { CompletionPercentage = completionPercentage };
+        _cache.UpdateTodaysPlan(updatedPlan);
+        
+        System.Diagnostics.Debug.WriteLine($"✅ Progress updated - {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+    }
+
+    private async Task<int> GetVocabDueCountAsync(DateTime date, CancellationToken ct)
+    {
+        return await _progressRepo.GetDueVocabCountAsync(date);
+    }
+
+    private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)
+    {
+        System.Diagnostics.Debug.WriteLine($"🔧 Enriching plan with completion data for {plan.GeneratedForDate:yyyy-MM-dd}");
+        
+        // Load completion data from database
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var completions = await db.DailyPlanCompletions
+            .Where(c => c.Date == plan.GeneratedForDate.Date)
+            .ToListAsync(ct);
+        
+        System.Diagnostics.Debug.WriteLine($"📊 Found {completions.Count} completion records");
+        
+        // Create dictionary for O(1) lookup
+        var completionDict = completions.ToDictionary(c => c.PlanItemId);
+        
+        // Update each plan item with completion data
+        var enrichedItems = plan.Items.Select(item =>
+        {
+            if (completionDict.TryGetValue(item.Id, out var completion))
+            {
+                System.Diagnostics.Debug.WriteLine($"  ✅ {item.TitleKey}: {completion.MinutesSpent} min, completed={completion.IsCompleted}");
+                return item with
+                {
+                    IsCompleted = completion.IsCompleted,
+                    CompletedAt = completion.CompletedAt,
+                    MinutesSpent = completion.MinutesSpent
+                };
+            }
+            return item;
+        }).ToList();
+        
+        // Recalculate plan statistics
+        var totalMinutesSpent = enrichedItems.Sum(i => i.MinutesSpent);
+        var totalEstimatedMinutes = enrichedItems.Sum(i => i.EstimatedMinutes);
+        var completionPercentage = totalEstimatedMinutes > 0 
+            ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
+            : 0;
+        
+        var enrichedPlan = plan with
+        {
+            Items = enrichedItems,
+            CompletedCount = enrichedItems.Count(i => i.IsCompleted),
+            CompletionPercentage = completionPercentage
+        };
+        
+        System.Diagnostics.Debug.WriteLine($"📊 Plan enriched: {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+        
+        return enrichedPlan;
+    }
+
+    private async Task<List<UserActivity>> GetRecentActivityHistoryAsync(int days, CancellationToken ct)
+    {
+        var fromDate = DateTime.UtcNow.AddDays(-days);
+        return await _activityRepo.GetByDateRangeAsync(fromDate, DateTime.UtcNow);
+    }
+
+    private async Task<LearningResource?> SelectOptimalResourceAsync(List<UserActivity> recentHistory, CancellationToken ct)
+    {
+        var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+        if (!resources.Any()) return null;
+
+        var recentResourceIds = recentHistory
+            .Where(a => !string.IsNullOrEmpty(a.Input))
+            .Select(a => int.TryParse(a.Input, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .Distinct()
+            .ToHashSet();
+
+        var candidates = resources
+            .Where(r => !recentResourceIds.Contains(r.Id))
+            .ToList();
+
+        if (!candidates.Any())
+        {
+            return resources.OrderBy(r => r.UpdatedAt).First();
+        }
+
+        return candidates.First();
+    }
+
+    private async Task<SkillProfile?> SelectOptimalSkillAsync(List<UserActivity> recentHistory, CancellationToken ct)
+    {
+        var skills = await _skillRepo.ListAsync();
+        if (!skills.Any()) return null;
+
+        return skills.First();
+    }
+
+    private PlanActivityType DetermineInputActivity(LearningResource resource, List<UserActivity> recentHistory)
+    {
+        var lastReading = recentHistory
+            .Where(a => a.Activity == "Reading")
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefault();
+
+        if (lastReading == null || (DateTime.UtcNow - lastReading.CreatedAt).TotalDays >= 2)
+            return PlanActivityType.Reading;
+
+        return PlanActivityType.Listening;
+    }
+
+    private PlanActivityType DetermineOutputActivity(SkillProfile skill, List<UserActivity> recentHistory)
+    {
+        var recentOutput = recentHistory
+            .Where(a => a.Activity is "Shadowing" or "Cloze" or "Translation")
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefault();
+
+        if (recentOutput == null)
+            return PlanActivityType.Shadowing;
+
+        return recentOutput.Activity switch
+        {
+            "Shadowing" => PlanActivityType.Cloze,
+            "Cloze" => PlanActivityType.Translation,
+            "Translation" => PlanActivityType.Shadowing,
+            _ => PlanActivityType.Shadowing
+        };
+    }
+
+    private async Task<StreakInfo> GetStreakInfoAsync(CancellationToken ct)
+    {
+        var activities = await _activityRepo.GetByDateRangeAsync(
+            DateTime.UtcNow.AddDays(-90),
+            DateTime.UtcNow);
+
+        if (!activities.Any())
+        {
+            return new StreakInfo(0, 0, null);
+        }
+
+        var sortedDates = activities
+            .Select(a => a.CreatedAt.Date)
+            .Distinct()
+            .OrderByDescending(d => d)
+            .ToList();
+
+        var currentStreak = 0;
+        var longestStreak = 0;
+        var lastDate = DateTime.UtcNow.Date;
+
+        foreach (var date in sortedDates)
+        {
+            if ((lastDate - date).TotalDays <= 1)
+            {
+                currentStreak++;
+                longestStreak = Math.Max(longestStreak, currentStreak);
+                lastDate = date;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return new StreakInfo(
+            CurrentStreak: currentStreak,
+            LongestStreak: longestStreak,
+            LastPracticeDate: sortedDates.FirstOrDefault()
+        );
+    }
+
+    private async Task CachePlanAsync(TodaysPlan plan, CancellationToken ct)
+    {
+        _cache.SetTodaysPlan(plan);
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Generate deterministic plan item ID based on date and activity type.
+    /// This ensures same activity on same day always has same ID, enabling progress persistence.
+    /// </summary>
+    private string GeneratePlanItemId(DateTime date, PlanActivityType activityType, int? resourceId = null, int? skillId = null)
+    {
+        // Create deterministic string: date + activity + resource + skill
+        var parts = new List<string>
+        {
+            date.ToString("yyyy-MM-dd"),
+            activityType.ToString()
+        };
+        
+        if (resourceId.HasValue)
+            parts.Add($"r{resourceId.Value}");
+        if (skillId.HasValue)
+            parts.Add($"s{skillId.Value}");
+            
+        var combined = string.Join("_", parts);
+        
+        // Use deterministic hash to create stable GUID-like ID
+        // This ensures same inputs always produce same ID
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
+        var guid = new Guid(hash.Take(16).ToArray());
+        
+        System.Diagnostics.Debug.WriteLine($"🔑 Generated plan item ID: {guid} for {combined}");
+        return guid.ToString();
     }
 }

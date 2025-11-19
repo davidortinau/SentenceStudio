@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Dashboard;
 using System.Timers;
 using System.Diagnostics;
+using SentenceStudio.Components;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -73,7 +74,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 {
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _resourceRepo;
-    [Inject] VocabularyProgressService _progressService;
+    [Inject] VocabularyProgressService _vocabProgressService;
+    [Inject] Services.Progress.IProgressService _planProgressService;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -83,14 +86,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["VocabularyQuiz"]}",
-            Grid(rows: "Auto,*", columns: "*",
+            Grid(rows: "Auto,Auto,*", columns: "*",
+                Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null,
                 LearningProgressBar(),
                 ScrollView(
                     Grid(rows: "*,Auto", columns: "*",
                         TermDisplay(),
                         UserInputSection()
                     ).RowSpacing(MyTheme.ComponentSpacing)
-                ).GridRow(1),
+                ).GridRow(2),
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 SessionSummaryOverlay()
@@ -98,6 +102,100 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         )
         .OnAppearing(LoadVocabulary);
     }
+
+    // public override VisualNode Render()
+    // {
+    //     System.Diagnostics.Debug.WriteLine($"🎯 VocabularyQuizPage.Render() CALLED");
+    //     System.Diagnostics.Debug.WriteLine($"🎯 Props.FromTodaysPlan = {Props?.FromTodaysPlan}");
+    //     System.Diagnostics.Debug.WriteLine($"🎯 Timer service IsActive = {_timerService.IsActive}");
+
+    //     // Main content grid
+    //     var mainContent = Grid(rows: "Auto,*", columns: "*",
+    //         Grid(rows: "Auto", columns: "Auto,*,Auto",
+    //             // Left bubble shows learning count with enhanced status
+    //             Border(
+    //                 Label($"{State.LearningTermsCount}")
+    //                     .FontSize(16)
+    //                     .FontAttributes(FontAttributes.Bold)
+    //                     .TextColor(Colors.White)
+    //                     .TranslationY(-4)
+    //                     .Center()
+    //             )
+    //             .Background(MyTheme.Success)
+    //             .StrokeShape(new RoundRectangle().CornerRadius(15))
+    //             .StrokeThickness(0)
+    //             .HeightRequest(30)
+    //             .Padding(MyTheme.Size160, 2)
+    //             .GridColumn(0)
+    //             .VCenter(),
+
+    //             // Center progress bar shows overall mastery
+    //             ProgressBar()
+    //                 .Progress(State.TotalResourceTermsCount > 0 ?
+    //                     CalculateOverallMasteryProgress() : 0)
+    //                 .ProgressColor(MyTheme.Success)
+    //                 .BackgroundColor(Colors.LightGray)
+    //                 .HeightRequest(6)
+    //                 .GridColumn(1)
+    //                 .VCenter()
+    //                 .Margin(MyTheme.CardMargin, 0),
+
+    //             // Right bubble shows total count
+    //             Border(
+    //                 Label($"{State.TotalResourceTermsCount}")
+    //                     .FontSize(16)
+    //                     .FontAttributes(FontAttributes.Bold)
+    //                     .TextColor(Colors.White)
+    //                     .TranslationY(-4)
+    //                     .Center()
+    //             )
+    //             .Background(MyTheme.DarkOnLightBackground)
+    //             .StrokeShape(new RoundRectangle().CornerRadius(15))
+    //             .StrokeThickness(0)
+    //             .HeightRequest(30)
+    //             .Padding(MyTheme.Size160, 2)
+    //             .GridColumn(2)
+    //             .VCenter()
+    //         )
+    //         .Margin(MyTheme.CardMargin)
+    //         .GridRow(0),
+    //         ScrollView(
+    //             Grid(rows: "*,Auto", columns: "*",
+    //                 TermDisplay(),
+    //                 UserInputSection()
+    //             ).RowSpacing(MyTheme.ComponentSpacing)
+    //         ).GridRow(1),
+    //         AutoTransitionBar(),
+    //         LoadingOverlay(),
+    //         SessionSummaryOverlay()
+    //     ).RowSpacing(MyTheme.CardMargin);
+
+    //     // Wrap content with timer overlay if from Today's Plan
+    //     VisualNode pageContent;
+    //     if (Props?.FromTodaysPlan == true)
+    //     {
+    //         System.Diagnostics.Debug.WriteLine("🎯 Adding timer overlay to page content");
+    //         pageContent = Grid(
+    //             mainContent,
+    //             // Timer overlay - top right corner
+    //             HStack(
+    //                 new ActivityTimerBar()
+    //             )
+    //             .HEnd()
+    //             .VStart()
+    //             .Margin(16)
+    //         );
+    //     }
+    //     else
+    //     {
+    //         System.Diagnostics.Debug.WriteLine("🎯 No timer overlay - FromTodaysPlan is false");
+    //         pageContent = mainContent;
+    //     }
+
+    //     return ContentPage($"{_localize["VocabularyQuiz"]}", pageContent)
+    //         // .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
+    //         .OnAppearing(LoadVocabulary);
+    // }
 
     VisualNode AutoTransitionBar() =>
         ProgressBar()
@@ -117,7 +215,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
-        .GridRowSpan(2)
+        .GridRowSpan(3)
         .IsVisible(State.IsBusy);
 
     VisualNode SessionSummaryOverlay() =>
@@ -208,7 +306,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .Background(Theme.IsLightTheme ?
                             MyTheme.LightBackground :
                             MyTheme.DarkBackground)
-        .GridRowSpan(2)
+        .GridRowSpan(3)
         .IsVisible(State.ShowSessionSummary);
 
     VisualNode RenderSummaryItem(VocabularyQuizItem item)
@@ -313,6 +411,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .HeightRequest(30)
             .Padding(MyTheme.Size160, 2)
             .GridColumn(2)
+            .GridRow(1)
             .VCenter()
         ).Padding(MyTheme.LayoutSpacing);
 
@@ -696,7 +795,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         // Prioritize words that haven't been mastered globally yet
         var wordIds = availableWords.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var progressDict = await _vocabProgressService.GetProgressForWordsAsync(wordIds);
 
         // Sort words by mastery level - prioritize unmastered words first
         var sortedWords = availableWords
@@ -752,7 +851,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         // Get progress for all vocabulary words
         var allWordIds = allVocabulary.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(allWordIds);
+        var progressDict = await _vocabProgressService.GetProgressForWordsAsync(allWordIds);
 
         // Categorize words by mastery level
         var unmasteredWords = new List<VocabularyWord>();
@@ -921,7 +1020,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             try
             {
-                var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+                var progressDict = await _vocabProgressService.GetProgressForWordsAsync(wordIds);
                 System.Diagnostics.Debug.WriteLine($"Retrieved progress for {progressDict?.Count ?? 0} words");
 
                 var quizItems = smartSelectedWords.Select(word =>
@@ -1202,7 +1301,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         };
 
         // Record attempt using enhanced service
-        var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
+        var updatedProgress = await _vocabProgressService.RecordAttemptAsync(attempt);
 
         // Update the quiz item with new progress
         currentItem.Progress = updatedProgress;
@@ -1794,11 +1893,36 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     protected override void OnMounted()
     {
+        System.Diagnostics.Debug.WriteLine("🚀 VocabularyQuizPage.OnMounted() START");
         base.OnMounted();
+
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Props.FromTodaysPlan = {Props?.FromTodaysPlan}");
+        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Props.PlanItemId = {Props?.PlanItemId}");
+
+        // Start activity timer if launched from Today's Plan
+        if (Props?.FromTodaysPlan == true)
+        {
+            System.Diagnostics.Debug.WriteLine("⏱️ Starting timer session for VocabularyQuiz");
+            _timerService.StartSession("VocabularyQuiz", Props.PlanItemId);
+            System.Diagnostics.Debug.WriteLine($"✅ Timer session started - IsActive={_timerService.IsActive}, IsRunning={_timerService.IsRunning}");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("⚠️ NOT starting timer - FromTodaysPlan is false");
+        }
     }
 
     protected override void OnWillUnmount()
     {
+        System.Diagnostics.Debug.WriteLine("🛑 VocabularyQuizPage.OnWillUnmount() START");
         base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            System.Diagnostics.Debug.WriteLine("⏱️ Pausing timer");
+            _timerService.Pause();
+            System.Diagnostics.Debug.WriteLine($"✅ Timer paused - IsRunning={_timerService.IsRunning}");
+        }
     }
 }

@@ -91,6 +91,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] ILogger<TimestampedAudioManager> _audioManagerLogger;
     [Inject] ILogger<ReadingPage> _logger;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     private TimestampedAudioManager _audioManager;
@@ -158,6 +159,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             )
         )
         .Set(MauiControls.Shell.NavBarIsVisibleProperty, State.IsNavigationVisible)
+        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
         .OnAppearing(LoadContentAsync);
     }
 
@@ -1326,6 +1328,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s => s.ErrorMessage = "Resource has no transcript");
             return;
         }
+
+        // Start activity timer if launched from Today's Plan
+        if (Props?.FromTodaysPlan == true)
+        {
+            _timerService.StartSession("Reading", Props.PlanItemId);
+        }
         // Removed: Initialization logic that called InitializeAudioSystemAsync
     }
 
@@ -1471,6 +1479,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     protected override void OnWillUnmount()
     {
         base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            _timerService.Pause();
+        }
 
         // Clean up audio resources
         StopCurrentPlayback();

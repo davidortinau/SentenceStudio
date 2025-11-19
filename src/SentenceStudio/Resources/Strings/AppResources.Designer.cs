@@ -85,6 +85,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Complete!.
+        /// </summary>
+        internal static string ActivityCompleteLabel {
+            get {
+                return ResourceManager.GetString("ActivityCompleteLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activity Progress.
+        /// </summary>
+        internal static string ActivityProgressTitle {
+            get {
+                return ResourceManager.GetString("ActivityProgressTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Add.
         /// </summary>
         internal static string Add {
@@ -441,6 +459,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Dashboard {
             get {
                 return ResourceManager.GetString("Dashboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dashboard.
+        /// </summary>
+        internal static string DashboardTitle {
+            get {
+                return ResourceManager.GetString("DashboardTitle", resourceCulture);
             }
         }
         
@@ -1120,6 +1147,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 🎯 Choose My Own.
+        /// </summary>
+        internal static string ModeChooseOwn {
+            get {
+                return ResourceManager.GetString("ModeChooseOwn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 📚 Today&apos;s Plan.
+        /// </summary>
+        internal static string ModeTodaysPlan {
+            get {
+                return ResourceManager.GetString("ModeTodaysPlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Mon.
         /// </summary>
         internal static string Mon {
@@ -1399,6 +1444,258 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Today&apos;s Learning Plan.
+        /// </summary>
+        internal static string PlanCardTitle {
+            get {
+                return ResourceManager.GetString("PlanCardTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose My Own.
+        /// </summary>
+        internal static string PlanChooseOwnButton {
+            get {
+                return ResourceManager.GetString("PlanChooseOwnButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to complete.
+        /// </summary>
+        internal static string PlanCompleteLabel {
+            get {
+                return ResourceManager.GetString("PlanCompleteLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fill in missing words to practice grammar and vocabulary.
+        /// </summary>
+        internal static string PlanItemClozeDesc {
+            get {
+                return ResourceManager.GetString("PlanItemClozeDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cloze Exercise.
+        /// </summary>
+        internal static string PlanItemClozeTitle {
+            get {
+                return ResourceManager.GetString("PlanItemClozeTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chat in your target language.
+        /// </summary>
+        internal static string PlanItemConversationDesc {
+            get {
+                return ResourceManager.GetString("PlanItemConversationDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Practice conversation.
+        /// </summary>
+        internal static string PlanItemConversationTitle {
+            get {
+                return ResourceManager.GetString("PlanItemConversationTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Listen to audio to improve comprehension.
+        /// </summary>
+        internal static string PlanItemListeningDesc {
+            get {
+                return ResourceManager.GetString("PlanItemListeningDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Listening Practice.
+        /// </summary>
+        internal static string PlanItemListeningTitle {
+            get {
+                return ResourceManager.GetString("PlanItemListeningTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Read new content to build comprehension.
+        /// </summary>
+        internal static string PlanItemReadingDesc {
+            get {
+                return ResourceManager.GetString("PlanItemReadingDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reading Practice.
+        /// </summary>
+        internal static string PlanItemReadingTitle {
+            get {
+                return ResourceManager.GetString("PlanItemReadingTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Repeat audio to improve pronunciation and rhythm.
+        /// </summary>
+        internal static string PlanItemShadowingDesc {
+            get {
+                return ResourceManager.GetString("PlanItemShadowingDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shadowing Practice.
+        /// </summary>
+        internal static string PlanItemShadowingTitle {
+            get {
+                return ResourceManager.GetString("PlanItemShadowingTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Practice translating between languages.
+        /// </summary>
+        internal static string PlanItemTranslationDesc {
+            get {
+                return ResourceManager.GetString("PlanItemTranslationDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Translate sentences.
+        /// </summary>
+        internal static string PlanItemTranslationTitle {
+            get {
+                return ResourceManager.GetString("PlanItemTranslationTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Watch and learn from video content.
+        /// </summary>
+        internal static string PlanItemVideoDesc {
+            get {
+                return ResourceManager.GetString("PlanItemVideoDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Video Lesson.
+        /// </summary>
+        internal static string PlanItemVideoTitle {
+            get {
+                return ResourceManager.GetString("PlanItemVideoTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Quick matching game to reinforce words.
+        /// </summary>
+        internal static string PlanItemVocabGameDesc {
+            get {
+                return ResourceManager.GetString("PlanItemVocabGameDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary game.
+        /// </summary>
+        internal static string PlanItemVocabGameTitle {
+            get {
+                return ResourceManager.GetString("PlanItemVocabGameTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Review words due for spaced repetition.
+        /// </summary>
+        internal static string PlanItemVocabReviewDesc {
+            get {
+                return ResourceManager.GetString("PlanItemVocabReviewDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Review.
+        /// </summary>
+        internal static string PlanItemVocabReviewTitle {
+            get {
+                return ResourceManager.GetString("PlanItemVocabReviewTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to m.
+        /// </summary>
+        internal static string PlanMinAbbrev {
+            get {
+                return ResourceManager.GetString("PlanMinAbbrev", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to min.
+        /// </summary>
+        internal static string PlanMinutesLabel {
+            get {
+                return ResourceManager.GetString("PlanMinutesLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Regenerate Plan.
+        /// </summary>
+        internal static string PlanRegenerateButton {
+            get {
+                return ResourceManager.GetString("PlanRegenerateButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resume.
+        /// </summary>
+        internal static string PlanResumeButton {
+            get {
+                return ResourceManager.GetString("PlanResumeButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Complete activities in order for best results.
+        /// </summary>
+        internal static string PlanSequentialHint {
+            get {
+                return ResourceManager.GetString("PlanSequentialHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        internal static string PlanStartButton {
+            get {
+                return ResourceManager.GetString("PlanStartButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to words.
+        /// </summary>
+        internal static string PlanWordsLabel {
+            get {
+                return ResourceManager.GetString("PlanWordsLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Play Again.
         /// </summary>
         internal static string PlayAgain {
@@ -1557,6 +1854,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceCount {
             get {
                 return ResourceManager.GetString("ResourceCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to rounds.
+        /// </summary>
+        internal static string RoundsLabel {
+            get {
+                return ResourceManager.GetString("RoundsLabel", resourceCulture);
             }
         }
         

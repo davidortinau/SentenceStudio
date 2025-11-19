@@ -210,6 +210,21 @@ public class VocabularyProgressRepository
     }
 
     /// <summary>
+    /// Get count of vocabulary words due for review based on SRS schedule
+    /// </summary>
+    public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, int userId = 1)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var dueCount = await db.VocabularyProgresses
+            .Where(vp => vp.UserId == userId && vp.NextReviewDate <= asOfDate)
+            .CountAsync();
+
+        return dueCount;
+    }
+
+    /// <summary>
     /// Get aggregated progress for vocabulary words in a specific resource using SQL joins
     /// </summary>
     public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(int resourceId, int userId = 1)

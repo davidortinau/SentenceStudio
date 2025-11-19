@@ -168,17 +168,45 @@ public static class MauiProgram
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
+		System.Diagnostics.Debug.WriteLine("🏗️ Building MauiApp...");
 		var app = builder.Build();
+		System.Diagnostics.Debug.WriteLine("✅ MauiApp built successfully");
 
-		// Initialize database and sync on startup using proper initialization pattern
+		// CRITICAL: Initialize database schema SYNCHRONOUSLY before app starts
+		// This ensures MinutesSpent column exists before any queries attempt to use it
+		System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 1: About to get ISyncService");
+		
+		SentenceStudio.Services.ISyncService syncService;
+		try
+		{
+			syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+			System.Diagnostics.Debug.WriteLine("✅ CHECKPOINT 2: Got ISyncService successfully");
+			
+			// BLOCKING call - wait for schema to be ready
+			System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 3: Starting InitializeDatabaseAsync with Wait()");
+			Task.Run(async () => await syncService.InitializeDatabaseAsync()).Wait();
+			System.Diagnostics.Debug.WriteLine("✅ CHECKPOINT 4: Database initialization complete");
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"❌ FATAL ERROR in database initialization: {ex.Message}");
+			System.Diagnostics.Debug.WriteLine($"❌ Exception type: {ex.GetType().Name}");
+			System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+			throw; // Re-throw to prevent app from starting with broken database
+		}
+
+		// Background sync (non-blocking)
 		Task.Run(async () =>
 		{
-
-			var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-			await syncService.InitializeDatabaseAsync();
-			await syncService.TriggerSyncAsync();
-			System.Diagnostics.Debug.WriteLine($"[CoreSync] Startup initialization and sync completed successfully");
-
+			try
+			{
+				await syncService.TriggerSyncAsync();
+				System.Diagnostics.Debug.WriteLine($"[CoreSync] Background sync completed successfully");
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"❌ [CoreSync] Background sync failed: {ex.Message}");
+			}
 		});
 
 		// Listen for connectivity changes to trigger sync when online
@@ -289,6 +317,9 @@ public static class MauiProgram
 
 		// Progress aggregation service for dashboard visuals
 		services.AddSingleton<SentenceStudio.Services.Progress.IProgressService, SentenceStudio.Services.Progress.ProgressService>();
+
+		// Activity timer service for Today's Plan tracking
+		services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 

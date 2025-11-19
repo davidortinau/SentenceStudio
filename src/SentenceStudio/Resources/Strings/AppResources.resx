@@ -1181,4 +1181,140 @@
     <value>Sentence {0} of {1}</value>
     <comment>Shows current sentence number and total. {0} = current sentence, {1} = total sentences</comment>
   </data>
+  <data name="DashboardTitle" xml:space="preserve">
+    <value>Dashboard</value>
+    <comment>Dashboard page title</comment>
+  </data>
+  <data name="ModeTodaysPlan" xml:space="preserve">
+    <value>📚 Today's Plan</value>
+    <comment>Button text to switch to Today's Plan mode</comment>
+  </data>
+  <data name="ModeChooseOwn" xml:space="preserve">
+    <value>🎯 Choose My Own</value>
+    <comment>Button text to switch to Choose Your Own mode</comment>
+  </data>
+  <data name="PlanCardTitle" xml:space="preserve">
+    <value>Today's Learning Plan</value>
+    <comment>Title of the Today's Plan card</comment>
+  </data>
+  <data name="PlanMinutesLabel" xml:space="preserve">
+    <value>min</value>
+    <comment>Abbreviation for minutes</comment>
+  </data>
+  <data name="PlanCompleteLabel" xml:space="preserve">
+    <value>complete</value>
+    <comment>Label for completion percentage</comment>
+  </data>
+  <data name="PlanWordsLabel" xml:space="preserve">
+    <value>words</value>
+    <comment>Label for vocabulary words count</comment>
+  </data>
+  <data name="PlanMinAbbrev" xml:space="preserve">
+    <value>m</value>
+    <comment>Single letter abbreviation for minutes</comment>
+  </data>
+  <data name="PlanStartButton" xml:space="preserve">
+    <value>Start</value>
+    <comment>Button to start a plan activity</comment>
+  </data>
+  <data name="PlanResumeButton" xml:space="preserve">
+    <value>Resume</value>
+    <comment>Button to resume a plan activity</comment>
+  </data>
+  <data name="PlanRegenerateButton" xml:space="preserve">
+    <value>Regenerate Plan</value>
+    <comment>Button to generate a new plan</comment>
+  </data>
+  <data name="PlanSequentialHint" xml:space="preserve">
+    <value>Complete activities in order for best results</value>
+    <comment>Hint explaining sequential flow in today's plan</comment>
+  </data>
+  <data name="PlanChooseOwnButton" xml:space="preserve">
+    <value>Choose My Own</value>
+    <comment>Button to switch to manual activity selection</comment>
+  </data>
+  <data name="PlanItemVocabReviewTitle" xml:space="preserve">
+    <value>Vocabulary Review</value>
+    <comment>Title for vocabulary review plan item</comment>
+  </data>
+  <data name="PlanItemVocabReviewDesc" xml:space="preserve">
+    <value>Review words due for spaced repetition</value>
+    <comment>Description for vocabulary review plan item</comment>
+  </data>
+  <data name="PlanItemReadingTitle" xml:space="preserve">
+    <value>Reading Practice</value>
+    <comment>Title for reading plan item</comment>
+  </data>
+  <data name="PlanItemReadingDesc" xml:space="preserve">
+    <value>Read new content to build comprehension</value>
+    <comment>Description for reading plan item</comment>
+  </data>
+  <data name="PlanItemListeningTitle" xml:space="preserve">
+    <value>Listening Practice</value>
+    <comment>Title for listening plan item</comment>
+  </data>
+  <data name="PlanItemListeningDesc" xml:space="preserve">
+    <value>Listen to audio to improve comprehension</value>
+    <comment>Description for listening plan item</comment>
+  </data>
+  <data name="PlanItemVideoTitle" xml:space="preserve">
+    <value>Video Lesson</value>
+    <comment>Title for video watching plan item</comment>
+  </data>
+  <data name="PlanItemVideoDesc" xml:space="preserve">
+    <value>Watch and learn from video content</value>
+    <comment>Description for video watching plan item</comment>
+  </data>
+  <data name="PlanItemShadowingTitle" xml:space="preserve">
+    <value>Shadowing Practice</value>
+    <comment>Title for shadowing plan item</comment>
+  </data>
+  <data name="PlanItemShadowingDesc" xml:space="preserve">
+    <value>Repeat audio to improve pronunciation and rhythm</value>
+    <comment>Description for shadowing plan item</comment>
+  </data>
+  <data name="PlanItemClozeTitle" xml:space="preserve">
+    <value>Cloze Exercise</value>
+    <comment>Title for cloze exercise plan item</comment>
+  </data>
+  <data name="PlanItemClozeDesc" xml:space="preserve">
+    <value>Fill in missing words to practice grammar and vocabulary</value>
+    <comment>Description for cloze exercise plan item</comment>
+  </data>
+  <data name="PlanItemTranslationTitle" xml:space="preserve">
+    <value>Translate sentences</value>
+    <comment>Title for translation plan item</comment>
+  </data>
+  <data name="PlanItemTranslationDesc" xml:space="preserve">
+    <value>Practice translating between languages</value>
+    <comment>Description for translation plan item</comment>
+  </data>
+  <data name="PlanItemConversationTitle" xml:space="preserve">
+    <value>Practice conversation</value>
+    <comment>Title for conversation plan item</comment>
+  </data>
+  <data name="PlanItemConversationDesc" xml:space="preserve">
+    <value>Chat in your target language</value>
+    <comment>Description for conversation plan item</comment>
+  </data>
+  <data name="PlanItemVocabGameTitle" xml:space="preserve">
+    <value>Vocabulary game</value>
+    <comment>Title for vocabulary game plan item</comment>
+  </data>
+  <data name="PlanItemVocabGameDesc" xml:space="preserve">
+    <value>Quick matching game to reinforce words</value>
+    <comment>Description for vocabulary game plan item</comment>
+  </data>
+  <data name="ActivityProgressTitle" xml:space="preserve">
+    <value>Activity Progress</value>
+    <comment>Title for in-activity progress overlay</comment>
+  </data>
+  <data name="RoundsLabel" xml:space="preserve">
+    <value>rounds</value>
+    <comment>Label for completed rounds in an activity</comment>
+  </data>
+  <data name="ActivityCompleteLabel" xml:space="preserve">
+    <value>Complete!</value>
+    <comment>Label shown when activity is completed</comment>
+  </data>
 </root>
