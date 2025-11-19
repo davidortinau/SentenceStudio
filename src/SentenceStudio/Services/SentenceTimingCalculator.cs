@@ -2,6 +2,8 @@ using SentenceStudio.Models;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace SentenceStudio.Services;
 
@@ -11,6 +13,42 @@ namespace SentenceStudio.Services;
 /// </summary>
 public class SentenceTimingCalculator
 {
+    private readonly ILogger<SentenceTimingCalculator> _logger;
+    private static int _splitCallCount = 0;
+    private static readonly Stopwatch _perfWatch = new Stopwatch();
+    
+    // 🚀 PERFORMANCE: Cache split sentences to avoid repeated parsing
+    private string _cachedTranscript = null;
+    private List<string> _cachedSentences = null;
+    
+    public SentenceTimingCalculator(ILogger<SentenceTimingCalculator> logger)
+    {
+        _logger = logger;
+    }
+    
+    /// <summary>
+    /// Gets or splits sentences with caching to avoid repeated expensive parsing
+    /// </summary>
+    private List<string> GetSentences(string fullTranscript)
+    {
+        if (_cachedTranscript == fullTranscript && _cachedSentences != null)
+        {
+            return _cachedSentences;
+        }
+        
+        _splitCallCount++;
+        if (_splitCallCount % 10 == 0)
+        {
+            _logger.LogWarning("⚠️ PERFORMANCE: SplitIntoSentences called {Count} times", _splitCallCount);
+        }
+        
+        _cachedTranscript = fullTranscript;
+        _cachedSentences = SplitIntoSentences(fullTranscript);
+        
+        _logger.LogInformation("📚 Cached {Count} sentences from transcript", _cachedSentences.Count);
+        
+        return _cachedSentences;
+    }
     /// <summary>
     /// Gets the current sentence index based on audio playback position using character timestamps
     /// This is much more accurate than pre-calculating sentence boundaries
@@ -21,21 +59,38 @@ public class SentenceTimingCalculator
     /// <returns>Current sentence index, or -1 if not found</returns>
     public int GetCurrentSentenceIndex(double currentTimeSeconds, TimestampedTranscriptCharacter[] characters, string fullTranscript)
     {
+        _perfWatch.Restart();
+        
         if (characters == null || characters.Length == 0 || string.IsNullOrEmpty(fullTranscript))
+        {
+            _logger.LogWarning("⚠️ GetCurrentSentenceIndex: Invalid inputs");
             return -1;
+        }
+        
         var currentCharIndex = GetCharacterIndexAtTime(currentTimeSeconds, characters);
         if (currentCharIndex == -1)
         {
-            System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] No character found for time {currentTimeSeconds:F2}s");
+            _logger.LogDebug("🔍 No character found for time {Time:F2}s", currentTimeSeconds);
             return -1;
         }
+        
         var sentenceIndex = GetSentenceIndexForCharacter(currentCharIndex, fullTranscript);
-        var sentences = SplitIntoSentences(fullTranscript);
+        
+        _perfWatch.Stop();
+        if (_perfWatch.ElapsedMilliseconds > 10)
+        {
+            _logger.LogWarning("⚠️ SLOW GetCurrentSentenceIndex took {Ms}ms for time {Time:F2}s", 
+                _perfWatch.ElapsedMilliseconds, currentTimeSeconds);
+        }
+        
+        var sentences = GetSentences(fullTranscript);
         if (sentenceIndex < 0 || sentenceIndex >= sentences.Count)
         {
-            System.Diagnostics.Debug.WriteLine($"[SentenceTimingCalculator] Invalid sentence index {sentenceIndex} for char {currentCharIndex} (time {currentTimeSeconds:F2}s), sentences.Count={sentences.Count}");
+            _logger.LogWarning("⚠️ Invalid sentence index {Index} for char {Char} (time {Time:F2}s), sentences.Count={Count}",
+                sentenceIndex, currentCharIndex, currentTimeSeconds, sentences.Count);
             return -1;
         }
+        
         return sentenceIndex;
     }
 
@@ -51,7 +106,7 @@ public class SentenceTimingCalculator
         if (characters == null || characters.Length == 0 || string.IsNullOrEmpty(fullTranscript))
             return null;
 
-        var sentences = SplitIntoSentences(fullTranscript);
+        var sentences = GetSentences(fullTranscript);
         
         if (sentenceIndex < 0 || sentenceIndex >= sentences.Count) 
             return null;
@@ -188,7 +243,7 @@ public class SentenceTimingCalculator
             return -1;
         }
         
-        var sentences = SplitIntoSentences(fullTranscript);
+        var sentences = GetSentences(fullTranscript);
         var currentPos = 0;
         
         for (int sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)

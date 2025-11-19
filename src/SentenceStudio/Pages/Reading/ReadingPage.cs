@@ -91,6 +91,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] ILogger<TimestampedAudioManager> _audioManagerLogger;
     [Inject] ILogger<ReadingPage> _logger;
+    [Inject] ILogger<SentenceTimingCalculator> _timingCalculatorLogger;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -1358,7 +1359,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             _logger.LogDebug("InitializeAudioSystemAsync: Starting audio system initialization");
 
-            _timingCalculator = new SentenceTimingCalculator();
+            _timingCalculator = new SentenceTimingCalculator(_timingCalculatorLogger);
             _audioManager = new TimestampedAudioManager(_timingCalculator, _audioManagerLogger);
 
             // Update progress
