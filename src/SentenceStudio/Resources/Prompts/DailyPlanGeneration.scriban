@@ -83,8 +83,8 @@ No skill profiles configured yet.
 - Multiple choice → text entry progression
 - CRITICAL: Always include if vocab_due_count >= 5
 - Typical: 4 words/minute throughput
-- CAN SPECIFY ResourceId: If provided, only reviews vocabulary from that resource (for focused practice)
-- OPTIONAL: ResourceId (if not provided, reviews all due vocabulary across all resources)
+- **MUST SPECIFY ResourceId**: For session coherence, ALWAYS use the SAME ResourceId as other activities in the plan
+- This ensures vocabulary practice is directly related to the content being studied
 
 **VocabularyGame** (Route: /vocabulary-matching, 5-8min)
 - Matching game for vocabulary reinforcement
@@ -131,13 +131,13 @@ Return 1-5 activities that:
 IMPORTANT CONSTRAINTS:
 - **TOTAL TIME MUST BE CLOSE TO {{ preferred_minutes }} minutes** - User has limited time!
 - All activities requiring ResourceId MUST also have SkillId (they're paired)
-- VocabularyReview CAN optionally specify ResourceId to focus on specific resource vocabulary
+- **VocabularyReview MUST have ResourceId** - Use the SAME resource as other activities for coherence
 - VocabularyGame requires SkillId
 - Only use resource IDs and skill IDs from the available lists above
 - If no resources available, only generate VocabularyReview or VocabularyGame activities
 
-COHERENCE RECOMMENDATION:
-If you select a specific resource for Reading/Listening/etc, consider also using that same ResourceId
-for VocabularyReview to keep the session focused on related vocabulary.
+SESSION COHERENCE RULE:
+**CRITICAL:** When generating a plan, pick ONE primary resource and use it for ALL activities including VocabularyReview.
+This ensures the vocabulary practice directly supports the listening/reading/speaking practice in the same session.
 
 Return ONLY the structured plan data with activity types, resource IDs, skill IDs, estimated minutes, and priority order.
