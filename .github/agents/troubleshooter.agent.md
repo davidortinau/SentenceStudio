@@ -37,7 +37,75 @@ State your immediate next step clearly before taking action.
 
 ### 3. Add Diagnostic Logging
 
-Before changing logic, add comprehensive logging with emoji prefixes for easy scanning:
+Before changing logic, add comprehensive logging. **Prefer ILogger over Debug.WriteLine for production code**, but Debug.WriteLine is acceptable for quick debugging sessions.
+
+#### Using ILogger (Recommended for Services and Production Code)
+
+**Why ILogger:**
+- Structured logging with log levels (Debug, Information, Warning, Error, Critical)
+- Can be configured to write to multiple destinations (console, file, Application Insights, etc.)
+- Automatically includes timestamps, log levels, and category names
+- Supports filtering by category and level in configuration
+- Better performance with compile-time log message templates
+- Integrates with .NET logging infrastructure
+
+**Setup in services/pages:**
+```csharp
+public class MyService
+{
+    private readonly ILogger<MyService> _logger;
+    
+    public MyService(ILogger<MyService> logger)
+    {
+        _logger = logger;
+    }
+    
+    public void DoWork()
+    {
+        _logger.LogDebug("🚀 DoWork starting");
+        _logger.LogInformation("🎯 Processing {Count} items", itemCount);
+        _logger.LogWarning("⚠️ Unexpected state: {Details}", details);
+        _logger.LogError(exception, "❌ Failed to process: {Reason}", reason);
+    }
+}
+```
+
+**MauiReactor Components** (which don't support constructor injection):
+```csharp
+public class MyComponent : Component
+{
+    private ILogger<MyComponent> _logger => 
+        Services.GetRequiredService<ILogger<MyComponent>>();
+    
+    public override VisualNode Render()
+    {
+        _logger.LogDebug("🔍 Rendering component");
+        return Label("Content");
+    }
+}
+```
+
+**Log Levels Guide:**
+- `LogTrace()` - Very detailed, potentially high-volume diagnostic info
+- `LogDebug()` - Internal system events, useful during development (🚀🔍🏴‍☠️)
+- `LogInformation()` - General application flow, key operations (🎯✅)
+- `LogWarning()` - Abnormal/unexpected events that don't stop execution (⚠️)
+- `LogError()` - Failures that stop current operation (❌)
+- `LogCritical()` - Catastrophic failures requiring immediate attention
+
+**Structured logging with named parameters:**
+```csharp
+// ✅ GOOD - Uses message template with named parameters
+_logger.LogInformation("User {UserId} completed {ActivityType} in {Duration}ms", 
+    userId, activityType, duration);
+
+// ❌ BAD - String interpolation prevents structured logging
+_logger.LogInformation($"User {userId} completed {activityType} in {duration}ms");
+```
+
+#### Using Debug.WriteLine (Quick Debugging)
+
+For rapid debugging iterations or UI components without DI access, `System.Diagnostics.Debug.WriteLine()` is acceptable:
 
 ```csharp
 // ✅ Success indicators
@@ -68,7 +136,37 @@ System.Diagnostics.Debug.WriteLine($"⚠️ Unexpected state: {details}");
 System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State: Count={count}, IsReady={isReady}");
 ```
 
-Log at method entry points, decision branches, before/after critical operations, state transitions, and always include actual values not just labels.
+#### Viewing ILogger Output
+
+**During Development:**
+- VS Code Debug Console shows all log levels by default
+- Configure minimum level in `appsettings.json` or `MauiProgram.cs`:
+```csharp
+builder.Logging.AddDebug(); // Shows in debug output
+builder.Logging.SetMinimumLevel(LogLevel.Debug); // Include Debug+ logs
+```
+
+**Platform-Specific Output:**
+- **macOS/iOS**: ILogger with AddDebug() appears in same locations as Debug.WriteLine
+- **Android**: Shows in Logcat with category prefixes
+- **Windows**: Shows in Debug output and Event Viewer (if configured)
+
+**File Logging** (for persistent diagnostics):
+```csharp
+// In MauiProgram.cs
+builder.Logging.AddProvider(new FileLoggerProvider(
+    Path.Combine(FileSystem.AppDataDirectory, "app.log")
+));
+```
+
+#### Best Practices
+
+- **Use ILogger in services, ViewModels, and business logic** - Better for production
+- **Use Debug.WriteLine for quick UI debugging** - Faster for one-off investigations
+- **Always use emoji prefixes** - Makes log scanning easier regardless of approach
+- **Include actual values** - Log `Count={count}` not just "Processing items"
+- **Log at key decision points** - Method entry, branches, before/after operations
+- **Log state transitions** - When IsActive changes from false→true, log both values
 
 ### 4. Test Systematically
 

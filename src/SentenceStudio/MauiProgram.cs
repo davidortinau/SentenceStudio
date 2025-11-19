@@ -106,7 +106,10 @@ public static class MauiProgram
 
 
 #if DEBUG
-		builder.Logging.AddConsole().AddDebug().SetMinimumLevel(LogLevel.None);
+		builder.Logging
+			.AddDebug()
+			.AddConsole()
+			.SetMinimumLevel(LogLevel.Information);
 		// builder.UseDebugRibbon();
 #endif
 
@@ -175,13 +178,13 @@ public static class MauiProgram
 		// CRITICAL: Initialize database schema SYNCHRONOUSLY before app starts
 		// This ensures MinutesSpent column exists before any queries attempt to use it
 		System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 1: About to get ISyncService");
-		
+
 		SentenceStudio.Services.ISyncService syncService;
 		try
 		{
 			syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
 			System.Diagnostics.Debug.WriteLine("✅ CHECKPOINT 2: Got ISyncService successfully");
-			
+
 			// BLOCKING call - wait for schema to be ready
 			System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 3: Starting InitializeDatabaseAsync with Wait()");
 			Task.Run(async () => await syncService.InitializeDatabaseAsync()).Wait();
