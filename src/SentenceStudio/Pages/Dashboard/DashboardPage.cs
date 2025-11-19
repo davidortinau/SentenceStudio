@@ -703,68 +703,60 @@ partial class DashboardPage : Component<DashboardPageState>
 
         if (!string.IsNullOrEmpty(route))
         {
+            // Pre-load resource if needed for VocabularyReview
+            List<LearningResource>? resourcesToUse = null;
+            
+            if (item.ActivityType == PlanActivityType.VocabularyReview && 
+                item.RouteParameters?.ContainsKey("ResourceId") == true)
+            {
+                var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                
+                // First try to find in selected resources
+                var specificResource = _parameters.Value.SelectedResources?
+                    .FirstOrDefault(r => r.Id == resourceId);
+                
+                if (specificResource != null)
+                {
+                    resourcesToUse = new List<LearningResource> { specificResource };
+                    System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
+                }
+                else
+                {
+                    // Resource not in selected list - load from database
+                    System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
+                    try
+                    {
+                        var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
+                        if (dbResource != null)
+                        {
+                            resourcesToUse = new List<LearningResource> { dbResource };
+                            System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                            resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
+                        resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                    }
+                }
+            }
+            else
+            {
+                resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+            }
+            
             System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 route,
                 props =>
                 {
                     System.Diagnostics.Debug.WriteLine($"🔧 OnPlanItemTapped: Configuring ActivityProps...");
-                    // For VocabularyReview with specific ResourceId, filter to that resource only
-                    if (item.ActivityType == PlanActivityType.VocabularyReview && 
-                        item.RouteParameters?.ContainsKey("ResourceId") == true)
-                    {
-                        var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
-                        
-                        // First try to find in selected resources
-                        var specificResource = _parameters.Value.SelectedResources?
-                            .FirstOrDefault(r => r.Id == resourceId);
-                        
-                        if (specificResource != null)
-                        {
-                            props.Resources = new List<LearningResource> { specificResource };
-                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
-                        }
-                        else
-                        {
-                            // Resource not in selected list - load from database
-                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
-                            Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
-                                    if (dbResource != null)
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
-                                        MainThread.BeginInvokeOnMainThread(() =>
-                                        {
-                                            props.Resources = new List<LearningResource> { dbResource };
-                                        });
-                                    }
-                                    else
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
-                                        MainThread.BeginInvokeOnMainThread(() =>
-                                        {
-                                            props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                                        });
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
-                                    MainThread.BeginInvokeOnMainThread(() =>
-                                    {
-                                        props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                                    });
-                                }
-                            }).Wait(); // Wait for async load before navigating
-                        }
-                    }
-                    else
-                    {
-                        props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                    }
+                    props.Resources = resourcesToUse;
                     
                     props.Skill = _parameters.Value.SelectedSkillProfile;
                     props.FromTodaysPlan = true;  // Enable timer for Today's Plan activities
