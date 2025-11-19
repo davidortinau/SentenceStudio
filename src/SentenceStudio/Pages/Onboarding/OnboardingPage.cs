@@ -15,6 +15,8 @@ public class OnboardingState
     public string TargetLanguage { get; set; } = string.Empty;
     public string DisplayLanguage { get; set; } = string.Empty;
     public string OpenAI_APIKey { get; set; } = string.Empty;
+    public int PreferredSessionMinutes { get; set; } = 20;
+    public string? TargetCEFRLevel { get; set; }
     public bool NeedsApiKey { get; set; }
     public string[] SuggestedNames { get; set; } = Array.Empty<string>();
     public bool IsLoadingNames { get; set; } = false;
@@ -60,6 +62,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             }),
         RenderNameStep(),
         State.NeedsApiKey ? RenderApiKeyStep() : null,
+        RenderPreferencesStep(),
         RenderFinalStep()
     }.Where(screen => screen != null).ToArray();
 
@@ -165,6 +168,7 @@ public partial class OnboardingPage : Component<OnboardingState>
             2 => !string.IsNullOrEmpty(State.TargetLanguage), // Target language step  
             3 => !string.IsNullOrEmpty(State.Name), // Name step
             4 => !State.NeedsApiKey || !string.IsNullOrEmpty(State.OpenAI_APIKey), // API key step
+            5 => true, // Preferences step - has defaults, always can proceed
             _ => true
         };
     }
@@ -346,6 +350,105 @@ public partial class OnboardingPage : Component<OnboardingState>
             .Margin(MyTheme.Size160)
         )
         .IsVisible(State.NeedsApiKey);
+
+    VisualNode RenderPreferencesStep() =>
+        VScrollView(
+            VStack(spacing: MyTheme.Size320,
+                Label("Learning Preferences")
+                    .ThemeKey(MyTheme.Title1)
+                    .HCenter()
+                    .Margin(0, 20, 0, 10),
+
+                Label("Set your daily practice preferences. These help us create personalized learning plans for you.")
+                    .FontSize(14)
+                    .TextColor(Colors.Gray)
+                    .HCenter()
+                    .Margin(0, 0, 0, 20),
+
+                VStack(spacing: MyTheme.Size160,
+                    Label("How long would you like to practice each day?")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    
+                    VStack(spacing: 8,
+                        HStack(spacing: 8,
+                            new[] { 5, 10, 15, 20 }.Select(minutes =>
+                                RenderMinuteButton(minutes)
+                            ).ToArray()
+                        ).HCenter(),
+                        HStack(spacing: 8,
+                            new[] { 25, 30, 45 }.Select(minutes =>
+                                RenderMinuteButton(minutes)
+                            ).ToArray()
+                        ).HCenter()
+                    ),
+
+                    Label($"Recommended: 15-20 minutes daily for consistent progress")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                        .HCenter()
+                        .Margin(0, 4, 0, 20),
+
+                    Label("What's your target proficiency level? (Optional)")
+                        .ThemeKey(MyTheme.Body1Strong),
+
+                    VStack(spacing: 8,
+                        HStack(spacing: 8,
+                            RenderCEFRButton("Not Set", "Not sure yet"),
+                            RenderCEFRButton("A1", "Beginner"),
+                            RenderCEFRButton("A2", "Elementary")
+                        ).HCenter(),
+                        HStack(spacing: 8,
+                            RenderCEFRButton("B1", "Intermediate"),
+                            RenderCEFRButton("B2", "Upper Int."),
+                            RenderCEFRButton("C1", "Advanced")
+                        ).HCenter(),
+                        HStack(spacing: 8,
+                            RenderCEFRButton("C2", "Mastery")
+                        ).HCenter()
+                    ),
+
+                    Label("This helps us recommend appropriate learning materials")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                        .HCenter()
+                )
+            )
+            .Padding(MyTheme.Size160)
+        );
+
+    VisualNode RenderMinuteButton(int minutes) =>
+        Border(
+            Label($"{minutes} min")
+                .FontSize(14)
+                .HCenter()
+                .VCenter()
+                .Padding(12, 8)
+        )
+        .StrokeThickness(State.PreferredSessionMinutes == minutes ? 2 : 1)
+        .Stroke((Color)(State.PreferredSessionMinutes == minutes ? MyTheme.PrimaryButtonBackground : MyTheme.ItemBorder))
+        .BackgroundColor(State.PreferredSessionMinutes == minutes ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .OnTapped(() => SetState(s => s.PreferredSessionMinutes = minutes));
+
+    VisualNode RenderCEFRButton(string level, string description) =>
+        Border(
+            VStack(spacing: 4,
+                Label(level)
+                    .FontSize(16)
+                    .FontAttributes(FontAttributes.Bold)
+                    .HCenter(),
+                Label(description)
+                    .FontSize(11)
+                    .TextColor(Colors.Gray)
+                    .HCenter()
+            )
+            .Padding(10, 8)
+        )
+        .StrokeThickness((State.TargetCEFRLevel ?? "Not Set") == level ? 2 : 1)
+        .Stroke((Color)((State.TargetCEFRLevel ?? "Not Set") == level ? MyTheme.PrimaryButtonBackground : MyTheme.ItemBorder))
+        .BackgroundColor((State.TargetCEFRLevel ?? "Not Set") == level ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .OnTapped(() => SetState(s => s.TargetCEFRLevel = level == "Not Set" ? null : level));
 
     VisualNode RenderFinalStep()
     {
@@ -644,7 +747,9 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
                 NativeLanguage = State.NativeLanguage,
                 TargetLanguage = State.TargetLanguage,
                 DisplayLanguage = State.DisplayLanguage,
-                OpenAI_APIKey = State.OpenAI_APIKey
+                OpenAI_APIKey = State.OpenAI_APIKey,
+                PreferredSessionMinutes = State.PreferredSessionMinutes,
+                TargetCEFRLevel = State.TargetCEFRLevel
             };
 
             await _userProfileRepository.SaveAsync(profile);

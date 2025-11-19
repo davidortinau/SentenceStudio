@@ -13,6 +13,10 @@ class UserProfilePageState
     public string TargetLanguage { get; set; } = string.Empty;
     public string DisplayLanguage { get; set; } = string.Empty;
     public string OpenAI_APIKey { get; set; } = string.Empty;
+    public int PreferredSessionMinutes { get; set; } = 20;
+    public int PreferredSessionMinutesIndex { get; set; } = 3; // 20 min is at index 3
+    public string? TargetCEFRLevel { get; set; }
+    public int TargetCEFRLevelIndex { get; set; } = 0; // "Not Set" is at index 0
     public int NativeLanguageIndex { get; internal set; }
     public int TargetLanguageIndex { get; internal set; }
     public int DisplayLanguageIndex { get; internal set; }
@@ -117,6 +121,53 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         // .TextColor(Theme.IsLightTheme ? MyTheme.Secondary : MyTheme.SecondaryDark)
                         .OnTapped(GoToOpenAI),
 
+                    // Learning Preferences Section
+                    Label("Learning Preferences")
+                        .ThemeKey(MyTheme.Title3)
+                        .Margin(0, 20, 0, 10),
+
+                    Label("Preferred Session Length")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Border(
+                        Picker()
+                            .ItemsSource(new[] { "5 minutes", "10 minutes", "15 minutes", "20 minutes", "25 minutes", "30 minutes", "45 minutes" })
+                            .SelectedIndex(State.PreferredSessionMinutesIndex)
+                            .OnSelectedIndexChanged(index =>
+                            {
+                                var minutes = new[] { 5, 10, 15, 20, 25, 30, 45 }[index];
+                                SetState(s =>
+                                {
+                                    s.PreferredSessionMinutes = minutes;
+                                    s.PreferredSessionMinutesIndex = index;
+                                });
+                            })
+                    ).ThemeKey(MyTheme.InputWrapper),
+                    Label("How long you'd like to practice each day. Plans adapt to your choice.")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                        .Margin(0, 4, 0, 12),
+
+                    Label("Target CEFR Level (Optional)")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Border(
+                        Picker()
+                            .ItemsSource(new[] { "Not Set", "A1 - Beginner", "A2 - Elementary", "B1 - Intermediate", "B2 - Upper Intermediate", "C1 - Advanced", "C2 - Mastery" })
+                            .SelectedIndex(State.TargetCEFRLevelIndex)
+                            .OnSelectedIndexChanged(index =>
+                            {
+                                var levels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
+                                SetState(s =>
+                                {
+                                    s.TargetCEFRLevel = levels[index];
+                                    s.TargetCEFRLevelIndex = index;
+                                });
+                            })
+                    ).ThemeKey(MyTheme.InputWrapper),
+                    Label("Your language proficiency goal. Helps AI choose appropriate resources.")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                        .Margin(0, 4, 0, 12),
+
                     Button($"{_localize["Save"]}")
                         .OnClicked(Save)
                         .HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill)
@@ -179,6 +230,17 @@ partial class UserProfilePage : Component<UserProfilePageState>
     async Task LoadProfile()
     {
         var profile = await _userProfileRepository.GetOrCreateDefaultAsync();
+        
+        // Map minutes to index
+        var sessionMinutesOptions = new[] { 5, 10, 15, 20, 25, 30, 45 };
+        var sessionIndex = Array.IndexOf(sessionMinutesOptions, profile.PreferredSessionMinutes);
+        if (sessionIndex == -1) sessionIndex = 3; // Default to 20 min
+        
+        // Map CEFR level to index
+        var cefrLevels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
+        var cefrIndex = Array.IndexOf(cefrLevels, profile.TargetCEFRLevel);
+        if (cefrIndex == -1) cefrIndex = 0; // Default to "Not Set"
+        
         SetState(s =>
         {
             s.ProfileID = profile.Id;
@@ -188,6 +250,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
             s.TargetLanguage = profile.TargetLanguage;
             s.DisplayLanguage = profile.DisplayLanguage;
             s.OpenAI_APIKey = profile.OpenAI_APIKey;
+            s.PreferredSessionMinutes = profile.PreferredSessionMinutes;
+            s.PreferredSessionMinutesIndex = sessionIndex;
+            s.TargetCEFRLevel = profile.TargetCEFRLevel;
+            s.TargetCEFRLevelIndex = cefrIndex;
 
             s.NativeLanguageIndex = Array.IndexOf(Constants.Languages, profile.NativeLanguage);
             s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
@@ -204,7 +270,9 @@ partial class UserProfilePage : Component<UserProfilePageState>
             NativeLanguage = State.NativeLanguage,
             TargetLanguage = State.TargetLanguage,
             DisplayLanguage = State.DisplayLanguage,
-            OpenAI_APIKey = State.OpenAI_APIKey
+            OpenAI_APIKey = State.OpenAI_APIKey,
+            PreferredSessionMinutes = State.PreferredSessionMinutes,
+            TargetCEFRLevel = State.TargetCEFRLevel
         };
 
         await _userProfileRepository.SaveAsync(profile);
