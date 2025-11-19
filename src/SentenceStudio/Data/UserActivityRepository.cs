@@ -58,8 +58,10 @@ public class UserActivityRepository
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
-            // PHASE 2 OPTIMIZATION: Invalidate progress cache when new activities are recorded
-            _cacheService?.InvalidateAll();
+            // PHASE 2 OPTIMIZATION: Invalidate relevant caches (but NOT TodaysPlan!)
+            // User activities affect vocab summary and practice heat, but not the plan structure
+            _cacheService?.InvalidateVocabSummary();
+            _cacheService?.InvalidatePracticeHeat();
 
             return result;
         }
