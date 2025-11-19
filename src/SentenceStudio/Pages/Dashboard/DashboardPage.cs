@@ -703,13 +703,22 @@ partial class DashboardPage : Component<DashboardPageState>
 
         if (!string.IsNullOrEmpty(route))
         {
+            System.Diagnostics.Debug.WriteLine($"✅ Route is not empty, proceeding with resource loading...");
+            
             // Pre-load resource if needed for VocabularyReview
             List<LearningResource>? resourcesToUse = null;
+            
+            System.Diagnostics.Debug.WriteLine($"🔍 Checking if VocabularyReview with ResourceId...");
+            System.Diagnostics.Debug.WriteLine($"🔍 ActivityType: {item.ActivityType}");
+            System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters null? {item.RouteParameters == null}");
+            System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters count: {item.RouteParameters?.Count ?? 0}");
             
             if (item.ActivityType == PlanActivityType.VocabularyReview && 
                 item.RouteParameters?.ContainsKey("ResourceId") == true)
             {
+                System.Diagnostics.Debug.WriteLine($"✅ VocabularyReview with ResourceId detected");
                 var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
                 
                 // First try to find in selected resources
                 var specificResource = _parameters.Value.SelectedResources?
@@ -748,9 +757,11 @@ partial class DashboardPage : Component<DashboardPageState>
             else
             {
                 resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                System.Diagnostics.Debug.WriteLine($"📚 Using default selected resources (count: {resourcesToUse.Count})");
             }
             
             System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
+            System.Diagnostics.Debug.WriteLine($"🚀 Resources to use: {resourcesToUse?.Count ?? 0} resources");
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 route,
                 props =>
