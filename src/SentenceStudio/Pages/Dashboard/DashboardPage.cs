@@ -691,12 +691,12 @@ partial class DashboardPage : Component<DashboardPageState>
             {
                 PlanActivityType.VocabularyReview => nameof(VocabularyQuizPage),
                 PlanActivityType.Reading => "reading",
-                PlanActivityType.Listening => "listening",
+                PlanActivityType.Listening => "reading", // ReadingPage handles audio playback for listening
                 PlanActivityType.VideoWatching => await HandleVideoActivity(item),
                 PlanActivityType.Shadowing => "shadowing",
                 PlanActivityType.Cloze => nameof(ClozurePage),
                 PlanActivityType.Translation => nameof(TranslationPage),
-                PlanActivityType.Conversation => "conversation",
+                PlanActivityType.Conversation => null, // TODO: Implement conversation page
                 PlanActivityType.VocabularyGame => nameof(VocabularyMatchingPage),
                 _ => null
             };
