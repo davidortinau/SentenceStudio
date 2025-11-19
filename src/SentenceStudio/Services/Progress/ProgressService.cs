@@ -261,6 +261,10 @@ public class ProgressService : IProgressService
             // Enrich with any existing completion data from database (resume support)
             enrichedPlan = await EnrichPlanWithCompletionDataAsync(enrichedPlan, ct);
 
+            // CRITICAL: Pre-create DailyPlanCompletion records for all plan items
+            // This ensures progress can be saved even if cache is lost
+            await InitializePlanCompletionRecordsAsync(enrichedPlan, ct);
+
             await CachePlanAsync(enrichedPlan, ct);
             return enrichedPlan;
         }
@@ -457,27 +461,7 @@ public class ProgressService : IProgressService
         var today = DateTime.UtcNow.Date;
         System.Diagnostics.Debug.WriteLine($"📅 Using UTC date: {today:yyyy-MM-dd}");
         
-        var plan = _cache.GetTodaysPlan();
-
-        if (plan == null)
-        {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No cached plan found - cannot update progress");
-            return;
-        }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Found cached plan for {plan.GeneratedForDate:yyyy-MM-dd}");
-
-        var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
-        if (item == null)
-        {
-            System.Diagnostics.Debug.WriteLine($"⚠️ Plan item '{planItemId}' not found in cached plan");
-            System.Diagnostics.Debug.WriteLine($"📊 Available plan item IDs: {string.Join(", ", plan.Items.Select(i => i.Id))}");
-            return;
-        }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Found plan item: {item.TitleKey}");
-
-        // Update or create in database
+        // Update database FIRST - this should always work if plan was initialized
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -488,48 +472,47 @@ public class ProgressService : IProgressService
         {
             existing.MinutesSpent = minutesSpent;
             existing.UpdatedAt = DateTime.UtcNow;
-            System.Diagnostics.Debug.WriteLine($"💾 Updated existing database record to {minutesSpent} minutes");
+            await db.SaveChangesAsync(ct);
+            System.Diagnostics.Debug.WriteLine($"💾 Updated database record to {minutesSpent} minutes (cache-independent)");
         }
         else
         {
-            var completion = new DailyPlanCompletion
-            {
-                Date = today,
-                PlanItemId = planItemId,
-                ActivityType = item.ActivityType.ToString(),
-                ResourceId = item.ResourceId,
-                SkillId = item.SkillId,
-                IsCompleted = false,
-                MinutesSpent = minutesSpent,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            await db.DailyPlanCompletions.AddAsync(completion, ct);
-            System.Diagnostics.Debug.WriteLine($"💾 Created new record with {minutesSpent} minutes");
+            System.Diagnostics.Debug.WriteLine($"⚠️ No DailyPlanCompletion record found for planItemId='{planItemId}' on {today:yyyy-MM-dd}");
+            System.Diagnostics.Debug.WriteLine($"💡 This means the plan wasn't initialized properly");
         }
 
-        await db.SaveChangesAsync(ct);
-        System.Diagnostics.Debug.WriteLine($"💾 Database SaveChanges completed - {db.ChangeTracker.Entries().Count()} entities in tracker");
-
-        // Update cache
-        var updatedItem = item with { MinutesSpent = minutesSpent };
-        var itemIndex = plan.Items.IndexOf(item);
-        if (itemIndex >= 0)
+        // Also update cache if it exists (optional, for UI responsiveness)
+        var plan = _cache.GetTodaysPlan();
+        if (plan != null)
         {
-            plan.Items[itemIndex] = updatedItem;
+            System.Diagnostics.Debug.WriteLine($"✅ Cache exists - updating cache too");
+            
+            var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
+            if (item != null)
+            {
+                var updatedItem = item with { MinutesSpent = minutesSpent };
+                var itemIndex = plan.Items.IndexOf(item);
+                if (itemIndex >= 0)
+                {
+                    plan.Items[itemIndex] = updatedItem;
+                }
+
+                // Recalculate completion percentage
+                var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
+                var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
+                var completionPercentage = totalEstimatedMinutes > 0 
+                    ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
+                    : 0;
+
+                var updatedPlan = plan with { CompletionPercentage = completionPercentage };
+                _cache.UpdateTodaysPlan(updatedPlan);
+                System.Diagnostics.Debug.WriteLine($"✅ Cache updated - {completionPercentage:F0}% complete");
+            }
         }
-
-        // Recalculate completion percentage
-        var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
-        var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
-        var completionPercentage = totalEstimatedMinutes > 0 
-            ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
-            : 0;
-
-        var updatedPlan = plan with { CompletionPercentage = completionPercentage };
-        _cache.UpdateTodaysPlan(updatedPlan);
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Progress updated - {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"ℹ️ No cached plan - database updated successfully, cache skipped");
+        }
     }
 
     private async Task<int> GetVocabDueCountAsync(DateTime date, CancellationToken ct)
@@ -705,6 +688,50 @@ public class ProgressService : IProgressService
     {
         _cache.SetTodaysPlan(plan);
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Pre-create DailyPlanCompletion records for all plan items.
+    /// This ensures progress can be saved even if cache is lost during the day.
+    /// </summary>
+    private async Task InitializePlanCompletionRecordsAsync(TodaysPlan plan, CancellationToken ct)
+    {
+        System.Diagnostics.Debug.WriteLine($"🏗️ Initializing DailyPlanCompletion records for {plan.Items.Count} plan items");
+        
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        foreach (var item in plan.Items)
+        {
+            // Check if record already exists
+            var existing = await db.DailyPlanCompletions
+                .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id, ct);
+            
+            if (existing == null)
+            {
+                var completion = new DailyPlanCompletion
+                {
+                    Date = plan.GeneratedForDate.Date,
+                    PlanItemId = item.Id,
+                    ActivityType = item.ActivityType.ToString(),
+                    ResourceId = item.ResourceId,
+                    SkillId = item.SkillId,
+                    IsCompleted = false,
+                    MinutesSpent = 0,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await db.DailyPlanCompletions.AddAsync(completion, ct);
+                System.Diagnostics.Debug.WriteLine($"  ✅ Created record for {item.TitleKey}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"  ⏭️ Record already exists for {item.TitleKey} ({existing.MinutesSpent} min)");
+            }
+        }
+        
+        await db.SaveChangesAsync(ct);
+        System.Diagnostics.Debug.WriteLine($"💾 Initialized {plan.Items.Count} DailyPlanCompletion records");
     }
 
     /// <summary>
