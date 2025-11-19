@@ -163,7 +163,14 @@ public static class PlanConverter
         if (skillId.HasValue)
             components.Add($"S{skillId.Value}");
 
-        var combined = string.Join("-", components);
-        return Guid.NewGuid().ToString("N")[..8] + "-" + combined.GetHashCode().ToString("X");
+        var combined = string.Join("_", components);
+        
+        // Use deterministic hash to create stable ID
+        // This ensures same inputs always produce same ID
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
+        var guid = new Guid(hash.Take(16).ToArray());
+        
+        return guid.ToString("N")[..16]; // Take first 16 chars for reasonable length
     }
 }
