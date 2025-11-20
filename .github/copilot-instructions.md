@@ -294,6 +294,15 @@ ADDITIONAL NOTES:
 
 ## Debugging and Logging by Platform
 
+**CRITICAL: Always use ILogger for production code!**
+
+**MUST DO**: Use `ILogger<T>` for all logging in services, pages, and business logic. Only use `System.Diagnostics.Debug.WriteLine()` for temporary debugging during development. ILogger provides:
+- Structured logging with log levels (Debug, Information, Warning, Error, Critical)
+- Configuration-based filtering and routing
+- Multiple output destinations (console, file, Application Insights, etc.)
+- Better performance with compile-time message templates
+- Proper integration with .NET logging infrastructure
+
 **IMPORTANT: Logging locations vary by target framework. Use the correct method for each platform:**
 
 ### macOS (net10.0-maccatalyst)
@@ -381,6 +390,29 @@ var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
 ## Localization Guidelines
 
 **CRITICAL: Always use string interpolation with LocalizationManager!**
+
+**IMPORTANT: Use enums over string keys for type safety!**
+
+When working with localized content that has associated enums (like `PlanActivityType`), always prefer using the enum to determine the localization key rather than storing string keys. This avoids mismatches between AI-generated snake_case keys (e.g., "plan_item_vocab_review_title") and actual PascalCase resource keys (e.g., "PlanItemVocabReviewTitle").
+
+✅ CORRECT:
+```csharp
+string GetActivityTitle(DailyPlanItem item)
+{
+    return item.ActivityType switch
+    {
+        PlanActivityType.VocabularyReview => $"{_localize["PlanItemVocabReviewTitle"]}",
+        PlanActivityType.Reading => $"{_localize["PlanItemReadingTitle"]}",
+        // ... use the enum, not item.TitleKey string
+    };
+}
+```
+
+❌ WRONG:
+```csharp
+// Don't rely on TitleKey strings from AI-generated data
+return $"{_localize[item.TitleKey]}"; // May not match resource file format
+```
 
 1. **NEVER access localized strings without string interpolation**:
 

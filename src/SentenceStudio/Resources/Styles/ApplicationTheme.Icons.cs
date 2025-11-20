@@ -348,6 +348,23 @@ partial class MyTheme
         Size = IconSize
     };
 
+    // Plan item icons
+    public static FontImageSource IconCheckmarkCircleFilled { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.checkmark_circle_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = CheckboxColor,
+        Size = Size280
+    };
+
+    public static FontImageSource IconCircle { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.circle_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? Gray400 : Gray300,
+        Size = Size280
+    };
+
     public static FontImageSource IconSearch { get; } = new FontImageSource
     {
         Glyph = FluentUI.search_48_regular,

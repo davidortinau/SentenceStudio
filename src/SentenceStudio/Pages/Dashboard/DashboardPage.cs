@@ -127,17 +127,19 @@ partial class DashboardPage : Component<DashboardPageState>
         };
 
         return ContentPage($"{_localize["DashboardTitle"]}",
+            ToolbarItem($"{_localize["PlanRegenerateButton"] ?? "Regenerate"}")
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(() => _ = RegeneratePlanAsync()),
 
-                VScrollView(
-                    VStack(
-                        RenderModeToggle(),
-                        State.IsTodaysPlanMode ? RenderTodaysPlanMode() : RenderChooseOwnMode()
-                    )
-                    .Padding(MyTheme.LayoutPadding)
-                    .Spacing(MyTheme.LayoutSpacing)
+            VScrollView(
+                VStack(
+                    RenderModeToggle(),
+                    State.IsTodaysPlanMode ? RenderTodaysPlanMode() : RenderChooseOwnMode()
                 )
-                .Set(Layout.SafeAreaEdgesProperty, safeEdges)
-
+                .Padding(MyTheme.LayoutPadding)
+                .Spacing(MyTheme.LayoutSpacing)
+            )
+            .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         )
         .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         .OnAppearing(LoadOrRefreshDataAsync);
@@ -208,7 +210,6 @@ partial class DashboardPage : Component<DashboardPageState>
                         .Plan(State.TodaysPlan)
                         .StreakInfo(State.StreakInfo)
                         .OnItemTapped(item => _ = OnPlanItemTapped(item))
-                        .OnRegenerateTapped(() => _ = RegeneratePlanAsync())
                     :
                     VStack(spacing: MyTheme.ComponentSpacing,
                         Label("Ready to start learning?")
@@ -673,7 +674,7 @@ partial class DashboardPage : Component<DashboardPageState>
         {
             System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped called with item: {item?.TitleKey ?? "NULL"}");
             System.Diagnostics.Debug.WriteLine($"🎯 ActivityType: {item?.ActivityType}");
-            
+
             if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
             {
                 System.Diagnostics.Debug.WriteLine("❌ OnPlanItemTapped: Missing resources or skill profile");
@@ -683,7 +684,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     "Aye!");
                 return;
             }
-            
+
             System.Diagnostics.Debug.WriteLine($"✅ OnPlanItemTapped: Resources and skill profile are set");
 
             // Map activity type to route
@@ -700,96 +701,96 @@ partial class DashboardPage : Component<DashboardPageState>
                 PlanActivityType.VocabularyGame => nameof(VocabularyMatchingPage),
                 _ => null
             };
-            
+
             System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped: Mapped route = '{route}'");
 
             if (!string.IsNullOrEmpty(route))
             {
                 System.Diagnostics.Debug.WriteLine($"✅ Route is not empty, proceeding with resource loading...");
-                
+
                 // Pre-load resource if needed for VocabularyReview
                 List<LearningResource>? resourcesToUse = null;
-            
-            System.Diagnostics.Debug.WriteLine($"🔍 Checking if VocabularyReview with ResourceId...");
-            System.Diagnostics.Debug.WriteLine($"🔍 ActivityType: {item.ActivityType}");
-            System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters null? {item.RouteParameters == null}");
-            System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters count: {item.RouteParameters?.Count ?? 0}");
-            
-            if (item.ActivityType == PlanActivityType.VocabularyReview && 
-                item.RouteParameters?.ContainsKey("ResourceId") == true)
-            {
-                System.Diagnostics.Debug.WriteLine($"✅ VocabularyReview with ResourceId detected");
-                
-                try
+
+                System.Diagnostics.Debug.WriteLine($"🔍 Checking if VocabularyReview with ResourceId...");
+                System.Diagnostics.Debug.WriteLine($"🔍 ActivityType: {item.ActivityType}");
+                System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters null? {item.RouteParameters == null}");
+                System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters count: {item.RouteParameters?.Count ?? 0}");
+
+                if (item.ActivityType == PlanActivityType.VocabularyReview &&
+                    item.RouteParameters?.ContainsKey("ResourceId") == true)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] value: {item.RouteParameters["ResourceId"]}");
-                    System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] type: {item.RouteParameters["ResourceId"]?.GetType().Name ?? "NULL"}");
-                    
-                    var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
-                    System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
-                    
-                    // First try to find in selected resources
-                    var specificResource = _parameters.Value.SelectedResources?
-                        .FirstOrDefault(r => r.Id == resourceId);
-                    
-                    if (specificResource != null)
+                    System.Diagnostics.Debug.WriteLine($"✅ VocabularyReview with ResourceId detected");
+
+                    try
                     {
-                        resourcesToUse = new List<LearningResource> { specificResource };
-                        System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
-                    }
-                    else
-                    {
-                        // Resource not in selected list - load from database
-                        System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
-                        try
+                        System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] value: {item.RouteParameters["ResourceId"]}");
+                        System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] type: {item.RouteParameters["ResourceId"]?.GetType().Name ?? "NULL"}");
+
+                        var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
+                        System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
+
+                        // First try to find in selected resources
+                        var specificResource = _parameters.Value.SelectedResources?
+                            .FirstOrDefault(r => r.Id == resourceId);
+
+                        if (specificResource != null)
                         {
-                            var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
-                            if (dbResource != null)
+                            resourcesToUse = new List<LearningResource> { specificResource };
+                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
+                        }
+                        else
+                        {
+                            // Resource not in selected list - load from database
+                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
+                            try
                             {
-                                resourcesToUse = new List<LearningResource> { dbResource };
-                                System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                                var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
+                                if (dbResource != null)
+                                {
+                                    resourcesToUse = new List<LearningResource> { dbResource };
+                                    System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                                }
+                                else
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                                    resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                                }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                                System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
                                 resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
-                            resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ CRITICAL ERROR in ResourceId handling: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+                        resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    System.Diagnostics.Debug.WriteLine($"❌ CRITICAL ERROR in ResourceId handling: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
                     resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                    System.Diagnostics.Debug.WriteLine($"📚 Using default selected resources (count: {resourcesToUse.Count})");
                 }
+
+                System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
+                System.Diagnostics.Debug.WriteLine($"🚀 Resources to use: {resourcesToUse?.Count ?? 0} resources");
+                await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
+                    route,
+                    props =>
+                    {
+                        System.Diagnostics.Debug.WriteLine($"🔧 OnPlanItemTapped: Configuring ActivityProps...");
+                        props.Resources = resourcesToUse;
+
+                        props.Skill = _parameters.Value.SelectedSkillProfile;
+                        props.FromTodaysPlan = true;  // Enable timer for Today's Plan activities
+                        props.PlanItemId = item.Id;   // Track which plan item this is
+                    }
+                );
             }
-            else
-            {
-                resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                System.Diagnostics.Debug.WriteLine($"📚 Using default selected resources (count: {resourcesToUse.Count})");
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
-            System.Diagnostics.Debug.WriteLine($"🚀 Resources to use: {resourcesToUse?.Count ?? 0} resources");
-            await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
-                route,
-                props =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"🔧 OnPlanItemTapped: Configuring ActivityProps...");
-                    props.Resources = resourcesToUse;
-                    
-                    props.Skill = _parameters.Value.SelectedSkillProfile;
-                    props.FromTodaysPlan = true;  // Enable timer for Today's Plan activities
-                    props.PlanItemId = item.Id;   // Track which plan item this is
-                }
-            );
-        }
         }
         catch (Exception ex)
         {

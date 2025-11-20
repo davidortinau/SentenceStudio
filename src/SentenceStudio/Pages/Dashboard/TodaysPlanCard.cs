@@ -1,5 +1,6 @@
 using SentenceStudio.Services.Progress;
 using MauiReactor.Shapes;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -23,10 +24,8 @@ partial class TodaysPlanCard : MauiReactor.Component
     [Prop]
     Action<DailyPlanItem>? _onItemTapped;
 
-    [Prop]
-    Action? _onRegenerateTapped;
-
     LocalizationManager _localize => LocalizationManager.Instance;
+    ILogger<TodaysPlanCard> _logger => Services.GetRequiredService<ILogger<TodaysPlanCard>>();
 
     public override VisualNode Render()
     {
@@ -47,10 +46,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                 RenderProgressSummary(),
 
                 // Plan items list
-                RenderPlanItems(),
-
-                // Action buttons
-                RenderActionButtons()
+                RenderPlanItems()
             )
             .Padding(MyTheme.Size160)
         )
@@ -117,8 +113,9 @@ partial class TodaysPlanCard : MauiReactor.Component
         var buttonText = hasAnyProgress
             ? $"{_localize["PlanResumeButton"] ?? "Resume"}"
             : $"{_localize["PlanStartButton"] ?? "Start"}";
-        
-        System.Diagnostics.Debug.WriteLine($"🎯 Button text logic: hasAnyProgress={hasAnyProgress}, nextItem={(nextItem != null ? nextItem.TitleKey : "null")}, allComplete={allComplete}");
+
+        _logger.LogDebug("🎯 Button text logic: hasAnyProgress={HasProgress}, nextItem={NextItem}, allComplete={AllComplete}",
+            hasAnyProgress, nextItem?.TitleKey ?? "null", allComplete);
 
         return VStack(spacing: MyTheme.MicroSpacing,
             ProgressBar().Progress(completionPercentage / 100.0)
@@ -139,16 +136,16 @@ partial class TodaysPlanCard : MauiReactor.Component
                         .VCenter()
                         .OnClicked(() =>
                         {
-                            System.Diagnostics.Debug.WriteLine($"🔘 Resume button clicked! nextItem={nextItem?.TitleKey ?? "NULL"}");
+                            _logger.LogDebug("🔘 Resume button clicked! nextItem={NextItem}", nextItem?.TitleKey ?? "NULL");
                             if (nextItem != null)
                             {
-                                System.Diagnostics.Debug.WriteLine($"🔘 Invoking _onItemTapped with item: {nextItem.TitleKey}");
+                                _logger.LogDebug("🔘 Invoking _onItemTapped with item: {TitleKey}", nextItem.TitleKey);
                                 _onItemTapped?.Invoke(nextItem);
-                                System.Diagnostics.Debug.WriteLine($"🔘 _onItemTapped invoked");
+                                _logger.LogDebug("🔘 _onItemTapped invoked");
                             }
                             else
                             {
-                                System.Diagnostics.Debug.WriteLine("❌ Resume button: nextItem is NULL!");
+                                _logger.LogWarning("❌ Resume button: nextItem is NULL!");
                             }
                         })
                     : Label("✅ Complete!")
@@ -168,144 +165,70 @@ partial class TodaysPlanCard : MauiReactor.Component
         for (int i = 0; i < itemsList.Count; i++)
         {
             var item = itemsList[i];
-            // CRITICAL: Check both IsCompleted flag AND time-based completion
             var isAvailable = i == 0 || IsItemComplete(itemsList[i - 1]);
             items.Add(RenderPlanItem(item, i + 1, isAvailable));
         }
 
-        return VStack(items.ToArray());
+        return VStack(spacing: MyTheme.Size120, items.ToArray());
     }
 
     VisualNode RenderPlanItem(DailyPlanItem item, int sequenceNumber, bool isAvailable)
     {
-        // CRITICAL: Check both IsCompleted flag AND time-based completion
         var isCompleted = IsItemComplete(item);
-        var isEnabled = isCompleted || isAvailable;
-        
-        System.Diagnostics.Debug.WriteLine($"🎯 RenderPlanItem '{item.TitleKey}': isCompleted={isCompleted}, MinutesSpent={item.MinutesSpent}, EstimatedMinutes={item.EstimatedMinutes}, IsCompletedFlag={item.IsCompleted}");
 
-        return Border(
-            HStack(spacing: MyTheme.ComponentSpacing,
-                // Sequence number / completion indicator
-                Border(
-                    isCompleted
-                        ? Label("✓")
-                            .TextColor(Colors.White)
-                            .FontSize(16)
-                            .FontAttributes(MauiControls.FontAttributes.Bold)
-                            .Center()
-                        : Label($"{sequenceNumber}")
-                            .TextColor(isAvailable ? MyTheme.PrimaryText : MyTheme.Gray400)
-                            .FontSize(14)
-                            .FontAttributes(MauiControls.FontAttributes.Bold)
-                            .Center()
-                )
-                .BackgroundColor(isCompleted ? MyTheme.CheckboxColor : (isAvailable ? MyTheme.ItemBackground : Colors.Transparent))
-                .Stroke(isCompleted ? MyTheme.CheckboxColor : (isAvailable ? MyTheme.ItemBorder : MyTheme.Gray400))
-                .StrokeThickness(2)
-                .StrokeShape(new RoundRectangle().CornerRadius(4))
-                .WidthRequest(32)
-                .HeightRequest(32)
-                .VCenter()
+        var isEnabled = isCompleted || isAvailable;
+
+        _logger.LogDebug("🎯 RenderPlanItem '{TitleKey}': isCompleted={IsCompleted}, MinutesSpent={MinutesSpent}, EstimatedMinutes={EstimatedMinutes}",
+            item.TitleKey, isCompleted, item.MinutesSpent, item.EstimatedMinutes);
+
+        return Grid("*", "Auto,*",
+            // Icon column - checkmark for completed, circle for todo
+            Image()
+                .Source(isCompleted ? MyTheme.IconCheckmarkCircleFilled : MyTheme.IconCircle)
+                .WidthRequest(28)
+                .HeightRequest(28)
+                .VStart()
+                .GridColumn(0)
                 .Margin(0, 2, 0, 0),
 
-                // Content
-                VStack(spacing: MyTheme.MicroSpacing,
-                    // Title with priority indicator
-                    HStack(spacing: MyTheme.MicroSpacing,
-                        Label(GetActivityTitle(item))
-                            .ThemeKey(MyTheme.Body1Strong)
-                            .TextColor(isEnabled ? MyTheme.PrimaryText : MyTheme.Gray400)
-                            .TextDecorations(isCompleted ? TextDecorations.Strikethrough : TextDecorations.None)
-                            .HStart()
-                            .VCenter(),
+            // Content column
+            VStack(spacing: MyTheme.MicroSpacing,
+                // Title
+                Label(GetActivityTitle(item))
+                    .ThemeKey(MyTheme.Body1Strong)
+                    .HStart(),
+                Label(GetActivityDescription(item))
+                    .ThemeKey(MyTheme.Body2).IsEnabled(isEnabled)
+                    ,
 
-                        // Priority badge for high-priority items
-                        item.Priority >= 3 // High priority (3 or higher)
-                            ? Border(
-                                Label("!")
-                                    .TextColor(MyTheme.BadgeText)
-                                    .FontSize(12)
-                                    .FontAttributes(MauiControls.FontAttributes.Bold)
-                                    .Center()
-                                    .Padding(6, 2)
-                            )
-                            .BackgroundColor(MyTheme.PriorityHighColor)
-                            .StrokeShape(new RoundRectangle().CornerRadius(4))
-                            .StrokeThickness(0)
-                            .VCenter()
-                            : null
-                    ),
+                // Metadata row (time, vocab count if applicable)
+                HStack(spacing: MyTheme.ComponentSpacing,
+                    // Time estimate with actual progress
+                    item.MinutesSpent > 0
+                        ? Label($"⏱ {item.MinutesSpent}/{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
+                            .ThemeKey(MyTheme.Caption1)
+                            .FontAttributes(MauiControls.FontAttributes.Bold)
+                        : Label($"⏱ {item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
+                            .ThemeKey(MyTheme.Caption1),
 
-                    // Description
-                    Label(GetActivityDescription(item))
-                        .ThemeKey(MyTheme.Body2)
-                        .TextColor(isEnabled ? MyTheme.SecondaryText : MyTheme.Gray400)
-                        .HStart(),
-
-                    // Metadata row (time, vocab count if applicable)
-                    HStack(spacing: MyTheme.ComponentSpacing,
-                        // Time estimate with actual progress
-                        item.MinutesSpent > 0
-                            ? Label($"⏱ {item.MinutesSpent}/{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
-                                .ThemeKey(MyTheme.Caption1)
-                                .TextColor(isEnabled ? MyTheme.PrimaryText : MyTheme.Gray400)
-                                .FontAttributes(MauiControls.FontAttributes.Bold)
-                            : Label($"⏱ {item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
-                                .ThemeKey(MyTheme.Caption1)
-                                .TextColor(isEnabled ? MyTheme.SecondaryText : MyTheme.Gray400),
-
-                        // Vocabulary count
-                        item.ActivityType == PlanActivityType.VocabularyReview && item.VocabDueCount.HasValue && item.VocabDueCount.Value > 0
-                            ? Label($"📝 {item.VocabDueCount.Value} {_localize["PlanWordsLabel"]}")
-                                .ThemeKey(MyTheme.Caption1)
-                                .TextColor(isEnabled ? MyTheme.SecondaryText : MyTheme.Gray400)
-                            : null
-                    )
+                    // Vocabulary count
+                    item.ActivityType == PlanActivityType.VocabularyReview && item.VocabDueCount.HasValue && item.VocabDueCount.Value > 0
+                        ? Label($"📝 {item.VocabDueCount.Value} {_localize["PlanWordsLabel"]}")
+                            .ThemeKey(MyTheme.Caption1)
+                        : null
                 )
-                .HFill()
-                .VCenter(),
-
-                // Status indicator (completion checkmark or lock icon)
-                isCompleted
-                    ? null  // Checkmark already shown in sequence number
-                    : !isEnabled
-                        ? Label("🔒")
-                            .FontSize(16)
-                            .VCenter()
-                            .HEnd()
-                            .Padding(MyTheme.Size80, MyTheme.Size60)
-                        : null  // No indicator needed for available items
             )
-            .Padding(MyTheme.Size120)
-            .Opacity(isEnabled ? 1.0 : 0.5)
+            .GridColumn(1)
+            .VCenter()
         )
-        .BackgroundColor(isCompleted ? MyTheme.CompletedItemBackground : MyTheme.ItemBackground)
-        .Stroke(isCompleted ? MyTheme.CompletedItemBorder : MyTheme.ItemBorder)
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80));
-    }
-
-    VisualNode RenderActionButtons()
-    {
-        return HStack(spacing: MyTheme.ComponentSpacing,
-            // Regenerate plan button
-            Button($"{_localize["PlanRegenerateButton"]}")
-                .ThemeKey(MyTheme.Secondary)
-                .HStart()
-                .OnClicked(() => _onRegenerateTapped?.Invoke())
-        )
-        .Padding(0, MyTheme.Size160, 0, 0);
+        .ColumnSpacing(MyTheme.ComponentSpacing)
+        .Padding(MyTheme.Size80, MyTheme.Size120)
+        .OnTapped(() => _onItemTapped?.Invoke(item));
     }
 
     string GetActivityTitle(DailyPlanItem item)
     {
-        // Use title key for localization
-        if (!string.IsNullOrEmpty(item.TitleKey))
-        {
-            return $"{_localize[item.TitleKey] ?? "Practice"}";
-        }
-
+        // Use ActivityType enum directly instead of unreliable TitleKey string matching
         return item.ActivityType switch
         {
             PlanActivityType.VocabularyReview => $"{_localize["PlanItemVocabReviewTitle"] ?? "Vocabulary Review"}",
@@ -384,14 +307,15 @@ partial class TodaysPlanCard : MauiReactor.Component
     {
         if (item.IsCompleted)
         {
-            System.Diagnostics.Debug.WriteLine($"🎯 Item '{item.TitleKey}' is flagged complete");
+            _logger.LogDebug("🎯 Item '{TitleKey}' is flagged complete", item.TitleKey);
             return true;
         }
 
         var timeComplete = item.MinutesSpent >= item.EstimatedMinutes;
         if (timeComplete)
         {
-            System.Diagnostics.Debug.WriteLine($"🎯 Item '{item.TitleKey}' is time-complete: {item.MinutesSpent}/{item.EstimatedMinutes} min");
+            _logger.LogDebug("🎯 Item '{TitleKey}' is time-complete: {MinutesSpent}/{EstimatedMinutes} min",
+                item.TitleKey, item.MinutesSpent, item.EstimatedMinutes);
         }
 
         return timeComplete;
