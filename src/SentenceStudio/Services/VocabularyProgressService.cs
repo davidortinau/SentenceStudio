@@ -391,7 +391,9 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     private void UpdateSpacedRepetitionSchedule(VocabularyProgress progress, VocabularyAttempt attempt)
     {
-        // Simple SM-2 algorithm implementation
+        // Simple SM-2 algorithm implementation with safety limits
+        const int MAX_REVIEW_INTERVAL_DAYS = 365; // Cap at 1 year maximum
+
         if (!attempt.WasCorrect)
         {
             // Reset on incorrect answer
@@ -408,6 +410,8 @@ public class VocabularyProgressService : IVocabularyProgressService
             else
             {
                 progress.ReviewInterval = (int)(progress.ReviewInterval * progress.EaseFactor);
+                // Cap the interval to prevent DateTime.AddDays overflow
+                progress.ReviewInterval = Math.Min(progress.ReviewInterval, MAX_REVIEW_INTERVAL_DAYS);
                 progress.EaseFactor = Math.Min(2.5f, progress.EaseFactor + 0.1f);
             }
         }

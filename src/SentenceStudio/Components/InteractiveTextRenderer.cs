@@ -141,11 +141,10 @@ public class InteractiveTextRenderer : SKCanvasView
     /// </summary>
     public void SetCurrentSentence(int sentenceIndex)
     {
-        if (_currentSentenceIndex != sentenceIndex)
-        {
-            _currentSentenceIndex = sentenceIndex;
-            InvalidateSurface(); // Only invalidate, no layout needed
-        }
+        // 🏴‍☠️ CRITICAL FIX: Always update and invalidate, even if index appears same
+        // The MauiReactor state update is async, so we might receive the event before state changes
+        _currentSentenceIndex = sentenceIndex;
+        InvalidateSurface(); // Always invalidate to ensure highlighting updates
     }
 
     /// <summary>

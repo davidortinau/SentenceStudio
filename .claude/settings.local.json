@@ -11,8 +11,8 @@
       "Bash(find:*)",
       "Bash(cat:*)",
       "Bash(dotnet restore:*)",
-      "Bash(for file in *Card.cs)",
-      "Bash(do echo \"=== $file ===\" grep -n \"\\.Padding([0-9]\\|\\.Margin([0-9]\\|\\.Spacing([0-9]\" \"$file\")"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "defaultMode": "acceptEdits"
   }

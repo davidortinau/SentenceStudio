@@ -127,6 +127,15 @@ public class TimestampedAudioManager : IDisposable
         int charArrayPos = 0;
         foreach (var sentence in sentences)
         {
+            // 🎯 CRITICAL: Skip PARAGRAPH_BREAK markers - they don't exist in the transcript
+            // Don't advance charArrayPos for them, as they consume zero characters
+            if (sentence == "PARAGRAPH_BREAK")
+            {
+                _logger.LogTrace("⏭️ PARAGRAPH_BREAK marker encountered, adding placeholder range without advancing position");
+                ranges.Add((-1, -1)); // Placeholder range that won't be used for timing
+                continue;
+            }
+            
             // Remove leading/trailing whitespace for matching
             var trimmedSentence = sentence.Trim();
             if (string.IsNullOrEmpty(trimmedSentence))
@@ -164,6 +173,7 @@ public class TimestampedAudioManager : IDisposable
 
     /// <summary>
     /// 🎯 Pre-calculate sentence timings from character ranges for super-fast lookup
+    /// Skips PARAGRAPH_BREAK markers to avoid overlapping time ranges
     /// </summary>
     private List<(double StartTime, double EndTime, int SentenceIndex)> BuildSentenceTimings(
         List<(int StartCharIdx, int EndCharIdx)> sentenceRanges,
@@ -173,7 +183,21 @@ public class TimestampedAudioManager : IDisposable
 
         for (int sentenceIdx = 0; sentenceIdx < sentenceRanges.Count; sentenceIdx++)
         {
+            // 🎯 CRITICAL: Skip PARAGRAPH_BREAK markers - they have invalid char ranges
+            if (sentenceIdx < _sentences.Count && _sentences[sentenceIdx] == "PARAGRAPH_BREAK")
+            {
+                _logger.LogTrace("⏭️ Skipping PARAGRAPH_BREAK at index {Index} in timing calculation", sentenceIdx);
+                continue;
+            }
+            
             var (startCharIdx, endCharIdx) = sentenceRanges[sentenceIdx];
+            
+            // Skip invalid ranges (from PARAGRAPH_BREAK placeholders)
+            if (startCharIdx < 0 || endCharIdx < 0)
+            {
+                _logger.LogTrace("⏭️ Skipping invalid range at index {Index}: ({Start}, {End})", sentenceIdx, startCharIdx, endCharIdx);
+                continue;
+            }
 
             // Clamp indices to valid range
             startCharIdx = Math.Max(0, Math.Min(startCharIdx, characters.Length - 1));
@@ -222,10 +246,40 @@ public class TimestampedAudioManager : IDisposable
 
             // Store the mapping (round to resolution to ensure exact key matches)
             var key = Math.Round(time, 1);
+            
+            // 🔍 Log entries with -1 (gaps) or changes
+            if (sentenceIndex == -1)
+            {
+                _logger.LogTrace("⚠️ Lookup table gap at {Time:F1}s -> -1", key);
+            }
+            
             lookupTable[key] = sentenceIndex;
         }
 
         _logger.LogDebug("Built timestamp lookup table with {Count} entries (0.0s to {MaxTime:F1}s)", lookupTable.Count, maxTime);
+        
+        // Log sample entries around sentence 20 area and later sentences
+        _logger.LogDebug("=== Sample lookup entries (early) ===");
+        for (double t = 0; t <= Math.Min(3.0, maxTime); t += 0.5)
+        {
+            var key = Math.Round(t, 1);
+            if (lookupTable.TryGetValue(key, out var idx))
+            {
+                _logger.LogDebug("  {Time:F1}s -> sentence {Index}", key, idx);
+            }
+        }
+        
+        // Log entries around the middle (where problems start)
+        _logger.LogDebug("=== Sample lookup entries (middle) ===");
+        var midTime = maxTime / 2.0;
+        for (double t = midTime - 2.0; t <= Math.Min(midTime + 2.0, maxTime); t += 0.5)
+        {
+            var key = Math.Round(t, 1);
+            if (lookupTable.TryGetValue(key, out var idx))
+            {
+                _logger.LogDebug("  {Time:F1}s -> sentence {Index}", key, idx);
+            }
+        }
 
         return lookupTable;
     }
@@ -371,6 +425,8 @@ public class TimestampedAudioManager : IDisposable
         if (_timestampToSentenceMap.TryGetValue(lookupKey, out var sentenceIdx))
         {
             newSentenceIndex = sentenceIdx;
+            _logger.LogTrace("🔍 Lookup {LookupKey:F1}s -> sentence {SentenceIndex} (currentTime={CurrentTime:F2}s, current={CurrentSentenceIndex})", 
+                lookupKey, sentenceIdx, currentTime, _currentSentenceIndex);
         }
         else
         {
@@ -383,7 +439,21 @@ public class TimestampedAudioManager : IDisposable
             if (closestKey > 0 && _timestampToSentenceMap.TryGetValue(closestKey, out var fallbackIdx))
             {
                 newSentenceIndex = fallbackIdx;
+                _logger.LogTrace("🔍 Fallback lookup closest={ClosestKey:F1}s -> sentence {FallbackIndex} (currentTime={CurrentTime:F2}s)", 
+                    closestKey, fallbackIdx, currentTime);
             }
+            else
+            {
+                _logger.LogTrace("🔍 No lookup found for {CurrentTime:F2}s (lookupKey={LookupKey:F1}s)", currentTime, lookupKey);
+            }
+        }
+
+        // 🎯 Handle gaps by staying at current sentence if we hit -1
+        if (newSentenceIndex == -1)
+        {
+            _logger.LogTrace("🔍 Gap in coverage at {CurrentTime:F2}s, staying at sentence {CurrentSentenceIndex}", 
+                currentTime, _currentSentenceIndex);
+            return; // Don't change sentence during gaps
         }
 
         // Update sentence if it changed
