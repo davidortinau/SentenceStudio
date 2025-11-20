@@ -215,6 +215,55 @@ Registered fonts (in MauiProgram.cs):
 3. **No Manual JSON Formatting**: Library handles serialization automatically
 4. **Connectivity Checks**: Always check `Connectivity.NetworkAccess` before AI calls
 
+### Logging Guidelines
+
+**CRITICAL**: Always use `ILogger<T>` pattern for logging. Never use `Debug.WriteLine` or `Console.WriteLine`.
+
+1. **Inject ILogger**: Use dependency injection to get logger instance
+
+   ```csharp
+   public class MyService
+   {
+       private readonly ILogger<MyService> _logger;
+
+       public MyService(ILogger<MyService> logger)
+       {
+           _logger = logger;
+       }
+   }
+   ```
+
+2. **Use Appropriate Log Levels**:
+   - `LogTrace()` - Detailed trace messages (development only)
+   - `LogDebug()` - Debug information (development only)
+   - `LogInformation()` - General informational messages
+   - `LogWarning()` - Warning messages for unexpected but handled situations
+   - `LogError()` - Error messages for failures
+   - `LogCritical()` - Critical failures requiring immediate attention
+
+3. **Structured Logging**: Use message templates with parameters
+
+   ```csharp
+   // ✅ Correct - structured logging
+   _logger.LogInformation("Resource loaded: '{ResourceTitle}', Language: {Language}",
+       resource.Title, resource.Language);
+
+   // ❌ Wrong - string interpolation loses structure
+   _logger.LogInformation($"Resource loaded: '{resource.Title}', Language: {resource.Language}");
+
+   // ❌ Never use these
+   Debug.WriteLine("Some message");
+   Console.WriteLine("Some message");
+   ```
+
+4. **Log Categories**: Use emojis sparingly and consistently for visual scanning
+   - 🔍 Discovery/searching
+   - 📚 Data loading
+   - 📝 Data processing
+   - ✅ Success operations
+   - ⚠️ Warnings
+   - ❌ Errors
+
 ### Styling Guidelines
 
 - Use centralized styles from theme system (MyTheme.cs, ReactorTheme)

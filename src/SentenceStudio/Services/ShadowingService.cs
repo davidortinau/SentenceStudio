@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -12,6 +13,8 @@ public class ShadowingService
     private readonly LearningResourceRepository _resourceRepository;
     private readonly SkillProfileRepository _skillRepository;
     private readonly UserProfileRepository _userProfileRepository;
+    private readonly TranscriptSentenceExtractor _sentenceExtractor;
+    private readonly ILogger<ShadowingService> _logger;
     private List<VocabularyWord> _words = new();
 
     /// <summary>
@@ -30,6 +33,8 @@ public class ShadowingService
         _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
+        _sentenceExtractor = service.GetRequiredService<TranscriptSentenceExtractor>();
+        _logger = service.GetRequiredService<ILogger<ShadowingService>>();
     }
 
     /// <summary>
@@ -84,9 +89,109 @@ public class ShadowingService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred in GenerateSentencesAsync: {ex.Message}");
+            _logger.LogError(ex, "❌ An error occurred in GenerateSentencesAsync");
             return new List<ShadowingSentence>();
         }
+    }
+
+    /// <summary>
+    /// Gets shadowing sentences from transcript or generates via AI.
+    /// Randomizes selection for variety in daily practice.
+    /// For transcript mode: No translation, pure shadowing.
+    /// For vocabulary mode: AI-generated with pronunciation notes.
+    /// </summary>
+    /// <param name="resourceId">Learning resource ID</param>
+    /// <param name="count">Number of sentences to return</param>
+    /// <param name="skillId">Skill profile ID for AI generation</param>
+    /// <returns>List of shadowing sentences</returns>
+    public async Task<List<ShadowingSentence>> GetOrGenerateSentencesAsync(
+        int resourceId,
+        int count = 10,
+        int skillId = 0)
+    {
+        _logger.LogInformation("🔍 GetOrGenerateSentencesAsync called - ResourceId: {ResourceId}, Count: {Count}, SkillId: {SkillId}",
+            resourceId, count, skillId);
+
+        // Load resource
+        var resource = await _resourceRepository.GetResourceAsync(resourceId);
+
+        if (resource == null)
+        {
+            _logger.LogWarning("❌ Resource {ResourceId} not found", resourceId);
+            return new List<ShadowingSentence>();
+        }
+
+        _logger.LogInformation("📚 Resource loaded: '{ResourceTitle}', Language: {Language}",
+            resource.Title, resource.Language);
+
+        var hasTranscript = !string.IsNullOrWhiteSpace(resource.Transcript);
+        _logger.LogInformation("📝 Transcript exists: {HasTranscript}", hasTranscript);
+
+        if (hasTranscript)
+        {
+            _logger.LogInformation("📝 Transcript length: {TranscriptLength} characters", resource.Transcript.Length);
+        }
+
+        // DECISION POINT: Does resource have a transcript?
+        if (hasTranscript)
+        {
+            _logger.LogInformation("🎯 Using TRANSCRIPT MODE (no AI, no translation)");
+            // TRANSCRIPT MODE: Extract sentences (no AI, no translation)
+            return ExtractSentencesFromTranscript(resource, count);
+        }
+        else
+        {
+            _logger.LogInformation("🤖 Using GENERATION MODE (AI-generated sentences)");
+            // GENERATION MODE: Use existing AI generation logic
+            return await GenerateSentencesAsync(resourceId, count, skillId);
+        }
+    }
+
+    /// <summary>
+    /// Extracts shadowing sentences from resource transcript.
+    /// Pure shadowing mode: No translation, just target language text.
+    /// </summary>
+    private List<ShadowingSentence> ExtractSentencesFromTranscript(
+        LearningResource resource,
+        int count)
+    {
+        _logger.LogInformation("📝 ExtractSentencesFromTranscript - Resource: '{ResourceTitle}', Language: {Language}, Count: {Count}",
+            resource.Title, resource.Language, count);
+
+        // Extract random sentences from transcript
+        var targetSentences = _sentenceExtractor.ExtractRandomSentences(
+            resource.Transcript,
+            resource.Language,
+            count);
+
+        _logger.LogInformation("✅ Extracted {SentenceCount} sentences from transcript", targetSentences.Count);
+
+        if (!targetSentences.Any())
+        {
+            _logger.LogWarning("⚠️ No sentences extracted - returning empty list");
+            return new List<ShadowingSentence>();
+        }
+
+        // Log first few sentences for debugging
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            for (int i = 0; i < Math.Min(3, targetSentences.Count); i++)
+            {
+                var preview = targetSentences[i].Substring(0, Math.Min(50, targetSentences[i].Length));
+                _logger.LogDebug("  Sentence {Index}: {Preview}...", i + 1, preview);
+            }
+        }
+
+        // Convert to ShadowingSentence objects (no translation, no pronunciation notes)
+        var result = targetSentences.Select(sentence => new ShadowingSentence
+        {
+            TargetLanguageText = sentence,
+            NativeLanguageText = null,  // No translation for pure shadowing
+            PronunciationNotes = null   // No pronunciation notes from transcript
+        }).ToList();
+
+        _logger.LogInformation("🎉 Returning {ResultCount} ShadowingSentence objects", result.Count);
+        return result;
     }
 
     /// <summary>
@@ -126,17 +231,17 @@ public class ShadowingService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error in ElevenLabs speech generation: {ex.Message}");
-            
+            _logger.LogWarning(ex, "⚠️ Error in ElevenLabs speech generation, attempting fallback to OpenAI TTS");
+
             // Fallback to OpenAI TTS if ElevenLabs fails
             try
             {
-                Debug.WriteLine("Falling back to OpenAI TTS");
+                _logger.LogInformation("🔄 Falling back to OpenAI TTS");
                 return await _aiService.TextToSpeechAsync(text, voice, speed);
             }
             catch (Exception fallbackEx)
             {
-                Debug.WriteLine($"Fallback also failed: {fallbackEx.Message}");
+                _logger.LogError(fallbackEx, "❌ Fallback TTS also failed");
                 return null;
             }
         }

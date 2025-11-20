@@ -162,7 +162,7 @@ class ShadowingPageState
     /// </summary>
     public string CurrentSentenceText =>
         Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
-            ? Sentences[CurrentSentenceIndex].NativeLanguageText
+            ? Sentences[CurrentSentenceIndex].TargetLanguageText
             : string.Empty;
 
     /// <summary>
@@ -170,7 +170,7 @@ class ShadowingPageState
     /// </summary>
     public string CurrentSentenceTranslation =>
         Sentences.Count > 0 && CurrentSentenceIndex < Sentences.Count
-            ? Sentences[CurrentSentenceIndex].TargetLanguageText
+            ? Sentences[CurrentSentenceIndex].NativeLanguageText
             : string.Empty;
 
     /// <summary>

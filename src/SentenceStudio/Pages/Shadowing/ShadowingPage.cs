@@ -208,27 +208,26 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
     /// <summary>
     /// Creates a visual node for the sentence display area.
+    /// Pure shadowing: Shows only target language text (no translation).
     /// </summary>
     /// <returns>A visual node for displaying the current sentence.</returns>
     private VisualNode SentenceDisplay() =>
         ScrollView(
             VStack(spacing: MyTheme.Size160,
-                Label(State.CurrentSentenceTranslation)
+                // Only show target language text (Korean/Spanish/etc.)
+                Label(State.CurrentSentenceText)
                     .ThemeKey("LargeTitle")
                     .HCenter()
                     .Margin(MyTheme.Size160),
 
-                Label(State.CurrentSentenceText)
-                    .ThemeKey("Title3")
-                    .HCenter()
-                    .TextColor(Colors.Gray)
-                    .Margin(MyTheme.Size160),
-
-                Label(State.CurrentSentencePronunciationNotes)
-                    .ThemeKey("Title3")
-                    .HCenter()
-                    .TextColor(Colors.DarkGray)
-                    .Margin(MyTheme.Size160)
+                // Show pronunciation notes if available (from AI-generated sentences)
+                !string.IsNullOrWhiteSpace(State.CurrentSentencePronunciationNotes)
+                    ? Label(State.CurrentSentencePronunciationNotes)
+                        .ThemeKey("Title3")
+                        .HCenter()
+                        .TextColor(Colors.DarkGray)
+                        .Margin(MyTheme.Size160)
+                    : null
             )
             .Padding(MyTheme.Size160)
         ).GridRow(0);
@@ -742,7 +741,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         .IsOpen(State.IsExportMenuVisible);
 
     /// <summary>
-    /// Loads sentences for shadowing practice using the selected resource and skill.
+    /// Loads sentences for shadowing practice.
+    /// Uses transcript if available, otherwise generates from vocabulary.
     /// </summary>
     async Task LoadSentences()
     {
@@ -765,13 +765,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             // Clear audio cache when loading new sentences
             _audioCache.Clear();
 
-            // Use resource Id instead of vocabulary ID
             var resourceId = Props.Resource?.Id ?? 0;
 
-            var sentences = await _shadowingService.GenerateSentencesAsync(
+            // Use unified method that handles transcript vs generation
+            var sentences = await _shadowingService.GetOrGenerateSentencesAsync(
                 resourceId,
-                10,
-                Props.Skill?.Id ?? 0);
+                count: 10,
+                skillId: Props.Skill?.Id ?? 0);
 
             SetState(s =>
             {
@@ -786,8 +786,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 {
                     Activity = SentenceStudio.Shared.Models.Activity.Shadowing.ToString(),
                     Input = sentences.Any() ? sentences[0].TargetLanguageText : string.Empty,
-                    Accuracy = 100, // Default to 100 for shadowing as it's practice-based
-                    Fluency = 100,  // Default to 100 for shadowing as it's practice-based
+                    Accuracy = 100,
+                    Fluency = 100,
                     CreatedAt = DateTime.Now
                 });
             }

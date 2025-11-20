@@ -297,6 +297,7 @@ public static class MauiProgram
 				provider.GetRequiredService<KoreanLanguageSegmenter>()
 			});
 		services.AddSingleton<TranscriptFormattingService>();
+		services.AddSingleton<TranscriptSentenceExtractor>();
 
 #if DEBUG
 		// Debug services - only available in debug builds
