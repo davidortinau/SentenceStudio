@@ -491,39 +491,70 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }, 30.0); // Warn if > 30ms
     }
 
+    /// <summary>
+    /// Groups sentences into paragraphs based on actual paragraph breaks in the original transcript.
+    /// Uses double line breaks (\n\n or \r\n\r\n) to detect paragraph boundaries.
+    /// </summary>
     List<List<(string, int)>> GroupSentencesIntoParagraphs()
     {
-        // Simple paragraph grouping - every 3-4 sentences for now
-        // In the future, this could be enhanced with ML or natural language processing
+        if (State.Resource?.Transcript == null || !State.Sentences.Any())
+            return new List<List<(string, int)>>();
+
+        // Split transcript by paragraph breaks to find natural groupings
+        var transcript = State.Resource.Transcript;
+        var paragraphTexts = transcript.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " "))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToList();
+
+        _logger.LogDebug("🔍 Found {Count} paragraphs in transcript", paragraphTexts.Count);
+
+        // Now group sentences by which paragraph they belong to
         var paragraphs = new List<List<(string, int)>>();
-        var currentParagraph = new List<(string, int)>();
+        int currentSentenceIndex = 0;
 
-        for (int i = 0; i < State.Sentences.Count; i++)
+        foreach (var paragraphText in paragraphTexts)
         {
-            currentParagraph.Add((State.Sentences[i], i));
+            var paragraphSentences = new List<(string, int)>();
 
-            // Start new paragraph every 3-4 sentences or at natural breaks
-            if (currentParagraph.Count >= 3 && (i == State.Sentences.Count - 1 || ShouldBreakParagraph(State.Sentences[i])))
+            // Find all sentences that are part of this paragraph
+            while (currentSentenceIndex < State.Sentences.Count)
             {
-                paragraphs.Add(currentParagraph);
-                currentParagraph = new List<(string, int)>();
+                var sentence = State.Sentences[currentSentenceIndex].Trim();
+                
+                // Check if this sentence appears in the current paragraph
+                if (paragraphText.Contains(sentence, StringComparison.Ordinal))
+                {
+                    paragraphSentences.Add((State.Sentences[currentSentenceIndex], currentSentenceIndex));
+                    currentSentenceIndex++;
+                }
+                else
+                {
+                    // This sentence belongs to the next paragraph
+                    break;
+                }
+            }
+
+            if (paragraphSentences.Any())
+            {
+                _logger.LogTrace("  Paragraph {Index}: {Count} sentences", paragraphs.Count, paragraphSentences.Count);
+                paragraphs.Add(paragraphSentences);
             }
         }
 
-        // Add any remaining sentences
-        if (currentParagraph.Any())
+        // Handle any remaining sentences that didn't match (shouldn't happen, but safety)
+        if (currentSentenceIndex < State.Sentences.Count)
         {
-            paragraphs.Add(currentParagraph);
+            var remainingSentences = new List<(string, int)>();
+            for (int i = currentSentenceIndex; i < State.Sentences.Count; i++)
+            {
+                remainingSentences.Add((State.Sentences[i], i));
+            }
+            _logger.LogWarning("⚠️ Found {Count} unmatched sentences, adding as final paragraph", remainingSentences.Count);
+            paragraphs.Add(remainingSentences);
         }
 
         return paragraphs;
-    }
-
-    bool ShouldBreakParagraph(string sentence)
-    {
-        // Natural paragraph break indicators
-        var breakIndicators = new[] { "However", "Meanwhile", "In addition", "Furthermore", "Therefore", "Consequently" };
-        return breakIndicators.Any(indicator => sentence.StartsWith(indicator, StringComparison.OrdinalIgnoreCase));
     }
 
     Color GetTextColorForSentence(int sentenceIndex)
@@ -931,41 +962,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     }
 
     // Content Processing
-    List<string> SplitIntoSentences(string transcript)
-    {
-        if (string.IsNullOrWhiteSpace(transcript))
-            return new List<string>();
-
-        // 🏴‍☠️ NEW: Preserve paragraph structure by first splitting on double line breaks
-        var paragraphs = transcript.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries);
-        var sentences = new List<string>();
-
-        foreach (var paragraph in paragraphs)
-        {
-            // Clean up the paragraph and split into sentences
-            var paragraphText = paragraph.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
-
-            // Handle multiple sentence delimiters and clean whitespace
-            var paragraphSentences = paragraphText
-                .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
-                .ToList();
-
-            // Add sentences from this paragraph
-            sentences.AddRange(paragraphSentences);
-
-            // 🏴‍☠️ NEW: Add a paragraph break marker if this isn't the last paragraph
-            if (paragraph != paragraphs.Last() && paragraphSentences.Any())
-            {
-                sentences.Add("PARAGRAPH_BREAK"); // Special marker for paragraph breaks
-            }
-        }
-
-        return sentences;
-    }
-
     List<TextSegment> ParseSentenceForVocabularyAndWords(string sentence)
     {
         var segments = new List<TextSegment>();
@@ -1404,6 +1400,18 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 await _audioManager.LoadAudioAsync(timestampedAudio);
                 _audioManager.SentenceChanged += OnCurrentSentenceChanged;
                 _audioManager.ProgressUpdated += OnProgressUpdated;
+
+                // 🎯 CRITICAL: Use audio manager's sentence list (without PARAGRAPH_BREAK markers)
+                // This ensures sentence indices match between UI and audio timing
+                var audioSentences = _audioManager.GetSentences();
+                _logger.LogInformation("🔍 Audio manager loaded {Count} sentences (excluding paragraph breaks)", audioSentences.Count);
+                
+                SetState(s =>
+                {
+                    // Replace the paragraph-aware sentence list with the audio manager's list
+                    // Paragraph breaks are handled in rendering via GroupSentencesIntoParagraphs()
+                    s.Sentences = audioSentences;
+                });
                 _audioManager.PlaybackEnded += OnPlaybackEnded;
 
                 // Update state with loaded status
@@ -1512,7 +1520,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s =>
             {
                 s.Resource = fullResource;
-                s.Sentences = SplitIntoSentences(fullResource.Transcript);
+                // Sentences will be set by InitializeAudioSystemAsync after audio loads
                 s.VocabularyWords = fullResource.Vocabulary ?? new List<VocabularyWord>();
                 s.FontSize = Preferences.Get("ReadingActivity_FontSize", 18.0);
                 s.PlaybackSpeed = Preferences.Get("ReadingActivity_PlaybackSpeed", 1.0f);

@@ -210,7 +210,6 @@ public class SentenceTimingCalculator
     
     /// <summary>
     /// Finds the exact character position where a sentence ends in the full transcript
-    /// 🎯 CRITICAL: Skips PARAGRAPH_BREAK markers - they don't exist in the transcript
     /// </summary>
     private int FindSentenceEndPosition(int sentenceIndex, List<string> sentences, string fullTranscript)
     {
@@ -218,11 +217,6 @@ public class SentenceTimingCalculator
         if (startPos == -1) return -1;
         
         var sentenceText = sentences[sentenceIndex].Trim();
-        
-        // 🏴‍☠️ PARAGRAPH_BREAK markers should never be queried for timing
-        if (sentenceText == "PARAGRAPH_BREAK")
-            return -1;
-        
         var foundPos = fullTranscript.IndexOf(sentenceText, startPos, StringComparison.Ordinal);
         
         if (foundPos == -1)
@@ -233,7 +227,6 @@ public class SentenceTimingCalculator
 
     /// <summary>
     /// Determines which sentence the character at the given index belongs to
-    /// 🎯 CRITICAL: Skips PARAGRAPH_BREAK markers when calculating character positions
     /// </summary>
     private int GetSentenceIndexForCharacter(int charIndex, string fullTranscript)
     {
@@ -279,37 +272,25 @@ public class SentenceTimingCalculator
     /// Splits text into sentences WITH paragraph break markers to match ReadingPage
     /// 🎯 CRITICAL: Must match ReadingPage.SplitIntoSentences exactly for correct index mapping
     /// </summary>
+    /// <summary>
+    /// Split transcript into sentences.
+    /// 🏴‍☠️ Does NOT include PARAGRAPH_BREAK markers - those are for rendering only!
+    /// Returns only actual sentences that can be looked up in the transcript.
+    /// </summary>
     public static List<string> SplitIntoSentences(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return new List<string>();
 
-        // 🏴‍☠️ MATCH ReadingPage logic: Preserve paragraph structure
-        var paragraphs = text.Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries);
-        var sentences = new List<string>();
-
-        foreach (var paragraph in paragraphs)
-        {
-            // Clean up the paragraph and split into sentences
-            var paragraphText = paragraph.Trim().Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
-
-            // Split by sentence delimiters
-            var paragraphSentences = paragraphText
-                .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
-                .ToList();
-
-            // Add sentences from this paragraph
-            sentences.AddRange(paragraphSentences);
-
-            // 🏴‍☠️ Add paragraph break marker if this isn't the last paragraph
-            if (paragraph != paragraphs.Last() && paragraphSentences.Any())
-            {
-                sentences.Add("PARAGRAPH_BREAK"); // Special marker for paragraph breaks
-            }
-        }
+        // Split by common sentence delimiters, ignoring paragraph breaks
+        var cleanedText = text.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+        
+        var sentences = cleanedText
+            .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
+            .ToList();
 
         return sentences;
     }

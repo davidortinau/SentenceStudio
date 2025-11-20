@@ -55,6 +55,14 @@ public class TimestampedAudioManager : IDisposable
 
         // Precompute sentence-to-character-index mapping
         _sentences = SentenceTimingCalculator.SplitIntoSentences(audio.FullTranscript);
+        
+        _logger.LogDebug("🔍 Split transcript into {Count} sentences (including PARAGRAPH_BREAK markers)", _sentences.Count);
+        for (int i = 0; i < Math.Min(10, _sentences.Count); i++)
+        {
+            _logger.LogDebug("  [{Index}] = {Text}", i, 
+                _sentences[i] == "PARAGRAPH_BREAK" ? "<<PARAGRAPH_BREAK>>" : _sentences[i].Substring(0, Math.Min(50, _sentences[i].Length)));
+        }
+        
         _sentenceCharRanges = BuildSentenceCharRanges(_sentences, audio.FullTranscript, audio.Characters);
 
         // 🎯 NEW: Pre-build efficient timestamp-to-sentence lookup table
@@ -381,8 +389,12 @@ public class TimestampedAudioManager : IDisposable
         // Update sentence if it changed
         if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0 && newSentenceIndex < _sentences.Count)
         {
-            _logger.LogTrace("[FAST LOOKUP] Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s",
-                _currentSentenceIndex, newSentenceIndex, currentTime);
+            var sentenceText = _sentences[newSentenceIndex] == "PARAGRAPH_BREAK" 
+                ? "<<PARAGRAPH_BREAK>>" 
+                : _sentences[newSentenceIndex].Substring(0, Math.Min(30, _sentences[newSentenceIndex].Length));
+                
+            _logger.LogDebug("🎯 Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s | '{Text}'",
+                _currentSentenceIndex, newSentenceIndex, currentTime, sentenceText);
             _currentSentenceIndex = newSentenceIndex;
             SentenceChanged?.Invoke(this, _currentSentenceIndex);
         }
