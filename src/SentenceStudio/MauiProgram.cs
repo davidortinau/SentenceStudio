@@ -253,6 +253,7 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<VocabularyMatchingPage>(nameof(VocabularyMatchingPage));
 		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
 		MauiReactor.Routing.RegisterRoute<ReadingPage>("reading");
+		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VideoWatching.VideoWatchingPage>(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage));
 		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
 
 		// Register Learning Resources pages
@@ -283,6 +284,7 @@ public static class MauiProgram
 		services.AddSingleton<StorytellerService>();
 		services.AddSingleton<TranslationService>();
 		services.AddSingleton<ShadowingService>();
+		services.AddSingleton<VideoWatchingService>();
 		services.AddSingleton<AudioAnalyzer>();
 		services.AddSingleton<YouTubeImportService>();
 		services.AddSingleton<ElevenLabsSpeechService>();

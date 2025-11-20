@@ -13,5 +13,6 @@ public enum Activity
     Clozure,
     HowDoYouSay,
     VocabularyQuiz,
-    Reading
+    Reading,
+    VideoWatching
 }
