@@ -389,9 +389,15 @@ public class TimestampedAudioManager : IDisposable
         // Update sentence if it changed
         if (newSentenceIndex != _currentSentenceIndex && newSentenceIndex >= 0 && newSentenceIndex < _sentences.Count)
         {
-            var sentenceText = _sentences[newSentenceIndex] == "PARAGRAPH_BREAK" 
-                ? "<<PARAGRAPH_BREAK>>" 
-                : _sentences[newSentenceIndex].Substring(0, Math.Min(30, _sentences[newSentenceIndex].Length));
+            // 🎯 CRITICAL: Skip PARAGRAPH_BREAK markers - they're not real sentences
+            if (_sentences[newSentenceIndex] == "PARAGRAPH_BREAK")
+            {
+                _logger.LogTrace("⏭️ Skipping PARAGRAPH_BREAK marker at index {Index}", newSentenceIndex);
+                _currentSentenceIndex = newSentenceIndex; // Update internal index but don't fire event
+                return;
+            }
+            
+            var sentenceText = _sentences[newSentenceIndex].Substring(0, Math.Min(30, _sentences[newSentenceIndex].Length));
                 
             _logger.LogDebug("🎯 Sentence changed: {OldIndex} -> {NewIndex} at {CurrentTime:F2}s | '{Text}'",
                 _currentSentenceIndex, newSentenceIndex, currentTime, sentenceText);
