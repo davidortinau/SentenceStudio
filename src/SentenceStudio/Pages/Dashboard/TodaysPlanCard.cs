@@ -198,7 +198,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                     .ThemeKey(MyTheme.Body1Strong)
                     .HStart(),
                 Label(GetActivityDescription(item))
-                    .ThemeKey(MyTheme.Body2).IsEnabled(isEnabled)
+                    .ThemeKey(MyTheme.Body2)
                     ,
 
                 // Metadata row (time, vocab count if applicable)
@@ -218,6 +218,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                         : null
                 )
             )
+            .Opacity(isEnabled ? 1.0 : 0.5)
             .GridColumn(1)
             .VCenter()
         )

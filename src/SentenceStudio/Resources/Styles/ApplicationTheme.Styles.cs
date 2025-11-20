@@ -113,74 +113,88 @@ partial class MyTheme
             .TextColor(IsLightTheme ? MidnightBlue : White)
             .FontSize(32)
             .HorizontalOptions(LayoutOptions.Center)
-            .HorizontalTextAlignment(TextAlignment.Center);
+            .HorizontalTextAlignment(TextAlignment.Center)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[SubHeadline] = _ => _
             .TextColor(IsLightTheme ? MidnightBlue : White)
             .FontSize(24)
             .HorizontalOptions(LayoutOptions.Center)
-            .HorizontalTextAlignment(TextAlignment.Center);
+            .HorizontalTextAlignment(TextAlignment.Center)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Caption2] = _ => _
             .FontSize(12)
-            .LineHeight(1.33);
+            .LineHeight(1.33)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Caption1] = _ => _
             .FontSize(13)
-            .LineHeight(1.38);
+            .LineHeight(1.38)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Caption1Strong] = _ => _
             .FontSize(13)
             .LineHeight(1.38)
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Body2] = _ => _
             .FontSize(15)
-            .LineHeight(1.33);
+            .LineHeight(1.33)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Body2Strong] = _ => _
             .FontSize(15)
             .LineHeight(1.33)
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Body1] = _ => _
             .FontSize(17)
-            .LineHeight(1.29);
+            .LineHeight(1.29)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Body1Strong] = _ => _
             .FontSize(17)
             .LineHeight(1.29)
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Title3] = _ => _
             .FontSize(20)
             .LineHeight(1.25)
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Title2] = _ => _
             .FontSize(22)
             .LineHeight(1.27)
             .FontFamily(DeviceInfo.Platform == DevicePlatform.WinUI ? "SegoeSemibold" : DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.MacCatalyst ? ".SFUI-SemiBold" : "")
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.Android ? FontAttributes.Bold : FontAttributes.None)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Title1] = _ => _
             .FontSize(28)
             .LineHeight(1.21)
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[LargeTitle] = _ => _
             .FontSize(34)
             .LineHeight(1.21)
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Display] = _ => _
             .FontSize(60)
             .LineHeight(1.17)
-            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold);
+            .FontAttributes(DeviceInfo.Platform == DevicePlatform.WinUI ? FontAttributes.None : FontAttributes.Bold)
+            .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         BorderStyles.Default = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))

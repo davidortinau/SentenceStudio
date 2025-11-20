@@ -10,6 +10,7 @@ using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Services.Progress;
+using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -147,47 +148,81 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderModeToggle()
     {
-        return HStack(spacing: MyTheme.ComponentSpacing,
-            // Today's Plan button
-            Border(
-                Label(_localize["ModeTodaysPlan"])
-                    .ThemeKey(State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
-                    .TextColor(State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
-                    .Center()
-                    .Padding(MyTheme.Size120, MyTheme.Size80)
+        return new SfSegmentedControl(
+                new SfSegmentItem()
+                    .Text($"{_localize["ModeTodaysPlan"]}")
+                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground),
+                new SfSegmentItem()
+                    .Text($"{_localize["ModeChooseOwn"]}")
+                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground)
             )
-            .BackgroundColor(State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
-            .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-            .StrokeThickness(0)
-            .HStart()
-            .HorizontalOptions(LayoutOptions.FillAndExpand)
-            .OnTapped(() =>
+            .TextStyle(new Syncfusion.Maui.Toolkit.SegmentedControl.SegmentTextStyle()
             {
-                SetState(s => s.IsTodaysPlanMode = true);
-                Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
-                _ = LoadTodaysPlanAsync();
-            }),
-
-            // Choose My Own button
-            Border(
-                Label(_localize["ModeChooseOwn"])
-                    .ThemeKey(!State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
-                    .TextColor(!State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
-                    .Center()
-                    .Padding(MyTheme.Size120, MyTheme.Size80)
-            )
-            .BackgroundColor(!State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
-            .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-            .StrokeThickness(0)
-            .HEnd()
-            .HorizontalOptions(LayoutOptions.FillAndExpand)
-            .OnTapped(() =>
-            {
-                SetState(s => s.IsTodaysPlanMode = false);
-                Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
+                TextColor = MyTheme.Gray600
             })
-        )
-        .Padding(0, 0, 0, MyTheme.SectionSpacing);
+            .SelectionIndicatorSettings(new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings()
+            {
+                Background = MyTheme.PrimaryButtonBackground,
+                TextColor = Colors.White
+            })
+            .SelectedIndex(State.IsTodaysPlanMode ? 0 : 1)
+            .SegmentWidth(180)
+            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+            .CornerRadius((float)MyTheme.Size80)
+            .HeightRequest(44)
+            .OnSelectionChanged((s, e) =>
+            {
+                var selectedIndex = e.NewIndex;
+                SetState(st => st.IsTodaysPlanMode = selectedIndex == 0);
+                Preferences.Default.Set(PREF_DASHBOARD_MODE, selectedIndex == 0 ? "TodaysPlan" : "ChooseOwn");
+
+                if (selectedIndex == 0)
+                {
+                    _ = LoadTodaysPlanAsync();
+                }
+            }).HCenter();
+
+        // return HStack(spacing: MyTheme.ComponentSpacing,
+        //     // Today's Plan button
+        //     Border(
+        //         Label(_localize["ModeTodaysPlan"])
+        //             .ThemeKey(State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
+        //             .TextColor(State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
+        //             .Center()
+        //             .Padding(MyTheme.Size120, MyTheme.Size80)
+        //     )
+        //     .BackgroundColor(State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
+        //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
+        //     .StrokeThickness(0)
+        //     .HStart()
+        //     .HorizontalOptions(LayoutOptions.FillAndExpand)
+        //     .OnTapped(() =>
+        //     {
+        //         SetState(s => s.IsTodaysPlanMode = true);
+        //         Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
+        //         _ = LoadTodaysPlanAsync();
+        //     }),
+
+        //     // Choose My Own button
+        //     Border(
+        //         Label(_localize["ModeChooseOwn"])
+        //             .ThemeKey(!State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
+        //             .TextColor(!State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
+        //             .Center()
+        //             .Padding(MyTheme.Size120, MyTheme.Size80)
+        //     )
+        //     .BackgroundColor(!State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
+        //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
+        //     .StrokeThickness(0)
+        //     .HEnd()
+        //     .HorizontalOptions(LayoutOptions.FillAndExpand)
+        //     .OnTapped(() =>
+        //     {
+        //         SetState(s => s.IsTodaysPlanMode = false);
+        //         Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
+        //     })
+        // )
+        // .Padding(0, 0, 0, MyTheme.SectionSpacing);
     }
 
     VisualNode RenderTodaysPlanMode()
