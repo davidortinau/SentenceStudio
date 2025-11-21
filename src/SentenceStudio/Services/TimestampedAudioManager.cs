@@ -348,12 +348,22 @@ public class TimestampedAudioManager : IDisposable
 
         try
         {
+            // Remember if we were playing before seeking (some players stop on seek)
+            bool wasPlaying = IsPlaying;
+            
             _player.Seek(sentenceInfo.StartTime);
             _currentSentenceIndex = sentenceIndex;
 
+            // Always ensure playback is active - either resume if it was playing, or start fresh
             if (!IsPlaying)
             {
+                _logger.LogDebug("Starting playback after seek (wasPlaying: {WasPlaying})", wasPlaying);
                 Play();
+            }
+            else if (wasPlaying)
+            {
+                // Some platforms might pause on seek, so explicitly resume if we were playing
+                _logger.LogDebug("Ensuring playback continues after seek");
             }
 
             _logger.LogInformation("TimestampedAudioManager: Playing from sentence {SentenceIndex} at {StartTime:F2}s - '{TextPreview}...'",
