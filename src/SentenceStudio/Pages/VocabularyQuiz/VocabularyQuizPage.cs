@@ -83,11 +83,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    private MauiControls.ContentPage? _pageRef;
+    private MauiControls.Grid? _mainGridRef;
+
     public override VisualNode Render()
     {
-        return ContentPage($"{_localize["VocabularyQuiz"]}",
+        return ContentPage(pageRef => _pageRef = pageRef,
             Grid(rows: "60,Auto,*", columns: "*",
-                Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null,
+                RenderTitleView(),
                 LearningProgressBar(),
                 ScrollView(
                     Grid(rows: "*,Auto", columns: "*",
@@ -100,7 +103,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SessionSummaryOverlay()
             ).RowSpacing(MyTheme.CardMargin)
         )
+        .Title($"{_localize["VocabularyQuiz"]}")
         .OnAppearing(LoadVocabulary);
+    }
+
+    private VisualNode RenderTitleView()
+    {
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd();
     }
 
     // public override VisualNode Render()
@@ -935,6 +944,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task LoadVocabulary()
     {
+        TrySetShellTitleView();
+
         SetState(s => s.IsBusy = true);
 
         try
@@ -1295,7 +1306,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
                 if (currentItem.QuizProductionComplete)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🎉 Production phase completed for {currentItem.Word.NativeLanguageTerm}! Ready to rotate out.");
+                    System.Diagnostics.Debug.WriteLine($"� Production phase completed for {currentItem.Word.NativeLanguageTerm}! Ready to rotate out.");
                 }
             }
             else
@@ -1932,6 +1943,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
+
     protected override void OnMounted()
     {
         System.Diagnostics.Debug.WriteLine("🚀 VocabularyQuizPage.OnMounted() START");
@@ -1950,6 +1962,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         else
         {
             System.Diagnostics.Debug.WriteLine("⚠️ NOT starting timer - FromTodaysPlan is false");
+        }
+
+    }
+
+    private void TrySetShellTitleView()
+    {
+        if (_pageRef != null && _mainGridRef != null)
+        {
+            _pageRef.Dispatcher.Dispatch(() =>
+            {
+                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
+            });
         }
     }
 
