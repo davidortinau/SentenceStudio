@@ -74,9 +74,28 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                 .ThemeKey(MyTheme.Body1);
         }
 
-        // Use direct URL with UrlWebViewSource for better compatibility with Mac Catalyst
+        // Build minimal HTML with proper YouTube iframe attributes
+        var html = $@"<!DOCTYPE html>
+<html>
+<head>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <style>
+        body {{ margin: 0; padding: 0; background: #000; overflow: hidden; }}
+        iframe {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }}
+    </style>
+</head>
+<body>
+    <iframe
+        src='{State.EmbedUrl}'
+        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+        referrerpolicy='strict-origin-when-cross-origin'
+        allowfullscreen>
+    </iframe>
+</body>
+</html>";
+
         return WebView()
-            .Source(State.EmbedUrl)
+            .Source(new HtmlWebViewSource { Html = html })
             .OnNavigating((sender, args) =>
             {
                 _logger.LogDebug("WebView navigating to: {Url}", args.Url);
