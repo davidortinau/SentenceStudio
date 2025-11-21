@@ -56,6 +56,8 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
         }
 
         return ContentPage(State.Resource?.Title ?? "Video Watching",
+            ToolbarItem("Open in YouTube")
+                .OnClicked(OpenInYouTube),
             Grid(rows: "*", columns: "*",
                 RenderVideoPlayer()
             )
@@ -66,7 +68,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
 
     VisualNode RenderVideoPlayer()
     {
-        if (string.IsNullOrEmpty(State.EmbedUrl))
+        if (string.IsNullOrEmpty(State.VideoId))
         {
             return Label("No video URL available")
                 .HCenter()
@@ -74,37 +76,13 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                 .ThemeKey(MyTheme.Body1);
         }
 
-        // Build minimal HTML with proper YouTube iframe attributes
-        var html = $@"<!DOCTYPE html>
-<html>
-<head>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <style>
-        body {{ margin: 0; padding: 0; background: #000; overflow: hidden; }}
-        iframe {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }}
-    </style>
-</head>
-<body>
-    <iframe
-        src='{State.EmbedUrl}'
-        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-        referrerpolicy='strict-origin-when-cross-origin'
-        allowfullscreen>
-    </iframe>
-</body>
-</html>";
+        // Use mobile YouTube URL which displays video more prominently
+        var embedUrl = $"https://m.youtube.com/watch?v={State.VideoId}";
+        
+        _logger.LogInformation("Loading mobile YouTube URL: {Url}", embedUrl);
 
         return WebView()
-            .Source(new HtmlWebViewSource { Html = html })
-            .OnNavigating((sender, args) =>
-            {
-                _logger.LogDebug("WebView navigating to: {Url}", args.Url);
-            })
-            .OnNavigated((sender, args) =>
-            {
-                _logger.LogDebug("WebView navigated to: {Url}, Result: {Result}", args.Url, args.Result);
-                SetState(s => s.IsWebViewLoaded = true);
-            })
+            .Source(new UrlWebViewSource { Url = embedUrl })
             .GridRow(0);
     }
 
@@ -112,6 +90,27 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
     {
         _logger.LogInformation("Navigating back from VideoWatchingPage");
         await MauiControls.Shell.Current.GoToAsync("..");
+    }
+
+    async Task OpenInYouTube()
+    {
+        if (string.IsNullOrEmpty(State.VideoId))
+        {
+            _logger.LogWarning("Cannot open in YouTube - no video ID available");
+            return;
+        }
+
+        var youtubeUrl = $"https://www.youtube.com/watch?v={State.VideoId}";
+        _logger.LogInformation("Opening video in YouTube: {Url}", youtubeUrl);
+
+        try
+        {
+            await Launcher.Default.OpenAsync(new Uri(youtubeUrl));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open YouTube URL");
+        }
     }
 
     protected override void OnMounted()
