@@ -78,7 +78,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
 
         // Use mobile YouTube URL which displays video more prominently
         var embedUrl = $"https://m.youtube.com/watch?v={State.VideoId}";
-        
+
         _logger.LogInformation("Loading mobile YouTube URL: {Url}", embedUrl);
 
         return WebView()
