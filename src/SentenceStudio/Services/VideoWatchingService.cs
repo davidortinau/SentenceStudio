@@ -72,6 +72,7 @@ public class VideoWatchingService
     /// Generates a YouTube embed URL for the given video ID.
     /// Uses privacy-enhanced mode (youtube-nocookie.com) and minimal YouTube branding.
     /// No autoplay - user must click play button.
+    /// Includes playsinline=1 for proper inline playback on iOS/macOS.
     /// </summary>
     /// <param name="videoId">The YouTube video ID.</param>
     /// <returns>The complete embed URL.</returns>
@@ -83,8 +84,8 @@ public class VideoWatchingService
             return string.Empty;
         }
 
-        // Privacy-enhanced mode, minimal branding, no autoplay
-        var embedUrl = $"https://www.youtube-nocookie.com/embed/{videoId}?modestbranding=1&rel=0";
+        // Privacy-enhanced mode, minimal branding, no autoplay, inline playback for iOS/Mac
+        var embedUrl = $"https://www.youtube-nocookie.com/embed/{videoId}?modestbranding=1&rel=0&playsinline=1";
 
         _logger.LogDebug("Generated embed URL: {EmbedUrl}", embedUrl);
         return embedUrl;

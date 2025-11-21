@@ -74,50 +74,9 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                 .ThemeKey(MyTheme.Body1);
         }
 
-        // Build the HTML content for the WebView with responsive YouTube embed
-        var html = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>
-    <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            background: #000;
-            overflow: hidden;
-        }}
-        .video-container {{
-            position: relative;
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        iframe {{
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }}
-    </style>
-</head>
-<body>
-    <div class='video-container'>
-        <iframe
-            src='{State.EmbedUrl}'
-            allow='accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-            allowfullscreen>
-        </iframe>
-    </div>
-</body>
-</html>";
-
+        // Use direct URL with UrlWebViewSource for better compatibility with Mac Catalyst
         return WebView()
-            .Source(new HtmlWebViewSource { Html = html })
+            .Source(State.EmbedUrl)
             .OnNavigating((sender, args) =>
             {
                 _logger.LogDebug("WebView navigating to: {Url}", args.Url);

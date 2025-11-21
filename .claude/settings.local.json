@@ -12,7 +12,9 @@
       "Bash(cat:*)",
       "Bash(dotnet restore:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "mcp__microsoft_docs_mcp__microsoft_docs_fetch",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "defaultMode": "acceptEdits"
   }

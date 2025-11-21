@@ -85,6 +85,7 @@ public static class MauiProgram
 			{
 				ModifyEntry();
 				ModifyPicker();
+				ConfigureWebView();
 			})
 			.ConfigureFilePicker(100)
 			;
@@ -365,6 +366,30 @@ public static class MauiProgram
 			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
 #endif
 		});
+	}
+
+	private static void ConfigureWebView()
+	{
+#if IOS || MACCATALYST
+		Microsoft.Maui.Handlers.WebViewHandler.PlatformViewFactory = (handler) =>
+		{
+			var config = Microsoft.Maui.Platform.MauiWKWebView.CreateConfiguration();
+
+			// Enable inline media playback for YouTube videos
+			config.AllowsInlineMediaPlayback = true;
+
+			// Enable AirPlay for video
+			config.AllowsAirPlayForMediaPlayback = true;
+
+			// Enable Picture in Picture
+			config.AllowsPictureInPictureMediaPlayback = true;
+
+			// Allow media to play without user action (enables inline play button)
+			config.MediaTypesRequiringUserActionForPlayback = WebKit.WKAudiovisualMediaTypes.None;
+
+			return new Microsoft.Maui.Platform.MauiWKWebView(CoreGraphics.CGRect.Empty, (Microsoft.Maui.Handlers.WebViewHandler)handler, config);
+		};
+#endif
 	}
 
 	public static void ModifyEntry()
