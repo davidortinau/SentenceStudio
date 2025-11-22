@@ -116,14 +116,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	protected override void OnWillUnmount()
 	{
 		autoNextTimer?.Dispose();
-		
+
 		// Pause timer when leaving activity
 		if (Props?.FromTodaysPlan == true && _timerService.IsActive)
 		{
 			Debug.WriteLine("🏴‍☠️ ClozurePage: Pausing activity timer");
 			_timerService.Pause();
 		}
-		
+
 		base.OnWillUnmount();
 	}
 

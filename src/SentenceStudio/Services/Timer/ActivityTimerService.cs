@@ -29,7 +29,7 @@ public class ActivityTimerService : IActivityTimerService
     public ActivityTimerService(Services.Progress.IProgressService? progressService = null)
     {
         _progressService = progressService;
-        
+
         // Setup tick timer for UI updates (1 second intervals)
         _tickTimer = new System.Timers.Timer(1000);
         _tickTimer.Elapsed += (s, e) => OnTimerTick();
@@ -39,7 +39,7 @@ public class ActivityTimerService : IActivityTimerService
     public void StartSession(string activityType, string? activityId = null)
     {
         System.Diagnostics.Debug.WriteLine($"⏱️ ActivityTimerService.StartSession - activityType={activityType}, activityId={activityId}");
-        
+
         // Stop any existing session
         if (IsActive)
         {
@@ -48,10 +48,10 @@ public class ActivityTimerService : IActivityTimerService
 
         _activityType = activityType;
         _activityId = activityId;
-        
+
         // Load existing progress from database to support resume
         _ = LoadExistingProgressAsync();
-        
+
         _stopwatch.Restart();
         _tickTimer?.Start();
 
@@ -64,7 +64,7 @@ public class ActivityTimerService : IActivityTimerService
         if (!IsActive || !IsRunning) return;
 
         System.Diagnostics.Debug.WriteLine($"⏱️ Pausing timer - current elapsed: {ElapsedTime}");
-        
+
         _pausedElapsed += _stopwatch.Elapsed;
         _stopwatch.Stop();
         _tickTimer?.Stop();
@@ -80,7 +80,7 @@ public class ActivityTimerService : IActivityTimerService
         if (!IsActive || IsRunning) return;
 
         System.Diagnostics.Debug.WriteLine($"⏱️ Resuming timer - paused at: {_pausedElapsed}");
-        
+
         _stopwatch.Restart();
         _tickTimer?.Start();
 
@@ -92,7 +92,7 @@ public class ActivityTimerService : IActivityTimerService
         if (!IsActive) return TimeSpan.Zero;
 
         var totalTime = ElapsedTime;
-        
+
         System.Diagnostics.Debug.WriteLine($"⏱️ Stopping timer session - total time: {totalTime}");
 
         _stopwatch.Stop();
@@ -118,7 +118,7 @@ public class ActivityTimerService : IActivityTimerService
         if (!IsActive) return;
 
         System.Diagnostics.Debug.WriteLine($"⏱️ Canceling timer session");
-        
+
         _stopwatch.Stop();
         _tickTimer?.Stop();
 
@@ -135,7 +135,7 @@ public class ActivityTimerService : IActivityTimerService
         if (IsRunning)
         {
             TimerTick?.Invoke(this, ElapsedTime);
-            
+
             // Auto-save progress every minute
             var currentMinutes = (int)ElapsedTime.TotalMinutes;
             if (currentMinutes > _lastSavedMinutes)
@@ -148,7 +148,7 @@ public class ActivityTimerService : IActivityTimerService
     private async Task SaveProgressAsync()
     {
         System.Diagnostics.Debug.WriteLine($"🚀 SaveProgressAsync ENTRY - IsActive={IsActive}, activityId={_activityId}");
-        
+
         if (_progressService == null || string.IsNullOrEmpty(_activityId))
         {
             System.Diagnostics.Debug.WriteLine($"❌ Cannot save progress - progressService={(_progressService != null)}, activityId={_activityId}");
@@ -157,7 +157,7 @@ public class ActivityTimerService : IActivityTimerService
 
         var currentMinutes = (int)ElapsedTime.TotalMinutes;
         System.Diagnostics.Debug.WriteLine($"📊 Current elapsed: {ElapsedTime}, minutes={currentMinutes}, lastSaved={_lastSavedMinutes}");
-        
+
         if (currentMinutes == _lastSavedMinutes)
         {
             System.Diagnostics.Debug.WriteLine($"⏭️ No change in full minutes, skipping save");
@@ -177,7 +177,7 @@ public class ActivityTimerService : IActivityTimerService
             System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
         }
     }
-    
+
     private async Task LoadExistingProgressAsync()
     {
         if (_progressService == null || string.IsNullOrEmpty(_activityId))
@@ -191,15 +191,15 @@ public class ActivityTimerService : IActivityTimerService
         try
         {
             System.Diagnostics.Debug.WriteLine($"📥 Loading existing progress for activity {_activityId}");
-            
+
             // CRITICAL: Use UTC date to match plan generation (ProgressService uses DateTime.UtcNow.Date)
             var today = DateTime.UtcNow.Date;
             System.Diagnostics.Debug.WriteLine($"📅 Query date: {today:yyyy-MM-dd} (Kind={today.Kind})");
-            
+
             // ROBUSTNESS FIX: Call GenerateTodaysPlanAsync instead of GetCachedPlanAsync
             // This ensures plan exists even if cache was cleared/expired
             var plan = await _progressService.GenerateTodaysPlanAsync();
-            
+
             if (plan != null)
             {
                 System.Diagnostics.Debug.WriteLine($"✅ Plan loaded with {plan.Items.Count} items");

@@ -121,15 +121,15 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         Grid(
             Label("Thinking...")
                 .FontSize(64)
-                .TextColor(Theme.IsLightTheme ? 
-                    MyTheme.LightOnDarkBackground : 
+                .TextColor(Theme.IsLightTheme ?
+                    MyTheme.LightOnDarkBackground :
                     MyTheme.DarkOnLightBackground)
                 .Center()
         )
         .BackgroundColor(Color.FromArgb("#80000000"))
         .GridRowSpan(2)
-        .IsVisible(State.IsBusy);    
-    
+        .IsVisible(State.IsBusy);
+
     async Task LoadVocabulary()
     {
         // Start activity timer if launched from Today's Plan (only once)
@@ -140,22 +140,22 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         }
 
         SetState(s => s.IsBusy = true);
-        try 
+        try
         {
             var random = new Random();
-            
+
             // First make sure we have the resource with all its vocabulary
             if (Props.Resource != null && Props.Resource.Id != 0)
             {
                 // Fetch the complete resource with vocabulary
                 var fullResource = await _learningResourceRepository.GetResourceAsync(Props.Resource.Id);
-                
+
                 // Update our props resource with the fetched vocabulary
                 if (fullResource?.Vocabulary != null && fullResource.Vocabulary.Any())
                 {
                     // Update the Props.Resource with the fetched vocabulary
                     Props.Resource.Vocabulary = fullResource.Vocabulary;
-                    
+
                     SetState(s => s.VocabBlocks = Props.Resource.Vocabulary
                         .OrderBy(t => random.Next())
                         .Take(4)
@@ -166,7 +166,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 {
                     // Fallback to empty list if no vocabulary available
                     SetState(s => s.VocabBlocks = new List<VocabularyWord>());
-                    
+
                     // Show message to user
                     await AppShell.DisplayToastAsync("No vocabulary available in the selected resource");
                 }
@@ -199,8 +199,9 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             Answer = State.UserInput,
             Problem = State.UserMeaning
         };
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Sentences.Add(sentence);
             s.UserInput = string.Empty;
             s.UserMeaning = string.Empty;
@@ -255,21 +256,21 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     }
 
     VisualNode RenderDesktopSentence(Sentence sentence) =>
-        Grid("",columns: "*,*,*,*",
+        Grid("", columns: "*,*,*,*",
             Label(sentence.Answer).GridColumn(0),
             Label(sentence.Accuracy.ToString()).Center().GridColumn(1),
             Label(sentence.Fluency.ToString()).Center().GridColumn(2),
             HStack(spacing: 4,
                 Button()
                     .BackgroundColor(Colors.Transparent)
-                    .TextColor(Theme.IsLightTheme ? 
+                    .TextColor(Theme.IsLightTheme ?
                         MyTheme.LightOnDarkBackground :
                         MyTheme.DarkOnLightBackground)
                     .ImageSource(MyTheme.IconCopy)
                     .OnClicked(() => UseVocab(sentence.Answer)),
                 Button()
                     .BackgroundColor(Colors.Transparent)
-                    .TextColor(Theme.IsLightTheme ? 
+                    .TextColor(Theme.IsLightTheme ?
                         MyTheme.LightOnDarkBackground :
                         MyTheme.DarkOnLightBackground)
                     .ImageSource(MyTheme.IconInfo)
@@ -289,14 +290,14 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     Label().Text(FluentUI.info_24_regular).FontSize(24).Center()
                 ).BackgroundColor(Colors.Orange).WidthRequest(60)
             ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
-            Grid("",columns: "*,*",
+            Grid("", columns: "*,*",
                 Label(sentence.Answer).VCenter().GridColumn(0),
                 Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
             )
-            .Background(Theme.IsLightTheme ? 
-                MyTheme.LightCardBackgroundBrush : 
+            .Background(Theme.IsLightTheme ?
+                MyTheme.LightCardBackgroundBrush :
                 MyTheme.DarkCardBackgroundBrush)
-        );    Task ShowExplanation(Sentence sentence)
+        ); Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +
@@ -324,7 +325,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             foreach (var vocabItem in gradeResponse.VocabularyAnalysis)
             {
                 // Use vocabulary from current state
-                var matchedVocab = State.VocabBlocks.FirstOrDefault(v => 
+                var matchedVocab = State.VocabBlocks.FirstOrDefault(v =>
                     v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
 
                 if (matchedVocab != null)
@@ -343,7 +344,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                         ResponseTimeMs = 0,
                         UserConfidence = 0.5f
                     };
-                    
+
                     await _vocabularyProgressService.RecordAttemptAsync(attempt);
                     Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Recorded attempt for '{vocabItem.UsedForm}' (correct: {vocabItem.UsageCorrect})");
                 }
