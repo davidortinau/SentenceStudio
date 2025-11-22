@@ -1,16 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
-using Scriban;
-using SentenceStudio.Data;
-using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
 
 namespace SentenceStudio.Services.PlanGeneration;
@@ -35,11 +25,11 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
     {
         var assembly = Assembly.GetExecutingAssembly();
         var resourceName = "SentenceStudio.Resources.Prompts.DailyPlanGeneration.scriban";
-        
+
         using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)
             throw new InvalidOperationException($"Could not find embedded resource: {resourceName}");
-        
+
         using var reader = new StreamReader(stream);
         PromptTemplate = reader.ReadToEnd();
     }
@@ -65,7 +55,7 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
         try
         {
             Debug.WriteLine("🤖 Starting LLM plan generation...");
-            
+
             var userProfile = await _userProfileRepo.GetAsync();
             if (userProfile == null)
             {
@@ -75,19 +65,19 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
 
             var request = await BuildPlanRequestAsync(userProfile, ct);
             var prompt = RenderPrompt(request);
-            
+
             Debug.WriteLine($"📝 Prompt length: {prompt.Length} chars");
             Debug.WriteLine($"📊 Context: {request.VocabularyDueCount} vocab due, {request.RecentHistory.Count} recent activities, {request.AvailableResources.Count} resources, {request.AvailableSkills.Count} skills");
-            
+
             var response = await _chatClient.GetResponseAsync<DailyPlanResponse>(prompt, cancellationToken: ct);
-            
+
             if (response?.Result != null)
             {
                 Debug.WriteLine($"✅ LLM generated plan with {response.Result.Activities.Count} activities");
                 Debug.WriteLine($"💡 Rationale: {response.Result.Rationale}");
                 return response.Result;
             }
-            
+
             Debug.WriteLine("⚠️ LLM returned null response");
             return null;
         }
@@ -105,16 +95,16 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
         var twoWeeksAgo = today.AddDays(-14);
 
         var vocabDue = await _vocabProgressRepo.GetDueVocabCountAsync(today);
-        
+
         // Query DailyPlanCompletion records for recent activity history
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var recentCompletions = await db.DailyPlanCompletions
             .Where(c => c.Date >= twoWeeksAgo)
             .OrderByDescending(c => c.Date)
             .ToListAsync(ct);
-        
+
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
         var skills = await _skillRepo.ListAsync();
 
@@ -122,13 +112,13 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
         var recentHistory = new List<ActivitySummary>();
         foreach (var completion in recentCompletions)
         {
-            var resource = completion.ResourceId.HasValue 
+            var resource = completion.ResourceId.HasValue
                 ? resources.FirstOrDefault(r => r.Id == completion.ResourceId.Value)
                 : null;
             var skill = completion.SkillId.HasValue
                 ? skills.FirstOrDefault(s => s.Id == completion.SkillId.Value)
                 : null;
-            
+
             recentHistory.Add(new ActivitySummary
             {
                 Date = completion.Date,
@@ -155,7 +145,11 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
                 Title = r.Title ?? "Untitled",
                 MediaType = r.MediaType ?? "Unknown",
                 Language = r.Language ?? "Unknown",
-                WordCount = r.Vocabulary?.Count ?? 0
+                WordCount = r.Vocabulary?.Count ?? 0,
+                HasAudio = r.MediaType == "Podcast" || r.MediaType == "Video",
+                YouTubeUrl = r.MediaType == "Video" && !string.IsNullOrEmpty(r.MediaUrl) && r.MediaUrl.Contains("youtube")
+                    ? r.MediaUrl
+                    : null
             }).ToList(),
             AvailableSkills = skills.Select(s => new SkillOption
             {
@@ -169,7 +163,7 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
     private string RenderPrompt(DailyPlanRequest request)
     {
         var template = Template.Parse(PromptTemplate);
-        
+
         var model = new
         {
             preferred_minutes = request.PreferredSessionMinutes,
@@ -181,7 +175,9 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
             {
                 date = a.Date,
                 activity_type = a.ActivityType,
+                resource_id = a.ResourceId,
                 resource_title = a.ResourceTitle,
+                skill_id = a.SkillId,
                 skill_name = a.SkillName,
                 minutes_spent = a.MinutesSpent
             }).ToList(),
@@ -190,7 +186,10 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
                 id = r.Id,
                 title = r.Title,
                 media_type = r.MediaType,
-                word_count = r.WordCount
+                language = r.Language,
+                word_count = r.WordCount,
+                has_audio = r.HasAudio,
+                youtube_url = r.YouTubeUrl
             }).ToList(),
             available_skills = request.AvailableSkills.Select(s => new
             {
