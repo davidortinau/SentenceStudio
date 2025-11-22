@@ -66,9 +66,10 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node representing the page.</returns>
     public override VisualNode Render()
     {
-        return ContentPage($"{_localize["Shadowing"]}",
-            ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadSentences),
+        return ContentPage(pageRef => _pageRef = pageRef,
+            // ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadSentences),
             Grid(rows: "*, Auto, 80", columns: "*",
+                Props?.FromTodaysPlan == true ? RenderTitleView() : null,
                 SentenceDisplay(),
                 WaveformDisplay(),
                 NavigationFooter(),
@@ -79,6 +80,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             )
             .RowSpacing(MyTheme.CardMargin)
         )
+        .Title($"{_localize["Shadowing"]}")
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
         .OnAppearing(OnPageAppearing)
         .OnSizeChanged((size) =>
@@ -91,6 +93,25 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 SetState(s => s.IsNarrowScreen = isNarrow);
             }
         });
+    }
+
+    private MauiControls.ContentPage? _pageRef;
+    private MauiControls.Grid? _mainGridRef;
+
+    private VisualNode RenderTitleView()
+    {
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
+    }
+
+    private void TrySetShellTitleView()
+    {
+        if (_pageRef != null && _mainGridRef != null)
+        {
+            _pageRef.Dispatcher.Dispatch(() =>
+            {
+                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
+            });
+        }
     }
 
     /// <summary>
@@ -117,6 +138,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         {
             LoadSentences();
         }
+
+        TrySetShellTitleView();
     }
 
     /// <summary>

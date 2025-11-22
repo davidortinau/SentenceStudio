@@ -2,6 +2,7 @@ using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Controls;
+using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Dispatching;
 
 namespace SentenceStudio.Pages.Warmup;
@@ -21,12 +22,13 @@ class WarmupPageState
     public string Explanation { get; set; }
 }
 
-partial class WarmupPage : Component<WarmupPageState>
+partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
 
@@ -57,7 +59,9 @@ partial class WarmupPage : Component<WarmupPageState>
                 RenderPhrasesPopup(),
                 CreateFloatingAudioPlayer()
             )
-        ).OnAppearing(ResumeConversation);
+        )
+        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .OnAppearing(ResumeConversation);
     }
 
     VisualNode CreateFloatingAudioPlayer() =>
@@ -251,6 +255,13 @@ partial class WarmupPage : Component<WarmupPageState>
 
     async Task ResumeConversation()
     {
+        // Start activity timer if launched from Today's Plan (only once)
+        if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
+        {
+            Debug.WriteLine($"🏴‍☠️ WarmupPage: Starting activity timer for Warmup, PlanItemId: {Props.PlanItemId}");
+            _timerService.StartSession("Warmup", Props.PlanItemId);
+        }
+
         SetState(s => s.IsBusy = true);
 
         _conversation = await _conversationService.ResumeConversation();
@@ -273,6 +284,18 @@ partial class WarmupPage : Component<WarmupPageState>
             s.Chunks = chunks;
             s.IsBusy = false;
         });
+    }
+
+    protected override void OnWillUnmount()
+    {
+        base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            Debug.WriteLine("🏴‍☠️ WarmupPage: Pausing activity timer");
+            _timerService.Pause();
+        }
     }
 
     /// <summary>

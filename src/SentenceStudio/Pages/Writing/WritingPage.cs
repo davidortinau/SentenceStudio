@@ -25,6 +25,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] VocabularyProgressService _vocabularyProgressService;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -37,7 +38,9 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 InputUI(),
                 LoadingOverlay()
             )
-        ).OnAppearing(LoadVocabulary);
+        )
+        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .OnAppearing(LoadVocabulary);
     }
 
     VisualNode SentencesHeader() =>
@@ -129,6 +132,13 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     
     async Task LoadVocabulary()
     {
+        // Start activity timer if launched from Today's Plan (only once)
+        if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
+        {
+            Debug.WriteLine($"🏴‍☠️ WritingPage: Starting activity timer for Writing, PlanItemId: {Props.PlanItemId}");
+            _timerService.StartSession("Writing", Props.PlanItemId);
+        }
+
         SetState(s => s.IsBusy = true);
         try 
         {
@@ -342,6 +352,18 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         else
         {
             Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: No AI vocabulary analysis available");
+        }
+    }
+
+    protected override void OnWillUnmount()
+    {
+        base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            Debug.WriteLine("🏴‍☠️ WritingPage: Pausing activity timer");
+            _timerService.Pause();
         }
     }
 }

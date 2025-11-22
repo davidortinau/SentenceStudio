@@ -4,6 +4,7 @@ using MauiReactor.Shapes;
 using ReactorCustomLayouts;
 using System.Diagnostics;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Components;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
@@ -50,22 +51,27 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] VocabularyProgressService _progressService;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    private MauiControls.ContentPage? _pageRef;
+    private MauiControls.Grid? _mainGridRef;
+
     public override VisualNode Render()
     {
-        return ContentPage($"{_localize["VocabularyMatchingTitle"]}",
+        return ContentPage(pageRef => _pageRef = pageRef,
             ToolbarItem($"{_localize["NewGame"]}")
                 .OnClicked(RestartGame),
             ToolbarItem(State.HideNativeWordsMode ? $"{_localize["ShowAllWords"]}" : $"{_localize["HideNativeWords"]}")
                 .OnClicked(ToggleHideNativeWordsMode),
-            Grid(rows: "Auto, *", columns: "*",
+            Grid(rows: "Auto, Auto, *", columns: "*",
+                Props?.FromTodaysPlan == true ? RenderTitleView().GridRow(0) : null,
                 // Header with progress
-                RenderHeader(),
+                RenderHeader().GridRow(1),
 
                 // Game area
                 ContentView(
@@ -74,10 +80,39 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                         State.IsGameComplete ?
                             RenderGameComplete() :
                             RenderGameBoard()
-                ).GridRow(1)
+                ).GridRow(2)
             ).RowSpacing(12)
         )
-        .OnAppearing(LoadVocabulary);
+        .Title($"{_localize["VocabularyMatchingTitle"]}")
+        .OnAppearing(OnPageAppearing);
+    }
+
+    private Task OnPageAppearing()
+    {
+        // Start activity timer if launched from Today's Plan (only once)
+        if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
+        {
+            _timerService.StartSession("VocabularyMatching", Props.PlanItemId);
+        }
+
+        // Load vocabulary on first appearance
+        return LoadVocabulary();
+    }
+
+    private VisualNode RenderTitleView()
+    {
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
+    }
+
+    private void TrySetShellTitleView()
+    {
+        if (_pageRef != null && _mainGridRef != null)
+        {
+            _pageRef.Dispatcher.Dispatch(() =>
+            {
+                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
+            });
+        }
     }
 
     VisualNode RenderHeader() =>
@@ -283,6 +318,8 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             s.IsBusy = true;
             s.GameMessage = "";
         });
+
+        TrySetShellTitleView();
 
         try
         {
@@ -801,4 +838,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         }
     }
 
+    protected override void OnWillUnmount()
+    {
+        base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            _timerService.Pause();
+        }
+    }
 }

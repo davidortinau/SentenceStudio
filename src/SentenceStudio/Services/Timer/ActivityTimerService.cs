@@ -98,8 +98,9 @@ public class ActivityTimerService : IActivityTimerService
         _stopwatch.Stop();
         _tickTimer?.Stop();
 
-        // Save final progress
-        _ = SaveProgressAsync();
+        // DON'T save here - Pause() already saved the progress
+        // Saving here would cause double-counting if Pause was called right before Stop
+        // The proper flow is: Pause() saves → navigation completes → StopSession() clears state
 
         // Clear state
         _activityType = null;

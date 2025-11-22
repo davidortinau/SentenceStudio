@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using System.Collections.Immutable;
 using SentenceStudio.Services;
+using SentenceStudio.Pages.Dashboard;
 using System.Diagnostics;
 
 namespace SentenceStudio.Pages.Scene;
@@ -29,7 +30,7 @@ class DescribeAScenePageState
     public bool IsGalleryBottomSheetOpen { get; set; } = false;
 }
 
-partial class DescribeAScenePage : Component<DescribeAScenePageState>
+partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityProps>
 {
     [Inject] AiService _aiService;
     [Inject] TeacherService _teacherService; // still used for grading
@@ -38,6 +39,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     LocalizationManager _localize => LocalizationManager.Instance;
     CommunityToolkit.Maui.Views.Popup? _popup;
 
@@ -62,7 +64,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
                 RenderLoadingOverlay(),
                 RenderGalleryBottomSheet()
             )
-        ).OnAppearing(LoadScene);
+        )
+        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .OnAppearing(LoadScene);
     }
 
     VisualNode RenderMainContent() => Grid("", "*,*",
@@ -245,6 +249,13 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
     // Event handlers and other methods...
     async Task LoadScene()
     {
+        // Start activity timer if launched from Today's Plan (only once)
+        if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
+        {
+            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting activity timer for SceneDescription, PlanItemId: {Props.PlanItemId}");
+            _timerService.StartSession("SceneDescription", Props.PlanItemId);
+        }
+
         SetState(s => s.IsBusy = true);
 
         try
@@ -268,6 +279,18 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState>
         finally
         {
             SetState(s => s.IsBusy = false);
+        }
+    }
+
+    protected override void OnWillUnmount()
+    {
+        base.OnWillUnmount();
+
+        // Pause timer when leaving activity
+        if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+        {
+            Debug.WriteLine("🏴‍☠️ DescribeAScenePage: Pausing activity timer");
+            _timerService.Pause();
         }
     }
 

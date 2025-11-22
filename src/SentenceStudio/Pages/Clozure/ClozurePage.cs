@@ -46,6 +46,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	[Inject] AiService _aiService;
 	[Inject] UserActivityRepository _userActivityRepository;
 	[Inject] VocabularyProgressService _progressService;
+	[Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
 
 	System.Timers.Timer autoNextTimer;
 	LocalizationManager _localize => LocalizationManager.Instance;
@@ -89,6 +90,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				SessionSummaryOverlay()
 			).RowSpacing(MyTheme.CardMargin)
 		)
+		.Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
 		.OnAppearing(LoadSentences);
 	}
@@ -101,12 +103,27 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		// Cache platform check
 		SetState(s => s.IsDesktopPlatform = DeviceInfo.Platform == DevicePlatform.WinUI);
 
+		// Start activity timer if launched from Today's Plan
+		if (Props?.FromTodaysPlan == true)
+		{
+			Debug.WriteLine($"🏴‍☠️ ClozurePage: Starting activity timer for Clozure, PlanItemId: {Props.PlanItemId}");
+			_timerService.StartSession("Clozure", Props.PlanItemId);
+		}
+
 		LoadSentences();
 	}
 
 	protected override void OnWillUnmount()
 	{
 		autoNextTimer?.Dispose();
+		
+		// Pause timer when leaving activity
+		if (Props?.FromTodaysPlan == true && _timerService.IsActive)
+		{
+			Debug.WriteLine("🏴‍☠️ ClozurePage: Pausing activity timer");
+			_timerService.Pause();
+		}
+		
 		base.OnWillUnmount();
 	}
 

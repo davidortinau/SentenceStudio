@@ -109,102 +109,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     private VisualNode RenderTitleView()
     {
-        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd();
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
     }
 
-    // public override VisualNode Render()
-    // {
-    //     System.Diagnostics.Debug.WriteLine($"🎯 VocabularyQuizPage.Render() CALLED");
-    //     System.Diagnostics.Debug.WriteLine($"🎯 Props.FromTodaysPlan = {Props?.FromTodaysPlan}");
-    //     System.Diagnostics.Debug.WriteLine($"🎯 Timer service IsActive = {_timerService.IsActive}");
-
-    //     // Main content grid
-    //     var mainContent = Grid(rows: "Auto,*", columns: "*",
-    //         Grid(rows: "Auto", columns: "Auto,*,Auto",
-    //             // Left bubble shows learning count with enhanced status
-    //             Border(
-    //                 Label($"{State.LearningTermsCount}")
-    //                     .FontSize(16)
-    //                     .FontAttributes(FontAttributes.Bold)
-    //                     .TextColor(Colors.White)
-    //                     .TranslationY(-4)
-    //                     .Center()
-    //             )
-    //             .Background(MyTheme.Success)
-    //             .StrokeShape(new RoundRectangle().CornerRadius(15))
-    //             .StrokeThickness(0)
-    //             .HeightRequest(30)
-    //             .Padding(MyTheme.Size160, 2)
-    //             .GridColumn(0)
-    //             .VCenter(),
-
-    //             // Center progress bar shows overall mastery
-    //             ProgressBar()
-    //                 .Progress(State.TotalResourceTermsCount > 0 ?
-    //                     CalculateOverallMasteryProgress() : 0)
-    //                 .ProgressColor(MyTheme.Success)
-    //                 .BackgroundColor(Colors.LightGray)
-    //                 .HeightRequest(6)
-    //                 .GridColumn(1)
-    //                 .VCenter()
-    //                 .Margin(MyTheme.CardMargin, 0),
-
-    //             // Right bubble shows total count
-    //             Border(
-    //                 Label($"{State.TotalResourceTermsCount}")
-    //                     .FontSize(16)
-    //                     .FontAttributes(FontAttributes.Bold)
-    //                     .TextColor(Colors.White)
-    //                     .TranslationY(-4)
-    //                     .Center()
-    //             )
-    //             .Background(MyTheme.DarkOnLightBackground)
-    //             .StrokeShape(new RoundRectangle().CornerRadius(15))
-    //             .StrokeThickness(0)
-    //             .HeightRequest(30)
-    //             .Padding(MyTheme.Size160, 2)
-    //             .GridColumn(2)
-    //             .VCenter()
-    //         )
-    //         .Margin(MyTheme.CardMargin)
-    //         .GridRow(0),
-    //         ScrollView(
-    //             Grid(rows: "*,Auto", columns: "*",
-    //                 TermDisplay(),
-    //                 UserInputSection()
-    //             ).RowSpacing(MyTheme.ComponentSpacing)
-    //         ).GridRow(1),
-    //         AutoTransitionBar(),
-    //         LoadingOverlay(),
-    //         SessionSummaryOverlay()
-    //     ).RowSpacing(MyTheme.CardMargin);
-
-    //     // Wrap content with timer overlay if from Today's Plan
-    //     VisualNode pageContent;
-    //     if (Props?.FromTodaysPlan == true)
-    //     {
-    //         System.Diagnostics.Debug.WriteLine("🎯 Adding timer overlay to page content");
-    //         pageContent = Grid(
-    //             mainContent,
-    //             // Timer overlay - top right corner
-    //             HStack(
-    //                 new ActivityTimerBar()
-    //             )
-    //             .HEnd()
-    //             .VStart()
-    //             .Margin(16)
-    //         );
-    //     }
-    //     else
-    //     {
-    //         System.Diagnostics.Debug.WriteLine("🎯 No timer overlay - FromTodaysPlan is false");
-    //         pageContent = mainContent;
-    //     }
-
-    //     return ContentPage($"{_localize["VocabularyQuiz"]}", pageContent)
-    //         // .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
-    //         .OnAppearing(LoadVocabulary);
-    // }
+    private void TrySetShellTitleView()
+    {
+        if (_pageRef != null && _mainGridRef != null)
+        {
+            _pageRef.Dispatcher.Dispatch(() =>
+            {
+                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
+            });
+        }
+    }
 
     VisualNode AutoTransitionBar() =>
         ProgressBar()
@@ -1964,17 +1881,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             System.Diagnostics.Debug.WriteLine("⚠️ NOT starting timer - FromTodaysPlan is false");
         }
 
-    }
-
-    private void TrySetShellTitleView()
-    {
-        if (_pageRef != null && _mainGridRef != null)
-        {
-            _pageRef.Dispatcher.Dispatch(() =>
-            {
-                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
-            });
-        }
     }
 
     protected override void OnWillUnmount()

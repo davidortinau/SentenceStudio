@@ -98,6 +98,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     private TimestampedAudioManager _audioManager;
     private SentenceTimingCalculator _timingCalculator;
 
+    private MauiControls.ContentPage? _pageRef;
+    private MauiControls.Grid? _mainGridRef;
+
     public override VisualNode Render()
     {
         if (State.IsBusy)
@@ -137,7 +140,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             );
         }
 
-        return ContentPage($"{_localize["Reading"]}",
+        return ContentPage(pageRef => _pageRef = pageRef,
             ToolbarItem()
                 .IconImageSource(MyTheme.IconFontDecrease)
                 .OnClicked(DecreaseFontSize),
@@ -151,6 +154,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .IconImageSource(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
                 .OnClicked(TogglePlayback),
             Grid(rows: "Auto,Auto,*,Auto", columns: "*",
+                Props?.FromTodaysPlan == true ? RenderTitleView() : null,
                 RenderAudioLoadingBanner(),
                 // RenderHeader(),
                 RenderReadingContent(),
@@ -159,9 +163,25 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 RenderDictionaryBottomSheet()
             )
         )
+        .Title($"{_localize["Reading"]}")
         .Set(MauiControls.Shell.NavBarIsVisibleProperty, State.IsNavigationVisible)
-        .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
         .OnAppearing(LoadContentAsync);
+    }
+
+    private VisualNode RenderTitleView()
+    {
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
+    }
+
+    private void TrySetShellTitleView()
+    {
+        if (_pageRef != null && _mainGridRef != null)
+        {
+            _pageRef.Dispatcher.Dispatch(() =>
+            {
+                MauiControls.Shell.SetTitleView(_pageRef, Props?.FromTodaysPlan == true ? _mainGridRef : null);
+            });
+        }
     }
 
     VisualNode RenderAudioLoadingBanner() =>
@@ -521,7 +541,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             while (currentSentenceIndex < State.Sentences.Count)
             {
                 var sentence = State.Sentences[currentSentenceIndex].Trim();
-                
+
                 // Check if this sentence appears in the current paragraph
                 if (paragraphText.Contains(sentence, StringComparison.Ordinal))
                 {
@@ -1405,7 +1425,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // This ensures sentence indices match between UI and audio timing
                 var audioSentences = _audioManager.GetSentences();
                 _logger.LogInformation("🔍 Audio manager loaded {Count} sentences (excluding paragraph breaks)", audioSentences.Count);
-                
+
                 SetState(s =>
                 {
                     // Replace the paragraph-aware sentence list with the audio manager's list
@@ -1510,6 +1530,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     async Task LoadContentAsync()
     {
+        TrySetShellTitleView();
+
         SetState(s => s.IsBusy = true);
 
         try
