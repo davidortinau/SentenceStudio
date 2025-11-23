@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -59,6 +60,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
+    [Inject] ILogger<VocabularyManagementPage> _logger;
     private System.Threading.Timer? _searchTimer;
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -323,7 +325,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"LoadData error: {ex}");
+            _logger.LogError(ex, "LoadData error");
             await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["FailedToLoadVocabularyData"]}", $"{_localize["OK"]}");
 
             // Set safe defaults on error
@@ -695,7 +697,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
             foreach (var word in allWords)
             {
-                if (string.IsNullOrWhiteSpace(word.TargetLanguageTerm) || 
+                if (string.IsNullOrWhiteSpace(word.TargetLanguageTerm) ||
                     string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
                     continue;
 
@@ -767,7 +769,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             var userProfile = await _userProfileRepo.GetOrCreateDefaultAsync();
             var targetLanguage = userProfile?.TargetLanguage ?? "Korean";
 
-            var generalResource = State.AvailableResources.FirstOrDefault(r => 
+            var generalResource = State.AvailableResources.FirstOrDefault(r =>
                 r.Title == "General Vocabulary" && r.MediaType == "Vocabulary List");
 
             if (generalResource == null)
@@ -786,12 +788,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             }
 
             var orphanedWords = await _resourceRepo.GetOrphanedVocabularyWordsAsync();
-            
+
             if (orphanedWords.Any())
             {
                 var orphanIds = orphanedWords.Select(w => w.Id).ToList();
                 await _resourceRepo.BulkAssociateWordsWithResourceAsync(generalResource.Id, orphanIds);
-                
+
                 await AppShell.DisplayToastAsync($"📦 Assigned {orphanedWords.Count} orphaned word(s) to 'General Vocabulary'!");
                 await LoadVocabularyData();
             }
@@ -823,7 +825,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     static bool IsKorean(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
-        return text.Any(c => 
+        return text.Any(c =>
             (c >= 0xAC00 && c <= 0xD7AF) ||
             (c >= 0x1100 && c <= 0x11FF) ||
             (c >= 0x3130 && c <= 0x318F));

@@ -1,6 +1,7 @@
 using SentenceStudio.Data;
 using SentenceStudio.Services.PlanGeneration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services.Progress;
 
@@ -14,6 +15,7 @@ public class ProgressService : IProgressService
     private readonly ProgressCacheService _cache;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILlmPlanGenerationService _llmPlanService;
+    private readonly ILogger<ProgressService> _logger;
 
     public ProgressService(
         LearningResourceRepository resourceRepo,
@@ -23,7 +25,8 @@ public class ProgressService : IProgressService
         VocabularyProgressRepository progressRepo,
         ProgressCacheService cache,
         IServiceProvider serviceProvider,
-        ILlmPlanGenerationService llmPlanService)
+        ILlmPlanGenerationService llmPlanService,
+        ILogger<ProgressService> logger)
     {
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
@@ -33,6 +36,7 @@ public class ProgressService : IProgressService
         _cache = cache;
         _serviceProvider = serviceProvider;
         _llmPlanService = llmPlanService;
+        _logger = logger;
     }
 
     public async Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default)
@@ -148,12 +152,12 @@ public class ProgressService : IProgressService
         if (cached != null)
             return cached;
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Loading VocabSummary from database");
+        _logger.LogDebug("🏴‍☠️ Loading VocabSummary from database");
         // PHASE 1 OPTIMIZATION: Use SQL aggregation instead of loading all progress records
         var (newCount, learning, review, known) = await _progressRepo.GetVocabSummaryCountsAsync();
         var success7d = await _progressRepo.GetSuccessRate7dAsync();
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ VocabSummary: New={newCount}, Learning={learning}, Review={review}, Known={known}, Success7d={success7d}");
+        _logger.LogDebug("🏴‍☠️ VocabSummary: New={NewCount}, Learning={Learning}, Review={Review}, Known={Known}, Success7d={Success7d}", newCount, learning, review, known, success7d);
         var result = new VocabProgressSummary(newCount, learning, review, known, success7d);
 
         // PHASE 2 OPTIMIZATION: Cache the result
@@ -202,16 +206,16 @@ public class ProgressService : IProgressService
         if (existingPlan != null)
             return existingPlan;
 
-        System.Diagnostics.Debug.WriteLine("🤖 Generating new plan with LLM...");
+        _logger.LogDebug("🤖 Generating new plan with LLM...");
 
         try
         {
             // Use LLM to generate the plan
             var llmResponse = await _llmPlanService.GeneratePlanAsync(ct);
-            
+
             if (llmResponse == null || !llmResponse.Activities.Any())
             {
-                System.Diagnostics.Debug.WriteLine("⚠️ LLM returned no activities, falling back to basic plan");
+                _logger.LogDebug("⚠️ LLM returned no activities, falling back to basic plan");
                 return await GenerateFallbackPlanAsync(today, ct);
             }
 
@@ -270,16 +274,16 @@ public class ProgressService : IProgressService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ LLM plan generation failed: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine("⚠️ Falling back to basic plan");
+            _logger.LogError(ex, "❌ LLM plan generation failed");
+            _logger.LogDebug("⚠️ Falling back to basic plan");
             return await GenerateFallbackPlanAsync(today, ct);
         }
     }
 
     private async Task<TodaysPlan> GenerateFallbackPlanAsync(DateTime today, CancellationToken ct)
     {
-        System.Diagnostics.Debug.WriteLine("📝 Generating fallback plan (vocab review only)");
-        
+        _logger.LogDebug("📝 Generating fallback plan (vocab review only)");
+
         var planItems = new List<DailyPlanItem>();
         var vocabDueCount = await GetVocabDueCountAsync(today, ct);
 
@@ -326,84 +330,111 @@ public class ProgressService : IProgressService
 
     public async Task<TodaysPlan?> GetCachedPlanAsync(DateTime date, CancellationToken ct = default)
     {
-        System.Diagnostics.Debug.WriteLine($"🔍 GetCachedPlanAsync for {date:yyyy-MM-dd} (Kind={date.Kind})");
-        
+        _logger.LogDebug("🔍 GetCachedPlanAsync for {Date:yyyy-MM-dd} (Kind={Kind})", date, date.Kind);
+
         var cachedPlan = _cache.GetTodaysPlan();
         if (cachedPlan == null)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in memory cache - checking database...");
-            
+            _logger.LogDebug("⚠️ No plan in memory cache - checking database...");
+
             // Try to reconstruct from database
             var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
             if (reconstructedPlan != null)
             {
-                System.Diagnostics.Debug.WriteLine($"✅ Reconstructed plan from database with {reconstructedPlan.Items.Count} items");
+                _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
                 _cache.SetTodaysPlan(reconstructedPlan);
                 return reconstructedPlan;
             }
-            
-            System.Diagnostics.Debug.WriteLine($"⚠️ No plan in database either - need to generate new one");
+
+            _logger.LogDebug("⚠️ No plan in database either - need to generate new one");
             return null;
         }
-        
-        System.Diagnostics.Debug.WriteLine($"📊 Cache contains plan for {cachedPlan.GeneratedForDate:yyyy-MM-dd} (Kind={cachedPlan.GeneratedForDate.Kind})");
-        
+
+        _logger.LogDebug("📊 Cache contains plan for {CachedDate:yyyy-MM-dd} (Kind={Kind})", cachedPlan.GeneratedForDate, cachedPlan.GeneratedForDate.Kind);
+
         // Validate cached plan is for the requested date
         if (cachedPlan.GeneratedForDate.Date != date.Date)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Cache date mismatch: requested={date.Date:yyyy-MM-dd}, cached={cachedPlan.GeneratedForDate.Date:yyyy-MM-dd}");
+            _logger.LogDebug("❌ Cache date mismatch: requested={RequestedDate:yyyy-MM-dd}, cached={CachedDate:yyyy-MM-dd}", date.Date, cachedPlan.GeneratedForDate.Date);
             _cache.InvalidateTodaysPlan();
-            
+
             // Try database before giving up
             var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
             if (reconstructedPlan != null)
             {
-                System.Diagnostics.Debug.WriteLine($"✅ Found plan in database for correct date");
+                _logger.LogDebug("✅ Found plan in database for correct date");
                 _cache.SetTodaysPlan(reconstructedPlan);
                 return reconstructedPlan;
             }
-            
+
             return null;
         }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Cache date matches - enriching with latest completion data");
-        
+
+        _logger.LogDebug("✅ Cache date matches - enriching with latest completion data");
+
         // Enrich with latest completion data from database
         var enrichedPlan = await EnrichPlanWithCompletionDataAsync(cachedPlan, ct);
-        
+
         // Update cache with enriched data
         _cache.UpdateTodaysPlan(enrichedPlan);
-        
+
         return enrichedPlan;
+    }
+
+    public async Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default)
+    {
+        _logger.LogDebug("🗑️ ClearCachedPlanAsync for {Date:yyyy-MM-dd}", date);
+
+        // Clear from memory cache
+        _cache.InvalidateTodaysPlan();
+        _logger.LogDebug("✅ Cleared memory cache");
+
+        // CRITICAL: Also delete database records to prevent reconstruction
+        // Without this, GetCachedPlanAsync will reconstruct from database and never call LLM
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var completionsToDelete = await db.DailyPlanCompletions
+            .Where(c => c.Date == date.Date)
+            .ToListAsync(ct);
+
+        if (completionsToDelete.Any())
+        {
+            db.DailyPlanCompletions.RemoveRange(completionsToDelete);
+            await db.SaveChangesAsync(ct);
+            _logger.LogDebug("🗑️ Deleted {Count} DailyPlanCompletion records from database", completionsToDelete.Count);
+        }
+
+        _logger.LogDebug("✅ Cache and database cleared - next GenerateTodaysPlanAsync will create fresh plan from LLM");
     }
 
     public async Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
     {
-        System.Diagnostics.Debug.WriteLine($"📊 MarkPlanItemCompleteAsync - planItemId={planItemId}, minutesSpent={minutesSpent}");
-        
+        _logger.LogDebug("📊 MarkPlanItemCompleteAsync - planItemId={PlanItemId}, minutesSpent={MinutesSpent}", planItemId, minutesSpent);
+
         // CRITICAL: Use UTC date to match plan generation
         var today = DateTime.UtcNow.Date;
-        System.Diagnostics.Debug.WriteLine($"📅 Using UTC date: {today:yyyy-MM-dd}");
-        
+        _logger.LogDebug("📅 Using UTC date: {Today:yyyy-MM-dd}", today);
+
         var plan = _cache.GetTodaysPlan();
 
         if (plan == null)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No cached plan found for today");
+            _logger.LogDebug("⚠️ No cached plan found for today");
             return;
         }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Found cached plan for {plan.GeneratedForDate:yyyy-MM-dd}");
+
+        _logger.LogDebug("✅ Found cached plan for {Date:yyyy-MM-dd}", plan.GeneratedForDate);
 
         var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
         if (item == null)
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ Plan item '{planItemId}' not found in cached plan");
-            System.Diagnostics.Debug.WriteLine($"📊 Available plan item IDs: {string.Join(", ", plan.Items.Select(i => i.Id))}");
+            _logger.LogDebug("⚠️ Plan item '{PlanItemId}' not found in cached plan", planItemId);
+            _logger.LogDebug("📊 Available plan item IDs: {Ids}", string.Join(", ", plan.Items.Select(i => i.Id)));
             return;
         }
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Found plan item: {item.TitleKey}");
+
+        _logger.LogDebug("✅ Found plan item: {TitleKey}", item.TitleKey);
 
         // Mark in database
         using var scope = _serviceProvider.CreateScope();
@@ -415,7 +446,7 @@ public class ProgressService : IProgressService
 
         if (existing != null)
         {
-            System.Diagnostics.Debug.WriteLine($"💾 Updating existing completion record in database");
+            _logger.LogDebug("💾 Updating existing completion record in database");
             existing.IsCompleted = true;
             existing.CompletedAt = DateTime.UtcNow;
             existing.MinutesSpent = minutesSpent;
@@ -423,7 +454,7 @@ public class ProgressService : IProgressService
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"💾 Creating new completion record in database");
+            _logger.LogDebug("💾 Creating new completion record in database");
             var completion = new DailyPlanCompletion
             {
                 Date = today,
@@ -441,16 +472,16 @@ public class ProgressService : IProgressService
         }
 
         await db.SaveChangesAsync(ct);
-        System.Diagnostics.Debug.WriteLine($"✅ Database updated");
+        _logger.LogDebug("✅ Database updated");
 
         // Update cache - create new record with updated completion status
-        var updatedItem = item with 
-        { 
-            IsCompleted = true, 
+        var updatedItem = item with
+        {
+            IsCompleted = true,
             CompletedAt = DateTime.UtcNow,
             MinutesSpent = minutesSpent
         };
-        
+
         var itemIndex = plan.Items.IndexOf(item);
         if (itemIndex >= 0)
         {
@@ -460,28 +491,28 @@ public class ProgressService : IProgressService
         // Recalculate plan completion percentage based on time
         var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
         var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
-        var completionPercentage = totalEstimatedMinutes > 0 
+        var completionPercentage = totalEstimatedMinutes > 0
             ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
             : 0;
-        
-        var updatedPlan = plan with 
-        { 
+
+        var updatedPlan = plan with
+        {
             CompletedCount = plan.Items.Count(i => i.IsCompleted),
             CompletionPercentage = completionPercentage
         };
-        
+
         _cache.UpdateTodaysPlan(updatedPlan);
-        System.Diagnostics.Debug.WriteLine($"✅ Cache updated - {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+        _logger.LogDebug("✅ Cache updated - {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
     }
 
     public async Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
     {
-        System.Diagnostics.Debug.WriteLine($"📊 UpdatePlanItemProgressAsync - planItemId={planItemId}, minutesSpent={minutesSpent}");
-        
+        _logger.LogDebug("📊 UpdatePlanItemProgressAsync - planItemId={PlanItemId}, minutesSpent={MinutesSpent}", planItemId, minutesSpent);
+
         // CRITICAL: Use UTC date to match plan generation
         var today = DateTime.UtcNow.Date;
-        System.Diagnostics.Debug.WriteLine($"📅 Using UTC date: {today:yyyy-MM-dd}");
-        
+        _logger.LogDebug("📅 Using UTC date: {Today:yyyy-MM-dd}", today);
+
         // Update database FIRST - this should always work if plan was initialized
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -494,20 +525,20 @@ public class ProgressService : IProgressService
             existing.MinutesSpent = minutesSpent;
             existing.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            System.Diagnostics.Debug.WriteLine($"💾 Updated database record to {minutesSpent} minutes (cache-independent)");
+            _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes (cache-independent)", minutesSpent);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No DailyPlanCompletion record found for planItemId='{planItemId}' on {today:yyyy-MM-dd}");
-            System.Diagnostics.Debug.WriteLine($"💡 This means the plan wasn't initialized properly");
+            _logger.LogDebug("⚠️ No DailyPlanCompletion record found for planItemId='{PlanItemId}' on {Today:yyyy-MM-dd}", planItemId, today);
+            _logger.LogDebug("💡 This means the plan wasn't initialized properly");
         }
 
         // Also update cache if it exists (optional, for UI responsiveness)
         var plan = _cache.GetTodaysPlan();
         if (plan != null)
         {
-            System.Diagnostics.Debug.WriteLine($"✅ Cache exists - updating cache too");
-            
+            _logger.LogDebug("✅ Cache exists - updating cache too");
+
             var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
             if (item != null)
             {
@@ -521,18 +552,18 @@ public class ProgressService : IProgressService
                 // Recalculate completion percentage
                 var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
                 var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
-                var completionPercentage = totalEstimatedMinutes > 0 
+                var completionPercentage = totalEstimatedMinutes > 0
                     ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
                     : 0;
 
                 var updatedPlan = plan with { CompletionPercentage = completionPercentage };
                 _cache.UpdateTodaysPlan(updatedPlan);
-                System.Diagnostics.Debug.WriteLine($"✅ Cache updated - {completionPercentage:F0}% complete");
+                _logger.LogDebug("✅ Cache updated - {Percentage:F0}% complete", completionPercentage);
             }
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"ℹ️ No cached plan - database updated successfully, cache skipped");
+            _logger.LogDebug("ℹ️ No cached plan - database updated successfully, cache skipped");
         }
     }
 
@@ -543,27 +574,27 @@ public class ProgressService : IProgressService
 
     private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)
     {
-        System.Diagnostics.Debug.WriteLine($"🔧 Enriching plan with completion data for {plan.GeneratedForDate:yyyy-MM-dd}");
-        
+        _logger.LogDebug("🔧 Enriching plan with completion data for {Date:yyyy-MM-dd}", plan.GeneratedForDate);
+
         // Load completion data from database
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var completions = await db.DailyPlanCompletions
             .Where(c => c.Date == plan.GeneratedForDate.Date)
             .ToListAsync(ct);
-        
-        System.Diagnostics.Debug.WriteLine($"📊 Found {completions.Count} completion records");
-        
+
+        _logger.LogDebug("📊 Found {Count} completion records", completions.Count);
+
         // Create dictionary for O(1) lookup
         var completionDict = completions.ToDictionary(c => c.PlanItemId);
-        
+
         // Update each plan item with completion data
         var enrichedItems = plan.Items.Select(item =>
         {
             if (completionDict.TryGetValue(item.Id, out var completion))
             {
-                System.Diagnostics.Debug.WriteLine($"  ✅ {item.TitleKey}: {completion.MinutesSpent} min, completed={completion.IsCompleted}");
+                _logger.LogDebug("  ✅ {TitleKey}: {MinutesSpent} min, completed={IsCompleted}", item.TitleKey, completion.MinutesSpent, completion.IsCompleted);
                 return item with
                 {
                     IsCompleted = completion.IsCompleted,
@@ -573,23 +604,23 @@ public class ProgressService : IProgressService
             }
             return item;
         }).ToList();
-        
+
         // Recalculate plan statistics
         var totalMinutesSpent = enrichedItems.Sum(i => i.MinutesSpent);
         var totalEstimatedMinutes = enrichedItems.Sum(i => i.EstimatedMinutes);
-        var completionPercentage = totalEstimatedMinutes > 0 
+        var completionPercentage = totalEstimatedMinutes > 0
             ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
             : 0;
-        
+
         var enrichedPlan = plan with
         {
             Items = enrichedItems,
             CompletedCount = enrichedItems.Count(i => i.IsCompleted),
             CompletionPercentage = completionPercentage
         };
-        
-        System.Diagnostics.Debug.WriteLine($"📊 Plan enriched: {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
-        
+
+        _logger.LogDebug("📊 Plan enriched: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
+
         return enrichedPlan;
     }
 
@@ -717,17 +748,17 @@ public class ProgressService : IProgressService
     /// </summary>
     private async Task InitializePlanCompletionRecordsAsync(TodaysPlan plan, CancellationToken ct)
     {
-        System.Diagnostics.Debug.WriteLine($"🏗️ Initializing DailyPlanCompletion records for {plan.Items.Count} plan items");
-        
+        _logger.LogDebug("🏭️ Initializing DailyPlanCompletion records for {Count} plan items", plan.Items.Count);
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         foreach (var item in plan.Items)
         {
             // Check if record already exists
             var existing = await db.DailyPlanCompletions
                 .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id, ct);
-            
+
             if (existing == null)
             {
                 var completion = new DailyPlanCompletion
@@ -749,16 +780,16 @@ public class ProgressService : IProgressService
                     UpdatedAt = DateTime.UtcNow
                 };
                 await db.DailyPlanCompletions.AddAsync(completion, ct);
-                System.Diagnostics.Debug.WriteLine($"  ✅ Created record for {item.TitleKey}");
+                _logger.LogDebug("  ✅ Created record for {TitleKey}", item.TitleKey);
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"  ⏭️ Record already exists for {item.TitleKey} ({existing.MinutesSpent} min)");
+                _logger.LogDebug("  ⏭️ Record already exists for {TitleKey} ({MinutesSpent} min)", item.TitleKey, existing.MinutesSpent);
             }
         }
-        
+
         await db.SaveChangesAsync(ct);
-        System.Diagnostics.Debug.WriteLine($"💾 Initialized {plan.Items.Count} DailyPlanCompletion records");
+        _logger.LogDebug("💾 Initialized {Count} DailyPlanCompletion records", plan.Items.Count);
     }
 
     /// <summary>
@@ -767,27 +798,27 @@ public class ProgressService : IProgressService
     /// </summary>
     private async Task<TodaysPlan?> ReconstructPlanFromDatabase(DateTime date, CancellationToken ct)
     {
-        System.Diagnostics.Debug.WriteLine($"🔨 Attempting to reconstruct plan from database for {date:yyyy-MM-dd}");
-        
+        _logger.LogDebug("🔨 Attempting to reconstruct plan from database for {Date:yyyy-MM-dd}", date);
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var completions = await db.DailyPlanCompletions
             .Where(c => c.Date == date.Date)
             .OrderBy(c => c.Priority)
             .ToListAsync(ct);
-        
+
         if (!completions.Any())
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ No DailyPlanCompletion records found for {date:yyyy-MM-dd}");
+            _logger.LogDebug("⚠️ No DailyPlanCompletion records found for {Date:yyyy-MM-dd}", date);
             return null;
         }
-        
-        System.Diagnostics.Debug.WriteLine($"📊 Found {completions.Count} completion records, reconstructing plan...");
-        
+
+        _logger.LogDebug("📊 Found {Count} completion records, reconstructing plan...", completions.Count);
+
         // Convert DailyPlanCompletion records back to PlanItems
         var planItems = new List<DailyPlanItem>();
-        
+
         foreach (var completion in completions)
         {
             // Deserialize route parameters
@@ -800,10 +831,10 @@ public class ProgressService : IProgressService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"⚠️ Failed to deserialize route params: {ex.Message}");
+                    _logger.LogDebug("⚠️ Failed to deserialize route params: {Message}", ex.Message);
                 }
             }
-            
+
             var planItem = new DailyPlanItem(
                 Id: completion.PlanItemId,
                 TitleKey: completion.TitleKey,
@@ -823,21 +854,21 @@ public class ProgressService : IProgressService
                 DifficultyLevel: null,
                 MinutesSpent: completion.MinutesSpent
             );
-            
+
             planItems.Add(planItem);
-            System.Diagnostics.Debug.WriteLine($"  ✅ Reconstructed: {completion.TitleKey} ({completion.MinutesSpent}/{completion.EstimatedMinutes} min)");
+            _logger.LogDebug("  ✅ Reconstructed: {TitleKey} ({Spent}/{Estimated} min)", completion.TitleKey, completion.MinutesSpent, completion.EstimatedMinutes);
         }
-        
+
         // Calculate overall plan statistics
         var totalMinutesSpent = planItems.Sum(i => i.MinutesSpent);
         var totalEstimatedMinutes = planItems.Sum(i => i.EstimatedMinutes);
-        var completionPercentage = totalEstimatedMinutes > 0 
+        var completionPercentage = totalEstimatedMinutes > 0
             ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
             : 0;
-        
+
         // Get streak info
         var streak = await GetStreakInfoAsync(ct);
-        
+
         var reconstructedPlan = new TodaysPlan(
             GeneratedForDate: date,
             Items: planItems,
@@ -849,8 +880,8 @@ public class ProgressService : IProgressService
             ResourceTitles: null, // Will be enriched later if needed
             SkillTitle: null
         );
-        
-        System.Diagnostics.Debug.WriteLine($"✅ Reconstructed plan: {completionPercentage:F0}% complete ({totalMinutesSpent}/{totalEstimatedMinutes} min)");
+
+        _logger.LogDebug("✅ Reconstructed plan: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
         return reconstructedPlan;
     }
 
@@ -866,21 +897,21 @@ public class ProgressService : IProgressService
             date.ToString("yyyy-MM-dd"),
             activityType.ToString()
         };
-        
+
         if (resourceId.HasValue)
             parts.Add($"r{resourceId.Value}");
         if (skillId.HasValue)
             parts.Add($"s{skillId.Value}");
-            
+
         var combined = string.Join("_", parts);
-        
+
         // Use deterministic hash to create stable GUID-like ID
         // This ensures same inputs always produce same ID
         using var sha = System.Security.Cryptography.SHA256.Create();
         var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
         var guid = new Guid(hash.Take(16).ToArray());
-        
-        System.Diagnostics.Debug.WriteLine($"🔑 Generated plan item ID: {guid} for {combined}");
+
+        _logger.LogDebug("🔑 Generated plan item ID: {Guid} for {Combined}", guid, combined);
         return guid.ToString();
     }
 }

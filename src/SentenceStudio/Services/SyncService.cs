@@ -22,7 +22,7 @@ public class SyncService : ISyncService
     private bool _isInitialized = false;
 
     public SyncService(
-        ISyncProvider localSyncProvider, 
+        ISyncProvider localSyncProvider,
         ISyncProviderHttpClient remoteSyncProvider,
         ILogger<SyncService> logger,
         IServiceProvider serviceProvider)
@@ -38,38 +38,32 @@ public class SyncService : ISyncService
         if (_isInitialized)
         {
             _logger.LogInformation("⏭️ Database already initialized, skipping");
-            System.Diagnostics.Debug.WriteLine("⏭️ Database already initialized, skipping");
             return;
         }
 
         try
         {
             _logger.LogInformation("🚀 Initializing CoreSync provider...");
-            System.Diagnostics.Debug.WriteLine("🚀 SyncService.InitializeDatabaseAsync - START");
 
             // First: Ensure EF Core applies all migrations
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
-            System.Diagnostics.Debug.WriteLine("📊 Running EF Core migrations...");
+
+            _logger.LogDebug("📋 Running EF Core migrations...");
             await dbContext.Database.MigrateAsync();
             _logger.LogInformation("EF Core database migrated");
-            System.Diagnostics.Debug.WriteLine("✅ EF Core migrations complete");
 
             // Then: Apply CoreSync provisioning to create sync tracking tables
-            System.Diagnostics.Debug.WriteLine("📊 Applying CoreSync provisioning...");
+            _logger.LogDebug("📋 Applying CoreSync provisioning...");
             await _localSyncProvider.ApplyProvisionAsync();
             _logger.LogInformation("CoreSync provisioning applied");
-            System.Diagnostics.Debug.WriteLine("✅ CoreSync provisioning complete");
 
             _isInitialized = true;
-            System.Diagnostics.Debug.WriteLine("✅ SyncService.InitializeDatabaseAsync - COMPLETE");
+            _logger.LogInformation("✅ SyncService initialization complete");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize CoreSync: {Message}", ex.Message);
-            System.Diagnostics.Debug.WriteLine($"❌ SyncService.InitializeDatabaseAsync - ERROR: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
             // throw;
         }
     }

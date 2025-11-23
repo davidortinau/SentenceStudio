@@ -11,6 +11,7 @@ using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Pages.Controls;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -59,6 +60,7 @@ partial class DashboardPage : Component<DashboardPageState>
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] SkillProfileRepository _skillService;
     [Inject] IProgressService _progressService;
+    [Inject] ILogger<DashboardPage> _logger;
 
     [Param] IParameter<DashboardParameters> _parameters;
 
@@ -478,7 +480,7 @@ partial class DashboardPage : Component<DashboardPageState>
             // Use existing parameter values (e.g., from navigation)
             selectedResources = existingSelectedResources;
             selectedSkill = existingSelectedSkill;
-            System.Diagnostics.Debug.WriteLine("🏴‍☠️ Using existing parameter values");
+            _logger.LogDebug("🏴‍☠️ Using existing parameter values");
         }
         else
         {
@@ -497,7 +499,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         fullResources.Add(fullResource);
                 }
                 selectedResources = fullResources;
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Reloaded {fullResources.Count} resources WITH vocabulary for activities");
+                _logger.LogDebug("🏴‍☠️ Reloaded {Count} resources WITH vocabulary for activities", fullResources.Count);
             }
         }
 
@@ -549,12 +551,12 @@ partial class DashboardPage : Component<DashboardPageState>
         });
 
         // Debug logging to verify state
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State set - Selected Resources Count: {State.SelectedResources.Count}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State set - Selected Resource Index: {State.SelectedResourceIndex}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State set - Selected Skill Index: {State.SelectedSkillProfileIndex}");
+        _logger.LogDebug("🏴‍☠️ State set - Selected Resources Count: {Count}", State.SelectedResources.Count);
+        _logger.LogDebug("🏴‍☠️ State set - Selected Resource Index: {Index}", State.SelectedResourceIndex);
+        _logger.LogDebug("🏴‍☠️ State set - Selected Skill Index: {Index}", State.SelectedSkillProfileIndex);
         if (State.SelectedResources.Any())
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Selected resource titles: {string.Join(", ", State.SelectedResources.Select(r => r.Title))}");
+            _logger.LogDebug("🏴‍☠️ Selected resource titles: {Titles}", string.Join(", ", State.SelectedResources.Select(r => r.Title)));
         }
 
         // Load progress data asynchronously without blocking UI
@@ -563,7 +565,7 @@ partial class DashboardPage : Component<DashboardPageState>
         // Load today's plan if in that mode
         if (State.IsTodaysPlanMode && selectedResources?.Any() == true && selectedSkill != null)
         {
-            System.Diagnostics.Debug.WriteLine("📅 Dashboard OnAppearing - scheduling plan reload with delay");
+            _logger.LogDebug("📅 Dashboard OnAppearing - scheduling plan reload with delay");
             // CRITICAL: Delay plan reload to allow previous activity page to complete unmount and save progress
             // This prevents race condition where we load plan before the activity saves its progress
             _ = Task.Run(async () =>
@@ -571,20 +573,20 @@ partial class DashboardPage : Component<DashboardPageState>
                 await Task.Delay(300); // Wait for activity unmount to complete
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    System.Diagnostics.Debug.WriteLine("📅 Dashboard - delayed plan reload executing NOW");
+                    _logger.LogDebug("📅 Dashboard - delayed plan reload executing NOW");
                     await LoadTodaysPlanAsync();
                 });
             });
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"📅 Dashboard OnAppearing - NOT reloading plan: IsTodaysPlanMode={State.IsTodaysPlanMode}, HasResources={selectedResources?.Any()}, HasSkill={selectedSkill != null}");
+            _logger.LogDebug("📅 Dashboard OnAppearing - NOT reloading plan: IsTodaysPlanMode={IsTodaysPlanMode}, HasResources={HasResources}, HasSkill={HasSkill}", State.IsTodaysPlanMode, selectedResources?.Any(), selectedSkill != null);
         }
     }
 
     private async Task RefreshProgressDataAsync(int? skillId)
     {
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ RefreshProgressDataAsync called");
+        _logger.LogDebug("🏴‍☠️ RefreshProgressDataAsync called");
         // PHASE 2 OPTIMIZATION: Cancel any previous in-flight progress loads
         await (_progressLoadCts?.CancelAsync() ?? Task.CompletedTask);
         _progressLoadCts?.Dispose();
@@ -616,8 +618,8 @@ partial class DashboardPage : Component<DashboardPageState>
             // If a newer request started meanwhile, abandon these results
             if (myVersion != _progressFetchVersion || ct.IsCancellationRequested) return;
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Setting progress data in state - VocabSummary: New={vocabTask.Result.New}, Learning={vocabTask.Result.Learning}, Review={vocabTask.Result.Review}, Known={vocabTask.Result.Known}");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ PracticeHeat has {heatTask.Result.Count()} data points");
+            _logger.LogDebug("🏴‍☠️ Setting progress data in state - VocabSummary: New={New}, Learning={Learning}, Review={Review}, Known={Known}", vocabTask.Result.New, vocabTask.Result.Learning, vocabTask.Result.Review, vocabTask.Result.Known);
+            _logger.LogDebug("🏴‍☠️ PracticeHeat has {Count} data points", heatTask.Result.Count());
 
             SetState(st =>
             {
@@ -629,29 +631,29 @@ partial class DashboardPage : Component<DashboardPageState>
                 st.HasLoadedProgressOnce = true;
             });
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - VocabSummary is {(State.VocabSummary != null ? "NOT NULL" : "NULL")}");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - PracticeHeat count: {State.PracticeHeat?.Count ?? 0}");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ State updated - HasLoadedProgressOnce: {State.HasLoadedProgressOnce}");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Progress data loaded - VocabSummary is {(State.VocabSummary != null ? "not null" : "null")}, PracticeHeat count: {State.PracticeHeat.Count}");
+            _logger.LogDebug("🏴‍☠️ State updated - VocabSummary is {Status}", State.VocabSummary != null ? "NOT NULL" : "NULL");
+            _logger.LogDebug("🏴‍☠️ State updated - PracticeHeat count: {Count}", State.PracticeHeat?.Count ?? 0);
+            _logger.LogDebug("🏴‍☠️ State updated - HasLoadedProgressOnce: {HasLoaded}", State.HasLoadedProgressOnce);
+            _logger.LogDebug("🏴‍☠️ Progress data loaded - VocabSummary is {Status}, PracticeHeat count: {Count}", State.VocabSummary != null ? "not null" : "null", State.PracticeHeat.Count);
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Progress data load cancelled");
+            _logger.LogDebug("Progress data load cancelled");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Progress data load error: {ex.Message}");
+            _logger.LogError(ex, "Progress data load error");
             SetState(s => s.IsLoadingProgress = false);
         }
     }
 
     async Task LoadTodaysPlanAsync()
     {
-        System.Diagnostics.Debug.WriteLine("🚀 LoadTodaysPlanAsync - START");
+        _logger.LogInformation("🚀 LoadTodaysPlanAsync - START");
 
         if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
         {
-            System.Diagnostics.Debug.WriteLine("⚠️ Missing selections");
+            _logger.LogWarning("⚠️ Missing selections");
             await Application.Current.MainPage.DisplayAlert(
                 "Ahoy!",
                 "Select a learning resource and skill first to generate your plan, matey!",
@@ -663,18 +665,18 @@ partial class DashboardPage : Component<DashboardPageState>
 
         try
         {
-            System.Diagnostics.Debug.WriteLine("📊 Calling GenerateTodaysPlanAsync...");
+            _logger.LogDebug("📊 Calling GenerateTodaysPlanAsync...");
             var plan = await _progressService.GenerateTodaysPlanAsync();
 
-            System.Diagnostics.Debug.WriteLine($"✅ Plan loaded - Items: {plan?.Items?.Count ?? 0}");
+            _logger.LogInformation("✅ Plan loaded - Items: {ItemCount}", plan?.Items?.Count ?? 0);
             if (plan != null)
             {
-                System.Diagnostics.Debug.WriteLine($"📊 Plan completion: {plan.CompletionPercentage:F1}%");
-                System.Diagnostics.Debug.WriteLine($"⏱️ Total minutes: {plan.Items.Sum(i => i.MinutesSpent)} / {plan.EstimatedTotalMinutes}");
+                _logger.LogDebug("📊 Plan completion: {Percentage:F1}%", plan.CompletionPercentage);
+                _logger.LogDebug("⏱️ Total minutes: {Spent} / {Total}", plan.Items.Sum(i => i.MinutesSpent), plan.EstimatedTotalMinutes);
 
                 foreach (var item in plan.Items)
                 {
-                    System.Diagnostics.Debug.WriteLine($"  • {item.TitleKey}: {item.MinutesSpent}/{item.EstimatedMinutes} min, Completed={item.IsCompleted}");
+                    _logger.LogDebug("  • {TitleKey}: {MinutesSpent}/{EstimatedMinutes} min, Completed={IsCompleted}", item.TitleKey, item.MinutesSpent, item.EstimatedMinutes, item.IsCompleted);
                 }
             }
 
@@ -685,11 +687,11 @@ partial class DashboardPage : Component<DashboardPageState>
                 s.IsLoadingTodaysPlan = false;
             });
 
-            System.Diagnostics.Debug.WriteLine("✅ LoadTodaysPlanAsync - COMPLETE");
+            _logger.LogInformation("✅ LoadTodaysPlanAsync - COMPLETE");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading today's plan: {ex.Message}");
+            _logger.LogError(ex, "❌ Error loading today's plan");
             SetState(s => s.IsLoadingTodaysPlan = false);
 
             await Application.Current.MainPage.DisplayAlert(
@@ -701,6 +703,12 @@ partial class DashboardPage : Component<DashboardPageState>
 
     async Task RegeneratePlanAsync()
     {
+        _logger.LogInformation("🔄 RegeneratePlanAsync - clearing cache and generating fresh plan");
+
+        // Clear the cached plan to force LLM regeneration
+        await _progressService.ClearCachedPlanAsync(DateTime.UtcNow.Date);
+
+        // Now load/generate a fresh plan
         await LoadTodaysPlanAsync();
     }
 
@@ -708,12 +716,12 @@ partial class DashboardPage : Component<DashboardPageState>
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped called with item: {item?.TitleKey ?? "NULL"}");
-            System.Diagnostics.Debug.WriteLine($"🎯 ActivityType: {item?.ActivityType}");
+            _logger.LogDebug("🎯 OnPlanItemTapped called with item: {TitleKey}", item?.TitleKey ?? "NULL");
+            _logger.LogDebug("🎯 ActivityType: {ActivityType}", item?.ActivityType);
 
             if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
             {
-                System.Diagnostics.Debug.WriteLine("❌ OnPlanItemTapped: Missing resources or skill profile");
+                _logger.LogError("❌ OnPlanItemTapped: Missing resources or skill profile");
                 await Application.Current.MainPage.DisplayAlert(
                     "Ahoy!",
                     "Something went wrong with your selections. Please try again!",
@@ -721,7 +729,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"✅ OnPlanItemTapped: Resources and skill profile are set");
+            _logger.LogDebug("✅ OnPlanItemTapped: Resources and skill profile are set");
 
             // Map activity type to route
             var route = item.ActivityType switch
@@ -738,32 +746,32 @@ partial class DashboardPage : Component<DashboardPageState>
                 _ => null
             };
 
-            System.Diagnostics.Debug.WriteLine($"🎯 OnPlanItemTapped: Mapped route = '{route}'");
+            _logger.LogDebug("🎯 OnPlanItemTapped: Mapped route = '{Route}'", route);
 
             if (!string.IsNullOrEmpty(route))
             {
-                System.Diagnostics.Debug.WriteLine($"✅ Route is not empty, proceeding with resource loading...");
+                _logger.LogDebug("✅ Route is not empty, proceeding with resource loading...");
 
                 // Pre-load resource if needed for VocabularyReview
                 List<LearningResource>? resourcesToUse = null;
 
-                System.Diagnostics.Debug.WriteLine($"🔍 Checking if VocabularyReview with ResourceId...");
-                System.Diagnostics.Debug.WriteLine($"🔍 ActivityType: {item.ActivityType}");
-                System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters null? {item.RouteParameters == null}");
-                System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters count: {item.RouteParameters?.Count ?? 0}");
+                _logger.LogDebug("🔍 Checking if VocabularyReview with ResourceId...");
+                _logger.LogDebug("🔍 ActivityType: {ActivityType}", item.ActivityType);
+                _logger.LogDebug("🔍 RouteParameters null? {IsNull}", item.RouteParameters == null);
+                _logger.LogDebug("🔍 RouteParameters count: {Count}", item.RouteParameters?.Count ?? 0);
 
                 if (item.ActivityType == PlanActivityType.VocabularyReview &&
                     item.RouteParameters?.ContainsKey("ResourceId") == true)
                 {
-                    System.Diagnostics.Debug.WriteLine($"✅ VocabularyReview with ResourceId detected");
+                    _logger.LogDebug("✅ VocabularyReview with ResourceId detected");
 
                     try
                     {
-                        System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] value: {item.RouteParameters["ResourceId"]}");
-                        System.Diagnostics.Debug.WriteLine($"🔍 RouteParameters['ResourceId'] type: {item.RouteParameters["ResourceId"]?.GetType().Name ?? "NULL"}");
+                        _logger.LogDebug("🔍 RouteParameters['ResourceId'] value: {Value}", item.RouteParameters["ResourceId"]);
+                        _logger.LogDebug("🔍 RouteParameters['ResourceId'] type: {Type}", item.RouteParameters["ResourceId"]?.GetType().Name ?? "NULL");
 
                         var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
-                        System.Diagnostics.Debug.WriteLine($"📝 ResourceId = {resourceId}");
+                        _logger.LogDebug("📝 ResourceId = {ResourceId}", resourceId);
 
                         // First try to find in selected resources
                         var specificResource = _parameters.Value.SelectedResources?
@@ -772,53 +780,52 @@ partial class DashboardPage : Component<DashboardPageState>
                         if (specificResource != null)
                         {
                             resourcesToUse = new List<LearningResource> { specificResource };
-                            System.Diagnostics.Debug.WriteLine($"📚 VocabularyReview scoped to selected resource: {specificResource.Title}");
+                            _logger.LogDebug("📚 VocabularyReview scoped to selected resource: {Title}", specificResource.Title);
                         }
                         else
                         {
                             // Resource not in selected list - load from database
-                            System.Diagnostics.Debug.WriteLine($"⚠️ ResourceId {resourceId} not in selected resources - loading from database");
+                            _logger.LogWarning("⚠️ ResourceId {ResourceId} not in selected resources - loading from database", resourceId);
                             try
                             {
                                 var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
                                 if (dbResource != null)
                                 {
                                     resourcesToUse = new List<LearningResource> { dbResource };
-                                    System.Diagnostics.Debug.WriteLine($"✅ Loaded resource from DB: {dbResource.Title}");
+                                    _logger.LogInformation("✅ Loaded resource from DB: {Title}", dbResource.Title);
                                 }
                                 else
                                 {
-                                    System.Diagnostics.Debug.WriteLine($"❌ ResourceId {resourceId} not found in database - falling back to selected resources");
+                                    _logger.LogError("❌ ResourceId {ResourceId} not found in database - falling back to selected resources", resourceId);
                                     resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                                 }
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"❌ Error loading resource: {ex.Message}");
+                                _logger.LogError(ex, "❌ Error loading resource");
                                 resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"❌ CRITICAL ERROR in ResourceId handling: {ex.Message}");
-                        System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+                        _logger.LogError(ex, "❌ CRITICAL ERROR in ResourceId handling");
                         resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
                     }
                 }
                 else
                 {
                     resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                    System.Diagnostics.Debug.WriteLine($"📚 Using default selected resources (count: {resourcesToUse.Count})");
+                    _logger.LogDebug("📚 Using default selected resources (count: {Count})", resourcesToUse.Count);
                 }
 
-                System.Diagnostics.Debug.WriteLine($"🚀 OnPlanItemTapped: Navigating to {route}...");
-                System.Diagnostics.Debug.WriteLine($"🚀 Resources to use: {resourcesToUse?.Count ?? 0} resources");
+                _logger.LogInformation("🚀 OnPlanItemTapped: Navigating to {Route}...", route);
+                _logger.LogDebug("🚀 Resources to use: {Count} resources", resourcesToUse?.Count ?? 0);
                 await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                     route,
                     props =>
                     {
-                        System.Diagnostics.Debug.WriteLine($"🔧 OnPlanItemTapped: Configuring ActivityProps...");
+                        _logger.LogDebug("🔧 OnPlanItemTapped: Configuring ActivityProps...");
                         props.Resources = resourcesToUse;
 
                         props.Skill = _parameters.Value.SelectedSkillProfile;
@@ -830,8 +837,7 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ FATAL ERROR in OnPlanItemTapped: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "❌ FATAL ERROR in OnPlanItemTapped");
             await Application.Current.MainPage.DisplayAlert(
                 "Error",
                 $"Failed to start activity: {ex.Message}",
@@ -857,7 +863,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error opening video URL: {ex.Message}");
+                    _logger.LogError(ex, "Error opening video URL");
                     await Application.Current.MainPage.DisplayAlert(
                         "Arrr!",
                         "Failed to open the video. Check your internet connection!",
@@ -899,7 +905,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         _parameters.Set(p => p.SelectedResources = fullResources);
-                        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Reloaded {fullResources.Count} resources WITH vocabulary after selection change");
+                        _logger.LogDebug("🏴‍☠️ Reloaded {Count} resources WITH vocabulary after selection change", fullResources.Count);
                     });
                 }
                 else
@@ -915,7 +921,7 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"OnResourcesSelectionChanged error: {ex.Message}");
+            _logger.LogError(ex, "OnResourcesSelectionChanged error");
         }
     }
 
@@ -934,7 +940,7 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"OnSkillSelectionChanged error: {ex.Message}");
+            _logger.LogError(ex, "OnSkillSelectionChanged error");
         }
     }
 
@@ -972,7 +978,7 @@ partial class DashboardPage : Component<DashboardPageState>
             {
                 var resourceIds = string.Join(",", _parameters.Value.SelectedResources.Select(r => r.Id.ToString()));
                 Preferences.Default.Set(PREF_SELECTED_RESOURCE_IDS, resourceIds);
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Saved selected resource IDs to preferences: {resourceIds}");
+                _logger.LogDebug("🏴‍☠️ Saved selected resource IDs to preferences: {ResourceIds}", resourceIds);
             }
             else
             {
@@ -983,7 +989,7 @@ partial class DashboardPage : Component<DashboardPageState>
             if (_parameters.Value?.SelectedSkillProfile != null)
             {
                 Preferences.Default.Set(PREF_SELECTED_SKILL_PROFILE_ID, _parameters.Value.SelectedSkillProfile.Id);
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Saved selected skill profile ID to preferences: {_parameters.Value.SelectedSkillProfile.Id}");
+                _logger.LogDebug("🏴‍☠️ Saved selected skill profile ID to preferences: {SkillId}", _parameters.Value.SelectedSkillProfile.Id);
             }
             else
             {
@@ -992,7 +998,7 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error saving preferences: {ex.Message}");
+            _logger.LogError(ex, "❌ Error saving preferences");
         }
     }
 
@@ -1021,7 +1027,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     .Where(r => resourceIds.Contains(r.Id))
                     .ToList();
 
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Loaded {selectedResources.Count} selected resources from preferences");
+                _logger.LogDebug("🏴‍☠️ Loaded {Count} selected resources from preferences", selectedResources.Count);
             }
 
             // Load selected skill profile ID
@@ -1029,25 +1035,25 @@ partial class DashboardPage : Component<DashboardPageState>
             if (savedSkillId >= 0)
             {
                 selectedSkill = availableSkills.FirstOrDefault(s => s.Id == savedSkillId);
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Loaded selected skill profile from preferences: {selectedSkill?.Title ?? "Not found"}");
+                _logger.LogDebug("🏴‍☠️ Loaded selected skill profile from preferences: {Title}", selectedSkill?.Title ?? "Not found");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading preferences: {ex.Message}");
+            _logger.LogError(ex, "❌ Error loading preferences");
         }
 
         // Fallback to defaults if no valid saved selections
         if (!selectedResources.Any())
         {
             selectedResources = availableResources.Take(1).ToList();
-            System.Diagnostics.Debug.WriteLine("🏴‍☠️ No saved resources found, using default (first resource)");
+            _logger.LogDebug("🏴‍☠️ No saved resources found, using default (first resource)");
         }
 
         if (selectedSkill == null)
         {
             selectedSkill = availableSkills.FirstOrDefault();
-            System.Diagnostics.Debug.WriteLine("🏴‍☠️ No saved skill profile found, using default (first skill)");
+            _logger.LogDebug("🏴‍☠️ No saved skill profile found, using default (first skill)");
         }
 
         return (selectedResources, selectedSkill);
@@ -1070,7 +1076,7 @@ partial class DashboardPage : Component<DashboardPageState>
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Navigation error: {ex.Message}");
+                _logger.LogError(ex, "Navigation error");
             }
         });
     }
@@ -1078,6 +1084,9 @@ partial class DashboardPage : Component<DashboardPageState>
 
 public partial class ActivityBorder : MauiReactor.Component
 {
+    [Inject]
+    ILogger<ActivityBorder> _logger;
+
     [Prop]
     string _labelText;
 
@@ -1121,7 +1130,7 @@ public partial class ActivityBorder : MauiReactor.Component
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ ActivityBorder: Navigating to {_route} with {_parameters.Value.SelectedResources.Count} resources and skill '{_parameters.Value.SelectedSkillProfile.Title}'");
+            _logger.LogDebug("🏴‍☠️ ActivityBorder: Navigating to {Route} with {ResourceCount} resources and skill {SkillTitle}", _route, _parameters.Value.SelectedResources.Count, _parameters.Value.SelectedSkillProfile.Title);
 
             await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                 _route,

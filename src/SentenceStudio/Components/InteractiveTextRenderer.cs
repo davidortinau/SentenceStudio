@@ -869,9 +869,9 @@ public class InteractiveTextRenderer : SKCanvasView
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to initialize logger: {ex.Message}");
+                // Logger initialization failed - component will function without logging
             }
 
             // Initialize paints when the handler is set

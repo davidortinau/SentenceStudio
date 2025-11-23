@@ -43,6 +43,8 @@ public enum PlanActivityType
     Shadowing,
     Cloze,
     Translation,
+    Writing,
+    SceneDescription,
     Conversation,
     VocabularyGame
 }
@@ -98,6 +100,7 @@ public interface IProgressService
 
     Task<TodaysPlan> GenerateTodaysPlanAsync(CancellationToken ct = default);
     Task<TodaysPlan?> GetCachedPlanAsync(DateTime date, CancellationToken ct = default);
+    Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default);
     Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
 }

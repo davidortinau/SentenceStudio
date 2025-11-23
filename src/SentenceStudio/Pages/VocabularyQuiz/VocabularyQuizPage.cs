@@ -4,6 +4,7 @@ using SentenceStudio.Pages.Dashboard;
 using System.Timers;
 using System.Diagnostics;
 using SentenceStudio.Components;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -72,6 +73,7 @@ class VocabularyQuizPageState
 
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
 {
+    [Inject] ILogger<VocabularyQuizPage> _logger;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] VocabularyProgressService _vocabProgressService;
@@ -526,7 +528,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task LoadCurrentItem(VocabularyQuizItem item)
     {
-        // Reset state for new item
+        _logger.LogDebug("📝 LoadCurrentItem: {NativeTerm} -> {TargetTerm}", item.Word.NativeLanguageTerm, item.Word.TargetLanguageTerm);
+
+        // CRITICAL: Generate options FIRST before updating state
+        // This prevents UI from rendering with wrong options
+        string[] newOptions = Array.Empty<string>();
+        if (!item.IsPromotedInQuiz)
+        {
+            newOptions = await GenerateMultipleChoiceOptionsSync(item);
+            _logger.LogDebug("📝 Generated {OptionCount} options for {NativeTerm}", newOptions.Length, item.Word.NativeLanguageTerm);
+        }
+
+        // Reset state for new item - now includes options in same state update
         SetState(s =>
         {
             s.CurrentTerm = item.Word.NativeLanguageTerm ?? "";
@@ -541,21 +554,24 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.CorrectAnswerToType = "";
             s.UserMode = GetUserModeForItem(item); // Enhanced mode determination
             s.IsAutoAdvancing = false; // Reset auto-advance state
+            s.ChoiceOptions = newOptions; // CRITICAL: Set options atomically with term
         });
 
         // Enhanced tracking: Start response timer
         _responseTimer.Restart();
-
-        // Generate multiple choice options if needed
-        if (!item.IsPromotedInQuiz)
-        {
-            await GenerateMultipleChoiceOptions(item);
-        }
     }
 
     // Enhanced mode determination based on global progress across all activities
     private string GetUserModeForItem(VocabularyQuizItem item)
     {
+        // CRITICAL: Check quiz-specific progress FIRST
+        // If they've completed recognition in THIS quiz session, promote to production
+        if (item.IsPromotedInQuiz)
+        {
+            _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} promoted in quiz (streak={Streak}) → Text mode", item.Word.NativeLanguageTerm, item.QuizRecognitionStreak);
+            return InputMode.Text.ToString();
+        }
+
         // Respect global progress from previous attempts across all activities
         var globalPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
 
@@ -565,22 +581,23 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // Set the recognition streak to trigger promotion automatically
             // This makes IsPromotedInQuiz return true without modifying the read-only property
             item.QuizRecognitionStreak = VocabularyQuizItem.RequiredCorrectAnswers;
+            _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} globally in Production phase → Text mode", item.Word.NativeLanguageTerm);
             return InputMode.Text.ToString();
         }
 
         // Otherwise start with multiple choice (Recognition phase)
+        _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} in Recognition phase (streak={Streak}) → MultipleChoice mode", item.Word.NativeLanguageTerm, item.QuizRecognitionStreak);
         return InputMode.MultipleChoice.ToString();
     }
 
-    async Task GenerateMultipleChoiceOptions(VocabularyQuizItem currentItem)
+    async Task<string[]> GenerateMultipleChoiceOptionsSync(VocabularyQuizItem currentItem)
     {
         var correctAnswer = currentItem.Word.TargetLanguageTerm ?? "";
 
         if (string.IsNullOrEmpty(correctAnswer))
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Warning: Current item {currentItem.Word.NativeLanguageTerm} has no target language term!");
-            SetState(s => s.ChoiceOptions = new[] { "Error: No answer available" });
-            return;
+            _logger.LogWarning("⚠️ Warning: Current item {NativeTerm} has no target language term!", currentItem.Word.NativeLanguageTerm);
+            return new[] { "Error: No answer available" };
         }
 
         var allWords = State.VocabularyItems
@@ -598,15 +615,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         allWords = allWords.OrderBy(x => Guid.NewGuid()).ToArray().ToList();
 
         // Debug logging to verify correct answer is present
-        System.Diagnostics.Debug.WriteLine($"🎯 Generated options for '{currentItem.Word.NativeLanguageTerm}': {string.Join(", ", allWords)}");
-        System.Diagnostics.Debug.WriteLine($"🎯 Correct answer '{correctAnswer}' is included: {allWords.Contains(correctAnswer)}");
+        _logger.LogDebug("🎯 Generated options for {NativeTerm}: {Options}", currentItem.Word.NativeLanguageTerm, string.Join(", ", allWords));
+        _logger.LogDebug("🎯 Correct answer {CorrectAnswer} is included: {IsIncluded}", correctAnswer, allWords.Contains(correctAnswer));
 
-        SetState(s => s.ChoiceOptions = allWords.ToArray());
+        return allWords.ToArray();
     }
 
     async Task CompleteSession()
     {
-        System.Diagnostics.Debug.WriteLine($"Session completed - Turn {State.CurrentTurn}/{State.MaxTurnsPerSession}");
+        _logger.LogInformation("✅ Session completed - Turn {CurrentTurn}/{MaxTurns}", State.CurrentTurn, State.MaxTurnsPerSession);
 
         // Capture vocabulary items for session summary before removing them
         var sessionItems = State.VocabularyItems.ToList();
@@ -616,9 +633,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         foreach (var term in completedTerms)
         {
             State.VocabularyItems.Remove(term);
-            System.Diagnostics.Debug.WriteLine($"Removed completed term: {term.Word.NativeLanguageTerm} " +
-                $"(MC: {term.QuizRecognitionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers}, " +
-                $"Text: {term.QuizProductionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})");
+            _logger.LogDebug("Removed completed term: {NativeTerm} (MC: {MCStreak}/{MCRequired}, Text: {TextStreak}/{TextRequired})",
+                term.Word.NativeLanguageTerm,
+                term.QuizRecognitionStreak, VocabularyQuizItem.RequiredCorrectAnswers,
+                term.QuizProductionStreak, VocabularyQuizItem.RequiredCorrectAnswers);
         }
 
         // Add new terms if we need to maintain a full set
@@ -656,10 +674,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (masteredWords.Any())
         {
-            System.Diagnostics.Debug.WriteLine($"🎊 Rotating out {masteredWords.Count} mastered words during session:");
+            _logger.LogInformation("🎊 Rotating out {Count} mastered words during session:", masteredWords.Count);
             foreach (var masteredWord in masteredWords)
             {
-                System.Diagnostics.Debug.WriteLine($"  - {masteredWord.Word.NativeLanguageTerm} (MC: {masteredWord.QuizRecognitionStreak}, Text: {masteredWord.QuizProductionStreak})");
+                _logger.LogDebug("  - {NativeTerm} (MC: {MCStreak}, Text: {TextStreak})", masteredWord.Word.NativeLanguageTerm, masteredWord.QuizRecognitionStreak, masteredWord.QuizProductionStreak);
                 State.VocabularyItems.Remove(masteredWord);
             }
 
@@ -690,7 +708,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (neededTerms <= 0) return;
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Need to add {neededTerms} new terms to maintain set size");
+        _logger.LogDebug("🏴‍☠️ Need to add {NeededTerms} new terms to maintain set size", neededTerms);
 
         // Get new vocabulary from resources that aren't already in the current set
         var currentWords = State.VocabularyItems.Select(item => item.Word.Id).ToHashSet();
@@ -713,7 +731,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (!availableWords.Any())
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ No more new words available in learning resources! You've worked through all vocabulary!");
+            _logger.LogInformation("🏴‍☠️ No more new words available in learning resources! You've worked through all vocabulary!");
             await AppShell.DisplayToastAsync("🎊 Congratulations! You've worked through all vocabulary in this learning resource!");
             return;
         }
@@ -733,7 +751,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .Take(neededTerms)
             .ToList();
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Adding {sortedWords.Count} new terms (prioritizing unmastered words):");
+        _logger.LogDebug("🏴‍☠️ Adding {Count} new terms (prioritizing unmastered words):", sortedWords.Count);
 
         foreach (var word in sortedWords)
         {
@@ -759,7 +777,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             };
 
             State.VocabularyItems.Add(newItem);
-            System.Diagnostics.Debug.WriteLine($"  + {word.NativeLanguageTerm} (Global mastery: {(progress.MasteryScore * 100):F0}%)");
+            _logger.LogDebug("  + {NativeTerm} (Global mastery: {Mastery:F0}%)", word.NativeLanguageTerm, progress.MasteryScore * 100);
         }
     }
 
@@ -770,7 +788,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (allVocabulary.Count <= targetSetSize)
         {
-            System.Diagnostics.Debug.WriteLine($"🎯 Small vocabulary set ({allVocabulary.Count} words) - using all words");
+            _logger.LogDebug("🎯 Small vocabulary set ({Count} words) - using all words", allVocabulary.Count);
             return allVocabulary.OrderBy(x => Guid.NewGuid()).ToList();
         }
 
@@ -808,11 +826,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"🎯 Word categorization:");
-        System.Diagnostics.Debug.WriteLine($"  📚 Unmastered: {unmasteredWords.Count}");
-        System.Diagnostics.Debug.WriteLine($"  📖 Learning: {learningWords.Count}");
-        System.Diagnostics.Debug.WriteLine($"  🔄 Review: {reviewWords.Count}");
-        System.Diagnostics.Debug.WriteLine($"  ✅ Mastered: {masteredWords.Count}");
+        _logger.LogDebug("🎯 Word categorization:");
+        _logger.LogDebug("  📚 Unmastered: {UnmasteredCount}", unmasteredWords.Count);
+        _logger.LogDebug("  📖 Learning: {LearningCount}", learningWords.Count);
+        _logger.LogDebug("  🔄 Review: {ReviewCount}", reviewWords.Count);
+        _logger.LogDebug("  ✅ Mastered: {MasteredCount}", masteredWords.Count);
 
         // Smart selection algorithm: Prioritize learning > unmastered > review > mastered
         var selectedWords = new List<VocabularyWord>();
@@ -821,7 +839,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var shuffledLearning = learningWords.OrderBy(x => Guid.NewGuid()).ToList();
         var learningToTake = Math.Min(6, shuffledLearning.Count); // Up to 60% learning words
         selectedWords.AddRange(shuffledLearning.Take(learningToTake));
-        System.Diagnostics.Debug.WriteLine($"🎯 Added {learningToTake} learning words");
+        _logger.LogDebug("🎯 Added {Count} learning words", learningToTake);
 
         // 2. Second priority: Completely new words (unmastered)
         if (selectedWords.Count < targetSetSize)
@@ -829,7 +847,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var shuffledUnmastered = unmasteredWords.OrderBy(x => Guid.NewGuid()).ToList();
             var unmasteredToTake = Math.Min(targetSetSize - selectedWords.Count, shuffledUnmastered.Count);
             selectedWords.AddRange(shuffledUnmastered.Take(unmasteredToTake));
-            System.Diagnostics.Debug.WriteLine($"🎯 Added {unmasteredToTake} unmastered words");
+            _logger.LogDebug("🎯 Added {Count} unmastered words", unmasteredToTake);
         }
 
         // 3. Third priority: Review words (some attempts but low mastery)
@@ -838,7 +856,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var shuffledReview = reviewWords.OrderBy(x => Guid.NewGuid()).ToList();
             var reviewToTake = Math.Min(targetSetSize - selectedWords.Count, shuffledReview.Count);
             selectedWords.AddRange(shuffledReview.Take(reviewToTake));
-            System.Diagnostics.Debug.WriteLine($"🎯 Added {reviewToTake} review words");
+            _logger.LogDebug("🎯 Added {Count} review words", reviewToTake);
         }
 
         // 4. Last resort: Include some mastered words if we don't have enough
@@ -847,14 +865,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var shuffledMastered = masteredWords.OrderBy(x => Guid.NewGuid()).ToList();
             var masteredToTake = targetSetSize - selectedWords.Count;
             selectedWords.AddRange(shuffledMastered.Take(masteredToTake));
-            System.Diagnostics.Debug.WriteLine($"🎯 Added {masteredToTake} mastered words (last resort)");
+            _logger.LogDebug("🎯 Added {Count} mastered words (last resort)", masteredToTake);
         }
 
         // Final shuffle to avoid predictable ordering
         var finalSelection = selectedWords.OrderBy(x => Guid.NewGuid()).ToList();
 
-        System.Diagnostics.Debug.WriteLine($"🎯 Final selection: {finalSelection.Count} words");
-        System.Diagnostics.Debug.WriteLine($"🎯 Selected words: {string.Join(", ", finalSelection.Select(w => w.NativeLanguageTerm))}");
+        _logger.LogDebug("🎯 Final selection: {Count} words", finalSelection.Count);
+        _logger.LogDebug("🎯 Selected words: {Words}", string.Join(", ", finalSelection.Select(w => w.NativeLanguageTerm)));
 
         return finalSelection;
     }
@@ -868,65 +886,65 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         try
         {
             // Debug logging
-            System.Diagnostics.Debug.WriteLine($"VocabularyQuizPage - LoadVocabulary started");
-            System.Diagnostics.Debug.WriteLine($"Props.Resources count: {Props.Resources?.Count ?? 0}");
-            System.Diagnostics.Debug.WriteLine($"Props.Resource: {Props.Resource?.Title ?? "null"}");
+            _logger.LogDebug("VocabularyQuizPage - LoadVocabulary started");
+            _logger.LogDebug("Props.Resources count: {ResourcesCount}", Props.Resources?.Count ?? 0);
+            _logger.LogDebug("Props.Resource: {ResourceTitle}", Props.Resource?.Title ?? "null");
 
             List<VocabularyWord> vocabulary = new List<VocabularyWord>();
 
             // Combine vocabulary from all selected resources like VocabularyMatchingPage does
             if (Props.Resources?.Any() == true)
             {
-                System.Diagnostics.Debug.WriteLine($"Using Props.Resources with {Props.Resources.Count} resources");
+                _logger.LogDebug("Using Props.Resources with {Count} resources", Props.Resources.Count);
                 foreach (var resourceRef in Props.Resources)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Processing resource: {resourceRef?.Title ?? "null"} (ID: {resourceRef?.Id ?? -1})");
+                    _logger.LogDebug("Processing resource: {Title} (ID: {Id})", resourceRef?.Title ?? "null", resourceRef?.Id ?? -1);
                     if (resourceRef?.Id > 0)
                     {
                         var resource = await _resourceRepo.GetResourceAsync(resourceRef.Id);
                         if (resource?.Vocabulary?.Any() == true)
                         {
                             vocabulary.AddRange(resource.Vocabulary);
-                            System.Diagnostics.Debug.WriteLine($"Added {resource.Vocabulary.Count} words from resource {resource.Title}");
+                            _logger.LogDebug("Added {Count} words from resource {Title}", resource.Vocabulary.Count, resource.Title);
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine($"Resource {resource?.Title ?? "null"} has no vocabulary");
+                            _logger.LogDebug("Resource {Title} has no vocabulary", resource?.Title ?? "null");
                         }
                     }
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("No resources provided, falling back to Props.Resource");
+                _logger.LogDebug("No resources provided, falling back to Props.Resource");
                 // Fallback to Props.Resource for backward compatibility
                 var resourceId = Props.Resource?.Id ?? 0;
-                System.Diagnostics.Debug.WriteLine($"Fallback resource ID: {resourceId}");
+                _logger.LogDebug("Fallback resource ID: {ResourceId}", resourceId);
                 if (resourceId > 0)
                 {
                     var resource = await _resourceRepo.GetResourceAsync(resourceId);
                     if (resource?.Vocabulary?.Any() == true)
                     {
                         vocabulary.AddRange(resource.Vocabulary);
-                        System.Diagnostics.Debug.WriteLine($"Added {resource.Vocabulary.Count} words from fallback resource {resource.Title}");
+                        _logger.LogDebug("Added {Count} words from fallback resource {Title}", resource.Vocabulary.Count, resource.Title);
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"Fallback resource {resource?.Title ?? "null"} has no vocabulary");
+                        _logger.LogDebug("Fallback resource {Title} has no vocabulary", resource?.Title ?? "null");
                     }
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("No fallback resource ID available");
+                    _logger.LogDebug("No fallback resource ID available");
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine($"Total vocabulary count: {vocabulary.Count}");
+            _logger.LogDebug("Total vocabulary count: {Count}", vocabulary.Count);
 
             if (!vocabulary.Any())
             {
                 SetState(s => s.IsBusy = false);
-                System.Diagnostics.Debug.WriteLine("No vocabulary found - showing alert");
+                _logger.LogWarning("No vocabulary found - showing alert");
                 await Application.Current.MainPage.DisplayAlert(
                     $"{_localize["No Vocabulary"]}",
                     $"{_localize["This resource has no vocabulary to study."]}",
@@ -939,23 +957,23 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var setSize = smartSelectedWords.Count;
             var totalSets = (int)Math.Ceiling(vocabulary.Count / (double)Math.Min(10, vocabulary.Count));
 
-            System.Diagnostics.Debug.WriteLine($"🎯 Smart selection: {smartSelectedWords.Count} words chosen from {vocabulary.Count} total");
+            _logger.LogDebug("🎯 Smart selection: {SelectedCount} words chosen from {TotalCount} total", smartSelectedWords.Count, vocabulary.Count);
 
             // Create quiz items with global progress
             var wordIds = smartSelectedWords.Select(w => w.Id).ToList();
-            System.Diagnostics.Debug.WriteLine($"Getting progress for {wordIds.Count} word IDs: [{string.Join(", ", wordIds)}]");
+            _logger.LogDebug("Getting progress for {Count} word IDs: [{WordIds}]", wordIds.Count, string.Join(", ", wordIds));
 
             try
             {
                 var progressDict = await _vocabProgressService.GetProgressForWordsAsync(wordIds);
-                System.Diagnostics.Debug.WriteLine($"Retrieved progress for {progressDict?.Count ?? 0} words");
+                _logger.LogDebug("Retrieved progress for {Count} words", progressDict?.Count ?? 0);
 
                 var quizItems = smartSelectedWords.Select(word =>
                 {
                     if (progressDict?.ContainsKey(word.Id) == true)
                     {
                         var progress = progressDict[word.Id];
-                        System.Diagnostics.Debug.WriteLine($"Word {word.NativeLanguageTerm}: Progress exists, IsCompleted: {progress.IsCompleted}");
+                        _logger.LogDebug("Word {NativeTerm}: Progress exists, IsCompleted: {IsCompleted}", word.NativeLanguageTerm, progress.IsCompleted);
                         return new VocabularyQuizItem
                         {
                             Word = word,
@@ -968,7 +986,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"Word {word.NativeLanguageTerm}: No progress found, creating new");
+                        _logger.LogDebug("Word {NativeTerm}: No progress found, creating new", word.NativeLanguageTerm);
                         // Create default progress if none exists
                         var defaultProgress = new SentenceStudio.Shared.Models.VocabularyProgress
                         {
@@ -991,11 +1009,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     }
                 }).ToList();
 
-                System.Diagnostics.Debug.WriteLine($"Created {quizItems.Count} quiz items");
+                _logger.LogDebug("Created {Count} quiz items", quizItems.Count);
 
                 // Filter out completed words from QUIZ perspective (not global mastery)
                 var incompleteItems = quizItems.Where(item => !item.ReadyToRotateOut).ToList();
-                System.Diagnostics.Debug.WriteLine($"Found {incompleteItems.Count} quiz-incomplete items out of {quizItems.Count} total");
+                _logger.LogDebug("Found {IncompleteCount} quiz-incomplete items out of {TotalCount} total", incompleteItems.Count, quizItems.Count);
 
                 if (!incompleteItems.Any())
                 {
@@ -1011,7 +1029,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 if (quizItems.Any())
                 {
                     quizItems[0].IsCurrent = true;
-                    System.Diagnostics.Debug.WriteLine($"Set first item as current: {quizItems[0].Word.NativeLanguageTerm}");
+                    _logger.LogDebug("Set first item as current: {NativeTerm}", quizItems[0].Word.NativeLanguageTerm);
                 }
 
                 SetState(s =>
@@ -1023,7 +1041,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     s.TotalSets = totalSets;
                 });
 
-                System.Diagnostics.Debug.WriteLine($"Created {quizItems.Count} quiz items");
+                _logger.LogDebug("Created {Count} quiz items", quizItems.Count);
 
                 if (quizItems.Any())
                 {
@@ -1032,7 +1050,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             }
             catch (Exception progressEx)
             {
-                System.Diagnostics.Debug.WriteLine($"Error loading progress: {progressEx.Message}");
+                _logger.LogError(progressEx, "Error loading progress");
                 // Create quiz items without progress for now
                 var quizItems = smartSelectedWords.Select(word => new VocabularyQuizItem
                 {
@@ -1070,8 +1088,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading vocabulary: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "Error loading vocabulary");
         }
         finally
         {
@@ -1082,12 +1099,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task CheckAnswer()
     {
-        System.Diagnostics.Debug.WriteLine("🔍 CheckAnswer() START");
+        _logger.LogDebug("🔍 CheckAnswer() START");
 
         var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
         if (currentItem == null)
         {
-            System.Diagnostics.Debug.WriteLine("❌ CheckAnswer: No current item found");
+            _logger.LogDebug("❌ CheckAnswer: No current item found");
             return;
         }
 
@@ -1096,16 +1113,16 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         if (string.IsNullOrWhiteSpace(answer))
         {
-            System.Diagnostics.Debug.WriteLine("❌ CheckAnswer: Answer is empty");
+            _logger.LogDebug("❌ CheckAnswer: Answer is empty");
             return;
         }
 
-        System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: answer='{answer}', expected='{State.CurrentTargetLanguageTerm}'");
+        _logger.LogDebug("🔍 CheckAnswer: answer='{Answer}', expected='{Expected}'", answer, State.CurrentTargetLanguageTerm);
 
         var isCorrect = string.Equals(answer.Trim(), State.CurrentTargetLanguageTerm.Trim(),
             StringComparison.OrdinalIgnoreCase);
 
-        System.Diagnostics.Debug.WriteLine($"🔍 CheckAnswer: isCorrect={isCorrect}");
+        _logger.LogDebug("🔍 CheckAnswer: isCorrect={IsCorrect}", isCorrect);
 
         // Enhanced tracking: Stop response timer
         _responseTimer.Stop();
@@ -1123,68 +1140,67 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             };
 
             currentItem.UserActivity = activity;
-            System.Diagnostics.Debug.WriteLine("💾 CheckAnswer: Saving user activity...");
+            _logger.LogDebug("💾 CheckAnswer: Saving user activity...");
             await _userActivityRepository.SaveAsync(activity);
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: User activity saved");
+            _logger.LogDebug("✅ CheckAnswer: User activity saved");
 
             // Enhanced tracking: Record answer with detailed context
-            System.Diagnostics.Debug.WriteLine("📊 CheckAnswer: Recording enhanced tracking...");
+            _logger.LogDebug("📊 CheckAnswer: Recording enhanced tracking...");
             await RecordAnswerWithEnhancedTracking(currentItem, isCorrect, answer);
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Enhanced tracking recorded");
+            _logger.LogDebug("✅ CheckAnswer: Enhanced tracking recorded");
 
             // Update quiz-specific streak counters based on correct/incorrect answers
-            System.Diagnostics.Debug.WriteLine("🔄 CheckAnswer: Updating quiz progress...");
+            _logger.LogDebug("🔄 CheckAnswer: Updating quiz progress...");
             await UpdateQuizSpecificProgress(currentItem, isCorrect);
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Quiz progress updated");
+            _logger.LogDebug("✅ CheckAnswer: Quiz progress updated");
 
             // Enhanced feedback: Update UI based on enhanced progress
-            System.Diagnostics.Debug.WriteLine("🎨 CheckAnswer: Updating UI feedback...");
+            _logger.LogDebug("🎨 CheckAnswer: Updating UI feedback...");
             await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: UI feedback updated");
+            _logger.LogDebug("✅ CheckAnswer: UI feedback updated");
 
             // 🏴‍☠️ CHECK FOR IMMEDIATE MASTERY: If word is now mastered, prepare for rotation
             if (currentItem.ReadyToRotateOut)
             {
-                System.Diagnostics.Debug.WriteLine($"🎯 Word '{currentItem.Word.NativeLanguageTerm}' is now ready to rotate out!");
+                _logger.LogDebug("🎯 Word '{NativeTerm}' is now ready to rotate out!", currentItem.Word.NativeLanguageTerm);
                 // Note: Actual rotation happens in NextItem() to ensure proper flow
             }
 
             // Increment turn counter and update term counts
-            System.Diagnostics.Debug.WriteLine("🔢 CheckAnswer: Incrementing turn counter...");
+            _logger.LogDebug("🔢 CheckAnswer: Incrementing turn counter...");
             SetState(s => s.CurrentTurn++);
             UpdateTermCounts();
-            System.Diagnostics.Debug.WriteLine($"✅ CheckAnswer: Turn counter = {State.CurrentTurn}/{State.MaxTurnsPerSession}");
+            _logger.LogDebug("✅ CheckAnswer: Turn counter = {Current}/{Max}", State.CurrentTurn, State.MaxTurnsPerSession);
 
             // Check for session completion (10 turns)
             if (State.CurrentTurn > State.MaxTurnsPerSession)
             {
-                System.Diagnostics.Debug.WriteLine("🏁 CheckAnswer: Session complete!");
+                _logger.LogDebug("🏁 CheckAnswer: Session complete!");
                 await CompleteSession();
                 return;
             }
 
             // Check if we can proceed to next round
-            System.Diagnostics.Debug.WriteLine("🔄 CheckAnswer: Checking round completion...");
+            _logger.LogDebug("🔄 CheckAnswer: Checking round completion...");
             await CheckRoundCompletion();
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer: Round check complete");
+            _logger.LogDebug("✅ CheckAnswer: Round check complete");
 
             // Auto-advance after showing feedback
             if (State.ShowAnswer)
             {
-                System.Diagnostics.Debug.WriteLine("➡️ CheckAnswer: Auto-advancing to next item...");
+                _logger.LogDebug("➡️ CheckAnswer: Auto-advancing to next item...");
                 TransitionToNextItem();
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("⚠️ CheckAnswer: ShowAnswer is FALSE - not auto-advancing");
+                _logger.LogDebug("⚠️ CheckAnswer: ShowAnswer is FALSE - not auto-advancing");
             }
 
-            System.Diagnostics.Debug.WriteLine("✅ CheckAnswer() COMPLETE");
+            _logger.LogDebug("✅ CheckAnswer() COMPLETE");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ CheckAnswer: EXCEPTION - {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "❌ CheckAnswer: EXCEPTION");
         }
     }
 
@@ -1198,11 +1214,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             if (isCorrect)
             {
                 currentItem.QuizRecognitionStreak++;
-                System.Diagnostics.Debug.WriteLine($"🎯 Recognition streak for {currentItem.Word.NativeLanguageTerm}: {currentItem.QuizRecognitionStreak}");
+                _logger.LogDebug("🎯 Recognition streak for {NativeTerm}: {Streak}", currentItem.Word.NativeLanguageTerm, currentItem.QuizRecognitionStreak);
 
                 if (currentItem.QuizRecognitionComplete)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🎉 Recognition phase completed for {currentItem.Word.NativeLanguageTerm}! Moving to production phase.");
+                    _logger.LogDebug("🎉 Recognition phase completed for {NativeTerm}! Moving to production phase.", currentItem.Word.NativeLanguageTerm);
                 }
             }
             else
@@ -1210,7 +1226,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 // Reset streak on incorrect answer
                 var previousStreak = currentItem.QuizRecognitionStreak;
                 currentItem.QuizRecognitionStreak = 0;
-                System.Diagnostics.Debug.WriteLine($"❌ Recognition streak reset for {currentItem.Word.NativeLanguageTerm}: {previousStreak} → 0");
+                _logger.LogDebug("❌ Recognition streak reset for {NativeTerm}: {Previous} → 0", currentItem.Word.NativeLanguageTerm, previousStreak);
             }
         }
         else if (currentMode == InputMode.Text.ToString())
@@ -1219,11 +1235,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             if (isCorrect)
             {
                 currentItem.QuizProductionStreak++;
-                System.Diagnostics.Debug.WriteLine($"🎯 Production streak for {currentItem.Word.NativeLanguageTerm}: {currentItem.QuizProductionStreak}");
+                _logger.LogDebug("🎯 Production streak for {NativeTerm}: {Streak}", currentItem.Word.NativeLanguageTerm, currentItem.QuizProductionStreak);
 
                 if (currentItem.QuizProductionComplete)
                 {
-                    System.Diagnostics.Debug.WriteLine($"� Production phase completed for {currentItem.Word.NativeLanguageTerm}! Ready to rotate out.");
+                    _logger.LogDebug("✅ Production phase completed for {NativeTerm}! Ready to rotate out.", currentItem.Word.NativeLanguageTerm);
                 }
             }
             else
@@ -1231,7 +1247,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 // Reset streak on incorrect answer
                 var previousStreak = currentItem.QuizProductionStreak;
                 currentItem.QuizProductionStreak = 0;
-                System.Diagnostics.Debug.WriteLine($"❌ Production streak reset for {currentItem.Word.NativeLanguageTerm}: {previousStreak} → 0");
+                _logger.LogDebug("❌ Production streak reset for {NativeTerm}: {Previous} → 0", currentItem.Word.NativeLanguageTerm, previousStreak);
             }
         }
     }
@@ -1620,7 +1636,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         if (ShouldShuffleForRoundVariety())
         {
             ShuffleIncompleteItems();
-            System.Diagnostics.Debug.WriteLine("Shuffled items for round variety - all items attempted once");
+            _logger.LogDebug("Shuffled items for round variety - all items attempted once");
         }
 
         // Check if all items ready for promotion (recognition complete -> production)
@@ -1689,7 +1705,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             State.VocabularyItems.Add(item);
         }
 
-        System.Diagnostics.Debug.WriteLine($"Shuffled {incompleteItems.Count} incomplete items for variety");
+        _logger.LogDebug("Shuffled {Count} incomplete items for variety", incompleteItems.Count);
     }
 
     void StartNextRound()
@@ -1760,7 +1776,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             else
             {
                 // All incomplete items are ready to skip in current phase - advance to next phase
-                System.Diagnostics.Debug.WriteLine("All incomplete items ready to skip - shuffling for next round");
+                _logger.LogDebug("All incomplete items ready to skip - shuffling for next round");
                 ShuffleIncompleteItems();
                 // Reset skip status for next round
                 foreach (var item in incompleteItems)
@@ -1790,7 +1806,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var shuffledNeedingPractice = itemsNeedingPractice.OrderBy(x => Guid.NewGuid()).ToList();
             nextItem = shuffledNeedingPractice.FirstOrDefault();
 
-            System.Diagnostics.Debug.WriteLine("Wrapped around - selecting random item needing practice");
+            _logger.LogDebug("Wrapped around - selecting random item needing practice");
         }
 
         if (nextItem != null)
@@ -1863,37 +1879,37 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     protected override void OnMounted()
     {
-        System.Diagnostics.Debug.WriteLine("🚀 VocabularyQuizPage.OnMounted() START");
+        _logger.LogDebug("🚀 VocabularyQuizPage.OnMounted() START");
         base.OnMounted();
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Props.FromTodaysPlan = {Props?.FromTodaysPlan}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Props.PlanItemId = {Props?.PlanItemId}");
+        _logger.LogDebug("🏴‍☠️ Props.FromTodaysPlan = {FromTodaysPlan}", Props?.FromTodaysPlan);
+        _logger.LogDebug("🏴‍☠️ Props.PlanItemId = {PlanItemId}", Props?.PlanItemId);
 
         // Start activity timer if launched from Today's Plan
         if (Props?.FromTodaysPlan == true)
         {
-            System.Diagnostics.Debug.WriteLine("⏱️ Starting timer session for VocabularyQuiz");
+            _logger.LogDebug("⏱️ Starting timer session for VocabularyQuiz");
             _timerService.StartSession("VocabularyQuiz", Props.PlanItemId);
-            System.Diagnostics.Debug.WriteLine($"✅ Timer session started - IsActive={_timerService.IsActive}, IsRunning={_timerService.IsRunning}");
+            _logger.LogDebug("✅ Timer session started - IsActive={IsActive}, IsRunning={IsRunning}", _timerService.IsActive, _timerService.IsRunning);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine("⚠️ NOT starting timer - FromTodaysPlan is false");
+            _logger.LogDebug("⚠️ NOT starting timer - FromTodaysPlan is false");
         }
 
     }
 
     protected override void OnWillUnmount()
     {
-        System.Diagnostics.Debug.WriteLine("🛑 VocabularyQuizPage.OnWillUnmount() START");
+        _logger.LogDebug("🛑 VocabularyQuizPage.OnWillUnmount() START");
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
-            System.Diagnostics.Debug.WriteLine("⏱️ Pausing timer");
+            _logger.LogDebug("⏱️ Pausing timer");
             _timerService.Pause();
-            System.Diagnostics.Debug.WriteLine($"✅ Timer paused - IsRunning={_timerService.IsRunning}");
+            _logger.LogDebug("✅ Timer paused - IsRunning={IsRunning}", _timerService.IsRunning);
         }
     }
 }

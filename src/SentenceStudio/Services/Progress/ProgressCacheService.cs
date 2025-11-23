@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace SentenceStudio.Services.Progress;
 
 /// <summary>
@@ -6,7 +8,13 @@ namespace SentenceStudio.Services.Progress;
 /// </summary>
 public class ProgressCacheService
 {
+    private readonly ILogger<ProgressCacheService> _logger;
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
+
+    public ProgressCacheService(ILogger<ProgressCacheService> logger)
+    {
+        _logger = logger;
+    }
 
     // Cache entries
     private CacheEntry<VocabProgressSummary>? _vocabSummaryCache;
@@ -23,7 +31,7 @@ public class ProgressCacheService
         if (_vocabSummaryCache?.IsExpired() != false)
             return null;
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache HIT: VocabSummary");
+        _logger.LogDebug("🏴‍☠️ Cache HIT: VocabSummary");
         return _vocabSummaryCache.Data;
     }
 
@@ -33,7 +41,7 @@ public class ProgressCacheService
     public void SetVocabSummary(VocabProgressSummary data)
     {
         _vocabSummaryCache = new CacheEntry<VocabProgressSummary>(data);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache SET: VocabSummary");
+        _logger.LogDebug("🏴‍☠️ Cache SET: VocabSummary");
     }
 
     /// <summary>
@@ -44,7 +52,7 @@ public class ProgressCacheService
         if (_practiceHeatCache?.IsExpired() != false)
             return null;
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache HIT: PracticeHeat");
+        _logger.LogDebug("🏴‍☠️ Cache HIT: PracticeHeat");
         return _practiceHeatCache.Data;
     }
 
@@ -54,7 +62,7 @@ public class ProgressCacheService
     public void SetPracticeHeat(IReadOnlyList<PracticeHeatPoint> data)
     {
         _practiceHeatCache = new CacheEntry<IReadOnlyList<PracticeHeatPoint>>(data);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache SET: PracticeHeat");
+        _logger.LogDebug("🏴‍☠️ Cache SET: PracticeHeat");
     }
 
     /// <summary>
@@ -65,7 +73,7 @@ public class ProgressCacheService
         if (_resourceProgressCache?.IsExpired() != false)
             return null;
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache HIT: ResourceProgress");
+        _logger.LogDebug("🏴‍☠️ Cache HIT: ResourceProgress");
         return _resourceProgressCache.Data;
     }
 
@@ -75,7 +83,7 @@ public class ProgressCacheService
     public void SetResourceProgress(List<ResourceProgress> data)
     {
         _resourceProgressCache = new CacheEntry<List<ResourceProgress>>(data);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache SET: ResourceProgress");
+        _logger.LogDebug("🏴‍☠️ Cache SET: ResourceProgress");
     }
 
     /// <summary>
@@ -86,7 +94,7 @@ public class ProgressCacheService
         if (!_skillProgressCache.TryGetValue(skillId, out var entry) || entry.IsExpired())
             return null;
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Cache HIT: SkillProgress for skill {skillId}");
+        _logger.LogDebug("🏴‍☠️ Cache HIT: SkillProgress for skill {SkillId}", skillId);
         return entry.Data;
     }
 
@@ -96,7 +104,7 @@ public class ProgressCacheService
     public void SetSkillProgress(int skillId, SkillProgress data)
     {
         _skillProgressCache[skillId] = new CacheEntry<SkillProgress>(data);
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Cache SET: SkillProgress for skill {skillId}");
+        _logger.LogDebug("🏴‍☠️ Cache SET: SkillProgress for skill {SkillId}", skillId);
     }
 
     /// <summary>
@@ -109,7 +117,7 @@ public class ProgressCacheService
         _resourceProgressCache = null;
         _skillProgressCache.Clear();
         _todaysPlanCache = null;
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache INVALIDATED: All");
+        _logger.LogDebug("🏴‍☠️ Cache INVALIDATED: All");
     }
 
     /// <summary>
@@ -125,14 +133,14 @@ public class ProgressCacheService
         if (_todaysPlanCache?.IsExpired() != false)
             return null;
 
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache HIT: TodaysPlan");
+        _logger.LogDebug("🏴‍☠️ Cache HIT: TodaysPlan");
         return _todaysPlanCache.Data;
     }
 
     public void SetTodaysPlan(TodaysPlan data)
     {
         _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache SET: TodaysPlan");
+        _logger.LogDebug("🏴‍☠️ Cache SET: TodaysPlan");
     }
 
     public void InvalidateTodaysPlan() => _todaysPlanCache = null;
@@ -140,7 +148,7 @@ public class ProgressCacheService
     public void UpdateTodaysPlan(TodaysPlan data)
     {
         _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ Cache UPDATE: TodaysPlan");
+        _logger.LogDebug("🏴‍☠️ Cache UPDATE: TodaysPlan");
     }
 
     /// <summary>

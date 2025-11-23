@@ -1,4 +1,5 @@
 using MauiReactor;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Services.Timer;
 using MauiReactor.Shapes;
 
@@ -22,21 +23,24 @@ partial class ActivityTimerBar : Component<ActivityTimerBarState>
     [Inject]
     IActivityTimerService _timerService;
 
+    [Inject]
+    ILogger<ActivityTimerBar> _logger;
+
     protected override void OnMounted()
     {
-        System.Diagnostics.Debug.WriteLine("🚀 ActivityTimerBar.OnMounted() START");
+        _logger.LogDebug("🚀 ActivityTimerBar.OnMounted() START");
         base.OnMounted();
 
-        System.Diagnostics.Debug.WriteLine("⏱️ ActivityTimerBar.OnMounted() called");
-        System.Diagnostics.Debug.WriteLine($"⏱️ Timer service IsActive: {_timerService.IsActive}");
-        System.Diagnostics.Debug.WriteLine($"⏱️ Timer service IsRunning: {_timerService.IsRunning}");
-        System.Diagnostics.Debug.WriteLine($"⏱️ Timer service ElapsedTime: {_timerService.ElapsedTime}");
+        _logger.LogDebug("⏱️ ActivityTimerBar.OnMounted() called");
+        _logger.LogDebug("⏱️ Timer service IsActive: {IsActive}", _timerService.IsActive);
+        _logger.LogDebug("⏱️ Timer service IsRunning: {IsRunning}", _timerService.IsRunning);
+        _logger.LogDebug("⏱️ Timer service ElapsedTime: {ElapsedTime}", _timerService.ElapsedTime);
 
         // Subscribe to timer events
         _timerService.TimerStateChanged += OnTimerStateChanged;
         _timerService.TimerTick += OnTimerTick;
 
-        System.Diagnostics.Debug.WriteLine("⏱️ Timer events subscribed");
+        _logger.LogDebug("⏱️ Timer events subscribed");
 
         // Initialize state and mark as initialized
         SetState(s =>
@@ -47,7 +51,7 @@ partial class ActivityTimerBar : Component<ActivityTimerBarState>
             s.IsInitialized = true;
         });
 
-        System.Diagnostics.Debug.WriteLine($"✅ State initialized - IsActive: {State.IsActive}, IsRunning: {State.IsRunning}, IsInitialized: {State.IsInitialized}");
+        _logger.LogDebug("✅ State initialized - IsActive: {IsActive}, IsRunning: {IsRunning}, IsInitialized: {IsInitialized}", State.IsActive, State.IsRunning, State.IsInitialized);
     }
 
     protected override void OnWillUnmount()
@@ -76,12 +80,12 @@ partial class ActivityTimerBar : Component<ActivityTimerBarState>
 
     public override VisualNode Render()
     {
-        System.Diagnostics.Debug.WriteLine($"🎯 Render() CALLED - IsInitialized: {State.IsInitialized}, IsActive: {State.IsActive}, IsRunning: {State.IsRunning}, Elapsed: {State.ElapsedTime}");
+        _logger.LogDebug("🎯 Render() CALLED - IsInitialized: {IsInitialized}, IsActive: {IsActive}, IsRunning: {IsRunning}, Elapsed: {Elapsed}", State.IsInitialized, State.IsActive, State.IsRunning, State.ElapsedTime);
 
         // Show placeholder until initialized or when not active
         if (!State.IsInitialized || !State.IsActive)
         {
-            System.Diagnostics.Debug.WriteLine("⏱️ Returning gray placeholder Label");
+            _logger.LogDebug("⏱️ Returning gray placeholder Label");
             return Label("⏱️ --:--")
                 .FontSize(16)
                 .FontAttributes(MauiControls.FontAttributes.Bold)
@@ -92,7 +96,7 @@ partial class ActivityTimerBar : Component<ActivityTimerBarState>
         var seconds = State.ElapsedTime.Seconds;
         var timeText = $"⏱️ {minutes:00}:{seconds:00}";
 
-        System.Diagnostics.Debug.WriteLine($"⏱️ Returning active timer Label: {timeText}");
+        _logger.LogDebug("⏱️ Returning active timer Label: {TimeText}", timeText);
 
         return Label(timeText)
             .FontSize(16)

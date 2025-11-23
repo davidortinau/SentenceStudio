@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using MauiReactor.Parameters;
 using Microsoft.Maui.Graphics;
 using MauiReactor.Shapes;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Onboarding;
 
@@ -20,7 +21,7 @@ public class OnboardingState
     public bool NeedsApiKey { get; set; }
     public string[] SuggestedNames { get; set; } = Array.Empty<string>();
     public bool IsLoadingNames { get; set; } = false;
-    
+
     // New properties for final step and starter content creation
     public bool IsCreatingStarterContent { get; set; } = false;
     public string CreationProgressMessage { get; set; } = string.Empty;
@@ -36,26 +37,27 @@ public partial class OnboardingPage : Component<OnboardingState>
     [Inject] AiService _aiService;
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] SkillProfileRepository _skillProfileRepository;
+    [Inject] ILogger<OnboardingPage> _logger;
     [Param] IParameter<AppState> _appState;
 
     LocalizationManager _localize => LocalizationManager.Instance;
-    
+
     private CancellationTokenSource? _cancellationTokenSource;
-    
+
     VisualNode[] GetScreens() => new[]
     {
         RenderWelcomeStep(),
         RenderLanguageStep(
-            "What is your primary language?", 
+            "What is your primary language?",
             s => s.NativeLanguage,
             (lang) => SetState(s => s.NativeLanguage = lang)),
         RenderLanguageStep(
-            "What language are you here to practice?", 
+            "What language are you here to practice?",
             s => s.TargetLanguage,
-            (lang) => { 
+            (lang) => {
                 SetState(s => s.TargetLanguage = lang);
                 // Generate names when target language changes
-                Task.Run(async () => 
+                Task.Run(async () =>
                 {
                     await LoadSuggestedNames(lang);
                 });
@@ -69,10 +71,10 @@ public partial class OnboardingPage : Component<OnboardingState>
     protected override void OnMounted()
     {
         _cancellationTokenSource = new CancellationTokenSource();
-        
+
         var settings = _configuration.GetRequiredSection("Settings").Get<Settings>();
         SetState(s => s.NeedsApiKey = string.IsNullOrEmpty(settings?.OpenAIKey));
-        
+
         // Don't load names here - wait until user selects target language
         base.OnMounted();
     }
@@ -87,30 +89,30 @@ public partial class OnboardingPage : Component<OnboardingState>
 
     async Task LoadSuggestedNames(string targetLanguage)
     {
-        if (string.IsNullOrEmpty(targetLanguage) || _cancellationTokenSource?.Token.IsCancellationRequested == true) 
+        if (string.IsNullOrEmpty(targetLanguage) || _cancellationTokenSource?.Token.IsCancellationRequested == true)
             return;
-        
+
         // Defensive check to prevent calling SetState on unmounted component
         if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-        
-        MainThread.BeginInvokeOnMainThread(() => 
+
+        MainThread.BeginInvokeOnMainThread(() =>
         {
             if (_cancellationTokenSource?.Token.IsCancellationRequested == false)
                 SetState(s => s.IsLoadingNames = true);
         });
-        
+
         try
         {
             var names = await _nameGenerationService.GenerateNamesAsync(targetLanguage);
-            
+
             // Check cancellation again before updating state
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
-            MainThread.BeginInvokeOnMainThread(() => 
+
+            MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (_cancellationTokenSource?.Token.IsCancellationRequested == false)
                 {
-                    SetState(s => 
+                    SetState(s =>
                     {
                         s.SuggestedNames = names;
                         s.IsLoadingNames = false;
@@ -120,11 +122,11 @@ public partial class OnboardingPage : Component<OnboardingState>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to load suggested names: {ex.Message}");
-            
+            _logger.LogError(ex, "Failed to load suggested names");
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
-            MainThread.BeginInvokeOnMainThread(() => 
+
+            MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (_cancellationTokenSource?.Token.IsCancellationRequested == false)
                     SetState(s => s.IsLoadingNames = false);
@@ -137,20 +139,20 @@ public partial class OnboardingPage : Component<OnboardingState>
         var screens = GetScreens();
         var maxScreens = screens.Length - 1;
         if (newPosition < 0 || newPosition > maxScreens) return;
-        
-        SetState(s => 
+
+        SetState(s =>
         {
             s.CurrentPosition = newPosition;
             s.LastPositionReached = newPosition == maxScreens;
-            
+
             // If navigating to the name step (position 3) and we have a target language,
             // load suggested names
-            if (newPosition == 3 && !string.IsNullOrEmpty(s.TargetLanguage) && 
+            if (newPosition == 3 && !string.IsNullOrEmpty(s.TargetLanguage) &&
                 s.SuggestedNames.Length == 0 && !s.IsLoadingNames)
             {
                 Task.Run(async () => await LoadSuggestedNames(s.TargetLanguage));
             }
-            
+
             // If navigating to final step (last screen), show starter content options
             if (newPosition == maxScreens) // Final step (dynamic position)
             {
@@ -178,7 +180,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         var screens = GetScreens();
         var maxScreens = screens.Length - 1;
         return ContentPage($"{_localize["MyProfile"]}",
-            
+
                 Grid(rows: "*, Auto", "",
                     // Render the current screen directly
                     screens[State.CurrentPosition],
@@ -214,7 +216,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
     VisualNode RenderWelcomeStep() =>
         ContentView(
-            Grid("Auto, Auto","",
+            Grid("Auto, Auto", "",
                 Label("Welcome to Sentence Studio!")
                     .ThemeKey(MyTheme.Title1)
                     .HCenter(),
@@ -244,7 +246,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                 .Hint("Enter your name or tap a suggestion below"),
 
                 // Show loading indicator when generating names
-                State.IsLoadingNames ? 
+                State.IsLoadingNames ?
                     Label("Generating name suggestions...")
                         .HCenter()
                         .FontSize(14)
@@ -258,18 +260,18 @@ public partial class OnboardingPage : Component<OnboardingState>
                             .FontSize(14)
                             .TextColor(MyTheme.Gray600)
                             .HCenter(),
-                        
+
                         // First row - masculine names
-                        Grid(rows: "auto",columns: "*, *, *, *",
+                        Grid(rows: "auto", columns: "*, *, *, *",
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(0), 0),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(1), 1),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(2), 2),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(3), 3)
                         )
                         .ColumnSpacing(MyTheme.ComponentSpacing),
-                        
+
                         // Second row - feminine names  
-                        Grid(rows:"auto",columns: "*, *, *, *",
+                        Grid(rows: "auto", columns: "*, *, *, *",
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(4), 0),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(5), 1),
                             RenderNameButton(State.SuggestedNames.ElementAtOrDefault(6), 2),
@@ -287,7 +289,7 @@ public partial class OnboardingPage : Component<OnboardingState>
     VisualNode RenderNameButton(string name, int column)
     {
         if (string.IsNullOrEmpty(name)) return ContentView();
-        
+
         return Button(name)
             .GridColumn(column)
             .BackgroundColor(MyTheme.Gray100)
@@ -368,7 +370,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                 VStack(spacing: MyTheme.Size160,
                     Label("How long would you like to practice each day?")
                         .ThemeKey(MyTheme.Body1Strong),
-                    
+
                     VStack(spacing: 8,
                         HStack(spacing: 8,
                             new[] { 5, 10, 15, 20 }.Select(minutes =>
@@ -457,9 +459,9 @@ public partial class OnboardingPage : Component<OnboardingState>
         {
             SetState(s => s.ShowCreateStarterOption = true);
         }
-        
-        System.Diagnostics.Debug.WriteLine($"RenderFinalStep: ShowCreateStarterOption={State.ShowCreateStarterOption}, IsCreatingStarterContent={State.IsCreatingStarterContent}");
-        
+
+        _logger.LogDebug("RenderFinalStep: ShowCreateStarterOption={ShowCreateStarterOption}, IsCreatingStarterContent={IsCreatingStarterContent}", State.ShowCreateStarterOption, State.IsCreatingStarterContent);
+
         if (State.ShowCreateStarterOption && !State.IsCreatingStarterContent)
         {
             return ContentView(
@@ -547,7 +549,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         {
             // Fallback to simple completion message
             return ContentView(
-                Grid("Auto, Auto","",
+                Grid("Auto, Auto", "",
                     Label("Let's begin!")
                         .ThemeKey(MyTheme.Title1)
                         .HCenter(),
@@ -566,8 +568,8 @@ public partial class OnboardingPage : Component<OnboardingState>
     async Task CreateStarterContent()
     {
         if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-        
-        SetState(s => 
+
+        SetState(s =>
         {
             s.IsCreatingStarterContent = true;
             s.CreationProgressMessage = "Creating your personalized vocabulary list...";
@@ -577,30 +579,30 @@ public partial class OnboardingPage : Component<OnboardingState>
         {
             // Create the starter vocabulary resource
             await CreateStarterVocabularyResource();
-            
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
+
             SetState(s => s.CreationProgressMessage = "Setting up your beginner skill profile...");
-            
+
             // Create the beginner skill profile
             await CreateBeginnerSkillProfile();
-            
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
+
             SetState(s => s.CreationProgressMessage = "Finishing setup...");
-            
+
             // Complete the onboarding process
             await End();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error creating starter content: {ex}");
-            
+            _logger.LogError(ex, "Error creating starter content");
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
-            await Application.Current.MainPage.DisplayAlert("Error", 
+
+            await Application.Current.MainPage.DisplayAlert("Error",
                 "Failed to create starter content. You can set up learning materials later from the dashboard.", "OK");
-            
+
             // Still complete onboarding even if starter content creation fails
             await End();
         }
@@ -609,26 +611,26 @@ public partial class OnboardingPage : Component<OnboardingState>
     async Task CreateStarterVocabularyResource()
     {
         if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-        
+
         try
         {
             // Load the Scriban template
             using var stream = await FileSystem.OpenAppPackageFileAsync("GetStarterVocabulary.scriban-txt");
             using var reader = new StreamReader(stream);
             var template = await reader.ReadToEndAsync();
-            
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
+
             // Replace template variables
             var prompt = template
                 .Replace("{{native_language}}", State.NativeLanguage)
                 .Replace("{{target_language}}", State.TargetLanguage);
-            
+
             // Generate vocabulary using AI
             var vocabularyCsv = await _aiService.SendPrompt<string>(prompt);
-            
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
+
             if (!string.IsNullOrEmpty(vocabularyCsv))
             {
                 // Create and save the learning resource
@@ -642,37 +644,37 @@ public partial class OnboardingPage : Component<OnboardingState>
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                
+
                 // Parse vocabulary words from the CSV response
                 var vocabularyWords = VocabularyWord.ParseVocabularyWords(vocabularyCsv);
-                
+
                 // Save the resource first
                 await _learningResourceRepository.SaveResourceAsync(resource);
-                
+
                 if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-                
+
                 // Now save each vocabulary word and associate with the resource
                 foreach (var word in vocabularyWords)
                 {
                     if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-                    
+
                     if (word.CreatedAt == default)
                         word.CreatedAt = DateTime.UtcNow;
                     word.UpdatedAt = DateTime.UtcNow;
-                    
+
                     // Save the word
                     await _learningResourceRepository.SaveWordAsync(word);
-                    
+
                     // Associate the word with the resource
                     await _learningResourceRepository.AddVocabularyToResourceAsync(resource.Id, word.Id);
                 }
-                
-                System.Diagnostics.Debug.WriteLine($"Created starter vocabulary resource with {vocabularyWords.Count} vocabulary words");
+
+                _logger.LogInformation("Created starter vocabulary resource with {Count} vocabulary words", vocabularyWords.Count);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error creating vocabulary resource: {ex}");
+            _logger.LogError(ex, "Error creating vocabulary resource");
             throw; // Re-throw to be handled by the calling method
         }
     }
@@ -680,7 +682,7 @@ public partial class OnboardingPage : Component<OnboardingState>
     async Task CreateBeginnerSkillProfile()
     {
         if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-        
+
         try
         {
             var prompt = $@"Create a skill description for a beginner {State.TargetLanguage} learner. The description should:
@@ -693,9 +695,9 @@ public partial class OnboardingPage : Component<OnboardingState>
 Example skills to mention: basic vocabulary, simple sentence structure, pronunciation, greetings, numbers, common phrases.";
 
             var description = await _aiService.SendPrompt<string>(prompt);
-            
+
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
-            
+
             if (!string.IsNullOrEmpty(description))
             {
                 var skillProfile = new SkillProfile
@@ -706,14 +708,14 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                
+
                 await _skillProfileRepository.SaveAsync(skillProfile);
-                System.Diagnostics.Debug.WriteLine($"Created beginner skill profile: {skillProfile.Title}");
+                _logger.LogInformation("Created beginner skill profile: {Title}", skillProfile.Title);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error creating skill profile: {ex}");
+            _logger.LogError(ex, "Error creating skill profile");
             throw; // Re-throw to be handled by the calling method
         }
     }
@@ -732,7 +734,7 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error navigating to dashboard: {ex}");
+            _logger.LogError(ex, "Error navigating to dashboard");
         }
     }
 
@@ -753,24 +755,24 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
             };
 
             await _userProfileRepository.SaveAsync(profile);
-            
+
             // Update the app state with the new profile
             _appState.Set(s => s.CurrentUserProfile = profile);
-            
+
             // Set the onboarding preference to true
             Preferences.Default.Set("is_onboarded", true);
-            
+
             await AppShell.DisplayToastAsync($"{_localize["Saved"]}");
-            
+
             // The AppShell will automatically re-render and show the main Shell now
             // No need to navigate manually
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in OnboardingPage.End(): {ex}");
+            _logger.LogError(ex, "Error in OnboardingPage.End()");
             await Application.Current.MainPage.DisplayAlert("Error", $"Failed to complete onboarding: {ex.Message}", "OK");
         }
     }
 
-    
+
 }

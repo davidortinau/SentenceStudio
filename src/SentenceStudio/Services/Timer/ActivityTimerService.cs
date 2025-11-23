@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services.Timer;
 
@@ -16,6 +17,7 @@ public class ActivityTimerService : IActivityTimerService
     private TimeSpan _pausedElapsed = TimeSpan.Zero;
     private int _lastSavedMinutes = 0;
     private readonly Services.Progress.IProgressService? _progressService;
+    private readonly ILogger<ActivityTimerService> _logger;
 
     public bool IsActive => _activityType != null;
     public bool IsRunning => _stopwatch.IsRunning;
@@ -26,9 +28,10 @@ public class ActivityTimerService : IActivityTimerService
     public event EventHandler? TimerStateChanged;
     public event EventHandler<TimeSpan>? TimerTick;
 
-    public ActivityTimerService(Services.Progress.IProgressService? progressService = null)
+    public ActivityTimerService(Services.Progress.IProgressService? progressService = null, ILogger<ActivityTimerService>? logger = null)
     {
         _progressService = progressService;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ActivityTimerService>.Instance;
 
         // Setup tick timer for UI updates (1 second intervals)
         _tickTimer = new System.Timers.Timer(1000);
@@ -38,7 +41,7 @@ public class ActivityTimerService : IActivityTimerService
 
     public void StartSession(string activityType, string? activityId = null)
     {
-        System.Diagnostics.Debug.WriteLine($"⏱️ ActivityTimerService.StartSession - activityType={activityType}, activityId={activityId}");
+        _logger.LogDebug("⏱️ ActivityTimerService.StartSession - activityType={ActivityType}, activityId={ActivityId}", activityType, activityId);
 
         // Stop any existing session
         if (IsActive)
@@ -56,14 +59,14 @@ public class ActivityTimerService : IActivityTimerService
         _tickTimer?.Start();
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
-        System.Diagnostics.Debug.WriteLine($"✅ Timer session started");
+        _logger.LogDebug("✅ Timer session started");
     }
 
     public void Pause()
     {
         if (!IsActive || !IsRunning) return;
 
-        System.Diagnostics.Debug.WriteLine($"⏱️ Pausing timer - current elapsed: {ElapsedTime}");
+        _logger.LogDebug("⏱️ Pausing timer - current elapsed: {ElapsedTime}", ElapsedTime);
 
         _pausedElapsed += _stopwatch.Elapsed;
         _stopwatch.Stop();
@@ -79,7 +82,7 @@ public class ActivityTimerService : IActivityTimerService
     {
         if (!IsActive || IsRunning) return;
 
-        System.Diagnostics.Debug.WriteLine($"⏱️ Resuming timer - paused at: {_pausedElapsed}");
+        _logger.LogDebug("⏱️ Resuming timer - paused at: {PausedElapsed}", _pausedElapsed);
 
         _stopwatch.Restart();
         _tickTimer?.Start();
@@ -93,7 +96,7 @@ public class ActivityTimerService : IActivityTimerService
 
         var totalTime = ElapsedTime;
 
-        System.Diagnostics.Debug.WriteLine($"⏱️ Stopping timer session - total time: {totalTime}");
+        _logger.LogDebug("⏱️ Stopping timer session - total time: {TotalTime}", totalTime);
 
         _stopwatch.Stop();
         _tickTimer?.Stop();
@@ -117,7 +120,7 @@ public class ActivityTimerService : IActivityTimerService
     {
         if (!IsActive) return;
 
-        System.Diagnostics.Debug.WriteLine($"⏱️ Canceling timer session");
+        _logger.LogDebug("⏱️ Canceling timer session");
 
         _stopwatch.Stop();
         _tickTimer?.Stop();
@@ -147,34 +150,33 @@ public class ActivityTimerService : IActivityTimerService
 
     private async Task SaveProgressAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"🚀 SaveProgressAsync ENTRY - IsActive={IsActive}, activityId={_activityId}");
+        _logger.LogDebug("🚀 SaveProgressAsync ENTRY - IsActive={IsActive}, activityId={ActivityId}", IsActive, _activityId);
 
         if (_progressService == null || string.IsNullOrEmpty(_activityId))
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Cannot save progress - progressService={(_progressService != null)}, activityId={_activityId}");
+            _logger.LogWarning("❌ Cannot save progress - progressService={ProgressServiceExists}, activityId={ActivityId}", _progressService != null, _activityId);
             return;
         }
 
         var currentMinutes = (int)ElapsedTime.TotalMinutes;
-        System.Diagnostics.Debug.WriteLine($"📊 Current elapsed: {ElapsedTime}, minutes={currentMinutes}, lastSaved={_lastSavedMinutes}");
+        _logger.LogDebug("📊 Current elapsed: {ElapsedTime}, minutes={Minutes}, lastSaved={LastSaved}", ElapsedTime, currentMinutes, _lastSavedMinutes);
 
         if (currentMinutes == _lastSavedMinutes)
         {
-            System.Diagnostics.Debug.WriteLine($"⏭️ No change in full minutes, skipping save");
+            _logger.LogDebug("⏭️ No change in full minutes, skipping save");
             return;
         }
 
         try
         {
-            System.Diagnostics.Debug.WriteLine($"💾 Calling UpdatePlanItemProgressAsync('{_activityId}', {currentMinutes})");
+            _logger.LogDebug("💾 Calling UpdatePlanItemProgressAsync('{ActivityId}', {Minutes})", _activityId, currentMinutes);
             await _progressService.UpdatePlanItemProgressAsync(_activityId, currentMinutes);
             _lastSavedMinutes = currentMinutes;
-            System.Diagnostics.Debug.WriteLine($"✅ Save completed - _lastSavedMinutes updated to {_lastSavedMinutes}");
+            _logger.LogDebug("✅ Save completed - _lastSavedMinutes updated to {LastSavedMinutes}", _lastSavedMinutes);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Failed to save progress: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "❌ Failed to save progress");
         }
     }
 
@@ -182,7 +184,7 @@ public class ActivityTimerService : IActivityTimerService
     {
         if (_progressService == null || string.IsNullOrEmpty(_activityId))
         {
-            System.Diagnostics.Debug.WriteLine($"⚠️ Cannot load existing progress - progressService={(_progressService != null)}, activityId={_activityId}");
+            _logger.LogWarning("⚠️ Cannot load existing progress - progressService={ProgressServiceExists}, activityId={ActivityId}", _progressService != null, _activityId);
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
             return;
@@ -190,11 +192,11 @@ public class ActivityTimerService : IActivityTimerService
 
         try
         {
-            System.Diagnostics.Debug.WriteLine($"📥 Loading existing progress for activity {_activityId}");
+            _logger.LogDebug("📥 Loading existing progress for activity {ActivityId}", _activityId);
 
             // CRITICAL: Use UTC date to match plan generation (ProgressService uses DateTime.UtcNow.Date)
             var today = DateTime.UtcNow.Date;
-            System.Diagnostics.Debug.WriteLine($"📅 Query date: {today:yyyy-MM-dd} (Kind={today.Kind})");
+            _logger.LogDebug("📅 Query date: {Date:yyyy-MM-dd} (Kind={Kind})", today, today.Kind);
 
             // ROBUSTNESS FIX: Call GenerateTodaysPlanAsync instead of GetCachedPlanAsync
             // This ensures plan exists even if cache was cleared/expired
@@ -202,38 +204,38 @@ public class ActivityTimerService : IActivityTimerService
 
             if (plan != null)
             {
-                System.Diagnostics.Debug.WriteLine($"✅ Plan loaded with {plan.Items.Count} items");
+                _logger.LogDebug("✅ Plan loaded with {ItemCount} items", plan.Items.Count);
                 var planItem = plan.Items.FirstOrDefault(i => i.Id == _activityId);
                 if (planItem != null && planItem.MinutesSpent > 0)
                 {
                     _pausedElapsed = TimeSpan.FromMinutes(planItem.MinutesSpent);
                     _lastSavedMinutes = planItem.MinutesSpent;
-                    System.Diagnostics.Debug.WriteLine($"✅ Resumed from {planItem.MinutesSpent} minutes (activity: {planItem.TitleKey})");
+                    _logger.LogDebug("✅ Resumed from {MinutesSpent} minutes (activity: {ActivityTitle})", planItem.MinutesSpent, planItem.TitleKey);
                 }
                 else if (planItem != null)
                 {
                     _pausedElapsed = TimeSpan.Zero;
                     _lastSavedMinutes = 0;
-                    System.Diagnostics.Debug.WriteLine($"📊 Starting fresh - activity found but MinutesSpent=0 (activity: {planItem.TitleKey})");
+                    _logger.LogDebug("📊 Starting fresh - activity found but MinutesSpent=0 (activity: {ActivityTitle})", planItem.TitleKey);
                 }
                 else
                 {
                     _pausedElapsed = TimeSpan.Zero;
                     _lastSavedMinutes = 0;
-                    System.Diagnostics.Debug.WriteLine($"⚠️ Activity ID '{_activityId}' not found in plan items");
-                    System.Diagnostics.Debug.WriteLine($"📊 Available plan item IDs: {string.Join(", ", plan.Items.Select(i => i.Id))}");
+                    _logger.LogWarning("⚠️ Activity ID '{ActivityId}' not found in plan items", _activityId);
+                    _logger.LogDebug("📊 Available plan item IDs: {ItemIds}", string.Join(", ", plan.Items.Select(i => i.Id)));
                 }
             }
             else
             {
                 _pausedElapsed = TimeSpan.Zero;
                 _lastSavedMinutes = 0;
-                System.Diagnostics.Debug.WriteLine($"⚠️ No plan found for today");
+                _logger.LogWarning("⚠️ No plan found for today");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Failed to load existing progress: {ex.Message}");
+            _logger.LogError(ex, "❌ Failed to load existing progress");
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
         }

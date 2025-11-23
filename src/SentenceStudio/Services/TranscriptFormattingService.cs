@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -11,16 +12,18 @@ public class TranscriptFormattingService
     private readonly AiService _aiService;
     private readonly IEnumerable<ILanguageSegmenter> _segmenters;
     private readonly Dictionary<string, string> _aiPolishCache = new();
+    private readonly ILogger<TranscriptFormattingService> _logger;
 
-    public TranscriptFormattingService(AiService aiService, IEnumerable<ILanguageSegmenter> segmenters)
+    public TranscriptFormattingService(AiService aiService, IEnumerable<ILanguageSegmenter> segmenters, ILogger<TranscriptFormattingService> logger)
     {
         _aiService = aiService;
         _segmenters = segmenters;
+        _logger = logger;
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ TranscriptFormattingService initialized with {_segmenters.Count()} segmenters");
+        _logger.LogDebug("🏴‍☠️ TranscriptFormattingService initialized with {SegmenterCount} segmenters", _segmenters.Count());
         foreach (var seg in _segmenters)
         {
-            System.Diagnostics.Debug.WriteLine($"  - {seg.LanguageName} ({seg.LanguageCode})");
+            _logger.LogDebug("  - {LanguageName} ({LanguageCode})", seg.LanguageName, seg.LanguageCode);
         }
     }
 
@@ -35,15 +38,15 @@ public class TranscriptFormattingService
         if (string.IsNullOrWhiteSpace(transcript))
             return transcript;
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ SmartCleanup called for language: '{language ?? "null"}'");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Input length: {transcript.Length} chars");
+        _logger.LogDebug("🏴‍☠️ SmartCleanup called for language: '{Language}'", language ?? "null");
+        _logger.LogDebug("🏴‍☠️ Input length: {Length} chars", transcript.Length);
 
         // Get appropriate segmenter for the language
         var segmenter = GetSegmenterForLanguage(language);
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Segmenter found: {segmenter?.LanguageName ?? "NULL"}");
+        _logger.LogDebug("🏴‍☠️ Segmenter found: {SegmenterName}", segmenter?.LanguageName ?? "NULL");
 
         var lines = transcript.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Split into {lines.Length} lines");
+        _logger.LogDebug("🏴‍☠️ Split into {LineCount} lines", lines.Length);
 
         var result = new StringBuilder();
         var currentParagraph = new StringBuilder();
@@ -115,8 +118,8 @@ public class TranscriptFormattingService
             cleanedText = cleanedText.Replace("\n\n\n", "\n\n");
         }
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Processed {linesProcessed} lines, merged {linesMerged}, created {paragraphsCreated} paragraphs");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Output length: {cleanedText.Length} chars");
+        _logger.LogDebug("🏴‍☠️ Processed {LinesProcessed} lines, merged {LinesMerged}, created {ParagraphsCreated} paragraphs", linesProcessed, linesMerged, paragraphsCreated);
+        _logger.LogDebug("🏴‍☠️ Output length: {Length} chars", cleanedText.Length);
 
         return cleanedText.Trim();
     }
@@ -132,20 +135,20 @@ public class TranscriptFormattingService
         if (string.IsNullOrWhiteSpace(transcript))
             return transcript;
 
-        System.Diagnostics.Debug.WriteLine($"🚀 PolishWithAiAsync started");
-        System.Diagnostics.Debug.WriteLine($"📏 Input length: {transcript.Length} chars");
-        System.Diagnostics.Debug.WriteLine($"🌍 Language: {language ?? "null"}");
+        _logger.LogInformation("🚀 PolishWithAiAsync started");
+        _logger.LogDebug("📏 Input length: {Length} chars", transcript.Length);
+        _logger.LogDebug("🌍 Language: {Language}", language ?? "null");
 
         // Check for speaker markers in input
         var speakerMarkerCount = transcript.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
             .Count(line => line.TrimStart().StartsWith(">> "));
-        System.Diagnostics.Debug.WriteLine($"🎤 Found {speakerMarkerCount} speaker markers (>> ) in input");
+        _logger.LogDebug("🎤 Found {SpeakerMarkerCount} speaker markers (>> ) in input", speakerMarkerCount);
 
         // Check cache first
         var hash = ComputeHash(transcript);
         if (_aiPolishCache.TryGetValue(hash, out var cachedResult))
         {
-            System.Diagnostics.Debug.WriteLine($"✅ Using cached AI polish result");
+            _logger.LogDebug("✅ Using cached AI polish result");
             return cachedResult;
         }
 
@@ -197,34 +200,34 @@ Return ONLY the formatted text with no explanations, markdown, or additional com
 Transcript to format:
 {transcript}";
 
-            System.Diagnostics.Debug.WriteLine($"🤖 Sending to AI...");
+            _logger.LogDebug("🤖 Sending to AI...");
 
             var polished = await _aiService.SendPrompt<string>(prompt);
 
             if (string.IsNullOrWhiteSpace(polished))
             {
-                System.Diagnostics.Debug.WriteLine($"❌ AI returned empty/null result");
+                _logger.LogError("❌ AI returned empty/null result");
                 throw new Exception("AI service returned empty result. Check your internet connection and API configuration.");
             }
 
             // Verify speaker markers are preserved
             var polishedSpeakerCount = polished.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
                 .Count(line => line.TrimStart().StartsWith(">> "));
-            System.Diagnostics.Debug.WriteLine($"🎤 Speaker markers in output: {polishedSpeakerCount}");
-            
+            _logger.LogDebug("🎤 Speaker markers in output: {PolishedSpeakerCount}", polishedSpeakerCount);
+
             if (speakerMarkerCount != polishedSpeakerCount)
             {
-                System.Diagnostics.Debug.WriteLine($"⚠️ Speaker marker count mismatch! Input: {speakerMarkerCount}, Output: {polishedSpeakerCount}");
+                _logger.LogWarning("⚠️ Speaker marker count mismatch! Input: {InputCount}, Output: {OutputCount}", speakerMarkerCount, polishedSpeakerCount);
             }
 
             // Cache the result
             _aiPolishCache[hash] = polished;
-            System.Diagnostics.Debug.WriteLine($"✅ AI polish complete, cached result (length: {polished.Length} chars)");
+            _logger.LogInformation("✅ AI polish complete, cached result (length: {Length} chars)", polished.Length);
             return polished;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ AI polish failed: {ex.Message}");
+            _logger.LogError(ex, "❌ AI polish failed");
             throw new Exception($"Failed to polish transcript with AI: {ex.Message}", ex);
         }
     }
@@ -237,11 +240,11 @@ Transcript to format:
         if (string.IsNullOrWhiteSpace(language))
             return null;
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Looking for segmenter with language: '{language}'");
+        _logger.LogDebug("🏴‍☠️ Looking for segmenter with language: '{Language}'", language);
 
         // Extract the core language name by removing common suffixes/annotations
         var cleanLanguage = CleanLanguageString(language);
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Cleaned language: '{cleanLanguage}'");
+        _logger.LogDebug("🏴‍☠️ Cleaned language: '{CleanLanguage}'", cleanLanguage);
 
         // Try to find a matching segmenter using multiple strategies
         foreach (var segmenter in _segmenters)
@@ -249,21 +252,21 @@ Transcript to format:
             // Strategy 1: Exact match on cleaned language name
             if (segmenter.LanguageName.Equals(cleanLanguage, StringComparison.OrdinalIgnoreCase))
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found exact match: {segmenter.LanguageName}");
+                _logger.LogDebug("🏴‍☠️ Found exact match: {LanguageName}", segmenter.LanguageName);
                 return segmenter;
             }
 
             // Strategy 2: Check if cleaned input starts with segmenter's language name
             if (cleanLanguage.StartsWith(segmenter.LanguageName, StringComparison.OrdinalIgnoreCase))
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found by prefix match: {segmenter.LanguageName}");
+                _logger.LogDebug("🏴‍☠️ Found by prefix match: {LanguageName}", segmenter.LanguageName);
                 return segmenter;
             }
 
             // Strategy 3: Check if segmenter's language name is contained in cleaned input
             if (cleanLanguage.Contains(segmenter.LanguageName, StringComparison.OrdinalIgnoreCase))
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found by contains match: {segmenter.LanguageName}");
+                _logger.LogDebug("🏴‍☠️ Found by contains match: {LanguageName}", segmenter.LanguageName);
                 return segmenter;
             }
 
@@ -271,12 +274,12 @@ Transcript to format:
             var inputLanguageCode = GetLanguageCode(cleanLanguage);
             if (segmenter.LanguageCode.Equals(inputLanguageCode, StringComparison.OrdinalIgnoreCase))
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found by language code: {segmenter.LanguageName} ({segmenter.LanguageCode})");
+                _logger.LogDebug("🏴‍☠️ Found by language code: {LanguageName} ({LanguageCode})", segmenter.LanguageName, segmenter.LanguageCode);
                 return segmenter;
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"⚠️ No segmenter found for language: '{language}'");
+        _logger.LogWarning("⚠️ No segmenter found for language: '{Language}'", language);
         return null;
     }
 
@@ -344,6 +347,6 @@ Transcript to format:
     public void ClearCache()
     {
         _aiPolishCache.Clear();
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI polish cache cleared");
+        _logger.LogDebug("🏴‍☠️ AI polish cache cleared");
     }
 }

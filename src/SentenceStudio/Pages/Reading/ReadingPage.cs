@@ -1444,11 +1444,11 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.AudioGenerationProgress = 1.0;
                 });
 
-                System.Diagnostics.Debug.WriteLine("🏴‍☠️ Real-time audio system initialized with character-level timestamps!");
+                _logger.LogDebug("🏴‍☠️ Real-time audio system initialized with character-level timestamps!");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("🏴‍☠️ InitializeAudioSystemAsync: Failed to generate timestamped audio");
+                _logger.LogDebug("🏴‍☠️ InitializeAudioSystemAsync: Failed to generate timestamped audio");
                 SetState(s =>
                 {
                     s.IsGeneratingAudio = false;
@@ -1459,7 +1459,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Error initializing audio: {ex.Message}");
+            _logger.LogError(ex, "🏴‍☠️ Error initializing audio");
             SetState(s =>
             {
                 s.IsGeneratingAudio = false;
@@ -1472,23 +1472,23 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     private void OnCurrentSentenceChanged(object? sender, int sentenceIndex)
     {
         PerformanceLogger.StartTimer("OnCurrentSentenceChanged");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {sentenceIndex}");
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {State.CurrentSentenceIndex}");
+        _logger.LogDebug("🏴‍☠️ OnCurrentSentenceChanged: RECEIVED EVENT! New sentence index {SentenceIndex}", sentenceIndex);
+        _logger.LogDebug("🏴‍☠️ OnCurrentSentenceChanged: Previous sentence index was {PreviousIndex}", State.CurrentSentenceIndex);
 
         // Only update if the sentence index actually changed to avoid unnecessary re-renders
         if (State.CurrentSentenceIndex != sentenceIndex)
         {
             SetState(s =>
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: Setting state from {s.CurrentSentenceIndex} to {sentenceIndex}");
+                _logger.LogDebug("🏴‍☠️ OnCurrentSentenceChanged: Setting state from {OldIndex} to {NewIndex}", s.CurrentSentenceIndex, sentenceIndex);
                 s.CurrentSentenceIndex = sentenceIndex;
             });
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {State.CurrentSentenceIndex}");
+            _logger.LogDebug("🏴‍☠️ OnCurrentSentenceChanged: State updated, current sentence is now {CurrentIndex}", State.CurrentSentenceIndex);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ OnCurrentSentenceChanged: No change needed, already at sentence {sentenceIndex}");
+            _logger.LogDebug("🏴‍☠️ OnCurrentSentenceChanged: No change needed, already at sentence {SentenceIndex}", sentenceIndex);
         }
 
         PerformanceLogger.EndTimer("OnCurrentSentenceChanged", 5.0); // Warn if > 5ms
@@ -1501,7 +1501,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     private void OnPlaybackEnded(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("🏴‍☠️ OnPlaybackEnded: Playback finished");
+        _logger.LogDebug("🏴‍☠️ OnPlaybackEnded: Playback finished");
         SetState(s => s.IsPlaying = false);
     }
 

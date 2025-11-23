@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -6,7 +7,8 @@ public class NameGenerationService
 {
     private readonly AiService _aiService;
     private readonly IConfiguration _configuration;
-    
+    private readonly ILogger<NameGenerationService> _logger;
+
     // Hardcoded names by language and gender
     private readonly Dictionary<string, Dictionary<string, string[]>> _hardcodedNames = new()
     {
@@ -22,10 +24,11 @@ public class NameGenerationService
         }
     };
 
-    public NameGenerationService(AiService aiService, IConfiguration configuration)
+    public NameGenerationService(AiService aiService, IConfiguration configuration, ILogger<NameGenerationService> logger)
     {
         _aiService = aiService;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<string[]> GenerateNamesAsync(string targetLanguage)
@@ -41,7 +44,7 @@ public class NameGenerationService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"AI name generation failed: {ex.Message}");
+                _logger.LogWarning(ex, "AI name generation failed");
                 // Fall back to hardcoded names
             }
         }
@@ -57,7 +60,7 @@ public class NameGenerationService
                     $"For example for Korean: 지훈, 민수, 현우, 태양, 지은, 수빈, 예린, 하은";
 
         var response = await _aiService.SendPrompt<string>(prompt);
-        
+
         if (!string.IsNullOrEmpty(response))
         {
             var names = response.Split(',')
@@ -65,7 +68,7 @@ public class NameGenerationService
                                .Where(name => !string.IsNullOrEmpty(name))
                                .Take(8)
                                .ToArray();
-            
+
             if (names.Length == 8)
                 return names;
         }

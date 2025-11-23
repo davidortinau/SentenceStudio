@@ -1,0 +1,397 @@
+using MauiReactor;
+using SentenceStudio.Common;
+using SentenceStudio.Data;
+using SentenceStudio.Resources.Styles;
+using SentenceStudio.Shared.Models;
+
+namespace SentenceStudio.Pages;
+
+/// <summary>
+/// Placement test page for establishing baseline vocabulary knowledge.
+/// Implements research-based assessment (Laufer & Nation VST methodology).
+/// </summary>
+class PlacementTestPageState
+{
+    public PlacementTest? CurrentTest { get; set; }
+    public List<PlacementTestItem> Items { get; set; } = new();
+    public int CurrentItemIndex { get; set; } = 0;
+    public PlacementTestPhase Phase { get; set; } = PlacementTestPhase.Instructions;
+    public string? UserAnswer { get; set; }
+    public bool IsLoading { get; set; }
+    public PlacementTestResults? Results { get; set; }
+}
+
+enum PlacementTestPhase
+{
+    Instructions,
+    Testing,
+    Results
+}
+
+class PlacementTestPage : Component<PlacementTestPageState>
+{
+    private readonly PlacementTestService _testService;
+    private readonly ApplicationDbContext _context;
+    
+    LocalizationManager _localize => LocalizationManager.Instance;
+    
+    public PlacementTestPage(PlacementTestService testService, ApplicationDbContext context)
+    {
+        _testService = testService;
+        _context = context;
+    }
+    
+    protected override void OnMounted()
+    {
+        // Could load any in-progress test here
+        base.OnMounted();
+    }
+    
+    public override VisualNode Render()
+    {
+        return ContentPage(
+            Grid("Auto,*,Auto", "*",
+                RenderHeader().GridRow(0),
+                RenderBody().GridRow(1),
+                RenderFooter().GridRow(2)
+            )
+            .Padding(0)
+        )
+        .Set(MauiControls.Shell.NavBarIsVisibleProperty, false);
+    }
+    
+    VisualNode RenderHeader()
+    {
+        var progress = State.CurrentTest != null && State.Items.Count > 0
+            ? (float)State.CurrentItemIndex / State.Items.Count
+            : 0f;
+        
+        return VStack(spacing: MyTheme.Size80,
+            HStack(
+                Label($"{_localize["PlacementTestTitle"]}")
+                    .ThemeKey(MyTheme.Title2)
+                    .HStart(),
+                
+                State.Phase == PlacementTestPhase.Testing
+                    ? Label($"{State.CurrentItemIndex + 1} / {State.Items.Count}")
+                        .ThemeKey(MyTheme.Caption1)
+                        .HEnd()
+                    : null
+            ),
+            
+            State.Phase == PlacementTestPhase.Testing
+                ? ProgressBar()
+                    .Progress(progress)
+                : null
+        )
+        .Padding(MyTheme.Size160)
+        .BackgroundColor(MyTheme.Surface1);
+    }
+    
+    VisualNode RenderBody()
+    {
+        return State.Phase switch
+        {
+            PlacementTestPhase.Instructions => RenderInstructions(),
+            PlacementTestPhase.Testing => RenderTestItem(),
+            PlacementTestPhase.Results => RenderResults(),
+            _ => Label("Unknown phase")
+        };
+    }
+    
+    VisualNode RenderInstructions()
+    {
+        return ScrollView(
+            VStack(spacing: MyTheme.Size160,
+                Label($"{_localize["PlacementTestInstructions"]}")
+                    .ThemeKey(MyTheme.Body1),
+                
+                Border(
+                    VStack(spacing: MyTheme.Size120,
+                        Label("⏱️ Duration: 15-20 minutes")
+                            .ThemeKey(MyTheme.Body2Strong),
+                        
+                        Label("📊 Tests both recognition and production")
+                            .ThemeKey(MyTheme.Body2),
+                        
+                        Label("🎯 Establishes your baseline vocabulary")
+                            .ThemeKey(MyTheme.Body2),
+                        
+                        Label("✅ Automatically marks words you already know")
+                            .ThemeKey(MyTheme.Body2)
+                    )
+                    .Padding(MyTheme.Size160)
+                )
+                .ThemeKey(MyTheme.CardStyle),
+                
+                Label($"{_localize["PlacementTestWhenToTake"]}")
+                    .ThemeKey(MyTheme.Body2)
+                    .TextColor(MyTheme.SecondaryText),
+                
+                Label("• First time using the app")
+                    .ThemeKey(MyTheme.Body2),
+                
+                Label("• After significant study outside the app")
+                    .ThemeKey(MyTheme.Body2),
+                
+                Label("• If the app seems too easy or too hard")
+                    .ThemeKey(MyTheme.Body2)
+            )
+            .Padding(MyTheme.Size160)
+        );
+    }
+    
+    VisualNode RenderTestItem()
+    {
+        if (State.CurrentItemIndex >= State.Items.Count)
+        {
+            // Test complete - process results
+            Task.Run(async () =>
+            {
+                SetState(s => s.IsLoading = true);
+                var results = await _testService.ScoreAndApplyTest(State.CurrentTest!.Id);
+                SetState(s =>
+                {
+                    s.Results = results;
+                    s.Phase = PlacementTestPhase.Results;
+                    s.IsLoading = false;
+                });
+            });
+            
+            return VStack(
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Center()
+            );
+        }
+        
+        var currentItem = State.Items[State.CurrentItemIndex];
+        var word = currentItem.VocabularyWord;
+        
+        return VStack(spacing: MyTheme.Size200,
+            currentItem.ItemType == PlacementItemType.Recognition
+                ? RenderRecognitionItem(word)
+                : RenderProductionItem(word)
+        )
+        .Padding(MyTheme.Size160)
+        .VCenter();
+    }
+    
+    VisualNode RenderRecognitionItem(VocabularyWord word)
+    {
+        // TODO: Generate distractors from similar words
+        var options = new List<string>
+        {
+            word.NativeLanguageTerm ?? "",
+            "Distractor 1", // Would come from semantic neighbors
+            "Distractor 2",
+            "Distractor 3"
+        };
+        
+        // Shuffle options
+        var random = new Random();
+        options = options.OrderBy(_ => random.Next()).ToList();
+        
+        return VStack(spacing: MyTheme.Size160,
+            Label($"What does '{word.TargetLanguageTerm}' mean?")
+                .ThemeKey(MyTheme.Title3)
+                .HCenter(),
+            
+            VStack(spacing: MyTheme.Size120,
+                [.. options.Select(option =>
+                    Button(option)
+                        .ThemeKey(MyTheme.Secondary)
+                        .OnClicked(() => HandleRecognitionAnswer(option == word.NativeLanguageTerm))
+                )]
+            )
+        );
+    }
+    
+    VisualNode RenderProductionItem(VocabularyWord word)
+    {
+        return VStack(spacing: MyTheme.Size160,
+            Label($"How do you say '{word.NativeLanguageTerm}'?")
+                .ThemeKey(MyTheme.Title3)
+                .HCenter(),
+            
+            Border(
+                Entry()
+                    .Text(State.UserAnswer ?? "")
+                    .OnTextChanged(text => SetState(s => s.UserAnswer = text))
+                    .Placeholder("Type your answer...")
+                    .HCenter()
+            )
+            .ThemeKey(MyTheme.InputWrapper)
+        );
+    }
+    
+    VisualNode RenderResults()
+    {
+        if (State.Results == null)
+            return Label("Loading results...");
+        
+        return ScrollView(
+            VStack(spacing: MyTheme.Size200,
+                Label("🎉 Assessment Complete!")
+                    .ThemeKey(MyTheme.Title2)
+                    .HCenter(),
+                
+                Border(
+                    VStack(spacing: MyTheme.Size120,
+                        Label($"Estimated Vocabulary: ~{State.Results.EstimatedVocabularySize} words")
+                            .ThemeKey(MyTheme.Body1Strong),
+                        
+                        Label($"CEFR Level: {State.Results.EstimatedCEFRLevel}")
+                            .ThemeKey(MyTheme.Body1Strong),
+                        
+                        Label($"✅ {State.Results.WordsMarkedAsKnown} words marked as known")
+                            .ThemeKey(MyTheme.Body2),
+                        
+                        Label($"📚 {State.Results.WordsMarkedAsLearning} words marked for review")
+                            .ThemeKey(MyTheme.Body2)
+                    )
+                    .Padding(MyTheme.Size160)
+                )
+                .ThemeKey(MyTheme.CardStyle),
+                
+                Label("Frequency Band Results")
+                    .ThemeKey(MyTheme.Title3),
+                
+                VStack(spacing: MyTheme.Size120,
+                    [.. State.Results.BandResults.Select(band =>
+                        Border(
+                            HStack(spacing: MyTheme.Size120,
+                                VStack(
+                                    Label(band.BandName)
+                                        .ThemeKey(MyTheme.Body2Strong),
+                                    
+                                    Label($"{band.FrequencyMin}-{band.FrequencyMax}")
+                                        .ThemeKey(MyTheme.Caption1)
+                                        .TextColor(MyTheme.SecondaryText)
+                                )
+                                .HStart(),
+                                
+                                VStack(
+                                    Label($"Recognition: {band.RecognitionAccuracy:P0}")
+                                        .ThemeKey(MyTheme.Caption1),
+                                    
+                                    band.ProductionAccuracy > 0
+                                        ? Label($"Production: {band.ProductionAccuracy:P0}")
+                                            .ThemeKey(MyTheme.Caption1)
+                                        : null
+                                )
+                                .HEnd()
+                            )
+                            .Padding(MyTheme.Size120)
+                        )
+                        .ThemeKey(MyTheme.CardStyle)
+                    )]
+                )
+            )
+            .Padding(MyTheme.Size160)
+        );
+    }
+    
+    VisualNode RenderFooter()
+    {
+        return Border(
+            State.Phase switch
+            {
+                PlacementTestPhase.Instructions => 
+                    Button($"{_localize["Start"]}")
+                        .ThemeKey(MyTheme.Primary)
+                        .OnClicked(StartTest),
+                
+                PlacementTestPhase.Testing when State.Items[State.CurrentItemIndex].ItemType == PlacementItemType.Production =>
+                    Button($"{_localize["Submit"]}")
+                        .ThemeKey(MyTheme.Primary)
+                        .OnClicked(() => HandleProductionAnswer())
+                        .IsEnabled(!string.IsNullOrWhiteSpace(State.UserAnswer)),
+                
+                PlacementTestPhase.Results =>
+                    Button($"{_localize["Continue"]}")
+                        .ThemeKey(MyTheme.Primary)
+                        .OnClicked(CompleteTest),
+                
+                _ => null
+            }
+        )
+        .Padding(MyTheme.Size160)
+        .BackgroundColor(MyTheme.Surface1);
+    }
+    
+    // Event handlers
+    
+    async void StartTest()
+    {
+        SetState(s => s.IsLoading = true);
+        
+        var test = await _testService.GenerateHybridAssessmentTest(userId: 1); // TODO: Get actual user ID
+        
+        var items = await _context.PlacementTestItems
+            .Include(i => i.VocabularyWord)
+            .Where(i => i.PlacementTestId == test.Id)
+            .OrderBy(i => i.ItemType) // Recognition first, then production
+            .ToListAsync();
+        
+        SetState(s =>
+        {
+            s.CurrentTest = test;
+            s.Items = items;
+            s.CurrentItemIndex = 0;
+            s.Phase = PlacementTestPhase.Testing;
+            s.IsLoading = false;
+        });
+        
+        // Mark test as started
+        test.Status = PlacementTestStatus.InProgress;
+        test.StartedAt = DateTime.Now;
+        await _context.SaveChangesAsync();
+    }
+    
+    void HandleRecognitionAnswer(bool isCorrect)
+    {
+        var currentItem = State.Items[State.CurrentItemIndex];
+        currentItem.IsCorrect = isCorrect;
+        currentItem.AnsweredAt = DateTime.Now;
+        
+        _context.SaveChanges();
+        
+        // Move to next item
+        SetState(s =>
+        {
+            s.CurrentItemIndex++;
+            s.UserAnswer = null;
+        });
+    }
+    
+    void HandleProductionAnswer()
+    {
+        var currentItem = State.Items[State.CurrentItemIndex];
+        var word = currentItem.VocabularyWord;
+        
+        // Simple string matching (could be enhanced with fuzzy matching, typo tolerance)
+        var isCorrect = State.UserAnswer?.Trim().Equals(
+            word.TargetLanguageTerm, 
+            StringComparison.OrdinalIgnoreCase) ?? false;
+        
+        currentItem.IsCorrect = isCorrect;
+        currentItem.UserAnswer = State.UserAnswer;
+        currentItem.AnsweredAt = DateTime.Now;
+        
+        _context.SaveChanges();
+        
+        // Move to next item
+        SetState(s =>
+        {
+            s.CurrentItemIndex++;
+            s.UserAnswer = null;
+        });
+    }
+    
+    async void CompleteTest()
+    {
+        // Navigate back to home or profile
+        await MauiControls.Shell.Current.GoToAsync("..");
+    }
+}

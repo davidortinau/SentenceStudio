@@ -1,0 +1,352 @@
+using Microsoft.EntityFrameworkCore;
+using SentenceStudio.Shared.Models;
+
+namespace SentenceStudio.Data;
+
+/// <summary>
+/// Generates and scores placement tests for baseline vocabulary assessment.
+/// Implements adaptive sampling from frequency bands and applies research-based
+/// inference to establish initial learner proficiency.
+/// </summary>
+public class PlacementTestService
+{
+    private readonly ApplicationDbContext _context;
+    private readonly VocabularyProgressRepository _progressRepo;
+    private readonly Random _random = new();
+    
+    // Research-based frequency bands (words per band)
+    private static readonly Dictionary<string, (int Min, int Max)> FrequencyBands = new()
+    {
+        ["HighFrequency"] = (1, 1000),      // ~A1-A2 CEFR
+        ["MidFrequency"] = (1001, 3000),    // ~A2-B1 CEFR
+        ["LowFrequency"] = (3001, 5000),    // ~B1-B2 CEFR
+        ["Academic"] = (5001, 10000)        // ~B2-C1 CEFR
+    };
+    
+    private const int SampleSizePerBand = 12; // Per Nation & Beglar (2007)
+    private const float MasteryThreshold = 0.75f; // 75% correct = "known"
+    
+    public PlacementTestService(
+        ApplicationDbContext context,
+        VocabularyProgressRepository progressRepo)
+    {
+        _context = context;
+        _progressRepo = progressRepo;
+    }
+    
+    /// <summary>
+    /// Generate a Quick Recognition test (Option 1).
+    /// Samples words from each frequency band for recognition testing.
+    /// </summary>
+    public async Task<PlacementTest> GenerateQuickRecognitionTest(int userId)
+    {
+        var test = new PlacementTest
+        {
+            UserId = userId,
+            TestType = PlacementTestType.QuickRecognition,
+            CreatedAt = DateTime.Now
+        };
+        
+        foreach (var (bandName, (min, max)) in FrequencyBands)
+        {
+            var sampleWords = await GetRandomWordsInFrequencyRange(min, max, SampleSizePerBand);
+            
+            foreach (var word in sampleWords)
+            {
+                test.Items.Add(new PlacementTestItem
+                {
+                    VocabularyWordId = word.Id,
+                    ItemType = PlacementItemType.Recognition,
+                    FrequencyRank = GetFrequencyEstimate(word), // Would need frequency metadata
+                });
+            }
+        }
+        
+        _context.PlacementTests.Add(test);
+        await _context.SaveChangesAsync();
+        
+        return test;
+    }
+    
+    /// <summary>
+    /// Generate a Hybrid Assessment test (Option 3 - RECOMMENDED).
+    /// Recognition phase followed by production phase for high-performing items.
+    /// </summary>
+    public async Task<PlacementTest> GenerateHybridAssessmentTest(int userId)
+    {
+        var test = new PlacementTest
+        {
+            UserId = userId,
+            TestType = PlacementTestType.HybridAssessment,
+            CreatedAt = DateTime.Now
+        };
+        
+        // Phase 1: Recognition items from all bands
+        foreach (var (bandName, (min, max)) in FrequencyBands)
+        {
+            var sampleWords = await GetRandomWordsInFrequencyRange(min, max, SampleSizePerBand);
+            
+            foreach (var word in sampleWords)
+            {
+                test.Items.Add(new PlacementTestItem
+                {
+                    VocabularyWordId = word.Id,
+                    ItemType = PlacementItemType.Recognition,
+                    FrequencyRank = GetFrequencyEstimate(word),
+                });
+            }
+        }
+        
+        // Phase 2: Production items (subset - only test productive knowledge for high-freq)
+        var productionSampleWords = await GetRandomWordsInFrequencyRange(1, 2000, 15);
+        foreach (var word in productionSampleWords)
+        {
+            test.Items.Add(new PlacementTestItem
+            {
+                VocabularyWordId = word.Id,
+                ItemType = PlacementItemType.Production,
+                FrequencyRank = GetFrequencyEstimate(word),
+            });
+        }
+        
+        _context.PlacementTests.Add(test);
+        await _context.SaveChangesAsync();
+        
+        return test;
+    }
+    
+    /// <summary>
+    /// Score a completed test and bulk-update VocabularyProgress.
+    /// Uses statistical inference: if learner knows 75%+ of a frequency band,
+    /// mark all words in that band as "known" with conservative mastery scores.
+    /// </summary>
+    public async Task<PlacementTestResults> ScoreAndApplyTest(int testId)
+    {
+        var test = await _context.PlacementTests
+            .Include(t => t.Items)
+            .ThenInclude(i => i.VocabularyWord)
+            .FirstOrDefaultAsync(t => t.Id == testId);
+        
+        if (test == null)
+            throw new InvalidOperationException($"Test {testId} not found");
+        
+        // Calculate band-level accuracy
+        var bandResults = new Dictionary<string, BandResult>();
+        
+        foreach (var (bandName, (min, max)) in FrequencyBands)
+        {
+            var bandItems = test.Items
+                .Where(i => i.FrequencyRank >= min && i.FrequencyRank <= max)
+                .ToList();
+            
+            if (bandItems.Count == 0) continue;
+            
+            var recognitionItems = bandItems.Where(i => i.ItemType == PlacementItemType.Recognition).ToList();
+            var productionItems = bandItems.Where(i => i.ItemType == PlacementItemType.Production).ToList();
+            
+            var recognitionAccuracy = recognitionItems.Count > 0 
+                ? recognitionItems.Count(i => i.IsCorrect == true) / (float)recognitionItems.Count 
+                : 0f;
+            
+            var productionAccuracy = productionItems.Count > 0
+                ? productionItems.Count(i => i.IsCorrect == true) / (float)productionItems.Count
+                : 0f;
+            
+            bandResults[bandName] = new BandResult
+            {
+                BandName = bandName,
+                FrequencyMin = min,
+                FrequencyMax = max,
+                RecognitionAccuracy = recognitionAccuracy,
+                ProductionAccuracy = productionAccuracy,
+                ShouldMarkAsKnown = recognitionAccuracy >= MasteryThreshold
+            };
+        }
+        
+        // Apply results: bulk update VocabularyProgress
+        var markedKnown = 0;
+        var markedLearning = 0;
+        
+        foreach (var (bandName, result) in bandResults)
+        {
+            if (result.ShouldMarkAsKnown)
+            {
+                // Mark all words in this frequency range
+                var wordsInBand = await _context.VocabularyWords
+                    .Where(w => GetFrequencyEstimate(w) >= result.FrequencyMin 
+                             && GetFrequencyEstimate(w) <= result.FrequencyMax)
+                    .ToListAsync();
+                
+                foreach (var word in wordsInBand)
+                {
+                    var existingProgress = await _progressRepo.GetProgress(test.UserId, word.Id);
+                    
+                    if (existingProgress == null)
+                    {
+                        existingProgress = new VocabularyProgress
+                        {
+                            UserId = test.UserId,
+                            VocabularyWordId = word.Id,
+                            FirstSeenAt = DateTime.Now,
+                            LastPracticedAt = DateTime.Now
+                        };
+                        _context.VocabularyProgress.Add(existingProgress);
+                    }
+                    
+                    // Conservative initial mastery based on band performance
+                    existingProgress.MasteryScore = Math.Max(
+                        existingProgress.MasteryScore,
+                        result.RecognitionAccuracy * 0.8f // Conservative discount
+                    );
+                    
+                    // Set phase based on production accuracy
+                    if (result.ProductionAccuracy >= MasteryThreshold)
+                    {
+                        existingProgress.CurrentPhase = LearningPhase.Application;
+                        existingProgress.ProductionCorrect = 3; // Simulate confidence
+                    }
+                    else if (result.RecognitionAccuracy >= MasteryThreshold)
+                    {
+                        existingProgress.CurrentPhase = LearningPhase.Production;
+                        existingProgress.RecognitionCorrect = 3;
+                    }
+                    
+                    markedKnown++;
+                }
+            }
+            else if (result.RecognitionAccuracy >= 0.5f) // Partial knowledge
+            {
+                // Mark as "learning" - needs review
+                var wordsInBand = await _context.VocabularyWords
+                    .Where(w => GetFrequencyEstimate(w) >= result.FrequencyMin 
+                             && GetFrequencyEstimate(w) <= result.FrequencyMax)
+                    .Take(50) // Don't overwhelm with partial-knowledge items
+                    .ToListAsync();
+                
+                foreach (var word in wordsInBand)
+                {
+                    var existingProgress = await _progressRepo.GetProgress(test.UserId, word.Id);
+                    
+                    if (existingProgress == null)
+                    {
+                        existingProgress = new VocabularyProgress
+                        {
+                            UserId = test.UserId,
+                            VocabularyWordId = word.Id,
+                            MasteryScore = 0.3f,
+                            CurrentPhase = LearningPhase.Recognition,
+                            FirstSeenAt = DateTime.Now,
+                            LastPracticedAt = DateTime.Now,
+                            NextReviewDate = DateTime.Now.AddDays(1) // Due soon
+                        };
+                        _context.VocabularyProgress.Add(existingProgress);
+                    }
+                    
+                    markedLearning++;
+                }
+            }
+        }
+        
+        await _context.SaveChangesAsync();
+        
+        // Update test record
+        test.Status = PlacementTestStatus.Completed;
+        test.CompletedAt = DateTime.Now;
+        test.WordsMarkedAsKnown = markedKnown;
+        test.WordsMarkedAsLearning = markedLearning;
+        test.EstimatedVocabularySizeMin = EstimateVocabularySize(bandResults, conservative: true);
+        test.EstimatedVocabularySizeMax = EstimateVocabularySize(bandResults, conservative: false);
+        test.EstimatedCEFRLevel = InferCEFRLevel(bandResults);
+        
+        await _context.SaveChangesAsync();
+        
+        return new PlacementTestResults
+        {
+            TestId = testId,
+            BandResults = bandResults.Values.ToList(),
+            WordsMarkedAsKnown = markedKnown,
+            WordsMarkedAsLearning = markedLearning,
+            EstimatedVocabularySize = test.EstimatedVocabularySizeMin,
+            EstimatedCEFRLevel = test.EstimatedCEFRLevel
+        };
+    }
+    
+    // Helper methods
+    
+    private async Task<List<VocabularyWord>> GetRandomWordsInFrequencyRange(int min, int max, int count)
+    {
+        // TODO: When frequency metadata is added to VocabularyWord, filter by actual frequency
+        // For now, use random sampling as placeholder
+        var allWords = await _context.VocabularyWords
+            .OrderBy(w => Guid.NewGuid())
+            .Take(count)
+            .ToListAsync();
+        
+        return allWords;
+    }
+    
+    private int GetFrequencyEstimate(VocabularyWord word)
+    {
+        // TODO: Add FrequencyRank to VocabularyWord model
+        // For now, return placeholder based on ID (temporary)
+        return word.Id % 10000;
+    }
+    
+    private int EstimateVocabularySize(Dictionary<string, BandResult> bandResults, bool conservative)
+    {
+        var total = 0;
+        
+        foreach (var (_, result) in bandResults)
+        {
+            var bandSize = result.FrequencyMax - result.FrequencyMin + 1;
+            var knownInBand = (int)(bandSize * result.RecognitionAccuracy);
+            
+            if (conservative)
+                knownInBand = (int)(knownInBand * 0.8); // 20% discount for inference error
+            
+            total += knownInBand;
+        }
+        
+        return total;
+    }
+    
+    private string InferCEFRLevel(Dictionary<string, BandResult> bandResults)
+    {
+        // Rough heuristic based on research (Nation, 2006):
+        // A1: ~500 words | A2: ~1000 | B1: ~2000 | B2: ~3000-4000 | C1: ~5000+
+        
+        if (bandResults.TryGetValue("Academic", out var academic) && academic.RecognitionAccuracy >= 0.7f)
+            return "C1";
+        
+        if (bandResults.TryGetValue("LowFrequency", out var low) && low.RecognitionAccuracy >= 0.7f)
+            return "B2";
+        
+        if (bandResults.TryGetValue("MidFrequency", out var mid) && mid.RecognitionAccuracy >= 0.7f)
+            return "B1";
+        
+        if (bandResults.TryGetValue("HighFrequency", out var high) && high.RecognitionAccuracy >= 0.7f)
+            return "A2";
+        
+        return "A1";
+    }
+}
+
+public class BandResult
+{
+    public string BandName { get; set; } = "";
+    public int FrequencyMin { get; set; }
+    public int FrequencyMax { get; set; }
+    public float RecognitionAccuracy { get; set; }
+    public float ProductionAccuracy { get; set; }
+    public bool ShouldMarkAsKnown { get; set; }
+}
+
+public class PlacementTestResults
+{
+    public int TestId { get; set; }
+    public List<BandResult> BandResults { get; set; } = new();
+    public int WordsMarkedAsKnown { get; set; }
+    public int WordsMarkedAsLearning { get; set; }
+    public int EstimatedVocabularySize { get; set; }
+    public string? EstimatedCEFRLevel { get; set; }
+}

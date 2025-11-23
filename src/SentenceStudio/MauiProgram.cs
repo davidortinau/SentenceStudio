@@ -172,30 +172,28 @@ public static class MauiProgram
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
-		System.Diagnostics.Debug.WriteLine("🏗️ Building MauiApp...");
 		var app = builder.Build();
-		System.Diagnostics.Debug.WriteLine("✅ MauiApp built successfully");
+		var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MauiProgram");
+		logger.LogDebug("✅ MauiApp built successfully");
 
 		// CRITICAL: Initialize database schema SYNCHRONOUSLY before app starts
 		// This ensures MinutesSpent column exists before any queries attempt to use it
-		System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 1: About to get ISyncService");
+		logger.LogDebug("🚀 CHECKPOINT 1: About to get ISyncService");
 
 		SentenceStudio.Services.ISyncService syncService;
 		try
 		{
 			syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
-			System.Diagnostics.Debug.WriteLine("✅ CHECKPOINT 2: Got ISyncService successfully");
+			logger.LogDebug("✅ CHECKPOINT 2: Got ISyncService successfully");
 
 			// BLOCKING call - wait for schema to be ready
-			System.Diagnostics.Debug.WriteLine("🚀 CHECKPOINT 3: Starting InitializeDatabaseAsync with Wait()");
+			logger.LogDebug("🚀 CHECKPOINT 3: Starting InitializeDatabaseAsync with Wait()");
 			Task.Run(async () => await syncService.InitializeDatabaseAsync()).Wait();
-			System.Diagnostics.Debug.WriteLine("✅ CHECKPOINT 4: Database initialization complete");
+			logger.LogDebug("✅ CHECKPOINT 4: Database initialization complete");
 		}
 		catch (Exception ex)
 		{
-			System.Diagnostics.Debug.WriteLine($"❌ FATAL ERROR in database initialization: {ex.Message}");
-			System.Diagnostics.Debug.WriteLine($"❌ Exception type: {ex.GetType().Name}");
-			System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+			logger.LogError(ex, "❌ FATAL ERROR in database initialization");
 			throw; // Re-throw to prevent app from starting with broken database
 		}
 
@@ -205,11 +203,11 @@ public static class MauiProgram
 			try
 			{
 				await syncService.TriggerSyncAsync();
-				System.Diagnostics.Debug.WriteLine($"[CoreSync] Background sync completed successfully");
+				logger.LogInformation("[CoreSync] Background sync completed successfully");
 			}
 			catch (Exception ex)
 			{
-				System.Diagnostics.Debug.WriteLine($"❌ [CoreSync] Background sync failed: {ex.Message}");
+				logger.LogWarning(ex, "[CoreSync] Background sync failed");
 			}
 		});
 
@@ -224,11 +222,11 @@ public static class MauiProgram
 					{
 						var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
 						await syncService.TriggerSyncAsync();
-						System.Diagnostics.Debug.WriteLine($"[CoreSync] Connectivity sync completed successfully");
+						logger.LogInformation("[CoreSync] Connectivity sync completed successfully");
 					}
 					catch (Exception ex)
 					{
-						System.Diagnostics.Debug.WriteLine($"[CoreSync] Sync on connectivity: {ex.Message}");
+						logger.LogWarning(ex, "[CoreSync] Sync on connectivity failed");
 					}
 				});
 			}

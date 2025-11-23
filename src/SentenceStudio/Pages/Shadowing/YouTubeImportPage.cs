@@ -1,4 +1,5 @@
 using MauiReactor.Compatibility;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.YouTube;
 
@@ -24,6 +25,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
     [Inject] UserProfileRepository _userProfileRepository;
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] TranscriptFormattingService _formattingService;
+    [Inject] ILogger<YouTubeImportPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -119,17 +121,17 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 Grid(
                     BoxView()
                         .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
-                    
+
                     VStack(spacing: 15,
                         ActivityIndicator()
                             .IsRunning(true)
                             .Color(Colors.White),
-                        
+
                         Label($"{_localize["PolishingTranscriptWithAI"]}")
                             .TextColor(Colors.White)
                             .FontSize(16)
                             .HorizontalTextAlignment(TextAlignment.Center),
-                        
+
                         Label("Please wait, this may take a moment")
                             .TextColor(Colors.White.WithAlpha(0.8f))
                             .FontSize(14)
@@ -299,7 +301,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             if (duplicateByUrl != null)
             {
                 SetState(s => s.IsSavingResource = false);
-                
+
                 var overwrite = await Application.Current.MainPage.DisplayAlert(
                     "⚠️ Duplicate Found",
                     $"A resource with this YouTube URL already exists:\n\n\"{duplicateByUrl.Title}\"\n\nDo you want to view the existing resource instead of creating a duplicate?",
@@ -318,7 +320,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             else if (duplicateByTitle != null)
             {
                 SetState(s => s.IsSavingResource = false);
-                
+
                 var proceed = await Application.Current.MainPage.DisplayAlert(
                     "⚠️ Similar Title Found",
                     $"A resource with a similar title already exists:\n\n\"{duplicateByTitle.Title}\"\n\nAre you sure you want to create a new resource?",
@@ -329,7 +331,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 {
                     return;
                 }
-                
+
                 SetState(s => s.IsSavingResource = true);
             }
 
@@ -338,7 +340,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             var rawLanguage = State.SelectedTranscript?.LanguageName ?? profile?.TargetLanguage ?? "Korean";
             var language = CleanLanguageName(rawLanguage);
 
-            System.Diagnostics.Debug.WriteLine($"🔧 Language mapping: '{rawLanguage}' -> '{language}'");
+            _logger.LogDebug("🔧 Language mapping: '{RawLanguage}' -> '{Language}'", rawLanguage, language);
 
             // Create learning resource
             var resource = new LearningResource
@@ -420,8 +422,8 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
             var rawLanguage = State.SelectedTranscript?.LanguageName;
             var language = CleanLanguageName(rawLanguage);
-            System.Diagnostics.Debug.WriteLine($"🔧 Language for AI polishing: '{rawLanguage}' -> '{language}'");
-            
+            _logger.LogDebug("🔧 Language for AI polishing: '{RawLanguage}' -> '{Language}'", rawLanguage, language);
+
             var polished = await _formattingService.PolishWithAiAsync(State.TranscriptText, language);
 
             SetState(s =>

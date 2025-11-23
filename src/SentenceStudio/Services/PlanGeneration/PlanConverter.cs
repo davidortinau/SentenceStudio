@@ -71,9 +71,14 @@ public static class PlanConverter
             "VocabularyReview" => PlanActivityType.VocabularyReview,
             "Reading" => PlanActivityType.Reading,
             "Listening" => PlanActivityType.Listening,
+            "VideoWatching" => PlanActivityType.VideoWatching,
             "Shadowing" => PlanActivityType.Shadowing,
             "Cloze" => PlanActivityType.Cloze,
             "Translation" => PlanActivityType.Translation,
+            "Writing" => PlanActivityType.Writing,
+            "SceneDescription" => PlanActivityType.SceneDescription,
+            "Warmup" => PlanActivityType.Conversation,
+            "Conversation" => PlanActivityType.Conversation,
             "VocabularyGame" => PlanActivityType.VocabularyGame,
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")
         };
@@ -86,9 +91,13 @@ public static class PlanConverter
             PlanActivityType.VocabularyReview => "/vocabulary-quiz",
             PlanActivityType.Reading => "/reading",
             PlanActivityType.Listening => "/listening",
+            PlanActivityType.VideoWatching => "/video-watching",
             PlanActivityType.Shadowing => "/shadowing",
             PlanActivityType.Cloze => "/cloze",
             PlanActivityType.Translation => "/translation",
+            PlanActivityType.Writing => "/writing",
+            PlanActivityType.SceneDescription => "/describe-scene",
+            PlanActivityType.Conversation => "/warmup",
             PlanActivityType.VocabularyGame => "/vocabulary-matching",
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")
         };
@@ -130,9 +139,13 @@ public static class PlanConverter
             PlanActivityType.VocabularyReview => "plan_item_vocab_review_title",
             PlanActivityType.Reading => "plan_item_reading_title",
             PlanActivityType.Listening => "plan_item_listening_title",
+            PlanActivityType.VideoWatching => "plan_item_video_watching_title",
             PlanActivityType.Shadowing => "plan_item_shadowing_title",
             PlanActivityType.Cloze => "plan_item_cloze_title",
             PlanActivityType.Translation => "plan_item_translation_title",
+            PlanActivityType.Writing => "plan_item_writing_title",
+            PlanActivityType.SceneDescription => "plan_item_scene_description_title",
+            PlanActivityType.Conversation => "plan_item_conversation_title",
             PlanActivityType.VocabularyGame => "plan_item_vocab_game_title",
             _ => "plan_item_unknown_title"
         };
@@ -145,9 +158,13 @@ public static class PlanConverter
             PlanActivityType.VocabularyReview => "plan_item_vocab_review_desc",
             PlanActivityType.Reading => "plan_item_reading_desc",
             PlanActivityType.Listening => "plan_item_listening_desc",
+            PlanActivityType.VideoWatching => "plan_item_video_watching_desc",
             PlanActivityType.Shadowing => "plan_item_shadowing_desc",
             PlanActivityType.Cloze => "plan_item_cloze_desc",
             PlanActivityType.Translation => "plan_item_translation_desc",
+            PlanActivityType.Writing => "plan_item_writing_desc",
+            PlanActivityType.SceneDescription => "plan_item_scene_description_desc",
+            PlanActivityType.Conversation => "plan_item_conversation_desc",
             PlanActivityType.VocabularyGame => "plan_item_vocab_game_desc",
             _ => "plan_item_unknown_desc"
         };
@@ -167,13 +184,13 @@ public static class PlanConverter
             components.Add($"S{skillId.Value}");
 
         var combined = string.Join("_", components);
-        
+
         // Use deterministic hash to create stable ID
         // This ensures same inputs always produce same ID
         using var sha = System.Security.Cryptography.SHA256.Create();
         var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
         var guid = new Guid(hash.Take(16).ToArray());
-        
+
         return guid.ToString("N")[..16]; // Take first 16 chars for reasonable length
     }
 }

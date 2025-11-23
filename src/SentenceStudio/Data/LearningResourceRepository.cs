@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
 public class LearningResourceRepository
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<LearningResourceRepository> _logger;
     private ISyncService _syncService;
     private AiService _aiService;
 
-    public LearningResourceRepository(IServiceProvider serviceProvider = null)
+    public LearningResourceRepository(IServiceProvider serviceProvider, ILogger<LearningResourceRepository> logger)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         if (serviceProvider != null)
         {
             _syncService = serviceProvider.GetService<ISyncService>();
@@ -188,7 +191,7 @@ public class LearningResourceRepository
                 {
                     // Update resource properties
                     db.Entry(existingResource).CurrentValues.SetValues(resource);
-                    
+
                     // Handle vocabulary associations
                     // Get the actual vocabulary words from the database in this context
                     var dbVocabularyWords = await db.VocabularyWords
@@ -208,7 +211,7 @@ public class LearningResourceRepository
                 // For new resources
                 db.LearningResources.Add(resource);
                 await db.SaveChangesAsync(); // Save to get the resource ID
-                
+
                 // Now associate vocabulary words
                 if (vocabularyWordIds.Any())
                 {
@@ -232,8 +235,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ SaveResourceAsync error: {ex}");
-            System.Diagnostics.Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "❌ SaveResourceAsync error");
             await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return -1;
         }
@@ -798,10 +800,10 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var normalizedUrl = mediaUrl.Trim().ToLower();
-        
+
         return await db.LearningResources
-            .FirstOrDefaultAsync(lr => 
-                lr.MediaUrl != null && 
+            .FirstOrDefaultAsync(lr =>
+                lr.MediaUrl != null &&
                 lr.MediaUrl.Trim().ToLower() == normalizedUrl);
     }
 
@@ -817,10 +819,10 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var normalizedTitle = title.Trim().ToLower();
-        
+
         return await db.LearningResources
-            .FirstOrDefaultAsync(lr => 
-                lr.Title != null && 
+            .FirstOrDefaultAsync(lr =>
+                lr.Title != null &&
                 lr.Title.Trim().ToLower() == normalizedTitle);
     }
 }

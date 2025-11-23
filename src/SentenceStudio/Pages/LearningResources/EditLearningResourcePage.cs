@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using LukeMauiFilePicker;
 using SentenceStudio.Pages.VocabularyProgress;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -28,6 +29,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] IFilePickerService _picker;
     [Inject] TranscriptFormattingService _formattingService;
     [Inject] UserProfileRepository _userProfileRepo;
+    [Inject] ILogger<EditLearningResourcePage> _logger;
 
     // Track whether we need to save resource relationship (only for new words)
     private bool _shouldSaveResourceRelationship = false;
@@ -79,17 +81,17 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             Grid(
                                 BoxView()
                                     .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
-                                
+
                                 VStack(spacing: 15,
                                     ActivityIndicator()
                                         .IsRunning(true)
                                         .Color(Colors.White),
-                                    
+
                                     Label(State.IsPolishingTranscript ? "✨ Polishing transcript with AI..." : "🧹 Cleaning up transcript...")
                                         .TextColor(Colors.White)
                                         .FontSize(16)
                                         .HorizontalTextAlignment(TextAlignment.Center),
-                                    
+
                                     Label("Please wait, this may take a moment")
                                         .TextColor(Colors.White.WithAlpha(0.8f))
                                         .FontSize(14)
@@ -709,7 +711,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         {
             SetState(s => s.IsLoading = false);
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to save vocabulary word: {ex.Message}", "OK");
-            System.Diagnostics.Debug.WriteLine($"SaveVocabularyWordAsync error: {ex}");
+            _logger.LogError(ex, "SaveVocabularyWordAsync error");
         }
     }
 
@@ -745,7 +747,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         {
             SetState(s => s.IsLoading = false);
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
-            System.Diagnostics.Debug.WriteLine($"DeleteVocabularyWord error: {ex}");
+            _logger.LogError(ex, "DeleteVocabularyWord error");
         }
     }
 
@@ -760,7 +762,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
         if (existingWord != null)
         {
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Found existing word: {targetTerm}");
+            _logger.LogDebug("🏴‍☠️ Found existing word: {TargetTerm}", targetTerm);
             return existingWord;
         }
 
@@ -781,7 +783,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             throw new Exception($"Failed to save vocabulary word: {targetTerm}");
         }
 
-        System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Created new word: {targetTerm} (ID: {newWord.Id})");
+        _logger.LogDebug("🏴‍☠️ Created new word: {TargetTerm} (ID: {WordId})", targetTerm, newWord.Id);
         return newWord;
     }
 
@@ -832,17 +834,17 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         {
             // Get user profile for fallback languages
             var userProfile = await _userProfileRepo.GetOrCreateDefaultAsync();
-            
+
             // Determine the target and native languages
-            var targetLanguage = !string.IsNullOrWhiteSpace(State.Resource.Language) 
-                ? State.Resource.Language 
+            var targetLanguage = !string.IsNullOrWhiteSpace(State.Resource.Language)
+                ? State.Resource.Language
                 : userProfile?.TargetLanguage ?? "Korean";
-            
+
             var nativeLanguage = userProfile?.NativeLanguage ?? "English";
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ GenerateVocabulary: Starting vocabulary generation for language '{targetLanguage}'");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Transcript length: {State.Resource.Transcript.Length} chars");
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Using: Target={targetLanguage}, Native={nativeLanguage}");
+            _logger.LogDebug("🏴‍☠️ GenerateVocabulary: Starting vocabulary generation for language '{TargetLanguage}'", targetLanguage);
+            _logger.LogDebug("🏴‍☠️ Transcript length: {Length} chars", State.Resource.Transcript.Length);
+            _logger.LogDebug("🏴‍☠️ Using: Target={TargetLanguage}, Native={NativeLanguage}", targetLanguage, nativeLanguage);
 
             // Build AI prompt - no need to fetch existing words, let AI extract everything
             string prompt = $@"
@@ -881,15 +883,15 @@ Transcript:
 {State.Resource.Transcript}
 ";
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Sending prompt to AI (length: {prompt.Length} chars)");
+            _logger.LogDebug("🏴‍☠️ Sending prompt to AI (length: {Length} chars)", prompt.Length);
 
             var vocabulary = await _aiService.SendPrompt<List<VocabularyWord>>(prompt);
 
-            System.Diagnostics.Debug.WriteLine($"🏴‍☠️ AI returned {vocabulary?.Count ?? 0} vocabulary words");
+            _logger.LogDebug("🏴‍☠️ AI returned {Count} vocabulary words", vocabulary?.Count ?? 0);
 
             if (vocabulary != null && vocabulary.Any())
             {
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Processing {vocabulary.Count} words from AI...");
+                _logger.LogDebug("🏴‍☠️ Processing {Count} words from AI...", vocabulary.Count);
 
                 int newWordsCreated = 0;
                 int existingWordsLinked = 0;
@@ -901,7 +903,7 @@ Transcript:
                 {
                     if (string.IsNullOrWhiteSpace(wordData.TargetLanguageTerm))
                     {
-                        System.Diagnostics.Debug.WriteLine($"⚠️ Skipping word with empty target term");
+                        _logger.LogWarning("⚠️ Skipping word with empty target term");
                         continue;
                     }
 
@@ -912,7 +914,7 @@ Transcript:
                     if (alreadyInResource)
                     {
                         localDuplicatesSkipped++;
-                        System.Diagnostics.Debug.WriteLine($"⏭️ Already in resource: {wordData.TargetLanguageTerm}");
+                        _logger.LogDebug("⏭️ Already in resource: {TargetTerm}", wordData.TargetLanguageTerm);
                         continue;
                     }
 
@@ -928,7 +930,7 @@ Transcript:
 
                         if (targetIsEnglish && !nativeIsEnglish)
                         {
-                            System.Diagnostics.Debug.WriteLine($"⚠️ SWAPPED TERMS DETECTED! Swapping: '{targetTerm}' <-> '{nativeTerm}'");
+                            _logger.LogWarning("⚠️ SWAPPED TERMS DETECTED! Swapping: '{TargetTerm}' <-> '{NativeTerm}'", targetTerm, nativeTerm);
                             // Swap them
                             var temp = targetTerm;
                             targetTerm = nativeTerm;
@@ -936,7 +938,7 @@ Transcript:
                         }
                         else if (targetIsEnglish && nativeIsEnglish)
                         {
-                            System.Diagnostics.Debug.WriteLine($"⚠️ Both terms appear to be English, skipping: '{targetTerm}' / '{nativeTerm}'");
+                            _logger.LogWarning("⚠️ Both terms appear to be English, skipping: '{TargetTerm}' / '{NativeTerm}'", targetTerm, nativeTerm);
                             continue;
                         }
 
@@ -948,23 +950,23 @@ Transcript:
                             (DateTime.UtcNow - word.CreatedAt).TotalSeconds < 5)
                         {
                             newWordsCreated++;
-                            System.Diagnostics.Debug.WriteLine($"✨ New word: {word.TargetLanguageTerm} = {word.NativeLanguageTerm}");
+                            _logger.LogDebug("✨ New word: {TargetTerm} = {NativeTerm}", word.TargetLanguageTerm, word.NativeLanguageTerm);
                         }
                         else
                         {
                             existingWordsLinked++;
-                            System.Diagnostics.Debug.WriteLine($"🔗 Linking existing: {word.TargetLanguageTerm} = {word.NativeLanguageTerm}");
+                            _logger.LogDebug("🔗 Linking existing: {TargetTerm} = {NativeTerm}", word.TargetLanguageTerm, word.NativeLanguageTerm);
                         }
 
                         wordsToAssociate.Add(word);
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"❌ Error processing word '{wordData.TargetLanguageTerm}': {ex.Message}");
+                        _logger.LogError(ex, "Error processing word '{TargetTerm}'", wordData.TargetLanguageTerm);
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Prepared {wordsToAssociate.Count} words to associate with resource");
+                _logger.LogDebug("🏴‍☠️ Prepared {Count} words to associate with resource", wordsToAssociate.Count);
 
                 // Add all words to the resource vocabulary collection
                 SetState(s =>
@@ -981,9 +983,9 @@ Transcript:
                 });
 
                 // Save the resource to persist all word associations
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Saving resource to persist {wordsToAssociate.Count} word associations...");
+                _logger.LogDebug("🏴‍☠️ Saving resource to persist {Count} word associations...", wordsToAssociate.Count);
                 await _resourceRepo.SaveResourceAsync(State.Resource);
-                System.Diagnostics.Debug.WriteLine($"✅ Resource saved successfully!");
+                _logger.LogDebug("✅ Resource saved successfully!");
 
                 SetState(s => s.IsGeneratingVocabulary = false);
 
@@ -999,20 +1001,20 @@ Transcript:
 
                 message += $"\n\n📚 Total vocabulary for this resource: {State.Resource.Vocabulary.Count}";
 
-                System.Diagnostics.Debug.WriteLine($"🏴‍☠️ Final stats: {newWordsCreated} new, {existingWordsLinked} existing, {localDuplicatesSkipped} skipped");
+                _logger.LogInformation("🏴‍☠️ Final stats: {NewWords} new, {ExistingWords} existing, {SkippedWords} skipped", newWordsCreated, existingWordsLinked, localDuplicatesSkipped);
 
                 await App.Current.MainPage.DisplayAlert("Vocabulary Generated!", message, "OK");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"⚠️ AI returned null or empty vocabulary list");
+                _logger.LogWarning("⚠️ AI returned null or empty vocabulary list");
                 SetState(s => s.IsGeneratingVocabulary = false);
                 await App.Current.MainPage.DisplayAlert("Error", "AI did not generate any vocabulary. There might be an issue with the AI service.", "OK");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ GenerateVocabulary error: {ex}");
+            _logger.LogError(ex, "GenerateVocabulary error");
             SetState(s => s.IsGeneratingVocabulary = false);
             await App.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
         }

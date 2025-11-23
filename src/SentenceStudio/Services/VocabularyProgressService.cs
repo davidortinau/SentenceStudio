@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Logging;
+
 namespace SentenceStudio.Services;
 
 public class VocabularyProgressService : IVocabularyProgressService
 {
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly VocabularyLearningContextRepository _contextRepo;
+    private readonly ILogger<VocabularyProgressService> _logger;
 
     // Enhanced rigorous thresholds - aligned with SLA developmental sequences! ⚓
     private const float MASTERY_THRESHOLD = 0.85f;                // Full productive mastery
@@ -17,10 +20,12 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     public VocabularyProgressService(
         VocabularyProgressRepository progressRepo,
-        VocabularyLearningContextRepository contextRepo)
+        VocabularyLearningContextRepository contextRepo,
+        ILogger<VocabularyProgressService> logger)
     {
         _progressRepo = progressRepo;
         _contextRepo = contextRepo;
+        _logger = logger;
     }
 
     /// <summary>
@@ -197,11 +202,9 @@ public class VocabularyProgressService : IVocabularyProgressService
 
         var finalScore = Math.Min(1.0f, penalizedScore * timeFactor);
 
-        // Debug output for Captain to monitor
-        Debug.WriteLine($"🏴‍☠️ Word {progress.VocabularyWordId}: " +
-                       $"Base={baseScore:F2}, Rolling={rollingScore:F2}, " +
-                       $"Penalized={penalizedScore:F2}, " +
-                       $"Final={finalScore:F2}");
+        // Log for monitoring
+        _logger.LogDebug("🏴‍☠️ Word {WordId}: Base={BaseScore:F2}, Rolling={RollingScore:F2}, Penalized={PenalizedScore:F2}, Final={FinalScore:F2}",
+            progress.VocabularyWordId, baseScore, rollingScore, penalizedScore, finalScore);
 
         return finalScore;
     }
@@ -217,13 +220,13 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         // Calculate recognition score
         float recognitionScore = CalculateRecognitionScore(progress);
-        
+
         // Calculate production score
         float productionScore = CalculateProductionScore(progress);
-        
+
         // CASE 1: Has demonstrated production competency
         // Production IMPLIES recognition (can't produce what you don't recognize)
-        if (productionScore >= RECEPTIVE_MASTERY_THRESHOLD && 
+        if (productionScore >= RECEPTIVE_MASTERY_THRESHOLD &&
             progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
             progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
         {
@@ -231,16 +234,16 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Even if recognition score is lower (maybe they haven't seen it in recognition contexts)
             return productionScore;
         }
-        
+
         // CASE 2: Has strong recognition, with some production evidence
-        if (recognitionScore >= RECEPTIVE_MASTERY_THRESHOLD && 
+        if (recognitionScore >= RECEPTIVE_MASTERY_THRESHOLD &&
             progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION)
         {
-            if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION && 
+            if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
                 progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
             {
                 // Has both - blend with emphasis on production (harder skill)
-                return Math.Max(recognitionScore, 
+                return Math.Max(recognitionScore,
                                (recognitionScore * 0.4f) + (productionScore * 0.6f));
             }
             else if (progress.ProductionAttempts > 0)
@@ -255,7 +258,7 @@ public class VocabularyProgressService : IVocabularyProgressService
                 return Math.Min(0.85f, recognitionScore);
             }
         }
-        
+
         // CASE 3: Building competency - not enough attempts yet
         if (progress.RecognitionAttempts > 0 || progress.ProductionAttempts > 0)
         {
@@ -269,7 +272,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             return 0f;
         }
     }
-    
+
     /// <summary>
     /// Calculate recognition score with proper thresholds
     /// </summary>
@@ -287,7 +290,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         }
         return 0f;
     }
-    
+
     /// <summary>
     /// Calculate production score with proper thresholds
     /// </summary>
@@ -404,9 +407,8 @@ public class VocabularyProgressService : IVocabularyProgressService
             progress.RecognitionCorrect >= MIN_CORRECT_RECOGNITION)
         {
             progress.CurrentPhase = LearningPhase.Production;
-            Debug.WriteLine($"🎯 Word {progress.VocabularyWordId} advanced to Production phase! " +
-                          $"Recognition: {progress.RecognitionCorrect}/{progress.RecognitionAttempts} " +
-                          $"({progress.RecognitionAccuracy:P})");
+            _logger.LogInformation("🎯 Word {WordId} advanced to Production phase! Recognition: {Correct}/{Total} ({Accuracy:P})",
+                progress.VocabularyWordId, progress.RecognitionCorrect, progress.RecognitionAttempts, progress.RecognitionAccuracy);
         }
         // Advance from Production to Application
         else if (progress.CurrentPhase == LearningPhase.Production &&
@@ -416,9 +418,8 @@ public class VocabularyProgressService : IVocabularyProgressService
                  progress.RecognitionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD) // Must maintain recognition skills!
         {
             progress.CurrentPhase = LearningPhase.Application;
-            Debug.WriteLine($"🚀 Word {progress.VocabularyWordId} advanced to Application phase! " +
-                          $"Production: {progress.ProductionCorrect}/{progress.ProductionAttempts} " +
-                          $"({progress.ProductionAccuracy:P})");
+            _logger.LogInformation("🚀 Word {WordId} advanced to Application phase! Production: {Correct}/{Total} ({Accuracy:P})",
+                progress.VocabularyWordId, progress.ProductionCorrect, progress.ProductionAttempts, progress.ProductionAccuracy);
         }
     }
 

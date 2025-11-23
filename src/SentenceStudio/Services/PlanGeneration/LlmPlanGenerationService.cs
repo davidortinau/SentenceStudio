@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
 
 namespace SentenceStudio.Services.PlanGeneration;
@@ -18,6 +19,7 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
     private readonly SkillProfileRepository _skillRepo;
     private readonly VocabularyProgressRepository _vocabProgressRepo;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<LlmPlanGenerationService> _logger;
 
     private static readonly string PromptTemplate;
 
@@ -40,7 +42,8 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
         LearningResourceRepository resourceRepo,
         SkillProfileRepository skillRepo,
         VocabularyProgressRepository vocabProgressRepo,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        ILogger<LlmPlanGenerationService> logger)
     {
         _chatClient = chatClient;
         _userProfileRepo = userProfileRepo;
@@ -48,43 +51,56 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
         _skillRepo = skillRepo;
         _vocabProgressRepo = vocabProgressRepo;
         _serviceProvider = serviceProvider;
+        _logger = logger;
     }
 
     public async Task<DailyPlanResponse?> GeneratePlanAsync(CancellationToken ct = default)
     {
         try
         {
-            Debug.WriteLine("🤖 Starting LLM plan generation...");
+            _logger.LogInformation("🤖 Starting LLM plan generation");
 
             var userProfile = await _userProfileRepo.GetAsync();
             if (userProfile == null)
             {
-                Debug.WriteLine("❌ No user profile found");
+                _logger.LogWarning("❌ No user profile found");
                 return null;
             }
 
             var request = await BuildPlanRequestAsync(userProfile, ct);
             var prompt = RenderPrompt(request);
 
-            Debug.WriteLine($"📝 Prompt length: {prompt.Length} chars");
-            Debug.WriteLine($"📊 Context: {request.VocabularyDueCount} vocab due, {request.RecentHistory.Count} recent activities, {request.AvailableResources.Count} resources, {request.AvailableSkills.Count} skills");
+            _logger.LogDebug("📝 Prompt length: {PromptLength} chars", prompt.Length);
+            _logger.LogDebug("📊 Context: {VocabDue} vocab due, {RecentCount} recent activities, {ResourceCount} resources, {SkillCount} skills",
+                request.VocabularyDueCount, request.RecentHistory.Count, request.AvailableResources.Count, request.AvailableSkills.Count);
+            _logger.LogTrace("\n========== FULL PROMPT TO LLM ==========\n{Prompt}\n========== END PROMPT ==========\n", prompt);
 
             var response = await _chatClient.GetResponseAsync<DailyPlanResponse>(prompt, cancellationToken: ct);
 
             if (response?.Result != null)
             {
-                Debug.WriteLine($"✅ LLM generated plan with {response.Result.Activities.Count} activities");
-                Debug.WriteLine($"💡 Rationale: {response.Result.Rationale}");
+                _logger.LogDebug("\n========== LLM RESPONSE ==========");
+                _logger.LogDebug("Activities Count: {Count}", response.Result.Activities.Count);
+                _logger.LogDebug("Rationale: {Rationale}", response.Result.Rationale);
+                _logger.LogDebug("\nActivities:");
+                foreach (var activity in response.Result.Activities)
+                {
+                    _logger.LogDebug("  - {ActivityType}: {Minutes}min (Priority: {Priority}, ResourceId: {ResourceId}, SkillId: {SkillId})",
+                        activity.ActivityType, activity.EstimatedMinutes, activity.Priority, activity.ResourceId, activity.SkillId);
+                }
+                _logger.LogDebug("========== END LLM RESPONSE ==========");
+
+                _logger.LogInformation("✅ LLM generated plan with {ActivityCount} activities", response.Result.Activities.Count);
+                _logger.LogInformation("💡 Rationale: {Rationale}", response.Result.Rationale);
                 return response.Result;
             }
 
-            Debug.WriteLine("⚠️ LLM returned null response");
+            _logger.LogWarning("⚠️ LLM returned null response");
             return null;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"❌ LLM plan generation failed: {ex.Message}");
-            Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "❌ LLM plan generation failed");
             return null;
         }
     }
@@ -107,6 +123,12 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
 
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
         var skills = await _skillRepo.ListAsync();
+
+        // Get vocabulary counts for each resource
+        var vocabularyCounts = await db.ResourceVocabularyMappings
+            .GroupBy(rvm => rvm.ResourceId)
+            .Select(g => new { ResourceId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ResourceId, x => x.Count, ct);
 
         // Build activity history with resource/skill titles
         var recentHistory = new List<ActivitySummary>();
@@ -145,7 +167,7 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
                 Title = r.Title ?? "Untitled",
                 MediaType = r.MediaType ?? "Unknown",
                 Language = r.Language ?? "Unknown",
-                WordCount = r.Vocabulary?.Count ?? 0,
+                WordCount = vocabularyCounts.TryGetValue(r.Id, out var count) ? count : 0,
                 HasAudio = r.MediaType == "Podcast" || r.MediaType == "Video",
                 YouTubeUrl = r.MediaType == "Video" && !string.IsNullOrEmpty(r.MediaUrl) && r.MediaUrl.Contains("youtube")
                     ? r.MediaUrl

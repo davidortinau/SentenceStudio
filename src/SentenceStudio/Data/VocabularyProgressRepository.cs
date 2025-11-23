@@ -161,7 +161,10 @@ public class VocabularyProgressRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Load all progress records for the user (should be reasonably sized)
+        // PHASE 1: Get total vocabulary word count (all words in database)
+        var totalVocabWords = await db.VocabularyWords.CountAsync();
+
+        // PHASE 2: Load progress records for words that have been practiced
         var allProgress = await db.VocabularyProgresses
             .Where(vp => vp.UserId == userId)
             .Select(vp => new
@@ -172,14 +175,18 @@ public class VocabularyProgressRepository
             })
             .ToListAsync();
 
-        if (!allProgress.Any())
-            return (0, 0, 0, 0);
-
         var now = DateTime.Now;
-        var newCount = allProgress.Count(p => p.TotalAttempts == 0);
+
+        // Words with progress records
         var learning = allProgress.Count(p => p.MasteryScore < 0.8f && p.TotalAttempts > 0 && (p.NextReviewDate == null || p.NextReviewDate > now));
         var review = allProgress.Count(p => p.MasteryScore < 0.8f && p.NextReviewDate != null && p.NextReviewDate <= now);
         var known = allProgress.Count(p => p.MasteryScore >= 0.8f);
+
+        // "New" = Total words that have never been practiced (no progress record OR progress with 0 attempts)
+        var wordsWithProgress = allProgress.Count;
+        var newFromProgress = allProgress.Count(p => p.TotalAttempts == 0);
+        var wordsNeverSeen = totalVocabWords - wordsWithProgress;
+        var newCount = wordsNeverSeen + newFromProgress;
 
         return (newCount, learning, review, known);
     }

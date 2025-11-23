@@ -5,6 +5,7 @@ using ReactorCustomLayouts;
 using System.Diagnostics;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Components;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
@@ -52,6 +53,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] VocabularyProgressService _progressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<VocabularyMatchingPage> _logger;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -405,7 +407,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 s.IsBusy = false;
                 s.GameMessage = $"{_localize["ErrorLoadingVocabulary"]}";
             });
-            System.Diagnostics.Debug.WriteLine($"Error loading vocabulary: {ex.Message}");
+            _logger.LogError(ex, "Error loading vocabulary");
         }
     }
 
@@ -735,12 +737,12 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 tile.Progress = updatedProgress;
             }
 
-            System.Diagnostics.Debug.WriteLine($"Enhanced progress tracking: Word {word.Id} - Correct: {isCorrect}, Mastery: {updatedProgress.MasteryScore:F2}");
+            _logger.LogDebug("Enhanced progress tracking: Word {WordId} - Correct: {IsCorrect}, Mastery: {MasteryScore:F2}", word.Id, isCorrect, updatedProgress.MasteryScore);
         }
         catch (Exception ex)
         {
             // Log error but don't break game flow
-            System.Diagnostics.Debug.WriteLine($"Error recording enhanced match activity: {ex.Message}");
+            _logger.LogError(ex, "Error recording enhanced match activity");
 
             // Fallback to legacy recording
             await RecordMatchActivity(isCorrect);
@@ -834,7 +836,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         catch (Exception ex)
         {
             // Log error but don't break game flow
-            System.Diagnostics.Debug.WriteLine($"Error recording match activity: {ex.Message}");
+            _logger.LogError(ex, "Error recording match activity");
         }
     }
 
