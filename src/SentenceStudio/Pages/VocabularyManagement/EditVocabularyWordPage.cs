@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MauiReactor.Shapes;
+using Plugin.Maui.Audio;
+using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -23,13 +25,24 @@ class EditVocabularyWordPageState
 
     // UI state
     public string ErrorMessage { get; set; } = string.Empty;
+    
+    // Audio playback state
+    public bool IsGeneratingAudio { get; set; } = false;
+    public IAudioPlayer AudioPlayer { get; set; }
 }
 
 partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, VocabularyWordProps>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] ILogger<EditVocabularyWordPage> _logger;
+    [Inject] ElevenLabsSpeechService _speechService;
+    [Inject] IAudioManager _audioManager;
+    [Inject] StreamHistoryRepository _historyRepo;
+    [Inject] UserActivityRepository _activityRepo;
+    
     LocalizationManager _localize => LocalizationManager.Instance;
+    
+    private FloatingAudioPlayer _audioPlayer;
 
     public override VisualNode Render()
     {
@@ -96,7 +109,11 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .TextColor(MyTheme.SupportErrorDark)
                     .FontSize(12)
                     .HStart() :
-                null
+                null,
+            
+            // Audio preview section (only for saved words)
+            State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ? 
+                RenderAudioSection() : null
         );
 
     VisualNode RenderResourceAssociations() =>
@@ -396,5 +413,246 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     Task NavigateBack()
     {
         return MauiControls.Shell.Current.GoToAsync("..");
+    }
+    
+    /// <summary>
+    /// Renders the audio preview section with playback controls.
+    /// Supports pronunciation modeling via native-speaker TTS.
+    /// </summary>
+    VisualNode RenderAudioSection() =>
+        Border(
+            VStack(spacing: 12,
+                Label("🎧 Audio Preview")
+                    .ThemeKey(MyTheme.Title3),
+                
+                Label("Listen to native pronunciation and practice shadowing")
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.SecondaryText),
+                
+                // Quick playback buttons
+                HStack(spacing: 8,
+                    // Play isolated word
+                    Button($"🔊 {State.TargetLanguageTerm}")
+                        .OnClicked(() => PlayWord(State.TargetLanguageTerm))
+                        .ThemeKey(MyTheme.Secondary)
+                        .IsEnabled(!State.IsGeneratingAudio)
+                        .HorizontalOptions(LayoutOptions.Fill),
+                    
+                    // Open full audio studio for context
+                    Button("📝 Hear in Context")
+                        .OnClicked(OpenAudioStudio)
+                        .ThemeKey(MyTheme.Secondary)
+                        .HorizontalOptions(LayoutOptions.Fill)
+                ),
+                
+                // Loading indicator
+                State.IsGeneratingAudio ?
+                    HStack(spacing: 8,
+                        ActivityIndicator()
+                            .IsRunning(true)
+                            .HeightRequest(20)
+                            .WidthRequest(20),
+                        Label("Generating audio...")
+                            .ThemeKey(MyTheme.Caption1)
+                            .TextColor(MyTheme.SecondaryText)
+                    ).HCenter() :
+                    null,
+                
+                // Floating player (shown after audio loads)
+                _audioPlayer?.Render()
+            )
+            .Padding(MyTheme.CardPadding)
+        )
+        .ThemeKey(MyTheme.CardStyle)
+        .Margin(0, 8, 0, 0);
+    
+    /// <summary>
+    /// Plays isolated word pronunciation using ElevenLabs TTS.
+    /// Learning Science: Provides pronunciation model for articulatory practice (shadowing/imitation).
+    /// Multimodal input (visual + auditory) strengthens phonological encoding.
+    /// </summary>
+    async Task PlayWord(string word)
+    {
+        if (string.IsNullOrWhiteSpace(word))
+            return;
+        
+        SetState(s => s.IsGeneratingAudio = true);
+        
+        try
+        {
+            _logger.LogInformation("🎧 Generating audio for word: {Word}", word);
+            
+            // Generate audio using ElevenLabs with Korean voice
+            var audioStream = await _speechService.TextToSpeechAsync(
+                text: word,
+                voiceId: Voices.JiYoung, // Default Korean voice - could pull from user preferences
+                stability: 0.5f,
+                similarityBoost: 0.75f
+            );
+            
+            // Create audio player from stream
+            var player = _audioManager.CreatePlayer(audioStream);
+            SetState(s => s.AudioPlayer = player);
+            
+            // Create floating player UI if not already exists
+            if (_audioPlayer == null)
+            {
+                _audioPlayer = new FloatingAudioPlayer(
+                    player,
+                    onPlay: () => 
+                    {
+                        player.Play();
+                        _logger.LogDebug("🔊 Playing audio for: {Word}", word);
+                    },
+                    onPause: () => 
+                    {
+                        player.Pause();
+                        _logger.LogDebug("⏸️ Paused audio for: {Word}", word);
+                    },
+                    onRewind: () => 
+                    { 
+                        player.Seek(0); 
+                        player.Play();
+                        _logger.LogDebug("⏪ Rewinding and replaying: {Word}", word);
+                    },
+                    onStop: () => 
+                    { 
+                        player.Stop(); 
+                        _audioPlayer?.Hide();
+                        _logger.LogDebug("⏹️ Stopped audio for: {Word}", word);
+                    }
+                );
+            }
+            
+            // Setup player UI
+            _audioPlayer.SetTitle($"🔊 {word}");
+            _audioPlayer.ShowLoading();
+            
+            // Start playback
+            player.Play();
+            _audioPlayer.SetReady();
+            _audioPlayer.Show();
+            _audioPlayer.SetPlaying();
+            
+            // Save to history for later review (supports spaced repetition via audio)
+            await SaveToHistory(word, audioStream);
+            
+            // Track listening activity for progress analytics
+            await RecordListeningActivity(State.Word.Id, "isolated_word", player.Duration);
+            
+            _logger.LogInformation("✅ Successfully played audio for: {Word}", word);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to generate audio for word: {Word}", word);
+            
+            await Application.Current.MainPage.DisplayAlert(
+                "Audio Error",
+                $"Failed to generate audio: {ex.Message}",
+                "OK"
+            );
+        }
+        finally
+        {
+            SetState(s => s.IsGeneratingAudio = false);
+        }
+    }
+    
+    /// <summary>
+    /// Opens HowDoYouSayPage with pre-filled phrase for sentence-context audio.
+    /// Learning Science: Hearing words in sentences shows prosody, collocations, and usage patterns.
+    /// Supports comprehensible input via contextualized vocabulary exposure.
+    /// </summary>
+    async Task OpenAudioStudio()
+    {
+        if (string.IsNullOrWhiteSpace(State.TargetLanguageTerm))
+            return;
+        
+        _logger.LogInformation("📝 Navigating to audio studio with phrase: {Phrase}", State.TargetLanguageTerm);
+        
+        // Navigate to HowDoYouSayPage with pre-filled phrase
+        var escapedPhrase = Uri.EscapeDataString(State.TargetLanguageTerm);
+        await MauiControls.Shell.Current.GoToAsync(
+            $"//howdoyousay?phrase={escapedPhrase}&returnToVocab=true"
+        );
+    }
+    
+    /// <summary>
+    /// Saves audio to StreamHistory for persistence and later review.
+    /// Learning Science: Audio history enables listening-based spaced repetition reviews.
+    /// </summary>
+    async Task SaveToHistory(string phrase, Stream audioStream)
+    {
+        try
+        {
+            // Save audio to disk for offline access
+            var fileName = $"vocab_{State.Word.Id}_{DateTime.Now:yyyyMMddHHmmss}.mp3";
+            var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+            var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
+            
+            // Ensure directory exists
+            if (!Directory.Exists(audioCacheDir))
+                Directory.CreateDirectory(audioCacheDir);
+            
+            // Write audio stream to file
+            using (var fileStream = File.Create(filePath))
+            {
+                audioStream.Position = 0;
+                await audioStream.CopyToAsync(fileStream);
+            }
+            
+            // Save to database
+            var historyItem = new StreamHistory
+            {
+                Phrase = phrase,
+                AudioFilePath = filePath,
+                VoiceId = Voices.JiYoung,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now,
+                Source = "VocabularyManagement",
+                Title = $"{phrase} ({State.NativeLanguageTerm})"
+            };
+            
+            await _historyRepo.SaveStreamHistoryAsync(historyItem);
+            
+            _logger.LogInformation("💾 Saved audio to history: {FilePath}", filePath);
+        }
+        catch (Exception ex)
+        {
+            // Non-critical error - log but don't disrupt user flow
+            _logger.LogWarning(ex, "⚠️ Failed to save audio to history for: {Phrase}", phrase);
+        }
+    }
+    
+    /// <summary>
+    /// Records listening activity for progress tracking and analytics.
+    /// Learning Science: Tracks listening minutes and exposure counts to balance skill development.
+    /// Supports can-do reporting (e.g., "Listened to 50 words this week").
+    /// </summary>
+    async Task RecordListeningActivity(int vocabularyWordId, string activityType, double durationSeconds)
+    {
+        try
+        {
+            // Use the existing UserActivity model structure
+            var activity = new UserActivity
+            {
+                Activity = $"VocabularyAudioPlayback_{activityType}",
+                Input = State.TargetLanguageTerm,
+                Accuracy = 100, // Listening is passive - mark as completed
+                Fluency = 100,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+            
+            await _activityRepo.SaveAsync(activity);
+            
+            _logger.LogDebug("📊 Recorded listening activity: {ActivityType} for word {WordId}, duration {Duration}s",
+                activityType, vocabularyWordId, durationSeconds);
+        }
+        catch (Exception ex)
+        {
+            // Non-critical error - log but don't disrupt user flow
+            _logger.LogWarning(ex, "⚠️ Failed to record listening activity for word: {WordId}", vocabularyWordId);
+        }
     }
 }
