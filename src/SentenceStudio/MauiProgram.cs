@@ -326,7 +326,10 @@ public static class MauiProgram
 		// Activity timer service for Today's Plan tracking
 		services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
 
-		// LLM-based plan generation
+		// Deterministic plan builder - research-based pedagogical algorithms
+		services.AddSingleton<SentenceStudio.Services.PlanGeneration.DeterministicPlanBuilder>();
+
+		// LLM-based plan generation (uses deterministic builder)
 		services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.PlanGeneration.LlmPlanGenerationService>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();

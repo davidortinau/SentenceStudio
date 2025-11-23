@@ -387,6 +387,76 @@ var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
    - **Android**: adb logcat is standard
    - **Windows**: DebugView for system-wide debug output
 
+## Page Usage Contexts and Entry Points
+
+**CRITICAL: Understand that pages have MULTIPLE usage contexts!**
+
+Activity pages (VocabularyQuizPage, ReadingPage, ShadowingPage, etc.) are used in at least TWO major ways:
+
+### **1. From Daily Plan (Structured Learning)**
+- **Entry Point**: Dashboard → Today's Plan → Click activity
+- **Props.FromTodaysPlan**: `true`
+- **Props.PlanItemId**: Set (for progress tracking)
+- **Activity Timer**: Enabled
+- **Goal**: Complete specific planned activity (e.g., "Review 20 vocabulary words")
+- **Scope**: DeterministicPlanBuilder pre-selected content (20 words, specific resource)
+- **Progress Tracking**: Updates plan completion status
+- **User Expectation**: "I'm working on my daily plan"
+
+### **2. Manual Resource Selection (Free Practice)**
+- **Entry Point**: Resources → Browse → Select resource → Choose activity
+- **Props.FromTodaysPlan**: `false`
+- **Props.PlanItemId**: `null`
+- **Activity Timer**: Disabled
+- **Goal**: Review ALL due content from selected resource
+- **Scope**: All vocabulary/content in the resource (filtered by SRS due dates)
+- **Progress Tracking**: Updates word/content progress, but NOT plan completion
+- **User Expectation**: "I'm practicing this specific resource"
+
+### **Potential Future Contexts**
+- **Study Mode** (custom sessions): User sets own goals (e.g., "Review 50 words")
+- **Test Preparation**: Focus on weak areas across multiple resources
+- **Challenge Mode**: Time-limited, gamified sessions
+- **Review Mode**: Revisit previously learned content
+
+### **Design Implications**
+
+**When building page UI/logic, ALWAYS consider:**
+
+1. **Progress Indicators**:
+   - From Plan: Show progress toward plan goal ("5 of 20 words")
+   - Manual: Show progress through selected content ("5 of 12 due words")
+
+2. **Session Size**:
+   - From Plan: Use predetermined size (DeterministicPlanBuilder's 20 words)
+   - Manual: Use all due/available content (could be 5, could be 50)
+
+3. **Completion Behavior**:
+   - From Plan: Mark plan item complete, return to dashboard
+   - Manual: Show summary, offer to continue or return to resources
+
+4. **Timer Display**:
+   - From Plan: Show ActivityTimerBar in TitleView
+   - Manual: No timer needed
+
+5. **Content Selection**:
+   - From Plan: Pre-filtered by planner (specific resources, word count)
+   - Manual: User's full resource selection, filtered by SRS
+
+**MAINTENANCE REQUIREMENT:**
+When adding NEW usage contexts (e.g., "Challenge Mode"), update:
+1. This section in copilot-instructions.md
+2. Page header documentation
+3. ActivityProps class (if new properties needed)
+4. Page logic to handle new context appropriately
+
+**CODE REVIEW CHECKLIST:**
+- [ ] Does this change work for BOTH daily plan AND manual contexts?
+- [ ] Are progress indicators context-aware?
+- [ ] Is session sizing appropriate for both contexts?
+- [ ] Does completion behavior match user expectations?
+- [ ] Are new usage contexts documented?
+
 ## Localization Guidelines
 
 **CRITICAL: Always use string interpolation with LocalizationManager!**

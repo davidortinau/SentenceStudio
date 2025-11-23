@@ -7,6 +7,36 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Pages.Clozure;
 
+/// <summary>
+/// Clozure (Fill-in-the-Blank) Activity Page - Contextual Vocabulary Practice
+/// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Cloze" activity
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected sentences with target vocabulary
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily cloze practice"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Cloze
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: User-selected resource sentences
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm practicing fill-in-the-blank with this resource"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Adaptive Difficulty: Adjust number of blanks based on performance
+///    - Grammar Focus: Target specific grammar patterns
+///    - Timed Challenges: Speed-based cloze exercises
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// </summary>
+
 class ClozurePageState
 {
 	public bool IsBusy { get; set; }

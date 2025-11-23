@@ -14,11 +14,7 @@ public interface ILlmPlanGenerationService
 public class LlmPlanGenerationService : ILlmPlanGenerationService
 {
     private readonly IChatClient _chatClient;
-    private readonly UserProfileRepository _userProfileRepo;
-    private readonly LearningResourceRepository _resourceRepo;
-    private readonly SkillProfileRepository _skillRepo;
-    private readonly VocabularyProgressRepository _vocabProgressRepo;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly DeterministicPlanBuilder _deterministicBuilder;
     private readonly ILogger<LlmPlanGenerationService> _logger;
 
     private static readonly string PromptTemplate;
@@ -38,19 +34,11 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
 
     public LlmPlanGenerationService(
         IChatClient chatClient,
-        UserProfileRepository userProfileRepo,
-        LearningResourceRepository resourceRepo,
-        SkillProfileRepository skillRepo,
-        VocabularyProgressRepository vocabProgressRepo,
-        IServiceProvider serviceProvider,
+        DeterministicPlanBuilder deterministicBuilder,
         ILogger<LlmPlanGenerationService> logger)
     {
         _chatClient = chatClient;
-        _userProfileRepo = userProfileRepo;
-        _resourceRepo = resourceRepo;
-        _skillRepo = skillRepo;
-        _vocabProgressRepo = vocabProgressRepo;
-        _serviceProvider = serviceProvider;
+        _deterministicBuilder = deterministicBuilder;
         _logger = logger;
     }
 
@@ -58,169 +46,72 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
     {
         try
         {
-            _logger.LogInformation("🤖 Starting LLM plan generation");
+            _logger.LogInformation("🎯 Starting plan generation with deterministic builder");
 
-            var userProfile = await _userProfileRepo.GetAsync();
-            if (userProfile == null)
+            // Step 1: Generate deterministic plan (90% of work - fast, reliable, pedagogically sound)
+            var planSkeleton = await _deterministicBuilder.BuildPlanAsync(ct);
+
+            if (planSkeleton == null)
             {
-                _logger.LogWarning("❌ No user profile found");
+                _logger.LogWarning("❌ Deterministic plan builder returned null");
                 return null;
             }
 
-            var request = await BuildPlanRequestAsync(userProfile, ct);
-            var prompt = RenderPrompt(request);
+            _logger.LogInformation("✅ Deterministic plan built: {ActivityCount} activities, {Minutes}min total",
+                planSkeleton.Activities.Count, planSkeleton.TotalMinutes);
+            _logger.LogInformation("📚 Primary resource: {ResourceTitle} (ID: {ResourceId})",
+                planSkeleton.PrimaryResource.Title, planSkeleton.PrimaryResource.Id);
 
-            _logger.LogDebug("📝 Prompt length: {PromptLength} chars", prompt.Length);
-            _logger.LogDebug("📊 Context: {VocabDue} vocab due, {RecentCount} recent activities, {ResourceCount} resources, {SkillCount} skills",
-                request.VocabularyDueCount, request.RecentHistory.Count, request.AvailableResources.Count, request.AvailableSkills.Count);
-            _logger.LogTrace("\n========== FULL PROMPT TO LLM ==========\n{Prompt}\n========== END PROMPT ==========\n", prompt);
-
-            var response = await _chatClient.GetResponseAsync<DailyPlanResponse>(prompt, cancellationToken: ct);
-
-            if (response?.Result != null)
+            if (planSkeleton.VocabularyReview != null)
             {
-                _logger.LogDebug("\n========== LLM RESPONSE ==========");
-                _logger.LogDebug("Activities Count: {Count}", response.Result.Activities.Count);
-                _logger.LogDebug("Rationale: {Rationale}", response.Result.Rationale);
-                _logger.LogDebug("\nActivities:");
-                foreach (var activity in response.Result.Activities)
-                {
-                    _logger.LogDebug("  - {ActivityType}: {Minutes}min (Priority: {Priority}, ResourceId: {ResourceId}, SkillId: {SkillId})",
-                        activity.ActivityType, activity.EstimatedMinutes, activity.Priority, activity.ResourceId, activity.SkillId);
-                }
-                _logger.LogDebug("========== END LLM RESPONSE ==========");
-
-                _logger.LogInformation("✅ LLM generated plan with {ActivityCount} activities", response.Result.Activities.Count);
-                _logger.LogInformation("💡 Rationale: {Rationale}", response.Result.Rationale);
-                return response.Result;
+                _logger.LogInformation("📝 Vocab review: {WordCount} words (~{Minutes}min)",
+                    planSkeleton.VocabularyReview.WordCount, planSkeleton.VocabularyReview.EstimatedMinutes);
             }
 
-            _logger.LogWarning("⚠️ LLM returned null response");
-            return null;
+            // Step 2: Convert to DailyPlanResponse format
+            var response = new DailyPlanResponse
+            {
+                Activities = planSkeleton.Activities.Select(a => new PlanActivity
+                {
+                    ActivityType = a.ActivityType,
+                    EstimatedMinutes = a.EstimatedMinutes,
+                    Priority = a.Priority,
+                    ResourceId = a.ResourceId,
+                    SkillId = a.SkillId,
+                    VocabWordCount = a.ActivityType == "VocabularyReview" ? planSkeleton.VocabularyReview?.WordCount : null
+                }).ToList(),
+                Rationale = BuildRationale(planSkeleton)
+            };
+
+            _logger.LogInformation("✅ Plan ready with {ActivityCount} activities", response.Activities.Count);
+            _logger.LogInformation("💡 Rationale: {Rationale}", response.Rationale);
+
+            return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ LLM plan generation failed");
+            _logger.LogError(ex, "❌ Plan generation failed");
             return null;
         }
     }
 
-    private async Task<DailyPlanRequest> BuildPlanRequestAsync(UserProfile userProfile, CancellationToken ct)
+    private string BuildRationale(PlanSkeleton plan)
     {
-        var today = DateTime.UtcNow.Date;
-        var twoWeeksAgo = today.AddDays(-14);
+        var parts = new List<string>();
 
-        var vocabDue = await _vocabProgressRepo.GetDueVocabCountAsync(today);
+        // Resource selection rationale
+        parts.Add($"Selected \"{plan.PrimaryResource.Title}\" ({plan.PrimaryResource.SelectionReason})");
 
-        // Query DailyPlanCompletion records for recent activity history
-        using var scope = _serviceProvider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var recentCompletions = await db.DailyPlanCompletions
-            .Where(c => c.Date >= twoWeeksAgo)
-            .OrderByDescending(c => c.Date)
-            .ToListAsync(ct);
-
-        var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
-        var skills = await _skillRepo.ListAsync();
-
-        // Get vocabulary counts for each resource
-        var vocabularyCounts = await db.ResourceVocabularyMappings
-            .GroupBy(rvm => rvm.ResourceId)
-            .Select(g => new { ResourceId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ResourceId, x => x.Count, ct);
-
-        // Build activity history with resource/skill titles
-        var recentHistory = new List<ActivitySummary>();
-        foreach (var completion in recentCompletions)
+        // Vocabulary rationale if applicable
+        if (plan.VocabularyReview != null)
         {
-            var resource = completion.ResourceId.HasValue
-                ? resources.FirstOrDefault(r => r.Id == completion.ResourceId.Value)
-                : null;
-            var skill = completion.SkillId.HasValue
-                ? skills.FirstOrDefault(s => s.Id == completion.SkillId.Value)
-                : null;
-
-            recentHistory.Add(new ActivitySummary
-            {
-                Date = completion.Date,
-                ActivityType = completion.ActivityType,
-                ResourceId = completion.ResourceId,
-                ResourceTitle = resource?.Title,
-                SkillId = completion.SkillId,
-                SkillName = skill?.Title,
-                MinutesSpent = completion.MinutesSpent
-            });
+            parts.Add($"Reviewing {plan.VocabularyReview.WordCount} vocabulary words for spaced repetition practice");
         }
 
-        return new DailyPlanRequest
-        {
-            PreferredSessionMinutes = userProfile.PreferredSessionMinutes,
-            TargetLevel = userProfile.TargetCEFRLevel ?? "Not Set",
-            NativeLanguage = userProfile.NativeLanguage,
-            TargetLanguage = userProfile.TargetLanguage,
-            VocabularyDueCount = vocabDue,
-            RecentHistory = recentHistory,
-            AvailableResources = resources.Select(r => new ResourceOption
-            {
-                Id = r.Id,
-                Title = r.Title ?? "Untitled",
-                MediaType = r.MediaType ?? "Unknown",
-                Language = r.Language ?? "Unknown",
-                WordCount = vocabularyCounts.TryGetValue(r.Id, out var count) ? count : 0,
-                HasAudio = r.MediaType == "Podcast" || r.MediaType == "Video",
-                YouTubeUrl = r.MediaType == "Video" && !string.IsNullOrEmpty(r.MediaUrl) && r.MediaUrl.Contains("youtube")
-                    ? r.MediaUrl
-                    : null
-            }).ToList(),
-            AvailableSkills = skills.Select(s => new SkillOption
-            {
-                Id = s.Id,
-                Title = s.Title ?? "Untitled",
-                Description = s.Description ?? string.Empty
-            }).ToList()
-        };
-    }
+        // Activity sequence rationale
+        var activityTypes = string.Join(" → ", plan.Activities.Select(a => a.ActivityType));
+        parts.Add($"Following pedagogical sequence: {activityTypes}");
 
-    private string RenderPrompt(DailyPlanRequest request)
-    {
-        var template = Template.Parse(PromptTemplate);
-
-        var model = new
-        {
-            preferred_minutes = request.PreferredSessionMinutes,
-            target_level = request.TargetLevel,
-            native_language = request.NativeLanguage,
-            target_language = request.TargetLanguage,
-            vocab_due_count = request.VocabularyDueCount,
-            recent_history = request.RecentHistory.Select(a => new
-            {
-                date = a.Date,
-                activity_type = a.ActivityType,
-                resource_id = a.ResourceId,
-                resource_title = a.ResourceTitle,
-                skill_id = a.SkillId,
-                skill_name = a.SkillName,
-                minutes_spent = a.MinutesSpent
-            }).ToList(),
-            available_resources = request.AvailableResources.Select(r => new
-            {
-                id = r.Id,
-                title = r.Title,
-                media_type = r.MediaType,
-                language = r.Language,
-                word_count = r.WordCount,
-                has_audio = r.HasAudio,
-                youtube_url = r.YouTubeUrl
-            }).ToList(),
-            available_skills = request.AvailableSkills.Select(s => new
-            {
-                id = s.Id,
-                title = s.Title,
-                description = s.Description
-            }).ToList()
-        };
-
-        return template.Render(model);
+        return string.Join(". ", parts) + ".";
     }
 }

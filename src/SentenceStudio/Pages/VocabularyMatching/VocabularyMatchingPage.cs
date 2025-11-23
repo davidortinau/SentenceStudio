@@ -9,6 +9,36 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
+/// <summary>
+/// Vocabulary Matching Game - Interactive Vocabulary Recognition
+/// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Vocabulary Game" activity
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected vocabulary words for matching game
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily vocabulary game"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Vocabulary Matching
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: User-selected resource vocabulary
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm playing the matching game with this resource"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Timed Challenges: Speed-based matching competitions
+///    - Multiplayer Mode: Compete with other learners
+///    - Progressive Difficulty: More words as skill improves
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// </summary>
+
 public class WordWithProgress
 {
     public VocabularyWord Word { get; set; }

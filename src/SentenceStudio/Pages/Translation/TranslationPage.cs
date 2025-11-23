@@ -9,6 +9,36 @@ using SentenceStudio.Components;
 
 namespace SentenceStudio.Pages.Translation;
 
+/// <summary>
+/// Translation Activity Page - Sentence Translation Practice
+/// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Translation" activity
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected sentences for translation practice
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily translation practice"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Translation
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: User-selected resource sentences
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm practicing translation with this specific resource"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Bidirectional Translation: Both target→native and native→target
+///    - AI Feedback: Detailed translation quality analysis
+///    - Collaborative Translation: Compare with other learners
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// </summary>
+
 class TranslationPageState
 {
     public bool IsBusy { get; set; }

@@ -46,7 +46,9 @@ public static class PlanConverter
                 ResourceTitle: resourceTitle,
                 SkillId: activity.SkillId,
                 SkillName: skillName,
-                VocabDueCount: activityType == PlanActivityType.VocabularyReview ? vocabDueCount : null,
+                VocabDueCount: activityType == PlanActivityType.VocabularyReview
+                    ? (activity.VocabWordCount ?? vocabDueCount) // Use actual selected count if available, fallback to total
+                    : null,
                 DifficultyLevel: null
             ));
         }

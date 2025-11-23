@@ -11,6 +11,35 @@ namespace SentenceStudio.Pages.VocabularyQuiz;
 /// <summary>
 /// Vocabulary Quiz Activity - Enhanced Progress Tracking System
 /// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Review 20 vocabulary words"
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected by DeterministicPlanBuilder (20 SRS-due words)
+///    - Progress Bar: Shows "Question X of 20" (plan goal)
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily vocabulary review"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Vocabulary Quiz
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: ALL due words from selected resource(s) (SRS-filtered)
+///    - Progress Bar: Shows "Question X of Y" (Y = actual due words in resource)
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm practicing this specific resource"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Study Mode: Custom session goals (e.g., "Review 50 words")
+///    - Test Prep: Focus on weak areas across multiple resources
+///    - Challenge Mode: Time-limited, gamified vocabulary sessions
+///    - Review Mode: Revisit previously mastered content
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// 
 /// Learning Flow:
 /// 1. Recognition Phase: Users practice multiple choice recognition until proficient
 /// 2. Production Phase: Users practice text entry (typing) until proficient  
@@ -23,13 +52,16 @@ namespace SentenceStudio.Pages.VocabularyQuiz;
 /// - Difficulty weighting based on context and word characteristics
 /// - Spaced repetition scheduling for optimal review timing
 /// - Rich context tracking for cross-activity learning insights
+/// - Context-aware session sizing (plan goal vs. all due words)
+/// - SRS-first word selection (excludes mastered, respects NextReviewDate)
 /// 
 /// Key Improvements:
 /// - Uses VocabularyAttempt model for detailed attempt recording
 /// - Enhanced feedback based on mastery scores vs. simple counters
 /// - Backward compatible with existing 3-correct-answer thresholds
 /// - Supports multiple users and learning contexts
-/// - Progress bars reflect overall mastery rather than just completion
+/// - Progress bars reflect current session progress (context-aware)
+/// - Clear distinction between session performance and true mastery
 /// </summary>
 class VocabularyQuizPageState
 {
@@ -58,9 +90,10 @@ class VocabularyQuizPageState
     public bool ShowCorrectAnswer { get; set; }
     public bool IsAutoAdvancing { get; set; } // Show auto-advance progress
 
-    // Session management for 10-turn rounds
+    // Session management for vocabulary rounds
     public int CurrentTurn { get; set; } = 1;
-    public int MaxTurnsPerSession { get; set; } = 10;
+    public int MaxTurnsPerSession { get; set; } = 20;  // Match DeterministicPlanBuilder's pedagogical selection (15-20 words)
+    public int ActualWordsInSession { get; set; } = 0;  // Actual words loaded for this session (may be less than max)
     public bool IsSessionComplete { get; set; }
 
     // Term status tracking across entire learning resource
@@ -172,7 +205,21 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     // Session stats
                     Border(
                         VStack(spacing: 8,
-                            Label("📊 Session Statistics")
+                            // Daily progress indicator
+                            VStack(spacing: 4,
+                                Label("📚 Today's Vocabulary Review")
+                                    .FontSize(16)
+                                    .FontAttributes(FontAttributes.Bold)
+                                    .Center()
+                                    .TextColor(MyTheme.HighlightDarkest),
+                                Label($"{State.SessionSummaryItems.Count} of {State.MaxTurnsPerSession} words reviewed")
+                                    .FontSize(12)
+                                    .Center()
+                                    .TextColor(MyTheme.SecondaryText)
+                            )
+                            .Margin(0, 0, 0, 16),
+
+                            Label("📊 Session Performance")
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .Center()
@@ -241,6 +288,23 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         var accuracy = item.Progress?.Accuracy ?? 0f;
         var masteryScore = item.Progress?.MasteryScore ?? 0f;
+        var sessionPercentage = accuracy * 100;
+        var masteryPercentage = masteryScore * 100;
+
+        // Calculate SRS status
+        var nextReview = item.Progress?.NextReviewDate ?? DateTime.Today;
+        var daysSinceReview = item.Progress?.LastPracticedAt != null
+            ? (DateTime.Today - item.Progress.LastPracticedAt).Days
+            : 0;
+        var daysUntilNext = (nextReview - DateTime.Today).Days;
+        var totalAttempts = item.Progress?.TotalAttempts ?? 0;
+        var isCompleted = item.Progress?.IsCompleted ?? false;
+
+        string srsStatus = isCompleted ? "🏆 Mastered" :
+                          daysUntilNext > 30 ? $"📅 Next: {daysUntilNext}d" :
+                          daysUntilNext > 0 ? $"📅 Next: {daysUntilNext}d" :
+                          daysUntilNext == 0 ? "📌 Due today" :
+                          "📌 Overdue";
 
         Color statusColor = accuracy >= 0.8f ? MyTheme.Success :
                            accuracy >= 0.5f ? MyTheme.Warning :
@@ -265,23 +329,22 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .FontSize(14)
-                        .TextColor(MyTheme.HighlightDarkest)
+                        .TextColor(MyTheme.HighlightDarkest),
+
+                    Label($"Session: {sessionPercentage:F0}% | Mastery: {masteryPercentage:F0}%")
+                        .FontSize(12)
+                        .TextColor(MyTheme.SecondaryDarkText),
+
+                    Label($"{srsStatus} • {totalAttempts} attempts" + (daysSinceReview > 0 ? $" • Last: {daysSinceReview}d ago" : ""))
+                        .FontSize(10)
+                        .TextColor(isCompleted ? MyTheme.Success : MyTheme.SecondaryDarkText)
                 )
                 .HStart(),
 
-                VStack(spacing: 2,
-                    Label($"{(int)(masteryScore * 100)}%")
-                        .FontSize(14)
-                        .FontAttributes(FontAttributes.Bold)
-                        .TextColor(statusColor)
-                        .HEnd(),
-
-                    Label($"{item.Progress?.TotalAttempts ?? 0} attempts")
-                        .FontSize(10)
-                        .TextColor(MyTheme.SecondaryDarkText)
-                        .HEnd()
-                )
-                .HEnd()
+                Label(statusIcon)
+                    .FontSize(20)
+                    .HEnd()
+                    .VCenter()
             )
             .Padding(MyTheme.CardPadding)
         )
@@ -296,9 +359,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode LearningProgressBar() =>
         Grid(rows: "Auto", columns: "Auto,*,Auto",
-            // Left bubble shows learning count with enhanced status
+            // Left bubble shows current question number in TODAY'S session
             Border(
-                Label($"{State.LearningTermsCount}")
+                Label($"{State.CurrentTurn}")
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold)
                     .TextColor(Colors.White)
@@ -313,10 +376,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .GridColumn(0)
             .VCenter(),
 
-            // Center progress bar shows overall mastery
+            // Center progress bar shows THIS SESSION'S progress
             ProgressBar()
-                .Progress(State.TotalResourceTermsCount > 0 ?
-                    CalculateOverallMasteryProgress() : 0)
+                .Progress(State.ActualWordsInSession > 0 ?
+                    (double)State.CurrentTurn / State.ActualWordsInSession : 0)
                 .ProgressColor(MyTheme.Success)
                 .BackgroundColor(Colors.LightGray)
                 .HeightRequest(6)
@@ -324,9 +387,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .VCenter()
                 .Margin(MyTheme.CardMargin, 0),
 
-            // Right bubble shows total count
+            // Right bubble shows THIS SESSION'S total (from plan: 20, or manual: actual due words)
             Border(
-                Label($"{State.TotalResourceTermsCount}")
+                Label($"{State.ActualWordsInSession}")
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold)
                     .TextColor(Colors.White)
@@ -784,7 +847,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     // 🏴‍☠️ INTELLIGENT WORD SELECTION: Prioritize learning and resume progress
     async Task<List<VocabularyWord>> SelectWordsIntelligently(List<VocabularyWord> allVocabulary)
     {
-        const int targetSetSize = 10;
+        var targetSetSize = State.MaxTurnsPerSession; // Use configured session size (default 20)
 
         if (allVocabulary.Count <= targetSetSize)
         {
@@ -796,18 +859,55 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var allWordIds = allVocabulary.Select(w => w.Id).ToList();
         var progressDict = await _vocabProgressService.GetProgressForWordsAsync(allWordIds);
 
-        // Categorize words by mastery level
+        // 🎯 FIRST: Filter by SRS due dates (Spaced Repetition Principle - Ebbinghaus)
+        // Only include words that are due for review OR have never been seen
+        var dueWords = allVocabulary.Where(word =>
+        {
+            if (!progressDict.ContainsKey(word.Id))
+                return true; // New words always included
+
+            var progress = progressDict[word.Id];
+
+            // Exclude truly mastered/completed words
+            if (progress.IsCompleted)
+            {
+                _logger.LogDebug("🏆 Excluding completed word: {Word}", word.NativeLanguageTerm);
+                return false;
+            }
+
+            // Include if due today or overdue
+            var isDue = progress.NextReviewDate <= DateTime.Today;
+            if (!isDue)
+            {
+                _logger.LogDebug("⏰ Skipping not-yet-due word: {Word} (next: {Date:yyyy-MM-dd})",
+                    word.NativeLanguageTerm, progress.NextReviewDate);
+            }
+            return isDue;
+        }).ToList();
+
+        _logger.LogDebug("🎯 SRS Filter: {DueCount} due words from {TotalCount} total", dueWords.Count, allVocabulary.Count);
+
+        // If we have fewer due words than target, use what we have
+        if (dueWords.Count <= targetSetSize)
+        {
+            _logger.LogDebug("🎯 Using all {Count} due words (target: {Target})", dueWords.Count, targetSetSize);
+            return dueWords.OrderBy(x => Guid.NewGuid()).ToList();
+        }
+
+        // SECOND: Categorize due words by mastery level for intelligent prioritization
         var unmasteredWords = new List<VocabularyWord>();
         var learningWords = new List<VocabularyWord>();
         var reviewWords = new List<VocabularyWord>();
         var masteredWords = new List<VocabularyWord>();
 
-        foreach (var word in allVocabulary)
+        // Categorize the DUE words by mastery level (not all vocabulary)
+        foreach (var word in dueWords)
         {
             var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] : null;
             var masteryScore = progress?.MasteryScore ?? 0f;
             var isCompleted = progress?.IsCompleted ?? false;
 
+            // Note: isCompleted words already filtered out above, but keep check for safety
             if (isCompleted || masteryScore >= 0.9f)
             {
                 masteredWords.Add(word);
@@ -958,6 +1058,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             var totalSets = (int)Math.Ceiling(vocabulary.Count / (double)Math.Min(10, vocabulary.Count));
 
             _logger.LogDebug("🎯 Smart selection: {SelectedCount} words chosen from {TotalCount} total", smartSelectedWords.Count, vocabulary.Count);
+
+            // Update state with actual session size (from plan: 20 words, manual: all due words)
+            SetState(s => s.ActualWordsInSession = smartSelectedWords.Count);
 
             // Create quiz items with global progress
             var wordIds = smartSelectedWords.Select(w => w.Id).ToList();

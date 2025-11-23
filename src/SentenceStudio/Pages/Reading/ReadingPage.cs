@@ -8,6 +8,36 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Reading;
 
+/// <summary>
+/// Reading Activity Page - Enhanced Audio and Vocabulary Integration
+/// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Reading" or "Listening" activity
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected resource by DeterministicPlanBuilder
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily reading/listening practice"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Reading
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: User-selected resource
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm reading this specific resource at my own pace"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Guided Reading: With comprehension questions
+///    - Parallel Reading: Side-by-side with translation
+///    - Speed Reading: Timed reading challenges
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// </summary>
+
 class TextSegment
 {
     public string Text { get; set; } = string.Empty;
@@ -100,6 +130,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     private MauiControls.ContentPage? _pageRef;
     private MauiControls.Grid? _mainGridRef;
+    private ActivityTimerBar? _cachedTimerBar; // 🎯 Cache to prevent recreation every render
 
     public override VisualNode Render()
     {
@@ -170,7 +201,9 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     private VisualNode RenderTitleView()
     {
-        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
+        // 🎯 Reuse cached timer to prevent recreation/flashing every render
+        _cachedTimerBar ??= new ActivityTimerBar();
+        return Grid(mainGridRef => _mainGridRef = mainGridRef, _cachedTimerBar).HEnd().VCenter();
     }
 
     private void TrySetShellTitleView()

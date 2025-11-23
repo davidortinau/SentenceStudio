@@ -31,15 +31,15 @@ public class SkillProfileRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             // Set timestamps
             if (item.CreatedAt == default)
                 item.CreatedAt = DateTime.UtcNow;
-                
+
             item.UpdatedAt = DateTime.UtcNow;
-            
+
             if (item.Id != 0)
             {
                 db.SkillProfiles.Update(item);
@@ -48,11 +48,11 @@ public class SkillProfileRepository
             {
                 db.SkillProfiles.Add(item);
             }
-            
+
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return item.Id;
         }
         catch (Exception ex)
@@ -66,14 +66,14 @@ public class SkillProfileRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             db.SkillProfiles.Remove(item);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -88,5 +88,12 @@ public class SkillProfileRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.SkillProfiles.Where(s => s.Id == skillID).FirstOrDefaultAsync();
+    }
+
+    public async Task<SkillProfile?> GetAsync(int skillId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.SkillProfiles.FirstOrDefaultAsync(s => s.Id == skillId);
     }
 }

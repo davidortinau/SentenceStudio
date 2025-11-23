@@ -282,15 +282,42 @@ public class SentenceTimingCalculator
         if (string.IsNullOrWhiteSpace(text))
             return new List<string>();
 
-        // Split by common sentence delimiters, ignoring paragraph breaks
+        // Split by common sentence delimiters, preserving the original punctuation
         var cleanedText = text.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
 
-        var sentences = cleanedText
-            .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Select(s => s + (s.EndsWith('.') || s.EndsWith('!') || s.EndsWith('?') ? "" : "."))
-            .ToList();
+        var sentences = new List<string>();
+        var currentSentence = new System.Text.StringBuilder();
+
+        for (int i = 0; i < cleanedText.Length; i++)
+        {
+            char c = cleanedText[i];
+            currentSentence.Append(c);
+
+            // Check if this is a sentence delimiter
+            if (c == '.' || c == '!' || c == '?' || c == '。' || c == '！' || c == '？')
+            {
+                // Found end of sentence - trim and add if not empty
+                var sentence = currentSentence.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(sentence))
+                {
+                    sentences.Add(sentence);
+                }
+                currentSentence.Clear();
+            }
+        }
+
+        // Add any remaining text as a sentence (with period if no punctuation)
+        var remaining = currentSentence.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(remaining))
+        {
+            // Only add period if it doesn't already end with punctuation
+            if (!remaining.EndsWith('.') && !remaining.EndsWith('!') && !remaining.EndsWith('?') &&
+                !remaining.EndsWith('。') && !remaining.EndsWith('！') && !remaining.EndsWith('？'))
+            {
+                remaining += ".";
+            }
+            sentences.Add(remaining);
+        }
 
         return sentences;
     }

@@ -232,6 +232,24 @@ public class VocabularyProgressRepository
     }
 
     /// <summary>
+    /// Get vocabulary words due for review with word and resource details for planning
+    /// </summary>
+    public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, int userId = 1)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var dueWords = await db.VocabularyProgresses
+            .Include(vp => vp.VocabularyWord)
+            .Include(vp => vp.LearningContexts)
+                .ThenInclude(lc => lc.LearningResource)
+            .Where(vp => vp.UserId == userId && vp.NextReviewDate <= asOfDate)
+            .ToListAsync();
+
+        return dueWords;
+    }
+
+    /// <summary>
     /// Get aggregated progress for vocabulary words in a specific resource using SQL joins
     /// </summary>
     public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(int resourceId, int userId = 1)

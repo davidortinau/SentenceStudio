@@ -13,6 +13,36 @@ using SentenceStudio.Components;
 namespace SentenceStudio.Pages.Shadowing;
 
 /// <summary>
+/// Shadowing Activity Page - Audio Repetition and Pronunciation Practice
+/// 
+/// USAGE CONTEXTS (CRITICAL - This page serves multiple purposes!):
+/// 
+/// 1. FROM DAILY PLAN (Structured Learning):
+///    - Entry: Dashboard → Today's Plan → Click "Shadowing" activity
+///    - Props.FromTodaysPlan = true, Props.PlanItemId = set
+///    - Content: Pre-selected resource by DeterministicPlanBuilder
+///    - Timer: ActivityTimerBar visible in Shell.TitleView
+///    - Completion: Updates plan progress, returns to dashboard
+///    - User Expectation: "I'm completing my daily shadowing practice"
+/// 
+/// 2. MANUAL RESOURCE SELECTION (Free Practice):
+///    - Entry: Resources → Browse → Select resource → Start Shadowing
+///    - Props.FromTodaysPlan = false, Props.PlanItemId = null
+///    - Content: User-selected resource
+///    - Timer: No timer displayed
+///    - Completion: Shows summary, offers continue/return options
+///    - User Expectation: "I'm practicing pronunciation with this specific resource"
+/// 
+/// 3. FUTURE CONTEXTS (Update this section as new uses are added!):
+///    - Recording Mode: Record and compare pronunciation
+///    - Speed Variation: Practice at different speeds
+///    - Pronunciation Scoring: AI-based pronunciation feedback
+/// 
+/// IMPORTANT: When modifying this page, ensure changes work correctly for ALL contexts!
+/// Test both daily plan flow AND manual resource selection before committing.
+/// </summary>
+
+/// <summary>
 /// Container class for cached audio data and its metadata.
 /// </summary>
 class AudioCacheEntry
