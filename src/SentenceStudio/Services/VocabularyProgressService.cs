@@ -5,14 +5,15 @@ public class VocabularyProgressService : IVocabularyProgressService
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly VocabularyLearningContextRepository _contextRepo;
 
-    // Enhanced rigorous thresholds - Captain's orders! ⚓
-    private const float MASTERY_THRESHOLD = 0.85f;        // Raised from 0.8f - more rigorous!
-    private const float PHASE_ADVANCE_THRESHOLD = 0.75f;  // Raised from 0.7f - must prove competency!
-    private const int ROLLING_AVERAGE_COUNT = 8;          // Increased from 5 - longer memory!
-    private const int MIN_ATTEMPTS_PER_PHASE = 4;         // Minimum attempts before phase advancement
-    private const int MIN_CORRECT_PER_PHASE = 3;          // Minimum correct answers per phase
-    private const float INCORRECT_PENALTY = 0.15f;        // Penalty for wrong answers
-    private const float MIXED_MODE_REQUIREMENT = 0.7f;    // Must show competency in both modes
+    // Enhanced rigorous thresholds - aligned with SLA developmental sequences! ⚓
+    private const float MASTERY_THRESHOLD = 0.85f;                // Full productive mastery
+    private const float RECEPTIVE_MASTERY_THRESHOLD = 0.70f;      // Recognition-only mastery
+    private const float PHASE_ADVANCE_THRESHOLD = 0.75f;          // Must prove competency!
+    private const int ROLLING_AVERAGE_COUNT = 8;                  // Increased from 5 - longer memory!
+    private const int MIN_ATTEMPTS_PER_PHASE = 4;                 // Minimum attempts before phase advancement
+    private const int MIN_CORRECT_RECOGNITION = 3;                // Recognition needs more evidence (easier task)
+    private const int MIN_CORRECT_PRODUCTION = 2;                 // Production needs less evidence (harder task, more signal)
+    private const float INCORRECT_PENALTY = 0.15f;                // Penalty for wrong answers
 
     public VocabularyProgressService(
         VocabularyProgressRepository progressRepo,
@@ -190,70 +191,120 @@ public class VocabularyProgressService : IVocabularyProgressService
         // Apply incorrect answer penalties
         float penalizedScore = ApplyIncorrectAnswerPenalties(combinedScore, recentAttempts);
 
-        // Apply mixed-mode requirement penalty
-        float mixedModeScore = ApplyMixedModeRequirement(penalizedScore, progress);
-
         // Add time decay factor (keep existing)
         var daysSinceLastPractice = (DateTime.Now - progress.LastPracticedAt).TotalDays;
         var timeFactor = Math.Max(0.8f, 1.0f - (float)(daysSinceLastPractice * 0.01));
 
-        var finalScore = Math.Min(1.0f, mixedModeScore * timeFactor);
+        var finalScore = Math.Min(1.0f, penalizedScore * timeFactor);
 
         // Debug output for Captain to monitor
         Debug.WriteLine($"🏴‍☠️ Word {progress.VocabularyWordId}: " +
                        $"Base={baseScore:F2}, Rolling={rollingScore:F2}, " +
-                       $"Penalized={penalizedScore:F2}, Mixed={mixedModeScore:F2}, " +
+                       $"Penalized={penalizedScore:F2}, " +
                        $"Final={finalScore:F2}");
 
         return finalScore;
     }
 
     /// <summary>
-    /// Calculate score based on phase-specific requirements
+    /// Calculate score based on phase-specific requirements.
+    /// LEARNING SCIENCE: Production implies recognition, but recognition doesn't imply production.
+    /// This implements developmental sequence from Laufer & Nation (1999):
+    /// - Receptive knowledge develops first (0.70-0.85)
+    /// - Productive knowledge emerges later (0.85-1.0)
     /// </summary>
     private float CalculatePhaseSpecificScore(VocabularyProgress progress)
     {
-        // Recognition phase score (multiple choice)
-        float recognitionScore = 0f;
-        if (progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE)
+        // Calculate recognition score
+        float recognitionScore = CalculateRecognitionScore(progress);
+        
+        // Calculate production score
+        float productionScore = CalculateProductionScore(progress);
+        
+        // CASE 1: Has demonstrated production competency
+        // Production IMPLIES recognition (can't produce what you don't recognize)
+        if (productionScore >= RECEPTIVE_MASTERY_THRESHOLD && 
+            progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
+            progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
         {
-            recognitionScore = Math.Min(1.0f, progress.RecognitionAccuracy);
+            // Production evidence is strongest - give full credit
+            // Even if recognition score is lower (maybe they haven't seen it in recognition contexts)
+            return productionScore;
         }
-        else if (progress.RecognitionAttempts > 0)
+        
+        // CASE 2: Has strong recognition, with some production evidence
+        if (recognitionScore >= RECEPTIVE_MASTERY_THRESHOLD && 
+            progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION)
         {
-            // Partial credit but capped low until minimum attempts met
-            recognitionScore = Math.Min(0.4f, progress.RecognitionAccuracy * 0.5f);
+            if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION && 
+                progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
+            {
+                // Has both - blend with emphasis on production (harder skill)
+                return Math.Max(recognitionScore, 
+                               (recognitionScore * 0.4f) + (productionScore * 0.6f));
+            }
+            else if (progress.ProductionAttempts > 0)
+            {
+                // Some production attempts but not enough evidence yet
+                // Give receptive mastery credit with slight production boost
+                return Math.Min(0.85f, recognitionScore + (productionScore * 0.15f));
+            }
+            else
+            {
+                // Recognition-only mastery - cap at 0.85 to leave room for production growth
+                return Math.Min(0.85f, recognitionScore);
+            }
         }
-
-        // Production phase score (text entry)
-        float productionScore = 0f;
-        if (progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE)
+        
+        // CASE 3: Building competency - not enough attempts yet
+        if (progress.RecognitionAttempts > 0 || progress.ProductionAttempts > 0)
         {
-            productionScore = Math.Min(1.0f, progress.ProductionAccuracy);
-        }
-        else if (progress.ProductionAttempts > 0)
-        {
-            // Partial credit but capped low until minimum attempts met
-            productionScore = Math.Min(0.4f, progress.ProductionAccuracy * 0.5f);
-        }
-
-        // For true mastery, need competency in BOTH phases
-        if (progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
-            progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE)
-        {
-            // Take the LOWER of the two scores (weakest link determines mastery)
-            return Math.Min(recognitionScore, productionScore);
-        }
-        else if (progress.ProductionAttempts > 0)
-        {
-            // In production phase, weight both but require recognition foundation
-            return (recognitionScore * 0.4f) + (productionScore * 0.6f);
+            // Take the better of the two scores but cap low until evidence threshold met
+            float bestScore = Math.Max(recognitionScore, productionScore);
+            return Math.Min(0.60f, bestScore);
         }
         else
         {
-            // Still in recognition phase, cap at 60% until advancing
-            return Math.Min(0.6f, recognitionScore);
+            // No attempts yet
+            return 0f;
         }
+    }
+    
+    /// <summary>
+    /// Calculate recognition score with proper thresholds
+    /// </summary>
+    private float CalculateRecognitionScore(VocabularyProgress progress)
+    {
+        if (progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION)
+        {
+            // Full credit based on accuracy
+            return Math.Min(1.0f, progress.RecognitionAccuracy);
+        }
+        else if (progress.RecognitionAttempts > 0)
+        {
+            // Partial credit but capped until minimum evidence threshold
+            return Math.Min(0.5f, progress.RecognitionAccuracy * 0.7f);
+        }
+        return 0f;
+    }
+    
+    /// <summary>
+    /// Calculate production score with proper thresholds
+    /// </summary>
+    private float CalculateProductionScore(VocabularyProgress progress)
+    {
+        if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION)
+        {
+            // Full credit - production is harder, so fewer attempts needed
+            return Math.Min(1.0f, progress.ProductionAccuracy);
+        }
+        else if (progress.ProductionAttempts > 0)
+        {
+            // Partial credit but capped until minimum evidence threshold
+            // More generous than recognition because each production attempt is harder
+            return Math.Min(0.6f, progress.ProductionAccuracy * 0.8f);
+        }
+        return 0f;
     }
 
     /// <summary>
@@ -323,38 +374,16 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// Apply mixed-mode requirement - must show competency in BOTH modes for mastery
-    /// </summary>
-    private float ApplyMixedModeRequirement(float score, VocabularyProgress progress)
-    {
-        // For scores above 70%, start applying mixed-mode requirements
-        if (score < 0.7f) return score;
-
-        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
-                                      progress.RecognitionAccuracy >= MIXED_MODE_REQUIREMENT;
-
-        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE &&
-                                     progress.ProductionAccuracy >= MIXED_MODE_REQUIREMENT;
-
-        // If attempting mastery (80%+) but missing mixed-mode competency, cap the score
-        if (score >= 0.8f && (!hasRecognitionCompetency || !hasProductionCompetency))
-        {
-            return Math.Min(0.75f, score); // Cap at 75% until both modes proven
-        }
-
-        return score;
-    }
-
-    /// <summary>
     /// Check if word has demonstrated competency in both recognition and production
+    /// Used for marking MasteredAt timestamp
     /// </summary>
     private bool HasMixedModeCompetency(VocabularyProgress progress)
     {
-        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_PER_PHASE &&
-                                      progress.RecognitionAccuracy >= MIXED_MODE_REQUIREMENT;
+        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION &&
+                                      progress.RecognitionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD;
 
-        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PER_PHASE &&
-                                     progress.ProductionAccuracy >= MIXED_MODE_REQUIREMENT;
+        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
+                                     progress.ProductionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD;
 
         return hasRecognitionCompetency && hasProductionCompetency;
     }
@@ -362,25 +391,29 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// RIGOROUS learning phase advancement - much stricter requirements!
     /// </summary>
+    /// <summary>
+    /// RIGOROUS learning phase advancement - SLA-aligned requirements!
+    /// Recognition → Production → Application
+    /// </summary>
     private void UpdateLearningPhaseRigorous(VocabularyProgress progress)
     {
-        // Advance from Recognition to Production - stricter requirements
+        // Advance from Recognition to Production
         if (progress.CurrentPhase == LearningPhase.Recognition &&
             progress.RecognitionAccuracy >= PHASE_ADVANCE_THRESHOLD &&
             progress.RecognitionAttempts >= MIN_ATTEMPTS_PER_PHASE &&
-            progress.RecognitionCorrect >= MIN_CORRECT_PER_PHASE)
+            progress.RecognitionCorrect >= MIN_CORRECT_RECOGNITION)
         {
             progress.CurrentPhase = LearningPhase.Production;
             Debug.WriteLine($"🎯 Word {progress.VocabularyWordId} advanced to Production phase! " +
                           $"Recognition: {progress.RecognitionCorrect}/{progress.RecognitionAttempts} " +
                           $"({progress.RecognitionAccuracy:P})");
         }
-        // Advance from Production to Application - even stricter!
+        // Advance from Production to Application
         else if (progress.CurrentPhase == LearningPhase.Production &&
                  progress.ProductionAccuracy >= PHASE_ADVANCE_THRESHOLD &&
-                 progress.ProductionAttempts >= MIN_ATTEMPTS_PER_PHASE &&
-                 progress.ProductionCorrect >= MIN_CORRECT_PER_PHASE &&
-                 progress.RecognitionAccuracy >= MIXED_MODE_REQUIREMENT) // Must maintain recognition skills!
+                 progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
+                 progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION &&
+                 progress.RecognitionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD) // Must maintain recognition skills!
         {
             progress.CurrentPhase = LearningPhase.Application;
             Debug.WriteLine($"🚀 Word {progress.VocabularyWordId} advanced to Application phase! " +
