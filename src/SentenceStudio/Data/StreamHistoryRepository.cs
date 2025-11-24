@@ -106,4 +106,14 @@ public class StreamHistoryRepository
             .OrderByDescending(h => h.CreatedAt)
             .ToListAsync();
     }
+    
+    public async Task<StreamHistory?> GetStreamHistoryByPhraseAndVoiceAsync(string phrase, string voiceId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.StreamHistories
+            .Where(h => h.Phrase == phrase && h.VoiceId == voiceId)
+            .OrderByDescending(h => h.CreatedAt)
+            .FirstOrDefaultAsync();
+    }
 }

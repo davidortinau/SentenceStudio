@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
-using SentenceStudio.Pages.Controls;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -28,7 +27,6 @@ class EditVocabularyWordPageState
     
     // Audio playback state
     public bool IsGeneratingAudio { get; set; } = false;
-    public IAudioPlayer AudioPlayer { get; set; }
 }
 
 partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, VocabularyWordProps>
@@ -36,13 +34,12 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] ILogger<EditVocabularyWordPage> _logger;
     [Inject] ElevenLabsSpeechService _speechService;
-    [Inject] IAudioManager _audioManager;
     [Inject] StreamHistoryRepository _historyRepo;
     [Inject] UserActivityRepository _activityRepo;
     
     LocalizationManager _localize => LocalizationManager.Instance;
     
-    private FloatingAudioPlayer _audioPlayer;
+    private IAudioPlayer _audioPlayer;
 
     public override VisualNode Render()
     {
@@ -76,15 +73,32 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 Label($"{_localize["TargetLanguageTerm"]}")
                     .FontSize(14)
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Entry()
-                        .Text(State.TargetLanguageTerm)
-                        .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
-                        .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
-                        .FontSize(16)
-                )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
+                HStack(spacing: 8,
+                    Border(
+                        Entry()
+                            .Text(State.TargetLanguageTerm)
+                            .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
+                            .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
+                            .FontSize(16)
+                    )
+                    .ThemeKey(MyTheme.InputWrapper)
+                    .Padding(MyTheme.CardPadding)
+                    .HorizontalOptions(LayoutOptions.FillAndExpand),
+                    
+                    // Inline audio play button - only show for saved words with text
+                    State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
+                        ImageButton()
+                            .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
+                            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+                            .HeightRequest(44)
+                            .WidthRequest(44)
+                            .CornerRadius(8)
+                            .Padding(10)
+                            .VCenter()
+                            .IsEnabled(!State.IsGeneratingAudio)
+                            .OnClicked(() => _ = PlayWordAudioAsync(State.TargetLanguageTerm)) :
+                        null
+                ).VCenter()
             ),
 
             // Native Language  
@@ -109,11 +123,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .TextColor(MyTheme.SupportErrorDark)
                     .FontSize(12)
                     .HStart() :
-                null,
-            
-            // Audio preview section (only for saved words)
-            State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ? 
-                RenderAudioSection() : null
+                null
         );
 
     VisualNode RenderResourceAssociations() =>
@@ -416,62 +426,11 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     }
     
     /// <summary>
-    /// Renders the audio preview section with playback controls.
-    /// Supports pronunciation modeling via native-speaker TTS.
-    /// </summary>
-    VisualNode RenderAudioSection() =>
-        Border(
-            VStack(spacing: 12,
-                Label("🎧 Audio Preview")
-                    .ThemeKey(MyTheme.Title3),
-                
-                Label("Listen to native pronunciation and practice shadowing")
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.SecondaryText),
-                
-                // Quick playback buttons
-                HStack(spacing: 8,
-                    // Play isolated word
-                    Button($"🔊 {State.TargetLanguageTerm}")
-                        .OnClicked(() => PlayWord(State.TargetLanguageTerm))
-                        .ThemeKey(MyTheme.Secondary)
-                        .IsEnabled(!State.IsGeneratingAudio)
-                        .HorizontalOptions(LayoutOptions.Fill),
-                    
-                    // Open full audio studio for context
-                    Button("📝 Hear in Context")
-                        .OnClicked(OpenAudioStudio)
-                        .ThemeKey(MyTheme.Secondary)
-                        .HorizontalOptions(LayoutOptions.Fill)
-                ),
-                
-                // Loading indicator
-                State.IsGeneratingAudio ?
-                    HStack(spacing: 8,
-                        ActivityIndicator()
-                            .IsRunning(true)
-                            .HeightRequest(20)
-                            .WidthRequest(20),
-                        Label("Generating audio...")
-                            .ThemeKey(MyTheme.Caption1)
-                            .TextColor(MyTheme.SecondaryText)
-                    ).HCenter() :
-                    null,
-                
-                // Floating player (shown after audio loads)
-                _audioPlayer?.Render()
-            )
-            .Padding(MyTheme.CardPadding)
-        )
-        .ThemeKey(MyTheme.CardStyle)
-        .Margin(0, 8, 0, 0);
-    
-    /// <summary>
     /// Plays isolated word pronunciation using ElevenLabs TTS.
     /// Learning Science: Provides pronunciation model for articulatory practice (shadowing/imitation).
     /// Multimodal input (visual + auditory) strengthens phonological encoding.
     /// </summary>
-    async Task PlayWord(string word)
+    async Task PlayWordAudioAsync(string word)
     {
         if (string.IsNullOrWhiteSpace(word))
             return;
@@ -480,65 +439,57 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         
         try
         {
-            _logger.LogInformation("🎧 Generating audio for word: {Word}", word);
-            
-            // Generate audio using ElevenLabs with Korean voice
-            var audioStream = await _speechService.TextToSpeechAsync(
-                text: word,
-                voiceId: Voices.JiYoung, // Default Korean voice - could pull from user preferences
-                stability: 0.5f,
-                similarityBoost: 0.75f
-            );
-            
-            // Create audio player from stream
-            var player = _audioManager.CreatePlayer(audioStream);
-            SetState(s => s.AudioPlayer = player);
-            
-            // Create floating player UI if not already exists
-            if (_audioPlayer == null)
+            // Stop any existing player
+            if (_audioPlayer != null)
             {
-                _audioPlayer = new FloatingAudioPlayer(
-                    player,
-                    onPlay: () => 
-                    {
-                        player.Play();
-                        _logger.LogDebug("🔊 Playing audio for: {Word}", word);
-                    },
-                    onPause: () => 
-                    {
-                        player.Pause();
-                        _logger.LogDebug("⏸️ Paused audio for: {Word}", word);
-                    },
-                    onRewind: () => 
-                    { 
-                        player.Seek(0); 
-                        player.Play();
-                        _logger.LogDebug("⏪ Rewinding and replaying: {Word}", word);
-                    },
-                    onStop: () => 
-                    { 
-                        player.Stop(); 
-                        _audioPlayer?.Hide();
-                        _logger.LogDebug("⏹️ Stopped audio for: {Word}", word);
-                    }
-                );
+                _audioPlayer.PlaybackEnded -= OnAudioPlaybackEnded;
+                if (_audioPlayer.IsPlaying)
+                {
+                    _audioPlayer.Stop();
+                }
             }
             
-            // Setup player UI
-            _audioPlayer.SetTitle($"🔊 {word}");
-            _audioPlayer.ShowLoading();
+            Stream audioStream;
+            bool fromCache = false;
             
-            // Start playback
-            player.Play();
-            _audioPlayer.SetReady();
-            _audioPlayer.Show();
-            _audioPlayer.SetPlaying();
+            // Check if we have cached audio for this word
+            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(word, Voices.JiYoung);
             
-            // Save to history for later review (supports spaced repetition via audio)
-            await SaveToHistory(word, audioStream);
+            if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
+            {
+                // Use cached audio file
+                _logger.LogInformation("🎧 Using cached audio for word: {Word}", word);
+                audioStream = File.OpenRead(cachedAudio.AudioFilePath);
+                fromCache = true;
+            }
+            else
+            {
+                // Generate audio using ElevenLabs with Korean voice
+                _logger.LogInformation("🎧 Generating audio from API for word: {Word}", word);
+                audioStream = await _speechService.TextToSpeechAsync(
+                    text: word,
+                    voiceId: Voices.JiYoung, // Default Korean voice - could pull from user preferences
+                    stability: 0.5f,
+                    similarityBoost: 0.75f
+                );
+                
+                // Save to cache for future use
+                await SaveToHistory(word, audioStream);
+            }
+            
+            // Reset stream position to beginning
+            audioStream.Position = 0;
+            
+            // Create audio player from stream and play immediately
+            _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+            _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
+            _audioPlayer.Play();
+            
+            _logger.LogInformation("✅ Successfully playing audio for: {Word} (from {Source})", 
+                word, fromCache ? "cache" : "API");
             
             // Track listening activity for progress analytics
-            await RecordListeningActivity(State.Word.Id, "isolated_word", player.Duration);
+            await RecordListeningActivity(State.Word.Id, "isolated_word", _audioPlayer.Duration);
             
             _logger.LogInformation("✅ Successfully played audio for: {Word}", word);
         }
@@ -556,6 +507,22 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         {
             SetState(s => s.IsGeneratingAudio = false);
         }
+    }
+    
+    /// <summary>
+    /// Called when audio playback finishes naturally.
+    /// </summary>
+    private void OnAudioPlaybackEnded(object sender, EventArgs e)
+    {
+        _logger.LogDebug("🎵 Audio playback ended");
+        
+        if (_audioPlayer != null)
+        {
+            _audioPlayer.PlaybackEnded -= OnAudioPlaybackEnded;
+            // Don't dispose immediately - can cause crashes on some platforms
+        }
+        
+        SetState(s => s.IsGeneratingAudio = false);
     }
     
     /// <summary>
@@ -585,6 +552,14 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     {
         try
         {
+            // Check if we already have this phrase cached
+            var existing = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(phrase, Voices.JiYoung);
+            if (existing != null && !string.IsNullOrEmpty(existing.AudioFilePath) && File.Exists(existing.AudioFilePath))
+            {
+                _logger.LogDebug("💾 Audio already cached for: {Phrase}", phrase);
+                return;
+            }
+            
             // Save audio to disk for offline access
             var fileName = $"vocab_{State.Word.Id}_{DateTime.Now:yyyyMMddHHmmss}.mp3";
             var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
@@ -615,7 +590,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             
             await _historyRepo.SaveStreamHistoryAsync(historyItem);
             
-            _logger.LogInformation("💾 Saved audio to history: {FilePath}", filePath);
+            _logger.LogInformation("💾 Saved audio to cache: {FilePath}", filePath);
         }
         catch (Exception ex)
         {
