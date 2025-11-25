@@ -2,13 +2,14 @@ using System.Buffers;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using NLayer.NAudioSupport; // ➜ NuGet: NLayer.NAudioSupport (adds MP3 decoding everywhere)
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services
 {
     /// <summary>
     /// Cross‑platform service that decodes an MP3 stream (or file) to PCM and
     /// returns a fixed‑width <c>float[]</c> ready for waveform drawing.
-    /// 
+    ///
     /// Dependencies (add via NuGet):
     ///   • NAudio (>= 2.2)
     ///   • NLayer.NAudioSupport (pure‑C# MP3 decoder that plugs into NAudio)
@@ -18,6 +19,12 @@ namespace SentenceStudio.Services
         private const int DEFAULT_SAMPLE_RATE = 44_100; // Hz
         private const float SILENCE_DB = -60f;          // gate threshold (dBFS)
         private readonly float _silenceLinear = (float)Math.Pow(10, SILENCE_DB / 20);
+        private readonly ILogger<AudioAnalyzer> _logger;
+
+        public AudioAnalyzer(ILogger<AudioAnalyzer> logger)
+        {
+            _logger = logger;
+        }
 
 
 
@@ -178,7 +185,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error getting audio duration: {ex.Message}");
+                _logger.LogError(ex, "Error getting audio duration");
                 return 0;
             }
             finally

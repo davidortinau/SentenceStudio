@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace SentenceStudio.Services
 {
     public class StorytellerService
@@ -8,6 +10,7 @@ namespace SentenceStudio.Services
         private StoryRepository _storyRepository;
         private readonly IServiceProvider _serviceProvider;
         private readonly ISyncService? _syncService;
+        private readonly ILogger<StorytellerService> _logger;
         
         private List<VocabularyWord> _words;
 
@@ -17,7 +20,7 @@ namespace SentenceStudio.Services
             }
         }
 
-        public StorytellerService(IServiceProvider service, ISyncService? syncService = null)
+        public StorytellerService(IServiceProvider service, ILogger<StorytellerService> logger, ISyncService? syncService = null)
         {
             _aiService = service.GetRequiredService<AiService>();
             _resourceRepo = service.GetRequiredService<LearningResourceRepository>();
@@ -25,6 +28,7 @@ namespace SentenceStudio.Services
             _storyRepository = service.GetRequiredService<StoryRepository>();
             _serviceProvider = service;
             _syncService = syncService;
+            _logger = logger;
         }
 
         public async Task<Story> TellAStory(int resourceId, int numberOfWords, int skillID)
@@ -58,7 +62,7 @@ namespace SentenceStudio.Services
             {
                 var response = await _aiService.SendPrompt<StorytellerResponse>(prompt);
                 watch.Stop();
-                Debug.WriteLine($"Received response in: {watch.Elapsed}");
+                _logger.LogDebug("Received response in: {Elapsed}", watch.Elapsed);
 
                 response.Story.ListID = resourceId;
                 response.Story.SkillID = skillID;
@@ -70,7 +74,7 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred TellAStory: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in TellAStory");
                 return new();
             }
         }

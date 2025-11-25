@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services
 {
@@ -12,14 +13,16 @@ namespace SentenceStudio.Services
         private readonly IChatClient _client;
         private readonly string _openAiApiKey;
         private ISyncService _syncService;
+        private readonly ILogger<ConversationService> _logger;
 
-        public ConversationService(IServiceProvider serviceProvider, IConfiguration configuration, IChatClient chatClient)
+        public ConversationService(IServiceProvider serviceProvider, IConfiguration configuration, IChatClient chatClient, ILogger<ConversationService> logger)
         {
             _serviceProvider = serviceProvider;
             _aiService = serviceProvider.GetRequiredService<AiService>();
             _client = chatClient;
             this.configuration = configuration;
             _syncService = serviceProvider.GetService<ISyncService>();
+            _logger = logger;
 
             _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         }
@@ -63,7 +66,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred SaveConversationChunk: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in SaveConversationChunk");
             }
         }
 
@@ -89,10 +92,10 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred StartConversation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in StartConversation");
                 return string.Empty;
             }
-        }   
+        }
 
         public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks)
         {       
@@ -114,7 +117,7 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred StartConversation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in ContinueConversation");
                 return null;
             }
         }
@@ -145,9 +148,9 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred SaveConversation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in SaveConversation");
             }
-            
+
             return conversation.Id;
         }
 
@@ -166,7 +169,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred DeleteConversation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in DeleteConversation");
             }
         }
 

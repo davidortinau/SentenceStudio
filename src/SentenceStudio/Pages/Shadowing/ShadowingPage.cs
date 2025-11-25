@@ -9,6 +9,7 @@ using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
 using Microsoft.Maui.Dispatching;
 using SentenceStudio.Components;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -79,6 +80,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] IFileSaver _fileSaver;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<ShadowingPage> _logger;
 
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
@@ -248,7 +250,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.IsVoiceSelectionVisible = false;
         });
 
-        Debug.WriteLine($"Selected voice: {voiceId}");
+        _logger.LogDebug("ShadowingPage: Selected voice: {VoiceId}", voiceId);
     }
 
     /// <summary>
@@ -342,7 +344,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <param name="normalizedPosition">The position as a value from 0 to 1.</param>
     private void OnWaveformPositionSelected(float normalizedPosition)
     {
-        Debug.WriteLine($"Waveform position selected: {normalizedPosition:F2}");
+        _logger.LogDebug("ShadowingPage: Waveform position selected: {Position:F2}", normalizedPosition);
 
         if (State.IsAudioPlaying)
         {
@@ -393,7 +395,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.IsPaused = false;
         });
 
-        Debug.WriteLine($"Seeked to position {normalizedPosition:F2} and resumed playback");
+        _logger.LogDebug("ShadowingPage: Seeked to position {Position:F2} and resumed playback", normalizedPosition);
     }
 
     /// <summary>
@@ -416,7 +418,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.CurrentTimeDisplay = FormatTimeDisplay(seekPosition);
         });
 
-        Debug.WriteLine($"Audio seeked to position {normalizedPosition:F2}");
+        _logger.LogDebug("ShadowingPage: Audio seeked to position {Position:F2}", normalizedPosition);
     }
 
     /// <summary>
@@ -456,7 +458,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.IsPaused = false;
         });
 
-        Debug.WriteLine($"Started playback from position {normalizedPosition:F2}");
+        _logger.LogDebug("ShadowingPage: Started playback from position {Position:F2}", normalizedPosition);
     }
 
     /// <summary>
@@ -847,7 +849,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error loading sentences: {ex.Message}");
+            _logger.LogError(ex, "ShadowingPage: Error loading sentences");
             SetState(s => s.IsBusy = false);
         }
     }
@@ -886,7 +888,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     s.WaveformData = cacheEntry.WaveformData;
                 });
 
-                Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
+                _logger.LogDebug("ShadowingPage: Restored cached time display: {DurationDisplay}", cacheEntry.DurationDisplay);
             }
         }
     }
@@ -925,7 +927,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     s.WaveformData = cacheEntry.WaveformData;
                 });
 
-                Debug.WriteLine($"Restored cached time display: {cacheEntry.DurationDisplay}");
+                _logger.LogDebug("ShadowingPage: Restored cached time display: {DurationDisplay}", cacheEntry.DurationDisplay);
             }
         }
     }
@@ -968,7 +970,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.IsPaused = true;
             });
 
-            Debug.WriteLine("Audio playback paused");
+            _logger.LogDebug("ShadowingPage: Audio playback paused");
         }
 
         return Task.CompletedTask;
@@ -992,7 +994,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.IsPaused = false;
             });
 
-            Debug.WriteLine("Audio playback resumed");
+            _logger.LogDebug("ShadowingPage: Audio playback resumed");
         }
 
         return Task.CompletedTask;
@@ -1049,7 +1051,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     s.DurationDisplay = cacheEntry.DurationDisplay;
                 });
 
-                Debug.WriteLine($"Using cached audio for: {cacheKey}");
+                _logger.LogDebug("ShadowingPage: Using cached audio for: {CacheKey}", cacheKey);
             }
             else
             {
@@ -1073,7 +1075,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             // Capture audio duration for waveform scaling
             double audioDuration = _audioPlayer.Duration;
             string durationFormatted = FormatTimeDisplay(audioDuration);
-            Debug.WriteLine($"Audio duration: {audioDuration} seconds");
+            _logger.LogDebug("ShadowingPage: Audio duration: {Duration} seconds", audioDuration);
 
             // If this is a new audio stream, create a new cache entry
             if (cacheEntry == null)
@@ -1109,11 +1111,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     // Reset the original stream position
                     audioStream.Position = 0;
 
-                    Debug.WriteLine($"Extracted waveform data: {waveformData.Length} samples with duration {audioDuration}s");
+                    _logger.LogDebug("ShadowingPage: Extracted waveform data: {Samples} samples with duration {Duration}s", waveformData.Length, audioDuration);
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error analyzing audio waveform: {ex.Message}");
+                    _logger.LogError(ex, "ShadowingPage: Error analyzing audio waveform");
                     // Continue even if waveform analysis fails
                 }
             }
@@ -1145,7 +1147,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error playing audio: {ex.Message}");
+            _logger.LogError(ex, "ShadowingPage: Error playing audio");
             SetState(s =>
             {
                 s.IsAudioPlaying = false;
@@ -1386,7 +1388,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error saving audio: {ex.Message}");
+            _logger.LogError(ex, "ShadowingPage: Error saving audio");
             SetState(s =>
             {
                 s.IsSavingAudio = false;

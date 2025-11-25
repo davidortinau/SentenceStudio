@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -6,11 +7,13 @@ public class SceneImageService
 {
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;
+    private readonly ILogger<SceneImageService> _logger;
 
-    public SceneImageService(IServiceProvider serviceProvider)
+    public SceneImageService(IServiceProvider serviceProvider, ILogger<SceneImageService> logger)
     {
         _serviceProvider = serviceProvider;
         _syncService = serviceProvider.GetService<ISyncService>();
+        _logger = logger;
     }
 
     public async Task<List<SceneImage>> ListAsync()
@@ -51,7 +54,7 @@ public class SceneImageService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
@@ -76,7 +79,7 @@ public class SceneImageService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

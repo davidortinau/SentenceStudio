@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -6,10 +7,12 @@ public class StreamHistoryRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
+    private readonly ILogger<StreamHistoryRepository> _logger;
 
-    public StreamHistoryRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
+    public StreamHistoryRepository(IServiceProvider serviceProvider, ILogger<StreamHistoryRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = syncService;
     }
 
@@ -61,7 +64,7 @@ public class StreamHistoryRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveStreamHistoryAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveStreamHistoryAsync");
             return -1;
         }
     }
@@ -82,11 +85,11 @@ public class StreamHistoryRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteStreamHistoryAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteStreamHistoryAsync");
             return -1;
         }
     }
-    
+
     public async Task<List<StreamHistory>> SearchStreamHistoryAsync(string query)
     {
         using var scope = _serviceProvider.CreateScope();

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -7,10 +7,12 @@ public class VocabularyLearningContextRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
+    private readonly ILogger<VocabularyLearningContextRepository> _logger;
 
-    public VocabularyLearningContextRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
+    public VocabularyLearningContextRepository(IServiceProvider serviceProvider, ILogger<VocabularyLearningContextRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = syncService;
     }
 
@@ -100,7 +102,7 @@ public class VocabularyLearningContextRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             throw;
         }
     }
@@ -121,7 +123,7 @@ public class VocabularyLearningContextRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

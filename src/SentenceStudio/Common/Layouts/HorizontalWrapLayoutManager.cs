@@ -1,5 +1,5 @@
 ﻿using Microsoft.Maui.Layouts;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using StackLayoutManager = Microsoft.Maui.Layouts.StackLayoutManager;
 
 namespace CustomLayouts
@@ -7,10 +7,12 @@ namespace CustomLayouts
     public class HorizontalWrapLayoutManager : StackLayoutManager
     {
         HorizontalWrapLayout _layout;
+        private readonly ILogger<HorizontalWrapLayoutManager>? _logger;
 
-        public HorizontalWrapLayoutManager(HorizontalWrapLayout horizontalWrapLayout) : base(horizontalWrapLayout)
+        public HorizontalWrapLayoutManager(HorizontalWrapLayout horizontalWrapLayout, ILogger<HorizontalWrapLayoutManager>? logger = null) : base(horizontalWrapLayout)
         {
             _layout = horizontalWrapLayout;
+            _logger = logger;
         }
 
        
@@ -39,7 +41,7 @@ namespace CustomLayouts
                 if(n == 0){ // first item, go ahead and set a row height to start
                     currentRowHeight = Math.Max(currentRowHeight, measure.Height);
                     totalHeight += currentRowHeight;
-                    Debug.WriteLine($"item{n} totalHeight: {totalHeight}");
+                    _logger?.LogDebug("item{ItemIndex} totalHeight: {TotalHeight}", n, totalHeight);
                     // totalHeight += _layout.Spacing;
                 }
 

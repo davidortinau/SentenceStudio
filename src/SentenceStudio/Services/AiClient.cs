@@ -2,6 +2,7 @@ using System.ClientModel;
 using OpenAI.Audio;
 using OpenAI.Chat;
 using OpenAI.Images;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -11,10 +12,12 @@ public class AIClient
     private readonly ChatClient _client;
     private readonly AudioClient _audio;
     private readonly ImageClient _image;
+    private readonly ILogger<AIClient>? _logger;
 
-    public AIClient(string apiKey, bool hd = false)
+    public AIClient(string apiKey, ILogger<AIClient>? logger = null, bool hd = false)
     {
         _apiKey = apiKey;
+        _logger = logger;
         _client = new ChatClient("gpt-4o", _apiKey);
         _audio = new("tts-1", _apiKey);
         _image = new ImageClient("gpt-4o", _apiKey);
@@ -37,7 +40,7 @@ public class AIClient
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"{ex.Message}");
+            _logger.LogError(ex, "Error occurred in TextToSpeechAsync");
         }
 
         return null;
@@ -98,11 +101,11 @@ public class AIClient
                 ClientResult<ChatCompletion> result = await _client.CompleteChatAsync(messages, options);
                 return result.Value.Content[0].Text;
             }catch(Exception ex){
-                Debug.WriteLine(ex.Message);
+                _logger.LogError(ex, "Error occurred in SendPrompt");
             }
             return string.Empty;
         }
-        
+
         return string.Empty;
     }
 
@@ -134,7 +137,7 @@ public class AIClient
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex.Message);
+            _logger.LogError(ex, "Error occurred in SendImage");
         }
 
         return string.Empty;

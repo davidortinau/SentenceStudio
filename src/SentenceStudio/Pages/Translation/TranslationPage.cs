@@ -3,7 +3,7 @@ using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Clozure;
 using System.Text;
 using System.Web;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Scriban;
 using SentenceStudio.Components;
 
@@ -68,6 +68,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<TranslationPage> _logger;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -283,7 +284,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error rendering word status for '{word.TargetLanguageTerm}': {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error rendering word status for '{word.TargetLanguageTerm}': {ex.Message}");
             return Border()
                 .StrokeShape(new RoundRectangle().CornerRadius(12))
                 .StrokeThickness(1)
@@ -328,12 +329,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             // Use the resource Id if available, or fallback to null
             var resourceId = Props.Resource?.Id ?? 0;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loading sentences for resource {resourceId}, skill {Props.Skill?.Id}");
+            _logger.LogDebug("TranslationPage: Loading sentences for resource {resourceId}, skill {Props.Skill?.Id}");
 
             var sentences = await _translationService.GetTranslationSentences(resourceId, 2, Props.Skill.Id);
             await Task.Delay(100);
 
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Received {sentences?.Count ?? 0} sentences from translation service");
+            _logger.LogDebug("TranslationPage: Received {sentences?.Count ?? 0} sentences from translation service");
 
             if (sentences?.Any() == true)
             {
@@ -341,11 +342,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 {
                     foreach (var sentence in sentences)
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Adding sentence: '{sentence.SentenceText}' -> '{sentence.RecommendedTranslation}'");
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary count: {sentence.Vocabulary?.Count ?? 0}");
+                        _logger.LogDebug("TranslationPage: Adding sentence: '{SentenceText}' -> '{RecommendedTranslation}'", sentence.SentenceText, sentence.RecommendedTranslation);
+                        _logger.LogDebug("TranslationPage: Vocabulary count: {Count}", sentence.Vocabulary?.Count ?? 0);
                         if (sentence.Vocabulary?.Any() == true)
                         {
-                            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary words: [{string.Join(", ", sentence.Vocabulary.Select(v => $"{v.TargetLanguageTerm}({v.NativeLanguageTerm})"))}]");
+                            _logger.LogDebug("TranslationPage: Vocabulary words: [{VocabWords}]", string.Join(", ", sentence.Vocabulary.Select(v => $"{v.TargetLanguageTerm}({v.NativeLanguageTerm})")));
                         }
                         s.Sentences.Add(sentence);
                     }
@@ -357,7 +358,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
                 if (State.Sentences.Count < 10)
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Loading additional sentences in background");
+                    _logger.LogDebug("TranslationPage: Loading additional sentences in background");
                     SetState(s => s.IsBuffering = true);
                     var moreSentences = await _translationService.GetTranslationSentences(resourceId, 8, Props.Skill.Id);
                     SetState(s =>
@@ -372,7 +373,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             }
             else
             {
-                Debug.WriteLine("🏴‍☠️ TranslationPage: No sentences returned from translation service");
+                _logger.LogWarning("TranslationPage: No sentences returned from translation service");
                 SetState(s =>
                 {
                     s.CurrentSentence = "No sentences available for this skill. Check yer resource configuration, matey!";
@@ -382,7 +383,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error loading sentences: {ex.Message}");
+            _logger.LogError(ex, "TranslationPage: Error loading sentences");
             SetState(s =>
             {
                 s.CurrentSentence = $"Error loading sentences: {ex.Message}";
@@ -414,9 +415,9 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .ToList() ?? [];
             });
 
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Set current sentence {_currentSentenceIndex + 1}/{State.Sentences.Count}");
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Input mode reset to: {InputMode.Text}");
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Available vocabulary blocks: [{string.Join(", ", State.VocabBlocks)}]");
+            _logger.LogDebug("TranslationPage: Set current sentence {_currentSentenceIndex + 1}/{State.Sentences.Count}");
+            _logger.LogDebug("TranslationPage: Input mode reset to: {InputMode.Text}");
+            _logger.LogDebug("TranslationPage: Available vocabulary blocks: [{string.Join(", ", State.VocabBlocks)}]");
         }
     }
 
@@ -479,7 +480,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in GradeMe: {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error in GradeMe: {ex.Message}");
             SetState(s =>
             {
                 s.FeedbackMessage = "Sorry, there was an error grading your translation. Please try again.";
@@ -624,7 +625,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in vocabulary feedback: {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error in vocabulary feedback: {ex.Message}");
         }
 
         // Add accuracy and fluency scores
@@ -661,19 +662,19 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     {
         try
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Starting vocabulary processing for: '{userInput}'");
+            _logger.LogDebug("TranslationPage: Starting vocabulary processing for: '{userInput}'");
 
             // Get ALL vocabulary words from the current sentence, not just those in user input
             var allSentenceWords = await GetAllVocabularyFromCurrentSentence();
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Found {allSentenceWords.Count} vocabulary words in current sentence");
+            _logger.LogDebug("TranslationPage: Found {allSentenceWords.Count} vocabulary words in current sentence");
 
             // Extract words actually used by the user
             var usedWords = await ExtractVocabularyFromUserInput(userInput, grade);
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: User used {usedWords.Count} vocabulary words");
+            _logger.LogDebug("TranslationPage: User used {usedWords.Count} vocabulary words");
 
             // Calculate base difficulty for this translation
             var baseDifficulty = CalculateTranslationDifficulty(userInput, grade, allSentenceWords.Count);
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Base difficulty calculated: {baseDifficulty}");
+            _logger.LogDebug("TranslationPage: Base difficulty calculated: {baseDifficulty}");
 
             // Process ALL vocabulary words from the sentence
             foreach (var word in allSentenceWords)
@@ -683,7 +684,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     // Additional safety check - ensure word has valid ID
                     if (word.Id <= 0)
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ⚠️ Skipping word '{word.TargetLanguageTerm}' - invalid ID: {word.Id}");
+                        _logger.LogDebug("TranslationPage: ⚠️ Skipping word '{word.TargetLanguageTerm}' - invalid ID: {word.Id}");
                         continue;
                     }
 
@@ -707,18 +708,18 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
                     var progress = await _progressService.RecordAttemptAsync(attempt);
 
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Recorded progress for '{word.TargetLanguageTerm}' " +
+                    _logger.LogDebug("TranslationPage: ✅ Recorded progress for '{word.TargetLanguageTerm}' " +
                         $"(ID: {word.Id}, Used: {wasUsedCorrectly}, Correct: {attempt.WasCorrect}, Difficulty: {wordDifficulty:F2}, Context: {contextType})");
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ Error recording progress for word '{word.TargetLanguageTerm}' (ID: {word.Id}): {ex.Message}");
+                    _logger.LogDebug("TranslationPage: ❌ Error recording progress for word '{word.TargetLanguageTerm}' (ID: {word.Id}): {ex.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in ProcessVocabularyFromTranslation: {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error in ProcessVocabularyFromTranslation: {ex.Message}");
         }
     }
 
@@ -726,21 +727,21 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     {
         try
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Extracting vocabulary from user input: '{userInput}'");
+            _logger.LogDebug("TranslationPage: Extracting vocabulary from user input: '{userInput}'");
 
             // Get available vocabulary from learning resources
             var resources = await _resourceRepo.GetAllResourcesAsync();
             var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>())
                 .Where(v => v.Id > 0 && !string.IsNullOrEmpty(v.TargetLanguageTerm)) // Only valid words with IDs
                 .ToList();
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Loaded {allVocabulary.Count} valid vocabulary words from {resources.Count} resources");
+            _logger.LogDebug("TranslationPage: Loaded {allVocabulary.Count} valid vocabulary words from {resources.Count} resources");
 
             var foundWords = new List<VocabularyWord>();
 
             // First, try to use AI vocabulary analysis if available
             if (grade?.VocabularyAnalysis != null && grade.VocabularyAnalysis.Any())
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Using AI vocabulary analysis - found {grade.VocabularyAnalysis.Count} analyzed words");
+                _logger.LogDebug("TranslationPage: Using AI vocabulary analysis - found {grade.VocabularyAnalysis.Count} analyzed words");
 
                 foreach (var analysis in grade.VocabularyAnalysis)
                 {
@@ -748,7 +749,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     if (await IsValidVocabularyTerm(analysis.DictionaryForm) &&
                         await IsValidVocabularyTerm(analysis.UsedForm))
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
+                        _logger.LogDebug("TranslationPage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
 
                         // Try to find the word by dictionary form first
                         var vocabularyWord = allVocabulary.FirstOrDefault(v =>
@@ -764,16 +765,16 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                         if (vocabularyWord != null && !foundWords.Any(fw => fw.Id == vocabularyWord.Id))
                         {
                             foundWords.Add(vocabularyWord);
-                            Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Found match for '{analysis.UsedForm}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
+                            _logger.LogDebug("TranslationPage: ✅ Found match for '{analysis.UsedForm}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
                         }
                         else
                         {
-                            Debug.WriteLine($"🏴‍☠️ TranslationPage: ❌ No match found for '{analysis.UsedForm}' (dictionary form: '{analysis.DictionaryForm}')");
+                            _logger.LogDebug("TranslationPage: ❌ No match found for '{analysis.UsedForm}' (dictionary form: '{analysis.DictionaryForm}')");
                         }
                     }
                     else
                     {
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ⚠️ Skipping invalid vocabulary term: '{analysis.UsedForm}' (dictionary: '{analysis.DictionaryForm}')");
+                        _logger.LogDebug("TranslationPage: ⚠️ Skipping invalid vocabulary term: '{analysis.UsedForm}' (dictionary: '{analysis.DictionaryForm}')");
                     }
                 }
             }
@@ -781,7 +782,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             // Fallback: Simple word extraction for Korean text, but filter out particles
             if (foundWords.Count == 0)
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Using fallback word extraction for Korean text");
+                _logger.LogDebug("TranslationPage: Using fallback word extraction for Korean text");
 
                 var words = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var potentialWords = new List<string>();
@@ -812,17 +813,17 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     if (vocabularyWord != null && !foundWords.Any(fw => fw.Id == vocabularyWord.Id))
                     {
                         foundWords.Add(vocabularyWord);
-                        Debug.WriteLine($"🏴‍☠️ TranslationPage: ✅ Fallback found match for '{word}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
+                        _logger.LogDebug("TranslationPage: ✅ Fallback found match for '{word}' -> '{vocabularyWord.TargetLanguageTerm}' (ID: {vocabularyWord.Id})");
                     }
                 }
             }
 
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Final result: Found {foundWords.Count} valid vocabulary words");
+            _logger.LogDebug("TranslationPage: Final result: Found {foundWords.Count} valid vocabulary words");
             return foundWords;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error in ExtractVocabularyFromUserInput: {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error in ExtractVocabularyFromUserInput: {ex.Message}");
             return new List<VocabularyWord>();
         }
     }
@@ -863,14 +864,14 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         // Check if it's a particle or function word
         if (koreanParticles.Contains(cleanTerm) || englishParticles.Contains(cleanTerm))
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered out particle/function word: '{term}'");
+            _logger.LogDebug("TranslationPage: Filtered out particle/function word: '{term}'");
             return false;
         }
 
         // Additional check for pure particle words (single character Korean particles)
         if (IsKoreanText(term) && term.Length == 1)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered out single character Korean: '{term}'");
+            _logger.LogDebug("TranslationPage: Filtered out single character Korean: '{term}'");
             return false;
         }
 
@@ -901,16 +902,16 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
             if (dbWord != null)
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Found database word: '{word.TargetLanguageTerm}' -> ID {dbWord.Id}");
+                _logger.LogDebug("TranslationPage: Found database word: '{word.TargetLanguageTerm}' -> ID {dbWord.Id}");
                 return dbWord;
             }
 
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: No database match found for: '{word.TargetLanguageTerm}'");
+            _logger.LogDebug("TranslationPage: No database match found for: '{word.TargetLanguageTerm}'");
             return null;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error looking up word '{word.TargetLanguageTerm}': {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error looking up word '{word.TargetLanguageTerm}': {ex.Message}");
             return null;
         }
     }
@@ -931,7 +932,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 var cleanWord = word.Substring(0, word.Length - particle.Length);
                 if (cleanWord.Length >= 2) // Ensure we don't create too short words
                 {
-                    Debug.WriteLine($"🏴‍☠️ TranslationPage: Removed particle '{particle}' from '{word}' -> '{cleanWord}'");
+                    _logger.LogDebug("TranslationPage: Removed particle '{particle}' from '{word}' -> '{cleanWord}'");
                     return cleanWord;
                 }
             }
@@ -978,14 +979,14 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     }
                 }
 
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Filtered vocabulary - {sentenceVocab.Count} -> {validVocab.Count} valid words");
+                _logger.LogDebug("TranslationPage: Filtered vocabulary - {sentenceVocab.Count} -> {validVocab.Count} valid words");
                 return validVocab;
             }
             return new List<VocabularyWord>();
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Error getting sentence vocabulary: {ex.Message}");
+            _logger.LogDebug("TranslationPage: Error getting sentence vocabulary: {ex.Message}");
             return new List<VocabularyWord>();
         }
     }
@@ -998,12 +999,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         if (State.UserMode == InputMode.MultipleChoice.ToString())
         {
             difficulty *= 0.7f; // Vocabulary blocks are significantly easier
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary blocks mode - difficulty reduced to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: Vocabulary blocks mode - difficulty reduced to {difficulty:F2}");
         }
         else
         {
             difficulty *= 1.2f; // Free text entry is harder
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Text entry mode - difficulty increased to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: Text entry mode - difficulty increased to {difficulty:F2}");
         }
 
         // Sentence complexity based on word count
@@ -1011,12 +1012,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         if (wordCount > 10)
         {
             difficulty *= 1.3f;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: Long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
         }
         else if (wordCount > 15)
         {
             difficulty *= 1.5f;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Very long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: Very long sentence ({wordCount} words) - difficulty increased to {difficulty:F2}");
         }
 
         // Translation quality impact on difficulty
@@ -1024,19 +1025,19 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             var qualityMultiplier = Math.Max(0.8f, (float)(grade.Accuracy / 100.0));
             difficulty *= qualityMultiplier;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Quality adjustment ({grade.Accuracy}%) - difficulty adjusted to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: Quality adjustment ({grade.Accuracy}%) - difficulty adjusted to {difficulty:F2}");
         }
 
         // Vocabulary density - more vocab words = harder
         if (vocabularyWordCount > 3)
         {
             difficulty *= 1.2f;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: High vocabulary density ({vocabularyWordCount} words) - difficulty increased to {difficulty:F2}");
+            _logger.LogDebug("TranslationPage: High vocabulary density ({vocabularyWordCount} words) - difficulty increased to {difficulty:F2}");
         }
 
         // Clamp difficulty between reasonable bounds
         var finalDifficulty = Math.Min(2.5f, Math.Max(0.5f, difficulty));
-        Debug.WriteLine($"🏴‍☠️ TranslationPage: Final difficulty (clamped): {finalDifficulty:F2}");
+        _logger.LogDebug("TranslationPage: Final difficulty (clamped): {finalDifficulty:F2}");
 
         return finalDifficulty;
     }
@@ -1052,7 +1053,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
             if (analysis != null && !string.Equals(analysis.DictionaryForm, analysis.UsedForm, StringComparison.OrdinalIgnoreCase))
             {
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' identified as Conjugated (dictionary: {analysis.DictionaryForm}, used: {analysis.UsedForm})");
+                _logger.LogDebug("TranslationPage: Word '{word.TargetLanguageTerm}' identified as Conjugated (dictionary: {analysis.DictionaryForm}, used: {analysis.UsedForm})");
                 return "Conjugated";
             }
         }
@@ -1062,7 +1063,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             grade?.GrammarNotes?.Explanation?.ToLower().Contains("verb form") == true ||
             grade?.GrammarNotes?.Explanation?.ToLower().Contains("tense") == true)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Complex grammar detected for '{word.TargetLanguageTerm}'");
+            _logger.LogDebug("TranslationPage: Complex grammar detected for '{word.TargetLanguageTerm}'");
             return "Complex";
         }
 
@@ -1070,11 +1071,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         var wordCount = userInput.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         if (wordCount > 12)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long sentence context for '{word.TargetLanguageTerm}'");
+            _logger.LogDebug("TranslationPage: Long sentence context for '{word.TargetLanguageTerm}'");
             return "Complex";
         }
 
-        Debug.WriteLine($"🏴‍☠️ TranslationPage: Standard sentence context for '{word.TargetLanguageTerm}'");
+        _logger.LogDebug("TranslationPage: Standard sentence context for '{word.TargetLanguageTerm}'");
         return "Sentence";
     }
 
@@ -1087,15 +1088,15 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             case "Conjugated":
                 wordDifficulty *= 1.8f;
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Conjugated context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                _logger.LogDebug("TranslationPage: Conjugated context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
                 break;
             case "Complex":
                 wordDifficulty *= 1.4f;
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Complex context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                _logger.LogDebug("TranslationPage: Complex context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
                 break;
             case "Sentence":
                 wordDifficulty *= 1.2f;
-                Debug.WriteLine($"🏴‍☠️ TranslationPage: Sentence context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+                _logger.LogDebug("TranslationPage: Sentence context for '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
                 break;
         }
 
@@ -1103,12 +1104,12 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         if (word.TargetLanguageTerm?.Length > 6)
         {
             wordDifficulty *= 1.1f;
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Long word '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
+            _logger.LogDebug("TranslationPage: Long word '{word.TargetLanguageTerm}' - difficulty: {wordDifficulty:F2}");
         }
 
         // Clamp final difficulty
         var finalDifficulty = Math.Min(3.0f, Math.Max(0.3f, wordDifficulty));
-        Debug.WriteLine($"🏴‍☠️ TranslationPage: Final word difficulty for '{word.TargetLanguageTerm}': {finalDifficulty:F2}");
+        _logger.LogDebug("TranslationPage: Final word difficulty for '{word.TargetLanguageTerm}': {finalDifficulty:F2}");
 
         return finalDifficulty;
     }
@@ -1118,32 +1119,32 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         // If the user didn't use the word at all, it's considered incorrect for vocabulary tracking
         if (!wasUsedByUser)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' not used by user - marked incorrect");
+            _logger.LogDebug("TranslationPage: Word '{word.TargetLanguageTerm}' not used by user - marked incorrect");
             return false;
         }
 
         // If translation accuracy is very low, consider vocabulary usage incorrect
         if (grade?.Accuracy < 50)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Low accuracy ({grade.Accuracy}%) - word '{word.TargetLanguageTerm}' marked incorrect");
+            _logger.LogDebug("TranslationPage: Low accuracy ({grade.Accuracy}%) - word '{word.TargetLanguageTerm}' marked incorrect");
             return false;
         }
 
         // For vocabulary blocks mode, be more lenient since they're guided
         if (State.UserMode == InputMode.MultipleChoice.ToString() && grade?.Accuracy >= 60)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Vocabulary blocks mode with decent accuracy - word '{word.TargetLanguageTerm}' marked correct");
+            _logger.LogDebug("TranslationPage: Vocabulary blocks mode with decent accuracy - word '{word.TargetLanguageTerm}' marked correct");
             return true;
         }
 
         // For text entry, require higher accuracy
         if (State.UserMode == InputMode.Text.ToString() && grade?.Accuracy >= 70)
         {
-            Debug.WriteLine($"🏴‍☠️ TranslationPage: Text entry mode with good accuracy - word '{word.TargetLanguageTerm}' marked correct");
+            _logger.LogDebug("TranslationPage: Text entry mode with good accuracy - word '{word.TargetLanguageTerm}' marked correct");
             return true;
         }
 
-        Debug.WriteLine($"🏴‍☠️ TranslationPage: Word '{word.TargetLanguageTerm}' marked incorrect (accuracy: {grade?.Accuracy}%, mode: {State.UserMode})");
+        _logger.LogDebug("TranslationPage: Word '{word.TargetLanguageTerm}' marked incorrect (accuracy: {grade?.Accuracy}%, mode: {State.UserMode})");
         return false;
     }
 

@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+		<!-- Include net10.0 for unit testing - see https://learn.microsoft.com/en-us/dotnet/maui/deployment/unit-testing -->
+		<TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
 		<!-- Note for MacCatalyst:
@@ -10,7 +11,8 @@
 		either BOTH runtimes must be indicated or ONLY macatalyst-x64. -->
 		<!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
 
-		<OutputType>Exe</OutputType>
+		<!-- Only produce Exe for platform-specific targets, not for net10.0 -->
+		<OutputType Condition="'$(TargetFramework)' != 'net10.0'">Exe</OutputType>
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
@@ -132,8 +134,9 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
-		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" />
-		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
+		<!-- Platform-specific packages - exclude for net10.0 unit testing -->
+		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" Condition="'$(TargetFramework)' != 'net10.0'" />
 		<PackageReference Include="Scriban" Version="6.5.1" />
 		<!-- <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.1" /> -->
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
@@ -168,7 +171,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="ReactorTheme" Version="1.0.0" />
+		<PackageReference Include="ReactorTheme" Version="1.0.0" Condition="'$(TargetFramework)' != 'net10.0'" />
 
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.10.1" />
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.10.1-preview.1.25521.4" />
@@ -190,13 +193,50 @@
 		<ProjectReference Include="..\..\..\Plugin.Maui.DebugOverlay\src\Plugin.Maui.DebugOverlay\Plugin.Maui.DebugOverlay.csproj" />
 	</ItemGroup> -->
 
-	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows' AND '$(TargetFramework)' != 'net10.0'">
 
 
 		<PackageReference Include="Shiny.Extensions.Configuration" Version="3.3.4" />
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 
 
+	</ItemGroup>
+
+	<!-- Exclude all UI files when building for net10.0 (unit testing) -->
+	<!-- Only Services, Data, and Models are built for testing -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<Compile Remove="MauiProgram.cs" />
+		<Compile Remove="App.xaml.cs" />
+		<Compile Remove="AppShell.cs" />
+		<Compile Remove="AppShellModel.cs" />
+		<Compile Remove="_usings.cs" />
+		<Compile Remove="Resources\Styles\*.cs" />
+		<Compile Remove="Pages\**\*.cs" />
+		<Compile Remove="Components\**\*.cs" />
+		<Compile Remove="Common\**\*.cs" />
+		<Compile Remove="Helpers\*.cs" />
+		<Compile Remove="Converters\*.cs" />
+		<!-- Exclude services with MAUI dependencies (FileSystem, Template, Debug) or dependencies on excluded services -->
+		<Compile Remove="Services\TeacherService.cs" />
+		<Compile Remove="Services\AiClient.cs" />
+		<Compile Remove="Services\ConversationService.cs" />
+		<Compile Remove="Services\AudioAnalyzer.cs" />
+		<Compile Remove="Services\AudioCacheManager.cs" />
+		<Compile Remove="Services\SceneImageService.cs" />
+		<Compile Remove="Services\ElevenLabsSpeechService.cs" />
+		<Compile Remove="Services\ClozureService.cs" />
+		<Compile Remove="Services\TranslationService.cs" />
+		<Compile Remove="Services\StorytellerService.cs" />
+		<Compile Remove="Services\ShadowingService.cs" />
+		<Compile Remove="Services\VideoWatchingService.cs" />
+		<Compile Remove="Services\YouTubeImportService.cs" />
+		<Compile Remove="Services\Progress\*.cs" />
+		<Compile Remove="Services\Timer\*.cs" />
+		<Compile Remove="Services\PlanGeneration\*.cs" />
+		<!-- Exclude repositories with App/UI dependencies or dependencies on excluded services -->
+		<Compile Remove="Data\LearningResourceRepository.cs" />
+		<Compile Remove="Data\UserActivityRepository.cs" />
+		<MauiXaml Remove="App.xaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -211,7 +251,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" />
-		<ProjectReference Include="../../Plugin.Maui.DebugOverlay/src/Plugin.Maui.DebugOverlay/Plugin.Maui.DebugOverlay.csproj" />
+		<!-- Exclude DebugOverlay for net10.0 unit testing -->
+		<ProjectReference Include="../../Plugin.Maui.DebugOverlay/src/Plugin.Maui.DebugOverlay/Plugin.Maui.DebugOverlay.csproj" Condition="'$(TargetFramework)' != 'net10.0'" />
 		<ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>
 

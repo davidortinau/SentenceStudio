@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -6,10 +7,12 @@ public class SkillProfileRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
+    private readonly ILogger<SkillProfileRepository> _logger;
 
-    public SkillProfileRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
+    public SkillProfileRepository(IServiceProvider serviceProvider, ILogger<SkillProfileRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = syncService;
     }
 
@@ -57,7 +60,7 @@ public class SkillProfileRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             return -1;
         }
     }
@@ -78,7 +81,7 @@ public class SkillProfileRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

@@ -1,7 +1,7 @@
 using Microsoft.Maui.Graphics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -10,6 +10,8 @@ namespace SentenceStudio.Pages.Controls;
 /// </summary>
 public class WaveformDrawable : IDrawable
 {
+    private readonly ILogger<WaveformDrawable>? _logger;
+
     // Waveform properties
     private readonly List<float> _audioSamples = new();
     private float _playbackPosition = 0;
@@ -31,7 +33,12 @@ public class WaveformDrawable : IDrawable
 
     // Cache for storing waveform data by audio ID
     private readonly Dictionary<string, (float[] Samples, double Duration)> _waveformCache = new();
-    
+
+    public WaveformDrawable(ILogger<WaveformDrawable>? logger = null)
+    {
+        _logger = logger;
+    }
+
     /// <summary>
     /// Gets or sets the color of the waveform.
     /// </summary>
@@ -166,7 +173,7 @@ public class WaveformDrawable : IDrawable
             
         if (_waveformCache.TryGetValue(_currentAudioId, out var cachedData))
         {
-            Debug.WriteLine($"Using cached waveform data for audio ID: {_currentAudioId}");
+            _logger?.LogDebug("WaveformDrawable: Using cached waveform data for audio ID: {AudioId}", _currentAudioId);
             _audioSamples.Clear();
             _audioSamples.AddRange(cachedData.Samples);
             _audioDuration = cachedData.Duration;
@@ -225,7 +232,7 @@ public class WaveformDrawable : IDrawable
         }
         
         _randomSamplesGenerated = true;
-        Debug.WriteLine($"Generated {sampleCount} random audio samples for waveform visualization");
+        _logger?.LogDebug("WaveformDrawable: Generated {SampleCount} random audio samples for waveform visualization", sampleCount);
     }
 
     /// <summary>
@@ -235,7 +242,7 @@ public class WaveformDrawable : IDrawable
     /// <param name="duration">The duration of the audio in seconds.</param>
     public void UpdateWaveform(float[] audioData, double duration = 0)
     {
-        Debug.WriteLine($"Updating waveform with {audioData?.Length ?? 0} samples, duration: {duration}s, audioId: {_currentAudioId}");
+        _logger?.LogDebug("WaveformDrawable: Updating waveform with {SampleCount} samples, duration: {Duration}s, audioId: {AudioId}", audioData?.Length ?? 0, duration, _currentAudioId);
         if (audioData == null || audioData.Length == 0)
             return;
             
@@ -257,7 +264,7 @@ public class WaveformDrawable : IDrawable
             Array.Copy(audioData, dataCopy, audioData.Length);
             
             _waveformCache[_currentAudioId] = (dataCopy, duration);
-            Debug.WriteLine($"Cached waveform data for audio ID: {_currentAudioId}");
+            _logger?.LogDebug("WaveformDrawable: Cached waveform data for audio ID: {AudioId}", _currentAudioId);
         }
     }
     
@@ -278,7 +285,7 @@ public class WaveformDrawable : IDrawable
     public void ClearCache()
     {
         _waveformCache.Clear();
-        Debug.WriteLine("Cleared waveform cache");
+        _logger?.LogDebug("WaveformDrawable: Cleared waveform cache");
     }
 
     /// <summary>
@@ -353,7 +360,7 @@ public class WaveformDrawable : IDrawable
         // If we have no samples and auto-generation is enabled, generate random ones
         if (_audioSamples.Count == 0 && !_randomSamplesGenerated && _autoGenerateWaveform)
         {
-            Debug.WriteLine("No audio samples available, generating random samples for preview");
+            _logger?.LogDebug("WaveformDrawable: No audio samples available, generating random samples for preview");
             GenerateRandomWaveform(_sampleCount);
             if (_audioSamples.Count == 0)
             {

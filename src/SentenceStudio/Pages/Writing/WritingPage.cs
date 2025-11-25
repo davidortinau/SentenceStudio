@@ -1,7 +1,7 @@
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
 using System.Text;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Fonts;
 
 
@@ -26,6 +26,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] VocabularyProgressService _vocabularyProgressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<WritingPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -135,7 +136,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         // Start activity timer if launched from Today's Plan (only once)
         if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
         {
-            Debug.WriteLine($"🏴‍☠️ WritingPage: Starting activity timer for Writing, PlanItemId: {Props.PlanItemId}");
+            _logger.LogDebug("WritingPage: Starting activity timer for Writing, PlanItemId: {PlanItemId}", Props.PlanItemId);
             _timerService.StartSession("Writing", Props.PlanItemId);
         }
 
@@ -240,7 +241,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ WritingPage: Error processing vocabulary: {ex.Message}");
+            _logger.LogError(ex, "WritingPage: Error processing vocabulary");
         }
 
         SetState(s => { }); // Force refresh
@@ -316,11 +317,12 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     /// </summary>
     async Task ProcessVocabularyFromWriting(string userInput, GradeResponse gradeResponse)
     {
-        Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Starting vocabulary analysis for WritingPage");
+        _logger.LogDebug("ProcessVocabularyFromWriting: Starting vocabulary analysis for WritingPage");
 
         if (gradeResponse?.VocabularyAnalysis != null && gradeResponse.VocabularyAnalysis.Any())
         {
-            Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Found {gradeResponse.VocabularyAnalysis.Count} vocabulary items from AI analysis");
+            _logger.LogDebug("ProcessVocabularyFromWriting: Found {Count} vocabulary items from AI analysis",
+                gradeResponse.VocabularyAnalysis.Count);
 
             foreach (var vocabItem in gradeResponse.VocabularyAnalysis)
             {
@@ -346,13 +348,14 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     };
 
                     await _vocabularyProgressService.RecordAttemptAsync(attempt);
-                    Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: Recorded attempt for '{vocabItem.UsedForm}' (correct: {vocabItem.UsageCorrect})");
+                    _logger.LogDebug("ProcessVocabularyFromWriting: Recorded attempt for '{UsedForm}' (correct: {UsageCorrect})",
+                        vocabItem.UsedForm, vocabItem.UsageCorrect);
                 }
             }
         }
         else
         {
-            Debug.WriteLine($"🏴‍☠️ ProcessVocabularyFromWriting: No AI vocabulary analysis available");
+            _logger.LogDebug("ProcessVocabularyFromWriting: No AI vocabulary analysis available");
         }
     }
 
@@ -363,7 +366,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
-            Debug.WriteLine("🏴‍☠️ WritingPage: Pausing activity timer");
+            _logger.LogDebug("WritingPage: Pausing activity timer");
             _timerService.Pause();
         }
     }

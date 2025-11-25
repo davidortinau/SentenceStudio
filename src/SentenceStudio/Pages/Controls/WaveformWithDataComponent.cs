@@ -1,4 +1,5 @@
 using Microsoft.Maui.Graphics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -9,6 +10,7 @@ namespace SentenceStudio.Pages.Controls;
 /// </summary>
 partial class WaveformWithData : Component
 {
+    private ILogger<WaveformWithData>? _logger;
     private readonly WaveformDrawable _drawable = new();
     private readonly Color _waveColor;
     private readonly Color _playedColor;
@@ -46,7 +48,7 @@ partial class WaveformWithData : Component
 
     public override VisualNode Render()
     {
-        Debug.WriteLine($"~~ WaveformWithData.Render() - Height: {_height}");
+        _logger?.LogDebug("WaveformWithData: Render() - Height: {Height}", _height);
         return new MauiReactor.GraphicsView(graphicsViewRef => _graphicsViewRef = graphicsViewRef)
             .Drawable(_drawable)
             .HeightRequest(_height);

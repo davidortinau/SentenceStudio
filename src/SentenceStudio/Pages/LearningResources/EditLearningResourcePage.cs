@@ -1188,7 +1188,7 @@ Transcript:
         catch (Exception ex)
         {
             SetState(s => s.IsPolishingTranscript = false);
-            Debug.WriteLine($"❌ Polish transcript error: {ex}");
+            _logger.LogError(ex, "EditLearningResourcePage: ❌ Polish transcript error");
             await App.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
         }
     }

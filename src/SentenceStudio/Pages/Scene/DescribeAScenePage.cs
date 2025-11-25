@@ -2,7 +2,7 @@ using MauiReactor.Shapes;
 using System.Collections.Immutable;
 using SentenceStudio.Services;
 using SentenceStudio.Pages.Dashboard;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Scene;
 
@@ -40,6 +40,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<DescribeAScenePage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
     CommunityToolkit.Maui.Views.Popup? _popup;
 
@@ -252,7 +253,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         // Start activity timer if launched from Today's Plan (only once)
         if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting activity timer for SceneDescription, PlanItemId: {Props.PlanItemId}");
+            _logger.LogDebug("DescribeAScenePage: Starting activity timer for SceneDescription, PlanItemId: {PlanItemId}", Props.PlanItemId);
             _timerService.StartSession("SceneDescription", Props.PlanItemId);
         }
 
@@ -289,7 +290,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
-            Debug.WriteLine("🏴‍☠️ DescribeAScenePage: Pausing activity timer");
+            _logger.LogDebug("DescribeAScenePage: Pausing activity timer");
             _timerService.Pause();
         }
     }
@@ -299,7 +300,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         var imgs = await _sceneImageService.ListAsync();
         SetState(s => s.Images = ImmutableList.CreateRange(imgs));
 
-        Debug.WriteLine($"DescribeAScenePage: ManageImages invoked, loaded {imgs?.Count ?? 0} images");
+        _logger.LogDebug("DescribeAScenePage: ManageImages invoked, loaded {Count} images", imgs?.Count ?? 0);
 
         // Always use the SfBottomSheet for managing images on all platforms.
         SetState(s =>
@@ -308,7 +309,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             s.IsGalleryVisible = false; // ensure popup is not shown
         });
 
-        Debug.WriteLine($"DescribeAScenePage: IsGalleryBottomSheetOpen={State.IsGalleryBottomSheetOpen}, IsGalleryVisible={State.IsGalleryVisible}");
+        _logger.LogDebug("DescribeAScenePage: IsGalleryBottomSheetOpen={IsOpen}, IsGalleryVisible={IsVisible}", State.IsGalleryBottomSheetOpen, State.IsGalleryVisible);
     }
 
     async Task ViewDescription()
@@ -333,7 +334,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
-        Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting grading for user input: '{State.UserInput}'");
+        _logger.LogDebug("DescribeAScenePage: Starting grading for user input: '{UserInput}'", State.UserInput);
 
         var stopwatch = Stopwatch.StartNew();
         SetState(s => s.IsBusy = true);
@@ -343,7 +344,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             var grade = await _teacherService.GradeDescription(State.UserInput, State.Description);
             stopwatch.Stop();
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grading completed! Accuracy: {grade.Accuracy:F2}, Fluency: {grade.Fluency:F2}, Response time: {stopwatch.ElapsedMilliseconds}ms");
+            _logger.LogDebug("DescribeAScenePage: Grading completed! Accuracy: {Accuracy:F2}, Fluency: {Fluency:F2}, Response time: {ElapsedMs}ms", grade.Accuracy, grade.Fluency, stopwatch.ElapsedMilliseconds);
 
             var sentence = new Sentence
             {
@@ -367,10 +368,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 UpdatedAt = DateTime.Now
             });
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Legacy activity tracking saved");
+            _logger.LogDebug("DescribeAScenePage: Legacy activity tracking saved");
 
             // Enhanced vocabulary tracking - extract words from user input and process each
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting enhanced vocabulary tracking...");
+            _logger.LogDebug("DescribeAScenePage: Starting enhanced vocabulary tracking...");
             await ProcessVocabularyFromDescription(State.UserInput, grade, (int)stopwatch.ElapsedMilliseconds);
 
             // Show enhanced feedback
@@ -382,12 +383,11 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 s.Sentences = s.Sentences.Insert(0, sentence);
             });
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grading process completed successfully!");
+            _logger.LogDebug("DescribeAScenePage: Grading process completed successfully!");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Error during grading: {ex.Message}");
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "DescribeAScenePage: Error during grading");
         }
         finally
         {
@@ -512,7 +512,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error saving selected image: {ex.Message}");
+                _logger.LogError(ex, "DescribeAScenePage: Error saving selected image");
             }
 
             if (string.IsNullOrWhiteSpace(image.Description))
@@ -572,14 +572,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     {
         try
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Starting vocabulary processing for input: '{userInput}'");
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Grade accuracy: {grade.Accuracy:F2}");
+            _logger.LogDebug("DescribeAScenePage: Starting vocabulary processing for input: '{UserInput}'", userInput);
+            _logger.LogDebug("DescribeAScenePage: Grade accuracy: {Accuracy:F2}", grade.Accuracy);
 
             // Extract vocabulary words from the user's description
             // For scene descriptions, we'll attempt to identify key vocabulary terms
             var words = await ExtractVocabularyFromUserInput(userInput, grade);
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extracted {words.Count} vocabulary words to process");
+            _logger.LogDebug("DescribeAScenePage: Extracted {Count} vocabulary words to process", words.Count);
 
             foreach (var vocabularyWord in words)
             {
@@ -596,13 +596,13 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 {
                     wasCorrect = vocabularyAnalysis.UsageCorrect;
                     actualUsedForm = vocabularyAnalysis.UsedForm;
-                    Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Using AI analysis for '{vocabularyWord.TargetLanguageTerm}' - used as '{actualUsedForm}', correct: {wasCorrect}");
+                    _logger.LogDebug("DescribeAScenePage: Using AI analysis for '{Term}' - used as '{UsedForm}', correct: {Correct}", vocabularyWord.TargetLanguageTerm, actualUsedForm, wasCorrect);
                 }
                 else
                 {
                     wasCorrect = grade.Accuracy >= 0.7; // Consider 70%+ as correct usage
                     actualUsedForm = vocabularyWord.TargetLanguageTerm ?? "";
-                    Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: No specific AI analysis for '{vocabularyWord.TargetLanguageTerm}', using overall accuracy: {wasCorrect}");
+                    _logger.LogDebug("DescribeAScenePage: No specific AI analysis for '{Term}', using overall accuracy: {Correct}", vocabularyWord.TargetLanguageTerm, wasCorrect);
                 }
 
                 var attempt = new VocabularyAttempt
@@ -620,19 +620,18 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     UserConfidence = null // Could be added later with user self-assessment
                 };
 
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Recording vocabulary attempt for Word ID: {vocabularyWord.Id}, '{vocabularyWord.TargetLanguageTerm}' - Correct: {wasCorrect}");
+                _logger.LogDebug("DescribeAScenePage: Recording vocabulary attempt for Word ID: {WordId}, '{Term}' - Correct: {Correct}", vocabularyWord.Id, vocabularyWord.TargetLanguageTerm, wasCorrect);
 
                 var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
 
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Progress updated! Word ID: {vocabularyWord.Id}, MasteryScore: {updatedProgress.MasteryScore:F2}, Phase: {updatedProgress.CurrentPhase}");
+                _logger.LogDebug("DescribeAScenePage: Progress updated! Word ID: {WordId}, MasteryScore: {MasteryScore:F2}, Phase: {Phase}", vocabularyWord.Id, updatedProgress.MasteryScore, updatedProgress.CurrentPhase);
             }
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Completed processing {words.Count} vocabulary words");
+            _logger.LogDebug("DescribeAScenePage: Completed processing {Count} vocabulary words", words.Count);
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Error in ProcessVocabularyFromDescription: {ex.Message}");
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "DescribeAScenePage: Error in ProcessVocabularyFromDescription");
         }
     }
 
@@ -640,35 +639,35 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     {
         try
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extracting vocabulary from input: '{userInput}'");
+            _logger.LogDebug("DescribeAScenePage: Extracting vocabulary from input: '{UserInput}'", userInput);
 
             var matchedWords = new List<VocabularyWord>();
 
             // Check if we have AI-powered vocabulary analysis
             if (grade.VocabularyAnalysis != null && grade.VocabularyAnalysis.Any())
             {
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Using AI vocabulary analysis - found {grade.VocabularyAnalysis.Count} analyzed words");
+                _logger.LogDebug("DescribeAScenePage: Using AI vocabulary analysis - found {Count} analyzed words", grade.VocabularyAnalysis.Count);
 
                 // Get available vocabulary from learning resources
                 var resources = await _resourceRepo.GetAllResourcesAsync();
                 var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Loaded {allVocabulary.Count} vocabulary words from {resources.Count} resources");
+                _logger.LogDebug("DescribeAScenePage: Loaded {VocabCount} vocabulary words from {ResourceCount} resources", allVocabulary.Count, resources.Count);
 
                 // Debug: Log details about each resource
                 foreach (var resource in resources)
                 {
                     var vocabCount = resource.Vocabulary?.Count ?? 0;
-                    Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Resource '{resource.Title}' has {vocabCount} vocabulary words");
+                    _logger.LogDebug("DescribeAScenePage: Resource '{Title}' has {VocabCount} vocabulary words", resource.Title, vocabCount);
                     if (vocabCount > 0 && resource.Vocabulary != null)
                     {
                         var sampleWords = resource.Vocabulary.Take(3).Select(v => $"'{v.TargetLanguageTerm}'").ToList();
-                        Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Sample words from '{resource.Title}': [{string.Join(", ", sampleWords)}]");
+                        _logger.LogDebug("DescribeAScenePage: Sample words from '{Title}': [{SampleWords}]", resource.Title, string.Join(", ", sampleWords));
                     }
                 }
 
                 foreach (var analysis in grade.VocabularyAnalysis)
                 {
-                    Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Looking for dictionary form '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
+                    _logger.LogDebug("DescribeAScenePage: Looking for dictionary form '{DictionaryForm}' (used as '{UsedForm}')", analysis.DictionaryForm, analysis.UsedForm);
 
                     // Try to match by dictionary form (target language)
                     var matchedWord = allVocabulary.FirstOrDefault(v =>
@@ -694,30 +693,30 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                         if (!matchedWords.Any(w => w.Id == matchedWord.Id))
                         {
                             matchedWords.Add(matchedWord);
-                            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: ✅ Matched Word ID: {matchedWord.Id}, '{matchedWord.TargetLanguageTerm}' -> '{matchedWord.NativeLanguageTerm}', Usage correct: {analysis.UsageCorrect}");
+                            _logger.LogDebug("DescribeAScenePage: ✅ Matched Word ID: {WordId}, '{TargetTerm}' -> '{NativeTerm}', Usage correct: {UsageCorrect}", matchedWord.Id, matchedWord.TargetLanguageTerm, matchedWord.NativeLanguageTerm, analysis.UsageCorrect);
                         }
                         else
                         {
-                            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: ⚠️ Duplicate word avoided: {matchedWord.TargetLanguageTerm}");
+                            _logger.LogDebug("DescribeAScenePage: ⚠️ Duplicate word avoided: {Term}", matchedWord.TargetLanguageTerm);
                         }
                     }
                     else
                     {
-                        Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: ❌ No match found for '{analysis.DictionaryForm}' (used as '{analysis.UsedForm}')");
+                        _logger.LogDebug("DescribeAScenePage: ❌ No match found for '{DictionaryForm}' (used as '{UsedForm}')", analysis.DictionaryForm, analysis.UsedForm);
                     }
                 }
             }
             else
             {
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: ⚠️ No AI vocabulary analysis available, falling back to simple matching");
+                _logger.LogDebug("DescribeAScenePage: ⚠️ No AI vocabulary analysis available, falling back to simple matching");
 
                 // Fallback to simple string matching (legacy behavior)
                 var resources = await _resourceRepo.GetAllResourcesAsync();
                 var allVocabulary = resources.SelectMany(r => r.Vocabulary ?? new List<VocabularyWord>()).ToList();
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Found {allVocabulary.Count} total vocabulary words in {resources.Count} resources");
+                _logger.LogDebug("DescribeAScenePage: Found {VocabCount} total vocabulary words in {ResourceCount} resources", allVocabulary.Count, resources.Count);
 
                 var inputWords = userInput.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Input words: [{string.Join(", ", inputWords)}]");
+                _logger.LogDebug("DescribeAScenePage: Input words: [{InputWords}]", string.Join(", ", inputWords));
 
                 foreach (var vocab in allVocabulary)
                 {
@@ -727,7 +726,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                                            vocab.TargetLanguageTerm.ToLower().Contains(w)))
                     {
                         matchedWords.Add(vocab);
-                        Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: MATCH found! '{vocab.TargetLanguageTerm}' matches in user input");
+                        _logger.LogDebug("DescribeAScenePage: MATCH found! '{Term}' matches in user input", vocab.TargetLanguageTerm);
                     }
 
                     // Also check native language terms (in case user mixed languages)
@@ -738,7 +737,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                         if (!matchedWords.Contains(vocab)) // Avoid duplicates
                         {
                             matchedWords.Add(vocab);
-                            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: MATCH found! '{vocab.NativeLanguageTerm}' (native) matches in user input");
+                            _logger.LogDebug("DescribeAScenePage: MATCH found! '{NativeTerm}' (native) matches in user input", vocab.NativeLanguageTerm);
                         }
                     }
                 }
@@ -747,18 +746,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 matchedWords = matchedWords.Take(5).ToList();
             }
 
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Extraction completed - found {matchedWords.Count} vocabulary words");
+            _logger.LogDebug("DescribeAScenePage: Extraction completed - found {Count} vocabulary words", matchedWords.Count);
             foreach (var word in matchedWords)
             {
-                Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Final matched word - Target: '{word.TargetLanguageTerm}', Native: '{word.NativeLanguageTerm}'");
+                _logger.LogDebug("DescribeAScenePage: Final matched word - Target: '{TargetTerm}', Native: '{NativeTerm}'", word.TargetLanguageTerm, word.NativeLanguageTerm);
             }
 
             return matchedWords;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Error in ExtractVocabularyFromUserInput: {ex.Message}");
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "DescribeAScenePage: Error in ExtractVocabularyFromUserInput");
             return new List<VocabularyWord>();
         }
     }
@@ -814,7 +812,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"🏴‍☠️ DescribeAScenePage: Error showing feedback: {ex.Message}");
+            _logger.LogError(ex, "DescribeAScenePage: Error showing feedback");
         }
     }
 

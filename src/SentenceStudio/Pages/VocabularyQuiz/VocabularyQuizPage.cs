@@ -1569,7 +1569,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             {
                 var nextReview = progress.NextReviewDate.Value;
                 var daysUntilReview = (nextReview - DateTime.Now).Days;
-                Debug.WriteLine($"Next review for word {item.Word.Id} in {daysUntilReview} days");
+                _logger.LogDebug("VocabularyQuizPage: Next review for word {WordId} in {Days} days", item.Word.Id, daysUntilReview);
             }
         }
         else

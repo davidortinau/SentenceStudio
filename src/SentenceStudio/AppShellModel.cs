@@ -1,19 +1,21 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
 using SentenceStudio.Services;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio;
 
 public partial class AppShellModel : ObservableObject
 {
     private UserProfileRepository _userProfileRepository;
+    private readonly ILogger<AppShellModel> _logger;
 
     public LocalizationManager Localize => LocalizationManager.Instance;
 
     [RelayCommand]
     async Task ChangeUILanguage()
     {
-        Debug.WriteLine($"ChangeUILanguage Current Culture: {CultureInfo.CurrentUICulture.Name}");
+        _logger.LogDebug("ChangeUILanguage Current Culture: {CultureName}", CultureInfo.CurrentUICulture.Name);
         var culture = (CultureInfo.CurrentUICulture.Name == "ko-KR") ? "en-US" : "ko-KR";
         Localize.SetCulture(new CultureInfo( culture, false ));
         await _userProfileRepository.SaveDisplayCultureAsync(culture);
@@ -21,9 +23,10 @@ public partial class AppShellModel : ObservableObject
         TitleDashboard = "YOU GOT UPDATED!";
     }
 
-    public AppShellModel(IServiceProvider serviceProvider)
+    public AppShellModel(IServiceProvider serviceProvider, ILogger<AppShellModel> logger)
     {
         _userProfileRepository = serviceProvider.GetRequiredService<UserProfileRepository>();
+        _logger = logger;
     }
 
     public async Task LoadProfile()

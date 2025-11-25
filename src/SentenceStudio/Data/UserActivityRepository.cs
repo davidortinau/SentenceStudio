@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -7,10 +8,12 @@ public class UserActivityRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly SentenceStudio.Services.Progress.ProgressCacheService? _cacheService;
+    private readonly ILogger<UserActivityRepository> _logger;
 
-    public UserActivityRepository(IServiceProvider serviceProvider, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
+    public UserActivityRepository(IServiceProvider serviceProvider, ILogger<UserActivityRepository> logger, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = syncService;
         _cacheService = cacheService;
     }
@@ -67,7 +70,7 @@ public class UserActivityRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
                 await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
@@ -92,7 +95,7 @@ public class UserActivityRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

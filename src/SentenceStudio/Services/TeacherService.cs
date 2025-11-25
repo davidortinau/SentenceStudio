@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace SentenceStudio.Services
 {
     public class TeacherService
@@ -7,6 +9,7 @@ namespace SentenceStudio.Services
         private LearningResourceRepository _resourceRepository;
         private readonly IServiceProvider _serviceProvider;
         private readonly ISyncService? _syncService;
+        private readonly ILogger<TeacherService> _logger;
         
         private List<VocabularyWord> _words;
 
@@ -16,13 +19,14 @@ namespace SentenceStudio.Services
             }
         }
 
-        public TeacherService(IServiceProvider service, ISyncService? syncService = null)
+        public TeacherService(IServiceProvider service, ILogger<TeacherService> logger, ISyncService? syncService = null)
         {
             _aiService = service.GetRequiredService<AiService>();
             _skillRepository = service.GetRequiredService<SkillProfileRepository>();
             _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
             _serviceProvider = service;
             _syncService = syncService;
+            _logger = logger;
         }
 
         public async Task<List<Challenge>> GetChallenges(int resourceID, int numberOfSentences, int skillProfileID)
@@ -54,22 +58,22 @@ namespace SentenceStudio.Services
             {
                 var response = await _aiService.SendPrompt<SentencesResponse>(prompt);
                 watch.Stop();
-                Debug.WriteLine($"Received response in: {watch.Elapsed}");
-                
+                _logger.LogDebug("Received response in: {Elapsed}", watch.Elapsed);
+
                 if (response != null && response.Sentences != null)
                 {
                     return response.Sentences;
                 }
                 else
                 {
-                    Debug.WriteLine("Reply or Sentences is null");
+                    _logger.LogWarning("Reply or Sentences is null");
                     return new List<Challenge>();
                 }
             }
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred GetChallenges: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in GetChallenges");
                 return new List<Challenge>();
             }
         }
@@ -90,7 +94,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred SaveChallenges: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in SaveChallenges");
                 return -1;
             }
         }
@@ -111,7 +115,7 @@ namespace SentenceStudio.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"An error occurred SaveGrade: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in SaveGrade");
                 return -1;
             }
         }
@@ -136,7 +140,7 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in GradeTranslation");
                 return new GradeResponse();
             }
         }
@@ -158,7 +162,7 @@ namespace SentenceStudio.Services
                 var response = await _aiService.SendPrompt<string>(prompt);
                 return response;
             }catch(Exception ex){
-                Debug.WriteLine($"An error occurred Translate: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in Translate");
                 return string.Empty;
             }
         }
@@ -183,11 +187,11 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in GradeSentence");
                 return new GradeResponse();
             }
         }
-        
+
         public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription)
         {
             try
@@ -208,17 +212,17 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 // Handle any exceptions that occur during the process
-                Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+                _logger.LogError(ex, "Error occurred in GradeDescription");
                 return new GradeResponse();
             }
         }
 
-        
+
     }
 
-    
 
-    
 
-    
+
+
+
 }

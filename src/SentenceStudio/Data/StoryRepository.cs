@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -6,10 +7,12 @@ public class StoryRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
+    private readonly ILogger<StoryRepository> _logger;
 
-    public StoryRepository(IServiceProvider serviceProvider, ISyncService? syncService = null)
+    public StoryRepository(IServiceProvider serviceProvider, ILogger<StoryRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = syncService;
     }
 
@@ -54,7 +57,7 @@ public class StoryRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
                 await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
@@ -79,7 +82,7 @@ public class StoryRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

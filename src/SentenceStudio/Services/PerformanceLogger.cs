@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -10,6 +11,15 @@ public class PerformanceLogger
 {
     private static readonly Dictionary<string, Stopwatch> _activeTimers = new();
     private static readonly Dictionary<string, List<double>> _measurements = new();
+    private static ILogger<PerformanceLogger>? _logger;
+
+    /// <summary>
+    /// Initialize the logger for use by the static PerformanceLogger class
+    /// </summary>
+    public static void Initialize(ILogger<PerformanceLogger> logger)
+    {
+        _logger = logger;
+    }
     
     /// <summary>
     /// Start timing an operation
@@ -33,7 +43,7 @@ public class PerformanceLogger
     {
         if (!_activeTimers.TryGetValue(operationName, out var stopwatch))
         {
-            Debug.WriteLine($"⚠️ PERF: No active timer for '{operationName}'");
+            _logger?.LogWarning("PERF: No active timer for '{OperationName}'", operationName);
             return;
         }
         
@@ -58,7 +68,7 @@ public class PerformanceLogger
             _ => "VERY SLOW"
         };
         
-        Debug.WriteLine($"{emoji} PERF [{perfLevel}]: {operationName} = {elapsedMs:F1}ms");
+        _logger?.LogDebug("PERF [{PerfLevel}]: {OperationName} = {ElapsedMs:F1}ms", perfLevel, operationName, elapsedMs);
         
         // Show statistics every 10 measurements
         var measurements = _measurements[operationName];
@@ -67,7 +77,8 @@ public class PerformanceLogger
             var avg = measurements.Average();
             var min = measurements.Min();
             var max = measurements.Max();
-            Debug.WriteLine($"📊 PERF STATS: {operationName} (last 10) - Avg: {avg:F1}ms, Min: {min:F1}ms, Max: {max:F1}ms");
+            _logger?.LogDebug("PERF STATS: {OperationName} (last 10) - Avg: {Avg:F1}ms, Min: {Min:F1}ms, Max: {Max:F1}ms",
+                operationName, avg, min, max);
         }
     }
     
@@ -150,6 +161,6 @@ public class PerformanceLogger
     {
         _activeTimers.Clear();
         _measurements.Clear();
-        Debug.WriteLine("🔄 PERF: All measurements reset");
+        _logger?.LogDebug("PERF: All measurements reset");
     }
 }

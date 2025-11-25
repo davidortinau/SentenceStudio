@@ -4,12 +4,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Scriban;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
 public class ClozureService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<ClozureService> _logger;
     private AiService _aiService;
     private SkillProfileRepository _skillRepository;
     private LearningResourceRepository _resourceRepository;
@@ -27,9 +29,10 @@ public class ClozureService
 
     private readonly string _openAiApiKey;
 
-    public ClozureService(IServiceProvider serviceProvider, IConfiguration configuration)
+    public ClozureService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<ClozureService> logger)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         _aiService = serviceProvider.GetRequiredService<AiService>();
         _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
@@ -39,38 +42,40 @@ public class ClozureService
 
     public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
     {
-        Debug.WriteLine($"🏴‍☠️ ClozureService: GetSentences called with resourceID={resourceID}, numberOfSentences={numberOfSentences}, skillID={skillID}");
+        _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}",
+            resourceID, numberOfSentences, skillID);
         var watch = new Stopwatch();
         watch.Start();
 
         if (resourceID == 0)
         {
-            Debug.WriteLine("🏴‍☠️ ClozureService: Resource ID is 0 - no resource selected");
+            _logger.LogDebug("Resource ID is 0 - no resource selected");
             return new List<Challenge>();
         }
 
         if (skillID == 0)
         {
-            Debug.WriteLine("🏴‍☠️ ClozureService: Skill ID is 0 - no skill selected");
+            _logger.LogDebug("Skill ID is 0 - no skill selected");
             return new List<Challenge>();
         }
 
         var resource = await _resourceRepository.GetResourceAsync(resourceID);
-        Debug.WriteLine($"🏴‍☠️ ClozureService: Resource retrieved: {resource?.Title ?? "null"}");
+        _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
 
         if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
         {
-            Debug.WriteLine($"🏴‍☠️ ClozureService: No resource or vocabulary found - returning empty list");
+            _logger.LogDebug("No resource or vocabulary found - returning empty list");
             return new List<Challenge>(); // Return empty list instead of null
         }
 
         // 🏴‍☠️ CRITICAL FIX: Send ALL vocabulary words to AI, not just a subset
         // This ensures the AI can only use words from our vocabulary list
         _words = resource.Vocabulary.ToList();
-        Debug.WriteLine($"🏴‍☠️ ClozureService: Sending ALL {_words.Count} vocabulary words to AI (not just {numberOfSentences})");
+        _logger.LogDebug("Sending ALL {WordCount} vocabulary words to AI (not just {SentenceCount})",
+            _words.Count, numberOfSentences);
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
-        Debug.WriteLine($"🏴‍☠️ ClozureService: Skill profile retrieved: {skillProfile?.Title ?? "null"}");
+        _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");
 
         var prompt = string.Empty;
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
@@ -80,32 +85,32 @@ public class ClozureService
             prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
         }
 
-        Debug.WriteLine($"🏴‍☠️ ClozureService: Prompt created, length: {prompt.Length}");
+        _logger.LogDebug("Prompt created, length: {PromptLength}", prompt.Length);
         try
         {
             IChatClient client =
             new OpenAIClient(_openAiApiKey)
                 .GetChatClient(model: "gpt-4o-mini").AsIChatClient();
 
-            Debug.WriteLine("🏴‍☠️ ClozureService: Sending prompt to AI service");
+            _logger.LogDebug("Sending prompt to AI service");
 
             // Use GetResponseAsync which handles structured outputs properly
             var reply = await client.GetResponseAsync<ClozureResponse>(prompt);
 
             if (reply != null && reply?.Result?.Sentences != null)
             {
-                Debug.WriteLine($"🏴‍☠️ ClozureService: AI returned {reply.Result.Sentences.Count} sentences");
+                _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Result.Sentences.Count);
 
                 // 🏴‍☠️ IMPORTANT: Convert ClozureDto objects to Challenge objects and link vocabulary
-                Debug.WriteLine($"🏴‍☠️ ClozureService: Converting {reply.Result.Sentences.Count} ClozureDto objects to Challenge objects");
+                _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Result.Sentences.Count);
                 var challenges = new List<Challenge>();
 
                 foreach (var clozureDto in reply.Result.Sentences)
                 {
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: === Processing clozure DTO ===");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWord: '{clozureDto.VocabularyWord}'");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordAsUsed: '{clozureDto.VocabularyWordAsUsed}'");
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: DTO.VocabularyWordGuesses: {clozureDto.VocabularyWordGuesses?.Count ?? 0} items");
+                    _logger.LogDebug("Processing clozure DTO");
+                    _logger.LogDebug("DTO.VocabularyWord: '{VocabularyWord}'", clozureDto.VocabularyWord);
+                    _logger.LogDebug("DTO.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", clozureDto.VocabularyWordAsUsed);
+                    _logger.LogDebug("DTO.VocabularyWordGuesses: {GuessCount} items", clozureDto.VocabularyWordGuesses?.Count ?? 0);
 
                     // Convert the list of guesses to a comma-separated string for storage
                     var guessesString = clozureDto.VocabularyWordGuesses != null && clozureDto.VocabularyWordGuesses.Any()
@@ -129,31 +134,32 @@ public class ClozureService
                     if (matchingWord != null)
                     {
                         challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ Linked to vocabulary word ID {matchingWord.Id} ('{matchingWord.TargetLanguageTerm}')");
+                        _logger.LogDebug("Linked to vocabulary word ID {WordId} ('{TargetTerm}')",
+                            matchingWord.Id, matchingWord.TargetLanguageTerm);
                     }
                     else
                     {
-                        Debug.WriteLine($"🏴‍☠️ ClozureService: ⚠️ Could not find vocabulary word '{clozureDto.VocabularyWord}' in lesson vocabulary");
+                        _logger.LogWarning("Could not find vocabulary word '{VocabularyWord}' in lesson vocabulary",
+                            clozureDto.VocabularyWord);
                         challenge.Vocabulary = new List<VocabularyWord>();
                     }
 
                     challenges.Add(challenge);
-                    Debug.WriteLine($"🏴‍☠️ ClozureService: ✅ Added clozure challenge");
+                    _logger.LogDebug("Added clozure challenge");
                 }
 
                 return challenges;
             }
             else
             {
-                Debug.WriteLine("🏴‍☠️ ClozureService: Reply or Sentences is null");
+                _logger.LogWarning("Reply or Sentences is null");
                 return new List<Challenge>();
             }
         }
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"🏴‍☠️ ClozureService: An error occurred GetChallenges: {ex.Message}");
-            Debug.WriteLine($"🏴‍☠️ ClozureService: Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "Error occurred in GetChallenges");
             return new List<Challenge>();
         }
     }
@@ -186,7 +192,7 @@ public class ClozureService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveChallenges: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveChallenges");
         }
         return item.Id;
     }
@@ -217,7 +223,7 @@ public class ClozureService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveGrade: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveGrade");
         }
 
         return item.Id;
@@ -278,7 +284,7 @@ public class ClozureService
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in GradeTranslation");
             return new GradeResponse();
         }
     }
@@ -302,7 +308,7 @@ public class ClozureService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred Translate: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in Translate");
             return string.Empty;
         }
     }
@@ -327,7 +333,7 @@ public class ClozureService
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in GradeSentence");
             return new GradeResponse();
         }
     }
@@ -352,7 +358,7 @@ public class ClozureService
         catch (Exception ex)
         {
             // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred GradeTranslation: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in GradeDescription");
             return new GradeResponse();
         }
     }

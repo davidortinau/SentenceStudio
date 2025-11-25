@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
 using OpenAI.Images;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
@@ -11,9 +12,12 @@ public class AiService {
     private readonly IChatClient _client;
     private readonly AudioClient _audio;
     private readonly ImageClient _image;
-    public AiService(IConfiguration configuration, IChatClient client)
+    private readonly ILogger<AiService> _logger;
+
+    public AiService(IConfiguration configuration, IChatClient client, ILogger<AiService> logger)
     {
         _client = client;
+        _logger = logger;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
         // _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
@@ -24,24 +28,22 @@ public class AiService {
     public async Task<T> SendPrompt<T>(string prompt)
     {
         if(Connectivity.NetworkAccess != NetworkAccess.Internet){
-            Debug.WriteLine("❌ No internet connection available");
-            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            _logger.LogWarning("No internet connection available for AI prompt");
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));
             return default(T);
         }
 
         try
         {
-            Debug.WriteLine($"🤖 Sending prompt to AI (length: {prompt?.Length ?? 0} chars)");
+            _logger.LogDebug("Sending prompt to AI (length: {PromptLength} chars)", prompt?.Length ?? 0);
             var response = await _client.GetResponseAsync<T>(prompt);
             var hasResult = response != null && response.Result != null;
-            Debug.WriteLine($"✅ AI response received: {hasResult}");
-            return response.Result;            
+            _logger.LogDebug("AI response received: {HasResult}", hasResult);
+            return response.Result;
         }
         catch (Exception ex)
         {
-            // Handle any exceptions that occur during the process
-            Debug.WriteLine($"❌ An error occurred SendPrompt: {ex.Message}");
-            Debug.WriteLine($"❌ Stack trace: {ex.StackTrace}");
+            _logger.LogError(ex, "Error occurred in SendPrompt");
             return default(T);
         }
     }
@@ -49,7 +51,7 @@ public class AiService {
     public async Task<string> SendImage(string imagePath, string prompt)
     {
         if(Connectivity.NetworkAccess != NetworkAccess.Internet){
-            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));
             return string.Empty;
         }
 
@@ -61,15 +63,13 @@ public class AiService {
             );
 
             var response = await _client.GetResponseAsync<string>(new List<ChatMessage> { message });
-            
-            Debug.WriteLine($"Response: {response.Result}");
+
+            _logger.LogDebug("SendImage response received: {ResponseLength} chars", response.Result?.Length ?? 0);
             return response.Result;
         }
         catch (Exception ex)
         {
-            
-            // Handle any exceptions that occur during the process
-            Debug.WriteLine($"An error occurred SendImage: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SendImage for path {ImagePath}", imagePath);
             return string.Empty;
         }
     }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
@@ -7,10 +8,12 @@ public class UserProfileRepository
 {
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;
+    private readonly ILogger<UserProfileRepository> _logger;
 
-    public UserProfileRepository(IServiceProvider serviceProvider)
+    public UserProfileRepository(IServiceProvider serviceProvider, ILogger<UserProfileRepository> logger)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
         _syncService = serviceProvider.GetService<ISyncService>();
     }
 
@@ -87,7 +90,7 @@ public class UserProfileRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
@@ -113,7 +116,7 @@ public class UserProfileRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }
@@ -134,7 +137,7 @@ public class UserProfileRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred DeleteAsync: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in DeleteAsync");
             return -1;
         }
     }

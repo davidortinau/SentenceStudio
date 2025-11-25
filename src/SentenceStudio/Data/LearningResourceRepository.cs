@@ -424,7 +424,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"An error occurred GetStarterVocabulary: {ex.Message}");
+            _logger.LogError(ex, "Error occurred in GetStarterVocabulary");
         }
     }
 
@@ -635,7 +635,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error updating vocabulary word terms: {ex.Message}");
+            _logger.LogError(ex, "Error updating vocabulary word terms");
             return false;
         }
     }

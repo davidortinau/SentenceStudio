@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using SentenceStudio.Pages.Controls;
 using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Dispatching;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Warmup;
 
@@ -29,6 +30,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] ILogger<WarmupPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
 
@@ -186,7 +188,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
+            _logger.LogError(e, "WarmupPage: Error showing explanation");
         }
     }
 
@@ -258,7 +260,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Start activity timer if launched from Today's Plan (only once)
         if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
         {
-            Debug.WriteLine($"🏴‍☠️ WarmupPage: Starting activity timer for Warmup, PlanItemId: {Props.PlanItemId}");
+            _logger.LogDebug("WarmupPage: Starting activity timer for Warmup, PlanItemId: {PlanItemId}", Props.PlanItemId);
             _timerService.StartSession("Warmup", Props.PlanItemId);
         }
 
@@ -293,7 +295,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
-            Debug.WriteLine("🏴‍☠️ WarmupPage: Pausing activity timer");
+            _logger.LogDebug("WarmupPage: Pausing activity timer");
             _timerService.Pause();
         }
     }
@@ -432,7 +434,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error playing audio: {ex.Message}");
+            _logger.LogError(ex, "WarmupPage: Error playing audio");
 
             // Hide the player on error
             if (_floatingPlayer != null)

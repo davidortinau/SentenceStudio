@@ -4,6 +4,7 @@ using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -39,6 +40,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] IFileSaver _fileSaver;
 	[Inject] StreamHistoryRepository _streamHistoryRepository;
 	[Inject] UserActivityRepository _userActivityRepository;
+	[Inject] ILogger<HowDoYouSayPage> _logger;
 	LocalizationManager _localize => LocalizationManager.Instance;
 	
 	private IAudioPlayer _audioPlayer;
@@ -80,11 +82,11 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				s.IsLoading = false;
 			});
 			
-			Debug.WriteLine($"Loaded {history.Count} history items");
+			_logger.LogDebug("HowDoYouSayPage: Loaded {Count} history items", history.Count);
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine($"Error loading history: {ex.Message}");
+			_logger.LogError(ex, "HowDoYouSayPage: Error loading history");
 			SetState(s => s.IsLoading = false);
 		}
 	}
@@ -237,7 +239,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine(ex.Message);
+			_logger.LogError(ex, "HowDoYouSayPage: Error in Submit");
 			SetState(s => s.IsBusy = false);
 		}
 	}
@@ -254,14 +256,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// Check if we have a local file to use
 			if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
 			{
-				Debug.WriteLine($"Using cached audio file: {item.AudioFilePath}");
+				_logger.LogDebug("HowDoYouSayPage: Using cached audio file: {FilePath}", item.AudioFilePath);
 				audioStream = File.OpenRead(item.AudioFilePath);
 				item.Stream = audioStream;
 			}
 			// If no local file or stream exists, fetch from the service
 			else if (item.Stream == null)
 			{
-				Debug.WriteLine($"Fetching audio from service for: {item.Phrase}");
+				_logger.LogDebug("HowDoYouSayPage: Fetching audio from service for: {Phrase}", item.Phrase);
 				audioStream = await _speechService.TextToSpeechAsync(item.Phrase, item.VoiceId);
 				item.Stream = audioStream;
 				
@@ -313,7 +315,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine($"Error playing audio: {ex.Message}");
+			_logger.LogError(ex, "HowDoYouSayPage: Error playing audio");
 			await App.Current.MainPage.DisplayAlert("Error", $"Failed to play audio: {ex.Message}", "OK");
 		}
 	}
@@ -450,12 +452,12 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		// Update the selected voice
 		SetState(s => {
 			s.SelectedVoiceId = voiceId;
-			
+
 			// Close the bottom sheet after selection
 			s.IsVoiceSelectionVisible = false;
 		});
-		
-		Debug.WriteLine($"Selected voice: {voiceId}");
+
+		_logger.LogDebug("HowDoYouSayPage: Selected voice: {VoiceId}", voiceId);
 	}
 	
 	/// <summary>
@@ -471,7 +473,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// </summary>
 	async Task SaveAudioAsMp3(StreamHistory item)
 	{
-		Debug.WriteLine($"Saving audio for: {item.Phrase}");
+		_logger.LogDebug("HowDoYouSayPage: Saving audio for: {Phrase}", item.Phrase);
 		// if (item?.Stream == null) 
 		// {
 		// 	await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
@@ -523,7 +525,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine($"Error saving audio: {ex.Message}");
+			_logger.LogError(ex, "HowDoYouSayPage: Error saving audio");
 			SetState(s => s.IsSavingAudio = false);
 
 			await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
@@ -583,19 +585,19 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				}
 				catch (Exception ex)
 				{
-					Debug.WriteLine($"Error deleting audio file: {ex.Message}");
+					_logger.LogError(ex, "HowDoYouSayPage: Error deleting audio file");
 				}
 			}
-			
+
 			// Remove from UI list
 			SetState(s => s.StreamHistory.Remove(item));
-			
+
 			// Show toast notification
 			await Toast.Make("Phrase deleted successfully!").Show();
 		}
 		catch (Exception ex)
 		{
-			Debug.WriteLine($"Error deleting history item: {ex.Message}");
+			_logger.LogError(ex, "HowDoYouSayPage: Error deleting history item");
 			await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
 		}
 	}
