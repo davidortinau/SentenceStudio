@@ -753,6 +753,98 @@
     <value>• Double-tap any sentence to jump to that point</value>
     <comment>Reading instruction</comment>
   </data>
+  <data name="PlanNextActivityButton" xml:space="preserve">
+    <value>Next Activity</value>
+    <comment>Button to navigate to next activity in daily plan</comment>
+  </data>
+  <data name="ContinueSessionButton" xml:space="preserve">
+    <value>Continue Practicing</value>
+    <comment>Button to continue practicing vocabulary</comment>
+  </data>
+  <data name="ContinueToNextSession" xml:space="preserve">
+    <value>Continue to Next Session</value>
+    <comment>Button to continue to next vocabulary session</comment>
+  </data>
+  <data name="ReviewVocabularyStudied" xml:space="preserve">
+    <value>Review the vocabulary you just studied:</value>
+    <comment>Instruction for vocabulary session summary</comment>
+  </data>
+  <data name="TodaysVocabularyReview" xml:space="preserve">
+    <value>📚 Today's Vocabulary Review</value>
+    <comment>Title for today's vocabulary review section</comment>
+  </data>
+  <data name="SessionPerformance" xml:space="preserve">
+    <value>📊 Session Performance</value>
+    <comment>Title for session performance statistics</comment>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>Mastered</value>
+    <comment>Label for mastered vocabulary words</comment>
+  </data>
+  <data name="ReviewNeeded" xml:space="preserve">
+    <value>Review Needed</value>
+    <comment>Label for vocabulary words that need review</comment>
+  </data>
+  <data name="WhatIsThisInKorean" xml:space="preserve">
+    <value>What is this in Korean?</value>
+    <comment>Question prompt for vocabulary quiz</comment>
+  </data>
+  <data name="TypeCorrectAnswerHint" xml:space="preserve">
+    <value>Type the correct answer</value>
+    <comment>Hint for text input when correct answer is required</comment>
+  </data>
+  <data name="TypeYourAnswerHint" xml:space="preserve">
+    <value>Type your answer</value>
+    <comment>Hint for text input in quiz</comment>
+  </data>
+  <data name="WordMasteredNewAdded" xml:space="preserve">
+    <value>🌟 '{0}' mastered! New word added.</value>
+    <comment>Toast message when single word is mastered</comment>
+  </data>
+  <data name="WordsMasteredNewAdded" xml:space="preserve">
+    <value>🌟 {0} words mastered! New words added.</value>
+    <comment>Toast message when multiple words are mastered</comment>
+  </data>
+  <data name="AllVocabularyCompleted" xml:space="preserve">
+    <value>🎊 Congratulations! You've worked through all vocabulary in this learning resource!</value>
+    <comment>Message when all vocabulary is completed</comment>
+  </data>
+  <data name="NoVocabulary" xml:space="preserve">
+    <value>No Vocabulary</value>
+    <comment>Alert title when resource has no vocabulary</comment>
+  </data>
+  <data name="NoVocabularyMessage" xml:space="preserve">
+    <value>This resource has no vocabulary to study.</value>
+    <comment>Alert message when resource has no vocabulary</comment>
+  </data>
+  <data name="AllWordsCompletedAddingNew" xml:space="preserve">
+    <value>🎊 All words in this set completed! Adding new words...</value>
+    <comment>Toast message when set is completed</comment>
+  </data>
+  <data name="WordMasteredInQuiz" xml:space="preserve">
+    <value>✨ Word mastered in this quiz!</value>
+    <comment>Toast message when word is mastered during quiz</comment>
+  </data>
+  <data name="AllVocabularyCompletedInQuiz" xml:space="preserve">
+    <value>🎊 All vocabulary completed in this quiz! Adding new words...</value>
+    <comment>Toast message when all vocabulary in quiz is completed</comment>
+  </data>
+  <data name="RoundTimeForTyping" xml:space="preserve">
+    <value>🎯 Round {0} - Time for typing!</value>
+    <comment>Toast message for starting typing round</comment>
+  </data>
+  <data name="TypeCorrectAnswerExactly" xml:space="preserve">
+    <value>Please type the correct answer exactly as shown.</value>
+    <comment>Feedback message when user needs to type exact answer</comment>
+  </data>
+  <data name="GoodNowContinue" xml:space="preserve">
+    <value>Good! Now you can continue.</value>
+    <comment>Feedback message after correct typing</comment>
+  </data>
+  <data name="AllVocabularyCompletedInQuizShort" xml:space="preserve">
+    <value>🎊 All vocabulary completed in this quiz!</value>
+    <comment>Toast message when all quiz vocabulary is done</comment>
+  </data>
   <data name="Close" xml:space="preserve">
     <value>Close</value>
     <comment>Close button</comment>

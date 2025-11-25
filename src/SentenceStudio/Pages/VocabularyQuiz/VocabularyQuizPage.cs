@@ -94,6 +94,7 @@ class VocabularyQuizPageState
     public int CurrentTurn { get; set; } = 1;
     public int MaxTurnsPerSession { get; set; } = 20;  // Match DeterministicPlanBuilder's pedagogical selection (15-20 words)
     public int ActualWordsInSession { get; set; } = 0;  // Actual words loaded for this session (may be less than max)
+    public int WordsCompleted { get; set; } = 0;  // Count of unique words that have been reviewed at least once
     public bool IsSessionComplete { get; set; }
 
     // Term status tracking across entire learning resource
@@ -168,7 +169,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode LoadingOverlay() =>
         Grid(
-            Label("Loading vocabulary...")
+            Label($"{_localize["LoadingVocabulary"]}")
                 .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
                 .TextColor(Theme.IsLightTheme ?
                     MyTheme.DarkOnLightBackground :
@@ -190,7 +191,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         .TextColor(MyTheme.HighlightDarkest)
                         .Center(),
 
-                    Label("Review the vocabulary you just studied:")
+                    Label($"{_localize["ReviewVocabularyStudied"]}")
                         .FontSize(16)
                         .Center()
                         .TextColor(Theme.IsLightTheme ?
@@ -207,19 +208,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         VStack(spacing: 8,
                             // Daily progress indicator
                             VStack(spacing: 4,
-                                Label("📚 Today's Vocabulary Review")
+                                Label($"{_localize["TodaysVocabularyReview"]}")
                                     .FontSize(16)
                                     .FontAttributes(FontAttributes.Bold)
                                     .Center()
                                     .TextColor(MyTheme.HighlightDarkest),
-                                Label($"{State.SessionSummaryItems.Count} of {State.MaxTurnsPerSession} words reviewed")
+                                Label($"{State.SessionSummaryItems.Count} of {State.ActualWordsInSession} words reviewed")
                                     .FontSize(12)
                                     .Center()
                                     .TextColor(MyTheme.SecondaryText)
                             )
                             .Margin(0, 0, 0, 16),
 
-                            Label("📊 Session Performance")
+                            Label($"{_localize["SessionPerformance"]}")
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .Center()
@@ -232,7 +233,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                         .FontAttributes(FontAttributes.Bold)
                                         .TextColor(MyTheme.Success)
                                         .Center(),
-                                    Label("Mastered")
+                                    Label($"{_localize["Mastered"]}")
                                         .FontSize(12)
                                         .Center()
                                 ),
@@ -242,7 +243,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                         .FontAttributes(FontAttributes.Bold)
                                         .TextColor(MyTheme.Warning)
                                         .Center(),
-                                    Label("Learning")
+                                    Label($"{_localize["Learning"]}")
                                         .FontSize(12)
                                         .Center()
                                 ),
@@ -252,7 +253,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                         .FontAttributes(FontAttributes.Bold)
                                         .TextColor(MyTheme.Error)
                                         .Center(),
-                                    Label("Review Needed")
+                                    Label($"{_localize["ReviewNeeded"]}")
                                         .FontSize(12)
                                         .Center()
                                 )
@@ -266,14 +267,33 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
                     .Margin(0, MyTheme.LayoutSpacing),
 
-                    // Continue button
-                    Button("Continue to Next Session")
-                        .OnClicked(() => SetState(s => s.ShowSessionSummary = false))
-                        .Background(MyTheme.HighlightDarkest)
-                        .TextColor(Colors.White)
-                        .CornerRadius(8)
-                        .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
-                        .Margin(0, 16)
+                    // Buttons - show different options based on context
+                    Props.FromTodaysPlan
+                        ? VStack(spacing: MyTheme.ComponentSpacing,
+                            // Next Activity button (for plan mode)
+                            Button($"{_localize["PlanNextActivityButton"]}")
+                                .OnClicked(async () => await NavigateToNextPlanActivity())
+                                .Background(MyTheme.HighlightDarkest)
+                                .TextColor(Colors.White)
+                                .CornerRadius(8)
+                                .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
+                                .IsEnabled(IsSessionGoalMet()),
+
+                            // Continue practicing button (secondary option)
+                            Button($"{_localize["ContinueSessionButton"]}")
+                                .OnClicked(() => SetState(s => s.ShowSessionSummary = false))
+                                .Background(Colors.Transparent)
+                                .TextColor(MyTheme.HighlightDarkest)
+                                .CornerRadius(8)
+                                .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding / 2)
+                        )
+                        : Button($"{_localize["ContinueToNextSession"]}")
+                            .OnClicked(() => SetState(s => s.ShowSessionSummary = false))
+                            .Background(MyTheme.HighlightDarkest)
+                            .TextColor(Colors.White)
+                            .CornerRadius(8)
+                            .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
+                            .Margin(0, 16)
                 )
                 .Padding(MyTheme.LayoutPadding)
             )
@@ -357,11 +377,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .Margin(0, MyTheme.MicroSpacing);
     }
 
-    VisualNode LearningProgressBar() =>
-        Grid(rows: "Auto", columns: "Auto,*,Auto",
-            // Left bubble shows current question number in TODAY'S session
+    VisualNode LearningProgressBar()
+    {
+        return Grid(rows: "Auto", columns: "Auto,*,Auto",
+            // Left bubble shows words reviewed (not turn count, which can exceed word count due to repetition)
             Border(
-                Label($"{State.CurrentTurn}")
+                Label($"{State.WordsCompleted}")
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold)
                     .TextColor(Colors.White)
@@ -376,10 +397,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .GridColumn(0)
             .VCenter(),
 
-            // Center progress bar shows THIS SESSION'S progress
+            // Center progress bar shows word completion (not turn count)
             ProgressBar()
                 .Progress(State.ActualWordsInSession > 0 ?
-                    (double)State.CurrentTurn / State.ActualWordsInSession : 0)
+                    (double)State.WordsCompleted / State.ActualWordsInSession : 0)
                 .ProgressColor(MyTheme.Success)
                 .BackgroundColor(Colors.LightGray)
                 .HeightRequest(6)
@@ -404,10 +425,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .GridColumn(2)
             .VCenter()
         ).Padding(MyTheme.LayoutSpacing).GridRow(1);
+    }
 
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
-            Label("What is this in Korean?")
+            Label($"{_localize["WhatIsThisInKorean"]}")
                 .FontSize(18)
                 .FontAttributes(FontAttributes.Bold)
                 .Center(),
@@ -474,7 +496,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 })
                 .IsEnabled(!State.ShowAnswer || State.RequireCorrectTyping)
         )
-        .Hint(State.RequireCorrectTyping ? "Type the correct answer" : "Type your answer")
+        .Hint(State.RequireCorrectTyping ? $"{_localize["TypeCorrectAnswerHint"]}" : $"{_localize["TypeYourAnswerHint"]}")
         .GridRow(1)
         .GridColumn(0)
         .GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
@@ -753,11 +775,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // Show feedback to user
             if (masteredWords.Count == 1)
             {
-                await AppShell.DisplayToastAsync($"🌟 '{masteredWords.First().Word.NativeLanguageTerm}' mastered! New word added.");
+                await AppShell.DisplayToastAsync(string.Format($"{_localize["WordMasteredNewAdded"]}", masteredWords.First().Word.NativeLanguageTerm));
             }
             else
             {
-                await AppShell.DisplayToastAsync($"🌟 {masteredWords.Count} words mastered! New words added.");
+                await AppShell.DisplayToastAsync(string.Format($"{_localize["WordsMasteredNewAdded"]}", masteredWords.Count));
             }
         }
     }
@@ -795,7 +817,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         if (!availableWords.Any())
         {
             _logger.LogInformation("🏴‍☠️ No more new words available in learning resources! You've worked through all vocabulary!");
-            await AppShell.DisplayToastAsync("🎊 Congratulations! You've worked through all vocabulary in this learning resource!");
+            await AppShell.DisplayToastAsync($"{_localize["AllVocabularyCompleted"]}");
             return;
         }
 
@@ -847,7 +869,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     // 🏴‍☠️ INTELLIGENT WORD SELECTION: Prioritize learning and resume progress
     async Task<List<VocabularyWord>> SelectWordsIntelligently(List<VocabularyWord> allVocabulary)
     {
-        var targetSetSize = State.MaxTurnsPerSession; // Use configured session size (default 20)
+        // From plan: Use explicit target from plan for perfect alignment
+        // Manual: Use default session size
+        var targetSetSize = Props.FromTodaysPlan && Props.TargetWordCount.HasValue
+            ? Props.TargetWordCount.Value
+            : State.MaxTurnsPerSession;
 
         if (allVocabulary.Count <= targetSetSize)
         {
@@ -859,49 +885,83 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var allWordIds = allVocabulary.Select(w => w.Id).ToList();
         var progressDict = await _vocabProgressService.GetProgressForWordsAsync(allWordIds);
 
-        // 🎯 FIRST: Filter by SRS due dates (Spaced Repetition Principle - Ebbinghaus)
-        // Only include words that are due for review OR have never been seen
-        var dueWords = allVocabulary.Where(word =>
+        // �‍☠️ FROM DAILY PLAN: Respect pedagogical goals, allow non-due words to reach target
+        // 🎯 MANUAL SELECTION: Apply strict SRS filtering (only due words)
+        List<VocabularyWord> candidateWords;
+
+        if (Props.FromTodaysPlan)
         {
-            if (!progressDict.ContainsKey(word.Id))
-                return true; // New words always included
+            // From plan: Exclude only completed words, allow not-yet-due words
+            _logger.LogDebug("📚 FROM PLAN: Targeting {Target} words (respecting plan goal, not strict SRS)", targetSetSize);
 
-            var progress = progressDict[word.Id];
-
-            // Exclude truly mastered/completed words
-            if (progress.IsCompleted)
+            candidateWords = allVocabulary.Where(word =>
             {
-                _logger.LogDebug("🏆 Excluding completed word: {Word}", word.NativeLanguageTerm);
-                return false;
-            }
+                if (!progressDict.ContainsKey(word.Id))
+                    return true; // New words always included
 
-            // Include if due today or overdue
-            var isDue = progress.NextReviewDate <= DateTime.Today;
-            if (!isDue)
-            {
-                _logger.LogDebug("⏰ Skipping not-yet-due word: {Word} (next: {Date:yyyy-MM-dd})",
-                    word.NativeLanguageTerm, progress.NextReviewDate);
-            }
-            return isDue;
-        }).ToList();
+                var progress = progressDict[word.Id];
 
-        _logger.LogDebug("🎯 SRS Filter: {DueCount} due words from {TotalCount} total", dueWords.Count, allVocabulary.Count);
+                // Only exclude truly mastered/completed words
+                if (progress.IsCompleted)
+                {
+                    _logger.LogDebug("🏆 Excluding completed word: {Word}", word.NativeLanguageTerm);
+                    return false;
+                }
 
-        // If we have fewer due words than target, use what we have
-        if (dueWords.Count <= targetSetSize)
+                return true; // Include all non-completed words (even if not yet due)
+            }).ToList();
+
+            _logger.LogDebug("🎯 Plan-based filter: {CandidateCount} available words from {TotalCount} total",
+                candidateWords.Count, allVocabulary.Count);
+        }
+        else
         {
-            _logger.LogDebug("🎯 Using all {Count} due words (target: {Target})", dueWords.Count, targetSetSize);
-            return dueWords.OrderBy(x => Guid.NewGuid()).ToList();
+            // Manual: Strict SRS filtering (only due words)
+            _logger.LogDebug("🎯 MANUAL: Applying strict SRS filtering (due words only)");
+
+            candidateWords = allVocabulary.Where(word =>
+            {
+                if (!progressDict.ContainsKey(word.Id))
+                    return true; // New words always included
+
+                var progress = progressDict[word.Id];
+
+                // Exclude truly mastered/completed words
+                if (progress.IsCompleted)
+                {
+                    _logger.LogDebug("🏆 Excluding completed word: {Word}", word.NativeLanguageTerm);
+                    return false;
+                }
+
+                // Include if due today or overdue
+                var isDue = progress.NextReviewDate <= DateTime.Today;
+                if (!isDue)
+                {
+                    _logger.LogDebug("⏰ Skipping not-yet-due word: {Word} (next: {Date:yyyy-MM-dd})",
+                        word.NativeLanguageTerm, progress.NextReviewDate);
+                }
+                return isDue;
+            }).ToList();
+
+            _logger.LogDebug("🎯 SRS Filter: {DueCount} due words from {TotalCount} total",
+                candidateWords.Count, allVocabulary.Count);
         }
 
-        // SECOND: Categorize due words by mastery level for intelligent prioritization
+        // If we have fewer candidate words than target, use what we have
+        if (candidateWords.Count <= targetSetSize)
+        {
+            _logger.LogDebug("🎯 Using all {Count} available words (target: {Target})", candidateWords.Count, targetSetSize);
+            return candidateWords.OrderBy(x => Guid.NewGuid()).ToList();
+        }
+
+        // SECOND: Categorize candidate words by mastery level for intelligent prioritization
         var unmasteredWords = new List<VocabularyWord>();
         var learningWords = new List<VocabularyWord>();
         var reviewWords = new List<VocabularyWord>();
         var masteredWords = new List<VocabularyWord>();
 
-        // Categorize the DUE words by mastery level (not all vocabulary)
-        foreach (var word in dueWords)
+        // Categorize the candidate words by mastery level
+        foreach (var word in candidateWords)
         {
             var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] : null;
             var masteryScore = progress?.MasteryScore ?? 0f;
@@ -1046,8 +1106,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SetState(s => s.IsBusy = false);
                 _logger.LogWarning("No vocabulary found - showing alert");
                 await Application.Current.MainPage.DisplayAlert(
-                    $"{_localize["No Vocabulary"]}",
-                    $"{_localize["This resource has no vocabulary to study."]}",
+                    $"{_localize["NoVocabulary"]}",
+                    $"{_localize["NoVocabularyMessage"]}",
                     $"{_localize["OK"]}");
                 return;
             }
@@ -1121,7 +1181,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 if (!incompleteItems.Any())
                 {
                     // All words are completed in THIS quiz - add more words or show completion
-                    await AppShell.DisplayToastAsync("🎊 All words in this set completed! Adding new words...");
+                    await AppShell.DisplayToastAsync($"{_localize["AllWordsCompletedAddingNew"]}");
                     // Continue with empty set to trigger new word addition in AddNewTermsToMaintainSet
                 }
 
@@ -1273,12 +1333,16 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("🔢 CheckAnswer: Incrementing turn counter...");
             SetState(s => s.CurrentTurn++);
             UpdateTermCounts();
-            _logger.LogDebug("✅ CheckAnswer: Turn counter = {Current}/{Max}", State.CurrentTurn, State.MaxTurnsPerSession);
+            _logger.LogDebug("✅ CheckAnswer: Turn counter = {Current}/{Max} (Actual session size: {Actual})",
+                State.CurrentTurn, State.MaxTurnsPerSession, State.ActualWordsInSession);
 
-            // Check for session completion (10 turns)
-            if (State.CurrentTurn > State.MaxTurnsPerSession)
+            // Check for session completion based on actual session size or max turns (whichever comes first)
+            // Note: CurrentTurn can exceed ActualWordsInSession because words are repeated until mastered
+            var effectiveMaxTurns = State.ActualWordsInSession > 0 ? State.ActualWordsInSession : State.MaxTurnsPerSession;
+            if (State.CurrentTurn > effectiveMaxTurns)
             {
-                _logger.LogDebug("🏁 CheckAnswer: Session complete!");
+                _logger.LogDebug("🏁 CheckAnswer: Session complete! (Turn {Turn} > Effective max {Max})",
+                    State.CurrentTurn, effectiveMaxTurns);
                 await CompleteSession();
                 return;
             }
@@ -1485,7 +1549,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         s.FeedbackMessage = $"🎊 Excellent! Word completed ({item.QuizProductionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})! Ready for new words.";
                         s.CorrectAnswersInRound++;
                     });
-                    await AppShell.DisplayToastAsync("✨ Word mastered in this quiz!");
+                    await AppShell.DisplayToastAsync($"{_localize["WordMasteredInQuiz"]}");
                 }
                 else
                 {
@@ -1636,6 +1700,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.UnknownTermsCount = s.VocabularyItems.Count(item => item.IsUnknown);
             s.LearningTermsCount = s.VocabularyItems.Count(item => item.IsLearning);
 
+            // Count unique words reviewed in current session
+            // A word is "completed" if it has been attempted at least once (has any quiz streak)
+            s.WordsCompleted = s.VocabularyItems.Count(item =>
+                item.ReadyToRotateOut ||
+                item.QuizRecognitionStreak > 0 ||
+                item.QuizProductionStreak > 0);
+
             // Get total terms and calculate comprehensive progress
             var totalResourceTerms = GetTotalTermsInResource();
             s.TotalResourceTermsCount = totalResourceTerms.Count;
@@ -1731,7 +1802,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         if (!incompleteItems.Any())
         {
             // All items completed in quiz!
-            await AppShell.DisplayToastAsync("🎊 All vocabulary completed in this quiz! Adding new words...");
+            await AppShell.DisplayToastAsync($"{_localize["AllVocabularyCompletedInQuiz"]}");
             return;
         }
 
@@ -1826,7 +1897,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.IsRoundComplete = false;
         });
 
-        AppShell.DisplayToastAsync($"🎯 Round {State.CurrentRound} - Time for typing!");
+        AppShell.DisplayToastAsync(string.Format($"{_localize["RoundTimeForTyping"]}", State.CurrentRound));
     }
 
     // Add a counter to track when to shuffle for variety
@@ -1844,7 +1915,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             if (!isCorrectTyping)
             {
-                SetState(s => s.FeedbackMessage = "Please type the correct answer exactly as shown.");
+                SetState(s => s.FeedbackMessage = $"{_localize["TypeCorrectAnswerExactly"]}");
                 return;
             }
             else
@@ -1854,7 +1925,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 {
                     s.RequireCorrectTyping = false;
                     s.ShowCorrectAnswer = false;
-                    s.FeedbackMessage = "Good! Now you can continue.";
+                    s.FeedbackMessage = $"{_localize["GoodNowContinue"]}";
                 });
             }
         }
@@ -1873,7 +1944,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // All items either completed or ready to skip - check if truly all completed
             if (!incompleteItems.Any())
             {
-                await AppShell.DisplayToastAsync("🎊 All vocabulary completed in this quiz!");
+                await AppShell.DisplayToastAsync($"{_localize["AllVocabularyCompletedInQuizShort"]}");
                 return;
             }
             else
@@ -1977,6 +2048,46 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             await JumpTo(prevItem);
         }
+    }
+
+    /// <summary>
+    /// Check if session goals are met (either word count OR time goal).
+    /// Used to enable "Next Activity" button in plan mode.
+    /// </summary>
+    bool IsSessionGoalMet()
+    {
+        // Word goal: reviewed the target number of words
+        var wordGoalMet = Props.TargetWordCount.HasValue
+            && State.WordsCompleted >= Props.TargetWordCount.Value;
+
+        // Time goal: spent estimated minutes (if we have plan item)
+        var timeGoalMet = false;
+        if (Props.FromTodaysPlan && _timerService.IsActive)
+        {
+            var minutesSpent = (int)_timerService.ElapsedTime.TotalMinutes;
+            // Consider 5+ minutes as reasonable session time
+            timeGoalMet = minutesSpent >= 5;
+        }
+
+        return wordGoalMet || timeGoalMet;
+    }
+
+    /// <summary>
+    /// Navigate to the next activity in today's plan.
+    /// Called when user clicks "Next Activity" button after completing session goals.
+    /// </summary>
+    async Task NavigateToNextPlanActivity()
+    {
+        _logger.LogInformation("🎯 Navigating to next plan activity");
+
+        // Stop the timer for current activity
+        if (Props.FromTodaysPlan)
+        {
+            _timerService.StopSession();
+        }
+
+        // Pop back to dashboard - it will automatically show next available item
+        await Navigation.PopAsync();
     }
 
 

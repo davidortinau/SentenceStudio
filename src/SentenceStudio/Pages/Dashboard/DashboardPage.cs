@@ -1159,6 +1159,13 @@ class ActivityProps
     /// </summary>
     public string? PlanItemId { get; set; }
 
+    /// <summary>
+    /// Target number of words to review (from plan).
+    /// When null, uses activity's default session size.
+    /// Ensures quiz loads exactly the number of words the plan promised.
+    /// </summary>
+    public int? TargetWordCount { get; set; }
+
     // Backward compatibility - returns first resource or null
     public LearningResource Resource => Resources?.FirstOrDefault();
 }

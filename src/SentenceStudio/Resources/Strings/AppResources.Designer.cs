@@ -175,6 +175,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 🎊 Congratulations! You&apos;ve worked through all vocabulary in this learning resource!.
+        /// </summary>
+        internal static string AllVocabularyCompleted {
+            get {
+                return ResourceManager.GetString("AllVocabularyCompleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎊 All vocabulary completed in this quiz! Adding new words....
+        /// </summary>
+        internal static string AllVocabularyCompletedInQuiz {
+            get {
+                return ResourceManager.GetString("AllVocabularyCompletedInQuiz", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎊 All vocabulary completed in this quiz!.
+        /// </summary>
+        internal static string AllVocabularyCompletedInQuizShort {
+            get {
+                return ResourceManager.GetString("AllVocabularyCompletedInQuizShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎊 All words in this set completed! Adding new words....
+        /// </summary>
+        internal static string AllWordsCompletedAddingNew {
+            get {
+                return ResourceManager.GetString("AllWordsCompletedAddingNew", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Answer.
         /// </summary>
         internal static string Answer {
@@ -414,6 +450,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ContinuePracticeQuestion {
             get {
                 return ResourceManager.GetString("ContinuePracticeQuestion", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Continue Practicing.
+        /// </summary>
+        internal static string ContinueSessionButton {
+            get {
+                return ResourceManager.GetString("ContinueSessionButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Continue to Next Session.
+        /// </summary>
+        internal static string ContinueToNextSession {
+            get {
+                return ResourceManager.GetString("ContinueToNextSession", resourceCulture);
             }
         }
         
@@ -859,6 +913,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Good! Now you can continue..
+        /// </summary>
+        internal static string GoodNowContinue {
+            get {
+                return ResourceManager.GetString("GoodNowContinue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Great match! 🎉.
         /// </summary>
         internal static string GreatMatch {
@@ -1107,6 +1170,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Manual {
             get {
                 return ResourceManager.GetString("Manual", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mastered.
+        /// </summary>
+        internal static string Mastered {
+            get {
+                return ResourceManager.GetString("Mastered", resourceCulture);
             }
         }
         
@@ -1372,11 +1444,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No Vocabulary.
+        /// </summary>
+        internal static string NoVocabulary {
+            get {
+                return ResourceManager.GetString("NoVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No vocabulary available. Please add words to your vocabulary list..
         /// </summary>
         internal static string NoVocabularyAvailable {
             get {
                 return ResourceManager.GetString("NoVocabularyAvailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This resource has no vocabulary to study..
+        /// </summary>
+        internal static string NoVocabularyMessage {
+            get {
+                return ResourceManager.GetString("NoVocabularyMessage", resourceCulture);
             }
         }
         
@@ -1651,6 +1741,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Next Activity.
+        /// </summary>
+        internal static string PlanNextActivityButton {
+            get {
+                return ResourceManager.GetString("PlanNextActivityButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Regenerate Plan.
         /// </summary>
         internal static string PlanRegenerateButton {
@@ -1858,11 +1957,38 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Review Needed.
+        /// </summary>
+        internal static string ReviewNeeded {
+            get {
+                return ResourceManager.GetString("ReviewNeeded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Review the vocabulary you just studied:.
+        /// </summary>
+        internal static string ReviewVocabularyStudied {
+            get {
+                return ResourceManager.GetString("ReviewVocabularyStudied", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to rounds.
         /// </summary>
         internal static string RoundsLabel {
             get {
                 return ResourceManager.GetString("RoundsLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎯 Round {0} - Time for typing!.
+        /// </summary>
+        internal static string RoundTimeForTyping {
+            get {
+                return ResourceManager.GetString("RoundTimeForTyping", resourceCulture);
             }
         }
         
@@ -2052,6 +2178,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SessionComplete {
             get {
                 return ResourceManager.GetString("SessionComplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 📊 Session Performance.
+        /// </summary>
+        internal static string SessionPerformance {
+            get {
+                return ResourceManager.GetString("SessionPerformance", resourceCulture);
             }
         }
         
@@ -2272,6 +2407,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 📚 Today&apos;s Vocabulary Review.
+        /// </summary>
+        internal static string TodaysVocabularyReview {
+            get {
+                return ResourceManager.GetString("TodaysVocabularyReview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Total.
         /// </summary>
         internal static string Total {
@@ -2322,6 +2466,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Type {
             get {
                 return ResourceManager.GetString("Type", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please type the correct answer exactly as shown..
+        /// </summary>
+        internal static string TypeCorrectAnswerExactly {
+            get {
+                return ResourceManager.GetString("TypeCorrectAnswerExactly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type the correct answer.
+        /// </summary>
+        internal static string TypeCorrectAnswerHint {
+            get {
+                return ResourceManager.GetString("TypeCorrectAnswerHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type your answer.
+        /// </summary>
+        internal static string TypeYourAnswerHint {
+            get {
+                return ResourceManager.GetString("TypeYourAnswerHint", resourceCulture);
             }
         }
         
@@ -2718,6 +2889,42 @@ namespace SentenceStudio.Resources.Strings {
         internal static string WhatDoYouWantToSay {
             get {
                 return ResourceManager.GetString("WhatDoYouWantToSay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What is this in Korean?.
+        /// </summary>
+        internal static string WhatIsThisInKorean {
+            get {
+                return ResourceManager.GetString("WhatIsThisInKorean", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ✨ Word mastered in this quiz!.
+        /// </summary>
+        internal static string WordMasteredInQuiz {
+            get {
+                return ResourceManager.GetString("WordMasteredInQuiz", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🌟 &apos;{0}&apos; mastered! New word added..
+        /// </summary>
+        internal static string WordMasteredNewAdded {
+            get {
+                return ResourceManager.GetString("WordMasteredNewAdded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🌟 {0} words mastered! New words added..
+        /// </summary>
+        internal static string WordsMasteredNewAdded {
+            get {
+                return ResourceManager.GetString("WordsMasteredNewAdded", resourceCulture);
             }
         }
         

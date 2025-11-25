@@ -645,6 +645,98 @@
     <value>• 문장을 더블 탭하여 해당 지점으로 이동</value>
     <comment>Reading instruction</comment>
   </data>
+  <data name="PlanNextActivityButton" xml:space="preserve">
+    <value>다음 활동</value>
+    <comment>일일 계획의 다음 활동으로 이동하는 버튼</comment>
+  </data>
+  <data name="ContinueSessionButton" xml:space="preserve">
+    <value>계속 연습하기</value>
+    <comment>어휘 연습을 계속하는 버튼</comment>
+  </data>
+  <data name="ContinueToNextSession" xml:space="preserve">
+    <value>다음 세션 계속하기</value>
+    <comment>다음 어휘 세션을 계속하는 버튼</comment>
+  </data>
+  <data name="ReviewVocabularyStudied" xml:space="preserve">
+    <value>방금 학습한 어휘를 복습하세요:</value>
+    <comment>어휘 세션 요약 안내 문구</comment>
+  </data>
+  <data name="TodaysVocabularyReview" xml:space="preserve">
+    <value>📚 오늘의 어휘 복습</value>
+    <comment>오늘의 어휘 복습 섹션 제목</comment>
+  </data>
+  <data name="SessionPerformance" xml:space="preserve">
+    <value>📊 세션 성과</value>
+    <comment>세션 성과 통계 제목</comment>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>마스터</value>
+    <comment>마스터한 어휘 단어 레이블</comment>
+  </data>
+  <data name="ReviewNeeded" xml:space="preserve">
+    <value>복습 필요</value>
+    <comment>복습이 필요한 어휘 단어 레이블</comment>
+  </data>
+  <data name="WhatIsThisInKorean" xml:space="preserve">
+    <value>이것은 한국어로 무엇입니까?</value>
+    <comment>어휘 퀴즈 질문 프롬프트</comment>
+  </data>
+  <data name="TypeCorrectAnswerHint" xml:space="preserve">
+    <value>정답을 입력하세요</value>
+    <comment>정답이 필요할 때 텍스트 입력 힌트</comment>
+  </data>
+  <data name="TypeYourAnswerHint" xml:space="preserve">
+    <value>답을 입력하세요</value>
+    <comment>퀴즈의 텍스트 입력 힌트</comment>
+  </data>
+  <data name="WordMasteredNewAdded" xml:space="preserve">
+    <value>🌟 '{0}' 마스터! 새 단어가 추가되었습니다.</value>
+    <comment>단일 단어가 마스터되었을 때 토스트 메시지</comment>
+  </data>
+  <data name="WordsMasteredNewAdded" xml:space="preserve">
+    <value>🌟 {0}개 단어 마스터! 새 단어가 추가되었습니다.</value>
+    <comment>여러 단어가 마스터되었을 때 토스트 메시지</comment>
+  </data>
+  <data name="AllVocabularyCompleted" xml:space="preserve">
+    <value>🎊 축하합니다! 이 학습 자료의 모든 어휘를 완료했습니다!</value>
+    <comment>모든 어휘가 완료되었을 때 메시지</comment>
+  </data>
+  <data name="NoVocabulary" xml:space="preserve">
+    <value>어휘 없음</value>
+    <comment>자료에 어휘가 없을 때 알림 제목</comment>
+  </data>
+  <data name="NoVocabularyMessage" xml:space="preserve">
+    <value>이 자료에는 학습할 어휘가 없습니다.</value>
+    <comment>자료에 어휘가 없을 때 알림 메시지</comment>
+  </data>
+  <data name="AllWordsCompletedAddingNew" xml:space="preserve">
+    <value>🎊 이 세트의 모든 단어 완료! 새 단어 추가 중...</value>
+    <comment>세트가 완료되었을 때 토스트 메시지</comment>
+  </data>
+  <data name="WordMasteredInQuiz" xml:space="preserve">
+    <value>✨ 퀴즈에서 단어 마스터!</value>
+    <comment>퀴즈 중 단어가 마스터되었을 때 토스트 메시지</comment>
+  </data>
+  <data name="AllVocabularyCompletedInQuiz" xml:space="preserve">
+    <value>🎊 퀴즈의 모든 어휘 완료! 새 단어 추가 중...</value>
+    <comment>퀴즈의 모든 어휘가 완료되었을 때 토스트 메시지</comment>
+  </data>
+  <data name="RoundTimeForTyping" xml:space="preserve">
+    <value>🎯 라운드 {0} - 타이핑 시간!</value>
+    <comment>타이핑 라운드 시작 토스트 메시지</comment>
+  </data>
+  <data name="TypeCorrectAnswerExactly" xml:space="preserve">
+    <value>표시된 대로 정확히 정답을 입력하세요.</value>
+    <comment>사용자가 정확한 답을 입력해야 할 때 피드백 메시지</comment>
+  </data>
+  <data name="GoodNowContinue" xml:space="preserve">
+    <value>좋습니다! 이제 계속하실 수 있습니다.</value>
+    <comment>올바른 입력 후 피드백 메시지</comment>
+  </data>
+  <data name="AllVocabularyCompletedInQuizShort" xml:space="preserve">
+    <value>🎊 이 퀴즈의 모든 어휘 완료!</value>
+    <comment>모든 퀴즈 어휘가 완료되었을 때 토스트 메시지</comment>
+  </data>
   <data name="Close" xml:space="preserve">
     <value>닫기</value>
     <comment>Close button</comment>
