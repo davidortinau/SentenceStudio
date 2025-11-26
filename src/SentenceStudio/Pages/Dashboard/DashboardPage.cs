@@ -563,7 +563,7 @@ partial class DashboardPage : Component<DashboardPageState>
         _ = RefreshProgressDataAsync(selectedSkill?.Id);
 
         // Load today's plan if in that mode
-        if (State.IsTodaysPlanMode && selectedResources?.Any() == true && selectedSkill != null)
+        if (State.IsTodaysPlanMode)
         {
             _logger.LogDebug("📅 Dashboard OnAppearing - scheduling plan reload with delay");
             // CRITICAL: Delay plan reload to allow previous activity page to complete unmount and save progress
@@ -580,7 +580,7 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         else
         {
-            _logger.LogDebug("📅 Dashboard OnAppearing - NOT reloading plan: IsTodaysPlanMode={IsTodaysPlanMode}, HasResources={HasResources}, HasSkill={HasSkill}", State.IsTodaysPlanMode, selectedResources?.Any(), selectedSkill != null);
+            _logger.LogDebug("📅 Dashboard OnAppearing - in Choose Own mode, not loading plan");
         }
     }
 
@@ -651,16 +651,6 @@ partial class DashboardPage : Component<DashboardPageState>
     {
         _logger.LogInformation("🚀 LoadTodaysPlanAsync - START");
 
-        if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
-        {
-            _logger.LogWarning("⚠️ Missing selections");
-            await Application.Current.MainPage.DisplayAlert(
-                "Ahoy!",
-                "Select a learning resource and skill first to generate your plan, matey!",
-                "Aye!");
-            return;
-        }
-
         SetState(s => s.IsLoadingTodaysPlan = true);
 
         try
@@ -719,18 +709,6 @@ partial class DashboardPage : Component<DashboardPageState>
             _logger.LogDebug("🎯 OnPlanItemTapped called with item: {TitleKey}", item?.TitleKey ?? "NULL");
             _logger.LogDebug("🎯 ActivityType: {ActivityType}", item?.ActivityType);
 
-            if (_parameters.Value?.SelectedResources?.Any() != true || _parameters.Value?.SelectedSkillProfile == null)
-            {
-                _logger.LogError("❌ OnPlanItemTapped: Missing resources or skill profile");
-                await Application.Current.MainPage.DisplayAlert(
-                    "Ahoy!",
-                    "Something went wrong with your selections. Please try again!",
-                    "Aye!");
-                return;
-            }
-
-            _logger.LogDebug("✅ OnPlanItemTapped: Resources and skill profile are set");
-
             // Map activity type to route
             var route = item.ActivityType switch
             {
@@ -752,8 +730,9 @@ partial class DashboardPage : Component<DashboardPageState>
             {
                 _logger.LogDebug("✅ Route is not empty, proceeding with resource loading...");
 
-                // Pre-load resource if plan specifies a specific ResourceId
+                // Load resource and skill from plan item's RouteParameters
                 List<LearningResource>? resourcesToUse = null;
+                SkillProfile? skillToUse = null;
 
                 _logger.LogDebug("🔍 Checking for ResourceId in plan item...");
                 _logger.LogDebug("🔍 ActivityType: {ActivityType}", item.ActivityType);
@@ -773,62 +752,110 @@ partial class DashboardPage : Component<DashboardPageState>
                         var resourceId = Convert.ToInt32(item.RouteParameters["ResourceId"]);
                         _logger.LogDebug("📝 ResourceId = {ResourceId}", resourceId);
 
-                        // First try to find in selected resources
-                        var specificResource = _parameters.Value.SelectedResources?
-                            .FirstOrDefault(r => r.Id == resourceId);
-
-                        if (specificResource != null)
+                        // Load resource from database (don't depend on selected resources)
+                        var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
+                        if (dbResource != null)
                         {
-                            resourcesToUse = new List<LearningResource> { specificResource };
-                            _logger.LogDebug("📚 Activity scoped to selected resource: {Title} (ID: {Id})", specificResource.Title, specificResource.Id);
+                            resourcesToUse = new List<LearningResource> { dbResource };
+                            _logger.LogInformation("✅ Loaded resource from DB for plan: {Title} (ID: {Id})", dbResource.Title, dbResource.Id);
                         }
                         else
                         {
-                            // Resource not in selected list - load from database
-                            _logger.LogWarning("⚠️ ResourceId {ResourceId} not in selected resources - loading from database", resourceId);
-                            try
-                            {
-                                var dbResource = await _resourceRepository.GetResourceAsync(resourceId);
-                                if (dbResource != null)
-                                {
-                                    resourcesToUse = new List<LearningResource> { dbResource };
-                                    _logger.LogInformation("✅ Loaded resource from DB: {Title}", dbResource.Title);
-                                }
-                                else
-                                {
-                                    _logger.LogError("❌ ResourceId {ResourceId} not found in database - falling back to selected resources", resourceId);
-                                    resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "❌ Error loading resource");
-                                resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                            }
+                            _logger.LogError("❌ ResourceId {ResourceId} not found in database", resourceId);
+                            await Application.Current.MainPage.DisplayAlert(
+                                "Arrr!",
+                                $"The resource for this activity be missin' from the database (ID: {resourceId}). Try regeneratin' yer plan!",
+                                "Aye!");
+                            return;
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "❌ CRITICAL ERROR in ResourceId handling");
-                        resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                        _logger.LogError(ex, "❌ CRITICAL ERROR loading resource from plan");
+                        await Application.Current.MainPage.DisplayAlert(
+                            "Shiver me timbers!",
+                            "Failed to load the resource for this activity. Try again!",
+                            "Aye!");
+                        return;
                     }
                 }
                 else
                 {
+                    // No ResourceId in plan - fallback to selected resources (Choose My Own mode)
+                    if (_parameters.Value?.SelectedResources?.Any() != true)
+                    {
+                        _logger.LogError("❌ No ResourceId in plan and no selected resources");
+                        await Application.Current.MainPage.DisplayAlert(
+                            "Ahoy!",
+                            "Ye need to select at least one learning resource first, matey!",
+                            "Aye!");
+                        return;
+                    }
                     resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                    _logger.LogDebug("📚 Using default selected resources (count: {Count})", resourcesToUse.Count);
+                    _logger.LogDebug("📚 Using selected resources (count: {Count})", resourcesToUse.Count);
+                }
+
+                // Load skill from plan or fallback to selected skill or first available skill
+                if (item.RouteParameters?.ContainsKey("SkillId") == true)
+                {
+                    try
+                    {
+                        var skillId = Convert.ToInt32(item.RouteParameters["SkillId"]);
+                        skillToUse = await _skillService.GetAsync(skillId);
+                        if (skillToUse != null)
+                        {
+                            _logger.LogDebug("✅ Loaded skill from plan: {Title} (ID: {Id})", skillToUse.Title, skillToUse.Id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ Failed to load skill from plan, will use fallback");
+                    }
+                }
+                
+                // Fallback to selected skill or first available skill
+                if (skillToUse == null)
+                {
+                    // Try selected skill first
+                    skillToUse = _parameters.Value?.SelectedSkillProfile;
+                    
+                    if (skillToUse != null)
+                    {
+                        _logger.LogDebug("📚 Using selected skill: {Title}", skillToUse.Title);
+                    }
+                    else
+                    {
+                        // No selected skill - load first available skill from database
+                        _logger.LogWarning("⚠️ No skill in plan and no selected skill - loading default skill");
+                        var availableSkills = await _skillService.ListAsync();
+                        skillToUse = availableSkills.FirstOrDefault();
+                        
+                        if (skillToUse != null)
+                        {
+                            _logger.LogInformation("✅ Using default skill: {Title} (ID: {Id})", skillToUse.Title, skillToUse.Id);
+                        }
+                        else
+                        {
+                            _logger.LogError("❌ No skills found in database");
+                            await Application.Current.MainPage.DisplayAlert(
+                                "Avast!",
+                                "No skill profiles found in the database. Create one first!",
+                                "Aye!");
+                            return;
+                        }
+                    }
                 }
 
                 _logger.LogInformation("🚀 OnPlanItemTapped: Navigating to {Route}...", route);
                 _logger.LogDebug("🚀 Resources to use: {Count} resources", resourcesToUse?.Count ?? 0);
+                _logger.LogDebug("🚀 Skill to use: {Skill}", skillToUse?.Title ?? "NULL");
                 await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
                     route,
                     props =>
                     {
                         _logger.LogDebug("🔧 OnPlanItemTapped: Configuring ActivityProps...");
                         props.Resources = resourcesToUse;
-
-                        props.Skill = _parameters.Value.SelectedSkillProfile;
+                        props.Skill = skillToUse;
                         props.FromTodaysPlan = true;  // Enable timer for Today's Plan activities
                         props.PlanItemId = item.Id;   // Track which plan item this is
                     }
