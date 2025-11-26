@@ -5,6 +5,7 @@ using SentenceStudio.Services;
 using SentenceStudio.Models;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
+using Syncfusion.Maui.Toolkit.BottomSheet;
 
 namespace SentenceStudio.Pages.Reading;
 
@@ -70,16 +71,15 @@ class ReadingPageState
     // Reading state
     public int CurrentSentenceIndex { get; set; } = -1;
     public int SelectedSentenceIndex { get; set; } = -1;
-    public VocabularyWord SelectedVocabulary { get; set; }
-    public bool IsVocabularyBottomSheetVisible { get; set; } = false;
 
-    // 🎯 NEW: Dictionary lookup state
-    public string DictionaryWord { get; set; }
-    public string DictionaryDefinition { get; set; }
-    public bool IsDictionaryBottomSheetVisible { get; set; } = false;
+    // 🎯 Unified word details bottom sheet state
+    public bool IsWordDetailsVisible { get; set; } = false;
+    public string SelectedWord { get; set; }
+    public string SelectedDefinition { get; set; }
+    public VocabularyWord SelectedVocabulary { get; set; } // Non-null if it's a known vocabulary word
     public bool IsLookingUpWord { get; set; } = false;
-    public bool CanRememberWord { get; set; } = false; // 🏴‍☠️ NEW: Can save word to vocabulary
-    public bool IsSavingWord { get; set; } = false; // 🏴‍☠️ NEW: Is saving word
+    public bool CanRememberWord { get; set; } = false; // Can save word to vocabulary
+    public bool IsSavingWord { get; set; } = false; // Is saving word
 
     // UI state
     public bool IsBusy { get; set; } = false;
@@ -172,26 +172,25 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
 
         return ContentPage(pageRef => _pageRef = pageRef,
-            ToolbarItem()
-                .IconImageSource(MyTheme.IconFontDecrease)
-                .OnClicked(DecreaseFontSize),
-            ToolbarItem()
-                .IconImageSource(MyTheme.IconFontIncrease)
-                .OnClicked(IncreaseFontSize),
-            ToolbarItem()
-                .IconImageSource(MyTheme.IconDelete)
-                .OnClicked(ClearAudioCache),
-            ToolbarItem()
-                .IconImageSource(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
-                .OnClicked(TogglePlayback),
+            // ToolbarItem()
+            //     .IconImageSource(MyTheme.IconFontDecrease)
+            //     .OnClicked(DecreaseFontSize),
+            // ToolbarItem()
+            //     .IconImageSource(MyTheme.IconFontIncrease)
+            //     .OnClicked(IncreaseFontSize),
+            // ToolbarItem()
+            //     .IconImageSource(MyTheme.IconDelete)
+            //     .OnClicked(ClearAudioCache),
+            // ToolbarItem()
+            //     .IconImageSource(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
+            //     .OnClicked(TogglePlayback),
             Grid(rows: "Auto,Auto,*,Auto", columns: "*",
                 Props?.FromTodaysPlan == true ? RenderTitleView() : null,
                 RenderAudioLoadingBanner(),
                 // RenderHeader(),
                 RenderReadingContent(),
                 RenderAudioControls(),
-                RenderVocabularyBottomSheet(),
-                RenderDictionaryBottomSheet()
+                RenderWordDetailsBottomSheet()
             )
         )
         .Title($"{_localize["Reading"]}")
@@ -618,52 +617,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             return MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
     }
 
-    VisualNode RenderReadingInstructions() =>
-        Border(
-            HStack(
-                Label("💡")
-                    .FontSize(16),
-                VStack(
-                    Label($"{_localize["ReadingControls"]}")
-                        .FontAttributes(FontAttributes.Bold)
-                        .FontSize(14)
-                            .ThemeKey(MyTheme.Caption1),
-                        Label("• Use A-/A+ buttons to adjust text size")
-                            .FontSize(12)
-                            .ThemeKey(MyTheme.Body1),
-                        Label("• Tap vocabulary words for translations")
-                            .FontSize(12)
-                            .ThemeKey(MyTheme.Body1),
-                        Label("• Double-tap any sentence to jump to that point")
-                            .FontSize(12)
-                            .ThemeKey(MyTheme.Body1)
-                    )
-                    .Spacing(MyTheme.MicroSpacing),
-                    Button("✕")
-                        .FontSize(12)
-                        .OnClicked(DismissInstructions)
-                        .HorizontalOptions(LayoutOptions.End)
-                )
-                .Spacing(MyTheme.Size120)
-            )
-            .Background(MyTheme.HighlightMedium.WithAlpha(0.3f))
-            .Stroke(MyTheme.HighlightDarkest.WithAlpha(0.5f))
-            .Padding(MyTheme.Size120)
-            .Margin(MyTheme.Size160)
-            .IsVisible(!State.HasDismissedInstructions);
-
-    void DismissInstructions()
-    {
-        SetState(s => s.HasDismissedInstructions = true);
-        Preferences.Set("ReadingActivity_HasDismissedInstructions", true);
-    }
-
     VisualNode RenderAudioControls() =>
         Grid("*", "Auto,*,Auto",
-            ImageButton()
-                .Source(MyTheme.IconPreviousSm)
-                .OnClicked(PreviousSentence)
-                .GridColumn(0),
+            HStack(
+                ImageButton()
+                    .Source(MyTheme.IconPreviousSm)
+                    .OnClicked(PreviousSentence),
+                ImageButton()
+                    .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
+                    .OnClicked(TogglePlayback),
+                ImageButton()
+                    .Source(MyTheme.IconNextSm)
+                    .OnClicked(NextSentence)
+            )
+            .GridColumn(0),
             VStack(
                 Label(string.Format($"{_localize["SentenceProgress"]}", State.CurrentSentenceIndex + 1, State.Sentences.Count))
                     .HCenter()
@@ -677,102 +644,108 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             .GridColumn(1)
             .VCenter()
             .Spacing(MyTheme.MicroSpacing),
-            ImageButton()
-                .Source(MyTheme.IconNextSm)
-                .OnClicked(NextSentence)
-                .GridColumn(2)
-        // Label($"{State.PlaybackSpeed:F1}x")
-        //     .OnTapped(CyclePlaybackSpeed)
-        //     .GridColumn(4)
-        //     .VCenter()
-        //     .Padding(MyTheme.Size80)
+            HStack(
+                ImageButton()
+                    .Source(MyTheme.IconFontDecrease)
+                    .OnClicked(DecreaseFontSize),
+                ImageButton()
+                    .Source(MyTheme.IconFontIncrease)
+                    .OnClicked(IncreaseFontSize)
+            )
+            .GridColumn(2)
         )
         .Padding(MyTheme.Size160)
         .GridRow(3)
         .IsVisible(State.Sentences.Any() && State.IsNavigationVisible);
 
-    VisualNode RenderVocabularyBottomSheet() =>
-        new SfBottomSheet(
-            ScrollView(
-                VStack(
-                    Label(State.SelectedVocabulary?.TargetLanguageTerm)
-                        .FontSize(24)
-                        .FontAttributes(FontAttributes.Bold)
-                        .ThemeKey(MyTheme.Title1)
-                        .HCenter(),
-                    Label(State.SelectedVocabulary?.NativeLanguageTerm)
-                        .FontSize(18)
-                        .ThemeKey(MyTheme.Body1)
-                        .HCenter(),
-                    Button($"{_localize["Close"]}")
-                        .OnClicked(CloseVocabularyBottomSheet)
-                        .HCenter()
-                )
-                .Spacing(MyTheme.Size160)
-                .Padding(MyTheme.Size240)
-            )
-        )
-        .GridRowSpan(4)
-        .IsOpen(State.IsVocabularyBottomSheetVisible);
+    /// <summary>
+    /// Unified bottom sheet for displaying word details - handles both known vocabulary words
+    /// and dictionary lookups for unknown words.
+    /// </summary>
+    VisualNode RenderWordDetailsBottomSheet() =>
+        new Controls.SfBottomSheet(
+            Grid("Auto,*,Auto", "*",
+                // Row 0: Word title
+                Label(State.SelectedWord)
+                    .FontSize(24)
+                    .FontAttributes(FontAttributes.Bold)
+                    .ThemeKey(MyTheme.Title1)
+                    .HCenter()
+                    .GridRow(0),
 
-    VisualNode RenderDictionaryBottomSheet() =>
-        new SfBottomSheet(
-            ScrollView(
-                VStack(
-                    Label(State.DictionaryWord)
-                        .FontSize(24)
-                        .FontAttributes(FontAttributes.Bold)
-                        .ThemeKey(MyTheme.Title1)
-                        .HCenter(),
-                    State.IsLookingUpWord
-                        ? VStack(
-                            ActivityIndicator()
-                                .IsRunning(true)
-                                .Color(MyTheme.HighlightDarkest)
-                                .HCenter(),
-                            Label($"{_localize["LookingUpDefinition"]}")
-                                .FontSize(16)
-                                .ThemeKey(MyTheme.Body1)
+                // Row 1: Definition content (loading, definition, or remember button)
+                State.IsLookingUpWord
+                    ? VStack(
+                        ActivityIndicator()
+                            .IsRunning(true)
+                            .Color(MyTheme.HighlightDarkest)
+                            .HCenter(),
+                        Label($"{_localize["LookingUpDefinition"]}")
+                            .FontSize(16)
+                            .ThemeKey(MyTheme.Body1)
+                            .HCenter()
+                    )
+                    .Spacing(MyTheme.Size120)
+                    .GridRow(1)
+                    .VCenter()
+                    : VStack(
+                        Label(State.SelectedDefinition)
+                            .FontSize(18)
+                            .ThemeKey(MyTheme.Body1)
+                            .HCenter(),
+
+                        // Remember vocabulary word button (only for new words)
+                        State.CanRememberWord
+                            ? State.IsSavingWord
+                                ? HStack(
+                                    ActivityIndicator()
+                                        .IsRunning(true)
+                                        .Color(MyTheme.HighlightDarkest),
+                                    Label($"{_localize["SavingWord"]}")
+                                        .ThemeKey(MyTheme.Body1)
+                                )
                                 .HCenter()
-                        )
-                        .Spacing(MyTheme.Size120)
-                        : VStack(
-                            Label(State.DictionaryDefinition)
-                                .FontSize(18)
-                                .ThemeKey(MyTheme.Body1)
-                                .HCenter(),
-
-                            // 🏴‍☠️ NEW: Remember vocabulary word button
-                            State.CanRememberWord
-                                ? State.IsSavingWord
-                                    ? HStack(
-                                        ActivityIndicator()
-                                            .IsRunning(true)
-                                            .Color(MyTheme.HighlightDarkest),
-                                        Label($"{_localize["SavingWord"]}")
-                                            .ThemeKey(MyTheme.Body1)
-                                    )
+                                .Spacing(MyTheme.Size80)
+                                : Button($"{_localize["RememberThisWord"]}")
+                                    .OnClicked(() => RememberVocabularyWord())
+                                    .Background(MyTheme.HighlightMedium)
+                                    .TextColor(MyTheme.HighlightDarkest)
                                     .HCenter()
-                                    .Spacing(MyTheme.Size80)
-                                    : Button($"{_localize["RememberThisWord"]}")
-                                        .OnClicked(() => RememberVocabularyWord())
-                                        .Background(MyTheme.HighlightMedium)
-                                        .TextColor(MyTheme.HighlightDarkest)
-                                        .HCenter()
-                                : null
-                        )
-                        .Spacing(MyTheme.Size120),
+                            : null
+                    )
+                    .Spacing(MyTheme.Size120)
+                    .GridRow(1)
+                    .VStart(),
 
-                    Button($"{_localize["Close"]}")
-                        .OnClicked(() => CloseDictionaryBottomSheet())
-                        .HCenter()
-                )
-                .Spacing(MyTheme.Size160)
-                .Padding(MyTheme.Size240)
+                // Row 2: Close button - with explicit sizing for better touch target
+                Button($"{_localize["Close"]}")
+                    .OnClicked(CloseWordDetailsBottomSheet)
+                    .HCenter()
+                    .MinimumHeightRequest(44)
+                    .MinimumWidthRequest(100)
+                    .GridRow(2)
             )
+            .RowSpacing(MyTheme.Size160)
+            .Padding(MyTheme.Size240)
         )
+        .AllowedState(BottomSheetAllowedState.HalfExpanded)
+        .HalfExpandedRatio(0.35)
+        .ShowGrabber(false)
+        .EnableSwiping(false)
+        .IsModal(true)
+        .ContentPadding(new Thickness(MyTheme.Size160, MyTheme.Size160, MyTheme.Size160, MyTheme.Size240))
         .GridRowSpan(4)
-        .IsOpen(State.IsDictionaryBottomSheetVisible);
+        .IsOpen(State.IsWordDetailsVisible)
+        .OnStateChanged((sender, args) =>
+        {
+            // Sync native control state back to component state when sheet is dismissed
+            // This handles tap-outside-to-dismiss and other native dismiss actions
+            if (args.NewState == Syncfusion.Maui.Toolkit.BottomSheet.BottomSheetState.Hidden &&
+                State.IsWordDetailsVisible)
+            {
+                CloseWordDetailsBottomSheet();
+            }
+        });
 
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)
@@ -1110,19 +1083,25 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         );
     }
 
-    // Vocabulary UI
+    // Vocabulary UI - Unified word details handling
     void ShowVocabularyBottomSheet(VocabularyWord vocabularyWord)
     {
+        // Show known vocabulary word with stored definition
         SetState(s =>
         {
+            s.SelectedWord = vocabularyWord.TargetLanguageTerm;
+            s.SelectedDefinition = vocabularyWord.NativeLanguageTerm;
             s.SelectedVocabulary = vocabularyWord;
-            s.IsVocabularyBottomSheetVisible = true;
+            s.IsLookingUpWord = false;
+            s.CanRememberWord = false; // Already in vocabulary
+            s.IsSavingWord = false;
+            s.IsWordDetailsVisible = true;
         });
     }
 
     void LookupWordInDictionary(string word)
     {
-        // 🎯 NEW: Dictionary lookup for regular words using bottom sheet UI
+        // Dictionary lookup for regular words using unified bottom sheet
         _ = Task.Run(async () =>
         {
             try
@@ -1132,19 +1111,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Clean the word - remove punctuation for better lookup
                 var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
 
-                // 🏴‍☠️ NEW: Get the current sentence for context
+                // Get the current sentence for context
                 string currentSentence = null;
                 if (State.CurrentSentenceIndex >= 0 && State.CurrentSentenceIndex < State.Sentences.Count)
                 {
                     currentSentence = State.Sentences[State.CurrentSentenceIndex];
                 }
 
-                // Show loading state in the dictionary bottom sheet
+                // Show loading state in the unified bottom sheet
                 SetState(s =>
                 {
-                    s.DictionaryWord = cleanWord;
-                    s.DictionaryDefinition = null;
-                    s.IsDictionaryBottomSheetVisible = true;
+                    s.SelectedWord = cleanWord;
+                    s.SelectedDefinition = null;
+                    s.SelectedVocabulary = null;
+                    s.IsWordDetailsVisible = true;
                     s.IsLookingUpWord = true;
                     s.CanRememberWord = false;
                     s.IsSavingWord = false;
@@ -1161,7 +1141,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     _logger.LogDebug("Found local translation: {TargetTerm} = {NativeTerm}", localWord.TargetLanguageTerm, localWord.NativeLanguageTerm);
                     SetState(s =>
                     {
-                        s.DictionaryDefinition = localWord.NativeLanguageTerm;
+                        s.SelectedDefinition = localWord.NativeLanguageTerm;
+                        s.SelectedVocabulary = localWord;
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = false; // Already in vocabulary
                     });
@@ -1177,7 +1158,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     _logger.LogDebug("AI translation found: {CleanWord} = {Translation}", cleanWord, translation);
                     SetState(s =>
                     {
-                        s.DictionaryDefinition = translation;
+                        s.SelectedDefinition = translation;
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = true; // Allow saving new word
                     });
@@ -1198,7 +1179,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     _logger.LogWarning("No translation found for: {CleanWord}", cleanWord);
                     SetState(s =>
                     {
-                        s.DictionaryDefinition = $"{_localize["NoDefinitionFound"]}";
+                        s.SelectedDefinition = $"{_localize["NoDefinitionFound"]}";
                         s.IsLookingUpWord = false;
                         s.CanRememberWord = false;
                     });
@@ -1209,7 +1190,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 _logger.LogError(ex, "Error in dictionary lookup for word: {Word}", word);
                 SetState(s =>
                 {
-                    s.DictionaryDefinition = "Unable to lookup word definition";
+                    s.SelectedDefinition = "Unable to lookup word definition";
                     s.IsLookingUpWord = false;
                     s.CanRememberWord = false;
                 });
@@ -1217,17 +1198,21 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         });
     }
 
-    void CloseVocabularyBottomSheet()
+    void CloseWordDetailsBottomSheet()
     {
-        SetState(s => s.IsVocabularyBottomSheetVisible = false);
+        SetState(s =>
+        {
+            s.IsWordDetailsVisible = false;
+            s.SelectedWord = null;
+            s.SelectedDefinition = null;
+            s.SelectedVocabulary = null;
+            s.IsLookingUpWord = false;
+            s.CanRememberWord = false;
+            s.IsSavingWord = false;
+        });
     }
 
-    void CloseDictionaryBottomSheet()
-    {
-        SetState(s => s.IsDictionaryBottomSheetVisible = false);
-    }
-
-    // 🏴‍☠️ NEW: Remember vocabulary word from dictionary lookup
+    // Remember vocabulary word from dictionary lookup
     void RememberVocabularyWord()
     {
         _ = Task.Run(async () =>
@@ -1239,8 +1224,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Create new vocabulary word
                 var newWord = new VocabularyWord
                 {
-                    TargetLanguageTerm = State.DictionaryWord,
-                    NativeLanguageTerm = State.DictionaryDefinition,
+                    TargetLanguageTerm = State.SelectedWord,
+                    NativeLanguageTerm = State.SelectedDefinition,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -1263,6 +1248,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             s.VocabularyWords.Add(newWord);
                             s.IsSavingWord = false;
                             s.CanRememberWord = false; // Word is now remembered
+                            s.SelectedVocabulary = newWord; // Now it's a known word
                         });
                     }
                     else
@@ -1274,14 +1260,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     await _userActivityRepository.SaveAsync(new UserActivity
                     {
                         Activity = SentenceStudio.Shared.Models.Activity.Reading.ToString(),
-                        Input = $"Added vocabulary: {State.DictionaryWord}",
+                        Input = $"Added vocabulary: {State.SelectedWord}",
                         Accuracy = 100, // Successfully added word
                         Fluency = 100,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     });
 
-                    await AppShell.DisplayToastAsync($"🏴‍☠️ Word '{State.DictionaryWord}' added to vocabulary, Captain!");
+                    await AppShell.DisplayToastAsync($"🏴‍☠️ Word '{State.SelectedWord}' added to vocabulary, Captain!");
                 }
                 else
                 {
@@ -1291,7 +1277,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving vocabulary word: {Word}", State.DictionaryWord);
+                _logger.LogError(ex, "Error saving vocabulary word: {Word}", State.SelectedWord);
                 SetState(s => s.IsSavingWord = false);
                 await AppShell.DisplayToastAsync("❌ Error saving vocabulary word");
             }
