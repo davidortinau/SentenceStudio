@@ -80,7 +80,8 @@ public record TodaysPlan
     double CompletionPercentage,
     StreakInfo Streak,
     string? ResourceTitles = null,
-    string? SkillTitle = null
+    string? SkillTitle = null,
+    string? Rationale = null
 );
 
 public record StreakInfo

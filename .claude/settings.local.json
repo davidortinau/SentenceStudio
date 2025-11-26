@@ -14,7 +14,15 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "mcp__microsoft_docs_mcp__microsoft_docs_fetch",
-      "WebFetch(domain:stackoverflow.com)"
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet add package:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(git checkout:*)",
+      "Bash(dotnet test:*)",
+      "Bash(../.gitignore)",
+      "Bash(dotnet ef migrations:*)"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -21,14 +21,22 @@ public class DailyPlanCompletion
     /// </summary>
     public int MinutesSpent { get; set; }
     
-    // New fields for plan reconstruction
+    // Fields for plan reconstruction
     public int EstimatedMinutes { get; set; }
     public int Priority { get; set; }
     public string TitleKey { get; set; } = string.Empty;
     public string DescriptionKey { get; set; } = string.Empty;
-    public string Route { get; set; } = string.Empty;
-    public string RouteParametersJson { get; set; } = string.Empty; // JSON serialized Dictionary<string,object>
+
+    /// <summary>
+    /// The LLM-generated rationale explaining why this plan was created.
+    /// Stored redundantly in all items for the same date for easy reconstruction.
+    /// </summary>
+    public string Rationale { get; set; } = string.Empty;
     
+    // NOTE: Route and RouteParameters are NOT stored - they're derived from ActivityType, 
+    // ResourceId, and SkillId during reconstruction using PlanConverter logic.
+    // This ensures route logic stays in one place and adapts to future changes.
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

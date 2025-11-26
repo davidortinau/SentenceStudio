@@ -752,18 +752,18 @@ partial class DashboardPage : Component<DashboardPageState>
             {
                 _logger.LogDebug("✅ Route is not empty, proceeding with resource loading...");
 
-                // Pre-load resource if needed for VocabularyReview
+                // Pre-load resource if plan specifies a specific ResourceId
                 List<LearningResource>? resourcesToUse = null;
 
-                _logger.LogDebug("🔍 Checking if VocabularyReview with ResourceId...");
+                _logger.LogDebug("🔍 Checking for ResourceId in plan item...");
                 _logger.LogDebug("🔍 ActivityType: {ActivityType}", item.ActivityType);
                 _logger.LogDebug("🔍 RouteParameters null? {IsNull}", item.RouteParameters == null);
                 _logger.LogDebug("🔍 RouteParameters count: {Count}", item.RouteParameters?.Count ?? 0);
 
-                if (item.ActivityType == PlanActivityType.VocabularyReview &&
-                    item.RouteParameters?.ContainsKey("ResourceId") == true)
+                // Check for ResourceId in route parameters for ANY activity type
+                if (item.RouteParameters?.ContainsKey("ResourceId") == true)
                 {
-                    _logger.LogDebug("✅ VocabularyReview with ResourceId detected");
+                    _logger.LogDebug("✅ Plan item with ResourceId detected for {ActivityType}", item.ActivityType);
 
                     try
                     {
@@ -780,7 +780,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         if (specificResource != null)
                         {
                             resourcesToUse = new List<LearningResource> { specificResource };
-                            _logger.LogDebug("📚 VocabularyReview scoped to selected resource: {Title}", specificResource.Title);
+                            _logger.LogDebug("📚 Activity scoped to selected resource: {Title} (ID: {Id})", specificResource.Title, specificResource.Id);
                         }
                         else
                         {

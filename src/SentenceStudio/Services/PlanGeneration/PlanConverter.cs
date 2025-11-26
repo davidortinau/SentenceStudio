@@ -62,7 +62,8 @@ public static class PlanConverter
             CompletionPercentage: 0.0,
             Streak: new StreakInfo(0, 0, null),
             ResourceTitles: null,
-            SkillTitle: null
+            SkillTitle: null,
+            Rationale: llmResponse.Rationale
         );
     }
 
@@ -86,7 +87,11 @@ public static class PlanConverter
         };
     }
 
-    private static string GetRouteForActivity(PlanActivityType activityType)
+    /// <summary>
+    /// Gets the route for a given activity type.
+    /// Public to allow plan reconstruction from database without storing routes.
+    /// </summary>
+    public static string GetRouteForActivity(PlanActivityType activityType)
     {
         return activityType switch
         {
@@ -105,7 +110,11 @@ public static class PlanConverter
         };
     }
 
-    private static Dictionary<string, object> BuildRouteParameters(PlanActivity activity, PlanActivityType activityType)
+    /// <summary>
+    /// Builds route parameters for a given activity type with resource/skill IDs.
+    /// Public to allow plan reconstruction from database without storing parameters.
+    /// </summary>
+    public static Dictionary<string, object> BuildRouteParameters(PlanActivityType activityType, int? resourceId, int? skillId)
     {
         var parameters = new Dictionary<string, object>();
 
@@ -113,25 +122,32 @@ public static class PlanConverter
         {
             parameters["Mode"] = "SRS";
             parameters["DueOnly"] = true;
-            // NEW: If ResourceId is provided, scope vocabulary to that resource
-            if (activity.ResourceId.HasValue)
-                parameters["ResourceId"] = activity.ResourceId.Value;
+            if (resourceId.HasValue)
+                parameters["ResourceId"] = resourceId.Value;
         }
         else if (activityType == PlanActivityType.VocabularyGame)
         {
-            if (activity.SkillId.HasValue)
-                parameters["SkillId"] = activity.SkillId.Value;
+            if (skillId.HasValue)
+                parameters["SkillId"] = skillId.Value;
         }
         else
         {
             // Resource-based activities
-            if (activity.ResourceId.HasValue)
-                parameters["ResourceId"] = activity.ResourceId.Value;
-            if (activity.SkillId.HasValue)
-                parameters["SkillId"] = activity.SkillId.Value;
+            if (resourceId.HasValue)
+                parameters["ResourceId"] = resourceId.Value;
+            if (skillId.HasValue)
+                parameters["SkillId"] = skillId.Value;
         }
 
         return parameters;
+    }
+    
+    /// <summary>
+    /// Private helper that wraps the public method for use with PlanActivity objects.
+    /// </summary>
+    private static Dictionary<string, object> BuildRouteParameters(PlanActivity activity, PlanActivityType activityType)
+    {
+        return BuildRouteParameters(activityType, activity.ResourceId, activity.SkillId);
     }
 
     private static string GetTitleKeyForActivity(PlanActivityType activityType)

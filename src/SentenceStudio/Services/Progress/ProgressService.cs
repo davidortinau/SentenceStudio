@@ -259,7 +259,8 @@ public class ProgressService : IProgressService
                 CompletionPercentage: 0.0,
                 Streak: streak,
                 ResourceTitles: uniqueResourceTitles.Any() ? string.Join(", ", uniqueResourceTitles) : null,
-                SkillTitle: skillTitle
+                SkillTitle: skillTitle,
+                Rationale: plan.Rationale
             );
 
             // Enrich with any existing completion data from database (resume support)
@@ -320,7 +321,8 @@ public class ProgressService : IProgressService
             CompletionPercentage: 0.0,
             Streak: streak,
             ResourceTitles: null,
-            SkillTitle: null
+            SkillTitle: null,
+            Rationale: "Generated fallback plan due to insufficient data or service unavailability. Focusing on vocabulary review to maintain learning momentum."
         );
 
         plan = await EnrichPlanWithCompletionDataAsync(plan, ct);
@@ -774,8 +776,7 @@ public class ProgressService : IProgressService
                     Priority = item.Priority,
                     TitleKey = item.TitleKey,
                     DescriptionKey = item.DescriptionKey,
-                    Route = item.Route,
-                    RouteParametersJson = System.Text.Json.JsonSerializer.Serialize(item.RouteParameters),
+                    Rationale = plan.Rationale ?? string.Empty,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -816,35 +817,29 @@ public class ProgressService : IProgressService
 
         _logger.LogDebug("📊 Found {Count} completion records, reconstructing plan...", completions.Count);
 
+        // Extract rationale from first record (stored redundantly in all records for same date)
+        var rationale = completions.FirstOrDefault()?.Rationale ?? string.Empty;
+
         // Convert DailyPlanCompletion records back to PlanItems
         var planItems = new List<DailyPlanItem>();
 
         foreach (var completion in completions)
         {
-            // Deserialize route parameters
-            Dictionary<string, object>? routeParams = null;
-            if (!string.IsNullOrEmpty(completion.RouteParametersJson))
-            {
-                try
-                {
-                    routeParams = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(completion.RouteParametersJson);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug("⚠️ Failed to deserialize route params: {Message}", ex.Message);
-                }
-            }
+            // Derive route and parameters from ActivityType and IDs using PlanConverter
+            var activityType = Enum.Parse<PlanActivityType>(completion.ActivityType);
+            var route = PlanConverter.GetRouteForActivity(activityType);
+            var routeParams = PlanConverter.BuildRouteParameters(activityType, completion.ResourceId, completion.SkillId);
 
             var planItem = new DailyPlanItem(
                 Id: completion.PlanItemId,
                 TitleKey: completion.TitleKey,
                 DescriptionKey: completion.DescriptionKey,
-                ActivityType: Enum.Parse<PlanActivityType>(completion.ActivityType),
+                ActivityType: activityType,
                 EstimatedMinutes: completion.EstimatedMinutes,
                 Priority: completion.Priority,
                 IsCompleted: completion.IsCompleted,
                 CompletedAt: completion.CompletedAt,
-                Route: completion.Route,
+                Route: route,
                 RouteParameters: routeParams,
                 ResourceId: completion.ResourceId,
                 ResourceTitle: null, // Will be enriched later if needed
@@ -856,7 +851,7 @@ public class ProgressService : IProgressService
             );
 
             planItems.Add(planItem);
-            _logger.LogDebug("  ✅ Reconstructed: {TitleKey} ({Spent}/{Estimated} min)", completion.TitleKey, completion.MinutesSpent, completion.EstimatedMinutes);
+            _logger.LogDebug("  ✅ Reconstructed: {TitleKey} ({Spent}/{Estimated} min) -> {Route}", completion.TitleKey, completion.MinutesSpent, completion.EstimatedMinutes, route);
         }
 
         // Calculate overall plan statistics
@@ -878,7 +873,8 @@ public class ProgressService : IProgressService
             CompletionPercentage: completionPercentage,
             Streak: streak,
             ResourceTitles: null, // Will be enriched later if needed
-            SkillTitle: null
+            SkillTitle: null,
+            Rationale: rationale
         );
 
         _logger.LogDebug("✅ Reconstructed plan: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);

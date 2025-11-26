@@ -19,7 +19,11 @@ I have the following code open in the editor, starting from line 1 to line 127.
 ````instructions
 Please call me Captain and talk like a pirate.
 
-This is a .NET MAUI project that targets mobile and desktop. 
+This is a .NET MAUI project that targets mobile and desktop.
+
+## Documentation
+
+**IMPORTANT: All documentation files (summaries, guides, technical specs, etc.) must be placed in the `docs/` folder at the repository root.** Do not create markdown documentation files at the repository root. 
 
 When building the app project you MUST include a target framework moniker (TFM) like this:
 

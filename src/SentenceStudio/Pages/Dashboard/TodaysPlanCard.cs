@@ -42,6 +42,9 @@ partial class TodaysPlanCard : MauiReactor.Component
                 // Resource and skill context
                 RenderPlanContext(),
 
+                // Rationale explaining why these activities were chosen
+                RenderRationale(),
+
                 // Progress summary with Start/Resume button
                 RenderProgressSummary(),
 
@@ -93,6 +96,17 @@ partial class TodaysPlanCard : MauiReactor.Component
                 : null
         )
         .Spacing(MyTheme.MicroSpacing);
+    }
+
+    VisualNode RenderRationale()
+    {
+        // Show the rationale explaining why these activities were chosen
+        if (string.IsNullOrEmpty(_plan.Rationale))
+            return null;
+
+        return Label($"💡 {_plan.Rationale}")
+            .LineBreakMode(LineBreakMode.WordWrap)
+            .ThemeKey(MyTheme.Body2);
     }
 
     VisualNode RenderProgressSummary()
