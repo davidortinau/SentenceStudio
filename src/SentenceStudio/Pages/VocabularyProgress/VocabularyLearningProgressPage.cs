@@ -22,6 +22,11 @@ class VocabularyProgressProps
 
 public class VocabularyProgressItem
 {
+    // Constants matching VocabularyProgressService
+    private const float MASTERY_THRESHOLD = 0.80f;  // Status threshold (0.8 for Known)
+    private const int MIN_CORRECT_RECOGNITION = 3;
+    private const int MIN_CORRECT_PRODUCTION = 2;
+
     public VocabularyWord Word { get; set; } = null!;
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
     public List<string> ResourceNames { get; set; } = new();
@@ -37,8 +42,10 @@ public class VocabularyProgressItem
                                 IsLearning ? MyTheme.Warning :
                                 MyTheme.Gray400;
 
-    public string StatusText {
-        get {
+    public string StatusText
+    {
+        get
+        {
             var localize = LocalizationManager.Instance;
             return IsKnown ? $"{localize["Known"]}" :
                             IsLearning ? $"{localize["Learning"]}" :
@@ -48,6 +55,94 @@ public class VocabularyProgressItem
 
     public double MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0.0;
     public double TextEntryProgress => Progress?.TextEntryProgress ?? 0.0;
+
+    // Progress breakdown properties
+    public int RecognitionCorrect => Progress?.RecognitionCorrect ?? 0;
+    public int RecognitionAttempts => Progress?.RecognitionAttempts ?? 0;
+    public int ProductionCorrect => Progress?.ProductionCorrect ?? 0;
+    public int ProductionAttempts => Progress?.ProductionAttempts ?? 0;
+    public float MasteryScore => Progress?.MasteryScore ?? 0f;
+    public float RecognitionAccuracy => Progress?.RecognitionAccuracy ?? 0f;
+    public float ProductionAccuracy => Progress?.ProductionAccuracy ?? 0f;
+
+    // Progress to next level calculations
+    public int RecognitionNeeded => Math.Max(0, MIN_CORRECT_RECOGNITION - RecognitionCorrect);
+    public int ProductionNeeded => Math.Max(0, MIN_CORRECT_PRODUCTION - ProductionCorrect);
+    public float PercentageToKnown => Math.Min(1f, MasteryScore / MASTERY_THRESHOLD);
+
+    // SRS Review Date
+    public DateTime? NextReviewDate => Progress?.NextReviewDate;
+    public int ReviewInterval => Progress?.ReviewInterval ?? 1;
+    public bool IsDueForReview => Progress?.IsDueForReview ?? false;
+
+    public string ReviewDateText
+    {
+        get
+        {
+            var localize = LocalizationManager.Instance;
+            if (NextReviewDate == null)
+                return $"{localize["NotScheduled"]}";
+
+            var now = DateTime.Now.Date;
+            var reviewDate = NextReviewDate.Value.Date;
+
+            if (reviewDate <= now)
+                return $"📅 {localize["DueNow"]}";
+            else if (reviewDate == now.AddDays(1))
+                return $"📅 {localize["Tomorrow"]}";
+            else if (reviewDate <= now.AddDays(7))
+                return $"📅 {(reviewDate - now).Days} {localize["DaysAway"]}";
+            else
+                return $"📅 {reviewDate:MMM d}";
+        }
+    }
+
+    public string ProgressRequirementsText
+    {
+        get
+        {
+            var localize = LocalizationManager.Instance;
+
+            if (IsKnown)
+                return $"✅ {localize["Mastered"]}";
+
+            if (IsUnknown)
+                return $"{localize["StartPracticing"]}";
+
+            // Learning status - show what's needed
+            var parts = new List<string>();
+
+            // Recognition progress
+            if (RecognitionNeeded > 0)
+                parts.Add($"🎯 {RecognitionCorrect}/{MIN_CORRECT_RECOGNITION} {localize["Recognition"]}");
+            else
+                parts.Add($"🎯 ✓ {localize["Recognition"]}");
+
+            // Production progress
+            if (ProductionNeeded > 0)
+                parts.Add($"✍️ {ProductionCorrect}/{MIN_CORRECT_PRODUCTION} {localize["Production"]}");
+            else
+                parts.Add($"✍️ ✓ {localize["Production"]}");
+
+            return string.Join(" | ", parts);
+        }
+    }
+
+    public string CurrentPhaseText
+    {
+        get
+        {
+            var localize = LocalizationManager.Instance;
+            var phase = Progress?.CurrentPhase ?? LearningPhase.Recognition;
+            return phase switch
+            {
+                LearningPhase.Recognition => $"{localize["PhaseRecognition"]}",
+                LearningPhase.Production => $"{localize["PhaseProduction"]}",
+                LearningPhase.Application => $"{localize["PhaseApplication"]}",
+                _ => $"{localize["PhaseRecognition"]}"
+            };
+        }
+    }
 }
 
 class VocabularyLearningProgressPageState
@@ -174,16 +269,35 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     VisualNode RenderVocabularyCard(VocabularyProgressItem item) =>
         Border(
             VStack(spacing: MyTheme.MicroSpacing,
+                // Word and translation
                 Label(item.Word.TargetLanguageTerm ?? "")
                     .ThemeKey(MyTheme.Title3),
                 Label(item.Word.NativeLanguageTerm ?? "")
                     .ThemeKey(MyTheme.Subtitle),
+
+                // Status badge
                 Label(item.StatusText)
                     .ThemeKey(MyTheme.Caption1)
-                    .TextColor(item.StatusColor)
+                    .TextColor(item.StatusColor),
+
+                // Progress breakdown
+                Label(item.ProgressRequirementsText)
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.Gray600),
+
+                // Current phase (for Learning words)
+                item.IsLearning ?
+                    Label($"📚 {item.CurrentPhaseText}")
+                        .ThemeKey(MyTheme.Caption1)
+                        .TextColor(MyTheme.Gray500) : null,
+
+                // SRS Review date
+                Label(item.ReviewDateText)
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(item.IsDueForReview ? MyTheme.Warning : MyTheme.Gray500)
             )
+            .Padding(MyTheme.ComponentSpacing)
         )
-        // .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
         .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.ComponentSpacing))
         .StrokeThickness(1)
         .Stroke(item.StatusColor);

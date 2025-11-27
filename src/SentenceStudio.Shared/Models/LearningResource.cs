@@ -46,6 +46,12 @@ public partial class LearningResource : ObservableObject
     [ObservableProperty]
     private string? tags;
 
+    // Smart resource properties
+    public bool IsSmartResource { get; set; } = false;
+
+    [ObservableProperty]
+    private string? smartResourceType; // "DailyReview", "NewWords", "Struggling"
+
     [JsonIgnore]
     public DateTime CreatedAt { get; set; }
 
@@ -63,4 +69,8 @@ public partial class LearningResource : ObservableObject
     // Helper property to determine if this is a vocabulary list
     [NotMapped]
     public bool IsVocabularyList => MediaType == "Vocabulary List";
+
+    // Helper property for system-generated resources
+    [NotMapped]
+    public bool IsSystemGenerated => IsSmartResource;
 }

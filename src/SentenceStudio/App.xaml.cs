@@ -7,6 +7,7 @@ public partial class App : MauiReactorApplication
 {
 	private readonly ILogger<App> _logger;
 	private readonly UserProfileRepository _userProfileRepository;
+	private readonly SmartResourceService _smartResourceService;
 
 	public App(IServiceProvider serviceProvider, ILogger<App> logger)
 		: base(serviceProvider)
@@ -22,6 +23,7 @@ public partial class App : MauiReactorApplication
 			InitializeComponent();
 
 			_userProfileRepository = serviceProvider.GetRequiredService<UserProfileRepository>();
+			_smartResourceService = serviceProvider.GetRequiredService<SmartResourceService>();
 
 			_logger.LogInformation("Ahoy! The app be starting! 🏴‍☠️");
 			//Console.Writeline("Ahoy! The app be starting! 🏴‍☠️");
@@ -35,6 +37,9 @@ public partial class App : MauiReactorApplication
 
 			// Set the initial culture from user profile (will run asynchronously)
 			InitializeUserCulture();
+
+			// Initialize smart resources (will run asynchronously)
+			InitializeSmartResources();
 
 			_logger.LogInformation("App constructor completed successfully");
 			//Console.Writeline("App constructor completed successfully");
@@ -76,6 +81,25 @@ public partial class App : MauiReactorApplication
 			//Console.Writeline($"Failed to initialize user culture: {ex}");
 			_logger.LogError($"Stack trace at culture init failure: {Environment.StackTrace}");
 			//Console.Writeline($"Stack trace at culture init failure: {Environment.StackTrace}");
+		}
+	}
+
+	private async Task InitializeSmartResources()
+	{
+		try
+		{
+			// Get user's target language from profile (default to Korean)
+			var profile = await _userProfileRepository.GetAsync();
+			string targetLanguage = profile?.TargetLanguage ?? "Korean";
+
+			// Initialize smart resources (creates them if they don't exist)
+			await _smartResourceService.InitializeSmartResourcesAsync(targetLanguage);
+
+			_logger.LogInformation("Smart resources initialized successfully");
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to initialize smart resources");
 		}
 	}
 }

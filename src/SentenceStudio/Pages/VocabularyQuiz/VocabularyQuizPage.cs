@@ -113,6 +113,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] VocabularyProgressService _vocabProgressService;
     [Inject] Services.Progress.IProgressService _planProgressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] SmartResourceService _smartResourceService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -1049,6 +1050,32 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("VocabularyQuizPage - LoadVocabulary started");
             _logger.LogDebug("Props.Resources count: {ResourcesCount}", Props.Resources?.Count ?? 0);
             _logger.LogDebug("Props.Resource: {ResourceTitle}", Props.Resource?.Title ?? "null");
+
+            // Refresh smart resources before loading vocabulary
+            if (Props.Resources?.Any() == true)
+            {
+                foreach (var resourceRef in Props.Resources)
+                {
+                    if (resourceRef?.Id > 0)
+                    {
+                        var resource = await _resourceRepo.GetResourceAsync(resourceRef.Id);
+                        if (resource?.IsSmartResource == true)
+                        {
+                            _logger.LogInformation("🔄 Refreshing smart resource: {Title}", resource.Title);
+                            await _smartResourceService.RefreshSmartResourceAsync(resource.Id);
+                        }
+                    }
+                }
+            }
+            else if (Props.Resource?.Id > 0)
+            {
+                var resource = await _resourceRepo.GetResourceAsync(Props.Resource.Id);
+                if (resource?.IsSmartResource == true)
+                {
+                    _logger.LogInformation("🔄 Refreshing smart resource: {Title}", resource.Title);
+                    await _smartResourceService.RefreshSmartResourceAsync(resource.Id);
+                }
+            }
 
             List<VocabularyWord> vocabulary = new List<VocabularyWord>();
 

@@ -36,6 +36,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    /// <summary>
+    /// Returns true if the resource can be edited (not a smart/auto-generated resource)
+    /// </summary>
+    bool IsEditable => !State.Resource.IsSmartResource;
+
     static readonly Dictionary<DevicePlatform, IEnumerable<string>> FileType = new()
     {
         { DevicePlatform.Android, new[] { "text/*" } },
@@ -47,10 +52,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     public override VisualNode Render()
     {
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
-            State.IsEditing ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
+            // Only show Edit button for non-smart resources when not already editing
+            (State.IsEditing || !IsEditable) ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
             State.IsEditing ? ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)) : null,
             State.IsEditing ? ToolbarItem("Save").OnClicked(SaveResource) : null,
-            State.IsEditing ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
+            // Only show Delete button for non-smart resources when editing
+            (State.IsEditing && IsEditable) ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
             ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
 
             Grid(
@@ -122,6 +129,24 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         return VStack(
             // Show media content based on type
             // RenderMediaContent(),
+
+            // Smart Resource Badge (for auto-generated resources)
+            State.Resource.IsSmartResource ?
+                HStack(
+                    Label("🤖")
+                        .FontSize(16),
+                    Label($"{_localize["SmartResource"]}")
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold)
+                        .TextColor(MyTheme.HighlightDarkest),
+                    Label($" - {_localize["ReadOnlyResource"]}")
+                        .FontSize(12)
+                        .TextColor(Colors.Gray)
+                )
+                .Spacing(MyTheme.MicroSpacing)
+                .Padding(new Thickness(MyTheme.Size80, MyTheme.Size40))
+                .BackgroundColor(MyTheme.HighlightLightest)
+                : null,
 
             // Title
             Label(State.Resource.Title ?? string.Empty)
@@ -195,20 +220,21 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(18),
 
-                    // Formatting buttons
-                    HStack(
-                        Button("Clean Up Format")
-                            .OnClicked(CleanUpTranscript)
-                            .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                            .ThemeKey("Secondary"),
+                    // Formatting buttons (disabled for smart resources)
+                    IsEditable ?
+                        HStack(
+                            Button("Clean Up Format")
+                                .OnClicked(CleanUpTranscript)
+                                .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
+                                .ThemeKey("Secondary"),
 
-                        Button("Polish with AI")
-                            .OnClicked(PolishTranscriptWithAi)
-                            .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                            .ThemeKey("Secondary")
-                    )
-                    .Spacing(MyTheme.ComponentSpacing)
-                    .HStart(),
+                            Button("Polish with AI")
+                                .OnClicked(PolishTranscriptWithAi)
+                                .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
+                                .ThemeKey("Secondary")
+                        )
+                        .Spacing(MyTheme.ComponentSpacing)
+                        .HStart() : null,
 
                     Border(
                         Label(State.Resource.Transcript)
@@ -243,21 +269,23 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .FontSize(18)
                         .GridColumn(0),
 
-                    HStack(
-                        Button("Generate")
-                            .ThemeKey("Secondary")
-                            .OnClicked(GenerateVocabulary)
-                            .IsEnabled(!State.IsGeneratingVocabulary)
-                            .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
+                    // Generate button only for editable resources
+                    IsEditable ?
+                        HStack(
+                            Button("Generate")
+                                .ThemeKey("Secondary")
+                                .OnClicked(GenerateVocabulary)
+                                .IsEnabled(!State.IsGeneratingVocabulary)
+                                .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
 
-                        ActivityIndicator()
-                            .IsRunning(State.IsGeneratingVocabulary)
-                            .IsVisible(State.IsGeneratingVocabulary)
-                            .Scale(0.8)
-                    )
-                    .Spacing(MyTheme.ComponentSpacing)
-                    .GridColumn(1)
-                    .HEnd()
+                            ActivityIndicator()
+                                .IsRunning(State.IsGeneratingVocabulary)
+                                .IsVisible(State.IsGeneratingVocabulary)
+                                .Scale(0.8)
+                        )
+                        .Spacing(MyTheme.ComponentSpacing)
+                        .GridColumn(1)
+                        .HEnd() : null
                 )
                 .Columns("*, Auto"),
 

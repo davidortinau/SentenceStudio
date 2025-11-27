@@ -125,6 +125,10 @@
     <value>추가하기</value>
     <comment>button title</comment>
   </data>
+  <data name="All" xml:space="preserve">
+    <value>전체</value>
+    <comment>Filter button label - show all items</comment>
+  </data>
   <data name="VocabularyList" xml:space="preserve">
     <value>어휘 목록</value>
     <comment>label</comment>
@@ -1164,5 +1168,57 @@
   <data name="SentenceProgress" xml:space="preserve">
     <value>문장 {0} / {1}</value>
     <comment>Shows current sentence number and total. {0} = current sentence, {1} = total sentences</comment>
+  </data>
+  <data name="SmartResource" xml:space="preserve">
+    <value>스마트 리소스</value>
+    <comment>Label for auto-generated smart resources</comment>
+  </data>
+  <data name="ReadOnlyResource" xml:space="preserve">
+    <value>이 리소스는 읽기 전용입니다</value>
+    <comment>Message explaining that smart resources cannot be edited</comment>
+  </data>
+  <data name="NotScheduled" xml:space="preserve">
+    <value>예정 없음</value>
+    <comment>SRS review not yet scheduled</comment>
+  </data>
+  <data name="DueNow" xml:space="preserve">
+    <value>지금 복습</value>
+    <comment>SRS review is due now</comment>
+  </data>
+  <data name="Tomorrow" xml:space="preserve">
+    <value>내일</value>
+    <comment>SRS review due tomorrow</comment>
+  </data>
+  <data name="DaysAway" xml:space="preserve">
+    <value>일 후</value>
+    <comment>Number of days until review (e.g. "3 days")</comment>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>완료!</value>
+    <comment>Word has reached mastery level</comment>
+  </data>
+  <data name="StartPracticing" xml:space="preserve">
+    <value>연습을 시작하세요</value>
+    <comment>Message for unknown words with no progress</comment>
+  </data>
+  <data name="Recognition" xml:space="preserve">
+    <value>인식</value>
+    <comment>Recognition phase label (multiple choice)</comment>
+  </data>
+  <data name="Production" xml:space="preserve">
+    <value>생성</value>
+    <comment>Production phase label (text entry)</comment>
+  </data>
+  <data name="PhaseRecognition" xml:space="preserve">
+    <value>인식 단계</value>
+    <comment>Current learning phase - recognition</comment>
+  </data>
+  <data name="PhaseProduction" xml:space="preserve">
+    <value>생성 단계</value>
+    <comment>Current learning phase - production</comment>
+  </data>
+  <data name="PhaseApplication" xml:space="preserve">
+    <value>응용 단계</value>
+    <comment>Current learning phase - application</comment>
   </data>
 </root>

@@ -157,6 +157,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to All.
+        /// </summary>
+        internal static string All {
+            get {
+                return ResourceManager.GetString("All", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to You matched all vocabulary pairs!.
         /// </summary>
         internal static string AllPairsMatched {
@@ -526,6 +535,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to days.
+        /// </summary>
+        internal static string DaysAway {
+            get {
+                return ResourceManager.GetString("DaysAway", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Default Skill Profile.
         /// </summary>
         internal static string DefaultSkill {
@@ -612,6 +630,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string DoubleTapSentence {
             get {
                 return ResourceManager.GetString("DoubleTapSentence", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Due now.
+        /// </summary>
+        internal static string DueNow {
+            get {
+                return ResourceManager.GetString("DueNow", resourceCulture);
             }
         }
         
@@ -1426,6 +1453,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Not scheduled.
+        /// </summary>
+        internal static string NotScheduled {
+            get {
+                return ResourceManager.GetString("NotScheduled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No valid vocabulary words found in the input.
         /// </summary>
         internal static string NoValidVocabularyFound {
@@ -1530,6 +1566,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ParseASentence {
             get {
                 return ResourceManager.GetString("ParseASentence", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Application Phase.
+        /// </summary>
+        internal static string PhaseApplication {
+            get {
+                return ResourceManager.GetString("PhaseApplication", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Production Phase.
+        /// </summary>
+        internal static string PhaseProduction {
+            get {
+                return ResourceManager.GetString("PhaseProduction", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Recognition Phase.
+        /// </summary>
+        internal static string PhaseRecognition {
+            get {
+                return ResourceManager.GetString("PhaseRecognition", resourceCulture);
             }
         }
         
@@ -1858,6 +1921,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to production.
+        /// </summary>
+        internal static string Production {
+            get {
+                return ResourceManager.GetString("Production", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Profile reset.
         /// </summary>
         internal static string ProfileReset {
@@ -1885,11 +1957,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This resource is read-only.
+        /// </summary>
+        internal static string ReadOnlyResource {
+            get {
+                return ResourceManager.GetString("ReadOnlyResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Ready.
         /// </summary>
         internal static string Ready {
             get {
                 return ResourceManager.GetString("Ready", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to recognition.
+        /// </summary>
+        internal static string Recognition {
+            get {
+                return ResourceManager.GetString("Recognition", resourceCulture);
             }
         }
         
@@ -2245,6 +2335,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Smart Resource.
+        /// </summary>
+        internal static string SmartResource {
+            get {
+                return ResourceManager.GetString("SmartResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Something went wrong. Check the server..
         /// </summary>
         internal static string SomethingWentWrong {
@@ -2259,6 +2358,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string StartLesson {
             get {
                 return ResourceManager.GetString("StartLesson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start practicing to track progress.
+        /// </summary>
+        internal static string StartPracticing {
+            get {
+                return ResourceManager.GetString("StartPracticing", resourceCulture);
             }
         }
         
@@ -2412,6 +2520,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string TodaysVocabularyReview {
             get {
                 return ResourceManager.GetString("TodaysVocabularyReview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tomorrow.
+        /// </summary>
+        internal static string Tomorrow {
+            get {
+                return ResourceManager.GetString("Tomorrow", resourceCulture);
             }
         }
         

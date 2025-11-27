@@ -301,6 +301,28 @@ public class LearningResourceRepository
             .ToListAsync();
     }
 
+    // Get all smart resources
+    public async Task<List<LearningResource>> GetSmartResourcesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.LearningResources
+            .Where(r => r.IsSmartResource)
+            .ToListAsync();
+    }
+
+    // Get smart resource by type
+    public async Task<LearningResource?> GetSmartResourceByTypeAsync(string smartResourceType)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.LearningResources
+            .Where(r => r.IsSmartResource && r.SmartResourceType == smartResourceType)
+            .FirstOrDefaultAsync();
+    }
+
     // Add vocabulary word to a learning resource
     public async Task<bool> AddVocabularyToResourceAsync(int resourceId, int vocabularyWordId)
     {

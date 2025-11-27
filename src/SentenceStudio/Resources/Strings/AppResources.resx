@@ -125,6 +125,10 @@
     <value>Add</value>
     <comment>button title</comment>
   </data>
+  <data name="All" xml:space="preserve">
+    <value>All</value>
+    <comment>Filter button label - show all items</comment>
+  </data>
   <data name="VocabularyList" xml:space="preserve">
     <value>Vocabulary List</value>
     <comment>label</comment>
@@ -1408,5 +1412,57 @@
   <data name="ActivityCompleteLabel" xml:space="preserve">
     <value>Complete!</value>
     <comment>Label shown when activity is completed</comment>
+  </data>
+  <data name="SmartResource" xml:space="preserve">
+    <value>Smart Resource</value>
+    <comment>Label for auto-generated smart resources</comment>
+  </data>
+  <data name="ReadOnlyResource" xml:space="preserve">
+    <value>This resource is read-only</value>
+    <comment>Message explaining that smart resources cannot be edited</comment>
+  </data>
+  <data name="NotScheduled" xml:space="preserve">
+    <value>Not scheduled</value>
+    <comment>SRS review not yet scheduled</comment>
+  </data>
+  <data name="DueNow" xml:space="preserve">
+    <value>Due now</value>
+    <comment>SRS review is due now</comment>
+  </data>
+  <data name="Tomorrow" xml:space="preserve">
+    <value>Tomorrow</value>
+    <comment>SRS review due tomorrow</comment>
+  </data>
+  <data name="DaysAway" xml:space="preserve">
+    <value>days</value>
+    <comment>Number of days until review (e.g. "3 days")</comment>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>Mastered!</value>
+    <comment>Word has reached mastery level</comment>
+  </data>
+  <data name="StartPracticing" xml:space="preserve">
+    <value>Start practicing to track progress</value>
+    <comment>Message for unknown words with no progress</comment>
+  </data>
+  <data name="Recognition" xml:space="preserve">
+    <value>recognition</value>
+    <comment>Recognition phase label (multiple choice)</comment>
+  </data>
+  <data name="Production" xml:space="preserve">
+    <value>production</value>
+    <comment>Production phase label (text entry)</comment>
+  </data>
+  <data name="PhaseRecognition" xml:space="preserve">
+    <value>Recognition Phase</value>
+    <comment>Current learning phase - recognition</comment>
+  </data>
+  <data name="PhaseProduction" xml:space="preserve">
+    <value>Production Phase</value>
+    <comment>Current learning phase - production</comment>
+  </data>
+  <data name="PhaseApplication" xml:space="preserve">
+    <value>Application Phase</value>
+    <comment>Current learning phase - application</comment>
   </data>
 </root>

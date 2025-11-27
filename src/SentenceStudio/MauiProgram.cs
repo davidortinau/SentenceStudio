@@ -316,6 +316,7 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyLearningContextRepository>();
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
+		services.AddSingleton<SmartResourceService>();
 
 		// PHASE 2 OPTIMIZATION: Progress cache service for faster dashboard loading
 		services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();

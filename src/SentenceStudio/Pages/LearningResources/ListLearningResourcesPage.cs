@@ -140,6 +140,13 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .LineBreakMode(LineBreakMode.TailTruncation),
 
                 HStack(
+                    // Smart resource indicator
+                    resource.IsSmartResource
+                        ? Label("⚡")
+                            .FontSize(12)
+                            .Margin(new Thickness(0, 0, MyTheme.MicroSpacing, 0))
+                        : null,
+
                     Label(resource.MediaType)
                         .FontSize(12)
                         .TextColor(Colors.DarkGray),
@@ -151,7 +158,21 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                     Label(resource.Language)
                         .FontSize(12)
-                        .TextColor(Colors.DarkGray)
+                        .TextColor(Colors.DarkGray),
+
+                    // System-generated badge for smart resources
+                    resource.IsSmartResource
+                        ? HStack(
+                            Label("•")
+                                .FontSize(12)
+                                .TextColor(Colors.DarkGray)
+                                .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
+                            Label("Auto-updated")
+                                .FontSize(12)
+                                .TextColor(MyTheme.AccentText)
+                                .FontAttributes(FontAttributes.Italic)
+                        )
+                        : null
                 )
                 .GridColumn(1)
                 .GridRow(1)
