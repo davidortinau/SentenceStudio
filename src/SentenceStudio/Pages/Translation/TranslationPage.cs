@@ -697,7 +697,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                         VocabularyWordId = word.Id,
                         UserId = 1, // Default user
                         Activity = "Translation",
-                        InputMode = State.UserMode == InputMode.MultipleChoice.ToString() ? "VocabularyBlocks" : "TextEntry",
+                        InputMode = State.UserMode, // Use the actual UserMode (MultipleChoice or Text)
                         WasCorrect = DetermineWordCorrectness(wasUsedCorrectly, grade, word),
                         ContextType = contextType,
                         UserInput = userInput,

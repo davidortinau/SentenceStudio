@@ -337,7 +337,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                         VocabularyWordId = matchedVocab.Id,
                         UserId = 1, // Default user
                         Activity = "Writing",
-                        InputMode = "TextEntry",
+                        InputMode = InputMode.Text.ToString(), // Production activity
                         WasCorrect = vocabItem.UsageCorrect,
                         DifficultyWeight = 1.0f,
                         ContextType = "Application",

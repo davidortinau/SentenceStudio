@@ -22,10 +22,9 @@ class VocabularyProgressProps
 
 public class VocabularyProgressItem
 {
-    // Constants matching VocabularyProgressService
-    private const float MASTERY_THRESHOLD = 0.80f;  // Status threshold (0.8 for Known)
-    private const int MIN_CORRECT_RECOGNITION = 3;
-    private const int MIN_CORRECT_PRODUCTION = 2;
+    // Constants matching VocabularyProgressService (NEW streak-based system)
+    private const float MASTERY_THRESHOLD = 0.85f;  // Status threshold for Known
+    private const int MIN_PRODUCTION_FOR_KNOWN = 2;  // Minimum production attempts to be "Known"
 
     public VocabularyWord Word { get; set; } = null!;
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
@@ -53,21 +52,15 @@ public class VocabularyProgressItem
         }
     }
 
-    public double MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0.0;
-    public double TextEntryProgress => Progress?.TextEntryProgress ?? 0.0;
-
-    // Progress breakdown properties
-    public int RecognitionCorrect => Progress?.RecognitionCorrect ?? 0;
-    public int RecognitionAttempts => Progress?.RecognitionAttempts ?? 0;
-    public int ProductionCorrect => Progress?.ProductionCorrect ?? 0;
-    public int ProductionAttempts => Progress?.ProductionAttempts ?? 0;
+    // NEW: Streak-based progress properties
+    public int CurrentStreak => Progress?.CurrentStreak ?? 0;
+    public int ProductionInStreak => Progress?.ProductionInStreak ?? 0;
+    public float EffectiveStreak => Progress?.EffectiveStreak ?? 0f;
     public float MasteryScore => Progress?.MasteryScore ?? 0f;
-    public float RecognitionAccuracy => Progress?.RecognitionAccuracy ?? 0f;
-    public float ProductionAccuracy => Progress?.ProductionAccuracy ?? 0f;
 
-    // Progress to next level calculations
-    public int RecognitionNeeded => Math.Max(0, MIN_CORRECT_RECOGNITION - RecognitionCorrect);
-    public int ProductionNeeded => Math.Max(0, MIN_CORRECT_PRODUCTION - ProductionCorrect);
+    // Progress to Known calculations (NEW)
+    public int StreakToKnown => Progress?.StreakToKnown ?? 6;
+    public int ProductionNeededForKnown => Progress?.ProductionNeededForKnown ?? MIN_PRODUCTION_FOR_KNOWN;
     public float PercentageToKnown => Math.Min(1f, MasteryScore / MASTERY_THRESHOLD);
 
     // SRS Review Date
@@ -104,45 +97,47 @@ public class VocabularyProgressItem
             var localize = LocalizationManager.Instance;
 
             if (IsKnown)
-                return $"✅ {localize["Mastered"]}";
+                return $"✅ {localize["Known"]}";
 
             if (IsUnknown)
                 return $"{localize["StartPracticing"]}";
 
-            // Learning status - show what's needed
+            // Learning status - show streak-based progress
             var parts = new List<string>();
 
-            // Recognition progress
-            if (RecognitionNeeded > 0)
-                parts.Add($"🎯 {RecognitionCorrect}/{MIN_CORRECT_RECOGNITION} {localize["Recognition"]}");
-            else
-                parts.Add($"🎯 ✓ {localize["Recognition"]}");
+            // Current streak
+            parts.Add($"🔥 {localize["Streak"]}: {CurrentStreak}");
 
-            // Production progress
-            if (ProductionNeeded > 0)
-                parts.Add($"✍️ {ProductionCorrect}/{MIN_CORRECT_PRODUCTION} {localize["Production"]}");
+            // Production progress toward Known
+            if (ProductionNeededForKnown > 0)
+                parts.Add($"✍️ {ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN} {localize["Production"]}");
             else
                 parts.Add($"✍️ ✓ {localize["Production"]}");
+
+            // Mastery percentage
+            parts.Add($"📊 {(int)(MasteryScore * 100)}%");
 
             return string.Join(" | ", parts);
         }
     }
 
-    public string CurrentPhaseText
-    {
-        get
-        {
-            var localize = LocalizationManager.Instance;
-            var phase = Progress?.CurrentPhase ?? LearningPhase.Recognition;
-            return phase switch
-            {
-                LearningPhase.Recognition => $"{localize["PhaseRecognition"]}",
-                LearningPhase.Production => $"{localize["PhaseProduction"]}",
-                LearningPhase.Application => $"{localize["PhaseApplication"]}",
-                _ => $"{localize["PhaseRecognition"]}"
-            };
-        }
-    }
+    // LEGACY: Keep for backward compatibility during transition
+    [Obsolete("Use CurrentStreak instead")]
+    public int RecognitionCorrect => Progress?.RecognitionCorrect ?? 0;
+    [Obsolete("Use TotalAttempts instead")]
+    public int RecognitionAttempts => Progress?.RecognitionAttempts ?? 0;
+    [Obsolete("Use ProductionInStreak instead")]
+    public int ProductionCorrect => Progress?.ProductionCorrect ?? 0;
+    [Obsolete("Use TotalAttempts instead")]
+    public int ProductionAttempts => Progress?.ProductionAttempts ?? 0;
+    [Obsolete("Use EffectiveStreak instead")]
+    public float RecognitionAccuracy => Progress?.RecognitionAccuracy ?? 0f;
+    [Obsolete("Use MasteryScore instead")]
+    public float ProductionAccuracy => Progress?.ProductionAccuracy ?? 0f;
+    [Obsolete("Use MasteryScore instead")]
+    public double MultipleChoiceProgress => Progress?.MultipleChoiceProgress ?? 0.0;
+    [Obsolete("Use MasteryScore instead")]
+    public double TextEntryProgress => Progress?.TextEntryProgress ?? 0.0;
 }
 
 class VocabularyLearningProgressPageState
@@ -177,9 +172,8 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                Grid(rows: "Auto,Auto,*", columns: "*",
-                    RenderHeaderStats(),
-                    RenderFilters(),
+                Grid(rows: "Auto,*", columns: "*",
+                    RenderFilterBar(),
                     RenderVocabularyCollectionView()
                 ).Padding(MyTheme.LayoutPadding)
         )
@@ -187,70 +181,76 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         .OnSizeChanged(() => OnPageSizeChanged());
     }
 
-    VisualNode RenderHeaderStats() =>
-        VStack(
-            Border(
-                HStack(spacing: MyTheme.SectionSpacing,
-                    RenderStatCard($"{_localize["Total"]}", State.TotalWords, MyTheme.HighlightDarkest),
-                    RenderStatCard($"{_localize["Known"]}", State.KnownWords, MyTheme.Success),
-                    RenderStatCard($"{_localize["Learning"]}", State.LearningWords, MyTheme.Warning),
-                    RenderStatCard($"{_localize["Unknown"]}", State.UnknownWords, MyTheme.Gray400)
-                ).HCenter()
+    VisualNode RenderFilterBar()
+    {
+        var selectedIndex = State.SelectedFilter switch
+        {
+            VocabularyFilterType.All => 0,
+            VocabularyFilterType.Known => 1,
+            VocabularyFilterType.Learning => 2,
+            VocabularyFilterType.Unknown => 3,
+            _ => 0
+        };
+
+        // Determine selection indicator color based on current filter
+        var selectionColor = State.SelectedFilter switch
+        {
+            VocabularyFilterType.Known => MyTheme.Success,
+            VocabularyFilterType.Learning => MyTheme.Warning,
+            VocabularyFilterType.Unknown => MyTheme.Gray400,
+            _ => MyTheme.PrimaryButtonBackground // All
+        };
+
+        return VStack(spacing: MyTheme.ComponentSpacing,
+            // Segmented control with inline counts
+            new SfSegmentedControl(
+                new SfSegmentItem()
+                    .Text($"{_localize["All"]} ({State.TotalWords})")
+                    .SelectedSegmentTextColor(Colors.White),
+                new SfSegmentItem()
+                    .Text($"{_localize["Known"]} ({State.KnownWords})")
+                    .SelectedSegmentTextColor(Colors.White),
+                new SfSegmentItem()
+                    .Text($"{_localize["Learning"]} ({State.LearningWords})")
+                    .SelectedSegmentTextColor(Colors.White),
+                new SfSegmentItem()
+                    .Text($"{_localize["Unknown"]} ({State.UnknownWords})")
+                    .SelectedSegmentTextColor(Colors.White)
             )
-            .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
-            .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.CardPadding))
-            .StrokeThickness(1)
-            .Stroke(MyTheme.Gray200)
-            .Padding(MyTheme.LayoutSpacing)
-        ).Padding(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0).GridRow(0);
-
-    VisualNode RenderStatCard(string title, int count, Color color) =>
-        VStack(spacing: MyTheme.MicroSpacing,
-            Label(title)
-                .FontSize(12)
-                .TextColor(MyTheme.Gray600)
-                .Center(),
-            Label(count.ToString())
-                .FontSize(24)
-                .FontAttributes(FontAttributes.Bold)
-                .TextColor(color)
-                .Center()
-        );
-
-    VisualNode RenderFilters() =>
-        VStack(spacing: MyTheme.CardPadding,
-            // Resource picker - simplified for now
-            Label($"{_localize["AllResources"]}")
-                .FontSize(16)
-                .FontAttributes(FontAttributes.Bold)
-                .HCenter(),
-
-            // Status filter buttons
-            HStack(spacing: MyTheme.ComponentSpacing,
-                Button($"{_localize["All"]}")
-                    .Background(State.SelectedFilter == VocabularyFilterType.All ? MyTheme.HighlightDarkest : MyTheme.Gray200Brush)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.All ? Colors.White : MyTheme.Gray600)
-                    .OnClicked(() => OnFilterChanged(VocabularyFilterType.All)),
-                Button($"{_localize["Known"]}")
-                    .Background(State.SelectedFilter == VocabularyFilterType.Known ? MyTheme.SupportSuccessDark : MyTheme.Gray200Brush)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Known ? Colors.White : MyTheme.Gray600)
-                    .OnClicked(() => OnFilterChanged(VocabularyFilterType.Known)),
-                Button($"{_localize["Learning"]}")
-                    .Background(State.SelectedFilter == VocabularyFilterType.Learning ? MyTheme.SupportErrorDark : MyTheme.Gray200Brush)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Learning ? Colors.White : MyTheme.Gray600)
-                    .OnClicked(() => OnFilterChanged(VocabularyFilterType.Learning)),
-                Button($"{_localize["Unknown"]}")
-                    .Background(State.SelectedFilter == VocabularyFilterType.Unknown ? MyTheme.Gray400Brush : MyTheme.Gray200Brush)
-                    .TextColor(State.SelectedFilter == VocabularyFilterType.Unknown ? Colors.White : MyTheme.Gray600)
-                    .OnClicked(() => OnFilterChanged(VocabularyFilterType.Unknown))
-            ).HCenter(),
+            .TextStyle(new Syncfusion.Maui.Toolkit.SegmentedControl.SegmentTextStyle()
+            {
+                TextColor = MyTheme.Gray600
+            })
+            .SelectionIndicatorSettings(new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings()
+            {
+                Background = selectionColor,
+                TextColor = Colors.White
+            })
+            .SelectedIndex(selectedIndex)
+            .SegmentWidth(120)
+            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+            .CornerRadius((float)MyTheme.Size80)
+            .HeightRequest(44)
+            .OnSelectionChanged((s, e) =>
+            {
+                var filter = e.NewIndex switch
+                {
+                    0 => VocabularyFilterType.All,
+                    1 => VocabularyFilterType.Known,
+                    2 => VocabularyFilterType.Learning,
+                    3 => VocabularyFilterType.Unknown,
+                    _ => VocabularyFilterType.All
+                };
+                OnFilterChanged(filter);
+            }),
 
             // Search entry
             Entry()
                 .Placeholder($"{_localize["SearchVocabulary"]}")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
-        ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing, MyTheme.LayoutSpacing, MyTheme.ComponentSpacing).GridRow(1);
+        ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing, MyTheme.LayoutSpacing, MyTheme.ComponentSpacing).GridRow(0);
+    }
 
     VisualNode RenderVocabularyCollectionView()
     {
@@ -263,7 +263,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                                         maxColumns: 6))
                 .BackgroundColor(Colors.Transparent)
                 // .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
-                .GridRow(2);
+                .GridRow(1);
     }
 
     VisualNode RenderVocabularyCard(VocabularyProgressItem item) =>
@@ -280,16 +280,10 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     .ThemeKey(MyTheme.Caption1)
                     .TextColor(item.StatusColor),
 
-                // Progress breakdown
+                // Progress breakdown (streak-based)
                 Label(item.ProgressRequirementsText)
                     .ThemeKey(MyTheme.Caption1)
                     .TextColor(MyTheme.Gray600),
-
-                // Current phase (for Learning words)
-                item.IsLearning ?
-                    Label($"📚 {item.CurrentPhaseText}")
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.Gray500) : null,
 
                 // SRS Review date
                 Label(item.ReviewDateText)
@@ -326,7 +320,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
             else
             {
                 // Default to "All Resources" 
-                SetState(s => s.SelectedResource = new LearningResource { Id = -1, Title = "All Resources" });
+                SetState(s => s.SelectedResource = new LearningResource { Id = -1, Title = $"{_localize["AllResources"]}" });
             }
 
             // Set initial vocabulary filter if provided

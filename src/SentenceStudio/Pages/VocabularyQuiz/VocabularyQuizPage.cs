@@ -140,6 +140,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SessionSummaryOverlay()
             ).RowSpacing(MyTheme.CardMargin)
         )
+        // .TitleView(RenderTitleView())
         .Title($"{_localize["VocabularyQuiz"]}")
         .OnAppearing(LoadVocabulary);
     }
@@ -147,6 +148,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     private VisualNode RenderTitleView()
     {
         return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
+        //return Grid(new ActivityTimerBar()).HEnd().VCenter();
+        // return Grid("*", "*,Auto",
+        //     Label("Counter Sample")
+        //         .VCenter()
+        //         .FontSize(18)
+        //         .FontAttributes(MauiControls.FontAttributes.Bold)
+        //         .Margin(10, 0)
+        //         .GridColumn(0),
+        //     Button("Increment")
+        //         .VCenter()
+        //         // .OnClicked(() => SetState(s => s.Counter++))
+        //         .GridColumn(1)
+        // );
     }
 
     private void TrySetShellTitleView()
@@ -647,7 +661,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _responseTimer.Restart();
     }
 
-    // Enhanced mode determination based on global progress across all activities
+    // NEW: Streak-based mode determination using MasteryScore threshold
     private string GetUserModeForItem(VocabularyQuizItem item)
     {
         // CRITICAL: Check quiz-specific progress FIRST
@@ -658,21 +672,21 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             return InputMode.Text.ToString();
         }
 
-        // Respect global progress from previous attempts across all activities
-        var globalPhase = item.Progress?.CurrentPhase ?? LearningPhase.Recognition;
+        // NEW: Use MasteryScore threshold instead of phase-based logic
+        // MasteryScore >= 0.50 means they've demonstrated enough progress for text mode
+        var masteryScore = item.Progress?.MasteryScore ?? 0f;
 
-        // If globally in Production phase or beyond, start with text input
-        if (globalPhase >= LearningPhase.Production)
+        if (masteryScore >= 0.50f)
         {
             // Set the recognition streak to trigger promotion automatically
             // This makes IsPromotedInQuiz return true without modifying the read-only property
             item.QuizRecognitionStreak = VocabularyQuizItem.RequiredCorrectAnswers;
-            _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} globally in Production phase → Text mode", item.Word.NativeLanguageTerm);
+            _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} has MasteryScore={MasteryScore:F2} >= 0.50 → Text mode", item.Word.NativeLanguageTerm, masteryScore);
             return InputMode.Text.ToString();
         }
 
-        // Otherwise start with multiple choice (Recognition phase)
-        _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} in Recognition phase (streak={Streak}) → MultipleChoice mode", item.Word.NativeLanguageTerm, item.QuizRecognitionStreak);
+        // Otherwise start with multiple choice (building streak)
+        _logger.LogDebug("🎯 GetUserModeForItem: {NativeTerm} has MasteryScore={MasteryScore:F2} < 0.50 (streak={Streak}) → MultipleChoice mode", item.Word.NativeLanguageTerm, masteryScore, item.QuizRecognitionStreak);
         return InputMode.MultipleChoice.ToString();
     }
 
@@ -1538,54 +1552,55 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         if (wasCorrect)
         {
             var currentMode = State.UserMode;
+            var currentStreak = progress.CurrentStreak;
+            var masteryScore = progress.MasteryScore;
 
             if (currentMode == InputMode.MultipleChoice.ToString())
             {
-                // Multiple choice feedback
-                if (item.QuizRecognitionComplete)
+                // Multiple choice feedback - using streak-based messages
+                if (masteryScore >= 0.50f)
                 {
+                    // Ready to promote to text entry
                     SetState(s =>
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"� Perfect! Recognition mastered ({item.QuizRecognitionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})! Moving to typing practice.";
+                        s.FeedbackMessage = $"🎯 {_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())} Ready to type!";
                         s.CorrectAnswersInRound++;
                     });
                 }
                 else
                 {
-                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - item.QuizRecognitionStreak;
                     SetState(s =>
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"✅ Correct! {remaining} more in a row to advance to typing.";
+                        s.FeedbackMessage = $"{_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
                         s.CorrectAnswersInRound++;
                     });
                 }
             }
             else if (currentMode == InputMode.Text.ToString())
             {
-                // Text entry feedback
-                if (item.ReadyToRotateOut)
+                // Text entry feedback - using streak-based mastery
+                if (progress.IsKnown)
                 {
                     SetState(s =>
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"🎊 Excellent! Word completed ({item.QuizProductionStreak}/{VocabularyQuizItem.RequiredCorrectAnswers})! Ready for new words.";
+                        s.FeedbackMessage = $"{_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
                         s.CorrectAnswersInRound++;
                     });
                     await AppShell.DisplayToastAsync($"{_localize["WordMasteredInQuiz"]}");
                 }
                 else
                 {
-                    var remaining = VocabularyQuizItem.RequiredCorrectAnswers - item.QuizProductionStreak;
                     SetState(s =>
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"✅ Great typing! {remaining} more in a row to complete this word.";
+                        s.FeedbackMessage = $"{_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
                         s.CorrectAnswersInRound++;
                     });
                 }
@@ -1601,7 +1616,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
         else
         {
-            // Handle incorrect answers with enhanced feedback
+            // Handle incorrect answers with streak-based feedback
             var currentMode = State.UserMode;
 
             if (currentMode == InputMode.Text.ToString())
@@ -1614,7 +1629,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     s.ShowCorrectAnswer = true;
                     s.RequireCorrectTyping = true;
                     s.CorrectAnswerToType = State.CurrentTargetLanguageTerm;
-                    s.FeedbackMessage = $"❌ Incorrect. Streak reset to 0. Type the correct answer to continue:";
+                    s.FeedbackMessage = $"❌ {_localize["IncorrectStreakReset"]} Type the correct answer:";
                     s.UserInput = ""; // Clear input for retyping
                 });
             }
@@ -1625,7 +1640,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 {
                     s.IsCorrect = false;
                     s.ShowAnswer = true;
-                    s.FeedbackMessage = $"❌ Not quite. Streak reset to 0. The correct answer is shown above.";
+                    s.FeedbackMessage = $"❌ {_localize["IncorrectStreakReset"]}";
                 });
             }
         }

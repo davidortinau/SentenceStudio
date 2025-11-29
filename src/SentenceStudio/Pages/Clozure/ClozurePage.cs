@@ -1125,20 +1125,21 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		if (isCorrect)
 		{
 			var masteryScore = progress.MasteryScore;
-			var phaseText = GetPhaseDisplayText(progress.CurrentPhase);
+			var currentStreak = progress.CurrentStreak;
+			var productionInStreak = progress.ProductionInStreak;
 
-			// Show mastery-based feedback
-			if (masteryScore >= 0.8f)
+			// Show streak-based feedback (NEW)
+			if (progress.IsKnown)
 			{
-				ShowFeedback($"🎉 Perfect! Word mastered! ({phaseText})", "success");
+				ShowFeedback($"🎉 Word mastered! 🔥 Streak: {currentStreak}", "success");
 			}
 			else if (masteryScore >= 0.6f)
 			{
-				ShowFeedback($"🎯 Excellent! Strong progress - {(int)(masteryScore * 100)}% mastery", "success");
+				ShowFeedback($"🎯 Excellent! 🔥 Streak: {currentStreak} | {(int)(masteryScore * 100)}% mastery", "success");
 			}
 			else
 			{
-				ShowFeedback($"✅ Correct! Building mastery - {(int)(masteryScore * 100)}%", "success");
+				ShowFeedback($"✅ Correct! 🔥 Streak: {currentStreak} | Building mastery - {(int)(masteryScore * 100)}%", "success");
 			}
 
 			// Show context-specific achievements
@@ -1154,16 +1155,15 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		else
 		{
 			var masteryScore = progress.MasteryScore;
-			var phaseText = GetPhaseDisplayText(progress.CurrentPhase);
 
-			// Show encouraging feedback with context
+			// Show encouraging feedback with context (streak reset)
 			if (attempt.ContextType == "Conjugated")
 			{
-				ShowFeedback($"📚 Conjugated forms are tricky! Current mastery: {(int)(masteryScore * 100)}%", "info");
+				ShowFeedback($"📚 Conjugated forms are tricky! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
 			}
 			else
 			{
-				ShowFeedback($"🔍 Keep practicing! Current mastery: {(int)(masteryScore * 100)}% ({phaseText})", "info");
+				ShowFeedback($"🔍 Keep practicing! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
 			}
 
 			// Show helpful hints based on the error type

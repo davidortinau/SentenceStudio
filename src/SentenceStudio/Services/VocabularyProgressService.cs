@@ -8,15 +8,27 @@ public class VocabularyProgressService : IVocabularyProgressService
     private readonly VocabularyLearningContextRepository _contextRepo;
     private readonly ILogger<VocabularyProgressService> _logger;
 
-    // Enhanced rigorous thresholds - aligned with SLA developmental sequences! ⚓
-    private const float MASTERY_THRESHOLD = 0.85f;                // Full productive mastery
-    private const float RECEPTIVE_MASTERY_THRESHOLD = 0.70f;      // Recognition-only mastery
-    private const float PHASE_ADVANCE_THRESHOLD = 0.75f;          // Must prove competency!
-    private const int ROLLING_AVERAGE_COUNT = 8;                  // Increased from 5 - longer memory!
-    private const int MIN_ATTEMPTS_PER_PHASE = 4;                 // Minimum attempts before phase advancement
-    private const int MIN_CORRECT_RECOGNITION = 3;                // Recognition needs more evidence (easier task)
-    private const int MIN_CORRECT_PRODUCTION = 2;                 // Production needs less evidence (harder task, more signal)
-    private const float INCORRECT_PENALTY = 0.15f;                // Penalty for wrong answers
+    // NEW: Streak-based scoring constants
+    private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
+    private const int MIN_PRODUCTION_FOR_KNOWN = 2;               // Minimum production attempts to be "Known"
+    private const float EFFECTIVE_STREAK_DIVISOR = 7.0f;          // EffectiveStreak / 7.0 = MasteryScore (capped at 1.0)
+    private const float WRONG_ANSWER_PENALTY = 0.6f;              // MasteryScore *= 0.6 on wrong answer
+
+    // LEGACY: Old constants kept for reference during migration
+    [Obsolete("Use EFFECTIVE_STREAK_DIVISOR instead")]
+    private const float RECEPTIVE_MASTERY_THRESHOLD = 0.70f;
+    [Obsolete("No longer used")]
+    private const float PHASE_ADVANCE_THRESHOLD = 0.75f;
+    [Obsolete("No longer used - streak-based now")]
+    private const int ROLLING_AVERAGE_COUNT = 8;
+    [Obsolete("No longer used")]
+    private const int MIN_ATTEMPTS_PER_PHASE = 4;
+    [Obsolete("Use MIN_PRODUCTION_FOR_KNOWN instead")]
+    private const int MIN_CORRECT_RECOGNITION = 3;
+    [Obsolete("Use MIN_PRODUCTION_FOR_KNOWN instead")]
+    private const int MIN_CORRECT_PRODUCTION = 2;
+    [Obsolete("Use WRONG_ANSWER_PENALTY instead")]
+    private const float INCORRECT_PENALTY = 0.15f;
 
     public VocabularyProgressService(
         VocabularyProgressRepository progressRepo,
@@ -29,39 +41,114 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// Records a vocabulary learning attempt and updates progress using RIGOROUS tracking
+    /// Migrates existing progress data to the new streak-based scoring system.
+    /// Call this from UI (e.g., VocabularyLearningProgressPage) to convert existing data.
+    /// </summary>
+    /// <returns>Number of records migrated</returns>
+    public async Task<int> MigrateToStreakBasedScoringAsync()
+    {
+        _logger.LogInformation("🔄 Starting migration to streak-based scoring system...");
+
+        var allProgress = await _progressRepo.ListAsync();
+        int migratedCount = 0;
+
+        foreach (var progress in allProgress)
+        {
+            // Convert old phase-based tracking to streak-based
+            // CurrentStreak = RecognitionCorrect + ProductionCorrect (capped at 10)
+#pragma warning disable CS0618 // Suppress obsolete warnings during migration
+            progress.CurrentStreak = Math.Min(10, progress.RecognitionCorrect + progress.ProductionCorrect);
+            progress.ProductionInStreak = Math.Min(progress.CurrentStreak, progress.ProductionCorrect);
+#pragma warning restore CS0618
+
+            // Recalculate MasteryScore using new formula
+            float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
+            progress.MasteryScore = Math.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+
+            // Preserve MasteredAt for words that already reached mastery
+            // (don't overwrite existing timestamps)
+
+            progress.UpdatedAt = DateTime.Now;
+            await _progressRepo.SaveAsync(progress);
+            migratedCount++;
+
+            _logger.LogDebug("🔄 Migrated word {WordId}: Streak={Streak}, ProdInStreak={ProdStreak}, Mastery={Mastery:F2}",
+                progress.VocabularyWordId, progress.CurrentStreak, progress.ProductionInStreak, progress.MasteryScore);
+        }
+
+        _logger.LogInformation("✅ Migration complete! Migrated {Count} vocabulary progress records.", migratedCount);
+        return migratedCount;
+    }
+
+    /// <summary>
+    /// Records a vocabulary learning attempt using NEW streak-based scoring
     /// </summary>
     public async Task<VocabularyProgress> RecordAttemptAsync(VocabularyAttempt attempt)
     {
         var progress = await GetOrCreateProgressAsync(attempt.VocabularyWordId, attempt.UserId);
 
-        // Update total and phase-specific counts
+        // Update total counts
         progress.TotalAttempts++;
         if (attempt.WasCorrect)
             progress.CorrectAttempts++;
 
-        // Update phase-specific tracking
+        // Determine if this is a production attempt (Text or Voice input)
+        bool isProduction = attempt.InputMode == InputMode.Text.ToString() ||
+                           attempt.InputMode == InputMode.Voice.ToString() ||
+                           attempt.InputMode == "TextEntry"; // Legacy support
+
+        // NEW: Streak-based scoring
+        if (attempt.WasCorrect)
+        {
+            // Correct answer: increment streaks
+            progress.CurrentStreak++;
+            if (isProduction)
+            {
+                progress.ProductionInStreak++;
+            }
+
+            // Calculate new MasteryScore from EffectiveStreak
+            float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
+            progress.MasteryScore = Math.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+
+            _logger.LogDebug("✅ Correct! Word {WordId}: Streak={Streak}, ProdInStreak={ProdStreak}, EffStreak={EffStreak:F1}, Mastery={Mastery:F2}",
+                progress.VocabularyWordId, progress.CurrentStreak, progress.ProductionInStreak, effectiveStreak, progress.MasteryScore);
+        }
+        else
+        {
+            // Wrong answer: reset streaks and penalize MasteryScore
+            progress.CurrentStreak = 0;
+            progress.ProductionInStreak = 0;
+            progress.MasteryScore *= WRONG_ANSWER_PENALTY; // Reduce by 40%
+
+            _logger.LogDebug("❌ Wrong! Word {WordId}: Streaks reset, Mastery reduced to {Mastery:F2}",
+                progress.VocabularyWordId, progress.MasteryScore);
+        }
+
+        // LEGACY: Update old phase-specific fields for backward compatibility during migration
+#pragma warning disable CS0618
         UpdatePhaseMetrics(progress, attempt);
-
-        // Update legacy fields for backward compatibility
         UpdateLegacyFields(progress, attempt);
-
-        // Calculate new mastery score with RIGOROUS algorithm
-        var newScore = await CalculateRigorousMasteryScoreAsync(progress, attempt);
-        progress.MasteryScore = newScore;
-
-        // Update phase if appropriate (now with stricter requirements)
-        UpdateLearningPhaseRigorous(progress);
+#pragma warning restore CS0618
 
         // Update spaced repetition schedule
         UpdateSpacedRepetitionSchedule(progress, attempt);
 
         // Update timestamps
         progress.LastPracticedAt = DateTime.Now;
-        if (newScore >= MASTERY_THRESHOLD && !progress.MasteredAt.HasValue && HasMixedModeCompetency(progress))
-            progress.MasteredAt = DateTime.Now;
+        progress.UpdatedAt = DateTime.Now;
 
-        // Save progress first
+        // Mark as mastered if threshold reached with production evidence
+        if (progress.MasteryScore >= MASTERY_THRESHOLD &&
+            progress.ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN &&
+            !progress.MasteredAt.HasValue)
+        {
+            progress.MasteredAt = DateTime.Now;
+            _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}",
+                progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak);
+        }
+
+        // Save progress
         progress = await _progressRepo.SaveAsync(progress);
 
         // Record detailed context
@@ -131,6 +218,8 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     private void UpdatePhaseMetrics(VocabularyProgress progress, VocabularyAttempt attempt)
     {
+        // LEGACY: Keep updating old phase metrics during migration period
+#pragma warning disable CS0618
         switch (attempt.Phase)
         {
             case LearningPhase.Recognition:
@@ -146,281 +235,82 @@ public class VocabularyProgressService : IVocabularyProgressService
                 if (attempt.WasCorrect) progress.ApplicationCorrect++;
                 break;
         }
+#pragma warning restore CS0618
     }
 
     private void UpdateLegacyFields(VocabularyProgress progress, VocabularyAttempt attempt)
     {
-        // Update legacy fields for backward compatibility
+        // LEGACY: Update old fields for backward compatibility during migration
+#pragma warning disable CS0618
         if (attempt.InputMode == "MultipleChoice")
         {
             if (attempt.WasCorrect)
                 progress.MultipleChoiceCorrect++;
         }
-        else if (attempt.InputMode == "Text")
+        else if (attempt.InputMode == "Text" || attempt.InputMode == "TextEntry")
         {
             if (attempt.WasCorrect)
                 progress.TextEntryCorrect++;
         }
 
-        // Update promoted status based on phase
-        progress.IsPromoted = progress.CurrentPhase >= LearningPhase.Production;
+        // Update promoted status based on MasteryScore (new logic)
+        progress.IsPromoted = progress.MasteryScore >= 0.50f;
 
-        // Update completed status based on mastery
-        progress.IsCompleted = progress.MasteryScore >= MASTERY_THRESHOLD && HasMixedModeCompetency(progress);
+        // Update completed status based on IsKnown (new logic)
+        progress.IsCompleted = progress.IsKnown;
+#pragma warning restore CS0618
     }
 
-    /// <summary>
-    /// RIGOROUS mastery score calculation - Captain's enhanced algorithm! 🏴‍☠️
-    /// </summary>
+    // LEGACY METHODS - Kept for backward compatibility but marked obsolete
+    // These complex calculation methods are no longer used by the new streak-based system
+
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private async Task<float> CalculateRigorousMasteryScoreAsync(VocabularyProgress progress, VocabularyAttempt attempt)
     {
-        // Get last N attempts from context (increased from 5 to 8)
-        var recentAttempts = await _contextRepo.GetRecentAttemptsAsync(
-            progress.Id,
-            ROLLING_AVERAGE_COUNT
-        );
-
-        // If this is the very first attempt, be much more conservative
-        if (!recentAttempts.Any())
-            return attempt.WasCorrect ? 0.1f : 0.0f; // Reduced from 0.2f to 0.1f
-
-        // Calculate base score using phase-specific accuracy requirements
-        float baseScore = CalculatePhaseSpecificScore(progress);
-
-        // Apply weighted rolling average with penalties
-        float rollingScore = CalculateWeightedRollingAverage(recentAttempts, attempt);
-
-        // Combine base score and rolling average (weighted toward requiring both phases)
-        float combinedScore = (baseScore * 0.4f) + (rollingScore * 0.6f);
-
-        // Apply incorrect answer penalties
-        float penalizedScore = ApplyIncorrectAnswerPenalties(combinedScore, recentAttempts);
-
-        // Add time decay factor (keep existing)
-        var daysSinceLastPractice = (DateTime.Now - progress.LastPracticedAt).TotalDays;
-        var timeFactor = Math.Max(0.8f, 1.0f - (float)(daysSinceLastPractice * 0.01));
-
-        var finalScore = Math.Min(1.0f, penalizedScore * timeFactor);
-
-        // Log for monitoring
-        _logger.LogDebug("🏴‍☠️ Word {WordId}: Base={BaseScore:F2}, Rolling={RollingScore:F2}, Penalized={PenalizedScore:F2}, Final={FinalScore:F2}",
-            progress.VocabularyWordId, baseScore, rollingScore, penalizedScore, finalScore);
-
-        return finalScore;
+        // Simple pass-through - actual calculation now happens in RecordAttemptAsync
+        return progress.MasteryScore;
     }
 
-    /// <summary>
-    /// Calculate score based on phase-specific requirements.
-    /// LEARNING SCIENCE: Production implies recognition, but recognition doesn't imply production.
-    /// This implements developmental sequence from Laufer & Nation (1999):
-    /// - Receptive knowledge develops first (0.70-0.85)
-    /// - Productive knowledge emerges later (0.85-1.0)
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private float CalculatePhaseSpecificScore(VocabularyProgress progress)
     {
-        // Calculate recognition score
-        float recognitionScore = CalculateRecognitionScore(progress);
-
-        // Calculate production score
-        float productionScore = CalculateProductionScore(progress);
-
-        // CASE 1: Has demonstrated production competency
-        // Production IMPLIES recognition (can't produce what you don't recognize)
-        if (productionScore >= RECEPTIVE_MASTERY_THRESHOLD &&
-            progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
-            progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
-        {
-            // Production evidence is strongest - give full credit
-            // Even if recognition score is lower (maybe they haven't seen it in recognition contexts)
-            return productionScore;
-        }
-
-        // CASE 2: Has strong recognition, with some production evidence
-        if (recognitionScore >= RECEPTIVE_MASTERY_THRESHOLD &&
-            progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION)
-        {
-            if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
-                progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION)
-            {
-                // Has both - blend with emphasis on production (harder skill)
-                return Math.Max(recognitionScore,
-                               (recognitionScore * 0.4f) + (productionScore * 0.6f));
-            }
-            else if (progress.ProductionAttempts > 0)
-            {
-                // Some production attempts but not enough evidence yet
-                // Give receptive mastery credit with slight production boost
-                return Math.Min(0.85f, recognitionScore + (productionScore * 0.15f));
-            }
-            else
-            {
-                // Recognition-only mastery - cap at 0.85 to leave room for production growth
-                return Math.Min(0.85f, recognitionScore);
-            }
-        }
-
-        // CASE 3: Building competency - not enough attempts yet
-        if (progress.RecognitionAttempts > 0 || progress.ProductionAttempts > 0)
-        {
-            // Take the better of the two scores but cap low until evidence threshold met
-            float bestScore = Math.Max(recognitionScore, productionScore);
-            return Math.Min(0.60f, bestScore);
-        }
-        else
-        {
-            // No attempts yet
-            return 0f;
-        }
+        return progress.MasteryScore;
     }
 
-    /// <summary>
-    /// Calculate recognition score with proper thresholds
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private float CalculateRecognitionScore(VocabularyProgress progress)
     {
-        if (progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION)
-        {
-            // Full credit based on accuracy
-            return Math.Min(1.0f, progress.RecognitionAccuracy);
-        }
-        else if (progress.RecognitionAttempts > 0)
-        {
-            // Partial credit but capped until minimum evidence threshold
-            return Math.Min(0.5f, progress.RecognitionAccuracy * 0.7f);
-        }
         return 0f;
     }
 
-    /// <summary>
-    /// Calculate production score with proper thresholds
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private float CalculateProductionScore(VocabularyProgress progress)
     {
-        if (progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION)
-        {
-            // Full credit - production is harder, so fewer attempts needed
-            return Math.Min(1.0f, progress.ProductionAccuracy);
-        }
-        else if (progress.ProductionAttempts > 0)
-        {
-            // Partial credit but capped until minimum evidence threshold
-            // More generous than recognition because each production attempt is harder
-            return Math.Min(0.6f, progress.ProductionAccuracy * 0.8f);
-        }
         return 0f;
     }
 
-    /// <summary>
-    /// Calculate weighted rolling average of recent attempts
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private float CalculateWeightedRollingAverage(List<VocabularyLearningContext> recentAttempts, VocabularyAttempt currentAttempt)
     {
-        // Add current attempt to the mix
-        var allAttempts = recentAttempts.ToList();
-        allAttempts.Insert(0, new VocabularyLearningContext
-        {
-            WasCorrect = currentAttempt.WasCorrect,
-            DifficultyScore = currentAttempt.DifficultyWeight,
-            UserConfidence = currentAttempt.UserConfidence,
-            LearnedAt = DateTime.Now
-        });
-
-        float totalWeight = 0;
-        float weightedScore = 0;
-        int index = 0;
-
-        foreach (var context in allAttempts.OrderByDescending(c => c.LearnedAt))
-        {
-            // More recent attempts have higher weight, but less dramatic falloff
-            float recencyWeight = 1.0f - (index * 0.1f); // Reduced from 0.15f
-            float difficultyWeight = Math.Max(0.5f, context.DifficultyScore);
-            float confidenceBoost = context.UserConfidence ?? 1.0f;
-
-            float weight = recencyWeight * difficultyWeight * confidenceBoost;
-            weightedScore += (context.WasCorrect ? 1.0f : 0.0f) * weight;
-            totalWeight += weight;
-            index++;
-
-            if (index >= ROLLING_AVERAGE_COUNT) break;
-        }
-
-        return totalWeight > 0 ? (weightedScore / totalWeight) : 0f;
+        return 0f;
     }
 
-    /// <summary>
-    /// Apply penalties for incorrect answers - Captain's discipline! ⚓
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces this")]
     private float ApplyIncorrectAnswerPenalties(float baseScore, List<VocabularyLearningContext> recentAttempts)
     {
-        // Count recent incorrect answers
-        var recentIncorrect = recentAttempts.Count(a => !a.WasCorrect);
-
-        // Apply cumulative penalty for recent mistakes
-        float penalty = recentIncorrect * INCORRECT_PENALTY;
-
-        // Extra penalty for consecutive wrong answers
-        var consecutiveWrong = 0;
-        foreach (var attempt in recentAttempts.OrderByDescending(a => a.LearnedAt))
-        {
-            if (!attempt.WasCorrect)
-                consecutiveWrong++;
-            else
-                break;
-        }
-
-        if (consecutiveWrong > 1)
-        {
-            penalty += (consecutiveWrong - 1) * 0.1f; // Additional penalty for consecutive errors
-        }
-
-        return Math.Max(0f, baseScore - penalty);
+        return baseScore;
     }
 
-    /// <summary>
-    /// Check if word has demonstrated competency in both recognition and production
-    /// Used for marking MasteredAt timestamp
-    /// </summary>
+    [Obsolete("No longer used - use progress.IsKnown instead")]
     private bool HasMixedModeCompetency(VocabularyProgress progress)
     {
-        bool hasRecognitionCompetency = progress.RecognitionAttempts >= MIN_CORRECT_RECOGNITION &&
-                                      progress.RecognitionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD;
-
-        bool hasProductionCompetency = progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
-                                     progress.ProductionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD;
-
-        return hasRecognitionCompetency && hasProductionCompetency;
+        return progress.IsKnown;
     }
 
-    /// <summary>
-    /// RIGOROUS learning phase advancement - much stricter requirements!
-    /// </summary>
-    /// <summary>
-    /// RIGOROUS learning phase advancement - SLA-aligned requirements!
-    /// Recognition → Production → Application
-    /// </summary>
+    [Obsolete("No longer used - streak-based scoring replaces phase advancement")]
     private void UpdateLearningPhaseRigorous(VocabularyProgress progress)
     {
-        // Advance from Recognition to Production
-        if (progress.CurrentPhase == LearningPhase.Recognition &&
-            progress.RecognitionAccuracy >= PHASE_ADVANCE_THRESHOLD &&
-            progress.RecognitionAttempts >= MIN_ATTEMPTS_PER_PHASE &&
-            progress.RecognitionCorrect >= MIN_CORRECT_RECOGNITION)
-        {
-            progress.CurrentPhase = LearningPhase.Production;
-            _logger.LogInformation("🎯 Word {WordId} advanced to Production phase! Recognition: {Correct}/{Total} ({Accuracy:P})",
-                progress.VocabularyWordId, progress.RecognitionCorrect, progress.RecognitionAttempts, progress.RecognitionAccuracy);
-        }
-        // Advance from Production to Application
-        else if (progress.CurrentPhase == LearningPhase.Production &&
-                 progress.ProductionAccuracy >= PHASE_ADVANCE_THRESHOLD &&
-                 progress.ProductionAttempts >= MIN_CORRECT_PRODUCTION &&
-                 progress.ProductionCorrect >= MIN_CORRECT_PRODUCTION &&
-                 progress.RecognitionAccuracy >= RECEPTIVE_MASTERY_THRESHOLD) // Must maintain recognition skills!
-        {
-            progress.CurrentPhase = LearningPhase.Application;
-            _logger.LogInformation("🚀 Word {WordId} advanced to Application phase! Production: {Correct}/{Total} ({Accuracy:P})",
-                progress.VocabularyWordId, progress.ProductionCorrect, progress.ProductionAttempts, progress.ProductionAccuracy);
-        }
+        // No longer advances phases - kept for backward compatibility
     }
 
     private void UpdateSpacedRepetitionSchedule(VocabularyProgress progress, VocabularyAttempt attempt)

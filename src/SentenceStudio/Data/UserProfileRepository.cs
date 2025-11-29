@@ -28,28 +28,28 @@ public class UserProfileRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.EnsureCreatedAsync();
-        
+        await db.Database.MigrateAsync(); // Apply any pending migrations
+
         var profile = await db.UserProfiles.FirstOrDefaultAsync();
-        
+
         // Ensure DisplayLanguage is never null or empty for existing profiles
         if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))
         {
             profile.DisplayLanguage = "English";
         }
-        
+
         return profile; // Return null if no profile exists
     }
 
     public async Task<UserProfile> GetOrCreateDefaultAsync()
     {
         var profile = await GetAsync();
-        
+
         // Provide defaults for a new or invalid profile
         if (profile == null)
         {
-            profile = new UserProfile 
-            { 
+            profile = new UserProfile
+            {
                 Name = string.Empty,
                 Email = string.Empty,
                 NativeLanguage = "English",
@@ -58,7 +58,7 @@ public class UserProfileRepository
                 OpenAI_APIKey = string.Empty
             };
         }
-        
+
         return profile;
     }
 
@@ -66,11 +66,11 @@ public class UserProfileRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         // Set timestamps
         if (item.CreatedAt == default)
             item.CreatedAt = DateTime.UtcNow;
-        
+
         try
         {
             if (item.Id > 0)
@@ -81,11 +81,11 @@ public class UserProfileRepository
             {
                 db.UserProfiles.Add(item);
             }
-            
+
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -98,20 +98,20 @@ public class UserProfileRepository
             return -1;
         }
     }
-    
+
     public async Task<int> DeleteAsync()
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             var profiles = await db.UserProfiles.ToListAsync();
             db.UserProfiles.RemoveRange(profiles);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -120,19 +120,19 @@ public class UserProfileRepository
             return -1;
         }
     }
-    
+
     public async Task<int> DeleteAsync(UserProfile item)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             db.UserProfiles.Remove(item);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -161,7 +161,7 @@ public class UserProfileRepository
         }
 
         await SaveAsync(profile);
-        
+
         // Also update the LocalizationManager to reflect changes immediately
         LocalizationManager.Instance.SetCulture(new CultureInfo(culture));
     }

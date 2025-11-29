@@ -1052,7 +1052,11 @@ Transcript:
     {
         return MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
             nameof(VocabularyLearningProgressPage),
-            props => props.ResourceId = State.Resource.Id);
+            props =>
+            {
+                props.ResourceId = State.Resource.Id;
+                props.Title = State.Resource.Title;
+            });
     }
 
     async Task ChooseFile()

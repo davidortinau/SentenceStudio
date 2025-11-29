@@ -149,6 +149,12 @@ public partial class AppShell : Component
                     .Title("Profile")
                     .RenderContent(() => new UserProfilePage())
                     .Route(nameof(UserProfilePage))
+            ),
+            FlyoutItem("Settings",
+                ShellContent()
+                    .Title("Settings")
+                    .RenderContent(() => new Pages.AppSettings.SettingsPage())
+                    .Route(nameof(Pages.AppSettings.SettingsPage))
             )
         );
     }

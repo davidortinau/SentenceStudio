@@ -58,6 +58,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to About.
+        /// </summary>
+        internal static string About {
+            get {
+                return ResourceManager.GetString("About", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Accuracy.
         /// </summary>
         internal static string Accuracy {
@@ -499,6 +508,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to ✓ Correct! 🔥 {0} streak!.
+        /// </summary>
+        internal static string CorrectWithStreak {
+            get {
+                return ResourceManager.GetString("CorrectWithStreak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Created:.
         /// </summary>
         internal static string Created {
@@ -531,6 +549,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string DashboardTitle {
             get {
                 return ResourceManager.GetString("DashboardTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Database Migrations.
+        /// </summary>
+        internal static string DatabaseMigrations {
+            get {
+                return ResourceManager.GetString("DatabaseMigrations", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data Management.
+        /// </summary>
+        internal static string DataManagement {
+            get {
+                return ResourceManager.GetString("DataManagement", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export your learning data for backup or analysis..
+        /// </summary>
+        internal static string DataManagementDescription {
+            get {
+                return ResourceManager.GetString("DataManagementDescription", resourceCulture);
             }
         }
         
@@ -760,6 +805,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Export complete!.
+        /// </summary>
+        internal static string ExportComplete {
+            get {
+                return ResourceManager.GetString("ExportComplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Data exported successfully!.
         /// </summary>
         internal static string ExportCompleted {
@@ -792,6 +846,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ExportError {
             get {
                 return ResourceManager.GetString("ExportError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export failed.
+        /// </summary>
+        internal static string ExportFailed {
+            get {
+                return ResourceManager.GetString("ExportFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exporting.
+        /// </summary>
+        internal static string Exporting {
+            get {
+                return ResourceManager.GetString("Exporting", resourceCulture);
             }
         }
         
@@ -1075,6 +1147,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to ✗ Keep practicing!.
+        /// </summary>
+        internal static string IncorrectStreakReset {
+            get {
+                return ResourceManager.GetString("IncorrectStreakReset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to I see....
         /// </summary>
         internal static string ISee {
@@ -1210,6 +1291,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 🎉 Mastered! 🔥 {0} streak!.
+        /// </summary>
+        internal static string MasteredWithStreak {
+            get {
+                return ResourceManager.GetString("MasteredWithStreak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Matched: {0} / {1}    Misses: {2}.
         /// </summary>
         internal static string MatchedAndMisses {
@@ -1242,6 +1332,60 @@ namespace SentenceStudio.Resources.Strings {
         internal static string MediaURL {
             get {
                 return ResourceManager.GetString("MediaURL", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Migrate to New Scoring.
+        /// </summary>
+        internal static string MigrateProgressButton {
+            get {
+                return ResourceManager.GetString("MigrateProgressButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Migrating.
+        /// </summary>
+        internal static string Migrating {
+            get {
+                return ResourceManager.GetString("Migrating", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Migrating vocabulary progress.
+        /// </summary>
+        internal static string MigratingProgress {
+            get {
+                return ResourceManager.GetString("MigratingProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Migration Complete!.
+        /// </summary>
+        internal static string MigrationComplete {
+            get {
+                return ResourceManager.GetString("MigrationComplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Migration failed.
+        /// </summary>
+        internal static string MigrationFailed {
+            get {
+                return ResourceManager.GetString("MigrationFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Successfully migrated {0} vocabulary records..
+        /// </summary>
+        internal static string MigrationSuccessCount {
+            get {
+                return ResourceManager.GetString("MigrationSuccessCount", resourceCulture);
             }
         }
         
@@ -1930,6 +2074,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Production: {0}.
+        /// </summary>
+        internal static string ProductionCount {
+            get {
+                return ResourceManager.GetString("ProductionCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Profile reset.
         /// </summary>
         internal static string ProfileReset {
@@ -2088,6 +2241,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string RunLanguageSwapCleanup {
             get {
                 return ResourceManager.GetString("RunLanguageSwapCleanup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run Migration.
+        /// </summary>
+        internal static string RunMigration {
+            get {
+                return ResourceManager.GetString("RunMigration", resourceCulture);
             }
         }
         
@@ -2290,6 +2452,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Settings.
+        /// </summary>
+        internal static string Settings {
+            get {
+                return ResourceManager.GetString("Settings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Shadowing.
         /// </summary>
         internal static string Shadowing {
@@ -2389,6 +2560,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 🔥 Streak: {0}.
+        /// </summary>
+        internal static string StreakDisplay {
+            get {
+                return ResourceManager.GetString("StreakDisplay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Streak.
+        /// </summary>
+        internal static string StreakLabel {
+            get {
+                return ResourceManager.GetString("StreakLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Converts all vocabulary progress to the new streak-based scoring system for more accurate mastery tracking..
+        /// </summary>
+        internal static string StreakMigrationDescription {
+            get {
+                return ResourceManager.GetString("StreakMigrationDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Streak-Based Scoring Migration.
+        /// </summary>
+        internal static string StreakMigrationTitle {
+            get {
+                return ResourceManager.GetString("StreakMigrationTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Success.
         /// </summary>
         internal static string Success {
@@ -2439,6 +2646,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string TapVocabulary {
             get {
                 return ResourceManager.GetString("TapVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Framework.
+        /// </summary>
+        internal static string TargetFramework {
+            get {
+                return ResourceManager.GetString("TargetFramework", resourceCulture);
             }
         }
         

@@ -1221,4 +1221,104 @@
     <value>응용 단계</value>
     <comment>Current learning phase - application</comment>
   </data>
+  <data name="StreakLabel" xml:space="preserve">
+    <value>연속</value>
+    <comment>Label for current streak count</comment>
+  </data>
+  <data name="StreakDisplay" xml:space="preserve">
+    <value>🔥 연속: {0}</value>
+    <comment>Display format for streak count with fire emoji</comment>
+  </data>
+  <data name="MasteredWithStreak" xml:space="preserve">
+    <value>🎉 완료! 🔥 {0} 연속!</value>
+    <comment>Celebration message when word reaches mastery with streak count</comment>
+  </data>
+  <data name="CorrectWithStreak" xml:space="preserve">
+    <value>✓ 정답! 🔥 {0} 연속!</value>
+    <comment>Correct answer message with streak count</comment>
+  </data>
+  <data name="IncorrectStreakReset" xml:space="preserve">
+    <value>✗ 계속 연습하세요!</value>
+    <comment>Incorrect answer message when streak resets</comment>
+  </data>
+  <data name="MigrateProgressButton" xml:space="preserve">
+    <value>새 점수로 마이그레이션</value>
+    <comment>Button to migrate vocabulary progress to streak-based scoring</comment>
+  </data>
+  <data name="MigrationComplete" xml:space="preserve">
+    <value>마이그레이션 완료!</value>
+    <comment>Message shown after progress migration completes</comment>
+  </data>
+  <data name="ProductionCount" xml:space="preserve">
+    <value>생성: {0}</value>
+    <comment>Display count of production (text entry) correct answers in streak</comment>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>설정</value>
+    <comment>Settings page title</comment>
+  </data>
+  <data name="DataManagement" xml:space="preserve">
+    <value>데이터 관리</value>
+    <comment>Section header for data management options</comment>
+  </data>
+  <data name="DataManagementDescription" xml:space="preserve">
+    <value>백업 또는 분석을 위해 학습 데이터를 내보내세요.</value>
+    <comment>Description of data management section</comment>
+  </data>
+  <data name="ExportData" xml:space="preserve">
+    <value>데이터 내보내기</value>
+    <comment>Button to export app data</comment>
+  </data>
+  <data name="Exporting" xml:space="preserve">
+    <value>내보내는 중</value>
+    <comment>Status text while exporting data</comment>
+  </data>
+  <data name="ExportComplete" xml:space="preserve">
+    <value>내보내기 완료!</value>
+    <comment>Toast message after successful export</comment>
+  </data>
+  <data name="ExportFailed" xml:space="preserve">
+    <value>내보내기 실패</value>
+    <comment>Toast message when export fails</comment>
+  </data>
+  <data name="DatabaseMigrations" xml:space="preserve">
+    <value>데이터베이스 마이그레이션</value>
+    <comment>Section header for database migration utilities</comment>
+  </data>
+  <data name="StreakMigrationTitle" xml:space="preserve">
+    <value>연속 기반 점수 마이그레이션</value>
+    <comment>Title for streak migration option</comment>
+  </data>
+  <data name="StreakMigrationDescription" xml:space="preserve">
+    <value>더 정확한 숙달 추적을 위해 모든 어휘 진행 상황을 새로운 연속 기반 점수 시스템으로 변환합니다.</value>
+    <comment>Description of what streak migration does</comment>
+  </data>
+  <data name="RunMigration" xml:space="preserve">
+    <value>마이그레이션 실행</value>
+    <comment>Button to start a migration</comment>
+  </data>
+  <data name="Migrating" xml:space="preserve">
+    <value>마이그레이션 중</value>
+    <comment>Status text while migration is running</comment>
+  </data>
+  <data name="MigratingProgress" xml:space="preserve">
+    <value>어휘 진행 상황 마이그레이션 중</value>
+    <comment>Status message during migration</comment>
+  </data>
+  <data name="MigrationSuccessCount" xml:space="preserve">
+    <value>{0}개의 어휘 기록을 성공적으로 마이그레이션했습니다.</value>
+    <comment>Success message with count of migrated records</comment>
+  </data>
+  <data name="MigrationFailed" xml:space="preserve">
+    <value>마이그레이션 실패</value>
+    <comment>Error message when migration fails</comment>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>정보</value>
+    <comment>Section header for app info</comment>
+  </data>
+  <data name="TargetFramework" xml:space="preserve">
+    <value>프레임워크</value>
+    <comment>Label for .NET framework version</comment>
+  </data>
 </root>
