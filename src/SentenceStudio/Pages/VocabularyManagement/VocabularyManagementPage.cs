@@ -26,6 +26,29 @@ public class VocabularyCardViewModel
     public List<LearningResource> AssociatedResources { get; set; } = new();
     public bool IsSelected { get; set; } = false;
     public bool IsOrphaned => !AssociatedResources.Any();
+
+    // Progress tracking
+    public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+
+    // Status helpers (matching VocabularyProgressItem pattern)
+    public bool IsKnown => Progress?.IsKnown ?? false;
+    public bool IsLearning => Progress?.IsLearning ?? false;
+    public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
+
+    public Color StatusColor => IsKnown ? MyTheme.Success :
+                                IsLearning ? MyTheme.Warning :
+                                MyTheme.Gray400;
+
+    public string StatusText
+    {
+        get
+        {
+            var localize = LocalizationManager.Instance;
+            return IsKnown ? $"{localize["Known"]}" :
+                            IsLearning ? $"{localize["Learning"]}" :
+                            $"{localize["Unknown"]}";
+        }
+    }
 }
 
 class VocabularyManagementPageState
@@ -60,6 +83,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
+    [Inject] VocabularyProgressService _progressService;
     [Inject] ILogger<VocabularyManagementPage> _logger;
     private System.Threading.Timer? _searchTimer;
     LocalizationManager _localize => LocalizationManager.Instance;
@@ -255,14 +279,18 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .ThemeKey(MyTheme.Body2Strong),
                     Label(item.Word.NativeLanguageTerm ?? "")
-                        .ThemeKey(MyTheme.Caption1)
+                        .ThemeKey(MyTheme.Caption1),
+                    // Progress status
+                    Label(item.StatusText)
+                        .ThemeKey(MyTheme.Caption2)
+                        .TextColor(item.StatusColor)
                 )
             ).Padding(MyTheme.MicroSpacing)
         )
         .Padding(MyTheme.ComponentSpacing, MyTheme.MicroSpacing)
         .StrokeShape(new Rectangle())
         .StrokeThickness(1)
-        .Stroke(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray300)
+        .Stroke(item.StatusColor)
         .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
@@ -302,10 +330,15 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             Label(item.Word.NativeLanguageTerm ?? "")
                 .ThemeKey(MyTheme.Body2),
 
-            // Status and resources
+            // Progress status
+            Label(item.StatusText)
+                .ThemeKey(MyTheme.Caption1)
+                .TextColor(item.StatusColor),
+
+            // Resource association status
             Label(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))
                 .ThemeKey(MyTheme.Caption2)
-                .FontAttributes(FontAttributes.Bold)
+                .TextColor(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray500)
 
         );
 
@@ -348,6 +381,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Load all vocabulary words with their associated learning resources
         var allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
 
+        // Get progress for all words efficiently
+        var wordIds = allWords.Select(w => w.Id).ToList();
+        var progressData = await _progressService.GetProgressForWordsAsync(wordIds);
+
         var vocabularyItems = new List<VocabularyCardViewModel>();
 
         foreach (var word in allWords)
@@ -355,7 +392,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             var item = new VocabularyCardViewModel
             {
                 Word = word,
-                AssociatedResources = word.LearningResources?.ToList() ?? new List<LearningResource>()
+                AssociatedResources = word.LearningResources?.ToList() ?? new List<LearningResource>(),
+                Progress = progressData.ContainsKey(word.Id) ? progressData[word.Id] : null
             };
 
             vocabularyItems.Add(item);

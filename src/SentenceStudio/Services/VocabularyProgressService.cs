@@ -187,33 +187,22 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// Gets progress for multiple vocabulary words and returns as dictionary
+    /// Gets progress for multiple vocabulary words and returns as dictionary.
+    /// OPTIMIZED: Uses batch query and only returns EXISTING progress (no auto-creation).
+    /// Use this for list views where you just want to display status.
     /// </summary>
     public async Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 1)
     {
-        // Get existing progress records in a single query
-        var existingProgress = await _progressRepo.ListAsync();
-        var existingDict = existingProgress
-            .Where(p => vocabularyWordIds.Contains(p.VocabularyWordId) && p.UserId == userId)
+        if (!vocabularyWordIds.Any())
+            return new Dictionary<int, VocabularyProgress>();
+
+        // OPTIMIZATION: Use batch query instead of loading entire table
+        var existingProgress = await _progressRepo.GetByWordIdsAsync(vocabularyWordIds);
+
+        // Filter by user and build dictionary - no auto-creation for list views
+        return existingProgress
+            .Where(p => p.UserId == userId)
             .ToDictionary(p => p.VocabularyWordId, p => p);
-
-        var progressDict = new Dictionary<int, VocabularyProgress>();
-
-        foreach (var wordId in vocabularyWordIds)
-        {
-            if (existingDict.TryGetValue(wordId, out var existingEntry))
-            {
-                progressDict[wordId] = existingEntry;
-            }
-            else
-            {
-                // Only create new progress records if needed
-                var newProgress = await GetOrCreateProgressAsync(wordId, userId);
-                progressDict[wordId] = newProgress;
-            }
-        }
-
-        return progressDict;
     }
 
     private void UpdatePhaseMetrics(VocabularyProgress progress, VocabularyAttempt attempt)

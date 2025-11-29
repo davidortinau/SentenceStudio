@@ -24,21 +24,25 @@ class EditVocabularyWordPageState
 
     // UI state
     public string ErrorMessage { get; set; } = string.Empty;
-    
+
     // Audio playback state
     public bool IsGeneratingAudio { get; set; } = false;
+
+    // Progress tracking
+    public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
 }
 
 partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, VocabularyWordProps>
 {
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] VocabularyProgressService _progressService;
     [Inject] ILogger<EditVocabularyWordPage> _logger;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] StreamHistoryRepository _historyRepo;
     [Inject] UserActivityRepository _activityRepo;
-    
+
     LocalizationManager _localize => LocalizationManager.Instance;
-    
+
     private IAudioPlayer _audioPlayer;
 
     public override VisualNode Render()
@@ -52,6 +56,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     ScrollView(
                         VStack(spacing: MyTheme.SectionSpacing,
                             RenderWordForm(),
+                            Props.VocabularyWordId > 0 ? RenderProgressSection() : null,
                             RenderResourceAssociations()
                         ).Padding(MyTheme.LayoutSpacing)
                     ),
@@ -84,7 +89,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .ThemeKey(MyTheme.InputWrapper)
                     .Padding(MyTheme.CardPadding)
                     .HorizontalOptions(LayoutOptions.FillAndExpand),
-                    
+
                     // Inline audio play button - only show for saved words with text
                     State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
                         ImageButton()
@@ -125,6 +130,93 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .HStart() :
                 null
         );
+
+    VisualNode RenderProgressSection()
+    {
+        var progress = State.Progress;
+        var isKnown = progress?.IsKnown ?? false;
+        var isLearning = progress?.IsLearning ?? false;
+        var isUnknown = progress == null || (!isKnown && !isLearning);
+
+        var statusColor = isKnown ? MyTheme.Success :
+                         isLearning ? MyTheme.Warning :
+                         MyTheme.Gray400;
+
+        var statusText = isKnown ? $"Status: {_localize["Known"]}" :
+                        isLearning ? $"Status: {_localize["Learning"]}" :
+                        $"Status: {_localize["Unknown"]}";
+
+        // Build progress details text
+        string progressDetails;
+        if (isKnown)
+        {
+            progressDetails = $"✅ {_localize["Known"]}";
+        }
+        else if (isUnknown)
+        {
+            progressDetails = $"{_localize["StartPracticing"]}";
+        }
+        else
+        {
+            // Learning status - show streak-based progress
+            var parts = new List<string>();
+            parts.Add($"{_localize["StreakLabel"]}: {progress?.CurrentStreak ?? 0}");
+
+            var productionNeeded = progress?.ProductionNeededForKnown ?? 2;
+            if (productionNeeded > 0)
+                parts.Add($"Production: {progress?.ProductionInStreak ?? 0}/2 {_localize["Production"]}");
+            else
+                parts.Add($"{_localize["Production"]}");
+
+            parts.Add($"Mastery: {(int)((progress?.MasteryScore ?? 0f) * 100)}%");
+            progressDetails = string.Join(Environment.NewLine, parts);
+        }
+
+        // Build review date text
+        string reviewDateText;
+        if (progress?.NextReviewDate == null)
+        {
+            reviewDateText = $"{_localize["NotScheduled"]}";
+        }
+        else
+        {
+            var now = DateTime.Now.Date;
+            var reviewDate = progress.NextReviewDate.Value.Date;
+
+            if (reviewDate <= now)
+                reviewDateText = $"📅 {_localize["DueNow"]}";
+            else if (reviewDate == now.AddDays(1))
+                reviewDateText = $"📅 {_localize["Tomorrow"]}";
+            else if (reviewDate <= now.AddDays(7))
+                reviewDateText = $"📅 {(reviewDate - now).Days} {_localize["DaysAway"]}";
+            else
+                reviewDateText = $"📅 {reviewDate:MMM d}";
+        }
+
+        var isDueForReview = progress?.IsDueForReview ?? false;
+
+        return VStack(
+            Label($"{_localize["LearningProgress"]}")
+                .FontSize(20)
+                .FontAttributes(FontAttributes.Bold),
+
+            Border(
+                VStack(spacing: MyTheme.ComponentSpacing,
+                    Label(statusText)
+                        .ThemeKey(MyTheme.Body2),
+
+                    // Progress details
+                    Label(progressDetails)
+                        .ThemeKey(MyTheme.Body2),
+
+                    // Review date
+                    Label(reviewDateText)
+                        .ThemeKey(MyTheme.Body2)
+                )
+                .Padding(MyTheme.CardPadding)
+            )
+        );
+    }
 
     VisualNode RenderResourceAssociations() =>
         VStack(spacing: 16,
@@ -245,6 +337,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         try
         {
             VocabularyWord? word = null;
+            SentenceStudio.Shared.Models.VocabularyProgress? progress = null;
 
             // Load existing word or create new one
             if (Props.VocabularyWordId > 0)
@@ -252,10 +345,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
                 if (word == null)
                 {
-                    await Application.Current.MainPage.DisplayAlert("Error", "Vocabulary word not found", "OK");
+                    await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["VocabularyWordNotFound"]}", $"{_localize["OK"]}");
                     await NavigateBack();
                     return;
                 }
+
+                // Load progress for this word
+                progress = await _progressService.GetProgressAsync(Props.VocabularyWordId);
             }
             else
             {
@@ -284,12 +380,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 s.AvailableResources = allResources?.ToList() ?? new List<LearningResource>();
                 s.AssociatedResources = associatedResources?.ToList() ?? new List<LearningResource>();
                 s.SelectedResourceIds = new HashSet<int>(associatedResources?.Select(r => r.Id) ?? Enumerable.Empty<int>());
+                s.Progress = progress;
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load vocabulary word data");
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to load vocabulary word: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message), $"{_localize["OK"]}");
             await NavigateBack();
         }
         finally
@@ -424,7 +521,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     {
         return MauiControls.Shell.Current.GoToAsync("..");
     }
-    
+
     /// <summary>
     /// Plays isolated word pronunciation using ElevenLabs TTS.
     /// Learning Science: Provides pronunciation model for articulatory practice (shadowing/imitation).
@@ -434,9 +531,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     {
         if (string.IsNullOrWhiteSpace(word))
             return;
-        
+
         SetState(s => s.IsGeneratingAudio = true);
-        
+
         try
         {
             // Stop any existing player
@@ -448,13 +545,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     _audioPlayer.Stop();
                 }
             }
-            
+
             Stream audioStream;
             bool fromCache = false;
-            
+
             // Check if we have cached audio for this word
             var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(word, Voices.JiYoung);
-            
+
             if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
             {
                 // Use cached audio file
@@ -472,31 +569,31 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     stability: 0.5f,
                     similarityBoost: 0.75f
                 );
-                
+
                 // Save to cache for future use
                 await SaveToHistory(word, audioStream);
             }
-            
+
             // Reset stream position to beginning
             audioStream.Position = 0;
-            
+
             // Create audio player from stream and play immediately
             _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
-            
-            _logger.LogInformation("✅ Successfully playing audio for: {Word} (from {Source})", 
+
+            _logger.LogInformation("✅ Successfully playing audio for: {Word} (from {Source})",
                 word, fromCache ? "cache" : "API");
-            
+
             // Track listening activity for progress analytics
             await RecordListeningActivity(State.Word.Id, "isolated_word", _audioPlayer.Duration);
-            
+
             _logger.LogInformation("✅ Successfully played audio for: {Word}", word);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to generate audio for word: {Word}", word);
-            
+
             await Application.Current.MainPage.DisplayAlert(
                 "Audio Error",
                 $"Failed to generate audio: {ex.Message}",
@@ -508,23 +605,23 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             SetState(s => s.IsGeneratingAudio = false);
         }
     }
-    
+
     /// <summary>
     /// Called when audio playback finishes naturally.
     /// </summary>
     private void OnAudioPlaybackEnded(object sender, EventArgs e)
     {
         _logger.LogDebug("🎵 Audio playback ended");
-        
+
         if (_audioPlayer != null)
         {
             _audioPlayer.PlaybackEnded -= OnAudioPlaybackEnded;
             // Don't dispose immediately - can cause crashes on some platforms
         }
-        
+
         SetState(s => s.IsGeneratingAudio = false);
     }
-    
+
     /// <summary>
     /// Opens HowDoYouSayPage with pre-filled phrase for sentence-context audio.
     /// Learning Science: Hearing words in sentences shows prosody, collocations, and usage patterns.
@@ -534,16 +631,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     {
         if (string.IsNullOrWhiteSpace(State.TargetLanguageTerm))
             return;
-        
+
         _logger.LogInformation("📝 Navigating to audio studio with phrase: {Phrase}", State.TargetLanguageTerm);
-        
+
         // Navigate to HowDoYouSayPage with pre-filled phrase
         var escapedPhrase = Uri.EscapeDataString(State.TargetLanguageTerm);
         await MauiControls.Shell.Current.GoToAsync(
             $"//howdoyousay?phrase={escapedPhrase}&returnToVocab=true"
         );
     }
-    
+
     /// <summary>
     /// Saves audio to StreamHistory for persistence and later review.
     /// Learning Science: Audio history enables listening-based spaced repetition reviews.
@@ -559,23 +656,23 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 _logger.LogDebug("💾 Audio already cached for: {Phrase}", phrase);
                 return;
             }
-            
+
             // Save audio to disk for offline access
             var fileName = $"vocab_{State.Word.Id}_{DateTime.Now:yyyyMMddHHmmss}.mp3";
             var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
             var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
-            
+
             // Ensure directory exists
             if (!Directory.Exists(audioCacheDir))
                 Directory.CreateDirectory(audioCacheDir);
-            
+
             // Write audio stream to file
             using (var fileStream = File.Create(filePath))
             {
                 audioStream.Position = 0;
                 await audioStream.CopyToAsync(fileStream);
             }
-            
+
             // Save to database
             var historyItem = new StreamHistory
             {
@@ -587,9 +684,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 Source = "VocabularyManagement",
                 Title = $"{phrase} ({State.NativeLanguageTerm})"
             };
-            
+
             await _historyRepo.SaveStreamHistoryAsync(historyItem);
-            
+
             _logger.LogInformation("💾 Saved audio to cache: {FilePath}", filePath);
         }
         catch (Exception ex)
@@ -598,7 +695,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             _logger.LogWarning(ex, "⚠️ Failed to save audio to history for: {Phrase}", phrase);
         }
     }
-    
+
     /// <summary>
     /// Records listening activity for progress tracking and analytics.
     /// Learning Science: Tracks listening minutes and exposure counts to balance skill development.
@@ -618,9 +715,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 CreatedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now
             };
-            
+
             await _activityRepo.SaveAsync(activity);
-            
+
             _logger.LogDebug("📊 Recorded listening activity: {ActivityType} for word {WordId}, duration {Duration}s",
                 activityType, vocabularyWordId, durationSeconds);
         }
