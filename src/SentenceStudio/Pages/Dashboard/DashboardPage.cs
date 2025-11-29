@@ -872,33 +872,12 @@ partial class DashboardPage : Component<DashboardPageState>
         }
     }
 
-    async Task<string> HandleVideoActivity(DailyPlanItem item)
+    Task<string> HandleVideoActivity(DailyPlanItem item)
     {
-        // For video activities, check if we have route parameters with URL
-        if (item.RouteParameters != null && item.RouteParameters.ContainsKey("url"))
-        {
-            var url = item.RouteParameters["url"]?.ToString();
-            if (!string.IsNullOrEmpty(url))
-            {
-                try
-                {
-                    await Browser.Default.OpenAsync(url, BrowserLaunchMode.SystemPreferred);
-
-                    // Videos count as completed immediately when opened (no time tracking for external content)
-                    await _progressService.MarkPlanItemCompleteAsync(item.Id, item.EstimatedMinutes);
-                    await LoadTodaysPlanAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error opening video URL");
-                    await Application.Current.MainPage.DisplayAlert(
-                        "Arrr!",
-                        "Failed to open the video. Check your internet connection!",
-                        "Aye");
-                }
-            }
-        }
-        return null; // Don't navigate to a page
+        // Navigate to VideoWatchingPage which handles loading the resource and displaying the video
+        // The page will use the ResourceId from RouteParameters to load the video URL
+        _logger.LogDebug("🎬 HandleVideoActivity: Returning VideoWatchingPage route");
+        return Task.FromResult(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage));
     }
 
     // Selection handlers that are resilient to chip removals (e.AddedItems can be null)
