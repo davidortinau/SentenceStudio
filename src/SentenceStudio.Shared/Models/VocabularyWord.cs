@@ -1,11 +1,11 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations.Schema;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SentenceStudio.Shared.Models;
 
-[Table("VocabularyWords")]
 public partial class VocabularyWord : ObservableObject
 {
     public int Id { get; set; }
@@ -23,6 +23,27 @@ public partial class VocabularyWord : ObservableObject
     [JsonIgnore] public DateTime CreatedAt { get; set; }
     [JsonIgnore] public DateTime UpdatedAt { get; set; }
 
+    // === NEW ENCODING FIELDS ===
+    
+    [Description("The dictionary form or lemma of the word, for grouping inflected forms")]
+    [ObservableProperty]
+    private string? lemma;
+    
+    [Description("Comma-separated tags for categorizing vocabulary words")]
+    [ObservableProperty]
+    private string? tags;
+    
+    [Description("Silly story or memory association to aid recall")]
+    [ObservableProperty]
+    private string? mnemonicText;
+    
+    [Description("Image URL to visualize the mnemonic or concept")]
+    [ObservableProperty]
+    private string? mnemonicImageUri;
+    
+    [ObservableProperty]
+    private string? audioPronunciationUri;
+
     [JsonIgnore]
     [NotMapped]
     public List<VocabularyList>? VocabularyLists { get; set; }
@@ -33,6 +54,18 @@ public partial class VocabularyWord : ObservableObject
     
     [JsonIgnore]
     public List<ResourceVocabularyMapping> ResourceMappings { get; set; } = new List<ResourceVocabularyMapping>();
+    
+    // Navigation property for example sentences
+    [JsonIgnore]
+    public List<ExampleSentence> ExampleSentences { get; set; } = new List<ExampleSentence>();
+    
+    // === DERIVED PROPERTIES (Not Mapped) ===
+    
+    [NotMapped]
+    public double EncodingStrength { get; set; }
+    
+    [NotMapped]
+    public string EncodingStrengthLabel { get; set; } = "Basic";
     
     public static List<VocabularyWord> ParseVocabularyWords(string vocabList, string delimiter = "comma")
     {
