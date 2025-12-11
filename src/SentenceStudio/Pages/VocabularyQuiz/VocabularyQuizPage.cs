@@ -127,7 +127,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         return ContentPage(pageRef => _pageRef = pageRef,
             Grid(rows: "60,Auto,*", columns: "*",
-                RenderTitleView(),
+                // RenderTitleView(),
                 LearningProgressBar(),
                 ScrollView(
                     Grid(rows: "*,Auto", columns: "*",
@@ -140,7 +140,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SessionSummaryOverlay()
             ).RowSpacing(MyTheme.CardMargin)
         )
-        // .TitleView(RenderTitleView())
+        .TitleView(RenderTitleView())
         .Title($"{_localize["VocabularyQuiz"]}")
         .OnAppearing(LoadVocabulary);
     }
@@ -1054,7 +1054,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task LoadVocabulary()
     {
-        TrySetShellTitleView();
+        // TrySetShellTitleView();
 
         SetState(s => s.IsBusy = true);
 

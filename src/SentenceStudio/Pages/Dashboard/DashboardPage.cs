@@ -10,8 +10,6 @@ using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Services.Progress;
-using SentenceStudio.Pages.Controls;
-using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -812,13 +810,13 @@ partial class DashboardPage : Component<DashboardPageState>
                         _logger.LogWarning(ex, "⚠️ Failed to load skill from plan, will use fallback");
                     }
                 }
-                
+
                 // Fallback to selected skill or first available skill
                 if (skillToUse == null)
                 {
                     // Try selected skill first
                     skillToUse = _parameters.Value?.SelectedSkillProfile;
-                    
+
                     if (skillToUse != null)
                     {
                         _logger.LogDebug("📚 Using selected skill: {Title}", skillToUse.Title);
@@ -829,7 +827,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         _logger.LogWarning("⚠️ No skill in plan and no selected skill - loading default skill");
                         var availableSkills = await _skillService.ListAsync();
                         skillToUse = availableSkills.FirstOrDefault();
-                        
+
                         if (skillToUse != null)
                         {
                             _logger.LogInformation("✅ Using default skill: {Title} (ID: {Id})", skillToUse.Title, skillToUse.Id);

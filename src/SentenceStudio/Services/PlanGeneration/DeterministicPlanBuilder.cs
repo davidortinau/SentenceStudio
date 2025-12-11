@@ -321,6 +321,7 @@ public class DeterministicPlanBuilder
             DaysSinceLastUse = selected.DaysSinceLastUse,
             SelectionReason = reason,
             HasAudio = selected.Resource.MediaType == "Video" || selected.Resource.MediaType == "Podcast",
+            HasTranscript = !string.IsNullOrWhiteSpace(selected.Resource.Transcript),
             YouTubeUrl = selected.Resource.MediaType == "Video" && !string.IsNullOrEmpty(selected.Resource.MediaUrl)
                 ? selected.Resource.MediaUrl
                 : null
@@ -454,18 +455,27 @@ public class DeterministicPlanBuilder
         if (remainingMinutes >= 8)
         {
             var inputActivity = SelectInputActivity(resource, yesterdayActivities, recentActivityTypes);
-            var inputMinutes = Math.Min(10, remainingMinutes);
-
-            activities.Add(new PlannedActivity
+            
+            // Only add input activity if resource supports at least one (has transcript, audio, or video)
+            if (!string.IsNullOrEmpty(inputActivity))
             {
-                ActivityType = inputActivity,
-                ResourceId = resource.Id,
-                SkillId = skill?.Id,
-                EstimatedMinutes = inputMinutes,
-                Priority = priority++,
-                Rationale = GetActivityRationale(inputActivity, "input")
-            });
-            remainingMinutes -= inputMinutes;
+                var inputMinutes = Math.Min(10, remainingMinutes);
+
+                activities.Add(new PlannedActivity
+                {
+                    ActivityType = inputActivity,
+                    ResourceId = resource.Id,
+                    SkillId = skill?.Id,
+                    EstimatedMinutes = inputMinutes,
+                    Priority = priority++,
+                    Rationale = GetActivityRationale(inputActivity, "input")
+                });
+                remainingMinutes -= inputMinutes;
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ Resource {ResourceId} has no compatible input activities (no transcript/audio/video)", resource.Id);
+            }
         }
 
         // STEP 3: Output activity (higher cognitive load, production practice)
@@ -510,18 +520,30 @@ public class DeterministicPlanBuilder
     {
         var inputActivities = new List<string>();
 
-        // Add appropriate input activities based on resource type
+        // Add appropriate input activities based on resource capabilities
+        // VideoWatching REQUIRES a YouTube URL
         if (resource.HasAudio && !string.IsNullOrEmpty(resource.YouTubeUrl))
         {
             inputActivities.Add("VideoWatching");
-            inputActivities.Add("Listening");
         }
-        else if (resource.HasAudio)
+        
+        // Listening requires audio (video or podcast)
+        if (resource.HasAudio)
         {
             inputActivities.Add("Listening");
         }
 
-        inputActivities.Add("Reading"); // Always available
+        // Reading REQUIRES a transcript - do NOT add if resource has no transcript!
+        if (resource.HasTranscript)
+        {
+            inputActivities.Add("Reading");
+        }
+
+        // If no input activities are compatible with this resource, return null
+        if (!inputActivities.Any())
+        {
+            return null;
+        }
 
         // Filter out yesterday's activities
         var fresh = inputActivities.Where(a => !yesterdayActivities.Contains(a)).ToList();
@@ -604,6 +626,7 @@ public class SelectedResource
     public int DaysSinceLastUse { get; set; }
     public string SelectionReason { get; set; }
     public bool HasAudio { get; set; }
+    public bool HasTranscript { get; set; }
     public string? YouTubeUrl { get; set; }
 }
 
