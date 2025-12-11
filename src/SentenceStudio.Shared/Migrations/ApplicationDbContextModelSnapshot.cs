@@ -155,6 +155,53 @@ namespace SentenceStudio.Shared.Migrations
                     b.ToTable("DailyPlanCompletion", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AudioUri")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsCore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LearningResourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NativeSentence")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TargetSentence")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("VocabularyWordId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsCore");
+
+                    b.HasIndex("LearningResourceId");
+
+                    b.HasIndex("VocabularyWordId");
+
+                    b.HasIndex("VocabularyWordId", "IsCore");
+
+                    b.ToTable("ExampleSentence", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.GradeResponse", b =>
                 {
                     b.Property<int>("Id")
@@ -627,10 +674,29 @@ namespace SentenceStudio.Shared.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AudioPronunciationUri")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Lemma")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MnemonicImageUri")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MnemonicText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NativeLanguageTerm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TargetLanguageTerm")
@@ -640,6 +706,10 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Lemma");
+
+                    b.HasIndex("Tags");
 
                     b.ToTable("VocabularyWord", (string)null);
                 });
@@ -651,6 +721,24 @@ namespace SentenceStudio.Shared.Migrations
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>
+                {
+                    b.HasOne("SentenceStudio.Shared.Models.LearningResource", "LearningResource")
+                        .WithMany()
+                        .HasForeignKey("LearningResourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SentenceStudio.Shared.Models.VocabularyWord", "VocabularyWord")
+                        .WithMany("ExampleSentences")
+                        .HasForeignKey("VocabularyWordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LearningResource");
+
+                    b.Navigation("VocabularyWord");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ResourceVocabularyMapping", b =>
@@ -718,6 +806,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyWord", b =>
                 {
+                    b.Navigation("ExampleSentences");
+
                     b.Navigation("ResourceMappings");
                 });
 #pragma warning restore 612, 618
