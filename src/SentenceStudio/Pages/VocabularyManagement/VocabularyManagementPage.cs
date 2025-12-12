@@ -126,6 +126,11 @@ class VocabularyManagementPageState
     public List<string> AvailableTags { get; set; } = new();
     // [T047] Available lemmas for autocomplete
     public List<string> AvailableLemmas { get; set; } = new();
+
+    // Filter Bottom Sheet state (unified for all filter types)
+    public bool IsFilterSheetOpen { get; set; } = false;
+    public string ActiveFilterType { get; set; } = string.Empty; // "tag", "resource", "lemma", "status"
+    public HashSet<string> PendingFilterSelections { get; set; } = new(); // Pending selections before Apply
 }
 
 partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
@@ -174,7 +179,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Grid(rows: "*,Auto", columns: "*",
                     RenderVocabularyList(),
                     RenderBottomBar(),
-                    RenderCleanupSheet()
+                    RenderCleanupSheet(),
+                    RenderFilterBottomSheet()
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
@@ -248,7 +254,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Padding(MyTheme.LayoutSpacing, 0)
             .GridRow(1);
 
-    // GitHub-style filter buttons that open popups and insert filter text
+    // GitHub-style filter buttons that open bottom sheet with chip selection
     VisualNode RenderFilterButtons()
     {
         return HStack(spacing: 4,
@@ -258,7 +264,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .Source(MyTheme.IconTag)
                     .BackgroundColor(Colors.Transparent)
                     .VCenter()
-                    .OnClicked(async () => await ShowTagFilterPopup()) :
+                    .OnClicked(() => OpenFilterSheet("tag")) :
                 null,
 
             // Resource filter button
@@ -267,7 +273,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .Source(MyTheme.IconResource)
                     .BackgroundColor(Colors.Transparent)
                     .VCenter()
-                    .OnClicked(async () => await ShowResourceFilterPopup()) :
+                    .OnClicked(() => OpenFilterSheet("resource")) :
                 null,
 
             // Lemma filter button
@@ -276,7 +282,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .Source(MyTheme.IconLemma)
                     .BackgroundColor(Colors.Transparent)
                     .VCenter()
-                    .OnClicked(async () => await ShowLemmaFilterPopup()) :
+                    .OnClicked(() => OpenFilterSheet("lemma")) :
                 null,
 
             // Status filter button
@@ -284,7 +290,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .Source(MyTheme.IconStatusFilter)
                 .BackgroundColor(Colors.Transparent)
                 .VCenter()
-                .OnClicked(async () => await ShowStatusFilterPopup())
+                .OnClicked(() => OpenFilterSheet("status"))
         ).GridColumn(1).GridRow(1).VFill();
     }
 
@@ -739,9 +745,275 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         ApplyFilters();
     }
 
+    // ==================== FILTER BOTTOM SHEET ====================
+
+    /// <summary>
+    /// Opens the unified filter bottom sheet for the specified filter type
+    /// </summary>
+    void OpenFilterSheet(string filterType)
+    {
+        // Initialize pending selections from current query filters
+        var pendingSelections = new HashSet<string>();
+
+        if (State.ParsedQuery != null)
+        {
+            var existingFilters = filterType switch
+            {
+                "tag" => State.ParsedQuery.TagFilters?.ToList() ?? new List<string>(),
+                "resource" => State.ParsedQuery.ResourceFilters?.ToList() ?? new List<string>(),
+                "lemma" => State.ParsedQuery.LemmaFilters?.ToList() ?? new List<string>(),
+                "status" => State.ParsedQuery.StatusFilters?.ToList() ?? new List<string>(),
+                _ => new List<string>()
+            };
+            foreach (var f in existingFilters)
+                pendingSelections.Add(f);
+        }
+
+        SetState(s =>
+        {
+            s.ActiveFilterType = filterType;
+            s.PendingFilterSelections = pendingSelections;
+            s.IsFilterSheetOpen = true;
+        });
+    }
+
+    /// <summary>
+    /// Renders the unified filter bottom sheet with chip-style multi-select UI
+    /// </summary>
+    VisualNode RenderFilterBottomSheet()
+    {
+        var title = State.ActiveFilterType switch
+        {
+            "tag" => $"{_localize["FilterByTag"]}",
+            "resource" => $"{_localize["FilterByResource"]}",
+            "lemma" => $"{_localize["FilterByLemma"]}",
+            "status" => $"{_localize["FilterByStatus"]}",
+            _ => $"{_localize["Filter"]}"
+        };
+
+        var items = GetFilterItemsForType(State.ActiveFilterType);
+
+        return new SfBottomSheet(
+            VStack(spacing: MyTheme.LayoutSpacing,
+                // Header row with title and Apply button
+                Grid(rows: "Auto", columns: "Auto,*,Auto",
+                    // Clear button on left
+                    Button($"{_localize["Clear"]}")
+                        .TextColor(MyTheme.DarkOnLightBackground)
+                        .BackgroundColor(Colors.Transparent)
+                        .OnClicked(ClearFilterSelections)
+                        .GridColumn(0),
+                    // Title centered
+                    Label(title)
+                        .FontSize(20)
+                        .FontAttributes(FontAttributes.Bold)
+                        .HCenter()
+                        .VCenter()
+                        .GridColumn(1),
+                    // Apply button on right
+                    Button($"{_localize["Apply"]}")
+                        .ThemeKey(MyTheme.PrimaryButton)
+                        .OnClicked(ApplyFilterSelections)
+                        .GridColumn(2)
+                ).Margin(0, 0, 0, MyTheme.ComponentSpacing),
+
+                // Scrollable chip container
+                RenderFilterChipContainer(items)
+            )
+            .Padding(MyTheme.CardPadding)
+        )
+        .IsOpen(State.IsFilterSheetOpen)
+        .OnStateChanged((sender, args) =>
+        {
+            if (!State.IsFilterSheetOpen) return;
+            SetState(s => s.IsFilterSheetOpen = false);
+        });
+    }
+
+    /// <summary>
+    /// Gets the list of available items for the current filter type
+    /// </summary>
+    List<(string Value, string DisplayName)> GetFilterItemsForType(string filterType)
+    {
+        return filterType switch
+        {
+            "tag" => State.AvailableTags
+                .OrderBy(t => t)
+                .Select(t => (t, t))
+                .ToList(),
+
+            "resource" => State.AvailableResources
+                .OrderBy(r => r.Title)
+                .Select(r => (r.Title ?? $"{_localize["UnnamedResource"]}", r.Title ?? $"{_localize["UnnamedResource"]}"))
+                .ToList(),
+
+            "lemma" => State.AvailableLemmas
+                .OrderBy(l => l)
+                .Select(l => (l, l))
+                .ToList(),
+
+            "status" => new List<(string, string)>
+            {
+                ("known", $"✓ {_localize["StatusKnown"]}"),
+                ("learning", $"⏳ {_localize["StatusLearning"]}"),
+                ("unknown", $"? {_localize["StatusUnknown"]}")
+            },
+
+            _ => new List<(string, string)>()
+        };
+    }
+
+    /// <summary>
+    /// Renders the chip container with wrapping FlexLayout inside ScrollView
+    /// </summary>
+    VisualNode RenderFilterChipContainer(List<(string Value, string DisplayName)> items)
+    {
+        if (!items.Any())
+        {
+            return Label($"{_localize["NoItemsAvailable"]}")
+                .ThemeKey(MyTheme.Body1)
+                .Opacity(0.6)
+                .HCenter();
+        }
+
+        // Wrap FlexLayout in ScrollView for scrollable chips
+        return ScrollView(
+            FlexLayout(
+                items.Select(item => RenderFilterChip(item.Value, item.DisplayName)).ToArray()
+            )
+            .Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap)
+            .JustifyContent(Microsoft.Maui.Layouts.FlexJustify.Start)
+            .AlignItems(Microsoft.Maui.Layouts.FlexAlignItems.Start)
+            .AlignContent(Microsoft.Maui.Layouts.FlexAlignContent.Start)
+        )
+        .MaximumHeightRequest(300); // Limit height so it scrolls
+    }
+
+    /// <summary>
+    /// Renders a single filter chip with selected/unselected state
+    /// </summary>
+    VisualNode RenderFilterChip(string value, string displayName)
+    {
+        var isSelected = State.PendingFilterSelections.Contains(value);
+
+        // Selected: dark background with white text
+        // Unselected: light gray background with dark text
+        var bgColor = isSelected ? MyTheme.HighlightDarkest : MyTheme.Gray200;
+        var textColor = isSelected ? Colors.White : MyTheme.DarkOnLightBackground;
+        var borderColor = isSelected ? MyTheme.HighlightDarkest : MyTheme.Gray300;
+
+        return Border(
+            Label(displayName)
+                .TextColor(textColor)
+                .FontSize(14)
+                .VCenter().TranslationY(-2)
+                .HCenter()
+        )
+        .Background(new SolidColorBrush(bgColor))
+        .StrokeShape(new RoundRectangle().CornerRadius(16))
+        .Stroke(borderColor)
+        .StrokeThickness(1)
+        .Padding(12, 8)
+        .Margin(4)
+        .OnTapped(() => ToggleFilterChipSelection(value));
+    }
+
+    /// <summary>
+    /// Toggles a chip selection on/off
+    /// </summary>
+    void ToggleFilterChipSelection(string value)
+    {
+        SetState(s =>
+        {
+            if (s.PendingFilterSelections.Contains(value))
+                s.PendingFilterSelections.Remove(value);
+            else
+                s.PendingFilterSelections.Add(value);
+        });
+    }
+
+    /// <summary>
+    /// Clears all pending filter selections
+    /// </summary>
+    void ClearFilterSelections()
+    {
+        SetState(s => s.PendingFilterSelections = new HashSet<string>());
+    }
+
+    /// <summary>
+    /// Applies the pending filter selections to the search query
+    /// </summary>
+    void ApplyFilterSelections()
+    {
+        var filterType = State.ActiveFilterType;
+        var selections = State.PendingFilterSelections.ToList();
+
+        // Close the sheet
+        SetState(s => s.IsFilterSheetOpen = false);
+
+        if (!selections.Any())
+        {
+            // Remove all filters of this type from the query
+            RemoveFiltersOfType(filterType);
+            return;
+        }
+
+        // Build filter text for all selections
+        var filterTexts = selections.Select(value =>
+        {
+            var formattedValue = value.Contains(' ') ? $"\"{value}\"" : value;
+            return $"{filterType}:{formattedValue}";
+        });
+
+        // Remove existing filters of this type, then add new ones
+        RemoveFiltersOfType(filterType);
+
+        var newFilterText = string.Join(" ", filterTexts);
+        var newQuery = string.IsNullOrWhiteSpace(State.RawSearchQuery)
+            ? newFilterText
+            : $"{State.RawSearchQuery} {newFilterText}";
+
+        SetState(s =>
+        {
+            s.RawSearchQuery = newQuery;
+            s.SearchText = newQuery;
+        });
+
+        // Parse and apply
+        ParseSearchQuery(newQuery);
+        ApplyFilters();
+    }
+
+    /// <summary>
+    /// Removes all filters of a specific type from the current query
+    /// </summary>
+    void RemoveFiltersOfType(string filterType)
+    {
+        if (string.IsNullOrWhiteSpace(State.RawSearchQuery)) return;
+
+        // Parse current query, remove filters of this type, rebuild
+        var pattern = $@"{filterType}:""[^""]*""|{filterType}:\S+";
+        var newQuery = System.Text.RegularExpressions.Regex.Replace(
+            State.RawSearchQuery, pattern, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Clean up extra spaces
+        newQuery = System.Text.RegularExpressions.Regex.Replace(newQuery.Trim(), @"\s+", " ");
+
+        SetState(s =>
+        {
+            s.RawSearchQuery = newQuery;
+            s.SearchText = newQuery;
+        });
+
+        ParseSearchQuery(newQuery);
+        ApplyFilters();
+    }
+
+    // ==================== END FILTER BOTTOM SHEET ====================
+
 #if ANDROID || IOS || MACCATALYST || WINDOWS
     // GitHub-style filter popup for tags - shows all tags, selection inserts filter text
-    async Task ShowTagFilterPopup()
+    async Task dShowTagFilterPopup()
     {
         if (!State.AvailableTags.Any()) return;
 

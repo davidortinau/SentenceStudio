@@ -256,6 +256,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Apply.
+        /// </summary>
+        internal static string Apply {
+            get {
+                return ResourceManager.GetString("Apply", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Sentence Studio.
         /// </summary>
         internal static string AppTitle {
@@ -994,6 +1003,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Filter.
+        /// </summary>
+        internal static string Filter {
+            get {
+                return ResourceManager.GetString("Filter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Filter by Lemma.
         /// </summary>
         internal static string FilterByLemma {
@@ -1656,6 +1674,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NoInternetConnection {
             get {
                 return ResourceManager.GetString("NoInternetConnection", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No items available.
+        /// </summary>
+        internal static string NoItemsAvailable {
+            get {
+                return ResourceManager.GetString("NoItemsAvailable", resourceCulture);
             }
         }
         

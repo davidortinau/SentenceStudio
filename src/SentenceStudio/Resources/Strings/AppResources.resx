@@ -1669,4 +1669,16 @@
     <value>Filter by Status</value>
     <comment>[002-vocab-search] Tooltip for status filter button</comment>
   </data>
+  <data name="NoItemsAvailable" xml:space="preserve">
+    <value>No items available</value>
+    <comment>[002-vocab-search] Message when filter has no available options</comment>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filter</value>
+    <comment>[002-vocab-search] Generic filter label</comment>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Apply</value>
+    <comment>[002-vocab-search] Generic apply label</comment>
+  </data>
 </root>
