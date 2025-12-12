@@ -231,9 +231,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(16)
                 )
                 .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
-            )
-        );
+                .Padding(MyTheme.CardPadding),
+
+                !string.IsNullOrWhiteSpace(State.MnemonicImageUri) ?
+                    Image()
+                    .Source(ImageSource.FromUri(new Uri(State.MnemonicImageUri)))
+                        .HeightRequest(120)
+                        .Aspect(Aspect.AspectFit)
+                    : null
+
+        ));
 
     VisualNode RenderExampleSentencesSection() =>
         VStack(spacing: 16,
