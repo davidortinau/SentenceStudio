@@ -149,17 +149,17 @@ Tasks T034-T036 can run in parallel (different UI components):
 
 ### Implementation for User Story 3
 
-- [ ] T039 [P] [US3] Create VocabularyFilterService in `src/SentenceStudio/Services/VocabularyFilterService.cs` with compiled query for FilterByTagAsync using EF.CompileAsyncQuery with EF.Functions.Like pattern, OrderBy TargetLanguageTerm
-- [ ] T040 [P] [US3] Add GetAllTagsAsync() method to VocabularyEncodingRepository in `src/SentenceStudio/Data/VocabularyEncodingRepository.cs` to load all Tags columns, split by comma in memory, return distinct list of tags for UI
-- [ ] T041 [US3] Add filtering state to VocabularyListPage (or equivalent) in `src/SentenceStudio/Pages/VocabularyManagement/`: SelectedTag, SortByEncoding bool, AvailableTags list
-- [ ] T042 [US3] Add LoadWordsWithEncodingAsync() to VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to call _encodingRepository.GetWithEncodingStrengthAsync with tagFilter and sortByEncodingStrength parameters, update word list state
-- [ ] T043 [P] [US3] Add RenderFilterBar() to VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` with Picker for tag selection (bound to AvailableTags), Button for sort by encoding toggle with ThemeKey Secondary
-- [ ] T044 [P] [US3] Add inline encoding strength indicators to vocabulary list items in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/`: Small colored badge (Basic/Good/Strong) displayed next to each word using MyTheme colors
-- [ ] T045 [P] [US3] Add OnTagClicked() handler in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to set SelectedTag filter and reload word list when tag badge clicked (from RenderTagBadges in edit page)
-- [ ] T046 [US3] Update LoadData() in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to load available tags via _encodingRepository.GetAllTagsAsync and populate AvailableTags for filter picker
-- [ ] T047 [US3] Inject IVocabularyEncodingRepository into VocabularyListPage and verify filtering and sorting work correctly
-- [ ] T048 [US3] Register VocabularyFilterService in MauiProgram.cs as singleton
-- [ ] T049 [US3] Add localization keys to Resources.resx and Resources.ko.resx: SortByEncoding, FilterByTag, AllTags (picker default)
+- [X] T039 [P] [US3] Create VocabularyFilterService in `src/SentenceStudio/Services/VocabularyFilterService.cs` with compiled query for FilterByTagAsync using EF.CompileAsyncQuery with EF.Functions.Like pattern, OrderBy TargetLanguageTerm
+- [X] T040 [P] [US3] Add GetAllTagsAsync() method to VocabularyEncodingRepository in `src/SentenceStudio/Data/VocabularyEncodingRepository.cs` to load all Tags columns, split by comma in memory, return distinct list of tags for UI
+- [X] T041 [US3] Add filtering state to VocabularyListPage (or equivalent) in `src/SentenceStudio/Pages/VocabularyManagement/`: SelectedTag, SortByEncoding bool, AvailableTags list
+- [X] T042 [US3] Add LoadWordsWithEncodingAsync() to VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to call _encodingRepository.GetWithEncodingStrengthAsync with tagFilter and sortByEncodingStrength parameters, update word list state
+- [X] T043 [P] [US3] Add RenderFilterBar() to VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` with Picker for tag selection (bound to AvailableTags), Button for sort by encoding toggle with ThemeKey Secondary
+- [X] T044 [P] [US3] Add inline encoding strength indicators to vocabulary list items in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/`: Small colored badge (Basic/Good/Strong) displayed next to each word using MyTheme colors
+- [X] T045 [P] [US3] Add OnTagClicked() handler in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to set SelectedTag filter and reload word list when tag badge clicked (from RenderTagBadges in edit page)
+- [X] T046 [US3] Update LoadData() in VocabularyListPage in `src/SentenceStudio/Pages/VocabularyManagement/` to load available tags via _encodingRepository.GetAllTagsAsync and populate AvailableTags for filter picker
+- [X] T047 [US3] Inject IVocabularyEncodingRepository into VocabularyListPage and verify filtering and sorting work correctly
+- [X] T048 [US3] Register VocabularyFilterService in MauiProgram.cs as singleton
+- [X] T049 [US3] Add localization keys to Resources.resx and Resources.ko.resx: SortByEncoding, FilterByTag, AllTags (picker default)
 - [ ] T050 [US3] Test on all platforms: Filter by tag "nature", verify only matching words, sort by encoding, verify Basic words first, click tag badge in detail page, verify list filters
 
 **Checkpoint**: User Story 3 complete and independently testable - users can discover words by tags and encoding strength

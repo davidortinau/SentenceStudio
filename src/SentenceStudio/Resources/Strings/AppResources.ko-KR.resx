@@ -1345,4 +1345,16 @@
     <value>인터넷 연결을 사용할 수 없습니다. AI 생성에는 인터넷 연결이 필요합니다.</value>
     <comment>Error message when trying to use AI without internet</comment>
   </data>
+  <data name="SortByEncoding" xml:space="preserve">
+    <value>인코딩 강도로 정렬</value>
+    <comment>[US3] Button to sort vocabulary by encoding strength</comment>
+  </data>
+  <data name="FilterByTag" xml:space="preserve">
+    <value>태그로 필터</value>
+    <comment>[US3] Picker title for tag filtering</comment>
+  </data>
+  <data name="AllTags" xml:space="preserve">
+    <value>모든 태그</value>
+    <comment>[US3] Default option in tag filter picker</comment>
+  </data>
 </root>

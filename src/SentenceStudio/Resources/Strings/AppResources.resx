@@ -1589,4 +1589,16 @@
     <value>No internet connection available. AI generation requires internet access.</value>
     <comment>Error message when trying to use AI without internet</comment>
   </data>
+  <data name="SortByEncoding" xml:space="preserve">
+    <value>Sort by Encoding</value>
+    <comment>[US3] Button to sort vocabulary by encoding strength</comment>
+  </data>
+  <data name="FilterByTag" xml:space="preserve">
+    <value>Filter by Tag</value>
+    <comment>[US3] Picker title for tag filtering</comment>
+  </data>
+  <data name="AllTags" xml:space="preserve">
+    <value>All Tags</value>
+    <comment>[US3] Default option in tag filter picker</comment>
+  </data>
 </root>

@@ -202,6 +202,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to All Tags.
+        /// </summary>
+        internal static string AllTags {
+            get {
+                return ResourceManager.GetString("AllTags", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to 🎊 Congratulations! You&apos;ve worked through all vocabulary in this learning resource!.
         /// </summary>
         internal static string AllVocabularyCompleted {
@@ -972,6 +981,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string FileType {
             get {
                 return ResourceManager.GetString("FileType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filter by Tag.
+        /// </summary>
+        internal static string FilterByTag {
+            get {
+                return ResourceManager.GetString("FilterByTag", resourceCulture);
             }
         }
         
@@ -2574,6 +2592,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SomethingWentWrong {
             get {
                 return ResourceManager.GetString("SomethingWentWrong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sort by Encoding.
+        /// </summary>
+        internal static string SortByEncoding {
+            get {
+                return ResourceManager.GetString("SortByEncoding", resourceCulture);
             }
         }
         

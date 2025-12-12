@@ -322,6 +322,7 @@ public static class MauiProgram
 		services.AddSingleton<EncodingStrengthCalculator>();
 		services.AddSingleton<ExampleSentenceRepository>();
 		services.AddSingleton<VocabularyEncodingRepository>();
+		services.AddSingleton<VocabularyFilterService>(); // [US3-T048]
 
 		// PHASE 2 OPTIMIZATION: Progress cache service for faster dashboard loading
 		services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();
