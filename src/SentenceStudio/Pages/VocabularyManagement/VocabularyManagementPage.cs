@@ -178,10 +178,16 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
-        .OnAppearing(async () =>
+        .OnAppearing(() =>
         {
-            // LoadData handles loading indicator and all data fetching
-            await LoadData();
+            // PERF: Defer data loading to allow page transition to complete first
+            // Using BeginInvokeOnMainThread ensures the page renders before heavy I/O starts
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                // Small delay to ensure page transition animation completes
+                await Task.Delay(50);
+                await LoadData();
+            });
         });
     }
 
@@ -468,21 +474,38 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     // Event handlers and logic methods
     async Task LoadData()
     {
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        _logger.LogInformation("🚀 LoadData START (OPTIMIZED - parallel queries)");
+
         SetState(s => s.IsLoading = true);
 
         try
         {
-            // Load all learning resources
-            var resources = await _resourceRepo.GetAllResourcesAsync();
-            SetState(s => s.AvailableResources = new ObservableCollection<LearningResource>(resources ?? new List<LearningResource>()));
+            // OPTIMIZATION: Run all independent queries in PARALLEL
+            var sw = System.Diagnostics.Stopwatch.StartNew();
 
-            // [US3-T046] Load available tags for filter picker
-            var tags = await _encodingRepo.GetAllTagsAsync();
-            SetState(s => s.AvailableTags = tags);
+            // Start all tasks simultaneously
+            var resourcesTask = _resourceRepo.GetAllResourcesLightweightAsync(); // FIX: Use lightweight version
+            var tagsTask = _encodingRepo.GetAllTagsAsync();
+            var lemmasTask = _encodingRepo.GetAllLemmasAsync();
 
-            // [T047] Load available lemmas for autocomplete
-            var lemmas = await _encodingRepo.GetAllLemmasAsync();
-            SetState(s => s.AvailableLemmas = lemmas);
+            // Wait for all to complete
+            await Task.WhenAll(resourcesTask, tagsTask, lemmasTask);
+            sw.Stop();
+
+            var resources = await resourcesTask;
+            var tags = await tagsTask;
+            var lemmas = await lemmasTask;
+
+            _logger.LogInformation("⚡ PARALLEL queries completed: {ElapsedMs}ms (resources={ResourceCount}, tags={TagCount}, lemmas={LemmaCount})",
+                sw.ElapsedMilliseconds, resources?.Count ?? 0, tags?.Count ?? 0, lemmas?.Count ?? 0);
+
+            SetState(s =>
+            {
+                s.AvailableResources = new ObservableCollection<LearningResource>(resources ?? new List<LearningResource>());
+                s.AvailableTags = tags;
+                s.AvailableLemmas = lemmas;
+            });
 
             // Load all vocabulary words with their associations
             await LoadVocabularyData();
@@ -504,32 +527,52 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         finally
         {
             SetState(s => s.IsLoading = false);
+            totalStopwatch.Stop();
+            _logger.LogInformation("✅ LoadData COMPLETE: {TotalMs}ms total", totalStopwatch.ElapsedMilliseconds);
         }
     }
 
     // [US3-T042] Load vocabulary with encoding strength
     async Task LoadVocabularyData()
     {
-        List<VocabularyWord> allWords;
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        _logger.LogInformation("🔄 LoadVocabularyData START (OPTIMIZED - parallel queries)");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // OPTIMIZATION: Start vocabulary and progress queries in PARALLEL
+        Task<List<VocabularyWord>> wordsTask;
 
         // [US3] Use encoding repository if filtering/sorting by encoding metadata
         if (!string.IsNullOrWhiteSpace(State.SelectedTag) || State.SortByEncoding)
         {
-            allWords = await _encodingRepo.GetWithEncodingStrengthAsync(
+            wordsTask = _encodingRepo.GetWithEncodingStrengthAsync(
                 tagFilter: State.SelectedTag,
                 sortByEncodingStrength: State.SortByEncoding);
         }
         else
         {
             // Default: Load all vocabulary words with their associated learning resources
-            allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+            wordsTask = _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
         }
 
-        // OPTIMIZATION: Use GetAllProgressDictionaryAsync instead of GetProgressForWordsAsync
-        // Avoids massive WHERE IN clause with 1700 parameters
-        var progressData = await _progressService.GetAllProgressDictionaryAsync();
+        // Start progress query in parallel with vocabulary query
+        var progressTask = _progressService.GetAllProgressDictionaryAsync();
+        var statsTask = _resourceRepo.GetVocabularyStatsAsync();
 
-        var vocabularyItems = new List<VocabularyCardViewModel>();
+        // Wait for all to complete
+        await Task.WhenAll(wordsTask, progressTask, statsTask);
+        sw.Stop();
+
+        var allWords = await wordsTask;
+        var progressData = await progressTask;
+        var (totalWords, associatedWords, orphanedWords) = await statsTask;
+
+        _logger.LogInformation("⚡ PARALLEL queries completed: {ElapsedMs}ms (words={WordCount}, progress={ProgressCount}, stats ready)",
+            sw.ElapsedMilliseconds, allWords?.Count ?? 0, progressData?.Count ?? 0);
+
+        sw.Restart();
+        var vocabularyItems = new List<VocabularyCardViewModel>(allWords.Count); // Pre-size list
 
         foreach (var word in allWords)
         {
@@ -537,15 +580,15 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             {
                 Word = word,
                 AssociatedResources = word.LearningResources?.ToList() ?? new List<LearningResource>(),
-                Progress = progressData.ContainsKey(word.Id) ? progressData[word.Id] : null
+                Progress = progressData.TryGetValue(word.Id, out var progress) ? progress : null
             };
 
             vocabularyItems.Add(item);
         }
+        sw.Stop();
+        _logger.LogInformation("🔨 ViewModel creation loop: {ElapsedMs}ms ({Count} items)", sw.ElapsedMilliseconds, vocabularyItems.Count);
 
-        // Get statistics using the new repository method
-        var (totalWords, associatedWords, orphanedWords) = await _resourceRepo.GetVocabularyStatsAsync();
-
+        sw.Restart();
         SetState(s =>
         {
             s.AllVocabularyItems = new ObservableCollection<VocabularyCardViewModel>(vocabularyItems);
@@ -556,8 +599,16 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 OrphanedWords = orphanedWords
             };
         });
+        sw.Stop();
+        _logger.LogInformation("💾 SetState (AllVocabularyItems): {ElapsedMs}ms", sw.ElapsedMilliseconds);
 
+        sw.Restart();
         ApplyFilters();
+        sw.Stop();
+        _logger.LogInformation("🔍 ApplyFilters: {ElapsedMs}ms", sw.ElapsedMilliseconds);
+
+        totalStopwatch.Stop();
+        _logger.LogInformation("✅ LoadVocabularyData COMPLETE: {TotalMs}ms total", totalStopwatch.ElapsedMilliseconds);
     }
 
     void ApplyFilters()
