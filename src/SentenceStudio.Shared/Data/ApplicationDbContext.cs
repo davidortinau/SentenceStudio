@@ -47,6 +47,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
+        modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
 
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()
@@ -87,6 +88,20 @@ public class ApplicationDbContext : DbContext
                 j => j.HasOne(rvm => rvm.VocabularyWord).WithMany(vw => vw.ResourceMappings),
                 j => j.HasOne(rvm => rvm.Resource).WithMany(lr => lr.VocabularyMappings));
 
+        // Configure VocabularyWord to ExampleSentence relationship
+        modelBuilder.Entity<VocabularyWord>()
+            .HasMany(vw => vw.ExampleSentences)
+            .WithOne(es => es.VocabularyWord)
+            .HasForeignKey(es => es.VocabularyWordId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure ExampleSentence to LearningResource relationship
+        modelBuilder.Entity<ExampleSentence>()
+            .HasOne(es => es.LearningResource)
+            .WithMany()
+            .HasForeignKey(es => es.LearningResourceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -117,5 +132,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<VocabularyProgress> VocabularyProgresses => Set<VocabularyProgress>();
     public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();
     public DbSet<DailyPlanCompletion> DailyPlanCompletions => Set<DailyPlanCompletion>();
+    public DbSet<ExampleSentence> ExampleSentences => Set<ExampleSentence>();
 
 }

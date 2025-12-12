@@ -1321,4 +1321,40 @@
     <value>프레임워크</value>
     <comment>Label for .NET framework version</comment>
   </data>
+  <data name="ExampleSentences" xml:space="preserve">
+    <value>예문</value>
+    <comment>Section header for example sentences</comment>
+  </data>
+  <data name="GenerateWithAI" xml:space="preserve">
+    <value>AI로 생성</value>
+    <comment>Button to generate example sentences using AI</comment>
+  </data>
+  <data name="AddManually" xml:space="preserve">
+    <value>직접 추가</value>
+    <comment>Button to add example sentence manually</comment>
+  </data>
+  <data name="NoExampleSentencesYet" xml:space="preserve">
+    <value>아직 예문이 없습니다. 예문을 추가하면 인코딩 강도가 향상됩니다!</value>
+    <comment>Message when no example sentences exist</comment>
+  </data>
+  <data name="FailedToGenerateSentences" xml:space="preserve">
+    <value>예문 생성에 실패했습니다. 다시 시도해 주세요.</value>
+    <comment>Error message when AI generation fails</comment>
+  </data>
+  <data name="NoInternetConnection" xml:space="preserve">
+    <value>인터넷 연결을 사용할 수 없습니다. AI 생성에는 인터넷 연결이 필요합니다.</value>
+    <comment>Error message when trying to use AI without internet</comment>
+  </data>
+  <data name="SortByEncoding" xml:space="preserve">
+    <value>인코딩 강도로 정렬</value>
+    <comment>[US3] Button to sort vocabulary by encoding strength</comment>
+  </data>
+  <data name="FilterByTag" xml:space="preserve">
+    <value>태그로 필터</value>
+    <comment>[US3] Picker title for tag filtering</comment>
+  </data>
+  <data name="AllTags" xml:space="preserve">
+    <value>모든 태그</value>
+    <comment>[US3] Default option in tag filter picker</comment>
+  </data>
 </root>

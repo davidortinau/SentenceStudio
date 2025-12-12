@@ -317,6 +317,12 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
 		services.AddSingleton<SmartResourceService>();
+		
+		// Vocabulary encoding repositories and services
+		services.AddSingleton<EncodingStrengthCalculator>();
+		services.AddSingleton<ExampleSentenceRepository>();
+		services.AddSingleton<VocabularyEncodingRepository>();
+		services.AddSingleton<VocabularyFilterService>(); // [US3-T048]
 
 		// PHASE 2 OPTIMIZATION: Progress cache service for faster dashboard loading
 		services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();
@@ -332,6 +338,9 @@ public static class MauiProgram
 
 		// LLM-based plan generation (uses deterministic builder)
 		services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.PlanGeneration.LlmPlanGenerationService>();
+
+		// Vocabulary example generation service (AI)
+		services.AddSingleton<VocabularyExampleGenerationService>();
 
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 

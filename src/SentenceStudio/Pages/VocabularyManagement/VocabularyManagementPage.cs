@@ -77,6 +77,10 @@ class VocabularyManagementPageState
     // Platform cache
     public bool IsPhoneIdiom { get; set; }
 
+    // [US3] Encoding metadata filtering and sorting
+    public string? SelectedTag { get; set; }
+    public bool SortByEncoding { get; set; } = false;
+    public List<string> AvailableTags { get; set; } = new();
 }
 
 partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
@@ -85,6 +89,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     [Inject] UserProfileRepository _userProfileRepo;
     [Inject] VocabularyProgressService _progressService;
     [Inject] ILogger<VocabularyManagementPage> _logger;
+    [Inject] VocabularyEncodingRepository _encodingRepo;
+    [Inject] EncodingStrengthCalculator _encodingCalculator;
     private System.Threading.Timer? _searchTimer;
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -150,7 +156,14 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     VisualNode RenderCompactSearchBar()
         =>
-                Grid(rows: "Auto", columns: "*,Auto,Auto",
+                Grid(rows: "Auto,Auto", columns: "*,Auto,Auto",
+                        // [US3-T043] Tag and encoding filter bar (row 0)
+                        RenderEncodingFilterBar()
+                            .GridColumn(0)
+                            .GridColumnSpan(3)
+                            .GridRow(0),
+                        
+                        // Search box (row 1)
                         new SfTextInputLayout(
                             Entry()
                                 .Placeholder($"{_localize["Search"]}")
@@ -172,6 +185,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .FocusedStrokeThickness(0)
                         .UnfocusedStrokeThickness(0)
                         .GridColumn(0)
+                        .GridRow(1)
                         .VStart(),
 
                     // Status filter icon
@@ -184,6 +198,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .Padding(6)
                         .OnClicked(async () => await ShowStatusFilterDialog())
                         .GridColumn(1)
+                        .GridRow(1)
                         .VStart(),
 
                     // Resource filter icon
@@ -196,6 +211,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .Padding(6)
                         .OnClicked(async () => await ShowResourceFilterDialog())
                         .GridColumn(2)
+                        .GridRow(1)
                         .VStart()
                 ).ColumnSpacing(MyTheme.LayoutSpacing)
             .Padding(MyTheme.LayoutSpacing, 0)
@@ -322,6 +338,42 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             () => NavigateToEditPage(item.Word.Id));
     }
 
+    // [US3-T044] Render encoding strength badge for vocabulary card
+    VisualNode RenderEncodingBadge(VocabularyWord word)
+    {
+        // Calculate encoding strength
+        var exampleCount = word.ExampleSentences?.Count ?? 0;
+        var score = _encodingCalculator.Calculate(word, exampleCount);
+        var label = _encodingCalculator.GetLabel(score);
+        
+        // Determine badge color based on strength
+        var badgeColor = label switch
+        {
+            "Basic" => MyTheme.Warning,
+            "Good" => MyTheme.Gray400,
+            "Strong" => MyTheme.Success,
+            _ => MyTheme.Gray300
+        };
+        
+        var localizedLabel = label switch
+        {
+            "Basic" => $"{_localize["EncodingStrengthBasic"]}",
+            "Good" => $"{_localize["EncodingStrengthGood"]}",
+            "Strong" => $"{_localize["EncodingStrengthStrong"]}",
+            _ => label
+        };
+        
+        return Border(
+            Label(localizedLabel)
+                .FontSize(10)
+                .TextColor(Colors.White)
+                .Padding(4, 2)
+        )
+        .BackgroundColor(badgeColor)
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(4));
+    }
+
     VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item) =>
         VStack(
             // Terms            
@@ -330,10 +382,16 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             Label(item.Word.NativeLanguageTerm ?? "")
                 .ThemeKey(MyTheme.Body2),
 
-            // Progress status
-            Label(item.StatusText)
-                .ThemeKey(MyTheme.Caption1)
-                .TextColor(item.StatusColor),
+            // [US3-T044] Inline encoding strength indicator
+            HStack(spacing: MyTheme.MicroSpacing,
+                // Progress status
+                Label(item.StatusText)
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(item.StatusColor),
+                
+                // Encoding strength badge
+                RenderEncodingBadge(item.Word)
+            ),
 
             // Resource association status
             Label(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))
@@ -352,6 +410,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // Load all learning resources
             var resources = await _resourceRepo.GetAllResourcesAsync();
             SetState(s => s.AvailableResources = new ObservableCollection<LearningResource>(resources ?? new List<LearningResource>()));
+
+            // [US3-T046] Load available tags for filter picker
+            var tags = await _encodingRepo.GetAllTagsAsync();
+            SetState(s => s.AvailableTags = tags);
 
             // Load all vocabulary words with their associations
             await LoadVocabularyData();
@@ -376,14 +438,27 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
     }
 
+    // [US3-T042] Load vocabulary with encoding strength
     async Task LoadVocabularyData()
     {
-        // Load all vocabulary words with their associated learning resources
-        var allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+        List<VocabularyWord> allWords;
+        
+        // [US3] Use encoding repository if filtering/sorting by encoding metadata
+        if (!string.IsNullOrWhiteSpace(State.SelectedTag) || State.SortByEncoding)
+        {
+            allWords = await _encodingRepo.GetWithEncodingStrengthAsync(
+                tagFilter: State.SelectedTag,
+                sortByEncodingStrength: State.SortByEncoding);
+        }
+        else
+        {
+            // Default: Load all vocabulary words with their associated learning resources
+            allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+        }
 
-        // Get progress for all words efficiently
-        var wordIds = allWords.Select(w => w.Id).ToList();
-        var progressData = await _progressService.GetProgressForWordsAsync(wordIds);
+        // OPTIMIZATION: Use GetAllProgressDictionaryAsync instead of GetProgressForWordsAsync
+        // Avoids massive WHERE IN clause with 1700 parameters
+        var progressData = await _progressService.GetAllProgressDictionaryAsync();
 
         var vocabularyItems = new List<VocabularyCardViewModel>();
 
@@ -867,6 +942,70 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             (c >= 0xAC00 && c <= 0xD7AF) ||
             (c >= 0x1100 && c <= 0x11FF) ||
             (c >= 0x3130 && c <= 0x318F));
+    }
+
+    // [US3-T043] Render filter bar for encoding metadata
+    VisualNode RenderEncodingFilterBar()
+    {
+        if (!State.AvailableTags.Any() && !State.SortByEncoding)
+            return null; // Don't show filter bar if no tags available
+        
+        return HStack(spacing: MyTheme.MicroSpacing,
+            // Tag filter picker
+            State.AvailableTags.Any() ?
+                Picker()
+                    .Title($"{_localize["FilterByTag"]}")
+                    .ItemsSource(new[] { $"{_localize["AllTags"]}" }.Concat(State.AvailableTags).ToList())
+                    .SelectedIndex(string.IsNullOrWhiteSpace(State.SelectedTag) ? 0 : State.AvailableTags.IndexOf(State.SelectedTag) + 1)
+                    .OnSelectedIndexChanged(OnTagFilterChanged)
+                    .FontSize(12)
+                    .HorizontalOptions(LayoutOptions.FillAndExpand)
+                : null,
+            
+            // Sort by encoding button
+            Button($"{_localize["SortByEncoding"]}")
+                .FontSize(12)
+                .Padding(8, 4)
+                .ThemeKey(State.SortByEncoding ? MyTheme.Primary : MyTheme.Secondary)
+                .OnClicked(ToggleEncodingSort)
+        )
+        .Padding(MyTheme.MicroSpacing, 0)
+        .HeightRequest(40);
+    }
+
+    // [US3-T045] Handler for tag filter selection
+    async void OnTagFilterChanged(int index)
+    {
+        SetState(s =>
+        {
+            if (index == 0) // "All Tags" selected
+            {
+                s.SelectedTag = null;
+            }
+            else if (index > 0 && index <= s.AvailableTags.Count)
+            {
+                s.SelectedTag = s.AvailableTags[index - 1];
+            }
+        });
+        
+        // Reload data with new tag filter
+        await LoadVocabularyData();
+    }
+
+    // [US3-T043] Toggle encoding strength sort
+    async void ToggleEncodingSort()
+    {
+        SetState(s => s.SortByEncoding = !s.SortByEncoding);
+        
+        // Reload data with new sort order
+        await LoadVocabularyData();
+    }
+
+    // [US3-T045] Handle tag badge click from edit page (navigation parameter)
+    async void OnTagClicked(string tag)
+    {
+        SetState(s => s.SelectedTag = tag);
+        await LoadVocabularyData();
     }
 
     public void Dispose()

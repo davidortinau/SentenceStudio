@@ -48,15 +48,54 @@ public class VocabularyProgressRepository
             .FirstOrDefaultAsync(vp => vp.VocabularyWordId == vocabularyWordId);
     }
 
+    /// <summary>
+    /// Get progress for specific vocabulary word IDs with batching
+    /// OPTIMIZATION: Batches queries to avoid SQLite's 999 parameter limit
+    /// </summary>
     public async Task<List<VocabularyProgress>> GetByWordIdsAsync(List<int> vocabularyWordIds)
+    {
+        if (!vocabularyWordIds.Any())
+            return new List<VocabularyProgress>();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // OPTIMIZATION: SQLite has a limit of 999 parameters per query
+        // Batch queries in chunks of 500 to stay well below the limit
+        const int BATCH_SIZE = 500;
+        var results = new List<VocabularyProgress>();
+
+        for (int i = 0; i < vocabularyWordIds.Count; i += BATCH_SIZE)
+        {
+            var batch = vocabularyWordIds.Skip(i).Take(BATCH_SIZE).ToList();
+            var batchResults = await db.VocabularyProgresses
+                .Include(vp => vp.VocabularyWord)
+                .Include(vp => vp.LearningContexts)
+                    .ThenInclude(lc => lc.LearningResource)
+                .Where(vp => batch.Contains(vp.VocabularyWordId))
+                .ToListAsync();
+            
+            results.AddRange(batchResults);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Get ALL progress records for a user efficiently
+    /// OPTIMIZATION: Use this instead of GetByWordIdsAsync when loading all vocabulary
+    /// Avoids massive WHERE IN clauses by loading everything in one query
+    /// </summary>
+    public async Task<List<VocabularyProgress>> GetAllForUserAsync(int userId = 1)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
         return await db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
-            .Where(vp => vocabularyWordIds.Contains(vp.VocabularyWordId))
+            .Where(vp => vp.UserId == userId)
             .ToListAsync();
     }
 
