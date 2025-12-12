@@ -37,7 +37,7 @@ public class StoryRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             if (item.Id != 0)
@@ -48,11 +48,11 @@ public class StoryRepository
             {
                 db.Stories.Add(item);
             }
-            
+
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -60,7 +60,7 @@ public class StoryRepository
             _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
-                await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
+                await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
             return -1;
         }
@@ -70,14 +70,14 @@ public class StoryRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             db.Stories.Remove(item);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)

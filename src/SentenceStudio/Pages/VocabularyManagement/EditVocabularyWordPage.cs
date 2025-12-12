@@ -21,7 +21,7 @@ class EditVocabularyWordPageState
     // Form fields
     public string TargetLanguageTerm { get; set; } = string.Empty;
     public string NativeLanguageTerm { get; set; } = string.Empty;
-    
+
     // Encoding fields
     public string Lemma { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
@@ -33,7 +33,7 @@ class EditVocabularyWordPageState
 
     // Audio playback state
     public bool IsGeneratingAudio { get; set; } = false;
-    
+
     // Example sentences
     public List<ExampleSentence> ExampleSentences { get; set; } = new();
     public bool IsLoadingExamples { get; set; } = false;
@@ -43,7 +43,7 @@ class EditVocabularyWordPageState
 
     // Progress tracking
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
-    
+
     // Encoding strength
     public double EncodingStrength { get; set; } = 0;
     public string EncodingStrengthLabel { get; set; } = "Basic";
@@ -148,18 +148,18 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Error message
             !string.IsNullOrEmpty(State.ErrorMessage) ?
                 Label(State.ErrorMessage)
-                    .TextColor(MyTheme.SupportErrorDark)
+                    .TextColor(MyTheme.Error)
                     .FontSize(12)
                     .HStart() :
                 null
         );
-    
+
     VisualNode RenderEncodingSection() =>
         VStack(spacing: 16,
             Label("Encoding & Memory Aids")
                 .FontSize(20)
                 .FontAttributes(FontAttributes.Bold),
-            
+
             Label($"Encoding Strength: {State.EncodingStrengthLabel}")
                 .FontSize(14)
                 .TextColor(State.EncodingStrengthLabel switch
@@ -168,7 +168,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     "Good" => MyTheme.Warning,
                     _ => MyTheme.Gray600
                 }),
-            
+
             // Lemma
             VStack(spacing: 8,
                 Label("Lemma (Dictionary Form)")
@@ -184,7 +184,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 .ThemeKey(MyTheme.InputWrapper)
                 .Padding(MyTheme.CardPadding)
             ),
-            
+
             // Tags
             VStack(spacing: 8,
                 Label("Tags (comma-separated)")
@@ -200,7 +200,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 .ThemeKey(MyTheme.InputWrapper)
                 .Padding(MyTheme.CardPadding)
             ),
-            
+
             // Mnemonic Text
             VStack(spacing: 8,
                 Label("Mnemonic Story")
@@ -217,7 +217,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 .ThemeKey(MyTheme.InputWrapper)
                 .Padding(MyTheme.CardPadding)
             ),
-            
+
             // Mnemonic Image URI
             VStack(spacing: 8,
                 Label("Mnemonic Image URL")
@@ -234,7 +234,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 .Padding(MyTheme.CardPadding)
             )
         );
-    
+
     VisualNode RenderExampleSentencesSection() =>
         VStack(spacing: 16,
             HStack(spacing: 10,
@@ -243,20 +243,20 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),
-                
+
                 State.IsGeneratingSentences ?
                     ActivityIndicator().IsRunning(true).WidthRequest(24).HeightRequest(24) :
                     HStack(spacing: 8,
                         Button($"{_localize["GenerateWithAI"]}")
-                            .ThemeKey(MyTheme.Primary)
+                            .ThemeKey(MyTheme.PrimaryButton)
                             .OnClicked(() => _ = GenerateExampleSentencesAsync()),
-                        
+
                         Button($"{_localize["AddManually"]}")
                             .ThemeKey(MyTheme.Secondary)
                             .OnClicked(() => _ = AddExampleSentenceAsync())
                     )
             ),
-            
+
             State.IsLoadingExamples ?
                 ActivityIndicator().IsRunning(true).Center() :
                 State.ExampleSentences.Any() ?
@@ -270,27 +270,27 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .TextColor(MyTheme.Gray500)
                         .FontAttributes(FontAttributes.Italic)
         );
-    
+
     VisualNode RenderExampleSentenceItem(ExampleSentence sentence) =>
         Border(
             VStack(spacing: 8,
                 Label(sentence.TargetSentence)
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold),
-                
+
                 !string.IsNullOrWhiteSpace(sentence.NativeSentence) ?
                     Label(sentence.NativeSentence)
                         .FontSize(14)
                         .TextColor(MyTheme.Gray600) :
                     null,
-                
+
                 HStack(spacing: 8,
                     sentence.IsCore ?
                         Label("⭐ Core")
                             .FontSize(12)
                             .TextColor(MyTheme.Warning) :
                         null,
-                    
+
                     // Audio play button - generates on first tap, plays cached audio on subsequent taps
                     ImageButton()
                         .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
@@ -301,11 +301,11 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Padding(8)
                         .IsEnabled(!State.IsGeneratingAudio)
                         .OnClicked(() => _ = PlaySentenceAudioAsync(sentence)),
-                    
+
                     Button("Toggle Core")
                         .ThemeKey(MyTheme.Secondary)
                         .OnClicked(() => _ = ToggleSentenceCoreAsync(sentence.Id)),
-                    
+
                     Button("Delete")
                         .ThemeKey(MyTheme.Danger)
                         .OnClicked(() => _ = DeleteSentenceAsync(sentence.Id))
@@ -460,7 +460,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
         .StrokeThickness(1)
         .Background(State.SelectedResourceIds.Contains(resource.Id) ?
-            (Theme.IsLightTheme ? MyTheme.SupportSuccessLight : MyTheme.DarkSecondaryBackground) :
+            (Theme.IsLightTheme ? MyTheme.SuccessLight : MyTheme.DarkSecondaryBackground) :
             (Theme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground))  // Let the theme handle the default background
         .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
 
@@ -537,7 +537,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
                 // Load progress for this word
                 progress = await _progressService.GetProgressAsync(Props.VocabularyWordId);
-                
+
                 // Load example sentences
                 examples = await _exampleRepo.GetByVocabularyWordIdAsync(Props.VocabularyWordId);
             }
@@ -559,7 +559,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
             // Load associated resources for this word
             var associatedResources = await _resourceRepo.GetResourcesForVocabularyWordAsync(Props.VocabularyWordId);
-            
+
             // Calculate encoding strength
             var (score, label) = EncodingScoreHelper.CalculateWithLabel(word, examples.Count);
 
@@ -929,7 +929,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             _logger.LogWarning(ex, "⚠️ Failed to record listening activity for word: {WordId}", vocabularyWordId);
         }
     }
-    
+
     async Task GenerateExampleSentencesAsync()
     {
         if (Connectivity.NetworkAccess != NetworkAccess.Internet)
@@ -1011,16 +1011,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             "Enter the sentence in the target language:",
             "Add",
             "Cancel");
-        
+
         if (string.IsNullOrWhiteSpace(targetSentence))
             return;
-        
+
         var nativeSentence = await Application.Current.MainPage.DisplayPromptAsync(
             "Add Translation",
             "Enter the translation (optional):",
             "Add",
             "Skip");
-        
+
         try
         {
             var sentence = new ExampleSentence
@@ -1032,12 +1032,12 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-            
+
             await _exampleRepo.CreateAsync(sentence);
-            
+
             // Reload sentences
             await ReloadExampleSentencesAsync();
-            
+
             await AppShell.DisplayToastAsync("✅ Example sentence added!");
         }
         catch (Exception ex)
@@ -1046,19 +1046,19 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             await Application.Current.MainPage.DisplayAlert("Error", "Failed to add example sentence", "OK");
         }
     }
-    
+
     async Task ToggleSentenceCoreAsync(int sentenceId)
     {
         try
         {
             var sentence = State.ExampleSentences.FirstOrDefault(s => s.Id == sentenceId);
             if (sentence == null) return;
-            
+
             await _exampleRepo.SetCoreAsync(sentenceId, !sentence.IsCore);
-            
+
             // Reload sentences
             await ReloadExampleSentencesAsync();
-            
+
             await AppShell.DisplayToastAsync(sentence.IsCore ? "⭐ Marked as core sentence!" : "Removed core status");
         }
         catch (Exception ex)
@@ -1067,7 +1067,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             await Application.Current.MainPage.DisplayAlert("Error", "Failed to update sentence", "OK");
         }
     }
-    
+
     async Task DeleteSentenceAsync(int sentenceId)
     {
         var confirm = await Application.Current.MainPage.DisplayAlert(
@@ -1075,16 +1075,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             "Delete this example sentence?",
             "Delete",
             "Cancel");
-        
+
         if (!confirm) return;
-        
+
         try
         {
             await _exampleRepo.DeleteAsync(sentenceId);
-            
+
             // Reload sentences
             await ReloadExampleSentencesAsync();
-            
+
             await AppShell.DisplayToastAsync("🗑️ Example sentence deleted");
         }
         catch (Exception ex)
@@ -1093,16 +1093,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             await Application.Current.MainPage.DisplayAlert("Error", "Failed to delete sentence", "OK");
         }
     }
-    
+
     async Task ReloadExampleSentencesAsync()
     {
         SetState(s => s.IsLoadingExamples = true);
-        
+
         try
         {
             var examples = await _exampleRepo.GetByVocabularyWordIdAsync(State.Word.Id);
             var (score, label) = EncodingScoreHelper.CalculateWithLabel(State.Word, examples.Count);
-            
+
             SetState(s =>
             {
                 s.ExampleSentences = examples;
@@ -1115,7 +1115,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             SetState(s => s.IsLoadingExamples = false);
         }
     }
-    
+
     async Task PlaySentenceAudioAsync(ExampleSentence sentence)
     {
         if (string.IsNullOrWhiteSpace(sentence.TargetSentence))
@@ -1152,22 +1152,22 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             {
                 // Generate new audio using ElevenLabs with JiYoung voice (same as word audio)
                 _logger.LogInformation("🎵 Generating audio for sentence: {Sentence}", sentence.TargetSentence);
-                
+
                 audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, Voices.JiYoung);
-                
+
                 // Save to cache for future use
                 var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(audioCacheDir);
-                
+
                 var fileName = $"sentence_{Guid.NewGuid()}.mp3";
                 var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
-                
+
                 // Save to file
                 using (var fileStream = File.Create(filePath))
                 {
                     await audioStream.CopyToAsync(fileStream);
                 }
-                
+
                 // Create stream history entry for caching (use SaveStreamHistoryAsync, not CreateAsync)
                 var streamHistory = new StreamHistory
                 {
@@ -1178,9 +1178,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _historyRepo.SaveStreamHistoryAsync(streamHistory);
-                
+
                 _logger.LogInformation("✅ Audio generated and cached for sentence");
-                
+
                 // Open the file again for playback
                 audioStream = File.OpenRead(filePath);
             }
@@ -1189,7 +1189,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
             _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
             _audioPlayer.Play();
-            
+
             _logger.LogInformation("▶️ {Source} sentence audio playback started", fromCache ? "Cached" : "Generated");
         }
         catch (Exception ex)

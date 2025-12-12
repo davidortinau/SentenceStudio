@@ -1357,4 +1357,72 @@
     <value>모든 태그</value>
     <comment>[US3] Default option in tag filter picker</comment>
   </data>
+  <data name="SearchSyntaxHint" xml:space="preserve">
+    <value>검색 (tag: resource: lemma: status:)</value>
+    <comment>[002-vocab-search] Placeholder text showing available search syntax</comment>
+  </data>
+  <data name="Tag" xml:space="preserve">
+    <value>태그</value>
+    <comment>[002-vocab-search] Filter chip label for tag filters</comment>
+  </data>
+  <data name="Resource" xml:space="preserve">
+    <value>리소스</value>
+    <comment>[002-vocab-search] Filter chip label for resource filters</comment>
+  </data>
+  <data name="Lemma" xml:space="preserve">
+    <value>기본형</value>
+    <comment>[002-vocab-search] Filter chip label for lemma filters</comment>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>상태</value>
+    <comment>[002-vocab-search] Filter chip label for status filters</comment>
+  </data>
+  <data name="ClearAllFilters" xml:space="preserve">
+    <value>모두 지우기</value>
+    <comment>[002-vocab-search] Button to clear all active filters</comment>
+  </data>
+  <data name="SelectTag" xml:space="preserve">
+    <value>태그 선택</value>
+    <comment>[002-vocab-search] Title for tag autocomplete popup</comment>
+  </data>
+  <data name="SelectResource" xml:space="preserve">
+    <value>리소스 선택</value>
+    <comment>[002-vocab-search] Title for resource autocomplete popup</comment>
+  </data>
+  <data name="SelectStatus" xml:space="preserve">
+    <value>상태 선택</value>
+    <comment>[002-vocab-search] Title for status autocomplete popup</comment>
+  </data>
+  <data name="UnnamedResource" xml:space="preserve">
+    <value>이름 없는 리소스</value>
+    <comment>[002-vocab-search] Fallback name for resources without a title</comment>
+  </data>
+  <data name="SelectLemma" xml:space="preserve">
+    <value>기본형 선택</value>
+    <comment>[002-vocab-search] Title for lemma autocomplete popup</comment>
+  </data>
+  <data name="StatusKnown" xml:space="preserve">
+    <value>아는 단어</value>
+    <comment>[002-vocab-search] Status filter option for known words</comment>
+  </data>
+  <data name="StatusLearning" xml:space="preserve">
+    <value>학습 중</value>
+    <comment>[002-vocab-search] Status filter option for words being learned</comment>
+  </data>
+  <data name="StatusUnknown" xml:space="preserve">
+    <value>모르는 단어</value>
+    <comment>[002-vocab-search] Status filter option for unknown words</comment>
+  </data>
+  <data name="FilterByResource" xml:space="preserve">
+    <value>리소스로 필터</value>
+    <comment>[002-vocab-search] Tooltip for resource filter button</comment>
+  </data>
+  <data name="FilterByLemma" xml:space="preserve">
+    <value>원형으로 필터</value>
+    <comment>[002-vocab-search] Tooltip for lemma filter button</comment>
+  </data>
+  <data name="FilterByStatus" xml:space="preserve">
+    <value>상태로 필터</value>
+    <comment>[002-vocab-search] Tooltip for status filter button</comment>
+  </data>
 </root>

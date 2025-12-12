@@ -93,7 +93,7 @@ public class UserProfileRepository
             _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
             return -1;
         }

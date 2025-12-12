@@ -1327,7 +1327,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (State.CurrentAudioStream == null)
         {
-            await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
             return;
         }
 
@@ -1379,7 +1379,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Show error if save was canceled or failed
                 if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
                 {
-                    await App.Current.MainPage.DisplayAlert("Error",
+                    await Application.Current.MainPage.DisplayAlert("Error",
                         $"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
                 }
 
@@ -1395,7 +1395,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.ExportProgressMessage = $"Error: {ex.Message}";
             });
 
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
         }
     }
 

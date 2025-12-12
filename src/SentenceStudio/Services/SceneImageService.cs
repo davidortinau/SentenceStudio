@@ -34,7 +34,7 @@ public class SceneImageService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             if (item.Id != 0)
@@ -45,11 +45,11 @@ public class SceneImageService
             {
                 db.SceneImages.Add(item);
             }
-            
+
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -57,24 +57,24 @@ public class SceneImageService
             _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
-                await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
             return -1;
         }
     }
-    
+
     public async Task<int> DeleteAsync(SceneImage item)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         try
         {
             db.SceneImages.Remove(item);
             int result = await db.SaveChangesAsync();
-            
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -88,7 +88,7 @@ public class SceneImageService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var images = await db.SceneImages.ToListAsync();
         if (images.Count > 0)
         {

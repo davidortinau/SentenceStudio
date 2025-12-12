@@ -103,7 +103,7 @@ class SettingsPage : Component<SettingsPageState>
                         )
                         :
                         Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
-                            .ThemeKey(MyTheme.Primary)
+                            .ThemeKey(MyTheme.PrimaryButton)
                             .IsEnabled(!State.IsMigrating)
                             .OnClicked(RunStreakMigrationAsync)
                 )

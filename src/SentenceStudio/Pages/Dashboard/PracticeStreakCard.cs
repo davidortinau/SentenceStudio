@@ -28,7 +28,7 @@ public partial class PracticeStreakCard : Component
         return
             VStack(
                 Label(string.Format($"{_localize["PracticesInYear"]}", totalPractice))
-                    .ThemeKey(MyTheme.H2),
+                    .ThemeKey(MyTheme.SubHeadline),
 
                 HScrollView(
                     // GitHub-style contribution calendar

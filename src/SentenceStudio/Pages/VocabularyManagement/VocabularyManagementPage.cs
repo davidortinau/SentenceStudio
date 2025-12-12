@@ -2,6 +2,8 @@ using MauiReactor.Shapes;
 using System.Collections.ObjectModel;
 using SentenceStudio.Helpers;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Models;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -51,6 +53,36 @@ public class VocabularyCardViewModel
     }
 }
 
+// Helper class for tag autocomplete popup
+public class TagSelectionItem
+{
+    public string Tag { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+}
+
+// [T040] Helper class for resource autocomplete popup
+public class ResourceSelectionItem
+{
+    public int ResourceId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+}
+
+// [T048] Helper class for lemma autocomplete popup
+public class LemmaSelectionItem
+{
+    public string Lemma { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+}
+
+// [T057] Helper class for status autocomplete popup
+public class StatusSelectionItem
+{
+    public string Status { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+}
+
 class VocabularyManagementPageState
 {
     public bool IsLoading { get; set; } = true;
@@ -58,7 +90,18 @@ class VocabularyManagementPageState
     public ObservableCollection<VocabularyCardViewModel> FilteredVocabularyItems { get; set; } = new();
     public ObservableCollection<LearningResource> AvailableResources { get; set; } = new();
 
-    // Search and filtering
+    // [T012] GitHub-style search syntax (replaces old filter properties)
+    public string RawSearchQuery { get; set; } = string.Empty;  // User's typed text
+    public ParsedQuery? ParsedQuery { get; set; }               // Parsed filter structure
+    public List<FilterChip> ActiveFilterChips { get; set; } = new();
+
+    // [T012] Autocomplete state
+    public bool ShowAutocomplete { get; set; } = false;
+    public string AutocompleteFilterType { get; set; } = string.Empty;
+    public string AutocompletePartialValue { get; set; } = string.Empty;
+    public List<AutocompleteSuggestion> AutocompleteSuggestions { get; set; } = new();
+
+    // Legacy search and filtering (kept for backward compatibility during transition)
     public string SearchText { get; set; } = string.Empty;
     public VocabularyFilter SelectedFilter { get; set; } = VocabularyFilter.All;
     public LearningResource? SelectedResource { get; set; }
@@ -81,6 +124,8 @@ class VocabularyManagementPageState
     public string? SelectedTag { get; set; }
     public bool SortByEncoding { get; set; } = false;
     public List<string> AvailableTags { get; set; } = new();
+    // [T047] Available lemmas for autocomplete
+    public List<string> AvailableLemmas { get; set; } = new();
 }
 
 partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
@@ -89,6 +134,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     [Inject] UserProfileRepository _userProfileRepo;
     [Inject] VocabularyProgressService _progressService;
     [Inject] ILogger<VocabularyManagementPage> _logger;
+    [Inject] ISearchQueryParser _searchParser;  // [T012] GitHub-style search parser
     [Inject] VocabularyEncodingRepository _encodingRepo;
     [Inject] EncodingStrengthCalculator _encodingCalculator;
     private System.Threading.Timer? _searchTimer;
@@ -134,12 +180,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         )
         .OnAppearing(async () =>
         {
+            // LoadData handles loading indicator and all data fetching
             await LoadData();
-            // Refresh data when returning from edit page if already loaded
-            if (!State.IsLoading)
-            {
-                await LoadVocabularyData();
-            }
         });
     }
 
@@ -156,19 +198,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     VisualNode RenderCompactSearchBar()
         =>
-                Grid(rows: "Auto,Auto", columns: "*,Auto,Auto",
-                        // [US3-T043] Tag and encoding filter bar (row 0)
-                        RenderEncodingFilterBar()
-                            .GridColumn(0)
-                            .GridColumnSpan(3)
-                            .GridRow(0),
-                        
-                        // Search box (row 1)
+                Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
                         new SfTextInputLayout(
                             Entry()
-                                .Placeholder($"{_localize["Search"]}")
-                                .Text(State.SearchText)
-                                .OnTextChanged(OnSearchTextChanged)
+                                .Placeholder($"{_localize["SearchVocabulary"]}")
+                                .Text(State.RawSearchQuery)
+                                .OnTextChanged(OnSearchTextUpdated)  // Just update state, no autocomplete
+                                .OnCompleted(OnSearchSubmitted)      // Execute search on Enter/Return
                                 .FontSize(13)
                                 .VCenter()
                         )
@@ -181,54 +217,83 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                                 .HeightRequest(MyTheme.IconSize)
                                 .WidthRequest(MyTheme.IconSize)
                         )
+                        .TrailingView(
+                            // Clear button (only show when there's content)
+                            !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
+                                ImageButton()
+                                    .Source(MyTheme.IconClose)
+                                    .HeightRequest(20)
+                                    .WidthRequest(20)
+                                    .OnClicked(ClearAllFilters)
+                                    .BackgroundColor(Colors.Transparent) :
+                                null
+                        )
                         .HeightRequest(54)
                         .FocusedStrokeThickness(0)
                         .UnfocusedStrokeThickness(0)
+                        .HFill()
                         .GridColumn(0)
-                        .GridRow(1)
-                        .VStart(),
+                        .GridRow(1),
 
-                    // Status filter icon
-                    ImageButton()
-                        .Source(MyTheme.IconFilter)
-                        .BackgroundColor(MyTheme.LightSecondaryBackground)
-                        .HeightRequest(36)
-                        .WidthRequest(36)
-                        .CornerRadius(18)
-                        .Padding(6)
-                        .OnClicked(async () => await ShowStatusFilterDialog())
-                        .GridColumn(1)
-                        .GridRow(1)
-                        .VStart(),
+                        // Filter buttons (GitHub-style dropdowns)
+                        RenderFilterButtons()
 
-                    // Resource filter icon
-                    ImageButton()
-                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
-                        .BackgroundColor(MyTheme.LightSecondaryBackground)
-                        .HeightRequest(36)
-                        .WidthRequest(36)
-                        .CornerRadius(18)
-                        .Padding(6)
-                        .OnClicked(async () => await ShowResourceFilterDialog())
-                        .GridColumn(2)
-                        .GridRow(1)
-                        .VStart()
-                ).ColumnSpacing(MyTheme.LayoutSpacing)
+                ).RowSpacing(MyTheme.MicroSpacing)
             .Padding(MyTheme.LayoutSpacing, 0)
             .GridRow(1);
+
+    // GitHub-style filter buttons that open popups and insert filter text
+    VisualNode RenderFilterButtons()
+    {
+        return HStack(spacing: 4,
+            // Tag filter button
+            State.AvailableTags.Any() ?
+                ImageButton()
+                    .Source(MyTheme.IconTag)
+                    .BackgroundColor(Colors.Transparent)
+                    .VCenter()
+                    .OnClicked(async () => await ShowTagFilterPopup()) :
+                null,
+
+            // Resource filter button
+            State.AvailableResources.Any() ?
+                ImageButton()
+                    .Source(MyTheme.IconResource)
+                    .BackgroundColor(Colors.Transparent)
+                    .VCenter()
+                    .OnClicked(async () => await ShowResourceFilterPopup()) :
+                null,
+
+            // Lemma filter button
+            State.AvailableLemmas.Any() ?
+                ImageButton()
+                    .Source(MyTheme.IconLemma)
+                    .BackgroundColor(Colors.Transparent)
+                    .VCenter()
+                    .OnClicked(async () => await ShowLemmaFilterPopup()) :
+                null,
+
+            // Status filter button
+            ImageButton()
+                .Source(MyTheme.IconStatusFilter)
+                .BackgroundColor(Colors.Transparent)
+                .VCenter()
+                .OnClicked(async () => await ShowStatusFilterPopup())
+        ).GridColumn(1).GridRow(1).VFill();
+    }
 
     VisualNode RenderBulkActionsBar()
         => Border(
                 HStack(spacing: MyTheme.LayoutSpacing,
-                    Label($"{State.SelectedWordIds.Count} selected")
+                    Label(string.Format($"{_localize["Selected"]}", State.SelectedWordIds.Count))
                         .ThemeKey(MyTheme.Body2)
                         .VCenter()
-                        .HorizontalOptions(LayoutOptions.FillAndExpand),
-                    Button("Delete")
+                        .HFill(),
+                    Button($"{_localize["Delete"]}")
                         .ThemeKey("Danger")
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
-                    Button("Associate")
+                    Button($"{_localize["Associate"]}")
                         .ThemeKey("Primary")
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
@@ -345,7 +410,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var exampleCount = word.ExampleSentences?.Count ?? 0;
         var score = _encodingCalculator.Calculate(word, exampleCount);
         var label = _encodingCalculator.GetLabel(score);
-        
+
         // Determine badge color based on strength
         var badgeColor = label switch
         {
@@ -354,7 +419,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             "Strong" => MyTheme.Success,
             _ => MyTheme.Gray300
         };
-        
+
         var localizedLabel = label switch
         {
             "Basic" => $"{_localize["EncodingStrengthBasic"]}",
@@ -362,7 +427,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             "Strong" => $"{_localize["EncodingStrengthStrong"]}",
             _ => label
         };
-        
+
         return Border(
             Label(localizedLabel)
                 .FontSize(10)
@@ -388,7 +453,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Label(item.StatusText)
                     .ThemeKey(MyTheme.Caption1)
                     .TextColor(item.StatusColor),
-                
+
                 // Encoding strength badge
                 RenderEncodingBadge(item.Word)
             ),
@@ -414,6 +479,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // [US3-T046] Load available tags for filter picker
             var tags = await _encodingRepo.GetAllTagsAsync();
             SetState(s => s.AvailableTags = tags);
+
+            // [T047] Load available lemmas for autocomplete
+            var lemmas = await _encodingRepo.GetAllLemmasAsync();
+            SetState(s => s.AvailableLemmas = lemmas);
 
             // Load all vocabulary words with their associations
             await LoadVocabularyData();
@@ -442,7 +511,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     async Task LoadVocabularyData()
     {
         List<VocabularyWord> allWords;
-        
+
         // [US3] Use encoding repository if filtering/sorting by encoding metadata
         if (!string.IsNullOrWhiteSpace(State.SelectedTag) || State.SortByEncoding)
         {
@@ -495,27 +564,100 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         var filtered = State.AllVocabularyItems.AsEnumerable();
 
-        // Apply vocabulary filter
-        filtered = State.SelectedFilter switch
+        // [T018/T019] Apply GitHub-style parsed query filters
+        if (State.ParsedQuery?.HasContent == true)
         {
-            VocabularyFilter.Associated => filtered.Where(v => !v.IsOrphaned),
-            VocabularyFilter.Orphaned => filtered.Where(v => v.IsOrphaned),
-            VocabularyFilter.SpecificResource => State.SelectedResource != null ?
-                filtered.Where(v => v.AssociatedResources.Any(r => r.Id == State.SelectedResource.Id)) :
-                filtered,
-            _ => filtered
-        };
+            filtered = ApplyParsedQueryFilters(filtered, State.ParsedQuery);
+        }
+        else
+        {
+            // Fallback to legacy filter behavior if no parsed query
+            // Apply vocabulary filter
+            filtered = State.SelectedFilter switch
+            {
+                VocabularyFilter.Associated => filtered.Where(v => !v.IsOrphaned),
+                VocabularyFilter.Orphaned => filtered.Where(v => v.IsOrphaned),
+                VocabularyFilter.SpecificResource => State.SelectedResource != null ?
+                    filtered.Where(v => v.AssociatedResources.Any(r => r.Id == State.SelectedResource.Id)) :
+                    filtered,
+                _ => filtered
+            };
 
-        // Apply search filter
-        if (!string.IsNullOrWhiteSpace(State.SearchText))
-        {
-            var searchLower = State.SearchText.ToLower();
-            filtered = filtered.Where(v =>
-                (v.Word.TargetLanguageTerm?.ToLower().Contains(searchLower) == true) ||
-                (v.Word.NativeLanguageTerm?.ToLower().Contains(searchLower) == true));
+            // Apply legacy search filter
+            if (!string.IsNullOrWhiteSpace(State.SearchText))
+            {
+                var searchLower = State.SearchText.ToLower();
+                filtered = filtered.Where(v =>
+                    (v.Word.TargetLanguageTerm?.ToLower().Contains(searchLower) == true) ||
+                    (v.Word.NativeLanguageTerm?.ToLower().Contains(searchLower) == true));
+            }
         }
 
         SetState(s => s.FilteredVocabularyItems = new ObservableCollection<VocabularyCardViewModel>(filtered.ToList()));
+    }
+
+    // [T018/T019] Apply parsed query filters to vocabulary items
+    IEnumerable<VocabularyCardViewModel> ApplyParsedQueryFilters(
+        IEnumerable<VocabularyCardViewModel> items,
+        ParsedQuery query)
+    {
+        var filtered = items;
+
+        // Apply tag filters (AND logic between multiple tags)
+        var tagFilters = query.TagFilters.ToList();
+        if (tagFilters.Any())
+        {
+            foreach (var tag in tagFilters)
+            {
+                var tagLower = tag.ToLower();
+                filtered = filtered.Where(v =>
+                    v.Word.Tags?.ToLower().Contains(tagLower) == true);
+            }
+        }
+
+        // Apply resource filters (OR logic between multiple resources)
+        var resourceFilters = query.ResourceFilters.ToList();
+        if (resourceFilters.Any())
+        {
+            filtered = filtered.Where(v =>
+                v.AssociatedResources.Any(r =>
+                    resourceFilters.Any(rf =>
+                        r.Title?.Equals(rf, StringComparison.OrdinalIgnoreCase) == true)));
+        }
+
+        // Apply lemma filters (OR logic)
+        var lemmaFilters = query.LemmaFilters.ToList();
+        if (lemmaFilters.Any())
+        {
+            filtered = filtered.Where(v =>
+                lemmaFilters.Any(lf =>
+                    v.Word.Lemma?.Equals(lf, StringComparison.OrdinalIgnoreCase) == true));
+        }
+
+        // Apply status filters (OR logic)
+        var statusFilters = query.StatusFilters.Select(s => s.ToLower()).ToList();
+        if (statusFilters.Any())
+        {
+            filtered = filtered.Where(v =>
+            {
+                if (statusFilters.Contains("known")) return v.IsKnown;
+                if (statusFilters.Contains("learning")) return v.IsLearning;
+                if (statusFilters.Contains("unknown")) return v.IsUnknown;
+                return true;
+            });
+        }
+
+        // Apply free text search (searches target, native, and lemma fields)
+        if (query.FreeTextTerms.Any())
+        {
+            var freeTextLower = query.CombinedFreeText.ToLower();
+            filtered = filtered.Where(v =>
+                (v.Word.TargetLanguageTerm?.ToLower().Contains(freeTextLower) == true) ||
+                (v.Word.NativeLanguageTerm?.ToLower().Contains(freeTextLower) == true) ||
+                (v.Word.Lemma?.ToLower().Contains(freeTextLower) == true));
+        }
+
+        return filtered;
     }
 
     void OnSearchTextChanged(string searchText)
@@ -525,6 +667,214 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Debounce search to avoid excessive filtering
         _searchTimer?.Dispose();
         _searchTimer = new System.Threading.Timer(_ => ApplyFilters(), null, 300, Timeout.Infinite);
+    }
+
+    // [T016/T017] Update search text state only - no autocomplete while typing
+    void OnSearchTextUpdated(string rawQuery)
+    {
+        SetState(s =>
+        {
+            s.RawSearchQuery = rawQuery;
+            // Also update legacy SearchText for backward compatibility
+            s.SearchText = rawQuery;
+        });
+    }
+
+    // Execute search when user presses Enter/Return
+    void OnSearchSubmitted()
+    {
+        _logger.LogDebug("🔍 Search submitted: {Query}", State.RawSearchQuery);
+        ParseSearchQuery(State.RawSearchQuery);
+        ApplyFilters();
+    }
+
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+    // GitHub-style filter popup for tags - shows all tags, selection inserts filter text
+    async Task ShowTagFilterPopup()
+    {
+        if (!State.AvailableTags.Any()) return;
+
+        var tags = State.AvailableTags.OrderBy(t => t).ToArray();
+
+        var selectedTag = await Application.Current.MainPage.DisplayActionSheet(
+            $"{_localize["SelectTag"]}", $"{_localize["Cancel"]}", null, tags);
+
+        if (!string.IsNullOrEmpty(selectedTag) && selectedTag != $"{_localize["Cancel"]}")
+        {
+            InsertFilterText("tag", selectedTag);
+        }
+    }
+
+    // GitHub-style filter popup for resources
+    async Task ShowResourceFilterPopup()
+    {
+        if (!State.AvailableResources.Any()) return;
+
+        var resourceNames = State.AvailableResources
+            .OrderBy(r => r.Title)
+            .Select(r => r.Title ?? $"{_localize["UnnamedResource"]}")
+            .ToArray();
+
+        var selectedResource = await Application.Current.MainPage.DisplayActionSheet(
+            $"{_localize["SelectResource"]}", $"{_localize["Cancel"]}", null, resourceNames);
+
+        if (!string.IsNullOrEmpty(selectedResource) && selectedResource != $"{_localize["Cancel"]}")
+        {
+            InsertFilterText("resource", selectedResource);
+        }
+    }
+
+    // GitHub-style filter popup for lemmas
+    async Task ShowLemmaFilterPopup()
+    {
+        if (!State.AvailableLemmas.Any()) return;
+
+        var lemmas = State.AvailableLemmas.OrderBy(l => l).ToArray();
+
+        var selectedLemma = await Application.Current.MainPage.DisplayActionSheet(
+            $"{_localize["SelectLemma"]}", $"{_localize["Cancel"]}", null, lemmas);
+
+        if (!string.IsNullOrEmpty(selectedLemma) && selectedLemma != $"{_localize["Cancel"]}")
+        {
+            InsertFilterText("lemma", selectedLemma);
+        }
+    }
+
+    // GitHub-style filter popup for status
+    async Task ShowStatusFilterPopup()
+    {
+        var statusOptions = new[]
+        {
+            $"✓ {_localize["StatusKnown"]}",
+            $"⏳ {_localize["StatusLearning"]}",
+            $"? {_localize["StatusUnknown"]}"
+        };
+
+        var selectedOption = await Application.Current.MainPage.DisplayActionSheet(
+            $"{_localize["SelectStatus"]}", $"{_localize["Cancel"]}", null, statusOptions);
+
+        if (!string.IsNullOrEmpty(selectedOption) && selectedOption != $"{_localize["Cancel"]}")
+        {
+            // Map display text back to status value
+            string statusValue = selectedOption switch
+            {
+                var s when s.Contains("StatusKnown") || s.StartsWith("✓") => "known",
+                var s when s.Contains("StatusLearning") || s.StartsWith("⏳") => "learning",
+                var s when s.Contains("StatusUnknown") || s.StartsWith("?") => "unknown",
+                _ => selectedOption.Split(' ').LastOrDefault()?.ToLowerInvariant() ?? "unknown"
+            };
+            InsertFilterText("status", statusValue);
+        }
+    }
+
+    // Insert filter text into search box (GitHub-style)
+    void InsertFilterText(string filterType, string value)
+    {
+        // Quote value if it contains spaces
+        var formattedValue = value.Contains(' ') ? $"\"{value}\"" : value;
+        var filterText = $"{filterType}:{formattedValue}";
+
+        // Append to existing query with space separator
+        var newQuery = string.IsNullOrWhiteSpace(State.RawSearchQuery)
+            ? filterText
+            : $"{State.RawSearchQuery} {filterText}";
+
+        SetState(s =>
+        {
+            s.RawSearchQuery = newQuery;
+            s.SearchText = newQuery;
+        });
+
+        // Parse and apply the filter immediately
+        ParseSearchQuery(newQuery);
+        ApplyFilters();
+
+        _logger.LogDebug("🏷️ Inserted filter: {FilterText}", filterText);
+    }
+#endif
+
+    // [T017/T020] Parse search query and generate filter chips
+    void ParseSearchQuery(string rawQuery)
+    {
+        try
+        {
+            var parsed = _searchParser.Parse(rawQuery);
+
+            // Generate filter chips from parsed query
+            var chips = GenerateFilterChips(parsed);
+
+            SetState(s =>
+            {
+                s.ParsedQuery = parsed;
+                s.ActiveFilterChips = chips;
+            });
+
+            _logger.LogDebug("✅ Parsed query: {FilterCount} filters, {FreeTextCount} free text terms",
+                parsed.Filters.Count, parsed.FreeTextTerms.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Failed to parse search query: {Query}", rawQuery);
+            // Clear parsed state on error
+            SetState(s =>
+            {
+                s.ParsedQuery = null;
+                s.ActiveFilterChips = new List<FilterChip>();
+            });
+        }
+    }
+
+    // [T020] Generate FilterChip list from ParsedQuery
+    List<FilterChip> GenerateFilterChips(ParsedQuery parsed)
+    {
+        var chips = new List<FilterChip>();
+
+        foreach (var filter in parsed.Filters)
+        {
+            chips.Add(FilterChip.FromToken(filter, _localize));
+        }
+
+        return chips;
+    }
+
+    // [T023] Remove individual filter chip
+    void RemoveFilter(FilterChip chip)
+    {
+        _logger.LogDebug("🗑️ Removing filter chip: {Type}:{Value}", chip.Type, chip.Value);
+
+        // Convert chip to token and remove from query string
+        var tokenToRemove = chip.ToToken();
+        var newQuery = _searchParser.RemoveFilter(State.RawSearchQuery, tokenToRemove);
+
+        // Update state with new query and re-apply filters
+        SetState(s =>
+        {
+            s.RawSearchQuery = newQuery;
+            s.SearchText = newQuery;
+        });
+        ParseSearchQuery(newQuery);
+        ApplyFilters();
+    }
+
+    // [T024] Clear all filters
+    void ClearAllFilters()
+    {
+        _logger.LogDebug("🧹 Clearing all filters");
+
+        SetState(s =>
+        {
+            s.RawSearchQuery = string.Empty;
+            s.SearchText = string.Empty;
+            s.ParsedQuery = null;
+            s.ActiveFilterChips = new List<FilterChip>();
+            s.ShowAutocomplete = false;
+            // Reset legacy filter state
+            s.SelectedFilter = VocabularyFilter.All;
+            s.SelectedResource = null;
+            s.SelectedTag = null;
+        });
+
+        ApplyFilters();
     }
 
     void OnStatusFilterChanged(int index)
@@ -942,70 +1292,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             (c >= 0xAC00 && c <= 0xD7AF) ||
             (c >= 0x1100 && c <= 0x11FF) ||
             (c >= 0x3130 && c <= 0x318F));
-    }
-
-    // [US3-T043] Render filter bar for encoding metadata
-    VisualNode RenderEncodingFilterBar()
-    {
-        if (!State.AvailableTags.Any() && !State.SortByEncoding)
-            return null; // Don't show filter bar if no tags available
-        
-        return HStack(spacing: MyTheme.MicroSpacing,
-            // Tag filter picker
-            State.AvailableTags.Any() ?
-                Picker()
-                    .Title($"{_localize["FilterByTag"]}")
-                    .ItemsSource(new[] { $"{_localize["AllTags"]}" }.Concat(State.AvailableTags).ToList())
-                    .SelectedIndex(string.IsNullOrWhiteSpace(State.SelectedTag) ? 0 : State.AvailableTags.IndexOf(State.SelectedTag) + 1)
-                    .OnSelectedIndexChanged(OnTagFilterChanged)
-                    .FontSize(12)
-                    .HorizontalOptions(LayoutOptions.FillAndExpand)
-                : null,
-            
-            // Sort by encoding button
-            Button($"{_localize["SortByEncoding"]}")
-                .FontSize(12)
-                .Padding(8, 4)
-                .ThemeKey(State.SortByEncoding ? MyTheme.Primary : MyTheme.Secondary)
-                .OnClicked(ToggleEncodingSort)
-        )
-        .Padding(MyTheme.MicroSpacing, 0)
-        .HeightRequest(40);
-    }
-
-    // [US3-T045] Handler for tag filter selection
-    async void OnTagFilterChanged(int index)
-    {
-        SetState(s =>
-        {
-            if (index == 0) // "All Tags" selected
-            {
-                s.SelectedTag = null;
-            }
-            else if (index > 0 && index <= s.AvailableTags.Count)
-            {
-                s.SelectedTag = s.AvailableTags[index - 1];
-            }
-        });
-        
-        // Reload data with new tag filter
-        await LoadVocabularyData();
-    }
-
-    // [US3-T043] Toggle encoding strength sort
-    async void ToggleEncodingSort()
-    {
-        SetState(s => s.SortByEncoding = !s.SortByEncoding);
-        
-        // Reload data with new sort order
-        await LoadVocabularyData();
-    }
-
-    // [US3-T045] Handle tag badge click from edit page (navigation parameter)
-    async void OnTagClicked(string tag)
-    {
-        SetState(s => s.SelectedTag = tag);
-        await LoadVocabularyData();
     }
 
     public void Dispose()

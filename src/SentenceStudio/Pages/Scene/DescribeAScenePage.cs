@@ -98,7 +98,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                             .Padding(12)
                             .Center()
                     )
-                    .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
                     .StrokeThickness(0)
                     .Margin(MyTheme.Size160, 8)
@@ -838,17 +837,5 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         // For now, return a default user ID
         // This should be replaced with actual user management
         return 1;
-    }
-
-    Color GetFeedbackBackgroundColor(string feedbackType)
-    {
-        return feedbackType switch
-        {
-            "success" => MyTheme.SupportSuccessDark,
-            "achievement" => Colors.Gold,
-            "info" => MyTheme.SupportSuccessMedium,
-            "hint" => MyTheme.Gray300,
-            _ => MyTheme.Gray200
-        };
     }
 }

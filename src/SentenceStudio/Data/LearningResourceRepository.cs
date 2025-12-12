@@ -123,7 +123,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return -1;
         }
     }
@@ -236,7 +236,7 @@ public class LearningResourceRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ SaveResourceAsync error");
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return -1;
         }
     }
@@ -257,7 +257,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return -1;
         }
     }
@@ -352,7 +352,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -387,7 +387,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -601,7 +601,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -626,7 +626,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -698,7 +698,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -726,7 +726,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }
@@ -763,7 +763,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             return false;
         }
     }

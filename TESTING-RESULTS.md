@@ -138,7 +138,7 @@ private readonly IFileSystemService _fileSystem;
 
 **Bad** (UI coupling):
 ```csharp
-App.Current.MainPage = new DetailPage();
+Application.Current.MainPage = new DetailPage();
 AppShell.Current.GoToAsync("details");
 LocalizationManager.Instance.SetCulture(culture);
 ```

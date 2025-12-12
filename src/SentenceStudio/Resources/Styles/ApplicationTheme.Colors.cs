@@ -4,25 +4,106 @@ namespace SentenceStudio.Resources.Styles;
 
 partial class MyTheme
 {
-    // public static Color Primary { get; } = Color.FromRgba(81, 43, 212, 255); // #512BD4
-    public static Color PrimaryDark { get; } = Color.FromRgba(172, 153, 234, 255); // #AC99EA
-    public static Color PrimaryDarkText { get; } = Color.FromRgba(36, 36, 36, 255); // #242424
-    // public static Color Secondary { get; } = Color.FromRgba(223, 216, 247, 255); // #DFD8F7
-    public static Color SecondaryDarkText { get; } = Color.FromRgba(152, 128, 229, 255); // #9880E5
-    public static Color Tertiary { get; } = Color.FromRgba(43, 11, 152, 255); // #2B0B98
-
-    // Status colors for vocabulary quiz and other feedback
-    public static Color Success { get; } = Color.FromRgba(34, 197, 94, 255); // #22C55E
-    public static Color Error { get; } = Color.FromRgba(239, 68, 68, 255); // #EF4444
-    public static Color Warning { get; } = Color.FromRgba(245, 158, 11, 255); // #F59E0B
-
-    public static Color White { get; } = Colors.White; // #FFFFFF
-    public static Color Black { get; } = Colors.Black; // #000000
-    public static Color Magenta { get; } = Color.FromRgba(214, 0, 170, 255); // #D600AA
-    public static Color MidnightBlue { get; } = Color.FromRgba(25, 6, 73, 255); // #190649
-    public static Color OffBlack { get; } = Color.FromRgba(31, 31, 31, 255); // #1F1F1F
-    public static Color OffWhite { get; } = Color.FromRgba(241, 241, 241, 255); // #F1F1F1
-
+    // ==========================================
+    // SEMANTIC COLORS (same in both themes)
+    // ==========================================
+    public static Color Success { get; } = Color.FromArgb("#4CAF50");
+    public static Color SuccessLight { get; } = Color.FromArgb("#E8F5E9");
+    public static Color SuccessDark { get; } = Color.FromArgb("#1A3A1A");
+    public static Color Warning { get; } = Color.FromArgb("#FFA726");
+    public static Color Error { get; } = Color.FromArgb("#EF5350");
+    public static Color Info { get; } = Color.FromArgb("#42A5F5");
+    
+    /// <summary>
+    /// Light mode coffee palette.
+    /// </summary>
+    public static class Light
+    {
+        // Backgrounds & Surfaces
+        public static Color Background { get; } = Color.FromArgb("#D2BCA5");
+        public static Color Surface { get; } = Color.FromArgb("#FCEFE1");
+        public static Color SurfaceVariant { get; } = Color.FromArgb("#ECDAC4");
+        public static Color SurfaceElevated { get; } = Color.FromArgb("#FFF7EC");
+        
+        // Brand & Accent
+        public static Color Primary { get; } = Color.FromArgb("#86543F");
+        public static Color OnPrimary { get; } = Color.FromArgb("#F8F6F4");
+        public static Color Secondary { get; } = Color.FromArgb("#A38F7D");
+        
+        // Typography
+        public static Color TextPrimary { get; } = Color.FromArgb("#352B23");
+        public static Color TextSecondary { get; } = Color.FromArgb("#7C7067");
+        public static Color TextMuted { get; } = Color.FromArgb("#A38F7D");
+        
+        // Borders & Dividers
+        public static Color Outline { get; } = Color.FromArgb("#D7C5B2");
+    }
+    
+    /// <summary>
+    /// Dark mode coffee palette.
+    /// </summary>
+    public static class Dark
+    {
+        // Backgrounds & Surfaces
+        public static Color Background { get; } = Color.FromArgb("#48362E");
+        public static Color Surface { get; } = Color.FromArgb("#48362E");
+        public static Color SurfaceVariant { get; } = Color.FromArgb("#7D5A45");
+        public static Color SurfaceElevated { get; } = Color.FromArgb("#B3A291");
+        
+        // Brand & Accent
+        public static Color Primary { get; } = Color.FromArgb("#86543F");
+        public static Color OnPrimary { get; } = Color.FromArgb("#F8F6F4");
+        public static Color Secondary { get; } = Color.FromArgb("#A19085");
+        
+        // Typography
+        public static Color TextPrimary { get; } = Color.FromArgb("#F8F6F4");
+        public static Color TextSecondary { get; } = Color.FromArgb("#C5BFBB");
+        public static Color TextMuted { get; } = Color.FromArgb("#A19085");
+        
+        // Borders & Dividers
+        public static Color Outline { get; } = Color.FromArgb("#5A463B");
+    }
+    
+    // ==========================================
+    // THEME-AWARE CONVENIENCE PROPERTIES
+    // These automatically return the correct color based on current theme
+    // ==========================================
+    
+    // Backgrounds & Surfaces
+    public static Color Background => IsLightTheme ? Light.Background : Dark.Background;
+    public static Color Surface => IsLightTheme ? Light.Surface : Dark.Surface;
+    public static Color SurfaceVariant => IsLightTheme ? Light.SurfaceVariant : Dark.SurfaceVariant;
+    public static Color SurfaceElevated => IsLightTheme ? Light.SurfaceElevated : Dark.SurfaceElevated;
+    
+    // Brand & Accent (renamed to avoid conflict with const string Primary)
+    public static Color PrimaryColor => IsLightTheme ? Light.Primary : Dark.Primary;
+    public static Color OnPrimary => IsLightTheme ? Light.OnPrimary : Dark.OnPrimary;
+    public static Color SecondaryColor => IsLightTheme ? Light.Secondary : Dark.Secondary;
+    
+    // Typography
+    public static Color TextPrimary => IsLightTheme ? Light.TextPrimary : Dark.TextPrimary;
+    public static Color TextSecondary => IsLightTheme ? Light.TextSecondary : Dark.TextSecondary;
+    public static Color TextMuted => IsLightTheme ? Light.TextMuted : Dark.TextMuted;
+    
+    // Borders & Dividers (renamed to avoid conflict with Border control type)
+    public static Color Outline => IsLightTheme ? Light.Outline : Dark.Outline;
+    public static Color BorderColor => Outline;
+    
+    // ==========================================
+    // BRUSHES (theme-aware)
+    // ==========================================
+    public static Brush PrimaryBrush => new SolidColorBrush(PrimaryColor);
+    public static Brush SurfaceBrush => new SolidColorBrush(Surface);
+    public static Brush SurfaceVariantBrush => new SolidColorBrush(SurfaceVariant);
+    public static Brush SurfaceElevatedBrush => new SolidColorBrush(SurfaceElevated);
+    public static Brush BackgroundBrush => new SolidColorBrush(Background);
+    
+    // ==========================================
+    // LEGACY COLORS (kept for backward compatibility during migration)
+    // These will be gradually replaced with semantic colors above
+    // ==========================================
+    
+    // Gray scale (neutral colors)
     public static Color Gray100 { get; } = Color.FromRgba(225, 225, 225, 255); // #E1E1E1
     public static Color Gray200 { get; } = Color.FromRgba(200, 200, 200, 255); // #C8C8C8
     public static Color Gray300 { get; } = Color.FromRgba(172, 172, 172, 255); // #ACACAC
@@ -31,17 +112,37 @@ partial class MyTheme
     public static Color Gray600 { get; } = Color.FromRgba(64, 64, 64, 255); // #404040
     public static Color Gray900 { get; } = Color.FromRgba(33, 33, 33, 255); // #212121
     public static Color Gray950 { get; } = Color.FromRgba(20, 20, 20, 255); // #141414
-
-    public static Color DarkBackground { get; } = Color.FromRgba(23, 23, 26, 255); // #17171a
-    public static Color LightOnDarkBackground { get; } = Color.FromRgba(195, 195, 195, 255); // #C3C3C3
-    public static Color LightBackground { get; } = Color.FromRgba(242, 242, 242, 255); // #F2F2F2
-    public static Color DarkOnLightBackground { get; } = Color.FromRgba(13, 13, 13, 255); // #0D0D0D
-    public static Color LightSecondaryBackground { get; } = Color.FromRgba(224, 224, 224, 255); // #E0E0E0
-    public static Color DarkSecondaryBackground { get; } = Color.FromRgba(34, 34, 40, 255); // #222228
-
-    public static Brush PrimaryBrush { get; } = new SolidColorBrush(HighlightDarkest);
-    public static Brush SecondaryBrush { get; } = new SolidColorBrush(HighlightMedium);
-    public static Brush TertiaryBrush { get; } = new SolidColorBrush(Tertiary);
+    
+    // Basic colors
+    public static Color White { get; } = Colors.White;
+    public static Color Black { get; } = Colors.Black;
+    public static Color OffBlack { get; } = Color.FromRgba(31, 31, 31, 255); // #1F1F1F
+    public static Color OffWhite { get; } = Color.FromRgba(241, 241, 241, 255); // #F1F1F1
+    
+    // Legacy named colors (mapped to new semantic colors)
+    public static Color DarkBackground => Dark.Background;
+    public static Color LightBackground => Light.Background;
+    public static Color LightOnDarkBackground => Dark.TextPrimary;
+    public static Color DarkOnLightBackground => Light.TextPrimary;
+    public static Color LightSecondaryBackground => Light.SurfaceVariant;
+    public static Color DarkSecondaryBackground => Dark.SurfaceVariant;
+    
+    // Legacy accent colors (mapped to Primary)
+    public static Color HighlightDarkest => PrimaryColor;
+    public static Color HighlightMedium => IsLightTheme ? Light.SurfaceVariant : Dark.SurfaceVariant;
+    public static Color HighlightLightest => IsLightTheme ? Light.SurfaceElevated : Dark.SurfaceElevated;
+    
+    // Legacy purple-based colors (deprecated - mapped to coffee palette)
+    public static Color PrimaryDark => Dark.Primary;
+    public static Color PrimaryDarkText { get; } = Color.FromRgba(36, 36, 36, 255); // #242424
+    public static Color SecondaryDarkText => Dark.TextSecondary;
+    public static Color Tertiary => PrimaryColor;
+    public static Color Magenta { get; } = Color.FromRgba(214, 0, 170, 255); // #D600AA (kept for accent)
+    public static Color MidnightBlue { get; } = Color.FromRgba(25, 6, 73, 255); // #190649 (kept for specific uses)
+    
+    // Legacy brushes
+    public static Brush SecondaryBrush => SurfaceVariantBrush;
+    public static Brush TertiaryBrush => PrimaryBrush;
     public static Brush WhiteBrush { get; } = new SolidColorBrush(White);
     public static Brush BlackBrush { get; } = new SolidColorBrush(Black);
     public static Brush Gray100Brush { get; } = new SolidColorBrush(Gray100);
@@ -52,6 +153,6 @@ partial class MyTheme
     public static Brush Gray600Brush { get; } = new SolidColorBrush(Gray600);
     public static Brush Gray900Brush { get; } = new SolidColorBrush(Gray900);
     public static Brush Gray950Brush { get; } = new SolidColorBrush(Gray950);
-    public static Brush LightCardBackgroundBrush { get; } = new SolidColorBrush(LightSecondaryBackground);
-    public static Brush DarkCardBackgroundBrush { get; } = new SolidColorBrush(DarkSecondaryBackground);
+    public static Brush LightCardBackgroundBrush => new SolidColorBrush(Light.SurfaceVariant);
+    public static Brush DarkCardBackgroundBrush => new SolidColorBrush(Dark.SurfaceVariant);
 }

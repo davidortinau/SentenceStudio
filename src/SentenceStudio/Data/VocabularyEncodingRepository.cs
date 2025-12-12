@@ -34,7 +34,7 @@ public class VocabularyEncodingRepository
     public async Task<List<VocabularyWord>> FilterByTagAsync(string tag)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        
+
         var results = await _filterByTagCompiled(_context, tag).ToListAsync();
 
         stopwatch.Stop();
@@ -110,6 +110,47 @@ public class VocabularyEncodingRepository
     }
 
     /// <summary>
+    /// [T045] Get all unique lemmas from vocabulary words (for filter UI autocomplete)
+    /// Uses index on Lemma column for performance
+    /// </summary>
+    public async Task<List<string>> GetAllLemmasAsync()
+    {
+        var lemmas = await _context.VocabularyWords
+            .Where(w => w.Lemma != null && w.Lemma != "")
+            .Select(w => w.Lemma!)
+            .Distinct()
+            .OrderBy(l => l)
+            .ToListAsync();
+
+        _logger.LogDebug("📖 Found {Count} unique lemmas", lemmas.Count);
+
+        return lemmas;
+    }
+
+    /// <summary>
+    /// [T045] Get lemmas that match a partial value (for autocomplete suggestions)
+    /// </summary>
+    public async Task<List<string>> GetLemmasByPartialAsync(string partialValue, int maxResults = 20)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var lemmas = await _context.VocabularyWords
+            .Where(w => w.Lemma != null && w.Lemma != "" &&
+                        EF.Functions.Like(w.Lemma, $"{partialValue}%"))
+            .Select(w => w.Lemma!)
+            .Distinct()
+            .OrderBy(l => l)
+            .Take(maxResults)
+            .ToListAsync();
+
+        stopwatch.Stop();
+        _logger.LogDebug("📖 Found {Count} lemmas matching '{Partial}' in {Ms}ms",
+            lemmas.Count, partialValue, stopwatch.ElapsedMilliseconds);
+
+        return lemmas;
+    }
+
+    /// <summary>
     /// Get all unique tags from vocabulary words (for filter UI)
     /// </summary>
     public async Task<List<string>> GetAllTagsAsync()
@@ -129,6 +170,73 @@ public class VocabularyEncodingRepository
         _logger.LogDebug("🏷️ Found {Count} unique tags", allTags.Count);
 
         return allTags;
+    }
+
+    /// <summary>
+    /// [T038] Filter vocabulary words by resource IDs using JOIN through ResourceVocabularyMapping
+    /// Multiple resource filters combine with OR logic (words in ANY of the specified resources)
+    /// </summary>
+    public async Task<List<VocabularyWord>> FilterByResourcesAsync(IEnumerable<int> resourceIds)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var resourceIdList = resourceIds.ToList();
+
+        if (resourceIdList.Count == 0)
+        {
+            _logger.LogDebug("📁 No resource IDs provided, returning empty list");
+            return new List<VocabularyWord>();
+        }
+
+        // Use JOIN through ResourceVocabularyMapping to find words in any of the specified resources
+        var results = await _context.VocabularyWords
+            .Where(w => _context.Set<ResourceVocabularyMapping>()
+                .Any(rvm => rvm.VocabularyWordId == w.Id && resourceIdList.Contains(rvm.ResourceId)))
+            .Distinct()
+            .OrderBy(w => w.TargetLanguageTerm)
+            .ToListAsync();
+
+        stopwatch.Stop();
+        _logger.LogDebug("📁 Filtered {Count} words by {ResourceCount} resources in {Ms}ms",
+            results.Count, resourceIdList.Count, stopwatch.ElapsedMilliseconds);
+
+        return results;
+    }
+
+    /// <summary>
+    /// [T038] Filter vocabulary words by resource name (case-insensitive partial match)
+    /// Multiple resource names combine with OR logic
+    /// </summary>
+    public async Task<List<VocabularyWord>> FilterByResourceNamesAsync(IEnumerable<string> resourceNames)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var names = resourceNames.ToList();
+
+        if (names.Count == 0)
+        {
+            _logger.LogDebug("📁 No resource names provided, returning empty list");
+            return new List<VocabularyWord>();
+        }
+
+        // First find matching resource IDs
+        var matchingResourceIds = await _context.Set<LearningResource>()
+            .Where(r => names.Any(name => EF.Functions.Like(r.Title!.ToLower(), $"%{name.ToLower()}%")))
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        if (matchingResourceIds.Count == 0)
+        {
+            _logger.LogDebug("📁 No resources found matching names: {Names}", string.Join(", ", names));
+            return new List<VocabularyWord>();
+        }
+
+        // Then get vocabulary words for those resources
+        var results = await FilterByResourcesAsync(matchingResourceIds);
+
+        stopwatch.Stop();
+        _logger.LogDebug("📁 Filtered {Count} words by resource names '{Names}' in {Ms}ms",
+            results.Count, string.Join(", ", names), stopwatch.ElapsedMilliseconds);
+
+        return results;
     }
 
     /// <summary>

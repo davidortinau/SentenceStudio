@@ -1601,4 +1601,72 @@
     <value>All Tags</value>
     <comment>[US3] Default option in tag filter picker</comment>
   </data>
+  <data name="SearchSyntaxHint" xml:space="preserve">
+    <value>Search (tag: resource: lemma: status:)</value>
+    <comment>[002-vocab-search] Placeholder text showing available search syntax</comment>
+  </data>
+  <data name="Tag" xml:space="preserve">
+    <value>Tag</value>
+    <comment>[002-vocab-search] Filter chip label for tag filters</comment>
+  </data>
+  <data name="Resource" xml:space="preserve">
+    <value>Resource</value>
+    <comment>[002-vocab-search] Filter chip label for resource filters</comment>
+  </data>
+  <data name="Lemma" xml:space="preserve">
+    <value>Lemma</value>
+    <comment>[002-vocab-search] Filter chip label for lemma filters</comment>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Status</value>
+    <comment>[002-vocab-search] Filter chip label for status filters</comment>
+  </data>
+  <data name="ClearAllFilters" xml:space="preserve">
+    <value>Clear All</value>
+    <comment>[002-vocab-search] Button to clear all active filters</comment>
+  </data>
+  <data name="SelectTag" xml:space="preserve">
+    <value>Select Tag</value>
+    <comment>[002-vocab-search] Title for tag autocomplete popup</comment>
+  </data>
+  <data name="SelectResource" xml:space="preserve">
+    <value>Select Resource</value>
+    <comment>[002-vocab-search] Title for resource autocomplete popup</comment>
+  </data>
+  <data name="SelectStatus" xml:space="preserve">
+    <value>Select Status</value>
+    <comment>[002-vocab-search] Title for status autocomplete popup</comment>
+  </data>
+  <data name="UnnamedResource" xml:space="preserve">
+    <value>Unnamed Resource</value>
+    <comment>[002-vocab-search] Fallback name for resources without a title</comment>
+  </data>
+  <data name="SelectLemma" xml:space="preserve">
+    <value>Select Lemma</value>
+    <comment>[002-vocab-search] Title for lemma autocomplete popup</comment>
+  </data>
+  <data name="StatusKnown" xml:space="preserve">
+    <value>Known</value>
+    <comment>[002-vocab-search] Status filter option for known words</comment>
+  </data>
+  <data name="StatusLearning" xml:space="preserve">
+    <value>Learning</value>
+    <comment>[002-vocab-search] Status filter option for words being learned</comment>
+  </data>
+  <data name="StatusUnknown" xml:space="preserve">
+    <value>Unknown</value>
+    <comment>[002-vocab-search] Status filter option for unknown words</comment>
+  </data>
+  <data name="FilterByResource" xml:space="preserve">
+    <value>Filter by Resource</value>
+    <comment>[002-vocab-search] Tooltip for resource filter button</comment>
+  </data>
+  <data name="FilterByLemma" xml:space="preserve">
+    <value>Filter by Lemma</value>
+    <comment>[002-vocab-search] Tooltip for lemma filter button</comment>
+  </data>
+  <data name="FilterByStatus" xml:space="preserve">
+    <value>Filter by Status</value>
+    <comment>[002-vocab-search] Tooltip for status filter button</comment>
+  </data>
 </root>

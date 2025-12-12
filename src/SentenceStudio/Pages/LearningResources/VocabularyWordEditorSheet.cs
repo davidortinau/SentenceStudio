@@ -14,19 +14,20 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
 {
     private readonly Action<VocabularyWord> _onSave;
     private readonly Action _onCancel;
-    
+
     public VocabularyWordEditorSheet(VocabularyWord word, bool isNew, Action<VocabularyWord> onSave, Action onCancel)
     {
         _onSave = onSave;
         _onCancel = onCancel;
-        
-        SetState(s => {
+
+        SetState(s =>
+        {
             s.Word = word;
             s.IsNew = isNew;
             s.IsVisible = true;
         });
     }
-    
+
     public override VisualNode Render()
     {
         return Grid(
@@ -35,7 +36,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                 .BackgroundColor(Colors.Black.WithAlpha(0.5f))
                 .ZIndex(0)
                 .OnTapped(() => _onCancel?.Invoke()),
-                
+
             // Editor panel
             Border(
                 VStack(
@@ -43,7 +44,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                         .FontSize(20)
                         .FontAttributes(FontAttributes.Bold)
                         .HorizontalTextAlignment(TextAlignment.Center),
-                        
+
                     VStack(
                         Label("Target Language Term")
                             .FontAttributes(FontAttributes.Bold)
@@ -56,7 +57,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                         .ThemeKey(MyTheme.InputWrapper)
                     )
                     .Spacing(5),
-                    
+
                     VStack(
                         Label("Native Language Term")
                             .FontAttributes(FontAttributes.Bold)
@@ -69,7 +70,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                         .ThemeKey(MyTheme.InputWrapper)
                     )
                     .Spacing(5),
-                    
+
                     HStack(
                         Button("Save")
                             .OnClicked(SaveWord),
@@ -95,20 +96,20 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
         )
         .IsVisible(State.IsVisible);
     }
-    
+
     void SaveWord()
     {
-        if (string.IsNullOrWhiteSpace(State.Word.TargetLanguageTerm) || 
+        if (string.IsNullOrWhiteSpace(State.Word.TargetLanguageTerm) ||
             string.IsNullOrWhiteSpace(State.Word.NativeLanguageTerm))
         {
-            App.Current.MainPage.DisplayAlert("Validation Error", "Both target and native terms are required", "OK");
+            Application.Current.MainPage.DisplayAlert("Validation Error", "Both target and native terms are required", "OK");
             return;
         }
-        
+
         _onSave?.Invoke(State.Word);
         SetState(s => s.IsVisible = false);
     }
-    
+
     void Cancel()
     {
         _onCancel?.Invoke();

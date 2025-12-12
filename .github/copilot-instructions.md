@@ -95,6 +95,38 @@ The AI will automatically understand the structure and generate appropriate resp
 
 STYLING: Prefer using the centralized styles defined in MyTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
 
+ICONS: **NEVER create inline FontImageSource instances**. All icons MUST be defined in `ApplicationTheme.Icons.cs` and referenced via `MyTheme.IconName`. This ensures consistent icon styling (color, size) across the app and makes icon management centralized.
+
+   ❌ WRONG:
+   ```csharp
+   ImageButton()
+       .Source(new FontImageSource
+       {
+           FontFamily = FluentUI.FontFamily,
+           Glyph = FluentUI.tag_20_regular,
+           Color = MyTheme.Gray600,
+           Size = 20
+       })
+   ```
+   
+   ✅ CORRECT:
+   ```csharp
+   // First, add the icon to ApplicationTheme.Icons.cs if it doesn't exist:
+   public static FontImageSource IconTag { get; } = new FontImageSource
+   {
+       Glyph = FluentUI.tag_20_regular,
+       FontFamily = FluentUI.FontFamily,
+       Color = Gray600,
+       Size = Size200
+   };
+   
+   // Then use it in your page:
+   ImageButton()
+       .Source(MyTheme.IconTag)
+   ```
+   
+   When you need a new icon, add it to `ApplicationTheme.Icons.cs` following the existing pattern. Use existing icons when available (e.g., `MyTheme.IconClose`, `MyTheme.IconSearch`, `MyTheme.IconEdit`, etc.).
+
 ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (MyTheme.DarkOnLightBackground, MyTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
 
 ## MauiReactor Layout and UI Guidelines

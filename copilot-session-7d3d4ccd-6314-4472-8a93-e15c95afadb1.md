@@ -9651,7 +9651,7 @@ index 0000000..0000000 100644
              Debug.WriteLine($"An error occurred SaveAsync: {ex.Message}");
              if (item.Id == 0)
              {
-                 await App.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+                 await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
              }
              return -1;
          }

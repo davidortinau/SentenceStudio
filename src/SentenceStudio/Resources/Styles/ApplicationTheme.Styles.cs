@@ -1,5 +1,4 @@
 using MauiReactor.Shapes;
-using ReactorTheme.Styles;
 
 namespace SentenceStudio.Resources.Styles;
 
@@ -10,18 +9,18 @@ partial class MyTheme
         SfTextInputLayoutStyles.Default = _ => _
             .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Filled)
             .OutlineCornerRadius(0)
-            .ContainerBackground(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground);
+            .ContainerBackground(SurfaceVariant);
 
         ActivityIndicatorStyles.Default = _ =>
-            _.Color(IsLightTheme ? HighlightDarkest : White);
+            _.Color(PrimaryColor);
 
         IndicatorViewStyles.Default = _ => _
             .IndicatorColor(IsLightTheme ? Gray200 : Gray500)
             .SelectedIndicatorColor(IsLightTheme ? Gray950 : Gray100);
 
         BorderStyles.Default = _ => _
-            .Stroke(IsLightTheme ? Gray200 : Gray500)
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Stroke(BorderColor)
+            .Background(SurfaceVariant)
             .StrokeShape(new RoundRectangle().CornerRadius(20))
             .StrokeThickness(0)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
@@ -30,8 +29,8 @@ partial class MyTheme
             .BackgroundColor(IsLightTheme ? Gray950 : Gray200);
 
         ButtonStyles.Default = _ => _
-            .TextColor(IsLightTheme ? White : PrimaryDarkText)
-            .BackgroundColor(IsLightTheme ? HighlightDarkest : PrimaryDark)
+            .TextColor(IsLightTheme ? White : Light.TextPrimary)
+            .BackgroundColor(PrimaryColor)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -43,8 +42,8 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray200 : Gray600);
 
         ButtonStyles.Themes[Secondary] = _ => _
-            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
-            .BackgroundColor(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .TextColor(TextPrimary)
+            .BackgroundColor(SurfaceVariant)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -56,13 +55,13 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         CheckBoxStyles.Default = _ => _
-            .Color(IsLightTheme ? HighlightDarkest : White)
+            .Color(PrimaryColor)
             .MinimumHeightRequest(44)
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.CheckBox.ColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         DatePickerStyles.Default = _ => _
-            .TextColor(IsLightTheme ? Gray900 : White)
+            .TextColor(TextPrimary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
@@ -71,22 +70,22 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.DatePicker.TextColorProperty, IsLightTheme ? Gray200 : Gray500);
 
         EditorStyles.Default = _ => _
-            .TextColor(IsLightTheme ? Black : White)
+            .TextColor(TextPrimary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
-            .PlaceholderColor(IsLightTheme ? Gray200 : Gray500)
+            .PlaceholderColor(TextSecondary)
             .MinimumHeightRequest(44)
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.Editor.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
 
         EntryStyles.Default = _ => _
-            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
+            .TextColor(TextPrimary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(DeviceInfo.Current.Idiom == DeviceIdiom.Desktop ? 24 : 18)
-            .PlaceholderColor(IsLightTheme ? Gray200 : Gray500)
+            .PlaceholderColor(TextSecondary)
             .MinimumHeightRequest(44)
             .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.Entry.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
@@ -102,7 +101,7 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.ImageButton.OpacityProperty, 0.5);
 
         LabelStyles.Default = _ => _
-            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
+            .TextColor(TextPrimary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(17)
@@ -110,14 +109,14 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[Headline] = _ => _
-            .TextColor(IsLightTheme ? MidnightBlue : White)
+            .TextColor(TextPrimary)
             .FontSize(32)
             .HorizontalOptions(LayoutOptions.Center)
             .HorizontalTextAlignment(TextAlignment.Center)
             .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[SubHeadline] = _ => _
-            .TextColor(IsLightTheme ? MidnightBlue : White)
+            .TextColor(TextPrimary)
             .FontSize(24)
             .HorizontalOptions(LayoutOptions.Center)
             .HorizontalTextAlignment(TextAlignment.Center)
@@ -198,19 +197,19 @@ partial class MyTheme
 
         BorderStyles.Default = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Background(SurfaceVariant)
             .StrokeThickness(0)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         BorderStyles.Themes[CardStyle] = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Background(SurfaceVariant)
             .StrokeThickness(0)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         BorderStyles.Themes[InputWrapper] = _ => _
             .StrokeShape(new RoundRectangle().CornerRadius(20))
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Background(SurfaceVariant)
             .StrokeThickness(0)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
@@ -223,12 +222,12 @@ partial class MyTheme
             .BackgroundColor(Colors.Transparent);
 
         LayoutStyles.Themes[Surface1] = _ => _
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
+            .Background(SurfaceVariant)
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         PickerStyles.Default = _ => _
-            .TextColor(IsLightTheme ? Gray900 : White)
-            .TitleColor(IsLightTheme ? Gray900 : Gray200)
+            .TextColor(TextPrimary)
+            .TitleColor(TextSecondary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(DeviceIdiom.Desktop == DeviceInfo.Idiom ? 24 : 18)
@@ -238,12 +237,12 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.Picker.TitleColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         ProgressBarStyles.Default = _ => _
-            .ProgressColor(IsLightTheme ? HighlightDarkest : White)
+            .ProgressColor(PrimaryColor)
             .VisualState("CommonStates", "Disable", MauiControls.ProgressBar.ProgressColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         RadioButtonStyles.Default = _ => _
             .BackgroundColor(Colors.Transparent)
-            .TextColor(IsLightTheme ? Black : White)
+            .TextColor(TextPrimary)
             .FontFamily("SegoeRegular")
             .FontSize(DeviceIdiom.Desktop == DeviceInfo.Idiom ? 24 : 18)
             .MinimumHeightRequest(44)
@@ -251,13 +250,13 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.RadioButton.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         RefreshViewStyles.Default = _ => _
-            .RefreshColor(IsLightTheme ? Gray900 : Gray200);
+            .RefreshColor(PrimaryColor);
 
         SearchBarStyles.Default = _ => _
-            .TextColor(IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
-            .Background(IsLightTheme ? LightSecondaryBackground : DarkSecondaryBackground)
-            .PlaceholderColor(Gray500)
-            .CancelButtonColor(Gray500)
+            .TextColor(TextPrimary)
+            .Background(SurfaceVariant)
+            .PlaceholderColor(TextSecondary)
+            .CancelButtonColor(TextSecondary)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .MinimumHeightRequest(44)
@@ -281,28 +280,28 @@ partial class MyTheme
             .Offset(new Point(10, 10));
 
         SliderStyles.Default = _ => _
-            .MinimumTrackColor(IsLightTheme ? HighlightDarkest : White)
+            .MinimumTrackColor(PrimaryColor)
             .MaximumTrackColor(IsLightTheme ? Gray200 : Gray600)
-            .ThumbColor(IsLightTheme ? HighlightDarkest : White)
+            .ThumbColor(PrimaryColor)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.MinimumTrackColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.MaximumTrackColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.ThumbColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         SwipeItemStyles.Default = _ => _
-            .BackgroundColor(IsLightTheme ? White : Black);
+            .BackgroundColor(Surface);
 
         SwitchStyles.Default = _ => _
-            .OnColor(IsLightTheme ? HighlightDarkest : White)
+            .OnColor(PrimaryColor)
             .ThumbColor(White)
             .VisualState("CommonStates", "Disable", MauiControls.Switch.OnColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? Gray300 : Gray600)
-            .VisualState("CommonStates", "On", MauiControls.Switch.OnColorProperty, IsLightTheme ? Secondary : Gray200)
-            .VisualState("CommonStates", "On", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? HighlightDarkest : White)
+            .VisualState("CommonStates", "On", MauiControls.Switch.OnColorProperty, SecondaryColor)
+            .VisualState("CommonStates", "On", MauiControls.Switch.ThumbColorProperty, PrimaryColor)
             .VisualState("CommonStates", "Off", MauiControls.Switch.ThumbColorProperty, IsLightTheme ? Gray400 : Gray500);
 
 
         TimePickerStyles.Default = _ => _
-            .TextColor(IsLightTheme ? Gray900 : White)
+            .TextColor(TextPrimary)
             .BackgroundColor(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
@@ -313,40 +312,35 @@ partial class MyTheme
         TitleBarStyles.Default = _ => _
             .MinimumHeightRequest(32)
             .VisualState("TitleActiveStates", "TitleBarTitleActive", MauiControls.TitleBar.BackgroundColorProperty, Colors.Transparent)
-            .VisualState("TitleActiveStates", "TitleBarTitleActive", MauiControls.TitleBar.ForegroundColorProperty, IsLightTheme ? Black : White)
-            .VisualState("TitleActiveStates", "TitleBarTitleInactive", MauiControls.TitleBar.BackgroundColorProperty, IsLightTheme ? White : Black)
-            .VisualState("TitleActiveStates", "TitleBarTitleInactive", MauiControls.TitleBar.ForegroundColorProperty, IsLightTheme ? Gray400 : Gray500);
+            .VisualState("TitleActiveStates", "TitleBarTitleActive", MauiControls.TitleBar.ForegroundColorProperty, TextPrimary)
+            .VisualState("TitleActiveStates", "TitleBarTitleInactive", MauiControls.TitleBar.BackgroundColorProperty, Background)
+            .VisualState("TitleActiveStates", "TitleBarTitleInactive", MauiControls.TitleBar.ForegroundColorProperty, TextSecondary);
 
         PageStyles.Default = _ => _
             .Padding(0)
-            // .Set(MauiControls.Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.Default, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None))
-            // .Set(Layout.SafeAreaEdgesProperty,
-            //         (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
-            //         ? new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None)
-            //         : new SafeAreaEdges(SafeAreaRegions.All, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None))
-            .BackgroundColor(IsLightTheme ? LightBackground : DarkBackground);
+            .BackgroundColor(Background);
 
         ShellStyles.Default = _ => _
-            .Set(MauiControls.Shell.BackgroundColorProperty, IsLightTheme ? LightBackground : DarkBackground)
-            .Set(MauiControls.Shell.ForegroundColorProperty, IsLightTheme ? Black : SecondaryDarkText)
-            .Set(MauiControls.Shell.TitleColorProperty, IsLightTheme ? Black : SecondaryDarkText)
+            .Set(MauiControls.Shell.BackgroundColorProperty, Background)
+            .Set(MauiControls.Shell.ForegroundColorProperty, TextPrimary)
+            .Set(MauiControls.Shell.TitleColorProperty, TextPrimary)
             .Set(MauiControls.Shell.DisabledColorProperty, IsLightTheme ? Gray200 : Gray950)
-            .Set(MauiControls.Shell.UnselectedColorProperty, IsLightTheme ? Gray200 : Gray200)
+            .Set(MauiControls.Shell.UnselectedColorProperty, TextSecondary)
             .Set(MauiControls.Shell.NavBarHasShadowProperty, false)
-            .Set(MauiControls.Shell.TabBarBackgroundColorProperty, IsLightTheme ? LightBackground : DarkBackground)
-            .Set(MauiControls.Shell.TabBarForegroundColorProperty, IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
-            .Set(MauiControls.Shell.TabBarTitleColorProperty, IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground)
-            .Set(MauiControls.Shell.TabBarUnselectedColorProperty, IsLightTheme ? Gray900 : Gray200);
+            .Set(MauiControls.Shell.TabBarBackgroundColorProperty, Background)
+            .Set(MauiControls.Shell.TabBarForegroundColorProperty, TextPrimary)
+            .Set(MauiControls.Shell.TabBarTitleColorProperty, TextPrimary)
+            .Set(MauiControls.Shell.TabBarUnselectedColorProperty, TextSecondary);
 
         NavigationPageStyles.Default = _ => _
-            .Set(MauiControls.NavigationPage.BarBackgroundColorProperty, IsLightTheme ? White : OffBlack)
-            .Set(MauiControls.NavigationPage.BarTextColorProperty, IsLightTheme ? Gray200 : White)
-            .Set(MauiControls.NavigationPage.IconColorProperty, IsLightTheme ? Gray200 : White);
+            .Set(MauiControls.NavigationPage.BarBackgroundColorProperty, Surface)
+            .Set(MauiControls.NavigationPage.BarTextColorProperty, TextPrimary)
+            .Set(MauiControls.NavigationPage.IconColorProperty, TextPrimary);
 
         TabbedPageStyles.Default = _ => _
-            .Set(MauiControls.TabbedPage.BarBackgroundColorProperty, IsLightTheme ? White : Gray950)
-            .Set(MauiControls.TabbedPage.BarTextColorProperty, IsLightTheme ? Magenta : White)
-            .Set(MauiControls.TabbedPage.UnselectedTabColorProperty, IsLightTheme ? Gray200 : Gray950)
-            .Set(MauiControls.TabbedPage.SelectedTabColorProperty, IsLightTheme ? Gray950 : Gray200);
+            .Set(MauiControls.TabbedPage.BarBackgroundColorProperty, Surface)
+            .Set(MauiControls.TabbedPage.BarTextColorProperty, PrimaryColor)
+            .Set(MauiControls.TabbedPage.UnselectedTabColorProperty, TextSecondary)
+            .Set(MauiControls.TabbedPage.SelectedTabColorProperty, PrimaryColor);
     }
 }

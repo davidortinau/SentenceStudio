@@ -349,7 +349,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         // Validate required fields
         if (string.IsNullOrWhiteSpace(State.Resource.Title))
         {
-            await App.Current.MainPage.DisplayAlert($"{_localize["ValidationError"]}", $"{_localize["TitleRequired"]}", $"{_localize["OK"]}");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["ValidationError"]}", $"{_localize["TitleRequired"]}", $"{_localize["OK"]}");
             return;
         }
 
@@ -421,7 +421,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
     {
         if (string.IsNullOrWhiteSpace(State.VocabList))
         {
-            await App.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoVocabularyToImport"]}", $"{_localize["OK"]}");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoVocabularyToImport"]}", $"{_localize["OK"]}");
             return;
         }
 
@@ -432,7 +432,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
 
             if (!newWords.Any())
             {
-                await App.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoValidVocabularyFound"]}", $"{_localize["OK"]}");
+                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoValidVocabularyFound"]}", $"{_localize["OK"]}");
                 return;
             }
 
@@ -474,15 +474,15 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
             });
 
             // Show result message
-            var message = duplicateCount > 0 
+            var message = duplicateCount > 0
                 ? string.Format($"{_localize["VocabularyImportWithDuplicates"]}", addedCount, duplicateCount)
                 : string.Format($"{_localize["VocabularyImportSuccess"]}", addedCount);
 
-            await App.Current.MainPage.DisplayAlert($"{_localize["ImportComplete"]}", message, $"{_localize["OK"]}");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["ImportComplete"]}", message, $"{_localize["OK"]}");
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToImportVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToImportVocabulary"]}", ex.Message), $"{_localize["OK"]}");
         }
     }
 }

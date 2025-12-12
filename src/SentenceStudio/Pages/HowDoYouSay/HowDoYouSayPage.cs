@@ -19,16 +19,16 @@ class HowDoYouSayPageState
 	public bool IsVoiceSelectionVisible { get; set; } = false;
 	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
 	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
-	
-	public string SelectedVoiceDisplayName => 
-		VoiceDisplayNames.ContainsKey(SelectedVoiceId) ? 
+
+	public string SelectedVoiceDisplayName =>
+		VoiceDisplayNames.ContainsKey(SelectedVoiceId) ?
 		VoiceDisplayNames[SelectedVoiceId] : "Ji-Young";
-		
+
 	// Export-related properties
 	public bool IsSavingAudio { get; set; } = false;
 	public string ExportProgressMessage { get; set; } = string.Empty;
 	public StreamHistory ItemToExport { get; set; }
-	
+
 	// Is loading from repository
 	public bool IsLoading { get; set; } = true;
 }
@@ -42,7 +42,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] UserActivityRepository _userActivityRepository;
 	[Inject] ILogger<HowDoYouSayPage> _logger;
 	LocalizationManager _localize => LocalizationManager.Instance;
-	
+
 	private IAudioPlayer _audioPlayer;
 	private System.Timers.Timer _playbackTimer;
 
@@ -56,32 +56,34 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			)
 		).OnAppearing(OnPageAppearing);
 	}
-	
+
 	private Task OnPageAppearing()
 	{
 		// Initialize voice display names from the service
-		SetState(s => {
+		SetState(s =>
+		{
 			s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
 			s.IsLoading = true;
 		});
-		
+
 		// Load history from the repository
 		return LoadHistoryAsync();
 	}
-	
+
 	private async Task LoadHistoryAsync()
 	{
 		try
 		{
 			// Get all history from the repository
 			var history = await _streamHistoryRepository.GetAllStreamHistoryAsync();
-			
+
 			// Create a new ObservableCollection with the loaded items
-			SetState(s => {
+			SetState(s =>
+			{
 				s.StreamHistory = new ObservableCollection<StreamHistory>(history);
 				s.IsLoading = false;
 			});
-			
+
 			_logger.LogDebug("HowDoYouSayPage: Loaded {Count} history items", history.Count);
 		}
 		catch (Exception ex)
@@ -119,8 +121,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			).Spacing(MyTheme.Size240).HEnd()
 		)
 		.Padding(MyTheme.Size240);
-		
-	
+
+
 	VisualNode RenderHistory() =>
 
 		CollectionView()
@@ -130,10 +132,10 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.Padding(MyTheme.Size240))
 			.ItemsSource(State.StreamHistory, RenderHistoryItem)
 			.Margin(MyTheme.Size240)
-			.GridRow(2); 
+			.GridRow(2);
 
 	VisualNode RenderHistoryItem(StreamHistory item) =>
-		Grid(rows:"*", columns:"Auto,*,Auto,Auto",
+		Grid(rows: "*", columns: "Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() =>
@@ -181,39 +183,40 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		try
 		{
 			var stream = await _speechService.TextToSpeechAsync(
-				State.Phrase, 
+				State.Phrase,
 				State.SelectedVoiceId); // Use the selected voice ID
-			
+
 			// Create new StreamHistory item
-			var historyItem = new StreamHistory { 
-				Phrase = State.Phrase, 
+			var historyItem = new StreamHistory
+			{
+				Phrase = State.Phrase,
 				Stream = stream,
 				VoiceId = State.SelectedVoiceId, // Store the voice Id with the history item
 				CreatedAt = DateTime.UtcNow,
 				UpdatedAt = DateTime.UtcNow
 			};
-			
+
 			// First save to repository to get an ID
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
-			
+
 			// Now use the Id for the filename
 			string fileName = $"phrase_{historyItem.Id}.mp3";
 			historyItem.FileName = fileName;
 			string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
-			
+
 			// Save the audio stream to a file
 			using (var fileStream = File.Create(audioFilePath))
 			{
 				stream.Position = 0;
 				await stream.CopyToAsync(fileStream);
 			}
-			
+
 			// Reset stream position
 			stream.Position = 0;
-			
+
 			// Store the file path in the history item
 			historyItem.AudioFilePath = audioFilePath;
-			
+
 			// Update the history item with the file path
 			await _streamHistoryRepository.SaveStreamHistoryAsync(historyItem);
 
@@ -228,7 +231,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			});
 
 			PlayAudio(historyItem);
-			
+
 			SetState(s =>
 			{
 				s.StreamHistory.Insert(0, historyItem);
@@ -250,9 +253,9 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		{
 			// Stop any currently playing audio
 			StopPlayback();
-			
+
 			Stream audioStream = null;
-			
+
 			// Check if we have a local file to use
 			if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
 			{
@@ -266,27 +269,27 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				_logger.LogDebug("HowDoYouSayPage: Fetching audio from service for: {Phrase}", item.Phrase);
 				audioStream = await _speechService.TextToSpeechAsync(item.Phrase, item.VoiceId);
 				item.Stream = audioStream;
-				
+
 				// Save the stream to disk for future use if we have an ID
 				if (item.Id > 0)
 				{
 					string fileName = $"phrase_{item.Id}.mp3";
 					string audioFilePath = System.IO.Path.Combine(FileSystem.AppDataDirectory, fileName);
-					
+
 					// Save the audio stream to a file
 					using (var fileStream = File.Create(audioFilePath))
 					{
 						audioStream.Position = 0;
 						await audioStream.CopyToAsync(fileStream);
 					}
-					
+
 					// Reset stream position
 					audioStream.Position = 0;
-					
+
 					// Update the file path
 					item.AudioFilePath = audioFilePath;
 					item.FileName = fileName;
-					
+
 					// Update in repository
 					await _streamHistoryRepository.SaveStreamHistoryAsync(item);
 				}
@@ -297,47 +300,48 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				audioStream = item.Stream;
 				audioStream.Position = 0;
 			}
-			
+
 			// Create and play audio
 			_audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
 			_audioPlayer.PlaybackEnded += OnPlaybackEnded;
 			_audioPlayer.Play();
-			
+
 			// Set as the current playing item
-			SetState(s => 
-			{ 
+			SetState(s =>
+			{
 				s.CurrentPlayingItem = item;
 				s.PlaybackPosition = 0f;
 			});
-			
+
 			// Start the playback timer to update position
 			StartPlaybackTimer();
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "HowDoYouSayPage: Error playing audio");
-			await App.Current.MainPage.DisplayAlert("Error", $"Failed to play audio: {ex.Message}", "OK");
+			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to play audio: {ex.Message}", "OK");
 		}
 	}
-	
+
 	private void OnPlaybackEnded(object sender, EventArgs e)
 	{
 		StopPlayback();
-		
+
 		// Reset position to start and update playing state
-		SetState(s => {
+		SetState(s =>
+		{
 			s.PlaybackPosition = 0f;
 			s.IsPlaying = false;
 		});
 	}
-	
+
 	private void StopPlayback()
 	{
 		// Stop any existing player
 		if (_audioPlayer != null)
 		{
 			_audioPlayer.PlaybackEnded -= OnPlaybackEnded;
-			
+
 			if (_audioPlayer.IsPlaying)
 			{
 				_audioPlayer.Stop();
@@ -346,7 +350,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			// _audioPlayer.Dispose();
 			// _audioPlayer = null;
 		}
-		
+
 		// Stop playback timer
 		if (_playbackTimer != null)
 		{
@@ -356,7 +360,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			_playbackTimer = null;
 		}
 	}
-	
+
 	private void StartPlaybackTimer()
 	{
 		// Create timer to update playback position
@@ -364,7 +368,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		_playbackTimer.Elapsed += OnPlaybackTimerElapsed;
 		_playbackTimer.Start();
 	}
-	
+
 	private void OnPlaybackTimerElapsed(object sender, System.Timers.ElapsedEventArgs e)
 	{
 		if (_audioPlayer != null && _audioPlayer.IsPlaying && _audioPlayer.Duration > 0)
@@ -373,17 +377,17 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			float position = (float)(_audioPlayer.CurrentPosition / _audioPlayer.Duration);
 
 			SetState(s => s.PlaybackPosition = position);
-			
+
 		}
 	}
-	
+
 	// Clean up resources when component is removed
 	protected override void OnWillUnmount()
 	{
 		StopPlayback();
 		base.OnWillUnmount();
 	}
-	
+
 	/// <summary>
 	/// Renders the voice selection bottom sheet.
 	/// </summary>
@@ -443,14 +447,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		)
 		.OnTapped(() => SelectVoice(voiceId))
 		;
-	
+
 	/// <summary>
 	/// Handles voice selection.
 	/// </summary>
 	private void SelectVoice(string voiceId)
 	{
 		// Update the selected voice
-		SetState(s => {
+		SetState(s =>
+		{
 			s.SelectedVoiceId = voiceId;
 
 			// Close the bottom sheet after selection
@@ -459,7 +464,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 
 		_logger.LogDebug("HowDoYouSayPage: Selected voice: {VoiceId}", voiceId);
 	}
-	
+
 	/// <summary>
 	/// Shows the voice selection bottom sheet.
 	/// </summary>
@@ -476,32 +481,33 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		_logger.LogDebug("HowDoYouSayPage: Saving audio for: {Phrase}", item.Phrase);
 		// if (item?.Stream == null) 
 		// {
-		// 	await App.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
+		// 	await Application.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
 		// 	return;
 		// }
 
 		try
 		{
-			SetState(s => {
+			SetState(s =>
+			{
 				s.IsSavingAudio = true;
 				s.ItemToExport = item;
 			});
 
-		// 	// Create a unique filename based on text and timestamp
+			// 	// Create a unique filename based on text and timestamp
 			string safeFilename = MakeSafeFileName(item.Phrase);
 			string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 			string fileName = $"{safeFilename}_{timestamp}.mp3";
 
-		// 	// Clone the stream to a memory stream to avoid position issues
+			// 	// Clone the stream to a memory stream to avoid position issues
 			MemoryStream memoryStream = new MemoryStream();
 			item.Stream.Position = 0;
 			await item.Stream.CopyToAsync(memoryStream);
 			memoryStream.Position = 0;
 
-		// 	// Reset original stream position
+			// 	// Reset original stream position
 			item.Stream.Position = 0;
 
-		// 	// Use the FileSaver to save the audio
+			// 	// Use the FileSaver to save the audio
 			var fileSaverResult = await _fileSaver.SaveAsync(fileName, memoryStream, new CancellationToken());
 
 			// 	// Check if the save was successful
@@ -509,14 +515,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			{
 				// Show success message
 				await Toast.Make("Audio saved successfully!").Show();
-				// await App.Current.MainPage.DisplayAlert("Success", $"Audio saved to: {fileSaverResult.FilePath}", "OK");
+				// await Application.Current.MainPage.DisplayAlert("Success", $"Audio saved to: {fileSaverResult.FilePath}", "OK");
 			}
 			else
 			{
 				// Show error if save was canceled or failed
 				if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
 				{
-					await App.Current.MainPage.DisplayAlert("Error",
+					await Application.Current.MainPage.DisplayAlert("Error",
 						$"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
 				}
 			}
@@ -528,10 +534,10 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			_logger.LogError(ex, "HowDoYouSayPage: Error saving audio");
 			SetState(s => s.IsSavingAudio = false);
 
-			await App.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
 		}
 	}
-	
+
 	/// <summary>
 	/// Creates a safe filename from a text string by removing invalid characters.
 	/// </summary>
@@ -539,16 +545,16 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	{
 		if (string.IsNullOrEmpty(text))
 			return "audio";
-			
+
 		// Replace invalid filename characters with underscores
 		string invalidChars = new string(System.IO.Path.GetInvalidFileNameChars());
 		string invalidRegStr = string.Format(@"[{0}]", Regex.Escape(invalidChars));
 		string safe = Regex.Replace(text, invalidRegStr, "_");
-		
+
 		// Trim to reasonable length
 		if (safe.Length > 50)
 			safe = safe.Substring(0, 50);
-			
+
 		return safe;
 	}
 
@@ -557,13 +563,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// </summary>
 	async Task DeleteHistoryItem(StreamHistory item)
 	{
-		bool confirm = await App.Current.MainPage.DisplayAlert(
+		bool confirm = await Application.Current.MainPage.DisplayAlert(
 			"Confirm Deletion",
 			$"Are ye sure ye want to delete this phrase: \"{item.Phrase}\"?",
 			"Aye", "Nay");
-			
+
 		if (!confirm) return;
-		
+
 		try
 		{
 			// Stop playback if this is the item being played
@@ -572,10 +578,10 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				StopPlayback();
 				SetState(s => s.CurrentPlayingItem = null);
 			}
-			
+
 			// Delete from repository
 			await _streamHistoryRepository.DeleteStreamHistoryAsync(item);
-			
+
 			// Delete audio file from disk if it exists
 			if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
 			{
@@ -598,10 +604,10 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "HowDoYouSayPage: Error deleting history item");
-			await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
+			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
 		}
 	}
-	
+
 	/// <summary>
 	/// Pauses the current audio playback
 	/// </summary>
@@ -610,18 +616,18 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		if (_audioPlayer != null && _audioPlayer.IsPlaying)
 		{
 			_audioPlayer.Pause();
-			
+
 			// Stop the timer but don't reset it
 			if (_playbackTimer != null)
 			{
 				_playbackTimer.Stop();
 			}
-			
+
 			// Update the playing state
 			SetState(s => s.IsPlaying = false);
 		}
 	}
-	
+
 	/// <summary>
 	/// Resumes playback from the current position
 	/// </summary>
@@ -631,25 +637,25 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		{
 			_audioPlayer.PlaybackEnded += OnPlaybackEnded;
 			_audioPlayer.Play();
-			
+
 			// Restart the timer
 			if (_playbackTimer != null)
 			{
 				_playbackTimer.Start();
 			}
-			
+
 			// Update the playing state
 			SetState(s => s.IsPlaying = true);
 		}
 	}
-	
+
 	/// <summary>
 	/// Toggles between play and pause
 	/// </summary>
 	private void TogglePlayback()
 	{
 		if (_audioPlayer == null) return;
-		
+
 		if (_audioPlayer.IsPlaying)
 		{
 			PausePlayback();

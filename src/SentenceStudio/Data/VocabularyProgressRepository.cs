@@ -74,7 +74,7 @@ public class VocabularyProgressRepository
                     .ThenInclude(lc => lc.LearningResource)
                 .Where(vp => batch.Contains(vp.VocabularyWordId))
                 .ToListAsync();
-            
+
             results.AddRange(batchResults);
         }
 
@@ -165,7 +165,7 @@ public class VocabularyProgressRepository
             _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
-                await App.Current.Windows[0].Page.DisplayAlert("Error", ex.Message, "Fix it");
+                await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
             }
             throw;
         }

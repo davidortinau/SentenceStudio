@@ -605,7 +605,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         // Validate required fields
         if (string.IsNullOrWhiteSpace(State.Resource.Title))
         {
-            await App.Current.MainPage.DisplayAlert("Validation Error", "Title is required", "OK");
+            await Application.Current.MainPage.DisplayAlert("Validation Error", "Title is required", "OK");
             SetState(s => s.IsLoading = false);
             return;
         }
@@ -638,7 +638,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
     async Task DeleteResource()
     {
-        bool confirm = await App.Current.MainPage.DisplayAlert(
+        bool confirm = await Application.Current.MainPage.DisplayAlert(
             "Confirm Delete",
             "Are you sure you want to delete this resource?",
             "Yes", "No");
@@ -738,14 +738,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         catch (Exception ex)
         {
             SetState(s => s.IsLoading = false);
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to save vocabulary word: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save vocabulary word: {ex.Message}", "OK");
             _logger.LogError(ex, "SaveVocabularyWordAsync error");
         }
     }
 
     async Task DeleteVocabularyWord(VocabularyWord word)
     {
-        bool confirm = await App.Current.MainPage.DisplayAlert(
+        bool confirm = await Application.Current.MainPage.DisplayAlert(
             "Confirm Delete",
             $"Are you sure you want to delete '{word.TargetLanguageTerm}'?",
             "Yes", "No");
@@ -774,7 +774,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         catch (Exception ex)
         {
             SetState(s => s.IsLoading = false);
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
             _logger.LogError(ex, "DeleteVocabularyWord error");
         }
     }
@@ -852,7 +852,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         // Check if there's a transcript to analyze
         if (string.IsNullOrWhiteSpace(State.Resource.Transcript))
         {
-            await App.Current.MainPage.DisplayAlert("Error", "No transcript available to generate vocabulary from", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", "No transcript available to generate vocabulary from", "OK");
             return;
         }
 
@@ -1031,20 +1031,20 @@ Transcript:
 
                 _logger.LogInformation("🏴‍☠️ Final stats: {NewWords} new, {ExistingWords} existing, {SkippedWords} skipped", newWordsCreated, existingWordsLinked, localDuplicatesSkipped);
 
-                await App.Current.MainPage.DisplayAlert("Vocabulary Generated!", message, "OK");
+                await Application.Current.MainPage.DisplayAlert("Vocabulary Generated!", message, "OK");
             }
             else
             {
                 _logger.LogWarning("⚠️ AI returned null or empty vocabulary list");
                 SetState(s => s.IsGeneratingVocabulary = false);
-                await App.Current.MainPage.DisplayAlert("Error", "AI did not generate any vocabulary. There might be an issue with the AI service.", "OK");
+                await Application.Current.MainPage.DisplayAlert("Error", "AI did not generate any vocabulary. There might be an issue with the AI service.", "OK");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "GenerateVocabulary error");
             SetState(s => s.IsGeneratingVocabulary = false);
-            await App.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
         }
     }
 
@@ -1076,7 +1076,7 @@ Transcript:
     {
         if (string.IsNullOrWhiteSpace(State.VocabList))
         {
-            await App.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
             return;
         }
 
@@ -1087,7 +1087,7 @@ Transcript:
 
             if (!newWords.Any())
             {
-                await App.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
+                await Application.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
                 return;
             }
 
@@ -1135,11 +1135,11 @@ Transcript:
                 message += $" Skipped {duplicateCount} duplicates.";
             }
 
-            await App.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
+            await Application.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
         }
         catch (Exception ex)
         {
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
         }
     }
 
@@ -1171,7 +1171,7 @@ Transcript:
         catch (Exception ex)
         {
             SetState(s => s.IsCleaningTranscript = false);
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to clean up transcript: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to clean up transcript: {ex.Message}", "OK");
         }
     }
 
@@ -1194,7 +1194,7 @@ Transcript:
             if (string.IsNullOrWhiteSpace(polishedTranscript))
             {
                 SetState(s => s.IsPolishingTranscript = false);
-                await App.Current.MainPage.DisplayAlert("Error", "AI service returned empty result. Check your internet connection and API key.", "OK");
+                await Application.Current.MainPage.DisplayAlert("Error", "AI service returned empty result. Check your internet connection and API key.", "OK");
                 return;
             }
 
@@ -1221,7 +1221,7 @@ Transcript:
         {
             SetState(s => s.IsPolishingTranscript = false);
             _logger.LogError(ex, "EditLearningResourcePage: ❌ Polish transcript error");
-            await App.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
+            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
         }
     }
 }

@@ -145,7 +145,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                 // Start/Resume button for next activity
                 !allComplete
                     ? Button(buttonText)
-                        .ThemeKey(MyTheme.Primary)
+                        .ThemeKey(MyTheme.PrimaryButton)
                         .HEnd()
                         .VCenter()
                         .OnClicked(() =>

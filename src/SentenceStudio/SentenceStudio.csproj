@@ -142,7 +142,8 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
 
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.7" />
-		<PackageReference Include="Reactor.Maui" Version="4.0.3-beta" />
+		<PackageReference Include="Reactor.Maui" Version="4.0.4-beta" />
+		
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
@@ -171,7 +172,6 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="ReactorTheme" Version="1.0.0" Condition="'$(TargetFramework)' != 'net10.0'" />
 
 		<PackageReference Include="Microsoft.Extensions.AI" Version="9.10.1" />
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.10.1-preview.1.25521.4" />
@@ -216,6 +216,8 @@
 		<Compile Remove="Common\**\*.cs" />
 		<Compile Remove="Helpers\*.cs" />
 		<Compile Remove="Converters\*.cs" />
+		<!-- Exclude models with dependencies on excluded services -->
+		<Compile Remove="Models\FilterChip.cs" />
 		<!-- Exclude services with MAUI dependencies (FileSystem, Template, Debug) or dependencies on excluded services -->
 		<Compile Remove="Services\TeacherService.cs" />
 		<Compile Remove="Services\AiClient.cs" />
@@ -230,6 +232,7 @@
 		<Compile Remove="Services\ShadowingService.cs" />
 		<Compile Remove="Services\VideoWatchingService.cs" />
 		<Compile Remove="Services\YouTubeImportService.cs" />
+		<Compile Remove="Services\SmartResourceService.cs" />
 		<Compile Remove="Services\Progress\*.cs" />
 		<Compile Remove="Services\Timer\*.cs" />
 		<Compile Remove="Services\PlanGeneration\*.cs" />

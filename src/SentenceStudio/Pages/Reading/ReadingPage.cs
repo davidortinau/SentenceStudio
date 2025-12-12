@@ -612,7 +612,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     Color GetTextColorForSentence(int sentenceIndex)
     {
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return MyTheme.HighlightDark; // Use secondary color for sentence highlighting (different from vocabulary Primary)
+            return MyTheme.Dark.Primary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
         else
             return MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
     }

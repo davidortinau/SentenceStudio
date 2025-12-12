@@ -703,7 +703,7 @@ async Task HandleAudioGenerationError(Exception ex, int sentenceIndex)
     Debug.WriteLine($"🏴‍☠️ ReadingPage: Audio generation failed for sentence {sentenceIndex}: {ex.Message}");
     
     // Show user-friendly error
-    await App.Current.MainPage.DisplayAlert(
+    await Application.Current.MainPage.DisplayAlert(
         "Audio Unavailable", 
         "Could not generate audio for this sentence. Check your internet connection.", 
         "OK");

@@ -27,14 +27,13 @@ using CommunityToolkit.Maui.Storage;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
-using ReactorTheme;
 using Microsoft.Maui.Controls.Hosting;
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+using System.Globalization;
+#endif
 
 #if WINDOWS
 using System.Reflection;
-#endif
-
-#if DEBUG
 #endif
 
 namespace SentenceStudio;
@@ -46,8 +45,54 @@ public static class MauiProgram
 
 		var builder = MauiApp.CreateBuilder();
 		builder
-			.UseMauiApp<App>()
-			.UseReactorThemeFonts()
+			// .UseMauiApp<App>(app =>
+			// {
+
+			// })
+			.UseMauiReactorApp<SentenceStudioApp>(app =>
+			{
+				app.UseTheme<MyTheme>();
+				app.SetWindowsSpecificAssetsDirectory("Assets");
+				// app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.DarkTheme());
+				// app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.PopupStyles());
+
+				// // Add custom resources
+				// var customResources = new ResourceDictionary
+				// {
+				// 	// Font Families
+				// 	{ "IconsFontFamily", MaterialSymbolsFont.FontFamily },
+				// 	{ "AppFontFamily", "Manrope" },
+				// 	{ "AppSemiBoldFamily", "ManropeSemibold" },
+
+				// 	// UXDivers Popups Icon Overrides
+				// 	{ "UXDPopupsCloseIconButton", MaterialSymbolsFont.Close },
+				// 	{ "UXDPopupsCheckCircleIconButton", MaterialSymbolsFont.Check_circle },
+
+				// 	// Icon Colors
+				// 	// { "IconOrange", Color.FromArgb("#FF7134") },
+				// 	// { "IconMagenta", Color.FromArgb("#FF1AD9") },
+				// 	// { "IconCyan", Color.FromArgb("#05D9FF") },
+				// 	// { "IconGreen", Color.FromArgb("#2FFF74") },
+				// 	// { "IconPurple", Color.FromArgb("#BD3BFF") },
+				// 	// { "IconBlue", Color.FromArgb("#1C7BFF") },
+				// 	// { "IconLime", Color.FromArgb("#C8FF01") },
+				// 	// { "IconRed", Color.FromArgb("#FF0000") },
+				// 	// { "IconDarkBlue", Color.FromArgb("#6422FF") },
+				// 	{ "BackgroundColor", MyTheme.DarkBackground },
+				// 	{ "BackgroundSecondaryColor", MyTheme.DarkSecondaryBackground },
+				// 	{ "BackgroundTertiaryColor", Colors.Purple },
+				// 	{ "PrimaryColor", MyTheme.PrimaryDark},
+				// 	{ "TextColor", MyTheme.PrimaryDarkText },
+				// 	{ "PopupBorderColor", MyTheme.DarkSecondaryBackground }
+				// };
+				// app.Resources.MergedDictionaries.Add(customResources);
+
+				// InitializeUserCulture();
+				// InitializeSmartResources();
+
+			})
+			// .UseUXDiversPopups()
+
 			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
@@ -80,6 +125,9 @@ public static class MauiProgram
 				fonts.AddFont("bm_yeonsung.ttf", "Yeonsung");
 				fonts.AddFont("fa_solid.ttf", FontAwesome.FontFamily);
 				fonts.AddFont("FluentSystemIcons-Regular.ttf", FluentUI.FontFamily);
+				fonts.AddFont("Manrope-Regular.ttf", "Manrope");
+				fonts.AddFont("Manrope-SemiBold.ttf", "ManropeSemibold");
+				fonts.AddFont("MaterialSymbols.ttf", MaterialSymbolsFont.FontFamily);
 			})
 			.ConfigureMauiHandlers(handlers =>
 			{
@@ -317,12 +365,15 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
 		services.AddSingleton<SmartResourceService>();
-		
+
 		// Vocabulary encoding repositories and services
 		services.AddSingleton<EncodingStrengthCalculator>();
 		services.AddSingleton<ExampleSentenceRepository>();
 		services.AddSingleton<VocabularyEncodingRepository>();
 		services.AddSingleton<VocabularyFilterService>(); // [US3-T048]
+
+		// Vocabulary search syntax parser (GitHub-style search: tag:value, resource:value, etc.)
+		services.AddSingleton<ISearchQueryParser, SearchQueryParser>();
 
 		// PHASE 2 OPTIMIZATION: Progress cache service for faster dashboard loading
 		services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();
@@ -362,8 +413,6 @@ public static class MauiProgram
 
 		services.AddSingleton<IAppState, AppState>();
 	}
-
-
 
 	private static void ModifyPicker()
 	{
@@ -419,4 +468,50 @@ public static class MauiProgram
 #endif
 		});
 	}
+
+	// private async Task InitializeUserCulture()
+	// {
+	// 	try
+	// 	{
+	// 		var profile = await _userProfileRepository.GetAsync();
+	// 		if (profile != null && !string.IsNullOrEmpty(profile.DisplayLanguage))
+	// 		{
+	// 			// Convert display language name to culture code
+	// 			string cultureCode = profile.DisplayLanguage == "Korean" ? "ko-KR" : "en-US";
+	// 			var culture = new CultureInfo(cultureCode);
+
+	// 			// Set the culture using the LocalizationManager
+	// 			LocalizationManager.Instance.SetCulture(culture);
+
+	// 			_logger.LogInformation($"App culture set to {culture.Name} from user profile");
+	// 			//Console.Writeline($"App culture set to {culture.Name} from user profile");
+	// 		}
+	// 	}
+	// 	catch (Exception ex)
+	// 	{
+	// 		_logger.LogError(ex, "Failed to initialize user culture");
+	// 		//Console.Writeline($"Failed to initialize user culture: {ex}");
+	// 		_logger.LogError($"Stack trace at culture init failure: {Environment.StackTrace}");
+	// 		//Console.Writeline($"Stack trace at culture init failure: {Environment.StackTrace}");
+	// 	}
+	// }
+
+	// private async Task InitializeSmartResources()
+	// {
+	// 	try
+	// 	{
+	// 		// Get user's target language from profile (default to Korean)
+	// 		var profile = await _userProfileRepository.GetAsync();
+	// 		string targetLanguage = profile?.TargetLanguage ?? "Korean";
+
+	// 		// Initialize smart resources (creates them if they don't exist)
+	// 		await _smartResourceService.InitializeSmartResourcesAsync(targetLanguage);
+
+	// 		_logger.LogInformation("Smart resources initialized successfully");
+	// 	}
+	// 	catch (Exception ex)
+	// 	{
+	// 		_logger.LogError(ex, "Failed to initialize smart resources");
+	// 	}
+	// }
 }

@@ -469,7 +469,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	Color GetIndicatorBorderColor(UserActivity activity, bool isCurrent)
 	{
 		if (isCurrent)
-			return MyTheme.HighlightDark;
+			return MyTheme.Dark.Primary;
 
 		if (activity == null)
 			return MyTheme.Gray200;
@@ -556,18 +556,6 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}
 
 		return borderColor;
-	}
-
-	Color GetFeedbackBackgroundColor(string feedbackType)
-	{
-		return feedbackType switch
-		{
-			"success" => MyTheme.SupportSuccessDark,
-			"achievement" => MyTheme.SupportSuccessMedium,
-			"info" => MyTheme.Warning,
-			"hint" => MyTheme.HighlightDarkest,
-			_ => MyTheme.Gray400
-		};
 	}
 
 	#endregion

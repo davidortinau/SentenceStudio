@@ -247,7 +247,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Vocabulary paint created: Size={TextSize}, Color={Color}", _vocabularyPaint.TextSize, _vocabularyPaint.Color);
 
             // Highlighted vocabulary paint for vocabulary words in current sentence - use primary + secondary mix
-            var highlightedVocabColor = MyTheme.HighlightDark.ToSKColor();
+            var highlightedVocabColor = MyTheme.Dark.Primary.ToSKColor();
             _highlightedVocabularyPaint = new SKPaint
             {
                 IsAntialias = true,

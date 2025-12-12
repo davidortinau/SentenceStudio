@@ -453,6 +453,39 @@ partial class MyTheme
         Size = IconSize
     };
 
+    // Filter icons for search/filter UI
+    public static FontImageSource IconTag { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.tag_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray600,
+        Size = Size200
+    };
+
+    public static FontImageSource IconResource { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.book_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray600,
+        Size = Size200
+    };
+
+    public static FontImageSource IconLemma { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.text_word_count_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray600,
+        Size = Size200
+    };
+
+    public static FontImageSource IconStatusFilter { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.status_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray600,
+        Size = Size200
+    };
+
     public static ImageSource GetIconForMediaType(string mediaType)
     {
         return mediaType switch
