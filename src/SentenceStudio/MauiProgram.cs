@@ -338,6 +338,9 @@ public static class MauiProgram
 		// LLM-based plan generation (uses deterministic builder)
 		services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.PlanGeneration.LlmPlanGenerationService>();
 
+		// Vocabulary example generation service (AI)
+		services.AddSingleton<VocabularyExampleGenerationService>();
+
 		// services.AddTransient<FeedbackPanel,FeedbackPanelModel>();
 
 		// services.AddSingleton<DesktopTitleBar,DesktopTitleBarViewModel>();

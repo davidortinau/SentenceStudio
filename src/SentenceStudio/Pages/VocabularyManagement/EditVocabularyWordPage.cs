@@ -37,6 +37,9 @@ class EditVocabularyWordPageState
     // Example sentences
     public List<ExampleSentence> ExampleSentences { get; set; } = new();
     public bool IsLoadingExamples { get; set; } = false;
+    public bool IsGeneratingSentences { get; set; } = false;
+    public bool IsEditingSentence { get; set; } = false;
+    public ExampleSentence? EditingSentence { get; set; } = null;
 
     // Progress tracking
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
@@ -54,8 +57,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] StreamHistoryRepository _historyRepo;
     [Inject] UserActivityRepository _activityRepo;
+    [Inject] UserProfileRepository _userProfileRepo;
     [Inject] ExampleSentenceRepository _exampleRepo;
     [Inject] VocabularyEncodingRepository _encodingRepo;
+    [Inject] VocabularyExampleGenerationService _exampleGenerationService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -233,15 +238,23 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     VisualNode RenderExampleSentencesSection() =>
         VStack(spacing: 16,
             HStack(spacing: 10,
-                Label("Example Sentences")
+                Label($"{_localize["ExampleSentences"]}")
                     .FontSize(20)
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),
                 
-                Button("Add")
-                    .ThemeKey(MyTheme.Secondary)
-                    .OnClicked(() => _ = AddExampleSentenceAsync())
+                State.IsGeneratingSentences ?
+                    ActivityIndicator().IsRunning(true).WidthRequest(24).HeightRequest(24) :
+                    HStack(spacing: 8,
+                        Button($"{_localize["GenerateWithAI"]}")
+                            .ThemeKey(MyTheme.Primary)
+                            .OnClicked(() => _ = GenerateExampleSentencesAsync()),
+                        
+                        Button($"{_localize["AddManually"]}")
+                            .ThemeKey(MyTheme.Secondary)
+                            .OnClicked(() => _ = AddExampleSentenceAsync())
+                    )
             ),
             
             State.IsLoadingExamples ?
@@ -252,7 +265,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             RenderExampleSentenceItem(sentence)
                         ).ToArray()
                     ) :
-                    Label("No example sentences yet. Add one to improve encoding strength!")
+                    Label($"{_localize["NoExampleSentencesYet"]}")
                         .FontSize(14)
                         .TextColor(MyTheme.Gray500)
                         .FontAttributes(FontAttributes.Italic)
@@ -277,6 +290,14 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .FontSize(12)
                             .TextColor(MyTheme.Warning) :
                         null,
+                    
+                    !string.IsNullOrWhiteSpace(sentence.AudioUri) ?
+                        Button("▶ Play")
+                            .ThemeKey(MyTheme.Primary)
+                            .OnClicked(() => _ = PlaySentenceAudioAsync(sentence)) :
+                        Button("🎵 Generate Audio")
+                            .ThemeKey(MyTheme.Secondary)
+                            .OnClicked(() => _ = GenerateSentenceAudioAsync(sentence)),
                     
                     Button("Toggle Core")
                         .ThemeKey(MyTheme.Secondary)
@@ -906,6 +927,80 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         }
     }
     
+    async Task GenerateExampleSentencesAsync()
+    {
+        if (Connectivity.NetworkAccess != NetworkAccess.Internet)
+        {
+            await Application.Current.MainPage.DisplayAlert(
+                $"{_localize["Error"]}",
+                $"{_localize["NoInternetConnection"]}",
+                $"{_localize["OK"]}");
+            return;
+        }
+
+        SetState(s => s.IsGeneratingSentences = true);
+
+        try
+        {
+            _logger.LogInformation("🤖 Generating example sentences for word: {Word}", State.Word.TargetLanguageTerm);
+
+            // Get user profile to determine languages
+            var userProfile = await _userProfileRepo.GetAsync();
+            var nativeLanguage = userProfile?.NativeLanguage ?? "English";
+            var targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+            // Generate sentences using AI
+            var generatedSentences = await _exampleGenerationService.GenerateExampleSentencesAsync(
+                State.Word,
+                nativeLanguage,
+                targetLanguage,
+                count: 3);
+
+            if (!generatedSentences.Any())
+            {
+                await Application.Current.MainPage.DisplayAlert(
+                    $"{_localize["Error"]}",
+                    $"{_localize["FailedToGenerateSentences"]}",
+                    $"{_localize["OK"]}");
+                return;
+            }
+
+            // Save generated sentences to database
+            foreach (var generated in generatedSentences)
+            {
+                var sentence = new ExampleSentence
+                {
+                    VocabularyWordId = State.Word.Id,
+                    TargetSentence = generated.TargetSentence,
+                    NativeSentence = generated.NativeSentence,
+                    IsCore = generated.IsCore,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _exampleRepo.CreateAsync(sentence);
+            }
+
+            // Reload sentences
+            await ReloadExampleSentencesAsync();
+
+            await AppShell.DisplayToastAsync($"✅ {generatedSentences.Count} example sentences generated!");
+            _logger.LogInformation("✅ Successfully saved {Count} generated sentences", generatedSentences.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate example sentences");
+            await Application.Current.MainPage.DisplayAlert(
+                $"{_localize["Error"]}",
+                $"{_localize["FailedToGenerateSentences"]}",
+                $"{_localize["OK"]}");
+        }
+        finally
+        {
+            SetState(s => s.IsGeneratingSentences = false);
+        }
+    }
+
     async Task AddExampleSentenceAsync()
     {
         var targetSentence = await Application.Current.MainPage.DisplayPromptAsync(
@@ -1015,6 +1110,96 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsLoadingExamples = false);
+        }
+    }
+    
+    async Task GenerateSentenceAudioAsync(ExampleSentence sentence)
+    {
+        SetState(s => s.IsGeneratingAudio = true);
+        
+        try
+        {
+            _logger.LogInformation($"🎵 Generating audio for sentence: {sentence.TargetSentence}");
+            
+            // Use default Korean voice
+            var voiceId = "onwK4e9ZLuTAKqWW03F9"; // Nicole (Korean female)
+            
+            // Generate audio using ElevenLabs
+            var audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, voiceId);
+            
+            // Save to AudioCache directory
+            var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+            Directory.CreateDirectory(audioCacheDir);
+            
+            var fileName = $"sentence_{sentence.Id}_{DateTime.UtcNow.Ticks}.mp3";
+            var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
+            
+            using (var fileStream = File.Create(filePath))
+            {
+                await audioStream.CopyToAsync(fileStream);
+            }
+            
+            _logger.LogInformation($"✅ Audio saved to: {filePath}");
+            
+            // Update sentence with audio URI
+            sentence.AudioUri = filePath;
+            sentence.UpdatedAt = DateTime.UtcNow;
+            await _exampleRepo.UpdateAsync(sentence);
+            
+            // Reload to reflect changes
+            await ReloadExampleSentencesAsync();
+            
+            await AppShell.DisplayToastAsync("🎵 Audio generated successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate sentence audio");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to generate audio: {ex.Message}", $"{_localize["OK"]}");
+        }
+        finally
+        {
+            SetState(s => s.IsGeneratingAudio = false);
+        }
+    }
+    
+    async Task PlaySentenceAudioAsync(ExampleSentence sentence)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(sentence.AudioUri))
+            {
+                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", "No audio available for this sentence", $"{_localize["OK"]}");
+                return;
+            }
+            
+            if (!File.Exists(sentence.AudioUri))
+            {
+                _logger.LogWarning($"⚠️ Audio file not found: {sentence.AudioUri}");
+                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", "Audio file not found. Try regenerating the audio.", $"{_localize["OK"]}");
+                return;
+            }
+            
+            _logger.LogInformation($"▶️ Playing sentence audio: {sentence.AudioUri}");
+            
+            // Stop any currently playing audio
+            if (_audioPlayer != null)
+            {
+                _audioPlayer.Stop();
+                _audioPlayer.Dispose();
+                _audioPlayer = null;
+            }
+            
+            // Create and play new audio
+            var audioStream = File.OpenRead(sentence.AudioUri);
+            _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+            _audioPlayer.Play();
+            
+            await AppShell.DisplayToastAsync("▶️ Playing audio...");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to play sentence audio");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to play audio: {ex.Message}", $"{_localize["OK"]}");
         }
     }
 }

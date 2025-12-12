@@ -1565,4 +1565,28 @@
     <value>Framework</value>
     <comment>Label for .NET framework version</comment>
   </data>
+  <data name="ExampleSentences" xml:space="preserve">
+    <value>Example Sentences</value>
+    <comment>Section header for example sentences</comment>
+  </data>
+  <data name="GenerateWithAI" xml:space="preserve">
+    <value>Generate with AI</value>
+    <comment>Button to generate example sentences using AI</comment>
+  </data>
+  <data name="AddManually" xml:space="preserve">
+    <value>Add Manually</value>
+    <comment>Button to add example sentence manually</comment>
+  </data>
+  <data name="NoExampleSentencesYet" xml:space="preserve">
+    <value>No example sentences yet. Add one to improve encoding strength!</value>
+    <comment>Message when no example sentences exist</comment>
+  </data>
+  <data name="FailedToGenerateSentences" xml:space="preserve">
+    <value>Failed to generate example sentences. Please try again.</value>
+    <comment>Error message when AI generation fails</comment>
+  </data>
+  <data name="NoInternetConnection" xml:space="preserve">
+    <value>No internet connection available. AI generation requires internet access.</value>
+    <comment>Error message when trying to use AI without internet</comment>
+  </data>
 </root>

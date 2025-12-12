@@ -121,6 +121,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add Manually.
+        /// </summary>
+        internal static string AddManually {
+            get {
+                return ResourceManager.GetString("AddManually", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Add Resource.
         /// </summary>
         internal static string AddResource {
@@ -778,6 +787,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Example Sentences.
+        /// </summary>
+        internal static string ExampleSentences {
+            get {
+                return ResourceManager.GetString("ExampleSentences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Explanation.
         /// </summary>
         internal static string Explanation {
@@ -886,6 +904,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Failed to generate example sentences. Please try again..
+        /// </summary>
+        internal static string FailedToGenerateSentences {
+            get {
+                return ResourceManager.GetString("FailedToGenerateSentences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Failed to import vocabulary: {0}.
         /// </summary>
         internal static string FailedToImportVocabulary {
@@ -981,6 +1008,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Fri {
             get {
                 return ResourceManager.GetString("Fri", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate with AI.
+        /// </summary>
+        internal static string GenerateWithAI {
+            get {
+                return ResourceManager.GetString("GenerateWithAI", resourceCulture);
             }
         }
         
@@ -1539,6 +1575,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NoDefinitionFound {
             get {
                 return ResourceManager.GetString("NoDefinitionFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No example sentences yet. Add one to improve encoding strength!.
+        /// </summary>
+        internal static string NoExampleSentencesYet {
+            get {
+                return ResourceManager.GetString("NoExampleSentencesYet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No internet connection available. AI generation requires internet access..
+        /// </summary>
+        internal static string NoInternetConnection {
+            get {
+                return ResourceManager.GetString("NoInternetConnection", resourceCulture);
             }
         }
         

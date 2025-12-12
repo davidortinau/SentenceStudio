@@ -8,11 +8,11 @@ using SentenceStudio.Data;
 
 #nullable disable
 
-namespace SentenceStudio.Shared.Data.Migrations
+namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251211230733_AddVocabularyEncodingFields")]
-    partial class AddVocabularyEncodingFields
+    [Migration("20251212033733_AddVocabularyEncodingAndExamples")]
+    partial class AddVocabularyEncodingAndExamples
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
