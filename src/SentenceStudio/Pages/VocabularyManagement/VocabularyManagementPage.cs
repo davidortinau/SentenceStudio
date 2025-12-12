@@ -381,9 +381,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Load all vocabulary words with their associated learning resources
         var allWords = await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync();
 
-        // Get progress for all words efficiently
-        var wordIds = allWords.Select(w => w.Id).ToList();
-        var progressData = await _progressService.GetProgressForWordsAsync(wordIds);
+        // OPTIMIZATION: Use GetAllProgressDictionaryAsync instead of GetProgressForWordsAsync
+        // Avoids massive WHERE IN clause with 1700 parameters
+        var progressData = await _progressService.GetAllProgressDictionaryAsync();
 
         var vocabularyItems = new List<VocabularyCardViewModel>();
 

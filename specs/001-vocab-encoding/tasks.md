@@ -133,7 +133,7 @@ Tasks T034-T036 can run in parallel (different UI components):
 - [X] T035 [US2] Inject IExampleSentenceRepository into EditVocabularyWordPage.cs and verify RenderExampleSentences() displays correctly
 - [X] T036 [US2] Add localization keys to Resources.resx and Resources.ko.resx: ExampleSentences, NoExampleSentences, AddExampleSentence, TargetSentencePlaceholder, NativeSentencePlaceholder, MarkAsCoreExample, GenerateAudio, MarkAsCore, ErrorSavingSentence, TargetSentenceRequired
 - [X] T037 [US2] Update RenderEncodingStrength() in EditVocabularyWordPage.cs to pass State.ExampleSentences.Count to _encodingCalculator.Calculate() so example sentences affect encoding strength score
-- [ ] T038 [US2] Test on all platforms: Add 2-3 example sentences to word, mark one as core, generate audio, play audio, edit sentence, delete sentence, verify encoding strength increases when sentences added
+- [X] T038 [US2] Test on all platforms: Add 2-3 example sentences to word, mark one as core, generate audio, play audio, edit sentence, delete sentence, verify encoding strength increases when sentences added
 
 **Checkpoint**: User Story 2 complete and independently testable - users can add context sentences with audio
 

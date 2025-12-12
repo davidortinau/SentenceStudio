@@ -205,6 +205,18 @@ public class VocabularyProgressService : IVocabularyProgressService
             .ToDictionary(p => p.VocabularyWordId, p => p);
     }
 
+    /// <summary>
+    /// Gets ALL progress records for a user and returns as dictionary keyed by VocabularyWordId
+    /// OPTIMIZATION: Use this instead of GetProgressForWordsAsync when loading all vocabulary
+    /// Avoids massive WHERE IN clauses by loading everything in one efficient query
+    /// </summary>
+    public async Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 1)
+    {
+        var allProgress = await _progressRepo.GetAllForUserAsync(userId);
+        
+        return allProgress.ToDictionary(p => p.VocabularyWordId, p => p);
+    }
+
     private void UpdatePhaseMetrics(VocabularyProgress progress, VocabularyAttempt attempt)
     {
         // LEGACY: Keep updating old phase metrics during migration period

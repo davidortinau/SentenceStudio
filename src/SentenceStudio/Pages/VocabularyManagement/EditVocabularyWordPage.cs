@@ -291,13 +291,16 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .TextColor(MyTheme.Warning) :
                         null,
                     
-                    !string.IsNullOrWhiteSpace(sentence.AudioUri) ?
-                        Button("▶ Play")
-                            .ThemeKey(MyTheme.Primary)
-                            .OnClicked(() => _ = PlaySentenceAudioAsync(sentence)) :
-                        Button("🎵 Generate Audio")
-                            .ThemeKey(MyTheme.Secondary)
-                            .OnClicked(() => _ = GenerateSentenceAudioAsync(sentence)),
+                    // Audio play button - generates on first tap, plays cached audio on subsequent taps
+                    ImageButton()
+                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
+                        .BackgroundColor(MyTheme.SecondaryButtonBackground)
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .CornerRadius(8)
+                        .Padding(8)
+                        .IsEnabled(!State.IsGeneratingAudio)
+                        .OnClicked(() => _ = PlaySentenceAudioAsync(sentence)),
                     
                     Button("Toggle Core")
                         .ThemeKey(MyTheme.Secondary)
@@ -1113,93 +1116,90 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         }
     }
     
-    async Task GenerateSentenceAudioAsync(ExampleSentence sentence)
+    async Task PlaySentenceAudioAsync(ExampleSentence sentence)
     {
+        if (string.IsNullOrWhiteSpace(sentence.TargetSentence))
+            return;
+
         SetState(s => s.IsGeneratingAudio = true);
-        
+
         try
         {
-            _logger.LogInformation($"🎵 Generating audio for sentence: {sentence.TargetSentence}");
-            
-            // Use default Korean voice
-            var voiceId = "onwK4e9ZLuTAKqWW03F9"; // Nicole (Korean female)
-            
-            // Generate audio using ElevenLabs
-            var audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, voiceId);
-            
-            // Save to AudioCache directory
-            var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
-            Directory.CreateDirectory(audioCacheDir);
-            
-            var fileName = $"sentence_{sentence.Id}_{DateTime.UtcNow.Ticks}.mp3";
-            var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
-            
-            using (var fileStream = File.Create(filePath))
+            // Stop any existing player
+            if (_audioPlayer != null)
             {
-                await audioStream.CopyToAsync(fileStream);
+                _audioPlayer.PlaybackEnded -= OnAudioPlaybackEnded;
+                if (_audioPlayer.IsPlaying)
+                {
+                    _audioPlayer.Stop();
+                }
             }
+
+            Stream audioStream;
+            bool fromCache = false;
+
+            // Check if we have cached audio for this sentence using the same pattern as word audio
+            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(sentence.TargetSentence, Voices.JiYoung);
+
+            if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
+            {
+                // Use cached audio file
+                _logger.LogInformation("🎧 Using cached audio for sentence: {Sentence}", sentence.TargetSentence);
+                audioStream = File.OpenRead(cachedAudio.AudioFilePath);
+                fromCache = true;
+            }
+            else
+            {
+                // Generate new audio using ElevenLabs with JiYoung voice (same as word audio)
+                _logger.LogInformation("🎵 Generating audio for sentence: {Sentence}", sentence.TargetSentence);
+                
+                audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, Voices.JiYoung);
+                
+                // Save to cache for future use
+                var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(audioCacheDir);
+                
+                var fileName = $"sentence_{Guid.NewGuid()}.mp3";
+                var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
+                
+                // Save to file
+                using (var fileStream = File.Create(filePath))
+                {
+                    await audioStream.CopyToAsync(fileStream);
+                }
+                
+                // Create stream history entry for caching (use SaveStreamHistoryAsync, not CreateAsync)
+                var streamHistory = new StreamHistory
+                {
+                    Phrase = sentence.TargetSentence,
+                    VoiceId = Voices.JiYoung,
+                    AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _historyRepo.SaveStreamHistoryAsync(streamHistory);
+                
+                _logger.LogInformation("✅ Audio generated and cached for sentence");
+                
+                // Open the file again for playback
+                audioStream = File.OpenRead(filePath);
+            }
+
+            // Create and play audio
+            _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+            _audioPlayer.PlaybackEnded += OnAudioPlaybackEnded;
+            _audioPlayer.Play();
             
-            _logger.LogInformation($"✅ Audio saved to: {filePath}");
-            
-            // Update sentence with audio URI
-            sentence.AudioUri = filePath;
-            sentence.UpdatedAt = DateTime.UtcNow;
-            await _exampleRepo.UpdateAsync(sentence);
-            
-            // Reload to reflect changes
-            await ReloadExampleSentencesAsync();
-            
-            await AppShell.DisplayToastAsync("🎵 Audio generated successfully!");
+            _logger.LogInformation("▶️ {Source} sentence audio playback started", fromCache ? "Cached" : "Generated");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate sentence audio");
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to generate audio: {ex.Message}", $"{_localize["OK"]}");
+            _logger.LogError(ex, "❌ Failed to play/generate sentence audio");
+            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to play audio: {ex.Message}", $"{_localize["OK"]}");
         }
         finally
         {
             SetState(s => s.IsGeneratingAudio = false);
-        }
-    }
-    
-    async Task PlaySentenceAudioAsync(ExampleSentence sentence)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(sentence.AudioUri))
-            {
-                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", "No audio available for this sentence", $"{_localize["OK"]}");
-                return;
-            }
-            
-            if (!File.Exists(sentence.AudioUri))
-            {
-                _logger.LogWarning($"⚠️ Audio file not found: {sentence.AudioUri}");
-                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", "Audio file not found. Try regenerating the audio.", $"{_localize["OK"]}");
-                return;
-            }
-            
-            _logger.LogInformation($"▶️ Playing sentence audio: {sentence.AudioUri}");
-            
-            // Stop any currently playing audio
-            if (_audioPlayer != null)
-            {
-                _audioPlayer.Stop();
-                _audioPlayer.Dispose();
-                _audioPlayer = null;
-            }
-            
-            // Create and play new audio
-            var audioStream = File.OpenRead(sentence.AudioUri);
-            _audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
-            _audioPlayer.Play();
-            
-            await AppShell.DisplayToastAsync("▶️ Playing audio...");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to play sentence audio");
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to play audio: {ex.Message}", $"{_localize["OK"]}");
         }
     }
 }
