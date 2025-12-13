@@ -27,12 +27,12 @@
 
 **Purpose**: Extend UserProfile schema with vocabulary quiz preferences
 
-- [ ] T001 Create EF migration in `src/SentenceStudio.Shared/Migrations/` to add 4 columns to UserProfiles table (VocabQuizDisplayDirection, VocabQuizAutoPlayVocabAudio, VocabQuizAutoPlaySampleAudio, VocabQuizShowMnemonicImage)
-- [ ] T002 Update UserProfile model in `src/SentenceStudio.Shared/Models/UserProfile.cs` to add 4 new properties with default values matching migration
-- [ ] T003 Verify migration compiles and build succeeds: `cd src/SentenceStudio && dotnet build -f net10.0-maccatalyst`
-- [ ] T004 Apply migration by running app once and verify UserProfiles table has new columns using SQLite browser
+- [X] T001 Create VocabularyQuizPreferences service using .NET MAUI Preferences API (REVISED: No EF migration needed)
+- [X] T002 Register VocabularyQuizPreferences as singleton in MauiProgram.cs (REVISED)
+- [X] T003 Verify build succeeds: `cd src/SentenceStudio && dotnet build -f net10.0-maccatalyst` (PASSED)
+- [X] T004 N/A - No migration to apply (using Preferences API instead)
 
-**Checkpoint**: Database schema updated, UserProfile model extended, ready for localization and UI implementation
+**Checkpoint**: ✅ Preferences service created, registered in DI, build succeeds. Ready for localization.
 
 ---
 
@@ -42,12 +42,12 @@
 
 **⚠️ CRITICAL**: These strings and theme keys are used by ALL user story phases
 
-- [ ] T005 [P] Add 12 English localization keys to `src/SentenceStudio/Resources/Strings/Resources.resx` (VocabQuizPreferences, DisplayDirection, ShowTargetLanguage, ShowNativeLanguage, AudioPlayback, AutoPlayVocabAudio, AutoPlaySampleAudio, RequiresVocabAudio, ConfirmationDisplay, ShowMnemonicImage, SavePreferences, PreferencesSaveFailed)
-- [ ] T006 [P] Add 12 Korean translations to `src/SentenceStudio/Resources/Strings/Resources.ko.resx` using same keys as English
-- [ ] T007 Verify MyTheme icons exist in `src/SentenceStudio/Resources/Styles/ApplicationTheme.Icons.cs`: IconSettings, IconClose (for preferences UI)
-- [ ] T008 Verify MyTheme theme keys exist in `src/SentenceStudio/Resources/Styles/MyTheme.cs`: Title2, SubHeadline, Body1, Primary, Error (used by preferences UI)
+- [X] T005 [P] Add 12 English localization keys to `src/SentenceStudio/Resources/Strings/AppResources.resx` (COMPLETE)
+- [X] T006 [P] Add 12 Korean translations to `src/SentenceStudio/Resources/Strings/AppResources.ko-KR.resx` (COMPLETE)
+- [X] T007 Add IconSettings to `src/SentenceStudio/Resources/Styles/ApplicationTheme.Icons.cs`, verify IconClose exists (COMPLETE)
+- [X] T008 Verify MyTheme theme keys exist: Title2, SubHeadline, Body1, PrimaryButton, Error (VERIFIED)
 
-**Checkpoint**: All localization strings and theme resources ready for preferences UI components
+**Checkpoint**: ✅ All localization strings and theme resources ready for preferences UI components
 
 ---
 

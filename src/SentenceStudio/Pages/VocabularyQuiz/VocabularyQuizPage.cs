@@ -103,6 +103,10 @@ class VocabularyQuizPageState
     public int LearningTermsCount { get; set; } // >0 correct answers but not fully learned
     public int KnownTermsCount { get; set; } // 3 MC + 3 text entry correct (across entire resource)
     public int TotalResourceTermsCount { get; set; } // Total vocabulary in learning resource
+    
+    // Vocabulary Quiz Preferences
+    public VocabularyQuizPreferences UserPreferences { get; set; }
+    public bool ShowPreferencesSheet { get; set; }
 }
 
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
@@ -114,6 +118,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] Services.Progress.IProgressService _planProgressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] SmartResourceService _smartResourceService;
+    [Inject] VocabularyQuizPreferences _preferences;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
