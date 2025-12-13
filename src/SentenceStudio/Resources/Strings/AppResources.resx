@@ -1705,6 +1705,14 @@
     <value>Auto-play vocabulary audio</value>
     <comment>[001-vocab-quiz-preferences] Checkbox label for automatic vocabulary audio</comment>
   </data>
+  <data name="VoiceSelection" xml:space="preserve">
+    <value>Voice Selection</value>
+    <comment>[001-vocab-quiz-preferences] Label for voice picker dropdown</comment>
+  </data>
+  <data name="SelectVoice" xml:space="preserve">
+    <value>Select voice for audio playback</value>
+    <comment>[001-vocab-quiz-preferences] Placeholder text for voice picker</comment>
+  </data>
   <data name="AutoPlaySampleAudio" xml:space="preserve">
     <value>Auto-play sample sentence</value>
     <comment>[001-vocab-quiz-preferences] Checkbox label for automatic sample sentence audio</comment>

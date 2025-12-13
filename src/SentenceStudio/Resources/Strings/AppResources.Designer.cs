@@ -2668,6 +2668,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Select voice for audio playback.
+        /// </summary>
+        internal static string SelectVoice {
+            get {
+                return ResourceManager.GetString("SelectVoice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to I wrote.
         /// </summary>
         internal static string Sentence {
@@ -3483,6 +3492,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VoiceJiyoungDesc {
             get {
                 return ResourceManager.GetString("VoiceJiyoungDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Voice Selection.
+        /// </summary>
+        internal static string VoiceSelection {
+            get {
+                return ResourceManager.GetString("VoiceSelection", resourceCulture);
             }
         }
         

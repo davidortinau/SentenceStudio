@@ -1461,6 +1461,14 @@
     <value>어휘 오디오 자동 재생</value>
     <comment>[001-vocab-quiz-preferences] Checkbox label for automatic vocabulary audio</comment>
   </data>
+  <data name="VoiceSelection" xml:space="preserve">
+    <value>음성 선택</value>
+    <comment>[001-vocab-quiz-preferences] 음성 선택 드롭다운 레이블</comment>
+  </data>
+  <data name="SelectVoice" xml:space="preserve">
+    <value>오디오 재생을 위한 음성을 선택하세요</value>
+    <comment>[001-vocab-quiz-preferences] 음성 선택 자리 표시자 텍스트</comment>
+  </data>
   <data name="AutoPlaySampleAudio" xml:space="preserve">
     <value>예문 오디오 자동 재생</value>
     <comment>[001-vocab-quiz-preferences] Checkbox label for automatic sample sentence audio</comment>

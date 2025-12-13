@@ -468,19 +468,21 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(18)
                 .FontAttributes(FontAttributes.Bold)
                 .Center(),
-            
+
             // Question term with audio play button
             HStack(spacing: 8,
                 Label(State.CurrentTerm)
                     .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
+                    .HeightRequest(64)
                     .Center()
                     .FontAttributes(FontAttributes.Bold),
-                
+
                 // Play vocabulary audio button
                 ImageButton()
                     .Source(MyTheme.IconPlay)
-                    .HeightRequest(32)
-                    .WidthRequest(32)
+                    .HeightRequest(64)
+                    .WidthRequest(64)
+                    .Aspect(Aspect.Center)
                     .OnClicked(async () => await PlayVocabularyAudioManually())
                     .VCenter()
             ).Center(),
@@ -2395,7 +2397,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         _logger.LogInformation("✅ Vocabulary quiz preferences saved");
         OnPreferencesSaved();
-        
+
         // Reload current item to apply new display direction
         var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
         if (currentItem != null)
@@ -2403,14 +2405,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("🔄 Reloading current question with new preferences");
             await LoadCurrentItem(currentItem);
         }
-        
+
         ClosePreferences();
     }
 
     // ============================================================================
     // AUDIO PLAYBACK METHODS
     // ============================================================================
-    
+
     /// <summary>
     /// Manually plays vocabulary audio when user clicks play button.
     /// Ignores AutoPlayVocabAudio preference.
@@ -2419,12 +2421,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
         if (currentItem == null) return;
-        
+
         _logger.LogInformation("🎧 Manual play vocabulary audio for: {Term}", currentItem.Word.TargetLanguageTerm);
-        
+
         // Stop any currently playing audio
         StopAllAudio();
-        
+
         // Play audio (bypass preference check)
         await PlayVocabularyAudioInternal(currentItem.Word);
     }
@@ -2450,7 +2452,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         await PlayVocabularyAudioInternal(word);
     }
-    
+
     /// <summary>
     /// Internal method that actually plays the audio.
     /// Uses the CORRECT pattern from EditVocabularyWordPage.cs
@@ -2473,23 +2475,26 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             Stream audioStream;
             bool fromCache = false;
 
-            // Check if we have cached audio for this word
-            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, Voices.JiYoung);
+            // Get the selected voice ID from user preferences
+            var voiceId = State.UserPreferences?.VoiceId ?? Voices.JiYoung;
+
+            // Check if we have cached audio for this word with this voice
+            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, voiceId);
 
             if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
             {
                 // Use cached audio file
-                _logger.LogInformation("🎧 Using cached audio for word: {Word}", targetTerm);
+                _logger.LogInformation("🎧 Using cached audio for word: {Word} with voice: {VoiceId}", targetTerm, voiceId);
                 audioStream = File.OpenRead(cachedAudio.AudioFilePath);
                 fromCache = true;
             }
             else
             {
-                // Generate audio using ElevenLabs with Korean voice
-                _logger.LogInformation("🎧 Generating audio from API for word: {Word}", targetTerm);
+                // Generate audio using ElevenLabs with selected voice
+                _logger.LogInformation("🎧 Generating audio from API for word: {Word} with voice: {VoiceId}", targetTerm, voiceId);
                 audioStream = await _speechService.TextToSpeechAsync(
                     text: targetTerm,
-                    voiceId: Voices.JiYoung, // Korean female voice
+                    voiceId: voiceId, // Use selected voice from preferences
                     stability: 0.5f,
                     similarityBoost: 0.75f
                 );
@@ -2511,7 +2516,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 var streamHistory = new StreamHistory
                 {
                     Phrase = targetTerm,
-                    VoiceId = Voices.JiYoung,
+                    VoiceId = voiceId, // Save with the voice ID used
                     AudioFilePath = filePath,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
