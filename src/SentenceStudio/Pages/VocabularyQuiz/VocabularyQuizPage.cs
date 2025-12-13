@@ -1102,7 +1102,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // This ensures display direction is applied from the start
             if (State.UserPreferences == null)
             {
-                await LoadUserPreferencesAsync();
+                LoadUserPreferences();
             }
 
             // Debug logging
@@ -2199,7 +2199,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
 
         // Load user preferences
-        Task.Run(async () => await LoadUserPreferencesAsync());
+        LoadUserPreferences();
 
     }
 
@@ -2226,16 +2226,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     /// <summary>
     /// Loads user preferences from VocabularyQuizPreferences service.
-    /// Called in OnMounted lifecycle.
+    /// MUST be called before LoadCurrentItem() to ensure correct display direction.
     /// </summary>
-    async Task LoadUserPreferencesAsync()
+    void LoadUserPreferences()
     {
-        await Task.Run(() =>
-        {
-            SetState(s => s.UserPreferences = _preferences);
-            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}, AutoPlayVocabAudio={AutoPlay}",
-                _preferences.DisplayDirection, _preferences.AutoPlayVocabAudio);
-        });
+        SetState(s => s.UserPreferences = _preferences);
+        _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}, AutoPlayVocabAudio={AutoPlay}",
+            _preferences.DisplayDirection, _preferences.AutoPlayVocabAudio);
     }
 
     /// <summary>
