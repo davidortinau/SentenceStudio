@@ -289,3 +289,45 @@ With 2 developers after Foundational phase completes:
 - Cross-platform testing happens in Polish phase for all features together
 - Avoid: hardcoded values, skipping localization, missing null checks, forgetting ILogger
 - Follow quickstart.md test scenarios for validation
+
+---
+
+## Phase 8: Voice Selection Enhancement (Added 2025-12-13)
+
+**Goal**: Allow users to select their preferred voice for audio playback from 7 Korean voice options
+
+**Independent Test**: Open preferences, select different voice (e.g., Hyun-Bin), save, start quiz with audio enabled, verify audio uses selected voice
+
+### Implementation for Voice Selection
+
+- [X] T076 [Voice] Add VoiceId property to VocabularyQuizPreferences service with Voices.JiYoung as default
+- [X] T077 [Voice] Add KEY_VOICE_ID constant and update ResetToDefaults() to include voice ID
+- [X] T078 [Voice] Add "VoiceSelection" and "SelectVoice" localization keys (English + Korean)
+- [X] T079 [Voice] Add SelectedVoiceId field to VocabularyQuizPreferencesBottomSheetState
+- [X] T080 [Voice] Update OnMounted() in VocabularyQuizPreferencesBottomSheet to load voice preference
+- [X] T081 [Voice] Add voice selection Picker to RenderAudioPlaybackSection() with 7 Korean voice options
+- [X] T082 [Voice] Implement GetVoiceOptions(), GetVoiceIndexFromId(), GetVoiceDisplayName(), GetVoiceIdFromDisplayName() helper methods
+- [X] T083 [Voice] Update SavePreferencesAsync() to save voice ID preference
+- [X] T084 [Voice] Update PlayVocabularyAudioInternal() to use State.UserPreferences.VoiceId instead of hardcoded Voices.JiYoung
+- [X] T085 [Voice] Update StreamHistory cache lookup to use selected voice ID
+- [X] T086 [Voice] Update StreamHistory cache save to use selected voice ID
+- [X] T087 [Voice] Add voice ID to audio playback logging (🎧 emoji messages)
+- [X] T088 [Voice] Configure Picker to be disabled when AutoPlayVocabAudio is false
+- [ ] T089 [Voice] Test voice selection on macOS: change voice, verify audio uses new voice, verify cache generates new audio for different voice, verify persistence
+
+**Checkpoint**: Voice selection complete - users can choose from 7 Korean voices, audio is cached per voice, picker disabled when audio is off. Full feature enhancement!
+
+---
+
+## Voice Options Available
+
+1. **Ji-Young** (Default) - Female, warm and clear, friendly tone
+2. **Yuna** - Female, young and cheerful, storytelling specialist
+3. **Jennie** - Female, informative and youthful, engaging
+4. **Jina** - Female, mid-aged, professional news broadcaster
+5. **Hyun-Bin** - Male, cool and professional, corporate narration
+6. **Do-Hyeon** - Male, older and mature
+7. **Yohan Koo** - Male, confident and authoritative
+
+All voices are Korean native speakers optimized for Korean language pronunciation.
+
