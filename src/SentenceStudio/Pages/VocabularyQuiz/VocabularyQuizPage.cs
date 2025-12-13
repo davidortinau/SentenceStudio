@@ -104,11 +104,11 @@ class VocabularyQuizPageState
     public int LearningTermsCount { get; set; } // >0 correct answers but not fully learned
     public int KnownTermsCount { get; set; } // 3 MC + 3 text entry correct (across entire resource)
     public int TotalResourceTermsCount { get; set; } // Total vocabulary in learning resource
-    
+
     // Vocabulary Quiz Preferences
     public VocabularyQuizPreferences UserPreferences { get; set; }
     public bool ShowPreferencesSheet { get; set; }
-    
+
     // Audio playback
     public IAudioPlayer VocabularyAudioPlayer { get; set; }
 }
@@ -151,8 +151,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 SessionSummaryOverlay(),
                 
                 // Preferences bottom sheet overlay
-                State.ShowPreferencesSheet && State.UserPreferences != null ?
-                    RenderPreferencesBottomSheet() : null
+                RenderPreferencesBottomSheet()
             ).RowSpacing(MyTheme.CardMargin)
         )
         .TitleView(RenderTitleView())
@@ -169,7 +168,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     .GridColumn(1)
                     .HEnd()
                     .VCenter() : null,
-            
+
             // Preferences icon
             ImageButton()
                 .Source(MyTheme.IconSettings)
@@ -681,7 +680,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         // Enhanced tracking: Start response timer
         _responseTimer.Restart();
-        
+
         // Play vocabulary audio if enabled
         await PlayVocabularyAudioAsync(item.Word);
     }
@@ -2178,7 +2177,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             _logger.LogDebug("⚠️ NOT starting timer - FromTodaysPlan is false");
         }
-        
+
         // Load user preferences
         Task.Run(async () => await LoadUserPreferencesAsync());
 
@@ -2200,11 +2199,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("✅ Timer paused - IsRunning={IsRunning}", _timerService.IsRunning);
         }
     }
-    
+
     // ============================================================================
     // VOCABULARY QUIZ PREFERENCES METHODS
     // ============================================================================
-    
+
     /// <summary>
     /// Loads user preferences from VocabularyQuizPreferences service.
     /// Called in OnMounted lifecycle.
@@ -2214,11 +2213,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         await Task.Run(() =>
         {
             SetState(s => s.UserPreferences = _preferences);
-            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}", 
+            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}",
                 _preferences.DisplayDirection);
         });
     }
-    
+
     /// <summary>
     /// Opens preferences bottom sheet overlay.
     /// </summary>
@@ -2227,7 +2226,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _logger.LogInformation("⚙️ Opening vocabulary quiz preferences");
         SetState(s => s.ShowPreferencesSheet = true);
     }
-    
+
     /// <summary>
     /// Closes preferences bottom sheet.
     /// </summary>
@@ -2236,7 +2235,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _logger.LogInformation("⚙️ Closing vocabulary quiz preferences");
         SetState(s => s.ShowPreferencesSheet = false);
     }
-    
+
     /// <summary>
     /// Callback invoked when preferences are saved.
     /// Reloads preferences to ensure state is in sync.
@@ -2246,7 +2245,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _logger.LogInformation("✅ Preferences saved, reloading");
         SetState(s => s.UserPreferences = _preferences);
     }
-    
+
     /// <summary>
     /// Determines question text based on display direction preference.
     /// </summary>
@@ -2263,7 +2262,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             return word.NativeLanguageTerm;
         }
     }
-    
+
     /// <summary>
     /// Determines correct answer based on display direction preference.
     /// </summary>
@@ -2280,23 +2279,25 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             return word.TargetLanguageTerm;
         }
     }
-    
+
     /// <summary>
     /// Renders the preferences bottom sheet overlay.
+    /// Uses SfBottomSheet with IsOpen binding and OnStateChanged handler.
     /// </summary>
     VisualNode RenderPreferencesBottomSheet()
     {
-        return new SfBottomSheet
-        {
+        return new SfBottomSheet(
             new VocabularyQuizPreferencesBottomSheet()
                 .WithCallbacks(OnPreferencesSaved, ClosePreferences)
-        };
+        )
+        .IsOpen(State.ShowPreferencesSheet)
+        .OnStateChanged((sender, args) => SetState(s => s.ShowPreferencesSheet = !s.ShowPreferencesSheet));
     }
-    
+
     // ============================================================================
     // AUDIO PLAYBACK METHODS
     // ============================================================================
-    
+
     /// <summary>
     /// Plays vocabulary word audio if auto-play is enabled.
     /// Uses cached audio from StreamHistoryRepository or generates via ElevenLabsSpeechService.
@@ -2308,34 +2309,34 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogWarning("⚠️ PlayVocabularyAudioAsync: word is null");
             return;
         }
-        
+
         // Check if auto-play is enabled
         if (State.UserPreferences?.AutoPlayVocabAudio != true)
         {
             _logger.LogDebug("🎧 Auto-play vocabulary audio is disabled");
             return;
         }
-        
+
         try
         {
             // Get the target language term (Korean word)
             var targetTerm = word.TargetLanguageTerm;
-            
+
             if (string.IsNullOrWhiteSpace(targetTerm))
             {
                 _logger.LogWarning("⚠️ PlayVocabularyAudioAsync: TargetLanguageTerm is null/empty for word ID {WordId}", word.Id);
                 return;
             }
-            
+
             _logger.LogInformation("🎧 Playing vocabulary audio for: {Term}", targetTerm);
-            
+
             // Check if we have cached audio
             string audioUri = word.AudioPronunciationUri;
-            
+
             if (string.IsNullOrWhiteSpace(audioUri))
             {
                 _logger.LogDebug("🎧 No cached audio, generating via ElevenLabs for: {Term}", targetTerm);
-                
+
                 // Generate audio via ElevenLabs using Korean voice
                 var audioStream = await _speechService.TextToSpeechAsync(
                     targetTerm,
@@ -2344,36 +2345,36 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     0.75f,  // similarityBoost
                     1.0f    // speed
                 );
-                
+
                 if (audioStream == null)
                 {
                     _logger.LogWarning("⚠️ ElevenLabs returned null audio stream for: {Term}", targetTerm);
                     return;
                 }
-                
+
                 // Create audio player from stream
                 var player = _audioManager.CreatePlayer(audioStream);
-                
+
                 // Subscribe to playback ended event
                 player.PlaybackEnded += OnVocabularyAudioEnded;
-                
+
                 SetState(s => s.VocabularyAudioPlayer = player);
-                
+
                 player.Play();
                 _logger.LogInformation("✅ Playing generated audio for: {Term}", targetTerm);
             }
             else
             {
                 _logger.LogDebug("🎧 Using cached audio from: {Uri}", audioUri);
-                
+
                 // Use cached audio
                 var player = _audioManager.CreatePlayer(audioUri);
-                
+
                 // Subscribe to playback ended event
                 player.PlaybackEnded += OnVocabularyAudioEnded;
-                
+
                 SetState(s => s.VocabularyAudioPlayer = player);
-                
+
                 player.Play();
                 _logger.LogInformation("✅ Playing cached audio for: {Term}", targetTerm);
             }
@@ -2383,7 +2384,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogError(ex, "❌ Exception playing vocabulary audio for: {Term}", word.TargetLanguageTerm);
         }
     }
-    
+
     /// <summary>
     /// Event handler for vocabulary audio playback ended.
     /// Cleans up audio player and unsubscribes event.
@@ -2391,7 +2392,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     void OnVocabularyAudioEnded(object sender, EventArgs e)
     {
         _logger.LogDebug("🎧 Vocabulary audio playback ended");
-        
+
         if (State.VocabularyAudioPlayer != null)
         {
             State.VocabularyAudioPlayer.PlaybackEnded -= OnVocabularyAudioEnded;
@@ -2399,7 +2400,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             SetState(s => s.VocabularyAudioPlayer = null);
         }
     }
-    
+
     /// <summary>
     /// Stops all audio playback and cleans up resources.
     /// Called when navigating to next question or unmounting page.
@@ -2407,7 +2408,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     void StopAllAudio()
     {
         _logger.LogDebug("🎧 Stopping all audio playback");
-        
+
         if (State.VocabularyAudioPlayer != null)
         {
             try
