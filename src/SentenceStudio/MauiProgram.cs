@@ -337,6 +337,7 @@ public static class MauiProgram
 		services.AddSingleton<ElevenLabsSpeechService>();
 		services.AddSingleton<DataExportService>();
 		services.AddSingleton<NameGenerationService>();
+		services.AddSingleton<VocabularyQuizPreferences>();
 
 		// Transcript formatting services - register segmenters as enumerable
 		services.AddSingleton<KoreanLanguageSegmenter>();
