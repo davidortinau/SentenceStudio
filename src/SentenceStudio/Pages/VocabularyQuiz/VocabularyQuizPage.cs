@@ -466,11 +466,22 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(18)
                 .FontAttributes(FontAttributes.Bold)
                 .Center(),
-            Label(State.CurrentTerm)
-                .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
-                .Center()
-                .FontAttributes(FontAttributes.Bold),
-
+            
+            // Question term with audio play button
+            HStack(spacing: 8,
+                Label(State.CurrentTerm)
+                    .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
+                    .Center()
+                    .FontAttributes(FontAttributes.Bold),
+                
+                // Play vocabulary audio button
+                ImageButton()
+                    .Source(MyTheme.IconPlay)
+                    .HeightRequest(32)
+                    .WidthRequest(32)
+                    .OnClicked(async () => await PlayVocabularyAudioManually())
+                    .VCenter()
+            ).Center(),
 
             Label(State.CurrentTargetLanguageTerm)
                 .FontSize(24)
@@ -2213,8 +2224,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         await Task.Run(() =>
         {
             SetState(s => s.UserPreferences = _preferences);
-            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}",
-                _preferences.DisplayDirection);
+            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}, AutoPlayVocabAudio={AutoPlay}",
+                _preferences.DisplayDirection, _preferences.AutoPlayVocabAudio);
         });
     }
 
@@ -2378,12 +2389,39 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         _logger.LogInformation("✅ Vocabulary quiz preferences saved");
         OnPreferencesSaved();
+        
+        // Reload current item to apply new display direction
+        var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
+        if (currentItem != null)
+        {
+            _logger.LogDebug("🔄 Reloading current question with new preferences");
+            await LoadCurrentItem(currentItem);
+        }
+        
         ClosePreferences();
     }
 
     // ============================================================================
     // AUDIO PLAYBACK METHODS
     // ============================================================================
+    
+    /// <summary>
+    /// Manually plays vocabulary audio when user clicks play button.
+    /// Ignores AutoPlayVocabAudio preference.
+    /// </summary>
+    async Task PlayVocabularyAudioManually()
+    {
+        var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
+        if (currentItem == null) return;
+        
+        _logger.LogInformation("🎧 Manual play vocabulary audio for: {Term}", currentItem.Word.TargetLanguageTerm);
+        
+        // Stop any currently playing audio
+        StopAllAudio();
+        
+        // Play audio (bypass preference check)
+        await PlayVocabularyAudioInternal(currentItem.Word);
+    }
 
     /// <summary>
     /// Plays vocabulary word audio if auto-play is enabled.
@@ -2404,6 +2442,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             return;
         }
 
+        await PlayVocabularyAudioInternal(word);
+    }
+    
+    /// <summary>
+    /// Internal method that actually plays the audio.
+    /// </summary>
+    async Task PlayVocabularyAudioInternal(VocabularyWord word)
+    {
         try
         {
             // Get the target language term (Korean word)
@@ -2411,7 +2457,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             if (string.IsNullOrWhiteSpace(targetTerm))
             {
-                _logger.LogWarning("⚠️ PlayVocabularyAudioAsync: TargetLanguageTerm is null/empty for word ID {WordId}", word.Id);
+                _logger.LogWarning("⚠️ PlayVocabularyAudioInternal: TargetLanguageTerm is null/empty for word ID {WordId}", word.Id);
                 return;
             }
 
