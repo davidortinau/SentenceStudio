@@ -2390,7 +2390,28 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     }),
 
                 Label($"{_localize["AutoPlayVocabAudio"]}")
-            ).Spacing(MyTheme.LayoutSpacing)
+            ).Spacing(MyTheme.LayoutSpacing),
+
+            // Voice selection
+            Label($"{_localize["VoiceSelection"]}")
+                .ThemeKey(MyTheme.Body1)
+                .Margin(0, MyTheme.ComponentSpacing, 0, 0),
+
+            Picker()
+                .Title($"{_localize["SelectVoice"]}")
+                .ItemsSource(GetVoiceOptions())
+                .SelectedIndex(GetVoiceIndexFromId(State.UserPreferences?.VoiceId ?? Voices.JiYoung))
+                .OnSelectedIndexChanged((index) =>
+                {
+                    if (index >= 0 && index < GetVoiceOptions().Length && State.UserPreferences != null)
+                    {
+                        var selectedDisplay = GetVoiceOptions()[index];
+                        var voiceId = GetVoiceIdFromDisplayName(selectedDisplay);
+                        State.UserPreferences.VoiceId = voiceId;
+                        _logger.LogInformation("🎤 Voice selected: {DisplayName} ({VoiceId})", selectedDisplay, voiceId);
+                    }
+                })
+                .IsEnabled(State.UserPreferences?.AutoPlayVocabAudio ?? false)
         );
 
     async Task SavePreferencesAsync()
@@ -2587,5 +2608,57 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 _logger.LogError(ex, "❌ Exception stopping audio player");
             }
         }
+    }
+
+    // Helper methods for voice selection
+    string[] GetVoiceOptions()
+    {
+        return new[]
+        {
+            "Ji-Young (Korean, Female)",
+            "Yuna (Korean, Female)",
+            "Jennie (Korean, Female)",
+            "Jina (Korean, Female)",
+            "Hyun-Bin (Korean, Male)",
+            "Do-Hyeon (Korean, Male)",
+            "Yohan Koo (Korean, Male)"
+        };
+    }
+
+    int GetVoiceIndexFromId(string voiceId)
+    {
+        var displayName = GetVoiceDisplayName(voiceId);
+        var options = GetVoiceOptions();
+        return Array.IndexOf(options, displayName);
+    }
+
+    string GetVoiceDisplayName(string voiceId)
+    {
+        return voiceId switch
+        {
+            var id when id == Voices.JiYoung => "Ji-Young (Korean, Female)",
+            var id when id == Voices.Yuna => "Yuna (Korean, Female)",
+            var id when id == Voices.Jennie => "Jennie (Korean, Female)",
+            var id when id == Voices.Jina => "Jina (Korean, Female)",
+            var id when id == Voices.HyunBin => "Hyun-Bin (Korean, Male)",
+            var id when id == Voices.DoHyeon => "Do-Hyeon (Korean, Male)",
+            var id when id == Voices.YohanKoo => "Yohan Koo (Korean, Male)",
+            _ => "Ji-Young (Korean, Female)" // Default
+        };
+    }
+
+    string GetVoiceIdFromDisplayName(string displayName)
+    {
+        return displayName switch
+        {
+            "Ji-Young (Korean, Female)" => Voices.JiYoung,
+            "Yuna (Korean, Female)" => Voices.Yuna,
+            "Jennie (Korean, Female)" => Voices.Jennie,
+            "Jina (Korean, Female)" => Voices.Jina,
+            "Hyun-Bin (Korean, Male)" => Voices.HyunBin,
+            "Do-Hyeon (Korean, Male)" => Voices.DoHyeon,
+            "Yohan Koo (Korean, Male)" => Voices.YohanKoo,
+            _ => Voices.JiYoung // Default
+        };
     }
 }
