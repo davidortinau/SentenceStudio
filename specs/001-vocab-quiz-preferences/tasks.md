@@ -88,18 +88,18 @@
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Add State.AutoPlayVocabAudio (bool) field to VocabularyQuizPreferencesState in VocabularyQuizPreferencesBottomSheet component
-- [ ] T026 [US2] Implement RenderAudioPlaybackSection() in VocabularyQuizPreferencesBottomSheet using CheckBox for "Auto-play vocabulary audio" with localized label
-- [ ] T027 [US2] Update SavePreferencesAsync() in VocabularyQuizPreferencesBottomSheet to save UserProfile.VocabQuizAutoPlayVocabAudio from State.AutoPlayVocabAudio
-- [ ] T028 [US2] Add State.VocabularyAudioPlayer (IAudioPlayer) field to VocabularyQuizPageState in VocabularyQuizPage
-- [ ] T029 [US2] Add [Inject] IAudioManager _audioManager dependency to VocabularyQuizPage
-- [ ] T030 [US2] Implement PlayVocabularyAudioAsync(VocabularyWord) method in VocabularyQuizPage: check State.UserPreferences.VocabQuizAutoPlayVocabAudio, load audio from StreamHistoryRepository cache or generate via ElevenLabsSpeechService, create IAudioPlayer, subscribe to PlaybackEnded event, play audio
-- [ ] T031 [US2] Implement OnVocabularyAudioEnded(object, EventArgs) event handler in VocabularyQuizPage to cleanup audio player and unsubscribe event
-- [ ] T032 [US2] Implement StopAllAudio() method in VocabularyQuizPage to stop and dispose State.VocabularyAudioPlayer
-- [ ] T033 [US2] Update ShowNextQuestion() in VocabularyQuizPage to call StopAllAudio() before displaying new question, then call PlayVocabularyAudioAsync(currentWord)
-- [ ] T034 [US2] Update OnWillUnmount() lifecycle in VocabularyQuizPage to call StopAllAudio() for cleanup
-- [ ] T035 [US2] Add defensive null checks and try-catch in PlayVocabularyAudioAsync(): if AudioPronunciationUri is null/empty, log warning (⚠️) and return gracefully
-- [ ] T036 [US2] Add ILogger logging to PlayVocabularyAudioAsync() (🎧 emoji) and error handling (❌ emoji)
+- [X] T025 [US2] Add State.AutoPlayVocabAudio (bool) field to VocabularyQuizPreferencesBottomSheetState
+- [X] T026 [US2] Implement RenderAudioPlaybackSection() in VocabularyQuizPreferencesBottomSheet using CheckBox for "Auto-play vocabulary audio" with localized label
+- [X] T027 [US2] Update SavePreferencesAsync() in VocabularyQuizPreferencesBottomSheet to save Preferences.AutoPlayVocabAudio from State.AutoPlayVocabAudio
+- [X] T028 [US2] Add State.VocabularyAudioPlayer (IAudioPlayer) field to VocabularyQuizPageState
+- [X] T029 [US2] Add [Inject] IAudioManager _audioManager and ElevenLabsSpeechService _speechService dependencies to VocabularyQuizPage
+- [X] T030 [US2] Implement PlayVocabularyAudioAsync(VocabularyWord) method: checks AutoPlayVocabAudio preference, loads cached audio or generates via ElevenLabs, creates IAudioPlayer, subscribes to PlaybackEnded, plays audio
+- [X] T031 [US2] Implement OnVocabularyAudioEnded(object, EventArgs) event handler to cleanup audio player and unsubscribe
+- [X] T032 [US2] Implement StopAllAudio() method to stop and dispose VocabularyAudioPlayer
+- [X] T033 [US2] Update LoadCurrentItem() to call StopAllAudio() before displaying new question, then call PlayVocabularyAudioAsync(currentWord)
+- [X] T034 [US2] Update OnWillUnmount() lifecycle to call StopAllAudio() for cleanup
+- [X] T035 [US2] Add defensive null checks and try-catch in PlayVocabularyAudioAsync(): checks for null word, empty TargetLanguageTerm, logs warnings (⚠️) and returns gracefully
+- [X] T036 [US2] Add ILogger logging to PlayVocabularyAudioAsync() (🎧 emoji) and error handling (❌ emoji)
 - [ ] T037 [US2] Test User Story 2 on macOS (net10.0-maccatalyst): enable audio preference, verify audio plays automatically, disable preference, verify no audio plays, verify audio stops when navigating to next question
 
 **Checkpoint**: User Story 2 complete - vocabulary audio auto-play works with ElevenLabs TTS integration, proper cleanup, and error handling. Works independently of US1.

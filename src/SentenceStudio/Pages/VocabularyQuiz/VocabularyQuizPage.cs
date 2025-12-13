@@ -5,6 +5,7 @@ using System.Timers;
 using System.Diagnostics;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
+using Plugin.Maui.Audio;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -107,6 +108,9 @@ class VocabularyQuizPageState
     // Vocabulary Quiz Preferences
     public VocabularyQuizPreferences UserPreferences { get; set; }
     public bool ShowPreferencesSheet { get; set; }
+    
+    // Audio playback
+    public IAudioPlayer VocabularyAudioPlayer { get; set; }
 }
 
 partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityProps>
@@ -119,6 +123,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] SmartResourceService _smartResourceService;
     [Inject] VocabularyQuizPreferences _preferences;
+    [Inject] Plugin.Maui.Audio.IAudioManager _audioManager;
+    [Inject] Services.ElevenLabsSpeechService _speechService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -643,6 +649,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         _logger.LogDebug("📝 LoadCurrentItem: {NativeTerm} -> {TargetTerm}", item.Word.NativeLanguageTerm, item.Word.TargetLanguageTerm);
 
+        // Stop any playing audio before loading new item
+        StopAllAudio();
+
         // CRITICAL: Generate options FIRST before updating state
         // This prevents UI from rendering with wrong options
         string[] newOptions = Array.Empty<string>();
@@ -672,6 +681,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         // Enhanced tracking: Start response timer
         _responseTimer.Restart();
+        
+        // Play vocabulary audio if enabled
+        await PlayVocabularyAudioAsync(item.Word);
     }
 
     // NEW: Streak-based mode determination using MasteryScore threshold
@@ -2177,6 +2189,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         _logger.LogDebug("🛑 VocabularyQuizPage.OnWillUnmount() START");
         base.OnWillUnmount();
 
+        // Stop all audio playback
+        StopAllAudio();
+
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
@@ -2276,5 +2291,137 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             new VocabularyQuizPreferencesBottomSheet()
                 .WithCallbacks(OnPreferencesSaved, ClosePreferences)
         };
+    }
+    
+    // ============================================================================
+    // AUDIO PLAYBACK METHODS
+    // ============================================================================
+    
+    /// <summary>
+    /// Plays vocabulary word audio if auto-play is enabled.
+    /// Uses cached audio from StreamHistoryRepository or generates via ElevenLabsSpeechService.
+    /// </summary>
+    async Task PlayVocabularyAudioAsync(VocabularyWord word)
+    {
+        if (word == null)
+        {
+            _logger.LogWarning("⚠️ PlayVocabularyAudioAsync: word is null");
+            return;
+        }
+        
+        // Check if auto-play is enabled
+        if (State.UserPreferences?.AutoPlayVocabAudio != true)
+        {
+            _logger.LogDebug("🎧 Auto-play vocabulary audio is disabled");
+            return;
+        }
+        
+        try
+        {
+            // Get the target language term (Korean word)
+            var targetTerm = word.TargetLanguageTerm;
+            
+            if (string.IsNullOrWhiteSpace(targetTerm))
+            {
+                _logger.LogWarning("⚠️ PlayVocabularyAudioAsync: TargetLanguageTerm is null/empty for word ID {WordId}", word.Id);
+                return;
+            }
+            
+            _logger.LogInformation("🎧 Playing vocabulary audio for: {Term}", targetTerm);
+            
+            // Check if we have cached audio
+            string audioUri = word.AudioPronunciationUri;
+            
+            if (string.IsNullOrWhiteSpace(audioUri))
+            {
+                _logger.LogDebug("🎧 No cached audio, generating via ElevenLabs for: {Term}", targetTerm);
+                
+                // Generate audio via ElevenLabs using Korean voice
+                var audioStream = await _speechService.TextToSpeechAsync(
+                    targetTerm,
+                    "echo", // Voice ID - using default echo voice
+                    0.5f,   // stability
+                    0.75f,  // similarityBoost
+                    1.0f    // speed
+                );
+                
+                if (audioStream == null)
+                {
+                    _logger.LogWarning("⚠️ ElevenLabs returned null audio stream for: {Term}", targetTerm);
+                    return;
+                }
+                
+                // Create audio player from stream
+                var player = _audioManager.CreatePlayer(audioStream);
+                
+                // Subscribe to playback ended event
+                player.PlaybackEnded += OnVocabularyAudioEnded;
+                
+                SetState(s => s.VocabularyAudioPlayer = player);
+                
+                player.Play();
+                _logger.LogInformation("✅ Playing generated audio for: {Term}", targetTerm);
+            }
+            else
+            {
+                _logger.LogDebug("🎧 Using cached audio from: {Uri}", audioUri);
+                
+                // Use cached audio
+                var player = _audioManager.CreatePlayer(audioUri);
+                
+                // Subscribe to playback ended event
+                player.PlaybackEnded += OnVocabularyAudioEnded;
+                
+                SetState(s => s.VocabularyAudioPlayer = player);
+                
+                player.Play();
+                _logger.LogInformation("✅ Playing cached audio for: {Term}", targetTerm);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Exception playing vocabulary audio for: {Term}", word.TargetLanguageTerm);
+        }
+    }
+    
+    /// <summary>
+    /// Event handler for vocabulary audio playback ended.
+    /// Cleans up audio player and unsubscribes event.
+    /// </summary>
+    void OnVocabularyAudioEnded(object sender, EventArgs e)
+    {
+        _logger.LogDebug("🎧 Vocabulary audio playback ended");
+        
+        if (State.VocabularyAudioPlayer != null)
+        {
+            State.VocabularyAudioPlayer.PlaybackEnded -= OnVocabularyAudioEnded;
+            State.VocabularyAudioPlayer.Dispose();
+            SetState(s => s.VocabularyAudioPlayer = null);
+        }
+    }
+    
+    /// <summary>
+    /// Stops all audio playback and cleans up resources.
+    /// Called when navigating to next question or unmounting page.
+    /// </summary>
+    void StopAllAudio()
+    {
+        _logger.LogDebug("🎧 Stopping all audio playback");
+        
+        if (State.VocabularyAudioPlayer != null)
+        {
+            try
+            {
+                State.VocabularyAudioPlayer.PlaybackEnded -= OnVocabularyAudioEnded;
+                State.VocabularyAudioPlayer.Stop();
+                State.VocabularyAudioPlayer.Dispose();
+                SetState(s => s.VocabularyAudioPlayer = null);
+                _logger.LogDebug("✅ Audio player stopped and disposed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Exception stopping audio player");
+            }
+        }
     }
 }

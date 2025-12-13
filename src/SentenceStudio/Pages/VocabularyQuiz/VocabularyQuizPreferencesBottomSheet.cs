@@ -7,6 +7,7 @@ namespace SentenceStudio.Pages.VocabularyQuiz;
 class VocabularyQuizPreferencesBottomSheetState
 {
     public string DisplayDirection { get; set; }
+    public bool AutoPlayVocabAudio { get; set; }
     public bool IsSaving { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
     
@@ -41,6 +42,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
         SetState(s =>
         {
             s.DisplayDirection = _preferences.DisplayDirection;
+            s.AutoPlayVocabAudio = _preferences.AutoPlayVocabAudio;
         });
     }
     
@@ -66,6 +68,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
             ScrollView(
                 VStack(spacing: MyTheme.SectionSpacing,
                     RenderDisplayDirectionSection(),
+                    RenderAudioPlaybackSection(),
                     
                     // Error message
                     !string.IsNullOrEmpty(State.ErrorMessage) ?
@@ -105,6 +108,19 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
                 })
         );
     
+    VisualNode RenderAudioPlaybackSection() =>
+        VStack(spacing: MyTheme.ComponentSpacing,
+            Label($"{_localize["AudioPlayback"]}")
+                .ThemeKey(MyTheme.SubHeadline),
+                
+            CheckBox()
+                .IsChecked(State.AutoPlayVocabAudio)
+                .OnCheckedChanged((s, e) => SetState(s => s.AutoPlayVocabAudio = e.Value)),
+                
+            Label($"{_localize["AutoPlayVocabAudio"]}")
+                .ThemeKey(MyTheme.Body1)
+        );
+    
     async Task SavePreferencesAsync()
     {
         SetState(s => { s.IsSaving = true; s.ErrorMessage = string.Empty; });
@@ -113,6 +129,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
         {
             // Update preferences via service
             _preferences.DisplayDirection = State.DisplayDirection;
+            _preferences.AutoPlayVocabAudio = State.AutoPlayVocabAudio;
             
             _logger.LogInformation("✅ Vocabulary quiz preferences saved");
             State.OnPreferencesSaved?.Invoke();
