@@ -138,7 +138,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     {
         return ContentPage(pageRef => _pageRef = pageRef,
             Grid(rows: "60,Auto,*", columns: "*",
-                // RenderTitleView(),
+                RenderTitleView(),// this must be present for mac catalyst especially
                 LearningProgressBar(),
                 ScrollView(
                     Grid(rows: "*,Auto", columns: "*",
@@ -149,7 +149,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 SessionSummaryOverlay(),
-                
+
                 // Preferences bottom sheet overlay
                 RenderPreferencesBottomSheet()
             ).RowSpacing(MyTheme.CardMargin)
@@ -2283,15 +2283,97 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// <summary>
     /// Renders the preferences bottom sheet overlay.
     /// Uses SfBottomSheet with IsOpen binding and OnStateChanged handler.
+    /// Content is inlined to avoid component mounting issues.
     /// </summary>
     VisualNode RenderPreferencesBottomSheet()
     {
         return new SfBottomSheet(
-            new VocabularyQuizPreferencesBottomSheet()
-                .WithCallbacks(OnPreferencesSaved, ClosePreferences)
+            VStack(spacing: MyTheme.SectionSpacing,
+                // Header
+                HStack(spacing: MyTheme.MicroSpacing,
+                    Label($"{_localize["VocabQuizPreferences"]}")
+                        .ThemeKey(MyTheme.Title2)
+                        .HStart()
+                        .VCenter(),
+                        
+                    ImageButton()
+                        .Source(MyTheme.IconClose)
+                        .OnClicked(ClosePreferences)
+                        .HeightRequest(32)
+                        .WidthRequest(32)
+                        .HEnd()
+                ).Padding(MyTheme.LayoutSpacing),
+                
+                // Content
+                ScrollView(
+                    VStack(spacing: MyTheme.SectionSpacing,
+                        RenderDisplayDirectionSection(),
+                        RenderAudioPlaybackSection(),
+                        
+                        // Save button
+                        Button($"{_localize["SavePreferences"]}")
+                            .ThemeKey(MyTheme.PrimaryButton)
+                            .OnClicked(SavePreferencesAsync)
+                    ).Padding(MyTheme.LayoutSpacing)
+                )
+            )
         )
         .IsOpen(State.ShowPreferencesSheet)
         .OnStateChanged((sender, args) => SetState(s => s.ShowPreferencesSheet = !s.ShowPreferencesSheet));
+    }
+    
+    VisualNode RenderDisplayDirectionSection() =>
+        VStack(spacing: MyTheme.ComponentSpacing,
+            Label($"{_localize["DisplayDirection"]}")
+                .ThemeKey(MyTheme.SubHeadline),
+                
+            RadioButton()
+                .Content($"{_localize["ShowTargetLanguage"]}")
+                .IsChecked(State.UserPreferences?.DisplayDirection == "TargetToNative")
+                .OnCheckedChanged((s, e) => 
+                {
+                    if (e.Value) 
+                    {
+                        if (State.UserPreferences != null)
+                            State.UserPreferences.DisplayDirection = "TargetToNative";
+                    }
+                }),
+                
+            RadioButton()
+                .Content($"{_localize["ShowNativeLanguage"]}")
+                .IsChecked(State.UserPreferences?.DisplayDirection == "NativeToTarget")
+                .OnCheckedChanged((s, e) => 
+                {
+                    if (e.Value)
+                    {
+                        if (State.UserPreferences != null)
+                            State.UserPreferences.DisplayDirection = "NativeToTarget";
+                    }
+                })
+        );
+    
+    VisualNode RenderAudioPlaybackSection() =>
+        VStack(spacing: MyTheme.ComponentSpacing,
+            Label($"{_localize["AudioPlayback"]}")
+                .ThemeKey(MyTheme.SubHeadline),
+                
+            CheckBox()
+                .IsChecked(State.UserPreferences?.AutoPlayVocabAudio ?? false)
+                .OnCheckedChanged((s, e) =>
+                {
+                    if (State.UserPreferences != null)
+                        State.UserPreferences.AutoPlayVocabAudio = e.Value;
+                }),
+                
+            Label($"{_localize["AutoPlayVocabAudio"]}")
+                .ThemeKey(MyTheme.Body1)
+        );
+    
+    async Task SavePreferencesAsync()
+    {
+        _logger.LogInformation("✅ Vocabulary quiz preferences saved");
+        OnPreferencesSaved();
+        ClosePreferences();
     }
 
     // ============================================================================

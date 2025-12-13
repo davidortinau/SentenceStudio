@@ -4,35 +4,26 @@ using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
+class VocabularyQuizPreferencesBottomSheetProps
+{
+    public Action OnPreferencesSaved { get; set; }
+    public Action OnClose { get; set; }
+}
+
 class VocabularyQuizPreferencesBottomSheetState
 {
     public string DisplayDirection { get; set; }
     public bool AutoPlayVocabAudio { get; set; }
     public bool IsSaving { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
-    
-    // Callbacks
-    public Action OnPreferencesSaved { get; set; }
-    public Action OnClose { get; set; }
 }
 
-partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPreferencesBottomSheetState>
+partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPreferencesBottomSheetState, VocabularyQuizPreferencesBottomSheetProps>
 {
     [Inject] ILogger<VocabularyQuizPreferencesBottomSheet> _logger;
     [Inject] VocabularyQuizPreferences _preferences;
     
     LocalizationManager _localize => LocalizationManager.Instance;
-    
-    // Public methods to set callbacks from parent
-    public VocabularyQuizPreferencesBottomSheet WithCallbacks(Action onSaved, Action onClose)
-    {
-        SetState(s =>
-        {
-            s.OnPreferencesSaved = onSaved;
-            s.OnClose = onClose;
-        }, false);
-        return this;
-    }
     
     protected override void OnMounted()
     {
@@ -58,7 +49,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
                     
                 ImageButton()
                     .Source(MyTheme.IconClose)
-                    .OnClicked(() => State.OnClose?.Invoke())
+                    .OnClicked(() => Props.OnClose?.Invoke())
                     .HeightRequest(32)
                     .WidthRequest(32)
                     .HEnd()
@@ -132,8 +123,8 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
             _preferences.AutoPlayVocabAudio = State.AutoPlayVocabAudio;
             
             _logger.LogInformation("✅ Vocabulary quiz preferences saved");
-            State.OnPreferencesSaved?.Invoke();
-            State.OnClose?.Invoke();
+            Props.OnPreferencesSaved?.Invoke();
+            Props.OnClose?.Invoke();
         }
         catch (Exception ex)
         {
