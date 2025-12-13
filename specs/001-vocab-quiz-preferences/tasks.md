@@ -59,10 +59,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Create VocabularyQuizPreferencesBottomSheet component in `src/SentenceStudio/Pages/VocabularyQuiz/VocabularyQuizPreferencesBottomSheet.cs` with Props (UserProfile, OnPreferencesSaved, OnClose) and State (DisplayDirection, IsSaving, ErrorMessage)
-- [ ] T010 [US1] Implement RenderDisplayDirectionSection() in VocabularyQuizPreferencesBottomSheet using RadioButton controls for "TargetToNative" and "NativeToTarget" options with localized labels
-- [ ] T011 [US1] Implement SavePreferencesAsync() method in VocabularyQuizPreferencesBottomSheet to update UserProfile.VocabQuizDisplayDirection and call UserProfileRepository.UpdateUserProfileAsync()
-- [ ] T012 [US1] Add State.UserPreferences (UserProfile) and State.ShowPreferencesSheet (bool) fields to VocabularyQuizPageState in `src/SentenceStudio/Pages/VocabularyQuiz/VocabularyQuizPage.cs`
+- [X] T009 [US1] Create VocabularyQuizPreferencesBottomSheet component in `src/SentenceStudio/Pages/VocabularyQuiz/VocabularyQuizPreferencesBottomSheet.cs` with Props (Preferences, OnPreferencesSaved, OnClose) and State (DisplayDirection, IsSaving, ErrorMessage)
+- [X] T010 [US1] Implement RenderDisplayDirectionSection() in VocabularyQuizPreferencesBottomSheet using RadioButton controls for "TargetToNative" and "NativeToTarget" options with localized labels
+- [X] T011 [US1] Implement SavePreferencesAsync() method in VocabularyQuizPreferencesBottomSheet to update Preferences.DisplayDirection property
+- [X] T012 [US1] Add State.UserPreferences (VocabularyQuizPreferences) and State.ShowPreferencesSheet (bool) fields to VocabularyQuizPageState, inject _preferences service
 - [ ] T013 [US1] Implement LoadUserPreferencesAsync() method in VocabularyQuizPage to load UserProfile via UserProfileRepository and populate State.UserPreferences
 - [ ] T014 [US1] Add OpenPreferences() and ClosePreferences() methods in VocabularyQuizPage to toggle State.ShowPreferencesSheet and implement OnPreferencesSaved callback
 - [ ] T015 [US1] Add toolbar icon (MyTheme.IconSettings) to VocabularyQuizPage.Render() that calls OpenPreferences() when clicked

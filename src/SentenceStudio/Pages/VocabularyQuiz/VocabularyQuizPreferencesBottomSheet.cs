@@ -4,28 +4,34 @@ using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
-class VocabularyQuizPreferencesProps
+class VocabularyQuizPreferencesBottomSheetState
 {
-    public VocabularyQuizPreferences Preferences { get; set; }
+    public string DisplayDirection { get; set; }
+    public bool IsSaving { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+    
+    // Callbacks
     public Action OnPreferencesSaved { get; set; }
     public Action OnClose { get; set; }
 }
 
-class VocabularyQuizPreferencesState
-{
-    public string DisplayDirection { get; set; }
-    public bool AutoPlayVocabAudio { get; set; }
-    public bool AutoPlaySampleAudio { get; set; }
-    public bool ShowMnemonicImage { get; set; }
-    public bool IsSaving { get; set; }
-    public string ErrorMessage { get; set; } = string.Empty;
-}
-
-partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPreferencesState, VocabularyQuizPreferencesProps>
+partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPreferencesBottomSheetState>
 {
     [Inject] ILogger<VocabularyQuizPreferencesBottomSheet> _logger;
+    [Inject] VocabularyQuizPreferences _preferences;
     
     LocalizationManager _localize => LocalizationManager.Instance;
+    
+    // Public methods to set callbacks from parent
+    public VocabularyQuizPreferencesBottomSheet WithCallbacks(Action onSaved, Action onClose)
+    {
+        SetState(s =>
+        {
+            s.OnPreferencesSaved = onSaved;
+            s.OnClose = onClose;
+        }, false);
+        return this;
+    }
     
     protected override void OnMounted()
     {
@@ -34,10 +40,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
         // Load current preferences into state
         SetState(s =>
         {
-            s.DisplayDirection = Props.Preferences.DisplayDirection;
-            s.AutoPlayVocabAudio = Props.Preferences.AutoPlayVocabAudio;
-            s.AutoPlaySampleAudio = Props.Preferences.AutoPlaySampleAudio;
-            s.ShowMnemonicImage = Props.Preferences.ShowMnemonicImage;
+            s.DisplayDirection = _preferences.DisplayDirection;
         });
     }
     
@@ -53,7 +56,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
                     
                 ImageButton()
                     .Source(MyTheme.IconClose)
-                    .OnClicked(Props.OnClose)
+                    .OnClicked(() => State.OnClose?.Invoke())
                     .HeightRequest(32)
                     .WidthRequest(32)
                     .HEnd()
@@ -81,7 +84,7 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
     }
     
     VisualNode RenderDisplayDirectionSection() =>
-        VStack(spacing: MyTheme.SmallSpacing,
+        VStack(spacing: MyTheme.ComponentSpacing,
             Label($"{_localize["DisplayDirection"]}")
                 .ThemeKey(MyTheme.SubHeadline),
                 
@@ -108,12 +111,12 @@ partial class VocabularyQuizPreferencesBottomSheet : Component<VocabularyQuizPre
         
         try
         {
-            // Update preferences
-            Props.Preferences.DisplayDirection = State.DisplayDirection;
+            // Update preferences via service
+            _preferences.DisplayDirection = State.DisplayDirection;
             
             _logger.LogInformation("✅ Vocabulary quiz preferences saved");
-            Props.OnPreferencesSaved?.Invoke();
-            Props.OnClose?.Invoke();
+            State.OnPreferencesSaved?.Invoke();
+            State.OnClose?.Invoke();
         }
         catch (Exception ex)
         {

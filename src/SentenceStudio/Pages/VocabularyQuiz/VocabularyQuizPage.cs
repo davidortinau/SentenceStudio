@@ -142,7 +142,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 ).GridRow(2),
                 AutoTransitionBar(),
                 LoadingOverlay(),
-                SessionSummaryOverlay()
+                SessionSummaryOverlay(),
+                
+                // Preferences bottom sheet overlay
+                State.ShowPreferencesSheet && State.UserPreferences != null ?
+                    RenderPreferencesBottomSheet() : null
             ).RowSpacing(MyTheme.CardMargin)
         )
         .TitleView(RenderTitleView())
@@ -152,20 +156,24 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     private VisualNode RenderTitleView()
     {
-        return Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar()).HEnd().VCenter();
-        //return Grid(new ActivityTimerBar()).HEnd().VCenter();
-        // return Grid("*", "*,Auto",
-        //     Label("Counter Sample")
-        //         .VCenter()
-        //         .FontSize(18)
-        //         .FontAttributes(MauiControls.FontAttributes.Bold)
-        //         .Margin(10, 0)
-        //         .GridColumn(0),
-        //     Button("Increment")
-        //         .VCenter()
-        //         // .OnClicked(() => SetState(s => s.Counter++))
-        //         .GridColumn(1)
-        // );
+        return Grid("*", "*,Auto,Auto",
+            // Timer (if from daily plan)
+            Props?.FromTodaysPlan == true ?
+                Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar())
+                    .GridColumn(1)
+                    .HEnd()
+                    .VCenter() : null,
+            
+            // Preferences icon
+            ImageButton()
+                .Source(MyTheme.IconSettings)
+                .OnClicked(OpenPreferences)
+                .HeightRequest(32)
+                .WidthRequest(32)
+                .GridColumn(2)
+                .HEnd()
+                .VCenter()
+        );
     }
 
     private void TrySetShellTitleView()
@@ -2157,6 +2165,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             _logger.LogDebug("⚠️ NOT starting timer - FromTodaysPlan is false");
         }
+        
+        // Load user preferences
+        Task.Run(async () => await LoadUserPreferencesAsync());
 
     }
 
@@ -2172,5 +2183,97 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _timerService.Pause();
             _logger.LogDebug("✅ Timer paused - IsRunning={IsRunning}", _timerService.IsRunning);
         }
+    }
+    
+    // ============================================================================
+    // VOCABULARY QUIZ PREFERENCES METHODS
+    // ============================================================================
+    
+    /// <summary>
+    /// Loads user preferences from VocabularyQuizPreferences service.
+    /// Called in OnMounted lifecycle.
+    /// </summary>
+    async Task LoadUserPreferencesAsync()
+    {
+        await Task.Run(() =>
+        {
+            SetState(s => s.UserPreferences = _preferences);
+            _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}", 
+                _preferences.DisplayDirection);
+        });
+    }
+    
+    /// <summary>
+    /// Opens preferences bottom sheet overlay.
+    /// </summary>
+    void OpenPreferences()
+    {
+        _logger.LogInformation("⚙️ Opening vocabulary quiz preferences");
+        SetState(s => s.ShowPreferencesSheet = true);
+    }
+    
+    /// <summary>
+    /// Closes preferences bottom sheet.
+    /// </summary>
+    void ClosePreferences()
+    {
+        _logger.LogInformation("⚙️ Closing vocabulary quiz preferences");
+        SetState(s => s.ShowPreferencesSheet = false);
+    }
+    
+    /// <summary>
+    /// Callback invoked when preferences are saved.
+    /// Reloads preferences to ensure state is in sync.
+    /// </summary>
+    void OnPreferencesSaved()
+    {
+        _logger.LogInformation("✅ Preferences saved, reloading");
+        SetState(s => s.UserPreferences = _preferences);
+    }
+    
+    /// <summary>
+    /// Determines question text based on display direction preference.
+    /// </summary>
+    string GetQuestionText(VocabularyWord word)
+    {
+        if (State.UserPreferences?.DisplayDirection == "TargetToNative")
+        {
+            // Show target language (Korean), user answers in native (English)
+            return word.TargetLanguageTerm;
+        }
+        else
+        {
+            // Show native language (English), user answers in target (Korean)
+            return word.NativeLanguageTerm;
+        }
+    }
+    
+    /// <summary>
+    /// Determines correct answer based on display direction preference.
+    /// </summary>
+    string GetCorrectAnswer(VocabularyWord word)
+    {
+        if (State.UserPreferences?.DisplayDirection == "TargetToNative")
+        {
+            // Question showed target language, correct answer is native
+            return word.NativeLanguageTerm;
+        }
+        else
+        {
+            // Question showed native language, correct answer is target
+            return word.TargetLanguageTerm;
+        }
+    }
+    
+    /// <summary>
+    /// Renders the preferences bottom sheet overlay.
+    /// </summary>
+    VisualNode RenderPreferencesBottomSheet()
+    {
+        return new SfBottomSheet
+        {
+            new VocabularyQuizPreferencesBottomSheet()
+                .WithCallbacks(OnPreferencesSaved, ClosePreferences)
+        };
     }
 }
