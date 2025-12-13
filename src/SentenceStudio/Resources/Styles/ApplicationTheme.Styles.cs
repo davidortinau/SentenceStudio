@@ -243,10 +243,9 @@ partial class MyTheme
         RadioButtonStyles.Default = _ => _
             .BackgroundColor(Colors.Transparent)
             .TextColor(TextPrimary)
-            .FontFamily("SegoeRegular")
-            .FontSize(DeviceIdiom.Desktop == DeviceInfo.Idiom ? 24 : 18)
-            .MinimumHeightRequest(44)
-            .MinimumWidthRequest(44)
+            .FontSize(17)
+            // .MinimumHeightRequest(44)
+            // .MinimumWidthRequest(44)
             .VisualState("CommonStates", "Disable", MauiControls.RadioButton.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         RefreshViewStyles.Default = _ => _

@@ -2288,61 +2288,64 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     VisualNode RenderPreferencesBottomSheet()
     {
         return new SfBottomSheet(
-            VStack(spacing: MyTheme.SectionSpacing,
                 // Header
-                HStack(spacing: MyTheme.MicroSpacing,
+                Grid(rows: "Auto,*", columns: "Auto,*,Auto",
+                    // Header
                     Label($"{_localize["VocabQuizPreferences"]}")
                         .ThemeKey(MyTheme.Title2)
-                        .HStart()
-                        .VCenter(),
-                        
+                        .Center()
+                        .GridColumn(1),
+
                     ImageButton()
                         .Source(MyTheme.IconClose)
                         .OnClicked(ClosePreferences)
                         .HeightRequest(32)
                         .WidthRequest(32)
                         .HEnd()
-                ).Padding(MyTheme.LayoutSpacing),
-                
-                // Content
-                ScrollView(
-                    VStack(spacing: MyTheme.SectionSpacing,
-                        RenderDisplayDirectionSection(),
-                        RenderAudioPlaybackSection(),
-                        
-                        // Save button
-                        Button($"{_localize["SavePreferences"]}")
-                            .ThemeKey(MyTheme.PrimaryButton)
-                            .OnClicked(SavePreferencesAsync)
-                    ).Padding(MyTheme.LayoutSpacing)
-                )
-            )
+                        .GridColumn(2),
+
+                    // Content
+                    ScrollView(
+                        VStack(spacing: MyTheme.LayoutSpacing,
+
+                            RenderDisplayDirectionSection(),
+                            RenderAudioPlaybackSection(),
+
+                            // Save button
+                            Button($"{_localize["SavePreferences"]}")
+                                .ThemeKey(MyTheme.PrimaryButton)
+                                .OnClicked(SavePreferencesAsync)
+                        )
+                    ).GridColumnSpan(3).GridRow(1)
+            ).Padding(MyTheme.CardPadding)
         )
+        .GridRow(2).GridRowSpan(3)
         .IsOpen(State.ShowPreferencesSheet)
         .OnStateChanged((sender, args) => SetState(s => s.ShowPreferencesSheet = !s.ShowPreferencesSheet));
     }
-    
+
     VisualNode RenderDisplayDirectionSection() =>
-        VStack(spacing: MyTheme.ComponentSpacing,
+        VStack(spacing: MyTheme.LayoutSpacing,
             Label($"{_localize["DisplayDirection"]}")
-                .ThemeKey(MyTheme.SubHeadline),
-                
+                .ThemeKey(MyTheme.Title2)
+                .HStart(),
+
             RadioButton()
                 .Content($"{_localize["ShowTargetLanguage"]}")
                 .IsChecked(State.UserPreferences?.DisplayDirection == "TargetToNative")
-                .OnCheckedChanged((s, e) => 
+                .OnCheckedChanged((s, e) =>
                 {
-                    if (e.Value) 
+                    if (e.Value)
                     {
                         if (State.UserPreferences != null)
                             State.UserPreferences.DisplayDirection = "TargetToNative";
                     }
                 }),
-                
+
             RadioButton()
                 .Content($"{_localize["ShowNativeLanguage"]}")
                 .IsChecked(State.UserPreferences?.DisplayDirection == "NativeToTarget")
-                .OnCheckedChanged((s, e) => 
+                .OnCheckedChanged((s, e) =>
                 {
                     if (e.Value)
                     {
@@ -2351,24 +2354,26 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     }
                 })
         );
-    
+
     VisualNode RenderAudioPlaybackSection() =>
-        VStack(spacing: MyTheme.ComponentSpacing,
+        VStack(spacing: MyTheme.LayoutSpacing,
             Label($"{_localize["AudioPlayback"]}")
-                .ThemeKey(MyTheme.SubHeadline),
-                
-            CheckBox()
-                .IsChecked(State.UserPreferences?.AutoPlayVocabAudio ?? false)
-                .OnCheckedChanged((s, e) =>
-                {
-                    if (State.UserPreferences != null)
-                        State.UserPreferences.AutoPlayVocabAudio = e.Value;
-                }),
-                
-            Label($"{_localize["AutoPlayVocabAudio"]}")
-                .ThemeKey(MyTheme.Body1)
+                .ThemeKey(MyTheme.Title2)
+                .HStart(),
+
+            HStack(
+                CheckBox()
+                    .IsChecked(State.UserPreferences?.AutoPlayVocabAudio ?? false)
+                    .OnCheckedChanged((s, e) =>
+                    {
+                        if (State.UserPreferences != null)
+                            State.UserPreferences.AutoPlayVocabAudio = e.Value;
+                    }),
+
+                Label($"{_localize["AutoPlayVocabAudio"]}")
+            ).Spacing(MyTheme.LayoutSpacing)
         );
-    
+
     async Task SavePreferencesAsync()
     {
         _logger.LogInformation("✅ Vocabulary quiz preferences saved");
