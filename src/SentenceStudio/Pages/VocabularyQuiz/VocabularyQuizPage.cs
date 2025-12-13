@@ -655,8 +655,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Reset state for new item - now includes options in same state update
         SetState(s =>
         {
-            s.CurrentTerm = item.Word.NativeLanguageTerm ?? "";
-            s.CurrentTargetLanguageTerm = item.Word.TargetLanguageTerm ?? "";
+            s.CurrentTerm = GetQuestionText(item.Word);
+            s.CurrentTargetLanguageTerm = GetCorrectAnswer(item.Word);
             s.UserInput = "";
             s.UserGuess = "";
             s.ShowAnswer = false;
@@ -705,17 +705,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     async Task<string[]> GenerateMultipleChoiceOptionsSync(VocabularyQuizItem currentItem)
     {
-        var correctAnswer = currentItem.Word.TargetLanguageTerm ?? "";
+        var correctAnswer = GetCorrectAnswer(currentItem.Word);
 
         if (string.IsNullOrEmpty(correctAnswer))
         {
-            _logger.LogWarning("⚠️ Warning: Current item {NativeTerm} has no target language term!", currentItem.Word.NativeLanguageTerm);
+            _logger.LogWarning("⚠️ Warning: Current item {Term} has no answer in selected direction!", GetQuestionText(currentItem.Word));
             return new[] { "Error: No answer available" };
         }
 
+        // Get words in the same language as the correct answer (opposite of question language)
         var allWords = State.VocabularyItems
             .Where(i => i != currentItem)
-            .Select(i => i.Word.TargetLanguageTerm)
+            .Select(i => GetCorrectAnswer(i.Word))
             .Where(term => !string.IsNullOrEmpty(term))
             .OrderBy(x => Guid.NewGuid())
             .Take(3)
@@ -728,7 +729,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         allWords = allWords.OrderBy(x => Guid.NewGuid()).ToArray().ToList();
 
         // Debug logging to verify correct answer is present
-        _logger.LogDebug("🎯 Generated options for {NativeTerm}: {Options}", currentItem.Word.NativeLanguageTerm, string.Join(", ", allWords));
+        _logger.LogDebug("🎯 Generated options for {Term}: {Options}", GetQuestionText(currentItem.Word), string.Join(", ", allWords));
         _logger.LogDebug("🎯 Correct answer {CorrectAnswer} is included: {IsIncluded}", correctAnswer, allWords.Contains(correctAnswer));
 
         return allWords.ToArray();

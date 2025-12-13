@@ -63,17 +63,17 @@
 - [X] T010 [US1] Implement RenderDisplayDirectionSection() in VocabularyQuizPreferencesBottomSheet using RadioButton controls for "TargetToNative" and "NativeToTarget" options with localized labels
 - [X] T011 [US1] Implement SavePreferencesAsync() method in VocabularyQuizPreferencesBottomSheet to update Preferences.DisplayDirection property
 - [X] T012 [US1] Add State.UserPreferences (VocabularyQuizPreferences) and State.ShowPreferencesSheet (bool) fields to VocabularyQuizPageState, inject _preferences service
-- [ ] T013 [US1] Implement LoadUserPreferencesAsync() method in VocabularyQuizPage to load UserProfile via UserProfileRepository and populate State.UserPreferences
-- [ ] T014 [US1] Add OpenPreferences() and ClosePreferences() methods in VocabularyQuizPage to toggle State.ShowPreferencesSheet and implement OnPreferencesSaved callback
-- [ ] T015 [US1] Add toolbar icon (MyTheme.IconSettings) to VocabularyQuizPage.Render() that calls OpenPreferences() when clicked
-- [ ] T016 [US1] Integrate VocabularyQuizPreferencesBottomSheet into VocabularyQuizPage.Render() as SfBottomSheet overlay (conditional on State.ShowPreferencesSheet)
-- [ ] T017 [US1] Implement GetQuestionText(VocabularyWord) method in VocabularyQuizPage that returns word.TargetLanguageTerm or word.NativeLanguageTerm based on State.UserPreferences.VocabQuizDisplayDirection
-- [ ] T018 [US1] Implement GetCorrectAnswer(VocabularyWord) method in VocabularyQuizPage that returns opposite language term based on display direction
-- [ ] T019 [US1] Update ShowNextQuestion() logic in VocabularyQuizPage to use GetQuestionText() for question display
-- [ ] T020 [US1] Update answer validation logic in VocabularyQuizPage to use GetCorrectAnswer() for checking user input
-- [ ] T021 [US1] Call LoadUserPreferencesAsync() in VocabularyQuizPage.OnMounted() lifecycle method
-- [ ] T022 [US1] Add ILogger<VocabularyQuizPreferencesBottomSheet> injection and log preference saves/failures (✅/❌ emoji prefixes)
-- [ ] T023 [US1] Add ILogger logging to OpenPreferences(), ClosePreferences(), OnPreferencesSaved() in VocabularyQuizPage (⚙️ emoji prefix)
+- [X] T013 [US1] Implement LoadUserPreferencesAsync() method in VocabularyQuizPage to load preferences from VocabularyQuizPreferences service
+- [X] T014 [US1] Add OpenPreferences() and ClosePreferences() methods in VocabularyQuizPage to toggle State.ShowPreferencesSheet and implement OnPreferencesSaved callback
+- [X] T015 [US1] Add toolbar icon (MyTheme.IconSettings) to VocabularyQuizPage.Render() that calls OpenPreferences() when clicked
+- [X] T016 [US1] Integrate VocabularyQuizPreferencesBottomSheet into VocabularyQuizPage.Render() as SfBottomSheet overlay (conditional on State.ShowPreferencesSheet)
+- [X] T017 [US1] Implement GetQuestionText(VocabularyWord) method in VocabularyQuizPage that returns word.TargetLanguageTerm or word.NativeLanguageTerm based on State.UserPreferences.VocabQuizDisplayDirection
+- [X] T018 [US1] Implement GetCorrectAnswer(VocabularyWord) method in VocabularyQuizPage that returns opposite language term based on display direction
+- [X] T019 [US1] Update ShowNextQuestion() logic in VocabularyQuizPage to use GetQuestionText() for question display (updated LoadCurrentItem)
+- [X] T020 [US1] Update answer validation logic in VocabularyQuizPage to use GetCorrectAnswer() for checking user input (updated GenerateMultipleChoiceOptionsSync, validation uses State.CurrentTargetLanguageTerm)
+- [X] T021 [US1] Call LoadUserPreferencesAsync() in VocabularyQuizPage.OnMounted() lifecycle method
+- [X] T022 [US1] Add ILogger<VocabularyQuizPreferencesBottomSheet> injection and log preference saves/failures (✅/❌ emoji prefixes)
+- [X] T023 [US1] Add ILogger logging to OpenPreferences(), ClosePreferences(), OnPreferencesSaved() in VocabularyQuizPage (⚙️ emoji prefix)
 - [ ] T024 [US1] Test User Story 1 on macOS (net10.0-maccatalyst): change display direction, verify quiz questions reflect preference, verify persistence after app restart
 
 **Checkpoint**: User Story 1 complete - display direction preference works end-to-end with persistence and logging. Users can customize quiz language presentation.
