@@ -1681,4 +1681,52 @@
     <value>Apply</value>
     <comment>[002-vocab-search] Generic apply label</comment>
   </data>
+  <data name="VocabQuizPreferences" xml:space="preserve">
+    <value>Vocabulary Quiz Preferences</value>
+    <comment>[001-vocab-quiz-preferences] Title for preferences bottom sheet</comment>
+  </data>
+  <data name="DisplayDirection" xml:space="preserve">
+    <value>Display Direction</value>
+    <comment>[001-vocab-quiz-preferences] Section header for display direction options</comment>
+  </data>
+  <data name="ShowTargetLanguage" xml:space="preserve">
+    <value>Show target language (한국어 → English)</value>
+    <comment>[001-vocab-quiz-preferences] Radio option to show Korean word, answer in English</comment>
+  </data>
+  <data name="ShowNativeLanguage" xml:space="preserve">
+    <value>Show native language (English → 한국어)</value>
+    <comment>[001-vocab-quiz-preferences] Radio option to show English word, answer in Korean</comment>
+  </data>
+  <data name="AudioPlayback" xml:space="preserve">
+    <value>Audio Playback</value>
+    <comment>[001-vocab-quiz-preferences] Section header for audio options</comment>
+  </data>
+  <data name="AutoPlayVocabAudio" xml:space="preserve">
+    <value>Auto-play vocabulary audio</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for automatic vocabulary audio</comment>
+  </data>
+  <data name="AutoPlaySampleAudio" xml:space="preserve">
+    <value>Auto-play sample sentence</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for automatic sample sentence audio</comment>
+  </data>
+  <data name="RequiresVocabAudio" xml:space="preserve">
+    <value>(requires vocabulary audio)</value>
+    <comment>[001-vocab-quiz-preferences] Help text showing sample audio dependency</comment>
+  </data>
+  <data name="ConfirmationDisplay" xml:space="preserve">
+    <value>Confirmation Display</value>
+    <comment>[001-vocab-quiz-preferences] Section header for confirmation screen options</comment>
+  </data>
+  <data name="ShowMnemonicImage" xml:space="preserve">
+    <value>Show mnemonic image</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for mnemonic image display</comment>
+  </data>
+  <data name="SavePreferences" xml:space="preserve">
+    <value>Save Preferences</value>
+    <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
+  </data>
+  <data name="PreferencesSaveFailed" xml:space="preserve">
+    <value>Failed to save preferences. Please try again.</value>
+    <comment>[001-vocab-quiz-preferences] Error message when preference save fails</comment>
+  </data>
 </root>

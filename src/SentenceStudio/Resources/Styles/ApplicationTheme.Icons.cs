@@ -301,6 +301,15 @@ partial class MyTheme
         Size = IconSize
     };
 
+    // Settings icon for preferences and configuration
+    public static FontImageSource IconSettings { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.settings_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconImageExport { get; } = new FontImageSource
     {
         Glyph = FluentUI.arrow_export_up_24_regular,

@@ -1437,4 +1437,52 @@
     <value>적용</value>
     <comment>[002-vocab-search] Generic apply label</comment>
   </data>
+  <data name="VocabQuizPreferences" xml:space="preserve">
+    <value>어휘 퀴즈 설정</value>
+    <comment>[001-vocab-quiz-preferences] Title for preferences bottom sheet</comment>
+  </data>
+  <data name="DisplayDirection" xml:space="preserve">
+    <value>표시 방향</value>
+    <comment>[001-vocab-quiz-preferences] Section header for display direction options</comment>
+  </data>
+  <data name="ShowTargetLanguage" xml:space="preserve">
+    <value>목표 언어 표시 (한국어 → English)</value>
+    <comment>[001-vocab-quiz-preferences] Radio option to show Korean word, answer in English</comment>
+  </data>
+  <data name="ShowNativeLanguage" xml:space="preserve">
+    <value>모국어 표시 (English → 한국어)</value>
+    <comment>[001-vocab-quiz-preferences] Radio option to show English word, answer in Korean</comment>
+  </data>
+  <data name="AudioPlayback" xml:space="preserve">
+    <value>오디오 재생</value>
+    <comment>[001-vocab-quiz-preferences] Section header for audio options</comment>
+  </data>
+  <data name="AutoPlayVocabAudio" xml:space="preserve">
+    <value>어휘 오디오 자동 재생</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for automatic vocabulary audio</comment>
+  </data>
+  <data name="AutoPlaySampleAudio" xml:space="preserve">
+    <value>예문 오디오 자동 재생</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for automatic sample sentence audio</comment>
+  </data>
+  <data name="RequiresVocabAudio" xml:space="preserve">
+    <value>(어휘 오디오 필요)</value>
+    <comment>[001-vocab-quiz-preferences] Help text showing sample audio dependency</comment>
+  </data>
+  <data name="ConfirmationDisplay" xml:space="preserve">
+    <value>확인 화면 표시</value>
+    <comment>[001-vocab-quiz-preferences] Section header for confirmation screen options</comment>
+  </data>
+  <data name="ShowMnemonicImage" xml:space="preserve">
+    <value>기억술 이미지 표시</value>
+    <comment>[001-vocab-quiz-preferences] Checkbox label for mnemonic image display</comment>
+  </data>
+  <data name="SavePreferences" xml:space="preserve">
+    <value>설정 저장</value>
+    <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
+  </data>
+  <data name="PreferencesSaveFailed" xml:space="preserve">
+    <value>설정 저장 실패. 다시 시도해 주세요.</value>
+    <comment>[001-vocab-quiz-preferences] Error message when preference save fails</comment>
+  </data>
 </root>
