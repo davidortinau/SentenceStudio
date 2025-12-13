@@ -6,6 +6,7 @@ using System.Diagnostics;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
+using System.IO;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -125,6 +126,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] VocabularyQuizPreferences _preferences;
     [Inject] Plugin.Maui.Audio.IAudioManager _audioManager;
     [Inject] Services.ElevenLabsSpeechService _speechService;
+    [Inject] StreamHistoryRepository _historyRepo;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -1096,6 +1098,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         try
         {
+            // CRITICAL: Load user preferences FIRST before loading vocabulary
+            // This ensures display direction is applied from the start
+            if (State.UserPreferences == null)
+            {
+                await LoadUserPreferencesAsync();
+            }
+
             // Debug logging
             _logger.LogDebug("VocabularyQuizPage - LoadVocabulary started");
             _logger.LogDebug("Props.Resources count: {ResourcesCount}", Props.Resources?.Count ?? 0);
@@ -2447,6 +2456,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     
     /// <summary>
     /// Internal method that actually plays the audio.
+    /// Uses the CORRECT pattern from EditVocabularyWordPage.cs
     /// </summary>
     async Task PlayVocabularyAudioInternal(VocabularyWord word)
     {
@@ -2463,54 +2473,72 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             _logger.LogInformation("🎧 Playing vocabulary audio for: {Term}", targetTerm);
 
-            // Check if we have cached audio
-            string audioUri = word.AudioPronunciationUri;
+            Stream audioStream;
+            bool fromCache = false;
 
-            if (string.IsNullOrWhiteSpace(audioUri))
+            // Check if we have cached audio for this word
+            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, Voices.JiYoung);
+
+            if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
             {
-                _logger.LogDebug("🎧 No cached audio, generating via ElevenLabs for: {Term}", targetTerm);
-
-                // Generate audio via ElevenLabs using Korean voice
-                var audioStream = await _speechService.TextToSpeechAsync(
-                    targetTerm,
-                    "echo", // Voice ID - using default echo voice
-                    0.5f,   // stability
-                    0.75f,  // similarityBoost
-                    1.0f    // speed
-                );
-
-                if (audioStream == null)
-                {
-                    _logger.LogWarning("⚠️ ElevenLabs returned null audio stream for: {Term}", targetTerm);
-                    return;
-                }
-
-                // Create audio player from stream
-                var player = _audioManager.CreatePlayer(audioStream);
-
-                // Subscribe to playback ended event
-                player.PlaybackEnded += OnVocabularyAudioEnded;
-
-                SetState(s => s.VocabularyAudioPlayer = player);
-
-                player.Play();
-                _logger.LogInformation("✅ Playing generated audio for: {Term}", targetTerm);
+                // Use cached audio file
+                _logger.LogInformation("🎧 Using cached audio for word: {Word}", targetTerm);
+                audioStream = File.OpenRead(cachedAudio.AudioFilePath);
+                fromCache = true;
             }
             else
             {
-                _logger.LogDebug("🎧 Using cached audio from: {Uri}", audioUri);
+                // Generate audio using ElevenLabs with Korean voice
+                _logger.LogInformation("🎧 Generating audio from API for word: {Word}", targetTerm);
+                audioStream = await _speechService.TextToSpeechAsync(
+                    text: targetTerm,
+                    voiceId: Voices.JiYoung, // Korean female voice
+                    stability: 0.5f,
+                    similarityBoost: 0.75f
+                );
 
-                // Use cached audio
-                var player = _audioManager.CreatePlayer(audioUri);
+                // Save to cache for future use
+                var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(audioCacheDir);
 
-                // Subscribe to playback ended event
-                player.PlaybackEnded += OnVocabularyAudioEnded;
+                var fileName = $"word_{Guid.NewGuid()}.mp3";
+                var filePath = System.IO.Path.Combine(audioCacheDir, fileName);
 
-                SetState(s => s.VocabularyAudioPlayer = player);
+                // Save to file
+                using (var fileStream = File.Create(filePath))
+                {
+                    await audioStream.CopyToAsync(fileStream);
+                }
 
-                player.Play();
-                _logger.LogInformation("✅ Playing cached audio for: {Term}", targetTerm);
+                // Create stream history entry for caching
+                var streamHistory = new StreamHistory
+                {
+                    Phrase = targetTerm,
+                    VoiceId = Voices.JiYoung,
+                    AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _historyRepo.SaveStreamHistoryAsync(streamHistory);
+
+                _logger.LogInformation("✅ Audio generated and cached for word");
+
+                // Open the file again for playback
+                audioStream = File.OpenRead(filePath);
             }
+
+            // Reset stream position to beginning
+            audioStream.Position = 0;
+
+            // Create audio player from stream and play immediately
+            var player = AudioManager.Current.CreatePlayer(audioStream);
+            player.PlaybackEnded += OnVocabularyAudioEnded;
+            player.Play();
+
+            SetState(s => s.VocabularyAudioPlayer = player);
+
+            _logger.LogInformation("✅ Successfully playing audio for: {Word} (from {Source})",
+                targetTerm, fromCache ? "cache" : "API");
         }
         catch (Exception ex)
         {
@@ -2524,13 +2552,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// </summary>
     void OnVocabularyAudioEnded(object sender, EventArgs e)
     {
-        _logger.LogDebug("🎧 Vocabulary audio playback ended");
+        _logger.LogDebug("🎵 Audio playback ended");
 
         if (State.VocabularyAudioPlayer != null)
         {
             State.VocabularyAudioPlayer.PlaybackEnded -= OnVocabularyAudioEnded;
-            State.VocabularyAudioPlayer.Dispose();
-            SetState(s => s.VocabularyAudioPlayer = null);
+            // Don't dispose immediately - can cause crashes on some platforms
         }
     }
 
@@ -2547,10 +2574,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             try
             {
                 State.VocabularyAudioPlayer.PlaybackEnded -= OnVocabularyAudioEnded;
-                State.VocabularyAudioPlayer.Stop();
-                State.VocabularyAudioPlayer.Dispose();
-                SetState(s => s.VocabularyAudioPlayer = null);
-                _logger.LogDebug("✅ Audio player stopped and disposed");
+                if (State.VocabularyAudioPlayer.IsPlaying)
+                {
+                    State.VocabularyAudioPlayer.Stop();
+                }
+                _logger.LogDebug("✅ Audio player stopped");
             }
             catch (Exception ex)
             {
