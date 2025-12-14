@@ -1237,6 +1237,10 @@
     <value>✓ 정답! 🔥 {0} 연속!</value>
     <comment>Correct answer message with streak count</comment>
   </data>
+  <data name="FuzzyMatchCorrect" xml:space="preserve">
+    <value>✓ 정답! 전체 형태: {0}</value>
+    <comment>Fuzzy match accepted - shows complete form for learning</comment>
+  </data>
   <data name="IncorrectStreakReset" xml:space="preserve">
     <value>✗ 계속 연습하세요!</value>
     <comment>Incorrect answer message when streak resets</comment>
@@ -1488,6 +1492,10 @@
   <data name="SavePreferences" xml:space="preserve">
     <value>설정 저장</value>
     <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
+  </data>
+  <data name="AutoAdvanceDuration" xml:space="preserve">
+    <value>자동 진행 지연 시간</value>
+    <comment>[001-vocab-quiz-preferences] Label for auto-advance duration slider</comment>
   </data>
   <data name="PreferencesSaveFailed" xml:space="preserve">
     <value>설정 저장 실패. 다시 시도해 주세요.</value>

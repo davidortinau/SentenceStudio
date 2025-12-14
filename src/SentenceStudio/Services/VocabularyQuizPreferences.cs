@@ -9,26 +9,28 @@ namespace SentenceStudio.Services;
 public class VocabularyQuizPreferences
 {
     private readonly ILogger<VocabularyQuizPreferences> _logger;
-    
+
     // Preference keys
     private const string KEY_DISPLAY_DIRECTION = "vocab_quiz_display_direction";
     private const string KEY_AUTO_PLAY_VOCAB_AUDIO = "vocab_quiz_autoplay_vocab";
     private const string KEY_AUTO_PLAY_SAMPLE_AUDIO = "vocab_quiz_autoplay_sample";
     private const string KEY_SHOW_MNEMONIC_IMAGE = "vocab_quiz_show_mnemonic";
     private const string KEY_VOICE_ID = "vocab_quiz_voice_id";
-    
+    private const string KEY_AUTO_ADVANCE_DURATION = "vocab_quiz_auto_advance_duration";
+
     // Default values
     private const string DEFAULT_DISPLAY_DIRECTION = "TargetToNative";
     private const bool DEFAULT_AUTO_PLAY_VOCAB_AUDIO = true;
     private const bool DEFAULT_AUTO_PLAY_SAMPLE_AUDIO = false;
     private const bool DEFAULT_SHOW_MNEMONIC_IMAGE = true;
     private const string DEFAULT_VOICE_ID = Voices.JiYoung; // Default Korean female voice
-    
+    private const int DEFAULT_AUTO_ADVANCE_DURATION = 2000; // 2 seconds
+
     public VocabularyQuizPreferences(ILogger<VocabularyQuizPreferences> logger)
     {
         _logger = logger;
     }
-    
+
     /// <summary>
     /// Gets or sets the display direction for vocabulary quiz questions.
     /// "TargetToNative" = show Korean word, answer in English
@@ -48,7 +50,7 @@ public class VocabularyQuizPreferences
             _logger.LogInformation("📋 Vocab quiz display direction set to: {Direction}", value);
         }
     }
-    
+
     /// <summary>
     /// Gets or sets whether to auto-play target language vocabulary word audio.
     /// </summary>
@@ -61,7 +63,7 @@ public class VocabularyQuizPreferences
             _logger.LogInformation("📋 Vocab quiz auto-play vocab audio set to: {Value}", value);
         }
     }
-    
+
     /// <summary>
     /// Gets or sets whether to auto-play sample sentence audio after vocabulary audio.
     /// Only plays if AutoPlayVocabAudio is also enabled.
@@ -75,7 +77,7 @@ public class VocabularyQuizPreferences
             _logger.LogInformation("📋 Vocab quiz auto-play sample audio set to: {Value}", value);
         }
     }
-    
+
     /// <summary>
     /// Gets or sets whether to show mnemonic images on correct answer confirmation.
     /// </summary>
@@ -88,7 +90,7 @@ public class VocabularyQuizPreferences
             _logger.LogInformation("📋 Vocab quiz show mnemonic image set to: {Value}", value);
         }
     }
-    
+
     /// <summary>
     /// Gets or sets the ElevenLabs voice ID to use for audio playback.
     /// Uses Voices.JiYoung (Korean female) as default.
@@ -107,13 +109,34 @@ public class VocabularyQuizPreferences
             _logger.LogInformation("📋 Vocab quiz voice ID set to: {VoiceId}", value);
         }
     }
-    
+
+    /// <summary>
+    /// Gets or sets the auto-advance duration in milliseconds.
+    /// Controls how long to show feedback before automatically advancing to the next question.
+    /// Range: 1000ms (1 second) to 5000ms (5 seconds).
+    /// </summary>
+    public int AutoAdvanceDuration
+    {
+        get => Preferences.Get(KEY_AUTO_ADVANCE_DURATION, DEFAULT_AUTO_ADVANCE_DURATION);
+        set
+        {
+            // Clamp value between 1000ms and 5000ms
+            var clampedValue = Math.Max(1000, Math.Min(5000, value));
+            if (value != clampedValue)
+            {
+                _logger.LogWarning("⚠️ Auto-advance duration {Value}ms out of range. Clamping to {Clamped}ms.", value, clampedValue);
+            }
+            Preferences.Set(KEY_AUTO_ADVANCE_DURATION, clampedValue);
+            _logger.LogInformation("📋 Vocab quiz auto-advance duration set to: {Duration}ms", clampedValue);
+        }
+    }
+
     /// <summary>
     /// Determines if sample audio should play based on both preferences.
     /// Sample audio only plays if vocabulary audio is also enabled.
     /// </summary>
     public bool ShouldPlaySampleAudio => AutoPlayVocabAudio && AutoPlaySampleAudio;
-    
+
     /// <summary>
     /// Resets all vocabulary quiz preferences to their default values.
     /// </summary>
@@ -124,6 +147,7 @@ public class VocabularyQuizPreferences
         AutoPlaySampleAudio = DEFAULT_AUTO_PLAY_SAMPLE_AUDIO;
         ShowMnemonicImage = DEFAULT_SHOW_MNEMONIC_IMAGE;
         VoiceId = DEFAULT_VOICE_ID;
+        AutoAdvanceDuration = DEFAULT_AUTO_ADVANCE_DURATION;
         _logger.LogInformation("🔄 Vocab quiz preferences reset to defaults");
     }
 }

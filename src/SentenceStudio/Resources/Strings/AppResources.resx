@@ -1501,6 +1501,10 @@
     <value>✓ Correct! 🔥 {0} streak!</value>
     <comment>Correct answer message with streak count</comment>
   </data>
+  <data name="FuzzyMatchCorrect" xml:space="preserve">
+    <value>✓ Correct! Full form: {0}</value>
+    <comment>Fuzzy match accepted - shows complete form for learning</comment>
+  </data>
   <data name="IncorrectStreakReset" xml:space="preserve">
     <value>✗ Keep practicing!</value>
     <comment>Incorrect answer message when streak resets</comment>
@@ -1752,6 +1756,10 @@
   <data name="SavePreferences" xml:space="preserve">
     <value>Save Preferences</value>
     <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
+  </data>
+  <data name="AutoAdvanceDuration" xml:space="preserve">
+    <value>Auto-advance delay</value>
+    <comment>[001-vocab-quiz-preferences] Label for auto-advance duration slider</comment>
   </data>
   <data name="PreferencesSaveFailed" xml:space="preserve">
     <value>Failed to save preferences. Please try again.</value>

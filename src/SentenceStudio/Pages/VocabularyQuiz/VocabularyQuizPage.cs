@@ -7,6 +7,7 @@ using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using System.IO;
+using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -149,6 +150,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     private MauiControls.ContentPage? _pageRef;
     private MauiControls.Grid? _mainGridRef;
+    private MauiControls.Entry? _textInputRef;
 
     public override VisualNode Render()
     {
@@ -576,7 +578,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode RenderTextInput() =>
         new SfTextInputLayout(
-            Entry()
+            Entry(entryRef => _textInputRef = entryRef)
                 .FontSize(32)
                 .Text(State.UserInput)
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
@@ -741,6 +743,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         // Enhanced tracking: Start response timer
         _responseTimer.Restart();
+
+        // Auto-focus text input field if in text mode
+        if (State.UserMode == InputMode.Text.ToString() && _textInputRef != null)
+        {
+            _textInputRef.Dispatcher.Dispatch(() => _textInputRef.Focus());
+        }
 
         // Play vocabulary audio if enabled
         await PlayVocabularyAudioAsync(item.Word);
@@ -1338,16 +1346,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 s.TotalSets = totalSets;
             });
 
-            // Initialize round-based session and load first word
+            // Initialize round-based session (will load first word via StartNewRound)
             if (incompleteItems.Any())
             {
                 InitializeSession();
-
-                var firstWord = State.RoundWordOrder.FirstOrDefault();
-                if (firstWord != null)
-                {
-                    await LoadCurrentItem(firstWord);
-                }
             }
         }
         catch (Exception ex)
@@ -1392,8 +1394,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         _logger.LogDebug("🔍 CheckAnswer: answer='{Answer}', expected='{Expected}'", answer, State.CurrentTargetLanguageTerm);
 
-        var isCorrect = string.Equals(answer.Trim(), State.CurrentTargetLanguageTerm.Trim(),
-            StringComparison.OrdinalIgnoreCase);
+        // Use fuzzy matching for answer evaluation
+        var matchResult = FuzzyMatcher.Evaluate(answer, State.CurrentTargetLanguageTerm);
+        var isCorrect = matchResult.IsCorrect;
+
+        _logger.LogDebug("🔍 CheckAnswer: isCorrect={IsCorrect}, matchType={MatchType}",
+            isCorrect, matchResult.MatchType);
+
+        if (matchResult.MatchType == "Fuzzy")
+        {
+            _logger.LogInformation("✨ Fuzzy match accepted: user='{User}', complete='{Complete}'",
+                answer, matchResult.CompleteForm);
+        }
 
         _logger.LogDebug("🔍 CheckAnswer: isCorrect={IsCorrect}", isCorrect);
 
@@ -1429,7 +1441,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             // Enhanced feedback: Update UI based on enhanced progress
             _logger.LogDebug("🎨 CheckAnswer: Updating UI feedback...");
-            await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect);
+            await UpdateUIBasedOnEnhancedProgress(currentItem, isCorrect, matchResult);
             _logger.LogDebug("✅ CheckAnswer: UI feedback updated");
 
             // 🏴‍☠️ CHECK FOR IMMEDIATE MASTERY: If word is now mastered, prepare for rotation
@@ -1601,7 +1613,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return Math.Min(2.0f, Math.Max(0.5f, baseWeight)); // Clamp between 0.5 and 2.0
     }
 
-    private async Task UpdateUIBasedOnEnhancedProgress(VocabularyQuizItem item, bool wasCorrect)
+    private async Task UpdateUIBasedOnEnhancedProgress(VocabularyQuizItem item, bool wasCorrect, FuzzyMatchResult matchResult)
     {
         var progress = item.Progress;
         if (progress == null) return;
@@ -1646,7 +1658,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"{_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                        // Show fuzzy match feedback if applicable
+                        if (matchResult.MatchType == "Fuzzy")
+                        {
+                            s.FeedbackMessage = $"{_localize["FuzzyMatchCorrect"].ToString().Replace("{0}", matchResult.CompleteForm ?? "")} 🎉 {_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                        }
+                        else
+                        {
+                            s.FeedbackMessage = $"{_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                        }
                         s.CorrectAnswersInRound++;
                     });
                     await AppShell.DisplayToastAsync($"{_localize["WordMasteredInQuiz"]}");
@@ -1657,7 +1677,15 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"{_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                        // Show fuzzy match feedback if applicable
+                        if (matchResult.MatchType == "Fuzzy")
+                        {
+                            s.FeedbackMessage = $"{_localize["FuzzyMatchCorrect"].ToString().Replace("{0}", matchResult.CompleteForm ?? "")}";
+                        }
+                        else
+                        {
+                            s.FeedbackMessage = $"{_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                        }
                         s.CorrectAnswersInRound++;
                     });
                 }
@@ -1750,7 +1778,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Use System.Timers.Timer for smooth progress animation
         var timer = new System.Timers.Timer(100); // Update every 100ms for smooth animation
         var startTime = DateTime.Now;
-        var duration = TimeSpan.FromMilliseconds(5000); // 5-second duration to match ClozurePage
+        var durationMs = State.UserPreferences?.AutoAdvanceDuration ?? 2000;
+        var duration = TimeSpan.FromMilliseconds(durationMs);
 
         timer.Elapsed += (sender, e) =>
         {
@@ -2027,6 +2056,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// </summary>
     async Task SetupNewRound()
     {
+        // Stop any audio that might be playing before starting new round
+        StopAllAudio();
+
         // Hide summary if showing
         SetState(s => s.ShowSessionSummary = false);
 
@@ -2074,6 +2106,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             State.CurrentRound, shuffledItems.Count, availableWords.Count);
 
         await AppShell.DisplayToastAsync(string.Format($"{_localize["RoundStarted"]}", State.CurrentRound));
+
+        // Jump to the first word of the new round
+        var firstWord = GetCurrentRoundWord();
+        if (firstWord != null)
+        {
+            await JumpTo(firstWord);
+        }
     }
 
     /// <summary>
@@ -2111,10 +2150,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         // Handle the special case where user must type correct answer
         if (State.RequireCorrectTyping)
         {
-            var isCorrectTyping = string.Equals(State.UserInput.Trim(), State.CorrectAnswerToType.Trim(),
-                StringComparison.OrdinalIgnoreCase);
+            var matchResult = FuzzyMatcher.Evaluate(State.UserInput.Trim(), State.CorrectAnswerToType.Trim());
 
-            if (!isCorrectTyping)
+            if (!matchResult.IsCorrect)
             {
                 SetState(s => s.FeedbackMessage = $"{_localize["TypeCorrectAnswerExactly"]}");
                 return;
@@ -2148,6 +2186,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             _logger.LogInformation("✅ Round {Round} complete! Starting new round...", State.CurrentRound);
             await StartNewRound();
+
+            // If showing summary, exit here - user will continue when ready
+            if (State.ShowSessionSummary)
+            {
+                _logger.LogDebug("📊 Summary displayed - waiting for user to continue");
+                return;
+            }
 
             // Check if session is complete (handled in StartNewRound)
             if (State.VocabularyItems.Count == 0)
@@ -2522,7 +2567,31 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         _logger.LogInformation("🎤 Voice selected: {DisplayName} ({VoiceId})", selectedDisplay, voiceId);
                     }
                 })
-                .IsEnabled(State.UserPreferences?.AutoPlayVocabAudio ?? false)
+                .IsEnabled(State.UserPreferences?.AutoPlayVocabAudio ?? false),
+
+            // Auto-advance duration slider
+            Label($"{_localize["AutoAdvanceDuration"]}")
+                .ThemeKey(MyTheme.Body1)
+                .Margin(0, MyTheme.ComponentSpacing, 0, 0),
+
+            HStack(spacing: MyTheme.LayoutSpacing,
+                Slider()
+                    .Minimum(1000)
+                    .Maximum(5000)
+                    .Value(State.UserPreferences?.AutoAdvanceDuration ?? 2000)
+                    .OnValueChanged((s, e) =>
+                    {
+                        if (State.UserPreferences != null)
+                        {
+                            State.UserPreferences.AutoAdvanceDuration = (int)e.NewValue;
+                        }
+                    })
+                    .HFill(),
+
+                Label($"{(State.UserPreferences?.AutoAdvanceDuration ?? 2000) / 1000.0:F1}s")
+                    .WidthRequest(50)
+                    .HEnd()
+            )
         );
 
     async Task SavePreferencesAsync()
