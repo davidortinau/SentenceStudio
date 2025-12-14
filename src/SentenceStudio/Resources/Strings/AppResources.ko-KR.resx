@@ -1493,4 +1493,24 @@
     <value>설정 저장 실패. 다시 시도해 주세요.</value>
     <comment>[001-vocab-quiz-preferences] Error message when preference save fails</comment>
   </data>
+  <data name="RoundStarted" xml:space="preserve">
+    <value>🎯 라운드 {0} 시작!</value>
+    <comment>Toast message when a new round starts</comment>
+  </data>
+  <data name="RoundsCompleted" xml:space="preserve">
+    <value>라운드</value>
+    <comment>Label for number of rounds completed in session summary</comment>
+  </data>
+  <data name="WordsMastered" xml:space="preserve">
+    <value>마스터</value>
+    <comment>Label for number of words mastered in session summary</comment>
+  </data>
+  <data name="TotalTurns" xml:space="preserve">
+    <value>턴</value>
+    <comment>Label for total turns taken in session summary</comment>
+  </data>
+  <data name="SessionProgress" xml:space="preserve">
+    <value>세션 진행 상황</value>
+    <comment>Header for session progress stats in summary</comment>
+  </data>
 </root>

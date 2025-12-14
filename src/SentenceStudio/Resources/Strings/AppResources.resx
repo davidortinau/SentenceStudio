@@ -1409,6 +1409,26 @@
     <value>rounds</value>
     <comment>Label for completed rounds in an activity</comment>
   </data>
+  <data name="RoundStarted" xml:space="preserve">
+    <value>🎯 Round {0} started!</value>
+    <comment>Toast message when a new round starts</comment>
+  </data>
+  <data name="RoundsCompleted" xml:space="preserve">
+    <value>Rounds</value>
+    <comment>Label for number of rounds completed in session summary</comment>
+  </data>
+  <data name="WordsMastered" xml:space="preserve">
+    <value>Mastered</value>
+    <comment>Label for number of words mastered in session summary</comment>
+  </data>
+  <data name="TotalTurns" xml:space="preserve">
+    <value>Turns</value>
+    <comment>Label for total turns taken in session summary</comment>
+  </data>
+  <data name="SessionProgress" xml:space="preserve">
+    <value>Session Progress</value>
+    <comment>Header for session progress stats in summary</comment>
+  </data>
   <data name="ActivityCompleteLabel" xml:space="preserve">
     <value>Complete!</value>
     <comment>Label shown when activity is completed</comment>

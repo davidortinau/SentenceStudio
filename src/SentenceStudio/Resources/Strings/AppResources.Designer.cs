@@ -2425,11 +2425,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Rounds.
+        /// </summary>
+        internal static string RoundsCompleted {
+            get {
+                return ResourceManager.GetString("RoundsCompleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to rounds.
         /// </summary>
         internal static string RoundsLabel {
             get {
                 return ResourceManager.GetString("RoundsLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎯 Round {0} started!.
+        /// </summary>
+        internal static string RoundStarted {
+            get {
+                return ResourceManager.GetString("RoundStarted", resourceCulture);
             }
         }
         
@@ -2709,6 +2727,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SessionPerformance {
             get {
                 return ResourceManager.GetString("SessionPerformance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Session Progress.
+        /// </summary>
+        internal static string SessionProgress {
+            get {
+                return ResourceManager.GetString("SessionProgress", resourceCulture);
             }
         }
         
@@ -3105,6 +3132,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Total {
             get {
                 return ResourceManager.GetString("Total", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Turns.
+        /// </summary>
+        internal static string TotalTurns {
+            get {
+                return ResourceManager.GetString("TotalTurns", resourceCulture);
             }
         }
         
@@ -3627,6 +3663,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string WordMasteredNewAdded {
             get {
                 return ResourceManager.GetString("WordMasteredNewAdded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mastered.
+        /// </summary>
+        internal static string WordsMastered {
+            get {
+                return ResourceManager.GetString("WordsMastered", resourceCulture);
             }
         }
         
