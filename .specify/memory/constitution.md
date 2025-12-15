@@ -104,7 +104,7 @@ All user-facing strings MUST use `LocalizationManager` with string interpolation
 **Rules:**
 - ALWAYS wrap localization keys in string interpolation (returns object without it)
 - Pattern: `LocalizationManager _localize => LocalizationManager.Instance;`
-- Resource files: `Resources/Strings/Resources.<lang>.resx` (English default, Korean supported)
+- Resource files: `Resources/Strings/AppResources.<lang>.resx` (English default, Korean supported)
 - For enums with associated text (like `PlanActivityType`), use enum to determine key (not stored string keys)
 - Use `Button()` not `Border() + Label()` for buttons unless compelling reason
 - For ContentPage title: `ContentPage($"{_localize["Title"]}", ...)`
@@ -130,13 +130,12 @@ Logging MUST use `ILogger<T>` for production code; platform-specific debug outpu
 
 ### VII. Documentation in docs/
 
-All documentation (summaries, guides, technical specs) MUST be placed in the `docs/` folder at repository root.
+All public-facing documentation (user guides, architecture overviews, technical specs for external consumption) MUST be placed in the `docs/` folder at repository root. SpecKit workflow artifacts (specs, plans, tasks) reside in `specs/` for development workflow purposes.
 
 **Rules:**
 - NEVER create markdown files (plans, notes, tracking) at repository root
-- Feature specs: `docs/specs/<feature-name>/`
-- Implementation guides: `docs/<feature>-guide.md`
-- Architecture docs: `docs/specs/`
+- Public documentation: `docs/<feature>-guide.md`, `docs/architecture/`
+- SpecKit artifacts: `specs/<feature-name>/` (spec.md, plan.md, tasks.md, etc.)
 - Examples: `docs/examples/`
 - Development guidance: `.github/copilot-instructions.md` (not docs/)
 
@@ -201,7 +200,7 @@ dotnet build -t:Run -f net10.0-maccatalyst SentenceStudio/SentenceStudio.csproj
 ### Quality Gates
 
 **Before Feature Development:**
-- Spec MUST be written in `docs/specs/<feature>/spec.md` following spec-template.md
+- Spec MUST be written in `specs/<feature>/spec.md` following spec-template.md
 - User stories MUST be prioritized (P1, P2, P3) and independently testable
 - Implementation plan MUST be created using plan-template.md
 - Constitution check MUST be performed (verify alignment with all principles)

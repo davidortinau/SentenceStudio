@@ -3,12 +3,14 @@ using ReactorCustomLayouts;
 using MauiReactor.Shapes;
 using Microsoft.Maui.Layouts;
 using SentenceStudio.Pages.Clozure;
+using SentenceStudio.Pages.MinimalPairs;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.Translation;
 using SentenceStudio.Pages.VocabularyMatching;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
+using SentenceStudio.Repositories;
 using SentenceStudio.Services.Progress;
 
 namespace SentenceStudio.Pages.Dashboard;
@@ -59,6 +61,7 @@ partial class DashboardPage : Component<DashboardPageState>
     [Inject] SkillProfileRepository _skillService;
     [Inject] IProgressService _progressService;
     [Inject] ILogger<DashboardPage> _logger;
+    [Inject] MinimalPairRepository _minimalPairRepo;
 
     [Param] IParameter<DashboardParameters> _parameters;
 
@@ -331,6 +334,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                             // .HeightRequest(60)
                                             .BackgroundColor(Colors.Transparent)
                                             .ShowBorder(false)
+                                            .IsEditable(true).AllowFiltering(true)
                                             // .MultiSelectionDisplayMode(Syncfusion.Maui.Inputs.ComboBoxMultiSelectionDisplayMode.Token)
                                             .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                                             .TokenItemStyle(MyTheme.ChipStyle)
@@ -379,7 +383,8 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["VocabularyQuiz"]}").Route(nameof(VocabularyQuizPage)),
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
-                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay")
+                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay"),
+                            new ActivityBorder().LabelText($"{_localize["MinimalPairsTitle"]}").Route("minimalpairs")
                         }.Spacing(MyTheme.LayoutSpacing)
         );
     }
@@ -1091,6 +1096,9 @@ public partial class ActivityBorder : MauiReactor.Component
     [Inject]
     ILogger<ActivityBorder> _logger;
 
+    [Inject]
+    MinimalPairRepository _minimalPairRepo;
+
     [Prop]
     string _labelText;
 
@@ -1098,6 +1106,8 @@ public partial class ActivityBorder : MauiReactor.Component
     string _route;
 
     [Param] IParameter<DashboardParameters> _parameters;
+
+    LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render() =>
         Border(
@@ -1115,6 +1125,48 @@ public partial class ActivityBorder : MauiReactor.Component
         .HorizontalOptions(LayoutOptions.Start)
         .OnTapped(async () =>
         {
+            // Minimal Pairs activity launches directly into practice session
+            if (_route == "minimalpairs")
+            {
+                _logger.LogDebug("🏴‍☠️ ActivityBorder: Loading minimal pairs for practice session");
+
+                try
+                {
+                    // Load user's pairs (userId = 1 for single-user app)
+                    var pairs = await _minimalPairRepo.GetUserPairsAsync(1);
+
+                    if (pairs.Count == 0)
+                    {
+                        await Application.Current.MainPage.DisplayAlert(
+                            $"{_localize["MinimalPairsTitle"]}",
+                            $"{_localize["MinimalPairsEmptyState"]}",
+                            $"{_localize["OK"]}");
+                        return;
+                    }
+
+                    // Navigate to session with all pairs in Mixed mode (default practice)
+                    await MauiControls.Shell.Current.GoToAsync<MinimalPairSessionPageProps>(
+                        nameof(MinimalPairSessionPage),
+                        props =>
+                        {
+                            props.PairIds = pairs.Select(p => p.Id).ToArray();
+                            props.Mode = "Mixed";
+                            props.PlannedTrialCount = 20;
+                        }
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to launch minimal pairs session");
+                    await Application.Current.MainPage.DisplayAlert(
+                        $"{_localize["Error"]}",
+                        "Could not start practice session",
+                        $"{_localize["OK"]}");
+                }
+
+                return;
+            }
+
             // 🏴‍☠️ Validate that we have the required selections before navigating
             if (_parameters.Value.SelectedResources?.Any() != true)
             {

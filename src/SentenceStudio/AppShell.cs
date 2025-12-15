@@ -8,6 +8,7 @@ using SentenceStudio.Pages.Skills;
 using SentenceStudio.Pages.YouTube;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyManagement;
+using SentenceStudio.Pages.MinimalPairs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Storage;
 
@@ -131,6 +132,12 @@ public partial class AppShell : Component
                     .Title("Vocabulary")
                     .RenderContent(() => new VocabularyManagementPage())
                     .Route(nameof(VocabularyManagementPage))
+            ),
+            FlyoutItem("Minimal Pairs",
+                ShellContent()
+                    .Title("Minimal Pairs")
+                    .RenderContent(() => new Pages.MinimalPairs.MinimalPairsPage())
+                    .Route(nameof(Pages.MinimalPairs.MinimalPairsPage))
             ),
             FlyoutItem("Skills",
                 ShellContent()

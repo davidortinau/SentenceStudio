@@ -48,6 +48,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPairSession>().ToTable("MinimalPairSession").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPairAttempt>().ToTable("MinimalPairAttempt").HasKey(e => e.Id);
 
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()
@@ -102,6 +105,56 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(es => es.LearningResourceId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Configure MinimalPair relationships and constraints
+        modelBuilder.Entity<MinimalPair>()
+            .HasOne(mp => mp.VocabularyWordA)
+            .WithMany()
+            .HasForeignKey(mp => mp.VocabularyWordAId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MinimalPair>()
+            .HasOne(mp => mp.VocabularyWordB)
+            .WithMany()
+            .HasForeignKey(mp => mp.VocabularyWordBId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unique constraint to prevent duplicate pairs (normalized order)
+        modelBuilder.Entity<MinimalPair>()
+            .HasIndex(mp => new { mp.UserId, mp.VocabularyWordAId, mp.VocabularyWordBId })
+            .IsUnique();
+
+        // Configure MinimalPairAttempt relationships
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasOne(mpa => mpa.Session)
+            .WithMany(mps => mps.Attempts)
+            .HasForeignKey(mpa => mpa.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasOne(mpa => mpa.Pair)
+            .WithMany()
+            .HasForeignKey(mpa => mpa.PairId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasOne(mpa => mpa.PromptWord)
+            .WithMany()
+            .HasForeignKey(mpa => mpa.PromptWordId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasOne(mpa => mpa.SelectedWord)
+            .WithMany()
+            .HasForeignKey(mpa => mpa.SelectedWordId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Indexes for efficient queries
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasIndex(mpa => new { mpa.PairId, mpa.CreatedAt });
+
+        modelBuilder.Entity<MinimalPairAttempt>()
+            .HasIndex(mpa => new { mpa.SessionId, mpa.SequenceNumber });
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -133,5 +186,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();
     public DbSet<DailyPlanCompletion> DailyPlanCompletions => Set<DailyPlanCompletion>();
     public DbSet<ExampleSentence> ExampleSentences => Set<ExampleSentence>();
+    public DbSet<MinimalPair> MinimalPairs => Set<MinimalPair>();
+    public DbSet<MinimalPairSession> MinimalPairSessions => Set<MinimalPairSession>();
+    public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
 
 }

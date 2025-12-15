@@ -385,6 +385,10 @@
     <value>계속하기</value>
     <comment/>
   </data>
+  <data name="CheckAnswer" xml:space="preserve">
+    <value>답 확인</value>
+    <comment>Button to check if the selected answer is correct</comment>
+  </data>
   <data name="Of" xml:space="preserve">
     <value>중</value>
     <comment/>
@@ -1261,6 +1265,54 @@
     <value>설정</value>
     <comment>Settings page title</comment>
   </data>
+  <data name="VoiceAndQuizSettings" xml:space="preserve">
+    <value>음성 및 퀴즈 설정</value>
+    <comment>Section header for voice and quiz settings</comment>
+  </data>
+  <data name="PreferredVoice" xml:space="preserve">
+    <value>선호하는 음성</value>
+    <comment>Label for voice selection</comment>
+  </data>
+  <data name="PreferredVoiceDescription" xml:space="preserve">
+    <value>앱 전체의 모든 오디오 재생에 사용되는 음성을 선택하세요.</value>
+    <comment>Description of preferred voice setting</comment>
+  </data>
+  <data name="QuizDirection" xml:space="preserve">
+    <value>목표 언어에서 모국어로</value>
+    <comment>Label for quiz direction toggle</comment>
+  </data>
+  <data name="QuizDirectionDescription" xml:space="preserve">
+    <value>목표 언어 표시 후 모국어 입력(켜짐) 또는 모국어 표시 후 목표 언어 입력(꺼짐).</value>
+    <comment>Description of quiz direction setting</comment>
+  </data>
+  <data name="Autoplay" xml:space="preserve">
+    <value>자동 재생</value>
+    <comment>Label for autoplay toggle</comment>
+  </data>
+  <data name="AutoplayDescription" xml:space="preserve">
+    <value>새 질문이 나타날 때 오디오를 자동으로 재생합니다.</value>
+    <comment>Description of autoplay setting</comment>
+  </data>
+  <data name="ShowMnemonic" xml:space="preserve">
+    <value>기억법 표시</value>
+    <comment>Label for show mnemonic toggle</comment>
+  </data>
+  <data name="ShowMnemonicDescription" xml:space="preserve">
+    <value>퀴즈 질문 중에 기억법 힌트를 표시합니다.</value>
+    <comment>Description of show mnemonic setting</comment>
+  </data>
+  <data name="AutoAdvanceDuration" xml:space="preserve">
+    <value>자동 진행 시간</value>
+    <comment>Label for auto-advance duration slider</comment>
+  </data>
+  <data name="AutoAdvanceDurationDescription" xml:space="preserve">
+    <value>정답 후 다음 질문으로 자동 이동하기 전 대기 시간(초).</value>
+    <comment>Description of auto-advance duration setting</comment>
+  </data>
+  <data name="ResetToDefaults" xml:space="preserve">
+    <value>기본값으로 재설정</value>
+    <comment>Button to reset all preferences to default values</comment>
+  </data>
   <data name="DataManagement" xml:space="preserve">
     <value>데이터 관리</value>
     <comment>Section header for data management options</comment>
@@ -1520,5 +1572,101 @@
   <data name="SessionProgress" xml:space="preserve">
     <value>세션 진행 상황</value>
     <comment>Header for session progress stats in summary</comment>
+  </data>
+  <data name="MinimalPairsTitle" xml:space="preserve">
+    <value>최소 대립쌍</value>
+    <comment>[003-minimal-pairs] Page title for minimal pairs activity</comment>
+  </data>
+  <data name="MinimalPairsCreatePair" xml:space="preserve">
+    <value>대립쌍 만들기</value>
+    <comment>[003-minimal-pairs] Button to create a new minimal pair</comment>
+  </data>
+  <data name="MinimalPairsStart" xml:space="preserve">
+    <value>연습 시작</value>
+    <comment>[003-minimal-pairs] Button to start practice session</comment>
+  </data>
+  <data name="MinimalPairsModeFocus" xml:space="preserve">
+    <value>집중</value>
+    <comment>[003-minimal-pairs] Focus mode (single pair)</comment>
+  </data>
+  <data name="MinimalPairsModeMixed" xml:space="preserve">
+    <value>혼합</value>
+    <comment>[003-minimal-pairs] Mixed mode (multiple pairs)</comment>
+  </data>
+  <data name="MinimalPairsReplay" xml:space="preserve">
+    <value>다시 듣기</value>
+    <comment>[003-minimal-pairs] Button to replay audio prompt</comment>
+  </data>
+  <data name="MinimalPairsCorrect" xml:space="preserve">
+    <value>정답!</value>
+    <comment>[003-minimal-pairs] Feedback for correct answer</comment>
+  </data>
+  <data name="MinimalPairsIncorrect" xml:space="preserve">
+    <value>오답</value>
+    <comment>[003-minimal-pairs] Feedback for incorrect answer</comment>
+  </data>
+  <data name="MinimalPairsSessionSummary" xml:space="preserve">
+    <value>세션 요약</value>
+    <comment>[003-minimal-pairs] Session summary title</comment>
+  </data>
+  <data name="MinimalPairsEmptyState" xml:space="preserve">
+    <value>아직 대립쌍이 없습니다. 첫 번째 대립쌍을 만들어보세요!</value>
+    <comment>[003-minimal-pairs] Empty state message</comment>
+  </data>
+  <data name="MinimalPairsSelectFirstWord" xml:space="preserve">
+    <value>첫 번째 단어 선택</value>
+    <comment>[003-minimal-pairs] Prompt to select first vocabulary word</comment>
+  </data>
+  <data name="MinimalPairsSelectSecondWord" xml:space="preserve">
+    <value>두 번째 단어 선택</value>
+    <comment>[003-minimal-pairs] Prompt to select second vocabulary word</comment>
+  </data>
+  <data name="MinimalPairsContrastLabel" xml:space="preserve">
+    <value>대립 설명 (선택사항)</value>
+    <comment>[003-minimal-pairs] Label for optional contrast description</comment>
+  </data>
+  <data name="MinimalPairsCreateSuccess" xml:space="preserve">
+    <value>대립쌍이 성공적으로 생성되었습니다!</value>
+    <comment>[003-minimal-pairs] Success message after creating pair</comment>
+  </data>
+  <data name="MinimalPairsCreateFailed" xml:space="preserve">
+    <value>대립쌍 생성 실패. 이미 존재할 수 있습니다.</value>
+    <comment>[003-minimal-pairs] Error message when pair creation fails</comment>
+  </data>
+  <data name="MinimalPairsDeleteConfirm" xml:space="preserve">
+    <value>이 대립쌍을 삭제하시겠습니까?</value>
+    <comment>[003-minimal-pairs] Confirmation dialog for deleting pair</comment>
+  </data>
+  <data name="OfflineAudioUnavailable" xml:space="preserve">
+    <value>오프라인에서는 오디오를 사용할 수 없습니다. 인터넷에 연결해주세요.</value>
+    <comment>[003-minimal-pairs] Error when audio not cached and offline</comment>
+  </data>
+  <data name="AudioPlaybackError" xml:space="preserve">
+    <value>오디오 재생 실패. 다시 시도해주세요.</value>
+    <comment>[003-minimal-pairs] Generic audio playback error</comment>
+  </data>
+  <data name="Trial" xml:space="preserve">
+    <value>시도</value>
+    <comment>[003-minimal-pairs] Trial counter label</comment>
+  </data>
+  <data name="Mode" xml:space="preserve">
+    <value>모드</value>
+    <comment>[003-minimal-pairs] Practice mode label</comment>
+  </data>
+  <data name="Duration" xml:space="preserve">
+    <value>소요 시간</value>
+    <comment>[003-minimal-pairs] Duration label for session summary</comment>
+  </data>
+  <data name="Minutes" xml:space="preserve">
+    <value>분</value>
+    <comment>[003-minimal-pairs] Minutes unit for duration</comment>
+  </data>
+  <data name="TapToSelect" xml:space="preserve">
+    <value>탭하여 선택</value>
+    <comment>Prompt to tap a field to select a value</comment>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>만들기</value>
+    <comment>Button to create an item</comment>
   </data>
 </root>

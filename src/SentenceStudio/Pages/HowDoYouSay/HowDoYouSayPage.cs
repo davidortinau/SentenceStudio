@@ -15,7 +15,7 @@ class HowDoYouSayPageState
 	public ObservableCollection<StreamHistory> StreamHistory { get; set; } = new();
 	public float PlaybackPosition { get; set; } = 0f;
 	public StreamHistory CurrentPlayingItem { get; set; }
-	public string SelectedVoiceId { get; set; } = Voices.JiYoung; // Default voice
+	public string SelectedVoiceId { get; set; } // Initialized from global preference in OnPageAppearing
 	public bool IsVoiceSelectionVisible { get; set; } = false;
 	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
 	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
@@ -40,6 +40,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] IFileSaver _fileSaver;
 	[Inject] StreamHistoryRepository _streamHistoryRepository;
 	[Inject] UserActivityRepository _userActivityRepository;
+	[Inject] SpeechVoicePreferences _speechVoicePreferences;
 	[Inject] ILogger<HowDoYouSayPage> _logger;
 	LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -59,10 +60,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 
 	private Task OnPageAppearing()
 	{
-		// Initialize voice display names from the service
 		SetState(s =>
 		{
 			s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
+			// Initialize with global voice preference if not already set
+			if (string.IsNullOrEmpty(s.SelectedVoiceId))
+			{
+				s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
+			}
 			s.IsLoading = true;
 		});
 

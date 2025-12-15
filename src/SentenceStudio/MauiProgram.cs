@@ -27,6 +27,7 @@ using CommunityToolkit.Maui.Storage;
 using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
+using SentenceStudio.Pages.MinimalPairs;
 using Microsoft.Maui.Controls.Hosting;
 #if ANDROID || IOS || MACCATALYST || WINDOWS
 using System.Globalization;
@@ -220,6 +221,10 @@ public static class MauiProgram
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
+		// Register Minimal Pair repositories
+		builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairRepository>();
+		builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairSessionRepository>();
+
 		var app = builder.Build();
 		var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MauiProgram");
 		logger.LogDebug("✅ MauiApp built successfully");
@@ -292,6 +297,8 @@ public static class MauiProgram
 		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
 		MauiReactor.Routing.RegisterRoute<VocabularyQuizPage>(nameof(VocabularyQuizPage));
 		MauiReactor.Routing.RegisterRoute<TranslationPage>(nameof(TranslationPage));
+		MauiReactor.Routing.RegisterRoute<CreateMinimalPairPage>(nameof(CreateMinimalPairPage));
+		MauiReactor.Routing.RegisterRoute<MinimalPairSessionPage>(nameof(MinimalPairSessionPage));
 		MauiReactor.Routing.RegisterRoute<EditSkillProfilePage>(nameof(EditSkillProfilePage));
 		MauiReactor.Routing.RegisterRoute<AddSkillProfilePage>(nameof(AddSkillProfilePage));
 
@@ -338,6 +345,7 @@ public static class MauiProgram
 		services.AddSingleton<DataExportService>();
 		services.AddSingleton<NameGenerationService>();
 		services.AddSingleton<VocabularyQuizPreferences>();
+		services.AddSingleton<SpeechVoicePreferences>(); // Global voice preference for learning activities
 
 		// Transcript formatting services - register segmenters as enumerable
 		services.AddSingleton<KoreanLanguageSegmenter>();

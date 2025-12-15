@@ -123,7 +123,6 @@ class VocabularyQuizPageState
 
     // Vocabulary Quiz Preferences
     public VocabularyQuizPreferences UserPreferences { get; set; }
-    public bool ShowPreferencesSheet { get; set; }
 
     // Audio playback
     public IAudioPlayer VocabularyAudioPlayer { get; set; }
@@ -139,6 +138,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] SmartResourceService _smartResourceService;
     [Inject] VocabularyQuizPreferences _preferences;
+    [Inject] SpeechVoicePreferences _speechVoicePreferences;
     [Inject] Plugin.Maui.Audio.IAudioManager _audioManager;
     [Inject] Services.ElevenLabsSpeechService _speechService;
     [Inject] StreamHistoryRepository _historyRepo;
@@ -166,10 +166,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 ).GridRow(2),
                 AutoTransitionBar(),
                 LoadingOverlay(),
-                SessionSummaryOverlay(),
-
-                // Preferences bottom sheet overlay
-                RenderPreferencesBottomSheet()
+                SessionSummaryOverlay()
             ).RowSpacing(MyTheme.CardMargin)
         )
         .TitleView(RenderTitleView())
@@ -179,23 +176,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     private VisualNode RenderTitleView()
     {
-        return Grid("*", "*,Auto,Auto",
+        return Grid("*", "*,Auto",
             // Timer (if from daily plan)
             Props?.FromTodaysPlan == true ?
                 Grid(mainGridRef => _mainGridRef = mainGridRef, new ActivityTimerBar())
                     .GridColumn(1)
                     .HEnd()
-                    .VCenter() : null,
-
-            // Preferences icon
-            ImageButton()
-                .Source(MyTheme.IconSettings)
-                .OnClicked(OpenPreferences)
-                .HeightRequest(32)
-                .WidthRequest(32)
-                .GridColumn(2)
-                .HEnd()
-                .VCenter()
+                    .VCenter() : null
         );
     }
 
@@ -2332,7 +2319,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
 
         // Pop back to dashboard - it will automatically show next available item
-        await Navigation.PopAsync();
+        await MauiControls.Shell.Current.GoToAsync("..");
     }
 
 
@@ -2394,34 +2381,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     }
 
     /// <summary>
-    /// Opens preferences bottom sheet overlay.
-    /// </summary>
-    void OpenPreferences()
-    {
-        _logger.LogInformation("⚙️ Opening vocabulary quiz preferences");
-        SetState(s => s.ShowPreferencesSheet = true);
-    }
-
-    /// <summary>
-    /// Closes preferences bottom sheet.
-    /// </summary>
-    void ClosePreferences()
-    {
-        _logger.LogInformation("⚙️ Closing vocabulary quiz preferences");
-        SetState(s => s.ShowPreferencesSheet = false);
-    }
-
-    /// <summary>
-    /// Callback invoked when preferences are saved.
-    /// Reloads preferences to ensure state is in sync.
-    /// </summary>
-    void OnPreferencesSaved()
-    {
-        _logger.LogInformation("✅ Preferences saved, reloading");
-        SetState(s => s.UserPreferences = _preferences);
-    }
-
-    /// <summary>
     /// Determines question text based on display direction preference.
     /// </summary>
     string GetQuestionText(VocabularyWord word)
@@ -2453,161 +2412,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             // Question showed native language, correct answer is target
             return word.TargetLanguageTerm;
         }
-    }
-
-    /// <summary>
-    /// Renders the preferences bottom sheet overlay.
-    /// Uses SfBottomSheet with IsOpen binding and OnStateChanged handler.
-    /// Content is inlined to avoid component mounting issues.
-    /// </summary>
-    VisualNode RenderPreferencesBottomSheet()
-    {
-        return new SfBottomSheet(
-                // Header
-                Grid(rows: "Auto,*", columns: "Auto,*,Auto",
-                    // Header
-                    Label($"{_localize["VocabQuizPreferences"]}")
-                        .ThemeKey(MyTheme.Title2)
-                        .Center()
-                        .GridColumn(1),
-
-                    ImageButton()
-                        .Source(MyTheme.IconClose)
-                        .OnClicked(ClosePreferences)
-                        .HeightRequest(32)
-                        .WidthRequest(32)
-                        .HEnd()
-                        .GridColumn(2),
-
-                    // Content
-                    ScrollView(
-                        VStack(spacing: MyTheme.LayoutSpacing,
-
-                            RenderDisplayDirectionSection(),
-                            RenderAudioPlaybackSection(),
-
-                            // Save button
-                            Button($"{_localize["SavePreferences"]}")
-                                .ThemeKey(MyTheme.PrimaryButton)
-                                .OnClicked(SavePreferencesAsync)
-                        )
-                    ).GridColumnSpan(3).GridRow(1)
-            ).Padding(MyTheme.CardPadding)
-        )
-        .GridRow(2).GridRowSpan(3)
-        .IsOpen(State.ShowPreferencesSheet)
-        .OnStateChanged((sender, args) => SetState(s => s.ShowPreferencesSheet = !s.ShowPreferencesSheet));
-    }
-
-    VisualNode RenderDisplayDirectionSection() =>
-        VStack(spacing: MyTheme.LayoutSpacing,
-            Label($"{_localize["DisplayDirection"]}")
-                .ThemeKey(MyTheme.Title2)
-                .HStart(),
-
-            RadioButton()
-                .Content($"{_localize["ShowTargetLanguage"]}")
-                .IsChecked(State.UserPreferences?.DisplayDirection == "TargetToNative")
-                .OnCheckedChanged((s, e) =>
-                {
-                    if (e.Value)
-                    {
-                        if (State.UserPreferences != null)
-                            State.UserPreferences.DisplayDirection = "TargetToNative";
-                    }
-                }),
-
-            RadioButton()
-                .Content($"{_localize["ShowNativeLanguage"]}")
-                .IsChecked(State.UserPreferences?.DisplayDirection == "NativeToTarget")
-                .OnCheckedChanged((s, e) =>
-                {
-                    if (e.Value)
-                    {
-                        if (State.UserPreferences != null)
-                            State.UserPreferences.DisplayDirection = "NativeToTarget";
-                    }
-                })
-        );
-
-    VisualNode RenderAudioPlaybackSection() =>
-        VStack(spacing: MyTheme.LayoutSpacing,
-            Label($"{_localize["AudioPlayback"]}")
-                .ThemeKey(MyTheme.Title2)
-                .HStart(),
-
-            HStack(
-                CheckBox()
-                    .IsChecked(State.UserPreferences?.AutoPlayVocabAudio ?? false)
-                    .OnCheckedChanged((s, e) =>
-                    {
-                        if (State.UserPreferences != null)
-                            State.UserPreferences.AutoPlayVocabAudio = e.Value;
-                    }),
-
-                Label($"{_localize["AutoPlayVocabAudio"]}")
-            ).Spacing(MyTheme.LayoutSpacing),
-
-            // Voice selection
-            Label($"{_localize["VoiceSelection"]}")
-                .ThemeKey(MyTheme.Body1)
-                .Margin(0, MyTheme.ComponentSpacing, 0, 0),
-
-            Picker()
-                .Title($"{_localize["SelectVoice"]}")
-                .ItemsSource(GetVoiceOptions())
-                .SelectedIndex(GetVoiceIndexFromId(State.UserPreferences?.VoiceId ?? Voices.JiYoung))
-                .OnSelectedIndexChanged((index) =>
-                {
-                    if (index >= 0 && index < GetVoiceOptions().Length && State.UserPreferences != null)
-                    {
-                        var selectedDisplay = GetVoiceOptions()[index];
-                        var voiceId = GetVoiceIdFromDisplayName(selectedDisplay);
-                        State.UserPreferences.VoiceId = voiceId;
-                        _logger.LogInformation("🎤 Voice selected: {DisplayName} ({VoiceId})", selectedDisplay, voiceId);
-                    }
-                })
-                .IsEnabled(State.UserPreferences?.AutoPlayVocabAudio ?? false),
-
-            // Auto-advance duration slider
-            Label($"{_localize["AutoAdvanceDuration"]}")
-                .ThemeKey(MyTheme.Body1)
-                .Margin(0, MyTheme.ComponentSpacing, 0, 0),
-
-            HStack(spacing: MyTheme.LayoutSpacing,
-                Slider()
-                    .Minimum(1000)
-                    .Maximum(5000)
-                    .Value(State.UserPreferences?.AutoAdvanceDuration ?? 2000)
-                    .OnValueChanged((s, e) =>
-                    {
-                        if (State.UserPreferences != null)
-                        {
-                            State.UserPreferences.AutoAdvanceDuration = (int)e.NewValue;
-                        }
-                    })
-                    .HFill(),
-
-                Label($"{(State.UserPreferences?.AutoAdvanceDuration ?? 2000) / 1000.0:F1}s")
-                    .WidthRequest(50)
-                    .HEnd()
-            )
-        );
-
-    async Task SavePreferencesAsync()
-    {
-        _logger.LogInformation("✅ Vocabulary quiz preferences saved");
-        OnPreferencesSaved();
-
-        // Reload current item to apply new display direction
-        var currentItem = State.VocabularyItems.FirstOrDefault(i => i.IsCurrent);
-        if (currentItem != null)
-        {
-            _logger.LogDebug("🔄 Reloading current question with new preferences");
-            await LoadCurrentItem(currentItem);
-        }
-
-        ClosePreferences();
     }
 
     // ============================================================================
@@ -2676,8 +2480,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             Stream audioStream;
             bool fromCache = false;
 
-            // Get the selected voice ID from user preferences
-            var voiceId = State.UserPreferences?.VoiceId ?? Voices.JiYoung;
+            // Get the selected voice ID from global voice preferences
+            var voiceId = _speechVoicePreferences.VoiceId;
 
             // Check if we have cached audio for this word with this voice
             var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, voiceId);
@@ -2788,57 +2592,5 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 _logger.LogError(ex, "❌ Exception stopping audio player");
             }
         }
-    }
-
-    // Helper methods for voice selection
-    string[] GetVoiceOptions()
-    {
-        return new[]
-        {
-            "Ji-Young (Korean, Female)",
-            "Yuna (Korean, Female)",
-            "Jennie (Korean, Female)",
-            "Jina (Korean, Female)",
-            "Hyun-Bin (Korean, Male)",
-            "Do-Hyeon (Korean, Male)",
-            "Yohan Koo (Korean, Male)"
-        };
-    }
-
-    int GetVoiceIndexFromId(string voiceId)
-    {
-        var displayName = GetVoiceDisplayName(voiceId);
-        var options = GetVoiceOptions();
-        return Array.IndexOf(options, displayName);
-    }
-
-    string GetVoiceDisplayName(string voiceId)
-    {
-        return voiceId switch
-        {
-            var id when id == Voices.JiYoung => "Ji-Young (Korean, Female)",
-            var id when id == Voices.Yuna => "Yuna (Korean, Female)",
-            var id when id == Voices.Jennie => "Jennie (Korean, Female)",
-            var id when id == Voices.Jina => "Jina (Korean, Female)",
-            var id when id == Voices.HyunBin => "Hyun-Bin (Korean, Male)",
-            var id when id == Voices.DoHyeon => "Do-Hyeon (Korean, Male)",
-            var id when id == Voices.YohanKoo => "Yohan Koo (Korean, Male)",
-            _ => "Ji-Young (Korean, Female)" // Default
-        };
-    }
-
-    string GetVoiceIdFromDisplayName(string displayName)
-    {
-        return displayName switch
-        {
-            "Ji-Young (Korean, Female)" => Voices.JiYoung,
-            "Yuna (Korean, Female)" => Voices.Yuna,
-            "Jennie (Korean, Female)" => Voices.Jennie,
-            "Jina (Korean, Female)" => Voices.Jina,
-            "Hyun-Bin (Korean, Male)" => Voices.HyunBin,
-            "Do-Hyeon (Korean, Male)" => Voices.DoHyeon,
-            "Yohan Koo (Korean, Male)" => Voices.YohanKoo,
-            _ => Voices.JiYoung // Default
-        };
     }
 }
