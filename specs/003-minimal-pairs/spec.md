@@ -2,7 +2,8 @@
 
 **Feature Branch**: `003-minimal-pairs`  
 **Created**: 2025-12-14  
-**Status**: Draft  
+**Status**: Completed  
+**Merged**: 2025-12-15  
 **Input**: User description: "Add an activity for minimal pairs to improve listening identification skills for Korean. The activity plays audio for a word and I choose which of the pair it was, with immediate correctness feedback and a progress summary (right vs wrong)."
 
 ## User Scenarios & Testing *(mandatory)*
