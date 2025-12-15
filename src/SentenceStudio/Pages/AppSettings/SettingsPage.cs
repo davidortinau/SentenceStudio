@@ -15,6 +15,13 @@ class SettingsPageState
     public bool StreakMigrationComplete { get; set; }
     public bool IsExporting { get; set; }
     public string StatusMessage { get; set; } = string.Empty;
+
+    // Voice and quiz preferences
+    public string SelectedVoiceId { get; set; } = string.Empty;
+    public bool QuizDirection { get; set; }
+    public bool QuizAutoplay { get; set; }
+    public bool QuizShowMnemonic { get; set; }
+    public double QuizAutoAdvanceDuration { get; set; }
 }
 
 class SettingsPage : Component<SettingsPageState>
@@ -22,6 +29,8 @@ class SettingsPage : Component<SettingsPageState>
     private IVocabularyProgressService _progressService;
     private DataExportService _exportService;
     private ILogger<SettingsPage> _logger;
+    private SpeechVoicePreferences _speechVoicePreferences;
+    private VocabularyQuizPreferences _quizPreferences;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -31,10 +40,22 @@ class SettingsPage : Component<SettingsPageState>
         _progressService = services.GetRequiredService<IVocabularyProgressService>();
         _exportService = services.GetRequiredService<DataExportService>();
         _logger = services.GetRequiredService<ILogger<SettingsPage>>();
+        _speechVoicePreferences = services.GetRequiredService<SpeechVoicePreferences>();
+        _quizPreferences = services.GetRequiredService<VocabularyQuizPreferences>();
 
         // Check if streak migration has already been done
         var migrationComplete = Preferences.Get("StreakMigrationComplete", false);
-        SetState(s => s.StreakMigrationComplete = migrationComplete);
+
+        // Load current preferences
+        SetState(s =>
+        {
+            s.StreakMigrationComplete = migrationComplete;
+            s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
+            s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
+            s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
+            s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
+            s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
+        });
 
         base.OnMounted();
     }
@@ -44,6 +65,7 @@ class SettingsPage : Component<SettingsPageState>
         return ContentPage($"{_localize["Settings"]}",
             ScrollView(
                 VStack(spacing: MyTheme.LayoutSpacing,
+                    RenderVoiceAndQuizSection(),
                     RenderDataManagementSection(),
                     RenderMigrationSection(),
                     RenderAboutSection()
@@ -51,6 +73,138 @@ class SettingsPage : Component<SettingsPageState>
                 .Padding(MyTheme.CardPadding)
             )
         );
+    }
+
+    private VisualNode RenderVoiceAndQuizSection()
+    {
+        var koreanVoices = new Dictionary<string, string>
+        {
+            { Voices.JiYoung, "Ji-Young (Female, Warm)" },
+            { Voices.Yuna, "Yuna (Female, Young)" },
+            { Voices.Jennie, "Jennie (Female, Professional)" },
+            { Voices.Jina, "Jina (Female, News)" },
+            { Voices.HyunBin, "Hyun-Bin (Male, Professional)" },
+            { Voices.DoHyeon, "Do-Hyeon (Male, Mature)" },
+            { Voices.YohanKoo, "Yohan Koo (Male, Authoritative)" }
+        };
+
+        return VStack(spacing: MyTheme.MicroSpacing,
+            Label($"{_localize["VoiceAndQuizSettings"]}")
+                .ThemeKey(MyTheme.Title2),
+
+            // Voice selection
+            VStack(spacing: MyTheme.MicroSpacing,
+                Label($"{_localize["PreferredVoice"]}")
+                    .ThemeKey(MyTheme.Body1Strong),
+                Label($"{_localize["PreferredVoiceDescription"]}")
+                    .ThemeKey(MyTheme.Caption1),
+                Picker()
+                    .ItemsSource(koreanVoices.Values.ToList())
+                    .SelectedIndex(koreanVoices.Keys.ToList().IndexOf(State.SelectedVoiceId))
+                    .OnSelectedIndexChanged(idx =>
+                    {
+                        var voiceId = koreanVoices.Keys.ToList()[idx];
+                        _speechVoicePreferences.VoiceId = voiceId;
+                        SetState(s => s.SelectedVoiceId = voiceId);
+                    })
+            ),
+
+            //Quiz direction
+            HStack(spacing: MyTheme.MicroSpacing,
+                VStack(spacing: 2,
+                    Label($"{_localize["QuizDirection"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Label($"{_localize["QuizDirectionDescription"]}")
+                        .ThemeKey(MyTheme.Caption1)
+                )
+                .HFill(),
+                Switch()
+                    .IsToggled(State.QuizDirection)
+                    .OnToggled((s, args) =>
+                    {
+                        var toggled = args.Value;
+                        _quizPreferences.DisplayDirection = toggled ? "TargetToNative" : "NativeToTarget";
+                        SetState(s => s.QuizDirection = toggled);
+                    })
+                    .VCenter()
+            ),
+
+            // Autoplay
+            HStack(spacing: MyTheme.MicroSpacing,
+                VStack(spacing: 2,
+                    Label($"{_localize["Autoplay"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Label($"{_localize["AutoplayDescription"]}")
+                        .ThemeKey(MyTheme.Caption1)
+                )
+                .HFill(),
+                Switch()
+                    .IsToggled(State.QuizAutoplay)
+                    .OnToggled((s, args) =>
+                    {
+                        _quizPreferences.AutoPlayVocabAudio = args.Value;
+                        SetState(s => s.QuizAutoplay = args.Value);
+                    })
+                    .VCenter()
+            ),
+
+            // Show mnemonic
+            HStack(spacing: MyTheme.MicroSpacing,
+                VStack(spacing: 2,
+                    Label($"{_localize["ShowMnemonic"]}")
+                        .ThemeKey(MyTheme.Body1Strong),
+                    Label($"{_localize["ShowMnemonicDescription"]}")
+                        .ThemeKey(MyTheme.Caption1)
+                )
+                .HFill(),
+                Switch()
+                    .IsToggled(State.QuizShowMnemonic)
+                    .OnToggled((s, args) =>
+                    {
+                        _quizPreferences.ShowMnemonicImage = args.Value;
+                        SetState(s => s.QuizShowMnemonic = args.Value);
+                    })
+                    .VCenter()
+            ),
+
+            // Auto-advance duration
+            VStack(spacing: MyTheme.MicroSpacing,
+                Label($"{_localize["AutoAdvanceDuration"]}: {State.QuizAutoAdvanceDuration:F1}s")
+                    .ThemeKey(MyTheme.Body1Strong),
+                Label($"{_localize["AutoAdvanceDurationDescription"]}")
+                    .ThemeKey(MyTheme.Caption1),
+                Slider()
+                    .Minimum(0.5)
+                    .Maximum(5.0)
+                    .Value(State.QuizAutoAdvanceDuration)
+                    .OnValueChanged((s, args) =>
+                    {
+                        var rounded = Math.Round(args.NewValue, 1);
+                        _quizPreferences.AutoAdvanceDuration = (int)(rounded * 1000);
+                        SetState(s => s.QuizAutoAdvanceDuration = rounded);
+                    })
+            ),
+
+            // Reset button
+            Button($"{_localize["ResetToDefaults"]}")
+                .ThemeKey(MyTheme.Secondary)
+                .OnClicked(() =>
+                {
+                    _quizPreferences.ResetToDefaults();
+                    _speechVoicePreferences.ResetToDefault();
+                    SetState(s =>
+                    {
+                        s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
+                        s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
+                        s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
+                        s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
+                        s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
+                    });
+                })
+                .Margin(0, MyTheme.MicroSpacing, 0, 0)
+        )
+        .Padding(MyTheme.CardPadding)
+        .BackgroundColor(MyTheme.CardBackground);
     }
 
     private VisualNode RenderDataManagementSection()

@@ -366,6 +366,14 @@ partial class MyTheme
         Size = Size280
     };
 
+    public static FontImageSource IconCheckmarkCircleFilledCorrect { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.checkmark_circle_24_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = MyTheme.Light.Correct,
+        Size = Size280
+    };
+
     public static FontImageSource IconCircle { get; } = new FontImageSource
     {
         Glyph = FluentUI.circle_24_regular,

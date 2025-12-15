@@ -385,6 +385,10 @@
     <value>Continue</value>
     <comment/>
   </data>
+  <data name="CheckAnswer" xml:space="preserve">
+    <value>Check Answer</value>
+    <comment>Button to check if the selected answer is correct</comment>
+  </data>
   <data name="Of" xml:space="preserve">
     <value>of</value>
     <comment/>
@@ -1525,6 +1529,54 @@
     <value>Settings</value>
     <comment>Settings page title</comment>
   </data>
+  <data name="VoiceAndQuizSettings" xml:space="preserve">
+    <value>Voice and Quiz Preferences</value>
+    <comment>Section header for voice and quiz settings</comment>
+  </data>
+  <data name="PreferredVoice" xml:space="preserve">
+    <value>Preferred Voice</value>
+    <comment>Label for voice selection</comment>
+  </data>
+  <data name="PreferredVoiceDescription" xml:space="preserve">
+    <value>Choose the voice used for all audio playback throughout the app.</value>
+    <comment>Description of preferred voice setting</comment>
+  </data>
+  <data name="QuizDirection" xml:space="preserve">
+    <value>Target to Native Language</value>
+    <comment>Label for quiz direction toggle</comment>
+  </data>
+  <data name="QuizDirectionDescription" xml:space="preserve">
+    <value>Show target language and type native (ON) or show native and type target (OFF).</value>
+    <comment>Description of quiz direction setting</comment>
+  </data>
+  <data name="Autoplay" xml:space="preserve">
+    <value>Autoplay Audio</value>
+    <comment>Label for autoplay toggle</comment>
+  </data>
+  <data name="AutoplayDescription" xml:space="preserve">
+    <value>Automatically play audio when new question appears.</value>
+    <comment>Description of autoplay setting</comment>
+  </data>
+  <data name="ShowMnemonic" xml:space="preserve">
+    <value>Show Mnemonic</value>
+    <comment>Label for show mnemonic toggle</comment>
+  </data>
+  <data name="ShowMnemonicDescription" xml:space="preserve">
+    <value>Display mnemonic hints during quiz questions.</value>
+    <comment>Description of show mnemonic setting</comment>
+  </data>
+  <data name="AutoAdvanceDuration" xml:space="preserve">
+    <value>Auto-Advance Duration</value>
+    <comment>Label for auto-advance duration slider</comment>
+  </data>
+  <data name="AutoAdvanceDurationDescription" xml:space="preserve">
+    <value>Time in seconds before automatically moving to next question after correct answer.</value>
+    <comment>Description of auto-advance duration setting</comment>
+  </data>
+  <data name="ResetToDefaults" xml:space="preserve">
+    <value>Reset to Defaults</value>
+    <comment>Button to reset all preferences to default values</comment>
+  </data>
   <data name="DataManagement" xml:space="preserve">
     <value>Data Management</value>
     <comment>Section header for data management options</comment>
@@ -1764,5 +1816,93 @@
   <data name="PreferencesSaveFailed" xml:space="preserve">
     <value>Failed to save preferences. Please try again.</value>
     <comment>[001-vocab-quiz-preferences] Error message when preference save fails</comment>
+  </data>
+  <data name="MinimalPairsTitle" xml:space="preserve">
+    <value>Minimal Pairs</value>
+    <comment>[003-minimal-pairs] Page title for minimal pairs activity</comment>
+  </data>
+  <data name="MinimalPairsCreatePair" xml:space="preserve">
+    <value>Create Pair</value>
+    <comment>[003-minimal-pairs] Button to create a new minimal pair</comment>
+  </data>
+  <data name="MinimalPairsStart" xml:space="preserve">
+    <value>Start Practice</value>
+    <comment>[003-minimal-pairs] Button to start practice session</comment>
+  </data>
+  <data name="MinimalPairsModeFocus" xml:space="preserve">
+    <value>Focus</value>
+    <comment>[003-minimal-pairs] Focus mode (single pair)</comment>
+  </data>
+  <data name="MinimalPairsModeMixed" xml:space="preserve">
+    <value>Mixed</value>
+    <comment>[003-minimal-pairs] Mixed mode (multiple pairs)</comment>
+  </data>
+  <data name="MinimalPairsReplay" xml:space="preserve">
+    <value>Replay</value>
+    <comment>[003-minimal-pairs] Button to replay audio prompt</comment>
+  </data>
+  <data name="MinimalPairsCorrect" xml:space="preserve">
+    <value>Correct!</value>
+    <comment>[003-minimal-pairs] Feedback for correct answer</comment>
+  </data>
+  <data name="MinimalPairsIncorrect" xml:space="preserve">
+    <value>Incorrect</value>
+    <comment>[003-minimal-pairs] Feedback for incorrect answer</comment>
+  </data>
+  <data name="MinimalPairsSessionSummary" xml:space="preserve">
+    <value>Session Summary</value>
+    <comment>[003-minimal-pairs] Session summary title</comment>
+  </data>
+  <data name="MinimalPairsEmptyState" xml:space="preserve">
+    <value>No minimal pairs yet. Create your first pair to get started!</value>
+    <comment>[003-minimal-pairs] Empty state message</comment>
+  </data>
+  <data name="MinimalPairsSelectFirstWord" xml:space="preserve">
+    <value>Select First Word</value>
+    <comment>[003-minimal-pairs] Prompt to select first vocabulary word</comment>
+  </data>
+  <data name="MinimalPairsSelectSecondWord" xml:space="preserve">
+    <value>Select Second Word</value>
+    <comment>[003-minimal-pairs] Prompt to select second vocabulary word</comment>
+  </data>
+  <data name="MinimalPairsContrastLabel" xml:space="preserve">
+    <value>Contrast Label (optional)</value>
+    <comment>[003-minimal-pairs] Label for optional contrast description</comment>
+  </data>
+  <data name="MinimalPairsCreateSuccess" xml:space="preserve">
+    <value>Pair created successfully!</value>
+    <comment>[003-minimal-pairs] Success message after creating pair</comment>
+  </data>
+  <data name="MinimalPairsCreateFailed" xml:space="preserve">
+    <value>Failed to create pair. It may already exist.</value>
+    <comment>[003-minimal-pairs] Error message when pair creation fails</comment>
+  </data>
+  <data name="MinimalPairsDeleteConfirm" xml:space="preserve">
+    <value>Delete this minimal pair?</value>
+    <comment>[003-minimal-pairs] Confirmation dialog for deleting pair</comment>
+  </data>
+  <data name="OfflineAudioUnavailable" xml:space="preserve">
+    <value>Audio not available offline. Please connect to the internet.</value>
+    <comment>[003-minimal-pairs] Error when audio not cached and offline</comment>
+  </data>
+  <data name="AudioPlaybackError" xml:space="preserve">
+    <value>Audio playback failed. Please try again.</value>
+    <comment>[003-minimal-pairs] Generic audio playback error</comment>
+  </data>
+  <data name="Trial" xml:space="preserve">
+    <value>Trial</value>
+    <comment>[003-minimal-pairs] Trial counter label</comment>
+  </data>
+  <data name="Mode" xml:space="preserve">
+    <value>Mode</value>
+    <comment>[003-minimal-pairs] Practice mode label</comment>
+  </data>
+  <data name="TapToSelect" xml:space="preserve">
+    <value>Tap to select</value>
+    <comment>Prompt to tap a field to select a value</comment>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Create</value>
+    <comment>Button to create an item</comment>
   </data>
 </root>

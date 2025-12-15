@@ -290,6 +290,59 @@ ADDITIONAL NOTES:
 - **Shell TitleView for Custom Navigation Content**: In Shell applications, to display custom content in the navigation bar (like timers or custom headers), use `Shell.TitleView` attached property, NOT `NavigationPage.TitleView` or `ToolbarItem`. Apply it using `.Set(MauiControls.Shell.TitleViewProperty, customView)` on the ContentPage.
 - **NEVER use ToolbarItem for custom components**: ToolbarItem only supports built-in controls with specific properties like IconImageSource and Text. Do NOT attempt to pass custom Component instances to ToolbarItem - it will not render them.
 
+## Navigation Guidelines
+
+**CRITICAL: This app uses Shell navigation exclusively!**
+
+1. **ALWAYS use Shell.GoToAsync() for navigation**:
+   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync(nameof(PageName))`
+   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync<PropsType>(nameof(PageName), props => { ... })`
+   - ❌ WRONG: `await Navigation.PushAsync(new PageName())`
+   - ❌ WRONG: `await Navigation.PopAsync()`
+
+2. **Navigating back to previous page**:
+   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync("..")`
+   - ❌ WRONG: `await Navigation.PopAsync()`
+
+3. **Never use the Navigation service**: The `Navigation` property (INavigation) is for NavigationPage-based apps. This app uses Shell, so always use `MauiControls.Shell.Current.GoToAsync()`.
+
+## Page Refresh Pattern
+
+**CRITICAL: Use .OnAppearing() to reload data when returning to a page!**
+
+When a page needs to refresh its data after navigating back from another page (e.g., after creating/editing an item), use the `.OnAppearing()` extension method on the ContentPage:
+
+```csharp
+public override VisualNode Render()
+{
+    return ContentPage("Page Title",
+        Grid(
+            // ... page content
+        )
+    )
+    .OnAppearing(LoadData);  // Reload data each time page appears
+}
+
+private async void LoadData()
+{
+    // Fetch fresh data from repository/service
+    var data = await _repository.GetDataAsync();
+    SetState(s => s.Data = data);
+}
+```
+
+**Pattern examples in codebase**:
+- `DashboardPage.cs`: `.OnAppearing(LoadOrRefreshDataAsync)`
+- `WritingPage.cs`: `.OnAppearing(LoadVocabulary)`
+- `UserProfilePage.cs`: `.OnAppearing(LoadProfile)`
+- `ListSkillProfilesPage.cs`: `.OnAppearing(LoadProfiles)`
+
+**When to use OnAppearing**:
+- After creating/editing items in child pages
+- After deleting items that need list refresh
+- When data might have changed while on other pages
+- For pages that show user-specific dynamic content
+
 ## Command Line Tool Usage Guidelines
 
 **CRITICAL: Avoid triggering directory access prompts by following these patterns:**

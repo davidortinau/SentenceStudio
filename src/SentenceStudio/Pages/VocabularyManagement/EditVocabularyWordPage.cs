@@ -61,6 +61,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     [Inject] ExampleSentenceRepository _exampleRepo;
     [Inject] VocabularyEncodingRepository _encodingRepo;
     [Inject] VocabularyExampleGenerationService _exampleGenerationService;
+    [Inject] SpeechVoicePreferences _speechVoicePreferences;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -770,11 +771,11 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             }
             else
             {
-                // Generate audio using ElevenLabs with Korean voice
+                // Generate audio using ElevenLabs with user's preferred voice
                 _logger.LogInformation("🎧 Generating audio from API for word: {Word}", word);
                 audioStream = await _speechService.TextToSpeechAsync(
                     text: word,
-                    voiceId: Voices.JiYoung, // Default Korean voice - could pull from user preferences
+                    voiceId: _speechVoicePreferences.VoiceId,
                     stability: 0.5f,
                     similarityBoost: 0.75f
                 );
@@ -1146,7 +1147,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             bool fromCache = false;
 
             // Check if we have cached audio for this sentence using the same pattern as word audio
-            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(sentence.TargetSentence, Voices.JiYoung);
+            var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(sentence.TargetSentence, _speechVoicePreferences.VoiceId);
 
             if (cachedAudio != null && !string.IsNullOrEmpty(cachedAudio.AudioFilePath) && File.Exists(cachedAudio.AudioFilePath))
             {
@@ -1157,10 +1158,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             }
             else
             {
-                // Generate new audio using ElevenLabs with JiYoung voice (same as word audio)
+                // Generate new audio using ElevenLabs with user's preferred voice
                 _logger.LogInformation("🎵 Generating audio for sentence: {Sentence}", sentence.TargetSentence);
 
-                audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, Voices.JiYoung);
+                audioStream = await _speechService.TextToSpeechAsync(sentence.TargetSentence, _speechVoicePreferences.VoiceId);
 
                 // Save to cache for future use
                 var audioCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
@@ -1179,7 +1180,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 var streamHistory = new StreamHistory
                 {
                     Phrase = sentence.TargetSentence,
-                    VoiceId = Voices.JiYoung,
+                    VoiceId = _speechVoicePreferences.VoiceId,
                     AudioFilePath = filePath,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow

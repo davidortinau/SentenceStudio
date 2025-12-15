@@ -15,7 +15,6 @@ public class VocabularyQuizPreferences
     private const string KEY_AUTO_PLAY_VOCAB_AUDIO = "vocab_quiz_autoplay_vocab";
     private const string KEY_AUTO_PLAY_SAMPLE_AUDIO = "vocab_quiz_autoplay_sample";
     private const string KEY_SHOW_MNEMONIC_IMAGE = "vocab_quiz_show_mnemonic";
-    private const string KEY_VOICE_ID = "vocab_quiz_voice_id";
     private const string KEY_AUTO_ADVANCE_DURATION = "vocab_quiz_auto_advance_duration";
 
     // Default values
@@ -23,12 +22,16 @@ public class VocabularyQuizPreferences
     private const bool DEFAULT_AUTO_PLAY_VOCAB_AUDIO = true;
     private const bool DEFAULT_AUTO_PLAY_SAMPLE_AUDIO = false;
     private const bool DEFAULT_SHOW_MNEMONIC_IMAGE = true;
-    private const string DEFAULT_VOICE_ID = Voices.JiYoung; // Default Korean female voice
     private const int DEFAULT_AUTO_ADVANCE_DURATION = 2000; // 2 seconds
 
-    public VocabularyQuizPreferences(ILogger<VocabularyQuizPreferences> logger)
+    private readonly SpeechVoicePreferences _speechVoicePreferences;
+
+    public VocabularyQuizPreferences(
+        ILogger<VocabularyQuizPreferences> logger,
+        SpeechVoicePreferences speechVoicePreferences)
     {
         _logger = logger;
+        _speechVoicePreferences = speechVoicePreferences;
     }
 
     /// <summary>
@@ -92,23 +95,10 @@ public class VocabularyQuizPreferences
     }
 
     /// <summary>
-    /// Gets or sets the ElevenLabs voice ID to use for audio playback.
-    /// Uses Voices.JiYoung (Korean female) as default.
+    /// Gets the ElevenLabs voice ID from the global speech voice preference.
+    /// Voice selection is now managed centrally in Settings rather than per-activity.
     /// </summary>
-    public string VoiceId
-    {
-        get => Preferences.Get(KEY_VOICE_ID, DEFAULT_VOICE_ID);
-        set
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                _logger.LogWarning("⚠️ Invalid VoiceId: empty. Defaulting to JiYoung.", value);
-                value = DEFAULT_VOICE_ID;
-            }
-            Preferences.Set(KEY_VOICE_ID, value);
-            _logger.LogInformation("📋 Vocab quiz voice ID set to: {VoiceId}", value);
-        }
-    }
+    public string VoiceId => _speechVoicePreferences.VoiceId;
 
     /// <summary>
     /// Gets or sets the auto-advance duration in milliseconds.
@@ -139,6 +129,7 @@ public class VocabularyQuizPreferences
 
     /// <summary>
     /// Resets all vocabulary quiz preferences to their default values.
+    /// Note: Voice preference is now managed globally and not reset here.
     /// </summary>
     public void ResetToDefaults()
     {
@@ -146,7 +137,6 @@ public class VocabularyQuizPreferences
         AutoPlayVocabAudio = DEFAULT_AUTO_PLAY_VOCAB_AUDIO;
         AutoPlaySampleAudio = DEFAULT_AUTO_PLAY_SAMPLE_AUDIO;
         ShowMnemonicImage = DEFAULT_SHOW_MNEMONIC_IMAGE;
-        VoiceId = DEFAULT_VOICE_ID;
         AutoAdvanceDuration = DEFAULT_AUTO_ADVANCE_DURATION;
         _logger.LogInformation("🔄 Vocab quiz preferences reset to defaults");
     }
