@@ -832,6 +832,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Duration.
+        /// </summary>
+        internal static string Duration {
+            get {
+                return ResourceManager.GetString("Duration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Duration (seconds).
         /// </summary>
         internal static string DurationSeconds {
@@ -1764,6 +1773,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string MinimalPairsTitle {
             get {
                 return ResourceManager.GetString("MinimalPairsTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to minutes.
+        /// </summary>
+        internal static string Minutes {
+            get {
+                return ResourceManager.GetString("Minutes", resourceCulture);
             }
         }
         

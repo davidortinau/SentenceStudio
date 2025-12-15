@@ -1897,6 +1897,14 @@
     <value>Mode</value>
     <comment>[003-minimal-pairs] Practice mode label</comment>
   </data>
+  <data name="Duration" xml:space="preserve">
+    <value>Duration</value>
+    <comment>[003-minimal-pairs] Duration label for session summary</comment>
+  </data>
+  <data name="Minutes" xml:space="preserve">
+    <value>minutes</value>
+    <comment>[003-minimal-pairs] Minutes unit for duration</comment>
+  </data>
   <data name="TapToSelect" xml:space="preserve">
     <value>Tap to select</value>
     <comment>Prompt to tap a field to select a value</comment>
