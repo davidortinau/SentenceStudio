@@ -132,27 +132,27 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<!-- Platform-specific packages - exclude for net10.0 unit testing -->
 		<PackageReference Include="BrighterTools.MauiFilePicker" Version="1.0.0" Condition="'$(TargetFramework)' != 'net10.0'" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" Condition="'$(TargetFramework)' != 'net10.0'" />
-		<PackageReference Include="Scriban" Version="6.5.1" />
+		<PackageReference Include="Scriban" Version="6.5.2" />
 		<!-- <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.1" /> -->
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
 
-		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.7" />
-		<PackageReference Include="Reactor.Maui" Version="4.0.4-beta" />
+		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
+		<PackageReference Include="Reactor.Maui" Version="4.0.9-beta" />
 		
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
-		<PackageReference Include="ElevenLabs-DotNet" Version="3.6.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.1" />
+		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.0" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
-		<PackageReference Include="YoutubeExplode" Version="6.5.5" />
+		<PackageReference Include="YoutubeExplode" Version="6.5.6" />
 		<PackageReference Include="AsyncFixer" Version="1.6.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -168,12 +168,12 @@
 		<PackageReference Include="Syncfusion.Maui.Gauges" Version="31.2.3" />
 		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="31.2.3" />
 		
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="9.0.10">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 
-		<PackageReference Include="Microsoft.Extensions.AI" Version="9.10.1" />
+		<PackageReference Include="Microsoft.Extensions.AI" Version="10.1.1" />
 		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.10.1-preview.1.25521.4" />
 
 	</ItemGroup>

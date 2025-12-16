@@ -555,7 +555,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["Done"]}")
-                .OnTapped(async () => await MauiControls.Shell.Current.GoToAsync(".."))
+                .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
         )
         .VCenter()
         .Padding(MyTheme.Size240);
