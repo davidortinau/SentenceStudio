@@ -588,6 +588,18 @@ public static partial class SfComboBoxExtensions
         return comboBox;
     }
 
+    public static SfComboBox FilterBehavior(this SfComboBox comboBox, Syncfusion.Maui.Inputs.ComboBoxFilterBehavior behavior)
+    {
+        comboBox.SetIfBindableExists("FilterBehavior", behavior);
+        return comboBox;
+    }
+
+    public static SfComboBox TextSearchMode(this SfComboBox comboBox, Syncfusion.Maui.Inputs.ComboBoxTextSearchMode mode)
+    {
+        comboBox.SetIfBindableExists("TextSearchMode", mode);
+        return comboBox;
+    }
+
     public static SfComboBox ShowDropDownOnFocus(this SfComboBox comboBox, bool show)
     {
         comboBox.SetIfBindableExists("ShowDropDownOnFocus", show);

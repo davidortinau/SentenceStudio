@@ -16,7 +16,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<MauiVersion>10.0.20-ci.main.25570.42</MauiVersion>
+		<MauiVersion>10.0.20</MauiVersion>
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -163,10 +163,10 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.122" />
 		<PackageReference Include="CoreSync.Sqlite" Version="0.1.122" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" Version="31.2.3" />
-		<PackageReference Include="Syncfusion.Maui.Charts" Version="31.2.3" />
-		<PackageReference Include="Syncfusion.Maui.Gauges" Version="31.2.3" />
-		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="31.2.3" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" Version="32.1.19" />
+		<PackageReference Include="Syncfusion.Maui.Charts" Version="32.1.19" />
+		<PackageReference Include="Syncfusion.Maui.Gauges" Version="32.1.19" />
+		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="32.1.19" />
 		
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.1">
 			<PrivateAssets>all</PrivateAssets>
