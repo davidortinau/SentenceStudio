@@ -1,4 +1,5 @@
 using SentenceStudio.Repositories;
+using SentenceStudio.Pages.Controls.Inputs;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -136,13 +137,13 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                     Label($"{_localize["MinimalPairsSelectFirstWord"]}")
                         .ThemeKey(MyTheme.Caption1),
 
-                    new SfComboBox()
+                    new SfAutocomplete()
                         .ItemsSource(State.AvailableWords)
                         .DisplayMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .IsEditable(true)
-                        .AllowFiltering(true)
-                        .TextSearchMode(Syncfusion.Maui.Inputs.ComboBoxTextSearchMode.StartsWith)
-                        .PlaceholderText($"{_localize["Search"]}")
+                        .TextMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
+                        .TextSearchMode(Syncfusion.Maui.Inputs.AutocompleteTextSearchMode.StartsWith)
+
+                        .Placeholder($"{_localize["Search"]}")
                         .SelectedItem(State.SelectedWordA)
                         .OnSelectionChanged((s, e) => SetState(state => state.SelectedWordA = e.AddedItems?.FirstOrDefault() as VocabularyWord))
                 ),
@@ -152,13 +153,12 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                     Label($"{_localize["MinimalPairsSelectSecondWord"]}")
                         .ThemeKey(MyTheme.Caption1),
 
-                    new SfComboBox()
+                    new SfAutocomplete()
                         .ItemsSource(State.AvailableWords)
                         .DisplayMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .IsEditable(true)
-                        .AllowFiltering(true)
-                        .TextSearchMode(Syncfusion.Maui.Inputs.ComboBoxTextSearchMode.StartsWith)
-                        .PlaceholderText($"{_localize["Search"]}")
+                        .TextMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
+                        .TextSearchMode(Syncfusion.Maui.Inputs.AutocompleteTextSearchMode.StartsWith)
+                        .Placeholder($"{_localize["Search"]}")
                         .SelectedItem(State.SelectedWordB)
                         .OnSelectionChanged((s, e) => SetState(state => state.SelectedWordB = e.AddedItems?.FirstOrDefault() as VocabularyWord))
                 ),

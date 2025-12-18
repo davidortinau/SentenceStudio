@@ -135,7 +135,7 @@ public class ElevenLabsSpeechService
     public async Task<Stream> TextToSpeechAsync(
         string text,
         string voiceId = "echo",
-        float stability = 0.5f,
+        float stability = 0.75f,
         float similarityBoost = 0.75f,
         float speed = 1.0f,
         string? previousText = null,

@@ -1,12 +1,5 @@
-using MauiReactor;
-using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using SentenceStudio.Repositories;
-using SentenceStudio.Shared.Models;
-using SentenceStudio.Shared.Services;
-using ElevenLabs;
-using ElevenLabs.Voices;
-using ElevenLabs.TextToSpeech;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -226,7 +219,8 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
                     text: text,
                     voiceId: voiceId,
                     stability: 0.5f,
-                    similarityBoost: 0.75f
+                    similarityBoost: 0.75f,
+                    speed: 0.85f
                 );
 
                 // Save to cache for future use
@@ -506,13 +500,18 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
                         .Margin(MyTheme.Size40)
                     : null
             )
-            .HeightRequest(150)
-            .WidthRequest(150)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 120 : 150)
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 120 : 150)
         )
         .ThemeKey(MyTheme.CardStyle)
         .Stroke(borderColor)
         .StrokeThickness(3)
         .OnTapped(() => OnWordSelected(word))
+        .OnTapped(() =>
+        {
+            OnWordSelected(word);
+            OnCheckAnswer();
+        }, 2)
         .IsEnabled(!State.IsDebouncing && !State.HasCheckedAnswer);
     }
 
