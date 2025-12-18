@@ -527,7 +527,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .Center()
                 .FontAttributes(FontAttributes.Bold)
                 .TextColor(MyTheme.HighlightDarkest)
-                .IsVisible(State.ShowAnswer || State.ShowCorrectAnswer),
+                .IsVisible((State.ShowAnswer || State.ShowCorrectAnswer) && State.UserMode != "MultipleChoice"),
             Label(State.RequireCorrectTyping ? "Type the correct answer to continue:" : "")
                 .FontSize(14)
                 .Center()
