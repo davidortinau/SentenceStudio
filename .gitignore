@@ -428,3 +428,4 @@ src/.github/prompts/dotnet/maui/maui.prompt.md
 src/SentenceStudio/.vscode/settings.json
 src/.claude/settings.local.json
 .claude/settings.local.json
+.github/agents/csharp-dotnet-janitor.agent.md
