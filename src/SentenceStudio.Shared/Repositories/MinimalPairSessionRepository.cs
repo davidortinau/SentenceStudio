@@ -68,10 +68,10 @@ public class MinimalPairSessionRepository
         return await _context.MinimalPairSessions
             .Include(s => s.Attempts)
                 .ThenInclude(a => a.Pair)
-                    .ThenInclude(p => p.VocabularyWordA)
+                    .ThenInclude(p => p!.VocabularyWordA)
             .Include(s => s.Attempts)
                 .ThenInclude(a => a.Pair)
-                    .ThenInclude(p => p.VocabularyWordB)
+                    .ThenInclude(p => p!.VocabularyWordB)
             .Include(s => s.Attempts)
                 .ThenInclude(a => a.PromptWord)
             .Include(s => s.Attempts)
@@ -142,9 +142,9 @@ public class MinimalPairSessionRepository
     {
         return await _context.MinimalPairAttempts
             .Include(a => a.Pair)
-                .ThenInclude(p => p.VocabularyWordA)
+                .ThenInclude(p => p!.VocabularyWordA)
             .Include(a => a.Pair)
-                .ThenInclude(p => p.VocabularyWordB)
+                .ThenInclude(p => p!.VocabularyWordB)
             .Include(a => a.PromptWord)
             .Include(a => a.SelectedWord)
             .Where(a => a.SessionId == sessionId)

@@ -137,7 +137,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		// Start activity timer if launched from Today's Plan
 		if (Props?.FromTodaysPlan == true)
 		{
-			_logger.LogDebug("ClozurePage: Starting activity timer for Clozure, PlanItemId: {Props.PlanItemId}");
+			_logger.LogDebug("ClozurePage: Starting activity timer for Clozure, PlanItemId: {PlanItemId}", Props.PlanItemId);
 			_timerService.StartSession("Clozure", Props.PlanItemId);
 		}
 
@@ -601,16 +601,16 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 		// Enhanced vocabulary lookup with comprehensive debugging
 		_logger.LogDebug("ClozurePage: === VOCABULARY LOOKUP DEBUG ===");
-		_logger.LogDebug("ClozurePage: Challenge.VocabularyWord: '{currentChallenge.VocabularyWord}'");
-		_logger.LogDebug("ClozurePage: Challenge.VocabularyWordAsUsed: '{currentChallenge.VocabularyWordAsUsed}'");
-		_logger.LogDebug("ClozurePage: Challenge has {currentChallenge.Vocabulary?.Count ?? 0} vocabulary words");
+		_logger.LogDebug("ClozurePage: Challenge.VocabularyWord: '{VocabularyWord}'", currentChallenge.VocabularyWord);
+		_logger.LogDebug("ClozurePage: Challenge.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", currentChallenge.VocabularyWordAsUsed);
+		_logger.LogDebug("ClozurePage: Challenge has {VocabularyCount} vocabulary words", currentChallenge.Vocabulary?.Count ?? 0);
 
 		if (currentChallenge.Vocabulary?.Any() == true)
 		{
 			for (int i = 0; i < currentChallenge.Vocabulary.Count; i++)
 			{
 				var vocab = currentChallenge.Vocabulary[i];
-				_logger.LogDebug("ClozurePage: Vocabulary[{i}] - ID: {vocab.Id}, Native: '{vocab.NativeLanguageTerm}', Target: '{vocab.TargetLanguageTerm}'");
+				_logger.LogDebug("ClozurePage: Vocabulary[{Index}] - ID: {Id}, Native: '{NativeTerm}', Target: '{TargetTerm}'", i, vocab.Id, vocab.NativeLanguageTerm, vocab.TargetLanguageTerm);
 			}
 		}
 		else
@@ -656,16 +656,16 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			if (vocabularyWord == null && currentChallenge.Vocabulary.Count == 1)
 			{
 				vocabularyWord = currentChallenge.Vocabulary.First();
-				_logger.LogDebug("ClozurePage: Strategy 5 (fallback single word): Found ID {vocabularyWord.Id}");
+				_logger.LogDebug("ClozurePage: Strategy 5 (fallback single word): Found ID {Id}", vocabularyWord.Id);
 			}
 		}
 
-		_logger.LogDebug("ClozurePage: Final result - Found vocabulary word: {vocabularyWord?.Id ?? 0} ('{vocabularyWord?.TargetLanguageTerm}')");
+		_logger.LogDebug("ClozurePage: Final result - Found vocabulary word: {WordId} ('{TargetTerm}')", vocabularyWord?.Id ?? 0, vocabularyWord?.TargetLanguageTerm);
 		_logger.LogDebug("ClozurePage: === END VOCABULARY LOOKUP DEBUG ===");
 
 		if (vocabularyWord != null)
 		{
-			_logger.LogDebug("ClozurePage: Recording attempt for vocabulary word ID {vocabularyWord.Id}");
+			_logger.LogDebug("ClozurePage: Recording attempt for vocabulary word ID {WordId}", vocabularyWord.Id);
 
 			var attempt = new VocabularyAttempt
 			{
@@ -684,9 +684,9 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			};
 
 			// Record attempt using enhanced service
-			_logger.LogDebug("ClozurePage: Calling RecordAttemptAsync for word ID {vocabularyWord.Id}");
+			_logger.LogDebug("ClozurePage: Calling RecordAttemptAsync for word ID {WordId}", vocabularyWord.Id);
 			var updatedProgress = await _progressService.RecordAttemptAsync(attempt);
-			_logger.LogDebug("ClozurePage: Progress recorded! IsLearning: {updatedProgress.IsLearning}, IsKnown: {updatedProgress.IsKnown}, MasteryScore: {updatedProgress.MasteryScore:F2}");
+			_logger.LogDebug("ClozurePage: Progress recorded! IsLearning: {IsLearning}, IsKnown: {IsKnown}, MasteryScore: {MasteryScore:F2}", updatedProgress.IsLearning, updatedProgress.IsKnown, updatedProgress.MasteryScore);
 
 			// Update challenge with new progress information
 			UpdateChallengeProgress(currentChallenge, updatedProgress);
@@ -931,10 +931,10 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			// Use the resource Id if available, or fallback to 0
 			var resourceId = Props.Resource?.Id ?? 0;
-			_logger.LogDebug("ClozurePage: Resource ID = {resourceId}, Skill ID = {Props.Skill?.Id}");
+			_logger.LogDebug("ClozurePage: Resource ID = {ResourceId}, Skill ID = {SkillId}", resourceId, Props.Skill?.Id);
 
 			var sentences = await _clozureService.GetSentences(resourceId, SENTENCES_PER_SET, Props.Skill.Id);
-			_logger.LogDebug("ClozurePage: Retrieved {sentences?.Count() ?? 0} sentences");
+			_logger.LogDebug("ClozurePage: Retrieved {SentenceCount} sentences", sentences?.Count() ?? 0);
 
 			if (sentences?.Any() == true)
 			{
@@ -986,8 +986,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		}
 		catch (Exception ex)
 		{
-			_logger.LogDebug("ClozurePage: Error loading sentences - {ex.Message}");
-			_logger.LogDebug("ClozurePage: Stack trace - {ex.StackTrace}");
+			_logger.LogDebug("ClozurePage: Error loading sentences - {ErrorMessage}", ex.Message);
+			_logger.LogDebug("ClozurePage: Stack trace - {StackTrace}", ex.StackTrace);
 			SetState(s => s.CurrentSentence = $"Error loading sentences: {ex.Message}");
 		}
 		finally

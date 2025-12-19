@@ -35,10 +35,10 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     protected override void OnMounted()
     {
-        LoadUserPairs();
+        _ = LoadUserPairsAsync();
     }
 
-    private async void LoadUserPairs()
+    private async Task LoadUserPairsAsync()
     {
         SetState(s => s.IsLoading = true);
 
@@ -121,7 +121,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
             )
         )
         .Set(MauiControls.Shell.TabBarIsVisibleProperty, true)
-        .OnAppearing(LoadUserPairs);
+        .OnAppearing(() => _ = LoadUserPairsAsync());
     }
 
     private VisualNode RenderModeSelector()
@@ -218,7 +218,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                 // Delete button - far right
                 ImageButton()
                     .Source(MyTheme.IconDelete)
-                    .OnClicked(() => OnDeletePair(pair))
+                    .OnClicked(async () => await OnDeletePairAsync(pair))
                     .WidthRequest(40)
                     .HeightRequest(40)
             )
@@ -236,7 +236,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
         });
     }
 
-    private async void OnDeletePair(MinimalPair pair)
+    private async Task OnDeletePairAsync(MinimalPair pair)
     {
         var confirmed = await Application.Current!.MainPage!.DisplayAlert(
             $"{_localize["MinimalPairsDeleteConfirm"]}",
@@ -252,7 +252,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
             var success = await _pairRepo.DeletePairAsync(pair.Id);
             if (success)
             {
-                LoadUserPairs();
+                _ = LoadUserPairsAsync();
             }
         }
         catch (Exception ex)

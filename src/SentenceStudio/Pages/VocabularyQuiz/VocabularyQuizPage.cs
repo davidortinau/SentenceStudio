@@ -977,9 +977,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     }
 
     // Legacy method - kept for backwards compatibility but now delegates to round-based system
-    async Task RotateOutMasteredWordsAndAddNew()
+    Task RotateOutMasteredWordsAndAddNew()
     {
-        await HandleMasteredWordsForNextRound();
+        return HandleMasteredWordsForNextRound();
     }
 
     /// <summary>
@@ -1350,10 +1350,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    async Task ShowNoVocabularyAlert()
+    Task ShowNoVocabularyAlert()
     {
         SetState(s => s.IsBusy = false);
-        await Application.Current.MainPage.DisplayAlert(
+        return Application.Current.MainPage.DisplayAlert(
             $"{_localize["NoVocabulary"]}",
             $"{_localize["NoVocabularyMessage"]}",
             $"{_localize["OK"]}");
@@ -1998,7 +1998,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// Initializes the first round by setting up session counters, then delegating to StartNewRound.
     /// Called after LoadVocabulary when words are ready.
     /// </summary>
-    async Task InitializeSession()
+    Task InitializeSession()
     {
         // Initialize session-level counters
         SetState(s =>
@@ -2010,7 +2010,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         });
 
         // Let StartNewRound handle the actual round setup
-        await StartNewRound();
+        return StartNewRound();
     }
 
     /// <summary>
@@ -2123,10 +2123,6 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
         return item;
     }
-
-    // Add a counter to track when to shuffle for variety
-    int _itemsProcessedSinceLastShuffle = 0;
-    const int ShuffleAfterItems = 5; // Shuffle every 5 items for variety
 
     /// <summary>
     /// Round-based NextItem: Advances to next word in the current round order.
@@ -2308,7 +2304,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// Navigate to the next activity in today's plan.
     /// Called when user clicks "Next Activity" button after completing session goals.
     /// </summary>
-    async Task NavigateToNextPlanActivity()
+    Task NavigateToNextPlanActivity()
     {
         _logger.LogInformation("🎯 Navigating to next plan activity");
 
@@ -2319,7 +2315,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
 
         // Pop back to dashboard - it will automatically show next available item
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 
 

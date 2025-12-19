@@ -74,7 +74,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
 
     protected override void OnMounted()
     {
-        InitializeSession();
+        _ = InitializeSessionAsync();
     }
 
     protected override void OnWillUnmount()
@@ -85,7 +85,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
         _audioPlayer = null;
     }
 
-    private async void InitializeSession()
+    private async Task InitializeSessionAsync()
     {
         try
         {
@@ -137,7 +137,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
         // T015: Implement prompt selection
         if (State.CurrentTrialIndex >= State.TotalTrials)
         {
-            EndSession();
+            _ = EndSessionAsync();
             return;
         }
 
@@ -171,15 +171,15 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
         if (State.IsFirstTrial)
         {
             SetState(s => s.IsFirstTrial = false);
-            Task.Delay(500).ContinueWith(_ => PlayPromptAudio());
+            _ = Task.Delay(500).ContinueWith(_ => PlayPromptAudioAsync());
         }
         else
         {
-            PlayPromptAudio();
+            _ = PlayPromptAudioAsync();
         }
     }
 
-    private async void PlayPromptAudio()
+    private async Task PlayPromptAudioAsync()
     {
         // T016: Implement audio playback
         if (State.PromptWord == null) return;
@@ -285,7 +285,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
         SetState(s => s.SelectedWordId = selectedWord.Id);
     }
 
-    private async void OnCheckAnswer()
+    private async Task OnCheckAnswerAsync()
     {
         // Don't allow check if no selection made or already checked
         if (!State.SelectedWordId.HasValue || State.HasCheckedAnswer) return;
@@ -333,11 +333,11 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
     {
         if (!State.IsPlayingAudio && !State.AnswerWasCorrect.HasValue)
         {
-            PlayPromptAudio();
+            _ = PlayPromptAudioAsync();
         }
     }
 
-    private async void EndSession()
+    private async Task EndSessionAsync()
     {
         if (State.SessionId.HasValue)
         {
@@ -423,7 +423,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["CheckAnswer"]}")
-                .OnClicked(() => OnCheckAnswer())
+                .OnClicked(async () => await OnCheckAnswerAsync())
                 .IsEnabled(State.SelectedWordId.HasValue && !State.IsDebouncing && !State.HasCheckedAnswer)
                 .HCenter()
         )
@@ -510,7 +510,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
         .OnTapped(() =>
         {
             OnWordSelected(word);
-            OnCheckAnswer();
+            _ = OnCheckAnswerAsync();
         }, 2)
         .IsEnabled(!State.IsDebouncing && !State.HasCheckedAnswer);
     }

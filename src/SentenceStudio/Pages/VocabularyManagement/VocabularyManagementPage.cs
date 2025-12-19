@@ -175,11 +175,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         {
             // PERF: Defer data loading to allow page transition to complete first
             // Using BeginInvokeOnMainThread ensures the page renders before heavy I/O starts
-            MainThread.BeginInvokeOnMainThread(async () =>
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                // Small delay to ensure page transition animation completes
-                await Task.Delay(50);
-                await LoadData();
+                // Use Task.Run to avoid async void lambda warning
+                _ = LoadDataWithDelayAsync();
             });
         });
     }
@@ -464,6 +463,21 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .TextColor(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray500)
 
         );
+
+    // Helper method to load data with initial delay for smooth page transitions
+    private async Task LoadDataWithDelayAsync()
+    {
+        try
+        {
+            // Small delay to ensure page transition animation completes
+            await Task.Delay(50);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during deferred data loading");
+        }
+    }
 
     // Event handlers and logic methods
     async Task LoadData()

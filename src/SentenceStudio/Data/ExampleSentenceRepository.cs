@@ -22,9 +22,9 @@ public class ExampleSentenceRepository
     /// <summary>
     /// Get all example sentences for a vocabulary word
     /// </summary>
-    public async Task<List<ExampleSentence>> GetByVocabularyWordIdAsync(int vocabularyWordId)
+    public Task<List<ExampleSentence>> GetByVocabularyWordIdAsync(int vocabularyWordId)
     {
-        return await _context.ExampleSentences
+        return _context.ExampleSentences
             .Where(es => es.VocabularyWordId == vocabularyWordId)
             .OrderBy(es => es.CreatedAt)
             .ToListAsync();
@@ -34,9 +34,9 @@ public class ExampleSentenceRepository
     /// Get core example sentences for a vocabulary word (IsCore = true)
     /// Uses composite index (VocabularyWordId, IsCore) for performance
     /// </summary>
-    public async Task<List<ExampleSentence>> GetCoreExamplesAsync(int vocabularyWordId)
+    public Task<List<ExampleSentence>> GetCoreExamplesAsync(int vocabularyWordId)
     {
-        return await _context.ExampleSentences
+        return _context.ExampleSentences
             .Where(es => es.VocabularyWordId == vocabularyWordId && es.IsCore)
             .OrderBy(es => es.CreatedAt)
             .ToListAsync();

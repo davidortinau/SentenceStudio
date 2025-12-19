@@ -2,7 +2,7 @@ namespace SentenceStudio.Shared.Models;
 
 public class VocabularyQuizItem
 {
-    public VocabularyWord Word { get; set; }
+    public required VocabularyWord Word { get; set; }
     public bool IsCurrent { get; set; }
     public UserActivity? UserActivity { get; set; }
 

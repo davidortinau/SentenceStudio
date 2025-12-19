@@ -1,9 +1,5 @@
-using MauiReactor;
 using SentenceStudio.Services.Progress;
-using Syncfusion.Maui.Charts;
 using SentenceStudio.Pages.VocabularyProgress;
-using System.Diagnostics;
-using Syncfusion.Maui.DataSource;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -43,17 +39,6 @@ public partial class VocabProgressCard : Component
                 Label("Vocabulary Progress").FontSize(16).FontAttributes(FontAttributes.Bold),
 
                 BuildDonutChart(chartData, total),
-                // Button("Go To Progress")
-                //     .OnPressed(async () =>
-                //     {
-                //         await MauiControls.Shell.Current.GoToAsync<VocabularyProgressProps>(
-                //             nameof(VocabularyLearningProgressPage),
-                //             props =>
-                //             {
-                //                 props.InitialFilter = VocabularyFilterType.Learning;
-                //                 props.Title = $"Vocabulary Progress - Learning";
-                //             });
-                //     }),
 
                 Label($"7d accuracy: {Math.Round(_summary.SuccessRate7d * 100)}%")
                     .TextColor(Colors.Gray)

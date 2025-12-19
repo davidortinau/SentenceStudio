@@ -33,10 +33,10 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
 
     protected override void OnMounted()
     {
-        LoadVocabulary();
+        _ = LoadVocabularyAsync();
     }
 
-    private async void LoadVocabulary()
+    private async Task LoadVocabularyAsync()
     {
         SetState(s => s.IsLoading = true);
 
@@ -61,7 +61,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
         }
     }
 
-    private async void OnCreatePair()
+    private async Task OnCreatePairAsync()
     {
         if (State.SelectedWordA == null || State.SelectedWordB == null)
         {
@@ -182,7 +182,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
 
                 // Create button
                 Button($"{_localize["Create"]}")
-                    .OnClicked(() => OnCreatePair())
+                    .OnClicked(async () => await OnCreatePairAsync())
                     .IsEnabled(!State.IsSaving && State.SelectedWordA != null && State.SelectedWordB != null)
             )
             .Padding(MyTheme.Size160)

@@ -569,9 +569,9 @@ public class ProgressService : IProgressService
         }
     }
 
-    private async Task<int> GetVocabDueCountAsync(DateTime date, CancellationToken ct)
+    private Task<int> GetVocabDueCountAsync(DateTime date, CancellationToken ct)
     {
-        return await _progressRepo.GetDueVocabCountAsync(date);
+        return _progressRepo.GetDueVocabCountAsync(date);
     }
 
     private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)
@@ -626,10 +626,10 @@ public class ProgressService : IProgressService
         return enrichedPlan;
     }
 
-    private async Task<List<UserActivity>> GetRecentActivityHistoryAsync(int days, CancellationToken ct)
+    private Task<List<UserActivity>> GetRecentActivityHistoryAsync(int days, CancellationToken ct)
     {
         var fromDate = DateTime.UtcNow.AddDays(-days);
-        return await _activityRepo.GetByDateRangeAsync(fromDate, DateTime.UtcNow);
+        return _activityRepo.GetByDateRangeAsync(fromDate, DateTime.UtcNow);
     }
 
     private async Task<LearningResource?> SelectOptimalResourceAsync(List<UserActivity> recentHistory, CancellationToken ct)
@@ -738,10 +738,10 @@ public class ProgressService : IProgressService
         );
     }
 
-    private async Task CachePlanAsync(TodaysPlan plan, CancellationToken ct)
+    private Task CachePlanAsync(TodaysPlan plan, CancellationToken ct)
     {
         _cache.SetTodaysPlan(plan);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>

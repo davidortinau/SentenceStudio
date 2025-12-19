@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace SentenceStudio.Pages.Controls;
 
 /// <summary>
@@ -7,7 +5,6 @@ namespace SentenceStudio.Pages.Controls;
 /// </summary>
 partial class WaveformView : Component
 {
-    private ILogger<WaveformView>? _logger;
     private WaveformDrawable _drawable;
     private float _amplitude = 0.7f;
     private Color _waveColor = Colors.SteelBlue;
@@ -259,8 +256,6 @@ partial class WaveformView : Component
             // Clamp the value between 0 and 1
             normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
             
-            _logger?.LogDebug("WaveformView: Drag position: X={TouchX}, Normalized={NormalizedPosition}", touchX, normalizedPosition);
-            
             // Update the drawable's position directly for immediate visual feedback
             _drawable.PlaybackPosition = normalizedPosition;
             
@@ -311,8 +306,6 @@ partial class WaveformView : Component
             
             // Clamp the value between 0 and 1
             normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
-            
-            _logger?.LogDebug("WaveformView: Tap position: X={TouchX}, Normalized={NormalizedPosition:F2}, TotalWidth={TotalWidth}", touchX, normalizedPosition, totalWidth);
             
             // Update the drawable's position directly for immediate visual feedback
             _drawable.PlaybackPosition = normalizedPosition;

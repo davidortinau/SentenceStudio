@@ -219,7 +219,7 @@ class SettingsPage : Component<SettingsPageState>
             Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"📤 {_localize["ExportData"]}")
                 .ThemeKey(MyTheme.Secondary)
                 .IsEnabled(!State.IsExporting)
-                .OnClicked(ExportDataAsync)
+                .OnClicked(async () => await ExportDataInternalAsync())
                 .Margin(0, MyTheme.MicroSpacing, 0, 0)
         )
         .Padding(MyTheme.CardPadding)
@@ -259,7 +259,7 @@ class SettingsPage : Component<SettingsPageState>
                         Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
                             .ThemeKey(MyTheme.PrimaryButton)
                             .IsEnabled(!State.IsMigrating)
-                            .OnClicked(RunStreakMigrationAsync)
+                            .OnClicked(async () => await RunStreakMigrationInternalAsync())
                 )
                 .Padding(MyTheme.CardPadding)
             )
@@ -294,7 +294,7 @@ class SettingsPage : Component<SettingsPageState>
         .Background(MyTheme.CardBackground);
     }
 
-    private async void RunStreakMigrationAsync()
+    private async Task RunStreakMigrationInternalAsync()
     {
         if (State.IsMigrating || State.StreakMigrationComplete)
             return;
@@ -337,7 +337,7 @@ class SettingsPage : Component<SettingsPageState>
         }
     }
 
-    private async void ExportDataAsync()
+    private async Task ExportDataInternalAsync()
     {
         if (State.IsExporting)
             return;

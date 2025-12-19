@@ -86,10 +86,10 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
             .GridRow(0);
     }
 
-    async Task GoBack()
+    Task GoBack()
     {
         _logger.LogInformation("Navigating back from VideoWatchingPage");
-        await MauiControls.Shell.Current.GoToAsync("..");
+        return MauiControls.Shell.Current.GoToAsync("..");
     }
 
     async Task OpenInYouTube()
