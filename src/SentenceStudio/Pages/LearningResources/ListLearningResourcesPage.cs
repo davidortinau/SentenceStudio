@@ -39,28 +39,13 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     {
         return ContentPage($"{_localize["LearningResources"]}",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Search")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = FluentUI.search_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(MyTheme.IconSearch)
                 .OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = FluentUI.add_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = FluentUI.chart_multiple_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(MyTheme.IconChart)
                 .OnClicked(ViewVocabularyProgress),
 
                 State.IsLoading ?

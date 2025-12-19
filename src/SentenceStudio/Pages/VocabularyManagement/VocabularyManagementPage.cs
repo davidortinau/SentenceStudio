@@ -149,28 +149,15 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         return ContentPage($"{_localize["VocabularyManagement"]}",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = FluentUI.add_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(async () => await ToggleQuickAdd()),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Select"]}")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = State.IsMultiSelectMode ? FluentUI.dismiss_20_regular : FluentUI.select_all_on_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(
+                    State.IsMultiSelectMode ? MyTheme.IconDismiss : MyTheme.IconSelectAll
+                )
                 .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Cleanup"]}")
-                .IconImageSource(new FontImageSource
-                {
-                    FontFamily = FluentUI.FontFamily,
-                    Glyph = FluentUI.broom_20_regular,
-                    Color = MyTheme.HighlightDarkest
-                })
+                .IconImageSource(MyTheme.IconCleanup)
                 .OnClicked(() => SetState(s => s.IsCleanupSheetOpen = true)),
             State.IsLoading ?
                 VStack(

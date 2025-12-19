@@ -366,6 +366,34 @@ partial class MyTheme
         Size = Size280
     };
 
+    public static FontImageSource IconChart { get; } = new FontImageSource
+    {
+        FontFamily = FluentUI.FontFamily,
+        Glyph = FluentUI.chart_multiple_20_regular,
+        Color = MyTheme.HighlightDarkest
+    };
+
+    public static FontImageSource IconSelectAll { get; } = new FontImageSource
+    {
+        FontFamily = FluentUI.FontFamily,
+        Glyph = FluentUI.select_all_on_20_regular,
+        Color = MyTheme.HighlightDarkest
+    };
+
+    public static FontImageSource IconDismiss { get; } = new FontImageSource
+    {
+        FontFamily = FluentUI.FontFamily,
+        Glyph = FluentUI.dismiss_20_regular,
+        Color = MyTheme.HighlightDarkest
+    };
+
+    public static FontImageSource IconCleanup { get; } = new FontImageSource
+    {
+        FontFamily = FluentUI.FontFamily,
+        Glyph = FluentUI.broom_20_regular,
+        Color = MyTheme.HighlightDarkest
+    };
+
     public static FontImageSource IconCheckmarkCircleFilledCorrect { get; } = new FontImageSource
     {
         Glyph = FluentUI.checkmark_circle_24_regular,
