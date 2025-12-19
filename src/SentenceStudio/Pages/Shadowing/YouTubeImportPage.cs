@@ -120,7 +120,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             State.IsPolishingTranscript ?
                 Grid(
                     BoxView()
-                        .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
+                        .Background(Colors.Black.WithAlpha(0.5f)),
 
                     VStack(spacing: 15,
                         ActivityIndicator()

@@ -26,11 +26,11 @@ partial class MyTheme
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         BoxViewStyles.Default = _ => _
-            .BackgroundColor(IsLightTheme ? Gray950 : Gray200);
+            .Background(IsLightTheme ? Gray950 : Gray200);
 
         ButtonStyles.Default = _ => _
             .TextColor(IsLightTheme ? White : Light.TextPrimary)
-            .BackgroundColor(PrimaryColor)
+            .Background(PrimaryColor)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -43,7 +43,7 @@ partial class MyTheme
 
         ButtonStyles.Themes[Secondary] = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(SurfaceVariant)
+            .Background(SurfaceVariant)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -62,7 +62,7 @@ partial class MyTheme
 
         DatePickerStyles.Default = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .MinimumHeightRequest(44)
@@ -71,7 +71,7 @@ partial class MyTheme
 
         EditorStyles.Default = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .PlaceholderColor(TextSecondary)
@@ -82,7 +82,7 @@ partial class MyTheme
 
         EntryStyles.Default = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(DeviceInfo.Current.Idiom == DeviceIdiom.Desktop ? 24 : 18)
             .PlaceholderColor(TextSecondary)
@@ -102,7 +102,7 @@ partial class MyTheme
 
         LabelStyles.Default = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(17)
             .LineHeight(1.29)
@@ -214,12 +214,12 @@ partial class MyTheme
             .Padding(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 20 : 15);
 
         BoxViewStyles.Themes[ShimmerCustomViewStyle] = _ => _
-            .BackgroundColor(Colors.Gray)
+            .Background(Colors.Gray)
             .HorizontalOptions(LayoutOptions.Fill)
             .VerticalOptions(LayoutOptions.Center);
 
         ImageButtonStyles.Default = _ => _
-            .BackgroundColor(Colors.Transparent);
+            .Background(Colors.Transparent);
 
         LayoutStyles.Themes[Surface1] = _ => _
             .Background(SurfaceVariant)
@@ -228,7 +228,7 @@ partial class MyTheme
         PickerStyles.Default = _ => _
             .TextColor(TextPrimary)
             .TitleColor(TextSecondary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(DeviceIdiom.Desktop == DeviceInfo.Idiom ? 24 : 18)
             .MinimumHeightRequest(44)
@@ -241,7 +241,7 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.ProgressBar.ProgressColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         RadioButtonStyles.Default = _ => _
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .TextColor(TextPrimary)
             .FontSize(17)
             // .MinimumHeightRequest(44)
@@ -266,7 +266,7 @@ partial class MyTheme
         //SearchHandlerStyles.Default = _ => _
         //    .TextColor(IsLightTheme ? Gray900 : White)
         //    .PlaceholderColor(Gray500)
-        //    .BackgroundColor(Colors.Transparent)
+        //    .Background(Colors.Transparent)
         //    .FontFamily("SegoeRegular")
         //    .FontSize(14)
         //    .VisualState("CommonStates", "Disable", MauiControls.SearchHandler.TextColorProperty, IsLightTheme ? Gray300 : Gray600)
@@ -286,9 +286,6 @@ partial class MyTheme
             .VisualState("CommonStates", "Disable", MauiControls.Slider.MaximumTrackColorProperty, IsLightTheme ? Gray300 : Gray600)
             .VisualState("CommonStates", "Disable", MauiControls.Slider.ThumbColorProperty, IsLightTheme ? Gray300 : Gray600);
 
-        SwipeItemStyles.Default = _ => _
-            .BackgroundColor(Surface);
-
         SwitchStyles.Default = _ => _
             .OnColor(PrimaryColor)
             .ThumbColor(White)
@@ -301,7 +298,7 @@ partial class MyTheme
 
         TimePickerStyles.Default = _ => _
             .TextColor(TextPrimary)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .MinimumHeightRequest(44)
@@ -317,7 +314,7 @@ partial class MyTheme
 
         PageStyles.Default = _ => _
             .Padding(0)
-            .BackgroundColor(Background);
+            .Background(Background);
 
         ShellStyles.Default = _ => _
             .Set(MauiControls.Shell.BackgroundColorProperty, Background)

@@ -96,7 +96,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                             s.PopupResult = false;
                         }))
                 )
-                .BackgroundColor(MyTheme.LightBackground)
+                .Background(MyTheme.LightBackground)
                 .Padding(MyTheme.SectionSpacing)
             )
         )
@@ -127,7 +127,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                     .GridRow(1)
                     .OnClicked(() => SetState(s => s.IsPhraseListShown = false))
             )
-            .BackgroundColor(MyTheme.LightBackground)
+            .Background(MyTheme.LightBackground)
             .Padding(MyTheme.LayoutPadding)
             .Margin(MyTheme.LayoutPadding)
             .HorizontalOptions(LayoutOptions.Fill)
@@ -214,7 +214,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             .StrokeThickness(1)
             .VerticalOptions(LayoutOptions.End),
             Button()
-                .BackgroundColor(MyTheme.Gray300)
+                .Background(MyTheme.Gray300)
                 .ImageSource(MyTheme.IconAdd)
                 .Text("add")
                 .VCenter()

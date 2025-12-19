@@ -106,7 +106,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .OnClicked(CreateStarterResource)
                                                 .HCenter()
                                                 .WidthRequest(200)
-                                                .BackgroundColor(MyTheme.HighlightDarkest)
+                                                .Background(MyTheme.HighlightDarkest)
                                         )
                                         .Spacing(MyTheme.ComponentSpacing)
                                     )
@@ -233,7 +233,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             // Type filter icon
             ImageButton()
                 .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
-                .BackgroundColor(MyTheme.LightSecondaryBackground)
+                .Background(MyTheme.LightSecondaryBackground)
                 .HeightRequest(36)
                 .WidthRequest(36)
                 .CornerRadius(18)
@@ -245,7 +245,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             // Language filter icon
             ImageButton()
                 .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconGlobe)
-                .BackgroundColor(MyTheme.LightSecondaryBackground)
+                .Background(MyTheme.LightSecondaryBackground)
                 .HeightRequest(36)
                 .WidthRequest(36)
                 .CornerRadius(18)

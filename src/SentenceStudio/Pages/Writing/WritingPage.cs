@@ -83,7 +83,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     HStack(spacing: MyTheme.Size40,
                         State.VocabBlocks.Select(word =>
                             Button(word.TargetLanguageTerm)
-                                .BackgroundColor(MyTheme.Gray200)
+                                .Background(MyTheme.Gray200)
                                 .TextColor(MyTheme.Gray900)
                                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
                                 .Padding(MyTheme.Size40)
@@ -104,7 +104,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             }
             .TrailingView(
                 Button()
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .HEnd()
                     .GridColumn(1)
                     .ImageSource(MyTheme.IconDictionary)
@@ -127,7 +127,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     MyTheme.DarkOnLightBackground)
                 .Center()
         )
-        .BackgroundColor(Color.FromArgb("#80000000"))
+        .Background(Color.FromArgb("#80000000"))
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
 
@@ -263,14 +263,14 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             Label(sentence.Fluency.ToString()).Center().GridColumn(2),
             HStack(spacing: 4,
                 Button()
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .TextColor(Theme.IsLightTheme ?
                         MyTheme.LightOnDarkBackground :
                         MyTheme.DarkOnLightBackground)
                     .ImageSource(MyTheme.IconCopy)
                     .OnClicked(() => UseVocab(sentence.Answer)),
                 Button()
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .TextColor(Theme.IsLightTheme ?
                         MyTheme.LightOnDarkBackground :
                         MyTheme.DarkOnLightBackground)
@@ -284,12 +284,12 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             SwipeItemView(
                 Grid(
                     Label().Text(FluentUI.copy_24_regular).FontSize(24).Center()
-                ).BackgroundColor(Colors.Red).WidthRequest(60)
+                ).Background(Colors.Red).WidthRequest(60)
             ).OnInvoked(() => UseVocab(sentence.Answer)).HStart(),
             SwipeItemView(
                 Grid(
                     Label().Text(FluentUI.info_24_regular).FontSize(24).Center()
-                ).BackgroundColor(Colors.Orange).WidthRequest(60)
+                ).Background(Colors.Orange).WidthRequest(60)
             ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
             Grid("", columns: "*,*",
                 Label(sentence.Answer).VCenter().GridColumn(0),

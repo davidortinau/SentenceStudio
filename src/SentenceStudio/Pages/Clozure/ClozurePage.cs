@@ -166,7 +166,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		ProgressBar()
 			.Progress(State.AutoTransitionProgress)
 			.HeightRequest(4)
-			.BackgroundColor(Colors.Transparent)
+			.Background(Colors.Transparent)
 			.ProgressColor(MyTheme.HighlightDarkest)
 			.VStart();
 

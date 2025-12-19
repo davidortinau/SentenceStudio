@@ -519,7 +519,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
     {
         return ImageButton()
             .Source(MyTheme.IconPlay)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .WidthRequest(48)
             .HeightRequest(48)
             .OnClicked(() => OnReplayAudio())

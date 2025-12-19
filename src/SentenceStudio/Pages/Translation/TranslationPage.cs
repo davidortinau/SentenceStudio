@@ -126,7 +126,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                         .Padding(MyTheme.CardPadding)
                         .Center()
                 )
-                .BackgroundColor(GetFeedbackBackgroundColor(State.FeedbackType))
+                .Background(GetFeedbackBackgroundColor(State.FeedbackType))
                 .StrokeShape(new RoundRectangle().CornerRadius(8))
                 .StrokeThickness(0)
                 .Margin(0, MyTheme.ComponentSpacing)
@@ -166,7 +166,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .Text(word)
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
                     .Padding(MyTheme.Size40)
-                    .BackgroundColor(MyTheme.Gray200)
+                    .Background(MyTheme.Gray200)
                     .TextColor(MyTheme.Gray900)
                     .OnClicked(() => UseVocab(word))
             )
@@ -280,7 +280,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .Stroke(MyTheme.HighlightDarkest)
                 .HeightRequest(24)
                 .WidthRequest(24)
-                .BackgroundColor(Colors.Transparent);
+                .Background(Colors.Transparent);
         }
         catch (Exception ex)
         {
@@ -291,7 +291,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .Stroke(MyTheme.Gray400)
                 .HeightRequest(24)
                 .WidthRequest(24)
-                .BackgroundColor(Colors.Transparent);
+                .Background(Colors.Transparent);
         }
     }
     VisualNode RenderPopOverLabel() =>
@@ -303,7 +303,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             .FontSize(64)
             .HStart()
             .VStart()
-            .BackgroundColor(Theme.IsLightTheme ?
+            .Background(Theme.IsLightTheme ?
                 MyTheme.LightBackground :
                 MyTheme.DarkBackground)
             .TextColor(Theme.IsLightTheme ?

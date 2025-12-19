@@ -292,7 +292,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
         return Button(name)
             .GridColumn(column)
-            .BackgroundColor(MyTheme.Gray100)
+            .Background(MyTheme.Gray100)
             .TextColor(MyTheme.Gray900)
             .FontSize(14)
             .CornerRadius(8)
@@ -428,7 +428,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         )
         .StrokeThickness(State.PreferredSessionMinutes == minutes ? 2 : 1)
         .Stroke((Color)(State.PreferredSessionMinutes == minutes ? MyTheme.PrimaryButtonBackground : MyTheme.ItemBorder))
-        .BackgroundColor(State.PreferredSessionMinutes == minutes ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
+        .Background(State.PreferredSessionMinutes == minutes ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .OnTapped(() => SetState(s => s.PreferredSessionMinutes = minutes));
 
@@ -448,7 +448,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         )
         .StrokeThickness((State.TargetCEFRLevel ?? "Not Set") == level ? 2 : 1)
         .Stroke((Color)((State.TargetCEFRLevel ?? "Not Set") == level ? MyTheme.PrimaryButtonBackground : MyTheme.ItemBorder))
-        .BackgroundColor((State.TargetCEFRLevel ?? "Not Set") == level ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
+        .Background((State.TargetCEFRLevel ?? "Not Set") == level ? MyTheme.PrimaryButtonBackground.WithAlpha(0.1f) : Colors.Transparent)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .OnTapped(() => SetState(s => s.TargetCEFRLevel = level == "Not Set" ? null : level));
 
@@ -491,7 +491,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .Spacing(MyTheme.MicroSpacing)
                         .Padding(MyTheme.Size160)
                     )
-                    .BackgroundColor(MyTheme.HighlightDarkest)
+                    .Background(MyTheme.HighlightDarkest)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
                     .Padding(MyTheme.MicroSpacing)
                     .OnTapped(CreateStarterContent),
@@ -514,7 +514,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                         .Spacing(MyTheme.MicroSpacing)
                         .Padding(MyTheme.Size160)
                     )
-                    .BackgroundColor(MyTheme.Gray100)
+                    .Background(MyTheme.Gray100)
                     .StrokeShape(new RoundRectangle().CornerRadius(12))
                     .Stroke(MyTheme.Gray300)
                     .Padding(MyTheme.MicroSpacing)

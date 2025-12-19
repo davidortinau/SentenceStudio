@@ -152,7 +152,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     _ = _popup?.CloseAsync();
                 })
             ).Padding(20)
-            .BackgroundColor(MyTheme.LightBackground)
+            .Background(MyTheme.LightBackground)
         }
         .IsShown(State.IsExplanationShown);
 
@@ -215,7 +215,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 Image().Source(MyTheme.IconCheckbox).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
-            .BackgroundColor(Color.FromArgb("#CCFFFFFF"))
+            .Background(Color.FromArgb("#CCFFFFFF"))
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Padding(4)
             .VEnd()
@@ -227,7 +227,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 Image().Source(MyTheme.IconCheckboxSelected).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
-            .BackgroundColor(Color.FromArgb("#CCFFFFFF"))
+            .Background(Color.FromArgb("#CCFFFFFF"))
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Padding(4)
             .VEnd()
@@ -242,7 +242,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 .TextColor(MyTheme.DarkOnLightBackground)
                 .Center()
         )
-        .BackgroundColor(Color.FromArgb("#80000000"))
+        .Background(Color.FromArgb("#80000000"))
         .IsVisible(State.IsBusy)
         .GridRowSpan(3);
 

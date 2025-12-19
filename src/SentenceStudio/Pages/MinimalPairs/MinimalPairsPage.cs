@@ -149,7 +149,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                 TextColor = Colors.White
             })
             .SelectedIndex((int)State.SelectedMode)
-            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+            .Background(MyTheme.SecondaryButtonBackground)
             .CornerRadius((float)MyTheme.Size80)
             .OnSelectionChanged((s, e) =>
             {
@@ -225,7 +225,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
             .Padding(MyTheme.Size120)
         )
         .ThemeKey(MyTheme.CardStyle)
-        .BackgroundColor(isSelected ? MyTheme.PrimaryDark : Colors.Transparent)
+        .Background(isSelected ? MyTheme.PrimaryDark : Colors.Transparent)
         .Margin(MyTheme.Size80, MyTheme.Size40)
         .OnTapped(() =>
         {

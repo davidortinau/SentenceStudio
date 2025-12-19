@@ -49,14 +49,14 @@ partial class ActivityProgressOverlay : MauiReactor.Component
                 Grid(
                     // Background
                     Border()
-                        .BackgroundColor(MyTheme.ItemBackground)
+                        .Background(MyTheme.ItemBackground)
                         .HeightRequest(6)
                         .StrokeThickness(0)
                         .StrokeShape(new RoundRectangle().CornerRadius(3)),
 
                     // Progress fill
                     Border()
-                        .BackgroundColor(isComplete ? MyTheme.Success : MyTheme.ProgressBarFill)
+                        .Background(isComplete ? MyTheme.Success : MyTheme.ProgressBarFill)
                         .HeightRequest(6)
                         .StrokeThickness(0)
                         .StrokeShape(new RoundRectangle().CornerRadius(3))
@@ -93,7 +93,7 @@ partial class ActivityProgressOverlay : MauiReactor.Component
             )
             .Padding(MyTheme.Size120)
         )
-        .BackgroundColor(MyTheme.CardBackground)
+        .Background(MyTheme.CardBackground)
         .Stroke(MyTheme.CardBorder)
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))

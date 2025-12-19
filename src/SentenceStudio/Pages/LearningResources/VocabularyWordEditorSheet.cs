@@ -33,7 +33,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
         return Grid(
             // Semi-transparent background
             BoxView()
-                .BackgroundColor(Colors.Black.WithAlpha(0.5f))
+                .Background(Colors.Black.WithAlpha(0.5f))
                 .ZIndex(0)
                 .OnTapped(() => _onCancel?.Invoke()),
 
@@ -87,7 +87,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
             .StrokeShape(new RoundRectangle().CornerRadius(10))
             .StrokeThickness(1)
             .Stroke(Colors.LightGray)
-            .BackgroundColor(Colors.White)
+            .Background(Colors.White)
             .MaximumWidthRequest(400)
             .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 320 : 400)
             .HCenter()

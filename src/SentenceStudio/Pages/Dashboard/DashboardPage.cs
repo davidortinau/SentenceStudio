@@ -170,7 +170,7 @@ partial class DashboardPage : Component<DashboardPageState>
             })
             .SelectedIndex(State.IsTodaysPlanMode ? 0 : 1)
             .SegmentWidth(180)
-            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+            .Background(MyTheme.SecondaryButtonBackground)
             .CornerRadius((float)MyTheme.Size80)
             .HeightRequest(44)
             .OnSelectionChanged((s, e) =>
@@ -194,7 +194,7 @@ partial class DashboardPage : Component<DashboardPageState>
         //             .Center()
         //             .Padding(MyTheme.Size120, MyTheme.Size80)
         //     )
-        //     .BackgroundColor(State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
+        //     .Background(State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
         //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
         //     .StrokeThickness(0)
         //     .HStart()
@@ -214,7 +214,7 @@ partial class DashboardPage : Component<DashboardPageState>
         //             .Center()
         //             .Padding(MyTheme.Size120, MyTheme.Size80)
         //     )
-        //     .BackgroundColor(!State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
+        //     .Background(!State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
         //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
         //     .StrokeThickness(0)
         //     .HEnd()
@@ -269,7 +269,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                 .VerticalOptions(LayoutOptions.Center)
                                 .Padding(MyTheme.Size160, MyTheme.Size120)
                         )
-                        .BackgroundColor(MyTheme.PrimaryButtonBackground)
+                        .Background(MyTheme.PrimaryButtonBackground)
                         .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
                         .StrokeThickness(0)
                         .HorizontalOptions(LayoutOptions.Center)
@@ -294,7 +294,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
                                         new SfComboBox()
                                             .MinimumHeightRequest(44)
-                                            .BackgroundColor(Colors.Transparent)
+                                            .Background(Colors.Transparent)
                                             .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                                             .TokenItemStyle(MyTheme.ChipStyle)
                                             .ItemPadding(MyTheme.LayoutPadding)
@@ -313,7 +313,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         Label("Skill(s)"),
                                         new SfComboBox()
                                             .HeightRequest(44)
-                                            .BackgroundColor(Colors.Transparent)
+                                            .Background(Colors.Transparent)
                                             .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                                             .ItemPadding(MyTheme.LayoutPadding)
                                             .PlaceholderText("Select skill(s)")
@@ -332,7 +332,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                         Label("Resource"),
                                         new SfComboBox()
                                             // .HeightRequest(60)
-                                            .BackgroundColor(Colors.Transparent)
+                                            .Background(Colors.Transparent)
                                             .ShowBorder(false)
                                             .IsEditable(true).AllowFiltering(true)
                                             // .MultiSelectionDisplayMode(Syncfusion.Maui.Inputs.ComboBoxMultiSelectionDisplayMode.Token)
@@ -354,7 +354,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                     VStack(
                                         Label("Resource"),
                                         new SfComboBox()
-                                            .BackgroundColor(Colors.Transparent)
+                                            .Background(Colors.Transparent)
                                             .ShowBorder(false)
                                             .PlaceholderText("Select skill(s)")
                                             //.DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)

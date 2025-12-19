@@ -288,7 +288,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .VCenter()
                 .TextColor(GetTileTextColor(tile))
         )
-        .BackgroundColor(GetTileBackgroundColor(tile))
+        .Background(GetTileBackgroundColor(tile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(1)
         .Stroke(GetTileBorderColor(tile))

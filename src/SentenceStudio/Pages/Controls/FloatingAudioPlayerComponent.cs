@@ -17,7 +17,7 @@ public class FloatingAudioPlayerState
     /// Gets or sets whether audio is currently playing.
     /// </summary>
     public bool IsPlaying { get; set; } = false;
-    
+
     /// <summary>
     /// Gets or sets whether the player is in loading state.
     /// </summary>
@@ -27,7 +27,7 @@ public class FloatingAudioPlayerState
     /// Gets or sets the current playback position as a normalized value (0-1).
     /// </summary>
     public float PlaybackPosition { get; set; } = 0f;
-    
+
     /// <summary>
     /// Gets or sets the title to display on the player.
     /// </summary>
@@ -46,7 +46,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     private readonly Action _onRewind;
     private readonly Action _onStop;
     private readonly IAudioPlayer _audioPlayer;
-    
+
     /// <summary>
     /// Creates a new floating audio player component.
     /// </summary>
@@ -58,7 +58,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     public FloatingAudioPlayer(
         IAudioPlayer audioPlayer,
         Action onPlay = null,
-        Action onPause = null, 
+        Action onPause = null,
         Action onRewind = null,
         Action onStop = null)
     {
@@ -73,8 +73,8 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     {
         return Border(
             Grid(rows: "0, 3, Auto", columns: "*",
-                State.IsLoading ? 
-                    null : 
+                State.IsLoading ?
+                    null :
                     new LinearProgressBar()
                         .Progress(State.PlaybackPosition)
                         .ProgressColor(Colors.Orange)
@@ -94,7 +94,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
                     HStack(
                         ImageButton()
                             .Source(MyTheme.IconRewindSm)
-                            .BackgroundColor(Colors.Transparent)
+                            .Background(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
                             .Padding(4)
@@ -106,7 +106,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
 
                         ImageButton()
                             .Source(State.IsPlaying ? MyTheme.IconPauseSm : MyTheme.IconPlaySm)
-                            .BackgroundColor(Colors.Transparent)
+                            .Background(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
                             .Padding(4)
@@ -126,7 +126,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
 
                         ImageButton()
                             .Source(MyTheme.IconStopSm)
-                            .BackgroundColor(Colors.Transparent)
+                            .Background(Colors.Transparent)
                             .WidthRequest(18)
                             .HeightRequest(18)
                             .Padding(4)
@@ -151,7 +151,7 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
         .Padding(MyTheme.Size120)
         .StrokeShape(new RoundRectangle().CornerRadius(12))
         .Stroke(Colors.Transparent)
-        .BackgroundColor(Color.FromArgb("#AA343434"))
+        .Background(Color.FromArgb("#AA343434"))
         .Shadow(
             Shadow()
                 .Brush(Colors.Black)
@@ -174,13 +174,14 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     {
         SetState(s => s.IsVisible = true);
     }
-    
+
     /// <summary>
     /// Shows the audio player in loading state.
     /// </summary>
     public void ShowLoading()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsVisible = true;
             s.IsLoading = true;
         });
@@ -191,13 +192,14 @@ partial class FloatingAudioPlayer : Component<FloatingAudioPlayerState>
     /// </summary>
     public void Hide()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsVisible = false;
             s.IsPlaying = false;
             s.IsLoading = false;
         });
     }
-    
+
     /// <summary>
     /// Sets the component to ready state (not loading).
     /// </summary>
@@ -299,7 +301,7 @@ partial class LinearProgressBar : Component
                 .RadiusX(_heightRequest / 2)
                 .RadiusY(_heightRequest / 2)
                 .VCenter(),
-                
+
             // Progress indicator
             Rectangle()
                 .Fill(_progressColor)

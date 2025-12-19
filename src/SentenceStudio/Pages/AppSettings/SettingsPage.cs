@@ -204,7 +204,7 @@ class SettingsPage : Component<SettingsPageState>
                 .Margin(0, MyTheme.MicroSpacing, 0, 0)
         )
         .Padding(MyTheme.CardPadding)
-        .BackgroundColor(MyTheme.CardBackground);
+        .Background(MyTheme.CardBackground);
     }
 
     private VisualNode RenderDataManagementSection()
@@ -223,7 +223,7 @@ class SettingsPage : Component<SettingsPageState>
                 .Margin(0, MyTheme.MicroSpacing, 0, 0)
         )
         .Padding(MyTheme.CardPadding)
-        .BackgroundColor(MyTheme.CardBackground);
+        .Background(MyTheme.CardBackground);
     }
 
     private VisualNode RenderMigrationSection()
@@ -275,7 +275,7 @@ class SettingsPage : Component<SettingsPageState>
                 : null
         )
         .Padding(MyTheme.CardPadding)
-        .BackgroundColor(MyTheme.CardBackground);
+        .Background(MyTheme.CardBackground);
     }
 
     private VisualNode RenderAboutSection()
@@ -291,7 +291,7 @@ class SettingsPage : Component<SettingsPageState>
                 .ThemeKey(MyTheme.Caption1)
         )
         .Padding(MyTheme.CardPadding)
-        .BackgroundColor(MyTheme.CardBackground);
+        .Background(MyTheme.CardBackground);
     }
 
     private async void RunStreakMigrationAsync()

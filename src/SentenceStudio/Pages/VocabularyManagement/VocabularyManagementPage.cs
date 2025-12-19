@@ -237,7 +237,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                                     .HeightRequest(20)
                                     .WidthRequest(20)
                                     .OnClicked(ClearAllFilters)
-                                    .BackgroundColor(Colors.Transparent) :
+                                    .Background(Colors.Transparent) :
                                 null
                         )
                         .HeightRequest(54)
@@ -262,7 +262,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             State.AvailableTags.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconTag)
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .VCenter()
                     .OnClicked(() => OpenFilterSheet("tag")) :
                 null,
@@ -271,7 +271,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             State.AvailableResources.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconResource)
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .VCenter()
                     .OnClicked(() => OpenFilterSheet("resource")) :
                 null,
@@ -280,7 +280,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             State.AvailableLemmas.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconLemma)
-                    .BackgroundColor(Colors.Transparent)
+                    .Background(Colors.Transparent)
                     .VCenter()
                     .OnClicked(() => OpenFilterSheet("lemma")) :
                 null,
@@ -288,7 +288,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // Status filter button
             ImageButton()
                 .Source(MyTheme.IconStatusFilter)
-                .BackgroundColor(Colors.Transparent)
+                .Background(Colors.Transparent)
                 .VCenter()
                 .OnClicked(() => OpenFilterSheet("status"))
         ).GridColumn(1).GridRow(1).VFill();
@@ -350,7 +350,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = MyTheme.LayoutSpacing }
                     : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(MyTheme.LayoutPadding)
             .GridRow(0);
@@ -446,7 +446,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .TextColor(Colors.White)
                 .Padding(4, 2)
         )
-        .BackgroundColor(badgeColor)
+        .VStart()
+        .Background(badgeColor)
         .StrokeThickness(0)
         .StrokeShape(new RoundRectangle().CornerRadius(4));
     }
@@ -800,7 +801,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     // Clear button on left
                     Button($"{_localize["Clear"]}")
                         .TextColor(MyTheme.DarkOnLightBackground)
-                        .BackgroundColor(Colors.Transparent)
+                        .Background(Colors.Transparent)
                         .OnClicked(ClearFilterSelections)
                         .GridColumn(0),
                     // Title centered
@@ -1440,7 +1441,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
                 BoxView()
                     .HeightRequest(1)
-                    .BackgroundColor(Colors.Gray.WithAlpha(0.3f))
+                    .Background(Colors.Gray.WithAlpha(0.3f))
                     .Margin(0, 8),
 
                 Label($"{_localize["AssignOrphanedWords"]}")

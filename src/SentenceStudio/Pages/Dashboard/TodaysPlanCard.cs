@@ -53,7 +53,7 @@ partial class TodaysPlanCard : MauiReactor.Component
             )
             .Padding(MyTheme.Size160)
         )
-        .BackgroundColor(MyTheme.CardBackground)
+        .Background(MyTheme.CardBackground)
         .Stroke(MyTheme.CardBorder)
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size120));

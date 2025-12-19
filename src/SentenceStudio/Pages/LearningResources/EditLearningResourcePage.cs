@@ -87,7 +87,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         (State.IsPolishingTranscript || State.IsCleaningTranscript) ?
                             Grid(
                                 BoxView()
-                                    .BackgroundColor(Colors.Black.WithAlpha(0.5f)),
+                                    .Background(Colors.Black.WithAlpha(0.5f)),
 
                                 VStack(spacing: 15,
                                     ActivityIndicator()
@@ -145,7 +145,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Spacing(MyTheme.MicroSpacing)
                 .Padding(new Thickness(MyTheme.Size80, MyTheme.Size40))
-                .BackgroundColor(MyTheme.HighlightLightest)
+                .Background(MyTheme.HighlightLightest)
                 : null,
 
             // Title

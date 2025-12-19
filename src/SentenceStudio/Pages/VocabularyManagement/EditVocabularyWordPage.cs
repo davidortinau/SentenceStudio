@@ -118,7 +118,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
                         ImageButton()
                             .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
-                            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+                            .Background(MyTheme.SecondaryButtonBackground)
                             .HeightRequest(44)
                             .WidthRequest(44)
                             .CornerRadius(8)
@@ -302,7 +302,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     // Audio play button - generates on first tap, plays cached audio on subsequent taps
                     ImageButton()
                         .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
-                        .BackgroundColor(MyTheme.SecondaryButtonBackground)
+                        .Background(MyTheme.SecondaryButtonBackground)
                         .HeightRequest(36)
                         .WidthRequest(36)
                         .CornerRadius(8)
@@ -492,7 +492,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             Props.VocabularyWordId > 0 ?
                 ImageButton()
                     .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDelete)
-                    .BackgroundColor(MyTheme.LightSecondaryBackground)
+                    .Background(MyTheme.LightSecondaryBackground)
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)

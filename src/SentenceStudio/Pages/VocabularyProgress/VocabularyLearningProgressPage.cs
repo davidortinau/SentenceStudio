@@ -228,7 +228,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
             })
             .SelectedIndex(selectedIndex)
             .SegmentWidth(120)
-            .BackgroundColor(MyTheme.SecondaryButtonBackground)
+            .Background(MyTheme.SecondaryButtonBackground)
             .CornerRadius((float)MyTheme.Size80)
             .HeightRequest(44)
             .OnSelectionChanged((s, e) =>
@@ -261,7 +261,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                                         desiredItemWidth: 300,
                                         orientation: ItemsLayoutOrientation.Vertical,
                                         maxColumns: 6))
-                .BackgroundColor(Colors.Transparent)
+                .Background(Colors.Transparent)
                 // .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
                 .GridRow(1);
     }

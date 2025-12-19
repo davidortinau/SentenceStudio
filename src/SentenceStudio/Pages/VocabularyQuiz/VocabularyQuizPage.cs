@@ -201,7 +201,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         ProgressBar()
             .Progress(State.AutoTransitionProgress)
             .HeightRequest(4)
-            .BackgroundColor(Colors.Transparent)
+            .Background(Colors.Transparent)
             .ProgressColor(MyTheme.HighlightDarkest)
             .VStart();
 
@@ -472,7 +472,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             ProgressBar()
                 .Progress((double)State.CurrentTurnInRound / VocabularyQuizPageState.TurnsPerRound)
                 .ProgressColor(MyTheme.Success)
-                .BackgroundColor(Colors.LightGray)
+                .Background(Colors.LightGray)
                 .HeightRequest(6)
                 .GridColumn(1)
                 .VCenter()
