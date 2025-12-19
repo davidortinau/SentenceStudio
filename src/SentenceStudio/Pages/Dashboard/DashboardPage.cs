@@ -185,47 +185,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 }
             }).HCenter();
 
-        // return HStack(spacing: MyTheme.ComponentSpacing,
-        //     // Today's Plan button
-        //     Border(
-        //         Label(_localize["ModeTodaysPlan"])
-        //             .ThemeKey(State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
-        //             .TextColor(State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
-        //             .Center()
-        //             .Padding(MyTheme.Size120, MyTheme.Size80)
-        //     )
-        //     .Background(State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
-        //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-        //     .StrokeThickness(0)
-        //     .HStart()
-        //     .HorizontalOptions(LayoutOptions.FillAndExpand)
-        //     .OnTapped(() =>
-        //     {
-        //         SetState(s => s.IsTodaysPlanMode = true);
-        //         Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
-        //         _ = LoadTodaysPlanAsync();
-        //     }),
 
-        //     // Choose My Own button
-        //     Border(
-        //         Label(_localize["ModeChooseOwn"])
-        //             .ThemeKey(!State.IsTodaysPlanMode ? MyTheme.Body1Strong : MyTheme.Body1)
-        //             .TextColor(!State.IsTodaysPlanMode ? MyTheme.DarkOnLightBackground : MyTheme.SecondaryText)
-        //             .Center()
-        //             .Padding(MyTheme.Size120, MyTheme.Size80)
-        //     )
-        //     .Background(!State.IsTodaysPlanMode ? MyTheme.HighlightLightest : MyTheme.SecondaryButtonBackground)
-        //     .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-        //     .StrokeThickness(0)
-        //     .HEnd()
-        //     .HorizontalOptions(LayoutOptions.FillAndExpand)
-        //     .OnTapped(() =>
-        //     {
-        //         SetState(s => s.IsTodaysPlanMode = false);
-        //         Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
-        //     })
-        // )
-        // .Padding(0, 0, 0, MyTheme.SectionSpacing);
     }
 
     VisualNode RenderTodaysPlanMode()
@@ -241,7 +201,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     Label("Loading today's plan...")
                         .TextColor(MyTheme.SecondaryText)
                         .FontSize(14)
-                        .HorizontalOptions(LayoutOptions.Center)
+                        .HCenter()
                 ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
                 : (State.TodaysPlan != null
                     ? new TodaysPlanCard()
@@ -254,25 +214,25 @@ partial class DashboardPage : Component<DashboardPageState>
                             .TextColor(MyTheme.PrimaryText)
                             .FontSize(18)
                             .FontAttributes(MauiControls.FontAttributes.Bold)
-                            .HorizontalOptions(LayoutOptions.Center),
+                            .HCenter(),
                         Label("Select a resource and skill to generate your personalized learning plan.")
                             .TextColor(MyTheme.SecondaryText)
                             .FontSize(14)
-                            .HorizontalOptions(LayoutOptions.Center)
+                            .HCenter()
                             .HorizontalTextAlignment(TextAlignment.Center),
                         Border(
                             Label("Generate Today's Plan")
                                 .TextColor(MyTheme.PrimaryButtonText)
                                 .FontSize(16)
                                 .FontAttributes(MauiControls.FontAttributes.Bold)
-                                .HorizontalOptions(LayoutOptions.Center)
-                                .VerticalOptions(LayoutOptions.Center)
+                                .HCenter()
+                                .VCenter()
                                 .Padding(MyTheme.Size160, MyTheme.Size120)
                         )
                         .Background(MyTheme.PrimaryButtonBackground)
                         .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
                         .StrokeThickness(0)
-                        .HorizontalOptions(LayoutOptions.Center)
+                        .HCenter()
                         .Margin(0, MyTheme.Size160, 0, 0)
                         .OnTapped(LoadTodaysPlanAsync)
                     )
@@ -404,7 +364,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                 Label("Loading progress data...")
                                     .TextColor(Colors.Gray)
                                     .FontSize(14)
-                                    .HorizontalOptions(LayoutOptions.Center)
+                                    .HCenter()
                             ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
                             : (State.HasLoadedProgressOnce
                                 ? FlexLayout(
@@ -1113,8 +1073,8 @@ public partial class ActivityBorder : MauiReactor.Component
         Border(
             Grid(
                 Label()
-                    .VerticalOptions(LayoutOptions.Center)
-                    .HorizontalOptions(LayoutOptions.Center)
+                    .VCenter()
+                    .HCenter()
                     .Text($"{_labelText}")
             )
             .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
@@ -1122,7 +1082,7 @@ public partial class ActivityBorder : MauiReactor.Component
         )
         .StrokeShape(Rectangle())
         .StrokeThickness(1)
-        .HorizontalOptions(LayoutOptions.Start)
+        .HStart()
         .OnTapped(async () =>
         {
             // Minimal Pairs activity launches directly into practice session

@@ -58,7 +58,7 @@ public partial class VocabProgressCard : Component
                 Label($"7d accuracy: {Math.Round(_summary.SuccessRate7d * 100)}%")
                     .TextColor(Colors.Gray)
                     .FontSize(12)
-                    .HorizontalOptions(LayoutOptions.Center)
+                    .HCenter()
             ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding);
     }
 

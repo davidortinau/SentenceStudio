@@ -193,8 +193,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         )
         .Spacing(8)
         .Padding(MyTheme.SectionSpacing)
-        .HorizontalOptions(LayoutOptions.End)
-        .VerticalOptions(LayoutOptions.Start)
+        .HEnd()
+        .VStart()
         .GridRowSpan(2);
 
     VisualNode RenderBottomNavigation() =>
@@ -261,7 +261,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             )
             .Spacing(MyTheme.ComponentSpacing)
             .Margin(0, MyTheme.ComponentSpacing)
-            .HorizontalOptions(LayoutOptions.Center)
+            .HCenter()
             : null;
 
     VisualNode RenderVocabularyWordStatusSync(VocabularyWord word)

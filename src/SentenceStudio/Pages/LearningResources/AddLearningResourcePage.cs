@@ -335,7 +335,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
 
                             Button($"{_localize["Save"]}")
                                 .OnClicked(SaveResource)
-                                .HorizontalOptions(LayoutOptions.Fill)
+                                .HFill()
                         )
                         .Padding(new Thickness(15))
                         .Spacing(MyTheme.LayoutSpacing)

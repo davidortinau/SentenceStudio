@@ -112,7 +112,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     )
                     .ThemeKey(MyTheme.InputWrapper)
                     .Padding(MyTheme.CardPadding)
-                    .HorizontalOptions(LayoutOptions.FillAndExpand),
+                    .HFill(),
 
                     // Inline audio play button - only show for saved words with text
                     State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
@@ -417,7 +417,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     .FontSize(20)
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
-                    .HorizontalOptions(LayoutOptions.FillAndExpand),
+                    .HFill(),
 
                 Label(string.Format($"{_localize["Selected"]}", State.SelectedResourceIds.Count))
                     .FontSize(12)
@@ -461,7 +461,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .TextColor(MyTheme.Gray600)
                             .MaxLines(2) :
                         null
-                ).VCenter().HorizontalOptions(LayoutOptions.FillAndExpand)
+                ).VCenter().HFill()
 
             )
         )

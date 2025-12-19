@@ -117,7 +117,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			.Stroke(MyTheme.Gray300),
 			HStack(
 				Button("Submit")
-					.HorizontalOptions(LayoutOptions.Fill)
+					.HFill()
 					.OnClicked(Submit),
 				Button(State.SelectedVoiceDisplayName)
 					.ThemeKey("Secondary")

@@ -26,7 +26,7 @@ public partial class ResourceProgressCard : Component
                                     Label(resource.Title)
                                         .FontSize(14)
                                         .FontAttributes(FontAttributes.Bold)
-                                        .HorizontalOptions(LayoutOptions.FillAndExpand),
+                                        .HFill(),
                                     Label($"{Math.Round(resource.Proficiency * 100)}%")
                                         .FontSize(12)
                                         .TextColor(GetProficiencyColor(resource.Proficiency))
@@ -45,7 +45,7 @@ public partial class ResourceProgressCard : Component
                                     Label($"{resource.Minutes} min")
                                         .FontSize(10)
                                         .TextColor(Colors.Gray)
-                                        .HorizontalOptions(LayoutOptions.End)
+                                        .HEnd()
                                 ).Spacing(MyTheme.ComponentSpacing)
                             ).Spacing(MyTheme.MicroSpacing).Padding(MyTheme.ComponentSpacing)
                         ).StrokeThickness(0.5).Stroke(Colors.LightGray).Margin(0, MyTheme.MicroSpacing)

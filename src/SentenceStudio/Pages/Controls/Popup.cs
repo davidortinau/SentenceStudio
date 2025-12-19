@@ -5,7 +5,7 @@ using MauiReactor.Internals;
 namespace SentenceStudio.Pages.Controls;
 
 [Scaffold(typeof(CommunityToolkit.Maui.Views.Popup))]
-partial class Popup 
+partial class Popup
 {
     protected override void OnAddChild(VisualNode widget, MauiControls.BindableObject childNativeControl)
     {
@@ -13,7 +13,7 @@ partial class Popup
         {
             Validate.EnsureNotNull(NativeControl);
             NativeControl.Content = content;
-        }    
+        }
 
         base.OnAddChild(widget, childNativeControl);
     }
@@ -68,7 +68,7 @@ class PopupHost : Component
     }
 
     void InitializePopup()
-    { 
+    {
         if (_isShown && MauiControls.Application.Current != null)
         {
             MauiControls.Application.Current?.Dispatcher.Dispatch(() =>
@@ -105,8 +105,8 @@ class PopupHost : Component
                 _onCloseAction?.Invoke(args);
                 _popup = null;
             })
-            .HorizontalOptions(LayoutOptions.Fill)
-            .VerticalOptions(LayoutOptions.Fill)
+            .HFill()
+            .VFill()
             : null!;
     }
 }

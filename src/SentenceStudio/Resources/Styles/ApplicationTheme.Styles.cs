@@ -111,14 +111,14 @@ partial class MyTheme
         LabelStyles.Themes[Headline] = _ => _
             .TextColor(TextPrimary)
             .FontSize(32)
-            .HorizontalOptions(LayoutOptions.Center)
+            .HCenter()
             .HorizontalTextAlignment(TextAlignment.Center)
             .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
         LabelStyles.Themes[SubHeadline] = _ => _
             .TextColor(TextPrimary)
             .FontSize(24)
-            .HorizontalOptions(LayoutOptions.Center)
+            .HCenter()
             .HorizontalTextAlignment(TextAlignment.Center)
             .VisualState("CommonStates", "Disable", MauiControls.Label.TextColorProperty, IsLightTheme ? Gray300 : Gray600);
 
@@ -215,8 +215,8 @@ partial class MyTheme
 
         BoxViewStyles.Themes[ShimmerCustomViewStyle] = _ => _
             .Background(Colors.Gray)
-            .HorizontalOptions(LayoutOptions.Fill)
-            .VerticalOptions(LayoutOptions.Center);
+            .HFill()
+            .VCenter();
 
         ImageButtonStyles.Default = _ => _
             .Background(Colors.Transparent);

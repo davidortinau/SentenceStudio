@@ -228,7 +228,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 ProgressBar()
                     .Progress(State.AudioGenerationProgress)
                     .ProgressColor(MyTheme.HighlightDarkest)
-                    .HorizontalOptions(LayoutOptions.FillAndExpand)
+                    .HFill()
                     .IsVisible(State.AudioGenerationProgress > 0)
             )
             .Spacing(MyTheme.Size120)
@@ -271,7 +271,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
                         _ = Task.Run(() => StartPlaybackFromSentence(sentenceIndex));
                     })
-                    .HorizontalOptions(LayoutOptions.FillAndExpand)
+            // .HFill()
             )
             .Spacing(MyTheme.Size160)
             .Padding(MyTheme.Size240)

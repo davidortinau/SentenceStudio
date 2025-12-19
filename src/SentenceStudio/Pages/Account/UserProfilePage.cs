@@ -202,13 +202,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Button($"{_localize["SaveToDevice"]}")
                                 .OnClicked(ExportDataToFile)
                                 .ImageSource(MyTheme.IconSave)
-                                .HorizontalOptions(LayoutOptions.FillAndExpand)
+                                .HFill()
                                 .Margin(0, 0, 5, 0),
 
                             Button($"{_localize["Share"]}")
                                 .OnClicked(ExportAndShare)
                                 .ImageSource(MyTheme.IconShare)
-                                .HorizontalOptions(LayoutOptions.FillAndExpand)
+                                .HFill()
                                 .Margin(5, 0, 0, 0)
                         ),
 
@@ -230,17 +230,17 @@ partial class UserProfilePage : Component<UserProfilePageState>
     async Task LoadProfile()
     {
         var profile = await _userProfileRepository.GetOrCreateDefaultAsync();
-        
+
         // Map minutes to index
         var sessionMinutesOptions = new[] { 5, 10, 15, 20, 25, 30, 45 };
         var sessionIndex = Array.IndexOf(sessionMinutesOptions, profile.PreferredSessionMinutes);
         if (sessionIndex == -1) sessionIndex = 3; // Default to 20 min
-        
+
         // Map CEFR level to index
         var cefrLevels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
         var cefrIndex = Array.IndexOf(cefrLevels, profile.TargetCEFRLevel);
         if (cefrIndex == -1) cefrIndex = 0; // Default to "Not Set"
-        
+
         SetState(s =>
         {
             s.ProfileID = profile.Id;

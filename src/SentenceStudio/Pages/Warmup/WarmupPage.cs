@@ -130,7 +130,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             .Background(MyTheme.LightBackground)
             .Padding(MyTheme.LayoutPadding)
             .Margin(MyTheme.LayoutPadding)
-            .HorizontalOptions(LayoutOptions.Fill)
+            .HFill()
             .MinimumWidthRequest(320)
         )
         .IsOpen(State.IsPhraseListShown);
@@ -152,7 +152,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             .Background(MyTheme.HighlightDarkest)
             .Stroke(MyTheme.HighlightDarkest)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 10, 2, 10))
-            .HorizontalOptions(LayoutOptions.Start);
+            .HStart();
         }
         else
         {
@@ -165,7 +165,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             .Background(MyTheme.HighlightMedium)
             .Stroke(MyTheme.HighlightMedium)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
-            .HorizontalOptions(LayoutOptions.End)
+            .HEnd()
             .OnTapped(() =>
             {
                 ShowExplanation(chunk);
@@ -207,12 +207,12 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                     })
             // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
             )
-            .Background(Colors.Transparent)
-            .Stroke(MyTheme.Gray300)
-            .StrokeShape(new RoundRectangle().CornerRadius(6))
-            .Padding(new Thickness(MyTheme.LayoutSpacing, 0))
-            .StrokeThickness(1)
-            .VerticalOptions(LayoutOptions.End),
+                .Background(Colors.Transparent)
+                .Stroke(MyTheme.Gray300)
+                .StrokeShape(new RoundRectangle().CornerRadius(6))
+                .Padding(new Thickness(MyTheme.LayoutSpacing, 0))
+                .StrokeThickness(1)
+                .VEnd(),
             Button()
                 .Background(MyTheme.Gray300)
                 .ImageSource(MyTheme.IconAdd)

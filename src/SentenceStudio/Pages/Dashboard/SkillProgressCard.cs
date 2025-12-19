@@ -22,7 +22,7 @@ public partial class SkillProgressCard : Component
                     Label(_skill.Title)
                         .FontSize(18)
                         .FontAttributes(FontAttributes.Bold)
-                        .HorizontalOptions(LayoutOptions.Center),
+                        .HCenter(),
 
                     // Circular progress indicator (simulated with a large progress bar)
                     VStack(
@@ -30,7 +30,7 @@ public partial class SkillProgressCard : Component
                             .FontSize(32)
                             .FontAttributes(FontAttributes.Bold)
                             .TextColor(GetProficiencyColor(_skill.Proficiency))
-                            .HorizontalOptions(LayoutOptions.Center),
+                            .HCenter(),
                         ProgressBar()
                             .Progress(_skill.Proficiency)
                             .ProgressColor(GetProficiencyColor(_skill.Proficiency))
@@ -47,12 +47,12 @@ public partial class SkillProgressCard : Component
                             .FontSize(12)
                             .FontAttributes(FontAttributes.Bold)
                             .TextColor(_skill.Delta7d >= 0 ? Colors.Green : Colors.Red)
-                    ).Spacing(MyTheme.MicroSpacing).HorizontalOptions(LayoutOptions.Center),
+                    ).Spacing(MyTheme.MicroSpacing).HCenter(),
 
                     Label($"Last activity: {_skill.LastActivityUtc.ToString("MMM dd")}")
                         .FontSize(10)
                         .TextColor(Colors.Gray)
-                        .HorizontalOptions(LayoutOptions.Center)
+                        .HCenter()
                         .Margin(0, MyTheme.ComponentSpacing, 0, 0)
                 ).Spacing(MyTheme.CardMargin)
             ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.LayoutSpacing)

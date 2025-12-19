@@ -75,8 +75,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 Image()
                     .Source(State.ImageUrl)
                     .Aspect(Aspect.AspectFit)
-                    .HorizontalOptions(LayoutOptions.Fill)
-                    .VerticalOptions(LayoutOptions.Start)
+                    .HFill()
+                    .VStart()
                     .Margin(MyTheme.Size160)
             ).GridColumn(0),
 
