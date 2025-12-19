@@ -50,23 +50,23 @@ partial class WaveformWithData : Component
             .Drawable(_drawable)
             .HeightRequest(_height);
     }
-    
+
     protected override void OnMounted()
     {
         base.OnMounted();
-        
+
         // Configure the drawable with our immutable properties
         _drawable.WaveColor = _waveColor;
         _drawable.PlayedColor = _playedColor;
         _drawable.Amplitude = _amplitude;
         _drawable.PlaybackPosition = _playbackPosition;
-        
+
         // Set the waveform data immediately
         if (_waveformData != null && _waveformData.Length > 0)
         {
             _drawable.UpdateWaveform(_waveformData);
         }
-        
+
         // Force an initial draw
         if (_graphicsViewRef != null)
         {
@@ -77,10 +77,10 @@ partial class WaveformWithData : Component
     protected override void OnPropsChanged()
     {
         base.OnPropsChanged();
-        
+
         // Update the playback position when props change
         _drawable.PlaybackPosition = _playbackPosition;
-        
+
         // Request a redraw
         if (MauiControls.Application.Current != null && _graphicsViewRef != null)
         {

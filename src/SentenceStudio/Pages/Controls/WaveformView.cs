@@ -25,16 +25,16 @@ partial class WaveformView : Component
     private MauiControls.GraphicsView _graphicsViewRef;
     private Action<float> _onPositionSelected;
     private Action _onInteractionStarted;
-    
-    
+
+
     // Constructor to ensure drawable is initialized
     public WaveformView()
     {
 
     }
-    
+
     // === Waveform Properties ===
-    
+
     /// <summary>
     /// Sets the amplitude multiplier for the waveform.
     /// </summary>
@@ -50,7 +50,7 @@ partial class WaveformView : Component
         ConfigureDrawable();
         return this;
     }
-    
+
     /// <summary>
     /// Sets the color of the waveform.
     /// </summary>
@@ -59,7 +59,7 @@ partial class WaveformView : Component
         _waveColor = color;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the color of the played portion of the waveform.
     /// </summary>
@@ -68,7 +68,7 @@ partial class WaveformView : Component
         _playedColor = color;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the current playback position as a value between 0 and 1.
     /// </summary>
@@ -77,7 +77,7 @@ partial class WaveformView : Component
         _playbackPosition = Math.Clamp(position, 0f, 1f);
         return this;
     }
-    
+
     /// <summary>
     /// Sets the number of samples to generate for the random waveform.
     /// </summary>
@@ -95,7 +95,7 @@ partial class WaveformView : Component
         _height = height;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the audio Id to track when the audio source has changed.
     /// Use this to reset the waveform when playing a different audio source.
@@ -105,13 +105,13 @@ partial class WaveformView : Component
         if (_audioId != audioId)
         {
             _audioId = audioId;
-            
+
             // Configure the new drawable with current settings
             ConfigureDrawable();
         }
         return this;
     }
-    
+
     /// <summary>
     /// Sets the StreamHistory item to display its waveform data.
     /// This overrides the auto-generation of random data.
@@ -125,7 +125,7 @@ partial class WaveformView : Component
         }
         return this;
     }
-    
+
     /// <summary>
     /// Sets the duration of the audio in seconds.
     /// This is used to scale the waveform properly based on audio length.
@@ -135,7 +135,7 @@ partial class WaveformView : Component
         _audioDuration = duration;
         return this;
     }
-    
+
     /// <summary>
     /// Sets how many pixels represent one second of audio.
     /// Higher values mean more detailed but wider waveforms.
@@ -145,9 +145,9 @@ partial class WaveformView : Component
         _pixelsPerSecond = pixelsPerSecond;
         return this;
     }
-    
+
     // === TimeScale Properties ===
-    
+
     /// <summary>
     /// Sets whether to show the timescale.
     /// </summary>
@@ -156,7 +156,7 @@ partial class WaveformView : Component
         _showTimeScale = show;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the color of tick marks on the time scale.
     /// </summary>
@@ -165,7 +165,7 @@ partial class WaveformView : Component
         _tickColor = color;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the color of text labels on the time scale.
     /// </summary>
@@ -183,7 +183,7 @@ partial class WaveformView : Component
         _onPositionSelected = callback;
         return this;
     }
-    
+
     /// <summary>
     /// Sets the callback to be invoked when the user starts interacting with the waveform.
     /// </summary>
@@ -227,20 +227,20 @@ partial class WaveformView : Component
             return;
 
         // Calculate the position as a value between 0 and 1 based on drag location
-        if (sender is MauiControls.GraphicsView graphicsView && 
+        if (sender is MauiControls.GraphicsView graphicsView &&
             graphicsView.Width > 0)
         {
             var position = args.Touches[0];
-            
+
             // Get the total waveform width which may be different from the view width
             float totalWidth = _drawable?.TotalWidth ?? (float)graphicsView.Width;
-            
+
             // Get the X position, accounting for scrolling in a scroll view parent
             float touchX = (float)position.X;
-            
+
             // Calculate normalized position based on the total audio width, not just the visible width
             float normalizedPosition;
-            
+
             if (_audioDuration > 0)
             {
                 // If we have a valid duration, calculate position based on the total audio duration
@@ -252,16 +252,16 @@ partial class WaveformView : Component
                 // Fallback to using the view width if no duration is available
                 normalizedPosition = touchX / (float)graphicsView.Width;
             }
-            
+
             // Clamp the value between 0 and 1
             normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
-            
+
             // Update the drawable's position directly for immediate visual feedback
             _drawable.PlaybackPosition = normalizedPosition;
-            
+
             // Request a redraw
             graphicsView.Invalidate();
-            
+
             // Invoke the callback with the selected position
             _onPositionSelected(normalizedPosition);
         }
@@ -278,20 +278,20 @@ partial class WaveformView : Component
             return;
 
         // Calculate the position as a value between 0 and 1 based on tap location
-        if (sender is MauiControls.GraphicsView graphicsView && 
+        if (sender is MauiControls.GraphicsView graphicsView &&
             graphicsView.Width > 0)
         {
             var position = args.Touches[0];
-            
+
             // Get the total waveform width which may be different from the view width
             float totalWidth = _drawable?.TotalWidth ?? (float)graphicsView.Width;
-            
+
             // Get the X position, accounting for scrolling in a scroll view parent
             float touchX = (float)position.X;
-            
+
             // Calculate normalized position based on the total audio width, not just the visible width
             float normalizedPosition;
-            
+
             if (_audioDuration > 0)
             {
                 // If we have a valid duration, calculate position based on the total audio duration
@@ -303,16 +303,16 @@ partial class WaveformView : Component
                 // Fallback to using the view width if no duration is available
                 normalizedPosition = touchX / (float)graphicsView.Width;
             }
-            
+
             // Clamp the value between 0 and 1
             normalizedPosition = Math.Clamp(normalizedPosition, 0f, 1f);
-            
+
             // Update the drawable's position directly for immediate visual feedback
             _drawable.PlaybackPosition = normalizedPosition;
-            
+
             // Request a redraw
             graphicsView.Invalidate();
-            
+
             // Invoke the callback with the selected position
             _onPositionSelected(normalizedPosition);
         }
@@ -337,14 +337,14 @@ partial class WaveformView : Component
         _drawable.TextColor = _textColor;
         _drawable.UpdateWaveform(_waveformData, _audioDuration);
     }
-    
+
     protected override void OnMounted()
     {
         base.OnMounted();
-        
+
         // Configure the drawable
         ConfigureDrawable();
-        
+
         // Use StreamHistory waveform data if available
         if (_streamHistory != null && _streamHistory.IsWaveformAnalyzed)
         {
@@ -352,12 +352,12 @@ partial class WaveformView : Component
             _drawable.UpdateWaveform(_streamHistory.WaveformData, _streamHistory.Duration);
             _streamHistoryChanged = false;
         }
-        
+
         if (_waveformData != null && _waveformData.Length > 0)
         {
             _drawable.UpdateWaveform(_waveformData);
         }
-        
+
         // Force an initial draw
         if (_graphicsViewRef != null)
         {
@@ -368,17 +368,17 @@ partial class WaveformView : Component
     protected override void OnPropsChanged()
     {
         base.OnPropsChanged();
-        
+
         // Update the drawable properties when they change
         ConfigureDrawable();
-        
+
         // Update with StreamHistory data if it changed
         if (_streamHistoryChanged && _streamHistory != null && _streamHistory.IsWaveformAnalyzed)
         {
             _drawable.UpdateWaveform(_streamHistory.WaveformData, _streamHistory.Duration);
             _streamHistoryChanged = false;
         }
-        
+
         // Request a redraw
         if (MauiControls.Application.Current != null && _graphicsViewRef != null)
         {
@@ -388,7 +388,7 @@ partial class WaveformView : Component
             });
         }
     }
-    
+
     /// <summary>
     /// Updates the waveform with the provided audio data.
     /// </summary>
@@ -397,16 +397,16 @@ partial class WaveformView : Component
     public void UpdateWaveform(float[] audioData, double duration = 0)
     {
         _drawable.UpdateWaveform(audioData, duration);
-        
+
         if (duration > 0)
         {
             _audioDuration = duration;
         }
-        
+
         // Request a redraw
         if (MauiControls.Application.Current != null && _graphicsViewRef != null)
         {
-            MauiControls.Application.Current.Dispatcher.Dispatch(() => 
+            MauiControls.Application.Current.Dispatcher.Dispatch(() =>
             {
                 _graphicsViewRef?.Invalidate();
             });
@@ -421,11 +421,11 @@ partial class WaveformView : Component
     public void UpdatePlaybackPosition(float position)
     {
         _drawable.PlaybackPosition = Math.Clamp(position, 0f, 1f);
-        
+
         // Request a redraw on the UI thread
         if (MauiControls.Application.Current != null && _graphicsViewRef != null)
         {
-            MauiControls.Application.Current.Dispatcher.Dispatch(() => 
+            MauiControls.Application.Current.Dispatcher.Dispatch(() =>
             {
                 _graphicsViewRef?.Invalidate();
             });
