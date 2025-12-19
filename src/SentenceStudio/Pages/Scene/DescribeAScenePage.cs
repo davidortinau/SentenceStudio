@@ -80,7 +80,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .Margin(MyTheme.Size160)
             ).GridColumn(0),
 
-            VStack(spacing: 8,
+            Grid(
                 CollectionView()
                     .ItemsSource(State.Sentences, RenderSentence)
                     .Header(

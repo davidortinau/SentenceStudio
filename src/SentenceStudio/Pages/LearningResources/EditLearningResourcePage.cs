@@ -11,6 +11,7 @@ class EditLearningResourceState
     public bool IsLoading { get; set; } = true;
     public bool IsEditing { get; set; } = false;
     public bool IsVocabularySheetVisible { get; set; } = false;
+    public bool IsVocabularyBottomSheetOpen { get; set; } = false;
     public VocabularyWord CurrentVocabularyWord { get; set; } = new();
     public bool IsAddingNewWord { get; set; } = false;
     public int MediaTypeIndex { get; set; } = 0;
@@ -108,7 +109,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                 .HCenter()
                                 .Padding(30)
                             )
-                            : null
+                            : null,
+
+                        // Vocabulary bottom sheet
+                        RenderVocabularyBottomSheet()
                     )
             )
         ).OnAppearing(LoadResource);
@@ -261,68 +265,151 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .Spacing(MyTheme.ComponentSpacing) :
                 null,
 
-            // Vocabulary section - always show for all media types
-            VStack(
-                Grid(
-                    Label("Vocabulary")
-                        .FontAttributes(FontAttributes.Bold)
-                        .FontSize(18)
-                        .GridColumn(0),
-
-                    // Generate button only for editable resources
-                    IsEditable ?
-                        HStack(
-                            Button("Generate")
-                                .ThemeKey("Secondary")
-                                .OnClicked(GenerateVocabulary)
-                                .IsEnabled(!State.IsGeneratingVocabulary)
-                                .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
-
-                            ActivityIndicator()
-                                .IsRunning(State.IsGeneratingVocabulary)
-                                .IsVisible(State.IsGeneratingVocabulary)
-                                .Scale(0.8)
-                        )
-                        .Spacing(MyTheme.ComponentSpacing)
-                        .GridColumn(1)
-                        .HEnd() : null
-                )
-                .Columns("*, Auto"),
-
-                State.Resource.Vocabulary?.Count > 0 ?
-                    CollectionView()
-                        .SelectionMode(SelectionMode.None)
-                        .ItemsSource(State.Resource.Vocabulary, word =>
-                            Border(
-                                Grid(
-                                    VStack(
-                                        Label(word.TargetLanguageTerm)
-                                            .FontAttributes(FontAttributes.Bold)
-                                            .FontSize(16),
-
-                                        Label(word.NativeLanguageTerm)
-                                            .FontSize(14)
-                                    )
-                                    .Spacing(MyTheme.MicroSpacing)
-                                )
-                                .Padding(MyTheme.ComponentSpacing)
-                            )
-                            .Stroke(Colors.LightGray)
-                            .StrokeThickness(1)
-                            .StrokeShape(new RoundRectangle().CornerRadius(5))
-                            .Margin(new Thickness(0, 0, 0, 5))
-                        ) :
-                    State.IsGeneratingVocabulary ?
-                        Label("Analyzing transcript and generating vocabulary...")
-                            .FontSize(14)
-                            .TextColor(Colors.Gray) :
-                        Label("No vocabulary words have been added yet. Use Generate to extract from transcript or add words manually in Edit mode.")
-                            .FontSize(14)
-                            .TextColor(Colors.Gray)
-            )
-            .Spacing(10)
+            // Vocabulary section - button to open bottom sheet
+            RenderVocabularySection()
         )
         .Spacing(MyTheme.LayoutSpacing);
+    }
+
+    private VisualNode RenderVocabularySection()
+    {
+        var vocabCount = State.Resource.Vocabulary?.Count ?? 0;
+
+        return VStack(
+            Grid(
+                // Vocabulary button with count - opens bottom sheet
+                Button()
+                    .Text(vocabCount > 0
+                        ? $"📚 Vocabulary ({vocabCount} terms)"
+                        : "📚 Vocabulary (0 terms)")
+                    .FontAttributes(FontAttributes.Bold)
+                    .FontSize(16)
+                    .ThemeKey(MyTheme.Secondary)
+                    .OnClicked(() => SetState(s => s.IsVocabularyBottomSheetOpen = true))
+                    .IsEnabled(!State.IsGeneratingVocabulary)
+                    .GridColumn(0)
+                    .HStart(),
+
+                // Generate button only for editable resources
+                IsEditable ?
+                    HStack(
+                        Button($"{_localize["Generate"]}")
+                            .ThemeKey(MyTheme.Secondary)
+                            .OnClicked(GenerateVocabulary)
+                            .IsEnabled(!State.IsGeneratingVocabulary)
+                            .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
+
+                        ActivityIndicator()
+                            .IsRunning(State.IsGeneratingVocabulary)
+                            .IsVisible(State.IsGeneratingVocabulary)
+                            .Scale(0.8)
+                    )
+                    .Spacing(MyTheme.ComponentSpacing)
+                    .GridColumn(1)
+                    .HEnd() : null
+            )
+            .Columns("*, Auto"),
+
+            State.IsGeneratingVocabulary ?
+                Label("Analyzing transcript and generating vocabulary...")
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.SecondaryText) :
+                vocabCount == 0 ?
+                    Label("No vocabulary words yet. Tap Generate to extract from transcript.")
+                        .ThemeKey(MyTheme.Caption1)
+                        .TextColor(MyTheme.SecondaryText) :
+                    null
+        )
+        .Spacing(MyTheme.MicroSpacing);
+    }
+
+    private VisualNode RenderVocabularyBottomSheet()
+    {
+        var vocabCount = State.Resource.Vocabulary?.Count ?? 0;
+
+        return new SfBottomSheet(
+            Grid(rows: "Auto,*", columns: "*",
+                // Header
+                Grid(rows: "Auto", columns: "Auto,*,Auto",
+                    Button($"{_localize["Close"]}")
+                        .TextColor(MyTheme.DarkOnLightBackground)
+                        .Background(Colors.Transparent)
+                        .OnClicked(() => SetState(s => s.IsVocabularyBottomSheetOpen = false))
+                        .GridColumn(0),
+
+                    Label($"📚 Vocabulary ({vocabCount} terms)")
+                        .FontSize(20)
+                        .FontAttributes(FontAttributes.Bold)
+                        .HCenter()
+                        .VCenter()
+                        .GridColumn(1),
+
+                    // Add word button for editable resources
+                    IsEditable && State.IsEditing ?
+                        Button($"{_localize["Add"]}")
+                            .ThemeKey(MyTheme.PrimaryButton)
+                            .OnClicked(() =>
+                            {
+                                SetState(s =>
+                                {
+                                    s.CurrentVocabularyWord = new VocabularyWord();
+                                    s.IsAddingNewWord = true;
+                                    s.IsVocabularySheetVisible = true;
+                                    s.IsVocabularyBottomSheetOpen = false;
+                                });
+                            })
+                            .GridColumn(2) :
+                        null
+                )
+                .Margin(0, 0, 0, MyTheme.ComponentSpacing)
+                .GridRow(0),
+
+                // Vocabulary list in constrained row
+                vocabCount > 0 ?
+                    CollectionView()
+                        .SelectionMode(SelectionMode.None)
+                        .ItemsSource(State.Resource.Vocabulary, RenderVocabularyItem)
+                        .GridRow(1) :
+                    VStack(
+                        Label("No vocabulary words yet.")
+                            .ThemeKey(MyTheme.Body1)
+                            .TextColor(MyTheme.SecondaryText)
+                            .HCenter()
+                    )
+                    .VCenter()
+                    .GridRow(1)
+            )
+            .Padding(MyTheme.CardPadding)
+        )
+        .IsOpen(State.IsVocabularyBottomSheetOpen)
+        .HalfExpandedRatio(0.6)
+        .OnStateChanged((sender, args) =>
+        {
+            if (!State.IsVocabularyBottomSheetOpen) return;
+            SetState(s => s.IsVocabularyBottomSheetOpen = false);
+        });
+    }
+
+    private VisualNode RenderVocabularyItem(VocabularyWord word)
+    {
+        return Border(
+            Grid(
+                VStack(
+                    Label(word.TargetLanguageTerm)
+                        .FontAttributes(FontAttributes.Bold)
+                        .FontSize(16),
+
+                    Label(word.NativeLanguageTerm)
+                        .FontSize(14)
+                )
+                .Spacing(MyTheme.MicroSpacing)
+            )
+            .Padding(MyTheme.ComponentSpacing)
+        )
+        .Stroke(MyTheme.ItemBorder)
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(5))
+        .Margin(new Thickness(0, 0, 0, 5));
     }
 
     private VisualNode RenderEditMode()
@@ -520,9 +607,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 )
                 .Spacing(MyTheme.Size320),
 
-                CollectionView()
-                    .SelectionMode(SelectionMode.None)
-                    .ItemsSource(State.Resource.Vocabulary, word =>
+                VStack(
+                    State.Resource.Vocabulary?.Select(word =>
                         Border(
                             Grid(
                                 VStack(
@@ -556,7 +642,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .StrokeThickness(1)
                         .StrokeShape(new RoundRectangle().CornerRadius(5))
                         .Margin(new Thickness(0, 0, 0, 5))
-                    )
+                    ).ToArray() ?? Array.Empty<VisualNode>()
+                )
+                .Spacing(MyTheme.MicroSpacing)
             )
             .Spacing(MyTheme.LayoutSpacing)
         )
