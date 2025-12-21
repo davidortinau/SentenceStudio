@@ -1127,6 +1127,14 @@ public partial class ActivityBorder : MauiReactor.Component
                 return;
             }
 
+            // HowDoYouSay doesn't require resources or skill - navigate directly
+            if (_route == "howdoyousay")
+            {
+                _logger.LogDebug("🏴‍☠️ ActivityBorder: Navigating to HowDoYouSay");
+                await MauiControls.Shell.Current.GoToAsync(_route);
+                return;
+            }
+
             // 🏴‍☠️ Validate that we have the required selections before navigating
             if (_parameters.Value.SelectedResources?.Any() != true)
             {

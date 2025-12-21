@@ -21,7 +21,7 @@ class HowDoYouSayPageState
 	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
 
 	public string SelectedVoiceDisplayName =>
-		VoiceDisplayNames.ContainsKey(SelectedVoiceId) ?
+		!string.IsNullOrEmpty(SelectedVoiceId) && VoiceDisplayNames.ContainsKey(SelectedVoiceId) ?
 		VoiceDisplayNames[SelectedVoiceId] : "Ji-Young";
 
 	// Export-related properties
