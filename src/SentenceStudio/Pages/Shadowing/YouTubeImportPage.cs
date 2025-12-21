@@ -38,7 +38,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 ScrollView(
                     VStack(spacing: MyTheme.LayoutSpacing,
                         Label($"{_localize["ImportAudioClipFromYouTube"]}")
-                        .ThemeKey("Title"),
+                        .ThemeKey(MyTheme.Title),
 
                     new SfTextInputLayout
                     {

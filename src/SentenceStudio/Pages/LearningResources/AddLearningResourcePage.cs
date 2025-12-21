@@ -206,7 +206,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnCheckedChanged(e =>
                                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                                     Button($"{_localize["ImportVocabulary"]}")
-                                        .ThemeKey("Secondary")
+                                        .ThemeKey(MyTheme.Secondary)
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )
@@ -317,7 +317,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnCheckedChanged(e =>
                                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                                     Button($"{_localize["ImportVocabulary"]}")
-                                        .ThemeKey("Secondary")
+                                        .ThemeKey(MyTheme.Secondary)
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )

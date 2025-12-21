@@ -271,14 +271,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             VStack(spacing: MyTheme.Size160,
                 // Only show target language text (Korean/Spanish/etc.)
                 Label(State.CurrentSentenceText)
-                    .ThemeKey("LargeTitle")
+                    .ThemeKey(MyTheme.LargeTitle)
                     .HCenter()
                     .Margin(MyTheme.Size160),
 
                 // Show pronunciation notes if available (from AI-generated sentences)
                 !string.IsNullOrWhiteSpace(State.CurrentSentencePronunciationNotes)
                     ? Label(State.CurrentSentencePronunciationNotes)
-                        .ThemeKey("Title3")
+                        .ThemeKey(MyTheme.Title3)
                         .HCenter()
                         .TextColor(MyTheme.SecondaryText)
                         .Margin(MyTheme.Size160)
@@ -513,7 +513,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Narrow layout - just show a menu button that opens bottom sheet with all controls
                 Button()
                     .ImageSource(MyTheme.IconMore)
-                    .ThemeKey("Secondary")
+                    .ThemeKey(MyTheme.Secondary)
                     .HeightRequest(35)
                     .WidthRequest(35)
                     .Padding(0)
@@ -526,7 +526,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 HStack(
                     Button()
                         .ImageSource(MyTheme.IconSave)
-                        .ThemeKey("Secondary")
+                        .ThemeKey(MyTheme.Secondary)
                         .HeightRequest(35)
                         .WidthRequest(35)
                         .Padding(0)
@@ -573,7 +573,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
                         }),
                         Button(State.SelectedVoiceDisplayName)
-                            .ThemeKey("Secondary")
+                            .ThemeKey(MyTheme.Secondary)
                             .VCenter()
                             .OnClicked(ShowVoiceSelection)
 
@@ -682,7 +682,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HStart(),
 
                         Button(State.SelectedVoiceDisplayName)
-                            .ThemeKey("Secondary")
+                            .ThemeKey(MyTheme.Secondary)
                             .OnClicked(() =>
                             {
                                 // Close this menu and open voice selection
@@ -704,7 +704,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HStart(),
 
                         Button("Save as MP3")
-                            .ThemeKey("Secondary")
+                            .ThemeKey(MyTheme.Secondary)
                             .OnClicked(() =>
                             {
                                 // Close this menu and save audio
@@ -772,7 +772,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     ) :
                     VStack(
                         Button("Save as MP3")
-                            .ThemeKey("Primary")
+                            .ThemeKey(MyTheme.PrimaryButton)
                             .OnClicked(SaveAudioAsMp3)
                             .Margin(0, 0, 0, MyTheme.ComponentSpacing),
 

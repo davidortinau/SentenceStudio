@@ -76,7 +76,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                             .OnClicked(SaveWord),
 
                         Button("Cancel")
-                            .ThemeKey("Secondary")
+                            .ThemeKey(MyTheme.Secondary)
                             .OnClicked(Cancel)
                     )
                     .Spacing(10)

@@ -120,7 +120,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.HFill()
 					.OnClicked(Submit),
 				Button(State.SelectedVoiceDisplayName)
-					.ThemeKey("Secondary")
+					.ThemeKey(MyTheme.Secondary)
 					.HEnd()
 					.OnClicked(ShowVoiceSelection)
 			).Spacing(MyTheme.Size240).HEnd()

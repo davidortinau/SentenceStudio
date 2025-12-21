@@ -478,7 +478,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             columns: Props.VocabularyWordId > 0 ? "*,Auto" : "*",
             // Save/Add button on the left
             Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
-                .ThemeKey("Primary")
+                .ThemeKey(MyTheme.PrimaryButton)
                 .OnClicked(SaveVocabularyWord)
                 .IsEnabled(!State.IsSaving &&
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&

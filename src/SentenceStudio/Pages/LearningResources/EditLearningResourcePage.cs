@@ -230,12 +230,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             Button("Clean Up Format")
                                 .OnClicked(CleanUpTranscript)
                                 .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                                .ThemeKey("Secondary"),
+                                .ThemeKey(MyTheme.Secondary),
 
                             Button("Polish with AI")
                                 .OnClicked(PolishTranscriptWithAi)
                                 .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                                .ThemeKey("Secondary")
+                                .ThemeKey(MyTheme.Secondary)
                         )
                         .Spacing(MyTheme.ComponentSpacing)
                         .HStart() : null,
@@ -549,11 +549,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                 HStack(
                     Button("+ Add Word")
-                        .ThemeKey("Secondary")
+                        .ThemeKey(MyTheme.Secondary)
                         .OnClicked(AddVocabularyWord),
 
                     Button("Generate")
-                        .ThemeKey("Secondary")
+                        .ThemeKey(MyTheme.Secondary)
                         .OnClicked(GenerateVocabulary)
                         .IsEnabled(!State.IsGeneratingVocabulary)
                         .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
@@ -601,7 +601,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnCheckedChanged(e =>
                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                     Button("Import")
-                        .ThemeKey("Secondary")
+                        .ThemeKey(MyTheme.Secondary)
                         .OnClicked(ImportVocabulary)
                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                 )
@@ -625,11 +625,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                 HStack(
                                     Button("Edit")
                                         .OnClicked(() => EditVocabularyWord(word))
-                                        .ThemeKey("Secondary"),
+                                        .ThemeKey(MyTheme.Secondary),
 
                                     Button("Delete")
                                         .OnClicked(() => DeleteVocabularyWord(word))
-                                        .ThemeKey("Secondary")
+                                        .ThemeKey(MyTheme.Secondary)
                                 )
                                 .GridColumn(1)
                                 .HEnd()

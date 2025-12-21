@@ -288,11 +288,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .VCenter()
                         .HFill(),
                     Button($"{_localize["Delete"]}")
-                        .ThemeKey("Danger")
+                        .ThemeKey(MyTheme.Danger)
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
                     Button($"{_localize["Associate"]}")
-                        .ThemeKey("Primary")
+                        .ThemeKey(MyTheme.PrimaryButton)
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 )
@@ -316,7 +316,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
                 !State.AllVocabularyItems.Any() ?
                     Button($"{_localize["GetStarted"]}")
-                        .ThemeKey("Primary")
+                        .ThemeKey(MyTheme.PrimaryButton)
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :
