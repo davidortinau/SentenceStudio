@@ -173,7 +173,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	VisualNode LoadingOverlay() =>
 		Grid(
 			Label("Thinking.....")
-				.FontSize(64)
+				.ThemeKey(MyTheme.Display)
 				.TextColor(Theme.IsLightTheme ?
 					MyTheme.DarkOnLightBackground :
 					MyTheme.LightOnDarkBackground)
@@ -189,13 +189,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				VStack(spacing: MyTheme.LayoutSpacing,
 					// Header
 					Label("📚 Session Complete!")
-						.FontSize(24)
-						.FontAttributes(FontAttributes.Bold)
+						.ThemeKey(MyTheme.Title1)
 						.TextColor(MyTheme.HighlightDarkest)
 						.Center(),
 
 					Label("Great work! Here's your progress:")
-						.FontSize(16)
+						.ThemeKey(MyTheme.Body1)
 						.Center()
 						.TextColor(Theme.IsLightTheme ?
 							MyTheme.DarkOnLightBackground :
@@ -205,40 +204,36 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					Border(
 						VStack(spacing: MyTheme.CardMargin,
 							Label("📊 Session Results")
-								.FontSize(18)
-								.FontAttributes(FontAttributes.Bold)
+								.ThemeKey(MyTheme.Title3)
 								.Center()
 								.TextColor(MyTheme.HighlightDarkest),
 
 							HStack(spacing: MyTheme.SectionSpacing,
 								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{State.SessionCorrectCount}")
-										.FontSize(32)
-										.FontAttributes(FontAttributes.Bold)
+										.ThemeKey(MyTheme.Headline)
 										.TextColor(MyTheme.Success)
 										.Center(),
 									Label("Correct")
-										.FontSize(14)
+										.ThemeKey(MyTheme.Body2)
 										.Center()
 								),
 								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{State.SessionTotalCount - State.SessionCorrectCount}")
-										.FontSize(32)
-										.FontAttributes(FontAttributes.Bold)
+										.ThemeKey(MyTheme.Headline)
 										.TextColor(MyTheme.Error)
 										.Center(),
 									Label("Incorrect")
-										.FontSize(14)
+										.ThemeKey(MyTheme.Body2)
 										.Center()
 								),
 								VStack(spacing: MyTheme.MicroSpacing,
 									Label($"{(State.SessionTotalCount > 0 ? (int)((float)State.SessionCorrectCount / State.SessionTotalCount * 100) : 0)}%")
-										.FontSize(32)
-										.FontAttributes(FontAttributes.Bold)
+										.ThemeKey(MyTheme.Headline)
 										.TextColor(MyTheme.HighlightDarkest)
 										.Center(),
 									Label("Accuracy")
-										.FontSize(14)
+										.ThemeKey(MyTheme.Body2)
 										.Center()
 								)
 							).Center()
@@ -253,7 +248,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 					// Sentences review
 					Label($"You practiced {State.SessionTotalCount} sentence{(State.SessionTotalCount == 1 ? "" : "s")}")
-						.FontSize(14)
+						.ThemeKey(MyTheme.Body2)
 						.Center()
 						.TextColor(Theme.IsLightTheme ?
 							MyTheme.DarkOnLightBackground :

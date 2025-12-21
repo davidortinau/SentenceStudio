@@ -208,7 +208,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     VisualNode LoadingOverlay() =>
         Grid(
             Label($"{_localize["LoadingVocabulary"]}")
-                .FontSize(DeviceInfo.Platform == DevicePlatform.WinUI ? 64 : 32)
+                .ThemeKey(MyTheme.Display)
                 .TextColor(Theme.IsLightTheme ?
                     MyTheme.DarkOnLightBackground :
                     MyTheme.LightOnDarkBackground)
@@ -224,13 +224,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 VStack(spacing: MyTheme.LayoutSpacing,
                     // Header - show round summary or session summary
                     Label($"📚 {(State.CurrentRound > 0 && State.SessionSummaryItems.Count <= VocabularyQuizPageState.TurnsPerRound ? $"Round {State.CurrentRound} Summary" : $"Session Summary")}")
-                        .FontSize(24)
-                        .FontAttributes(FontAttributes.Bold)
+                        .ThemeKey(MyTheme.Title1)
                         .TextColor(MyTheme.HighlightDarkest)
                         .Center(),
 
                     Label($"{_localize["ReviewVocabularyStudied"]}")
-                        .FontSize(16)
+                        .ThemeKey(MyTheme.Body1)
                         .Center()
                         .TextColor(Theme.IsLightTheme ?
                             MyTheme.DarkOnLightBackground :
@@ -247,8 +246,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                             // Round progress indicator
                             VStack(spacing: 4,
                                 Label($"{_localize["SessionProgress"]}")
-                                    .FontSize(16)
-                                    .FontAttributes(FontAttributes.Bold)
+                                    .ThemeKey(MyTheme.Body1Strong)
                                     .Center()
                                     .TextColor(MyTheme.HighlightDarkest),
 
@@ -256,34 +254,31 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                                 HStack(spacing: 20,
                                     VStack(spacing: 2,
                                         Label($"{State.RoundsCompleted}")
-                                            .FontSize(18)
-                                            .FontAttributes(FontAttributes.Bold)
+                                            .ThemeKey(MyTheme.Title3)
                                             .TextColor(MyTheme.HighlightDarkest)
                                             .Center(),
                                         Label($"{_localize["RoundsCompleted"]}")
-                                            .FontSize(11)
+                                            .ThemeKey(MyTheme.Caption2)
                                             .Center()
                                             .TextColor(MyTheme.SecondaryText)
                                     ),
                                     VStack(spacing: 2,
                                         Label($"{State.WordsMasteredThisSession}")
-                                            .FontSize(18)
-                                            .FontAttributes(FontAttributes.Bold)
+                                            .ThemeKey(MyTheme.Title3)
                                             .TextColor(MyTheme.Success)
                                             .Center(),
                                         Label($"{_localize["WordsMastered"]}")
-                                            .FontSize(11)
+                                            .ThemeKey(MyTheme.Caption2)
                                             .Center()
                                             .TextColor(MyTheme.SecondaryText)
                                     ),
                                     VStack(spacing: 2,
                                         Label($"{State.TotalTurnsCompleted}")
-                                            .FontSize(18)
-                                            .FontAttributes(FontAttributes.Bold)
+                                            .ThemeKey(MyTheme.Title3)
                                             .TextColor(MyTheme.HighlightMedium)
                                             .Center(),
                                         Label($"{_localize["TotalTurns"]}")
-                                            .FontSize(11)
+                                            .ThemeKey(MyTheme.Caption2)
                                             .Center()
                                             .TextColor(MyTheme.SecondaryText)
                                     )
@@ -292,40 +287,36 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                             .Margin(0, 0, 0, 16),
 
                             Label($"{_localize["RoundPerformance"]}")
-                                .FontSize(18)
-                                .FontAttributes(FontAttributes.Bold)
+                                .ThemeKey(MyTheme.Title3)
                                 .Center()
                                 .TextColor(MyTheme.HighlightDarkest),
 
                             HStack(spacing: 20,
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => (i.QuizRecognitionStreak >= 3 && i.QuizProductionStreak >= 3) || i.ReadyToRotateOut)}")
-                                        .FontSize(20)
-                                        .FontAttributes(FontAttributes.Bold)
+                                        .ThemeKey(MyTheme.Title2)
                                         .TextColor(MyTheme.Success)
                                         .Center(),
                                     Label($"{_localize["Strong"]}")
-                                        .FontSize(12)
+                                        .ThemeKey(MyTheme.Caption1)
                                         .Center()
                                 ),
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => !i.ReadyToRotateOut && (i.QuizRecognitionStreak > 0 || i.QuizProductionStreak > 0))}")
-                                        .FontSize(20)
-                                        .FontAttributes(FontAttributes.Bold)
+                                        .ThemeKey(MyTheme.Title2)
                                         .TextColor(MyTheme.Warning)
                                         .Center(),
                                     Label($"{_localize["Learning"]}")
-                                        .FontSize(12)
+                                        .ThemeKey(MyTheme.Caption1)
                                         .Center()
                                 ),
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => i.QuizRecognitionStreak == 0 && i.QuizProductionStreak == 0)}")
-                                        .FontSize(20)
-                                        .FontAttributes(FontAttributes.Bold)
+                                        .ThemeKey(MyTheme.Title2)
                                         .TextColor(MyTheme.Error)
                                         .Center(),
                                     Label($"{_localize["NeedsWork"]}")
-                                        .FontSize(12)
+                                        .ThemeKey(MyTheme.Caption1)
                                         .Center()
                                 )
                             ).Center()

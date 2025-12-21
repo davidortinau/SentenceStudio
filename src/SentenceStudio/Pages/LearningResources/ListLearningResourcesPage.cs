@@ -77,7 +77,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .WidthRequest(30),
                                             Label("Creating starter vocabulary...")
                                                 .HCenter()
-                                                .FontSize(14)
+                                                .ThemeKey(MyTheme.Body2)
                                                 .TextColor(MyTheme.SecondaryText)
                                         )
                                         .Spacing(MyTheme.ComponentSpacing) :
@@ -118,8 +118,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                 // Title and info
                 Label(resource.Title)
-                    .FontSize(18)
-                    .FontAttributes(FontAttributes.Bold)
+                    .ThemeKey(MyTheme.Title3)
                     .GridColumn(1)
                     .GridRow(0)
                     .LineBreakMode(LineBreakMode.TailTruncation),
@@ -128,32 +127,32 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     // Smart resource indicator
                     resource.IsSmartResource
                         ? Label("⚡")
-                            .FontSize(12)
+                            .ThemeKey(MyTheme.Caption1)
                             .Margin(new Thickness(0, 0, MyTheme.MicroSpacing, 0))
                         : null,
 
                     Label(resource.MediaType)
-                        .FontSize(12)
+                        .ThemeKey(MyTheme.Caption1)
                         .TextColor(MyTheme.SecondaryText),
 
                     Label("•")
-                        .FontSize(12)
+                        .ThemeKey(MyTheme.Caption1)
                         .TextColor(MyTheme.SecondaryText)
                         .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
 
                     Label(resource.Language)
-                        .FontSize(12)
+                        .ThemeKey(MyTheme.Caption1)
                         .TextColor(MyTheme.SecondaryText),
 
                     // System-generated badge for smart resources
                     resource.IsSmartResource
                         ? HStack(
                             Label("•")
-                                .FontSize(12)
+                                .ThemeKey(MyTheme.Caption1)
                                 .TextColor(MyTheme.SecondaryText)
                                 .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
                             Label("Auto-updated")
-                                .FontSize(12)
+                                .ThemeKey(MyTheme.Caption1)
                                 .TextColor(MyTheme.AccentText)
                                 .FontAttributes(FontAttributes.Italic)
                         )
@@ -166,7 +165,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 // Date
                 VStack(
                     Label(resource.CreatedAt.ToString("d"))
-                        .FontSize(12)
+                        .ThemeKey(MyTheme.Caption1)
                         .TextColor(MyTheme.SecondaryText)
                         .HEnd(),
 
@@ -197,7 +196,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         SetState(s => s.SearchText = text);
                         SearchResources();
                     })
-                    .FontSize(13)
+                    .ThemeKey(MyTheme.Caption1)
                     .VCenter()
             )
             .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
