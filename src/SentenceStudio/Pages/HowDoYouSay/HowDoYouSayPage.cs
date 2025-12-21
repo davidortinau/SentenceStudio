@@ -157,7 +157,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					}
 				})
 				.ImageSource(GetPlayButtonIcon(item))
-				.TextColor(Colors.Black)
+				.TextColor(MyTheme.DarkOnLightBackground)
 				.GridColumn(0)
 				.VStart(),
 			Label(item.Phrase)
@@ -168,7 +168,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.Background(Colors.Transparent)
 				.OnClicked(() => SaveAudioAsMp3(item))
 				.ImageSource(MyTheme.IconSave)
-				.TextColor(Colors.Black)
+				.TextColor(MyTheme.DarkOnLightBackground)
 				.GridColumn(2)
 				.HEnd(),
 			Button()
@@ -445,7 +445,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.FontSize(16),
 				Label(description)
 					.FontSize(14)
-					.TextColor(Colors.Gray)
+					.TextColor(MyTheme.SecondaryText)
 			)
 			.HStart()
 			.GridColumn(1)

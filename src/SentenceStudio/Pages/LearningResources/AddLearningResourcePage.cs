@@ -216,7 +216,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 State.Resource.Vocabulary?.Count > 0 ?
                                     Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
                                         .FontSize(14)
-                                        .TextColor(Colors.Gray)
+                                        .TextColor(MyTheme.SecondaryText)
                                         .HStart() :
                                     null
                             )
@@ -327,7 +327,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                 State.Resource.Vocabulary?.Count > 0 ?
                                     Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
                                         .FontSize(14)
-                                        .TextColor(Colors.Gray)
+                                        .TextColor(MyTheme.SecondaryText)
                                         .HStart() :
                                     null
                             )

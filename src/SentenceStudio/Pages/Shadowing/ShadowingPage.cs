@@ -226,7 +226,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .FontSize(16),
                 Label(description)
                     .FontSize(14)
-                    .TextColor(Colors.Gray)
+                    .TextColor(MyTheme.SecondaryText)
             )
             .HStart()
             .GridColumn(1)
@@ -280,7 +280,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     ? Label(State.CurrentSentencePronunciationNotes)
                         .ThemeKey("Title3")
                         .HCenter()
-                        .TextColor(Colors.DarkGray)
+                        .TextColor(MyTheme.SecondaryText)
                         .Margin(MyTheme.Size160)
                     : null
             )
@@ -780,11 +780,11 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         VStack(
                             Label("Last Saved:")
                                 .FontSize(14)
-                                .TextColor(Colors.Gray)
+                                .TextColor(MyTheme.SecondaryText)
                                 .HCenter(),
                             Label(State.LastSavedFilePath)
                                 .FontSize(14)
-                                .TextColor(Colors.Gray)
+                                .TextColor(MyTheme.SecondaryText)
                                 .HCenter()
                         ) : null
                     )

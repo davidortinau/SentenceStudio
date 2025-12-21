@@ -363,7 +363,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                 Label("Set your daily practice preferences. These help us create personalized learning plans for you.")
                     .FontSize(14)
-                    .TextColor(Colors.Gray)
+                    .TextColor(MyTheme.SecondaryText)
                     .HCenter()
                     .Margin(0, 0, 0, 20),
 
@@ -386,7 +386,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                     Label($"Recommended: 15-20 minutes daily for consistent progress")
                         .FontSize(12)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                         .HCenter()
                         .Margin(0, 4, 0, 20),
 
@@ -411,7 +411,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                     Label("This helps us recommend appropriate learning materials")
                         .FontSize(12)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                         .HCenter()
                 )
             )
@@ -441,7 +441,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .HCenter(),
                 Label(description)
                     .FontSize(11)
-                    .TextColor(Colors.Gray)
+                    .TextColor(MyTheme.SecondaryText)
                     .HCenter()
             )
             .Padding(10, 8)

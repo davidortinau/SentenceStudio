@@ -41,7 +41,7 @@ public partial class VocabProgressCard : Component
                 BuildDonutChart(chartData, total),
 
                 Label($"7d accuracy: {Math.Round(_summary.SuccessRate7d * 100)}%")
-                    .TextColor(Colors.Gray)
+                    .TextColor(MyTheme.SecondaryText)
                     .FontSize(12)
                     .HCenter()
             ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding);
@@ -87,7 +87,7 @@ public partial class VocabProgressCard : Component
                         {
                             Text = "total words",
                             FontSize = 12,
-                            TextColor = Microsoft.Maui.Graphics.Colors.Gray,
+                            TextColor = MyTheme.SecondaryText,
                             HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center
                         }
                     }

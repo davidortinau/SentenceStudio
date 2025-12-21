@@ -42,21 +42,21 @@ public partial class SkillProgressCard : Component
                     HStack(
                         Label("7d change:")
                             .FontSize(12)
-                            .TextColor(Colors.Gray),
+                            .TextColor(MyTheme.SecondaryText),
                         Label($"{(_skill.Delta7d >= 0 ? "+" : "")}{Math.Round(_skill.Delta7d * 100, 1)}%")
                             .FontSize(12)
                             .FontAttributes(FontAttributes.Bold)
-                            .TextColor(_skill.Delta7d >= 0 ? Colors.Green : Colors.Red)
+                            .TextColor(_skill.Delta7d >= 0 ? MyTheme.Success : MyTheme.Error)
                     ).Spacing(MyTheme.MicroSpacing).HCenter(),
 
                     Label($"Last activity: {_skill.LastActivityUtc.ToString("MMM dd")}")
                         .FontSize(10)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                         .HCenter()
                         .Margin(0, MyTheme.ComponentSpacing, 0, 0)
                 ).Spacing(MyTheme.CardMargin)
             ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.LayoutSpacing)
-        ).StrokeThickness(1).Stroke(Colors.LightGray);
+        ).StrokeThickness(1).Stroke(MyTheme.ItemBorder);
     }
 
     private Color GetProficiencyColor(double proficiency)

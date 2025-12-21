@@ -144,7 +144,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     ).ThemeKey(MyTheme.InputWrapper),
                     Label("How long you'd like to practice each day. Plans adapt to your choice.")
                         .FontSize(12)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                         .Margin(0, 4, 0, 12),
 
                     Label("Target CEFR Level (Optional)")
@@ -165,7 +165,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     ).ThemeKey(MyTheme.InputWrapper),
                     Label("Your language proficiency goal. Helps AI choose appropriate resources.")
                         .FontSize(12)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                         .Margin(0, 4, 0, 12),
 
                     Button($"{_localize["Save"]}")
@@ -182,7 +182,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
                         Label($"{_localize["ExportDataDescription"]}")
                             .FontSize(14)
-                            .TextColor(Colors.Gray)
+                            .TextColor(MyTheme.SecondaryText)
                             .Margin(0, 0, 0, 15),
 
                         State.IsExporting ?
@@ -196,7 +196,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label(State.ExportProgressMessage)
                                 .FontSize(14)
                                 .HCenter()
-                                .TextColor(Colors.Gray)
+                                .TextColor(MyTheme.SecondaryText)
                         ) :
                         HStack(
                             Button($"{_localize["SaveToDevice"]}")
@@ -215,7 +215,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         !string.IsNullOrEmpty(State.LastExportFilePath) ?
                         Label($"Last exported: {State.LastExportFilePath}")
                             .FontSize(12)
-                            .TextColor(Colors.Gray)
+                            .TextColor(MyTheme.SecondaryText)
                             .Margin(0, 10, 0, 0) : null
                     )
                 )

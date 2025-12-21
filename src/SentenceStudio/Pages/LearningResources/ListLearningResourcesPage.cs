@@ -78,7 +78,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                             Label("Creating starter vocabulary...")
                                                 .HCenter()
                                                 .FontSize(14)
-                                                .TextColor(Colors.Gray)
+                                                .TextColor(MyTheme.SecondaryText)
                                         )
                                         .Spacing(MyTheme.ComponentSpacing) :
                                         VStack(
@@ -134,23 +134,23 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                     Label(resource.MediaType)
                         .FontSize(12)
-                        .TextColor(Colors.DarkGray),
+                        .TextColor(MyTheme.SecondaryText),
 
                     Label("•")
                         .FontSize(12)
-                        .TextColor(Colors.DarkGray)
+                        .TextColor(MyTheme.SecondaryText)
                         .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
 
                     Label(resource.Language)
                         .FontSize(12)
-                        .TextColor(Colors.DarkGray),
+                        .TextColor(MyTheme.SecondaryText),
 
                     // System-generated badge for smart resources
                     resource.IsSmartResource
                         ? HStack(
                             Label("•")
                                 .FontSize(12)
-                                .TextColor(Colors.DarkGray)
+                                .TextColor(MyTheme.SecondaryText)
                                 .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
                             Label("Auto-updated")
                                 .FontSize(12)
@@ -167,7 +167,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 VStack(
                     Label(resource.CreatedAt.ToString("d"))
                         .FontSize(12)
-                        .TextColor(Colors.DarkGray)
+                        .TextColor(MyTheme.SecondaryText)
                         .HEnd(),
 
                     Label("Details >")
@@ -181,7 +181,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             .ColumnSpacing(MyTheme.SectionSpacing).RowSpacing(MyTheme.MicroSpacing)
             .OnTapped(() => ViewResource(resource.Id))
         )
-        .Stroke(Colors.LightGray)
+        .Stroke(MyTheme.ItemBorder)
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .Margin(new Thickness(MyTheme.ComponentSpacing, MyTheme.MicroSpacing));

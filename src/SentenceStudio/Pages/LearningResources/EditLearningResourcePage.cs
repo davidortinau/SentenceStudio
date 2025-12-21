@@ -145,7 +145,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .TextColor(MyTheme.HighlightDarkest),
                     Label($" - {_localize["ReadOnlyResource"]}")
                         .FontSize(12)
-                        .TextColor(Colors.Gray)
+                        .TextColor(MyTheme.SecondaryText)
                 )
                 .Spacing(MyTheme.MicroSpacing)
                 .Padding(new Thickness(MyTheme.Size80, MyTheme.Size40))
@@ -215,7 +215,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 .RowSpacing(MyTheme.MicroSpacing)
                 .ColumnSpacing(MyTheme.ComponentSpacing)
             )
-            .Stroke(Colors.LightGray),
+            .Stroke(MyTheme.ItemBorder),
 
             // Transcript if available
             !string.IsNullOrEmpty(State.Resource.Transcript) ?
@@ -243,7 +243,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Border(
                         Label(State.Resource.Transcript)
                     )
-                    .Stroke(Colors.LightGray)
+                    .Stroke(MyTheme.ItemBorder)
                     .Padding(MyTheme.ComponentSpacing)
                 )
                 .Spacing(MyTheme.ComponentSpacing) :
@@ -259,7 +259,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Border(
                         Label(State.Resource.Translation)
                     )
-                    .Stroke(Colors.LightGray)
+                    .Stroke(MyTheme.ItemBorder)
                     .Padding(MyTheme.ComponentSpacing)
                 )
                 .Spacing(MyTheme.ComponentSpacing) :
@@ -638,7 +638,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .Columns("*, Auto")
                             .Padding(MyTheme.ComponentSpacing)
                         )
-                        .Stroke(Colors.LightGray)
+                        .Stroke(MyTheme.ItemBorder)
                         .StrokeThickness(1)
                         .StrokeShape(new RoundRectangle().CornerRadius(5))
                         .Margin(new Thickness(0, 0, 0, 5))

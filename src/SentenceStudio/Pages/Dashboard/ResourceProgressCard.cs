@@ -38,21 +38,21 @@ public partial class ResourceProgressCard : Component
                                 HStack(
                                     Label($"{resource.Attempts} attempts")
                                         .FontSize(10)
-                                        .TextColor(Colors.Gray),
+                                        .TextColor(MyTheme.SecondaryText),
                                     Label($"{Math.Round(resource.CorrectRate * 100)}% correct")
                                         .FontSize(10)
-                                        .TextColor(Colors.Gray),
+                                        .TextColor(MyTheme.SecondaryText),
                                     Label($"{resource.Minutes} min")
                                         .FontSize(10)
-                                        .TextColor(Colors.Gray)
+                                        .TextColor(MyTheme.SecondaryText)
                                         .HEnd()
                                 ).Spacing(MyTheme.ComponentSpacing)
                             ).Spacing(MyTheme.MicroSpacing).Padding(MyTheme.ComponentSpacing)
-                        ).StrokeThickness(0.5).Stroke(Colors.LightGray).Margin(0, MyTheme.MicroSpacing)
+                        ).StrokeThickness(0.5).Stroke(MyTheme.ItemBorder).Margin(0, MyTheme.MicroSpacing)
                     ).ToArray()
                 ).Spacing(MyTheme.MicroSpacing)
             ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding)
-        ).StrokeThickness(1).Stroke(Colors.LightGray);
+        ).StrokeThickness(1).Stroke(MyTheme.ItemBorder);
     }
 
     private Color GetProficiencyColor(double proficiency)
