@@ -59,10 +59,10 @@ public partial class ResourceProgressCard : Component
     {
         return proficiency switch
         {
-            >= 0.8 => Colors.Green,
-            >= 0.6 => Colors.Orange,
-            >= 0.4 => Colors.DarkOrange,
-            _ => Colors.Red
+            >= 0.8 => MyTheme.ProficiencyHigh,
+            >= 0.6 => MyTheme.ProficiencyMedium,
+            >= 0.4 => MyTheme.ProficiencyLow,
+            _ => MyTheme.ProficiencyVeryLow
         };
     }
 }

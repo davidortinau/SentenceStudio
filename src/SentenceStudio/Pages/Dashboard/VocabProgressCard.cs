@@ -26,10 +26,10 @@ public partial class VocabProgressCard : Component
         // Create data for donut chart
         var chartData = new List<VocabChartData>
         {
-            new VocabChartData("Known", _summary.Known, Colors.Green),
-            new VocabChartData("Review", _summary.Review, Colors.Orange),
-            new VocabChartData("Learning", _summary.Learning, Colors.Blue),
-            new VocabChartData("New", _summary.New, Colors.Gray)
+            new VocabChartData("Known", _summary.Known, MyTheme.ChartKnown),
+            new VocabChartData("Review", _summary.Review, MyTheme.ChartReview),
+            new VocabChartData("Learning", _summary.Learning, MyTheme.ChartLearning),
+            new VocabChartData("New", _summary.New, MyTheme.ChartNew)
         }.Where(x => x.Value > 0).ToList(); // Only show segments with data
 
         _chartData = chartData; // keep for selection mapping

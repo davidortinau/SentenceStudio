@@ -94,6 +94,25 @@ partial class MyTheme
     // Borders & Dividers (renamed to avoid conflict with Border control type)
     public static Color Outline => IsLightTheme ? Light.Outline : Dark.Outline;
     public static Color BorderColor => Outline;
+    public static Color BorderLight => IsLightTheme ? Colors.LightGray : Colors.DimGray;
+
+    // ==========================================
+    // CHART & VISUALIZATION COLORS
+    // ==========================================
+    public static Color ChartKnown => Success;
+    public static Color ChartReview => Warning;
+    public static Color ChartLearning => Info;
+    public static Color ChartNew => IsLightTheme ? Gray400 : Gray500;
+
+    // Progress/Proficiency colors (for progress bars, skill levels)
+    public static Color ProficiencyHigh => Success;
+    public static Color ProficiencyMedium => Warning;
+    public static Color ProficiencyLow => Color.FromArgb("#FF8C00"); // DarkOrange
+    public static Color ProficiencyVeryLow => Error;
+
+    // Audio waveform colors
+    public static Color WaveformDefault => IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f);
+    public static Color WaveformPlayed => IsLightTheme ? Colors.Orange : Colors.OrangeRed;
 
     // ==========================================
     // BRUSHES (theme-aware)

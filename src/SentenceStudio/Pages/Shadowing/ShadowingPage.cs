@@ -305,8 +305,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             HScrollView(hscroll => _waveformScrollView = hscroll,
                 Grid("100", "*",
                     new WaveformView()
-                        .WaveColor(Theme.IsLightTheme ? Colors.DarkBlue.WithAlpha(0.6f) : Colors.SkyBlue.WithAlpha(0.6f))
-                        .PlayedColor(Theme.IsLightTheme ? Colors.Orange : Colors.OrangeRed)
+                        .WaveColor(MyTheme.WaveformDefault)
+                        .PlayedColor(MyTheme.WaveformPlayed)
                         .Amplitude(Constants.Amplitude)
                         .PlaybackPosition(State.PlaybackPosition)
                         .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}")
@@ -324,7 +324,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
-            .Stroke(Theme.IsLightTheme ? Colors.LightGray : Colors.DimGray)
+            .Stroke(MyTheme.BorderLight)
             .HeightRequest(100)
             .Padding(MyTheme.Size160, 0)
             .IsVisible(true)
