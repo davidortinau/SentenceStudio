@@ -53,7 +53,7 @@ public partial class AppShell : Component
     // }
 
     private bool _initialized = false;
-    // private UserProfile _currentUserProfile;
+    private bool _isLoadingProfile = false;
 
     [Inject] UserProfileRepository _userProfileRepository;
 
@@ -61,16 +61,30 @@ public partial class AppShell : Component
     {
         base.OnMounted();
 
-        // if (!_initialized)
-        // {
-        //     _initialized = true;
-        //     Task.Run(async () =>
-        //     {
-        //         state.Value.CurrentUserProfile = await _userProfileRepository.GetAsync();
-        //     }).Wait();
-        // }
+        if (!_initialized && !_isLoadingProfile)
+        {
+            _initialized = true;
+            LoadUserProfileAsync();
+        }
+    }
 
-        // State.CurrentAppTheme = Application.Current.UserAppTheme;
+    private async void LoadUserProfileAsync()
+    {
+        if (_isLoadingProfile) return;
+        _isLoadingProfile = true;
+
+        try
+        {
+            if (_userProfileRepository != null)
+            {
+                var profile = await _userProfileRepository.GetAsync();
+                state.Set(s => s.CurrentUserProfile = profile);
+            }
+        }
+        finally
+        {
+            _isLoadingProfile = false;
+        }
     }
 
     // Method to refresh the user profile state (called after reset)
@@ -82,17 +96,6 @@ public partial class AppShell : Component
 
     public override VisualNode Render()
     {
-
-        if (!_initialized)
-        {
-            _initialized = true;
-            Task.Run(async () =>
-            {
-                if (state != null && _userProfileRepository != null)
-                    state.Value.CurrentUserProfile = await _userProfileRepository.GetAsync();
-            }).Wait();
-        }
-
         // Check if user needs onboarding - either no profile exists or onboarding was never completed
         var isOnboarded = Preferences.Default.Get("is_onboarded", false);
         var hasProfile = state.Value.CurrentUserProfile != null;

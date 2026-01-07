@@ -48,9 +48,9 @@ public class TimestampedAudioManager : IDisposable
     /// </summary>
     public async Task LoadAudioAsync(TimestampedAudio audio)
     {
-        // Dispose existing player
-        _player?.Dispose();
-        _progressTimer?.Dispose();
+        // Clean up existing player and timer before creating new ones
+        CleanupPlayerAndTimer();
+        
         _currentAudio = audio;
 
         // Precompute sentence-to-character-index mapping
@@ -514,6 +514,26 @@ public class TimestampedAudioManager : IDisposable
     }
 
     /// <summary>
+    /// Cleans up the player and timer, unsubscribing from events before disposal.
+    /// </summary>
+    private void CleanupPlayerAndTimer()
+    {
+        if (_progressTimer != null)
+        {
+            _progressTimer.Elapsed -= OnProgressTimerElapsed;
+            _progressTimer.Dispose();
+            _progressTimer = null;
+        }
+
+        if (_player != null)
+        {
+            _player.PlaybackEnded -= OnPlaybackEnded;
+            _player.Dispose();
+            _player = null;
+        }
+    }
+
+    /// <summary>
     /// Helper methods for sentence detection (consistent with SentenceTimingCalculator)
     /// </summary>
     private bool IsSentenceDelimiter(char c)
@@ -543,8 +563,7 @@ public class TimestampedAudioManager : IDisposable
     {
         if (_disposed) return;
 
-        _progressTimer?.Dispose();
-        _player?.Dispose();
+        CleanupPlayerAndTimer();
         _disposed = true;
     }
 }

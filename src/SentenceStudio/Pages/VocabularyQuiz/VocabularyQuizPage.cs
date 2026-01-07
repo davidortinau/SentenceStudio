@@ -823,7 +823,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.ShowSessionSummary = true;
         });
 
-        UpdateTermCounts();
+        await UpdateTermCountsAsync();
 
         await AppShell.DisplayToastAsync($"{_localize["SessionComplete"]}");
 
@@ -870,7 +870,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             await QueueReplacementWordsForNextRound(masteredWords.Count);
 
             // Update term counts to reflect changes
-            UpdateTermCounts();
+            await UpdateTermCountsAsync();
 
             // Show feedback to user
             if (masteredWords.Count == 1)
@@ -1337,7 +1337,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         finally
         {
             SetState(s => s.IsBusy = false);
-            UpdateTermCounts();
+            await UpdateTermCountsAsync();
         }
     }
 
@@ -1431,7 +1431,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
             // Update term counts (turn counters incremented in NextItem)
             _logger.LogDebug("🔢 CheckAnswer: Updating term counts...");
-            UpdateTermCounts();
+            await UpdateTermCountsAsync();
 
             // Session continues until pool exhausted + all active words mastered (checked in StartNewRound)
 
@@ -1798,16 +1798,17 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    void UpdateTermCounts()
+    async Task UpdateTermCountsAsync()
     {
+        // Get total terms and calculate comprehensive progress (async to avoid blocking)
+        var totalResourceTerms = await GetTotalTermsInResourceAsync();
+
         SetState(s =>
         {
             // Count terms in current activity/session
             s.UnknownTermsCount = s.VocabularyItems.Count(item => item.IsUnknown);
             s.LearningTermsCount = s.VocabularyItems.Count(item => item.IsLearning);
 
-            // Get total terms and calculate comprehensive progress
-            var totalResourceTerms = GetTotalTermsInResource();
             s.TotalResourceTermsCount = totalResourceTerms.Count;
 
             // Count known terms across entire resource (not just current session)
@@ -1831,7 +1832,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         return Props.Resource?.Id;
     }
 
-    List<VocabularyWord> GetTotalTermsInResource()
+    async Task<List<VocabularyWord>> GetTotalTermsInResourceAsync()
     {
         // Get all vocabulary terms from the current learning resources
         var allWords = new List<VocabularyWord>();
@@ -1840,7 +1841,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         {
             foreach (var resourceRef in Props.Resources)
             {
-                var resource = _resourceRepo.GetResourceAsync(resourceRef.Id).Result;
+                var resource = await _resourceRepo.GetResourceAsync(resourceRef.Id);
                 if (resource?.Vocabulary?.Any() == true)
                 {
                     allWords.AddRange(resource.Vocabulary);
@@ -1850,7 +1851,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         else if (Props.Resource?.Id > 0)
         {
             // Fallback to single resource
-            var resource = _resourceRepo.GetResourceAsync(Props.Resource.Id).Result;
+            var resource = await _resourceRepo.GetResourceAsync(Props.Resource.Id);
             if (resource?.Vocabulary?.Any() == true)
             {
                 allWords.AddRange(resource.Vocabulary);

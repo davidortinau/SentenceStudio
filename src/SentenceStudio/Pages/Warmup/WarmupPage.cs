@@ -37,6 +37,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     private IAudioPlayer _audioPlayer;
     private FloatingAudioPlayer _floatingPlayer;
     private IDispatcherTimer _playbackTimer;
+    private EventHandler _playbackEndedHandler;
 
     string[] phrases = new[]
         {
@@ -298,6 +299,18 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             _logger.LogDebug("WarmupPage: Pausing activity timer");
             _timerService.Pause();
         }
+
+        // Clean up audio player and event handler
+        CleanupAudioPlayer();
+    }
+
+    private void CleanupAudioPlayer()
+    {
+        if (_audioPlayer != null && _playbackEndedHandler != null)
+        {
+            _audioPlayer.PlaybackEnded -= _playbackEndedHandler;
+            _playbackEndedHandler = null;
+        }
     }
 
     /// <summary>
@@ -414,14 +427,16 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                 // Start tracking playback position
                 StartPlaybackTimer();
 
-                // Set up auto-hide when audio finishes
-                _audioPlayer.PlaybackEnded += (s, e) =>
+                // Set up auto-hide when audio finishes (clean up old handler first)
+                CleanupAudioPlayer();
+                _playbackEndedHandler = (s, e) =>
                 {
                     if (_floatingPlayer != null)
                     {
                         _floatingPlayer.Hide();
                     }
                 };
+                _audioPlayer.PlaybackEnded += _playbackEndedHandler;
             }
             else
             {
