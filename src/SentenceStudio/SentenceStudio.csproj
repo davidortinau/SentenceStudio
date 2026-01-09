@@ -142,14 +142,14 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
 
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
-		<PackageReference Include="Reactor.Maui" Version="4.0.9-beta" />
+		<PackageReference Include="Reactor.Maui" Version="4.0.11-beta" />
 		
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.1" />
-		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.0" />
+		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
 		<PackageReference Include="YoutubeExplode" Version="6.5.6" />
@@ -163,10 +163,10 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.122" />
 		<PackageReference Include="CoreSync.Sqlite" Version="0.1.122" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" Version="32.1.19" />
-		<PackageReference Include="Syncfusion.Maui.Charts" Version="32.1.19" />
-		<PackageReference Include="Syncfusion.Maui.Gauges" Version="32.1.19" />
-		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="32.1.19" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" Version="32.1.22" />
+		<PackageReference Include="Syncfusion.Maui.Charts" Version="32.1.22" />
+		<PackageReference Include="Syncfusion.Maui.Gauges" Version="32.1.22" />
+		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="32.1.22" />
 		
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.1">
 			<PrivateAssets>all</PrivateAssets>

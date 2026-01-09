@@ -981,6 +981,10 @@
     <value>{0} practices in the last year</value>
     <comment>Practice heat card title with count</comment>
   </data>
+  <data name="PracticesRecent" xml:space="preserve">
+    <value>{0} practices recently</value>
+    <comment>Practice heat card title for 6-week view</comment>
+  </data>
   <data name="Mon" xml:space="preserve">
     <value>Mon</value>
     <comment>Monday abbreviation</comment>

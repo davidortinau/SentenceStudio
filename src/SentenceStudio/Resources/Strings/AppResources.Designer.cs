@@ -2488,6 +2488,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} practices recently.
+        /// </summary>
+        internal static string PracticesRecent {
+            get {
+                return ResourceManager.GetString("PracticesRecent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Writing Practice.
         /// </summary>
         internal static string PracticeWriting {

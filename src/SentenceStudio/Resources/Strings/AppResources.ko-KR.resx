@@ -873,6 +873,10 @@
     <value>지난 1년간 {0}회 연습</value>
     <comment>Practice heat card title with count</comment>
   </data>
+  <data name="PracticesRecent" xml:space="preserve">
+    <value>최근 {0}회 연습</value>
+    <comment>Practice heat card title for 6-week view</comment>
+  </data>
   <data name="Mon" xml:space="preserve">
     <value>월</value>
     <comment>Monday abbreviation</comment>

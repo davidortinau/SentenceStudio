@@ -21,16 +21,16 @@ public partial class PracticeStreakCard : Component
         var currentStreak = CalculateCurrentStreak(allDays);
         var maxStreak = CalculateMaxStreak(allDays);
         var totalPractice = allDays.Sum(d => d.Count);
+        var today = DateTime.Now.Date;
 
-        // Generate GitHub-style calendar for last year (52 weeks)
-        var calendarData = GenerateCalendarData(allDays, 52);
+        var calendarData = GenerateCalendarData(allDays, 7);
 
         return
             VStack(
-                Label(string.Format($"{_localize["PracticesInYear"]}", totalPractice))
+                Label(string.Format($"{_localize["PracticesRecent"]}", totalPractice))
                     .ThemeKey(MyTheme.SubHeadline),
 
-                HScrollView(
+                    // No HScrollView needed for 6 weeks - fits on screen
                     // GitHub-style contribution calendar
                     VStack(
                         // Month labels
@@ -65,22 +65,24 @@ public partial class PracticeStreakCard : Component
                                 calendarData.Select(week =>
                                     VStack(
                                         week.Select(day =>
-                                            Border()
+                                        {
+                                            var isFuture = day?.Date > today;
+                                            return Border()
                                                 .WidthRequest(11)
                                                 .HeightRequest(11)
                                                 .Padding(0)
                                                 .StrokeShape(Rectangle())
-                                                .Background(GetGitHubColor(day?.Count ?? 0))
+                                                .Background(isFuture ? GetFutureColor() : GetGitHubColor(day?.Count ?? 0))
                                                 .StrokeThickness(1)
-                                                .Stroke(Color.FromRgba(0, 0, 0, 30)) // Very light border
-                                                .Set(ToolTipProperties.TextProperty, day.Date.ToShortDateString())
-                                        ).ToArray()
+                                                .Stroke(Color.FromRgba(0, 0, 0, isFuture ? 15 : 30))
+                                                .Opacity(isFuture ? 0.4 : 1.0)
+                                                .Set(ToolTipProperties.TextProperty, day?.Date.ToShortDateString() ?? "");
+                                        }).ToArray()
                                     ).Spacing(MyTheme.MicroSpacing)
                                 ).ToArray()
                             ).Spacing(MyTheme.MicroSpacing)
                         ).Spacing(0)
-                    )
-                ),
+                    ),
 
                 HStack(
                     Label($"{_localize["Less"]}").FontSize(10).TextColor(MyTheme.SecondaryText).VCenter(),
@@ -97,7 +99,7 @@ public partial class PracticeStreakCard : Component
                             .Background(GetGitHubColor(5)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30))
                     ).Spacing(MyTheme.MicroSpacing).VCenter(),
                     Label($"{_localize["More"]}").FontSize(10).TextColor(MyTheme.SecondaryText).VCenter()
-                ).Spacing(MyTheme.MicroSpacing).HEnd()
+                ).Spacing(MyTheme.MicroSpacing).HStart()
             ).Spacing(MyTheme.LayoutSpacing).Padding(MyTheme.LayoutSpacing);
     }
 
@@ -186,13 +188,16 @@ public partial class PracticeStreakCard : Component
             {
                 var currentDate = startDate.AddDays(week * 7 + day);
 
-                // Do not render days after today in the current (rightmost) column
-                if (currentDate > endDate)
+                // Always create an entry for each day (including future days)
+                if (dataDict.TryGetValue(currentDate, out var dayData))
                 {
-                    break;
+                    weekData.Add(dayData);
                 }
-                dataDict.TryGetValue(currentDate, out var dayData);
-                weekData.Add(dayData);
+                else
+                {
+                    // Create placeholder with count 0 for days without data
+                    weekData.Add(new PracticeHeatPoint(currentDate, 0));
+                }
             }
 
             calendar.Add(weekData);
@@ -251,5 +256,11 @@ public partial class PracticeStreakCard : Component
             4 => Color.FromRgba(33, 110, 57, 255),   // #216e39 - High contributions (dark green)
             _ => Color.FromRgba(22, 77, 40, 255)     // #164d28 - Very high contributions (darkest green)
         };
+    }
+
+    private Color GetFutureColor()
+    {
+        // Dimmed color for future days
+        return Color.FromRgba(235, 237, 240, 255); // Same base as no activity
     }
 }
