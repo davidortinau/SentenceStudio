@@ -250,8 +250,8 @@ partial class DashboardPage : Component<DashboardPageState>
                         DeviceInfo.Idiom == DeviceIdiom.Phone || (DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density) < 600 ?
                             VStack(spacing: MyTheme.LayoutSpacing,
                                 Border(
-                                    new SfTextInputLayout{
-
+                                    VStack(
+                                        Label("Resource"),
                                         new SfComboBox()
                                             .MinimumHeightRequest(44)
                                             .Background(Colors.Transparent)
@@ -265,8 +265,8 @@ partial class DashboardPage : Component<DashboardPageState>
                                             .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
                                             .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
                                             .OnSelectionChanged(OnResourcesSelectionChanged)
-                                    }.Hint("Learning Resource(s)")
-                                    .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
+                                    ).Spacing(MyTheme.LayoutSpacing)
+
                                 ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border(
                                     VStack(

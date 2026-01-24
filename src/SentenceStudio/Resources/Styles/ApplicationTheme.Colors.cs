@@ -5,70 +5,82 @@ namespace SentenceStudio.Resources.Styles;
 partial class MyTheme
 {
     // ==========================================
-    // SEMANTIC COLORS (same in both themes)
+    // SEMANTIC COLORS - Seoul Pop (Obangsaek Modern)
     // ==========================================
-    public static Color Success { get; } = Color.FromArgb("#4CAF50");
-    public static Color SuccessLight { get; } = Color.FromArgb("#E8F5E9");
-    public static Color SuccessDark { get; } = Color.FromArgb("#1A3A1A");
-    public static Color Warning { get; } = Color.FromArgb("#FFA726");
-    public static Color Error { get; } = Color.FromArgb("#EF5350");
-    public static Color Info { get; } = Color.FromArgb("#42A5F5");
+    public static Color Success { get; } = Color.FromArgb("#12B886");   // Jade green (녹)
+    public static Color SuccessLight { get; } = Color.FromArgb("#E8F9F3");
+    public static Color SuccessDark { get; } = Color.FromArgb("#0A6C4E");
+
+    public static Color Warning { get; } = Color.FromArgb("#FFC233");   // Hwang / 황 (golden yellow)
+    public static Color Error { get; } = Color.FromArgb("#E13B30");     // Hong / 홍 (Korean red)
+    public static Color Info { get; } = Color.FromArgb("#1E4DFF");      // Cheong / 청 (cobalt blue)
+
 
 
 
     /// <summary>
-    /// Light mode coffee palette.
+    /// Light mode: Seoul Pop - Cool neutrals with bold Korean-inspired accents (Obangsaek Modern)
     /// </summary>
     public static class Light
     {
-        public static Color Correct { get; } = Color.FromArgb("#2196F3");
-        public static Color Incorrect { get; } = Color.FromArgb("#F44336");
-        public static Color Selected { get; } = Color.FromArgb("#4CAF50");
+        public static Color Correct { get; } = Success;
+        public static Color Incorrect { get; } = Error;
+        public static Color Selected { get; } = Color.FromArgb("#1E4DFF"); // Primary highlight (Cheong)
 
-        // Backgrounds & Surfaces
-        public static Color Background { get; } = Color.FromArgb("#D2BCA5");
-        public static Color Surface { get; } = Color.FromArgb("#FCEFE1");
-        public static Color SurfaceVariant { get; } = Color.FromArgb("#ECDAC4");
-        public static Color SurfaceElevated { get; } = Color.FromArgb("#FFF7EC");
+        // Backgrounds & Surfaces (clean, modern with cool blue tint)
+        public static Color Background { get; } = Color.FromArgb("#F7F8FF");       // cool "paper" with tiny blue tint
+        public static Color Surface { get; } = Color.FromArgb("#FFFFFF");
+        public static Color SurfaceVariant { get; } = Color.FromArgb("#EEF1FF");   // very light indigo-tinted gray
+        public static Color SurfaceElevated { get; } = Color.FromArgb("#FCFDFF");
 
-        // Brand & Accent
-        public static Color Primary { get; } = Color.FromArgb("#86543F");
-        public static Color OnPrimary { get; } = Color.FromArgb("#F8F6F4");
-        public static Color Secondary { get; } = Color.FromArgb("#A38F7D");
+        // Brand & Accent (bold, Korean-coded)
+        public static Color Primary { get; } = Color.FromArgb("#1E4DFF");          // Cheong / 청 (cobalt blue)
+        public static Color OnPrimary { get; } = Color.FromArgb("#FFFFFF");
+        public static Color Secondary { get; } = Color.FromArgb("#12B886");        // Jade / 녹 (jade green)
 
-        // Typography
-        public static Color TextPrimary { get; } = Color.FromArgb("#352B23");
-        public static Color TextSecondary { get; } = Color.FromArgb("#7C7067");
-        public static Color TextMuted { get; } = Color.FromArgb("#A38F7D");
+        // CTA Accent (warm dancheong coral)
+        public static Color Accent { get; } = Color.FromArgb("#FF6A3D");           // Dancheong coral
+        public static Color OnAccent { get; } = Color.FromArgb("#FFFFFF");
+
+        // Typography (ink-based)
+        public static Color TextPrimary { get; } = Color.FromArgb("#0B0D12");      // ink
+        public static Color TextSecondary { get; } = Color.FromArgb("#394150");
+        public static Color TextMuted { get; } = Color.FromArgb("#7A8699");
 
         // Borders & Dividers
-        public static Color Outline { get; } = Color.FromArgb("#D7C5B2");
+        public static Color Outline { get; } = Color.FromArgb("#D6DAF0");
     }
 
+
     /// <summary>
-    /// Dark mode coffee palette.
+    /// Dark mode: Seoul Pop - Deep indigo/ink with bold Korean-inspired accents
     /// </summary>
     public static class Dark
     {
-        // Backgrounds & Surfaces
-        public static Color Background { get; } = Color.FromArgb("#48362E");
-        public static Color Surface { get; } = Color.FromArgb("#48362E");
-        public static Color SurfaceVariant { get; } = Color.FromArgb("#7D5A45");
-        public static Color SurfaceElevated { get; } = Color.FromArgb("#B3A291");
+        // Backgrounds & Surfaces (deep indigo/ink)
+        public static Color Background { get; } = Color.FromArgb("#060913");
+        public static Color Surface { get; } = Color.FromArgb("#0C1222");
+        public static Color SurfaceVariant { get; } = Color.FromArgb("#121B33");
+        public static Color SurfaceElevated { get; } = Color.FromArgb("#1A2545");
 
         // Brand & Accent
-        public static Color Primary { get; } = Color.FromArgb("#86543F");
-        public static Color OnPrimary { get; } = Color.FromArgb("#F8F6F4");
-        public static Color Secondary { get; } = Color.FromArgb("#A19085");
+        public static Color Primary { get; } = Color.FromArgb("#6B8CFF");          // Lighter cobalt for dark UI
+        public static Color OnPrimary { get; } = Color.FromArgb("#081022");
+        public static Color Secondary { get; } = Color.FromArgb("#21D6A4");        // Brighter jade for dark UI
+
+        // CTA Accent
+        public static Color Accent { get; } = Color.FromArgb("#FF7A4D");           // Brighter coral for dark
+        public static Color OnAccent { get; } = Color.FromArgb("#0B0D12");
 
         // Typography
-        public static Color TextPrimary { get; } = Color.FromArgb("#F8F6F4");
-        public static Color TextSecondary { get; } = Color.FromArgb("#C5BFBB");
-        public static Color TextMuted { get; } = Color.FromArgb("#A19085");
+        public static Color TextPrimary { get; } = Color.FromArgb("#F8FAFF");
+        public static Color TextSecondary { get; } = Color.FromArgb("#C6D0E7");
+        public static Color TextMuted { get; } = Color.FromArgb("#93A3C7");
 
         // Borders & Dividers
-        public static Color Outline { get; } = Color.FromArgb("#5A463B");
+        public static Color Outline { get; } = Color.FromArgb("#263457");
     }
+
 
     // ==========================================
     // THEME-AWARE CONVENIENCE PROPERTIES
@@ -95,6 +107,11 @@ partial class MyTheme
     public static Color Outline => IsLightTheme ? Light.Outline : Dark.Outline;
     public static Color BorderColor => Outline;
     public static Color BorderLight => IsLightTheme ? Colors.LightGray : Colors.DimGray;
+
+    public static Color AccentColor => IsLightTheme ? Light.Accent : Dark.Accent;
+    public static Color OnAccent => IsLightTheme ? Light.OnAccent : Dark.OnAccent;
+    public static Brush AccentBrush => new SolidColorBrush(AccentColor);
+
 
     // ==========================================
     // CHART & VISUALIZATION COLORS

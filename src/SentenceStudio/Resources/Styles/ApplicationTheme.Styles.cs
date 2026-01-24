@@ -29,7 +29,7 @@ partial class MyTheme
             .Background(IsLightTheme ? Gray950 : Gray200);
 
         ButtonStyles.Default = _ => _
-            .TextColor(IsLightTheme ? White : Light.TextPrimary)
+            .TextColor(OnPrimary)  // Always use OnPrimary for correct contrast
             .Background(PrimaryColor)
             .FontFamily("SegoeRegular")
             .FontSize(14)
@@ -44,6 +44,20 @@ partial class MyTheme
         ButtonStyles.Themes[Secondary] = _ => _
             .TextColor(TextPrimary)
             .Background(SurfaceVariant)
+            .FontFamily("SegoeRegular")
+            .FontSize(14)
+            .BorderWidth(0)
+            .CornerRadius(8)
+            .Padding(14, 10)
+            .MinimumHeightRequest(44)
+            .MinimumWidthRequest(44)
+            .VisualState("CommonStates", "Disable", MauiControls.Button.TextColorProperty, IsLightTheme ? Gray200 : Gray500)
+            .VisualState("CommonStates", "Disable", MauiControls.Button.BackgroundColorProperty, IsLightTheme ? Gray300 : Gray600);
+
+        // CTA Button - use AccentColor (coral) for "do the thing now" actions
+        ButtonStyles.Themes[Cta] = _ => _
+            .TextColor(OnAccent)
+            .Background(AccentColor)
             .FontFamily("SegoeRegular")
             .FontSize(14)
             .BorderWidth(0)
@@ -316,14 +330,15 @@ partial class MyTheme
             .Padding(0)
             .Background(Background);
 
+        // Use Surface for Shell/TabBar to avoid "everything is tinted" feeling
         ShellStyles.Default = _ => _
-            .Set(MauiControls.Shell.BackgroundColorProperty, Background)
+            .Set(MauiControls.Shell.BackgroundColorProperty, Surface)
             .Set(MauiControls.Shell.ForegroundColorProperty, TextPrimary)
             .Set(MauiControls.Shell.TitleColorProperty, TextPrimary)
             .Set(MauiControls.Shell.DisabledColorProperty, IsLightTheme ? Gray200 : Gray950)
             .Set(MauiControls.Shell.UnselectedColorProperty, TextSecondary)
             .Set(MauiControls.Shell.NavBarHasShadowProperty, false)
-            .Set(MauiControls.Shell.TabBarBackgroundColorProperty, Background)
+            .Set(MauiControls.Shell.TabBarBackgroundColorProperty, Surface)
             .Set(MauiControls.Shell.TabBarForegroundColorProperty, TextPrimary)
             .Set(MauiControls.Shell.TabBarTitleColorProperty, TextPrimary)
             .Set(MauiControls.Shell.TabBarUnselectedColorProperty, TextSecondary);

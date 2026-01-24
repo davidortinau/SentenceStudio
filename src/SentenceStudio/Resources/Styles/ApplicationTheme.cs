@@ -25,6 +25,7 @@ partial class MyTheme : Theme
     public const string Secondary = nameof(Secondary);
     public const string PrimaryButton = nameof(PrimaryButton);
     public const string Danger = nameof(Danger);
+    public const string Cta = nameof(Cta);  // Call-to-action buttons using AccentColor
 
     // Border theme styles
     public const string CardStyle = nameof(CardStyle);
