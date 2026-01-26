@@ -16,13 +16,13 @@ public class ScenarioService : IScenarioService
 
     // Intent detection patterns
     private static readonly string[] CreatePatterns = {
-        "create a scenario", "create scenario", "new scenario", 
+        "create a scenario", "create scenario", "new scenario",
         "I want to practice", "let's practice", "can we practice",
         "시나리오 만들기", "새 시나리오", "연습하고 싶어"
     };
 
     private static readonly string[] EditPatterns = {
-        "edit scenario", "change scenario", "modify scenario", 
+        "edit scenario", "change scenario", "modify scenario",
         "update scenario", "edit my scenario",
         "시나리오 수정", "시나리오 변경"
     };
@@ -86,10 +86,10 @@ public class ScenarioService : IScenarioService
         scenario.IsPredefined = false;
         scenario.CreatedAt = DateTime.UtcNow;
         scenario.UpdatedAt = DateTime.UtcNow;
-        
+
         await _repository.SaveAsync(scenario);
         _logger.LogInformation("Created user scenario: {Name}", scenario.Name);
-        
+
         return scenario;
     }
 
@@ -145,15 +145,15 @@ public class ScenarioService : IScenarioService
     {
         string? question = state.CurrentStep switch
         {
-            ScenarioCreationStep.AskName => 
+            ScenarioCreationStep.AskName =>
                 $"{_localize["ScenarioAskName"]}",
-            ScenarioCreationStep.AskPersona => 
+            ScenarioCreationStep.AskPersona =>
                 $"{_localize["ScenarioAskPersona"]}",
-            ScenarioCreationStep.AskSituation => 
+            ScenarioCreationStep.AskSituation =>
                 $"{_localize["ScenarioAskSituation"]}",
-            ScenarioCreationStep.AskConversationType => 
+            ScenarioCreationStep.AskConversationType =>
                 $"{_localize["ScenarioAskType"]}",
-            ScenarioCreationStep.Confirm => 
+            ScenarioCreationStep.Confirm =>
                 BuildConfirmationMessage(state),
             _ => null
         };
@@ -265,7 +265,7 @@ public class ScenarioService : IScenarioService
     public async Task<ConversationScenario?> GetScenarioForEditingAsync(string name)
     {
         var scenario = await _repository.FindByNameAsync(name);
-        
+
         if (scenario?.IsPredefined == true)
         {
             _logger.LogWarning("Attempted to edit predefined scenario: {Name}", scenario.Name);
@@ -277,13 +277,13 @@ public class ScenarioService : IScenarioService
 
     private string BuildConfirmationMessage(ScenarioCreationState state)
     {
-        var typeText = state.ConversationType == Shared.Models.ConversationType.Finite 
-            ? $"{_localize["FiniteConversation"]}" 
+        var typeText = state.ConversationType == Shared.Models.ConversationType.Finite
+            ? $"{_localize["FiniteConversation"]}"
             : $"{_localize["OpenEndedConversation"]}";
 
-        return string.Format($"{_localize["ScenarioConfirmation"]}", 
-            state.Name, 
-            state.PersonaName, 
+        return string.Format($"{_localize["ScenarioConfirmation"]}",
+            state.Name,
+            state.PersonaName,
             state.PersonaDescription,
             state.SituationDescription,
             typeText);
@@ -324,7 +324,7 @@ public class ScenarioService : IScenarioService
                 PersonaDescription = "a friendly barista at a local cafe",
                 SituationDescription = "Ordering coffee and snacks at a Korean cafe",
                 ConversationType = Shared.Models.ConversationType.Finite,
-                QuestionBank = "무엇을 드릴까요? 아이스로 드릴까요, 핫으로 드릴까요? 사이즈는요? 다른 거 필요하세요? 카드로 결제하시겠어요? 포장이요, 매장이요?",
+                QuestionBank = "",
                 IsPredefined = true
             },
             new ConversationScenario

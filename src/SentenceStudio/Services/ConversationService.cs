@@ -50,9 +50,11 @@ namespace SentenceStudio.Services
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
-            
-            return await template.RenderAsync(new { 
-                scenario = new {
+
+            return await template.RenderAsync(new
+            {
+                scenario = new
+                {
                     persona_name = scenario.PersonaName,
                     persona_description = scenario.PersonaDescription,
                     situation_description = scenario.SituationDescription,
@@ -128,18 +130,20 @@ namespace SentenceStudio.Services
                 // Build system prompt based on scenario
                 string systemPrompt;
                 string userPrompt;
-                
+
                 if (scenario != null)
                 {
                     systemPrompt = await GetScenarioSystemPromptAsync(scenario);
                     _logger.LogInformation("Starting conversation with scenario: {Name}", scenario.Name);
-                    
+
                     // Use scenario-specific start conversation template
                     using Stream scenarioTemplateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
                     using var scenarioReader = new StreamReader(scenarioTemplateStream);
                     var scenarioTemplate = Template.Parse(await scenarioReader.ReadToEndAsync());
-                    userPrompt = await scenarioTemplate.RenderAsync(new { 
-                        scenario = new {
+                    userPrompt = await scenarioTemplate.RenderAsync(new
+                    {
+                        scenario = new
+                        {
                             persona_name = scenario.PersonaName,
                             persona_description = scenario.PersonaDescription,
                             situation_description = scenario.SituationDescription,
@@ -150,7 +154,7 @@ namespace SentenceStudio.Services
                 else
                 {
                     systemPrompt = await GetSystemPromptAsync();
-                    
+
                     // Use default start conversation template
                     using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
@@ -182,22 +186,24 @@ namespace SentenceStudio.Services
                 // Use the single-prompt pattern that works with structured output
                 // Build a complete prompt string with persona, history, and instructions
                 string prompt;
-                
+
                 if (scenario != null)
                 {
                     // Use scenario-specific template
                     using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scenario.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { 
-                        scenario = new {
+                    prompt = await template.RenderAsync(new
+                    {
+                        scenario = new
+                        {
                             persona_name = scenario.PersonaName,
                             persona_description = scenario.PersonaDescription,
                             situation_description = scenario.SituationDescription,
-                            conversation_type = scenario.ConversationType.ToString(),
-                            question_bank = scenario.QuestionBank
+                            conversation_type = scenario.ConversationType.ToString()
+                            // question_bank = scenario.QuestionBank
                         },
-                        chunks = chunks.Take(chunks.Count - 1)
+                        chunks = chunks  // Include ALL chunks including user's latest message
                     });
                 }
                 else
@@ -206,7 +212,7 @@ namespace SentenceStudio.Services
                     using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { name = DefaultPersonaName, chunks = chunks.Take(chunks.Count - 1) });
+                    prompt = await template.RenderAsync(new { name = DefaultPersonaName, chunks = chunks });  // Include ALL chunks
                 }
 
                 var response = await _client.GetResponseAsync<Reply>(prompt);

@@ -1169,6 +1169,10 @@
     <value>설명</value>
     <comment>Explanation dialog title</comment>
   </data>
+  <data name="QuickPhrases" xml:space="preserve">
+    <value>빠른 표현</value>
+    <comment>Quick phrases popup title for conversation</comment>
+  </data>
   <data name="NoDefinitionFound" xml:space="preserve">
     <value>정의를 찾을 수 없습니다</value>
     <comment>Message when word definition lookup fails</comment>

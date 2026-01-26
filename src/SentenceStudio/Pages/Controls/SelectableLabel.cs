@@ -11,11 +11,13 @@ partial class SelectableLabel : Component
 	[Prop]
 	string _text;
 
+	[Prop]
+	double _fontSize = 18.0;
+
 	public override VisualNode Render()
 		=> Label(labelRef => _labelRef = labelRef)
 			.Text(_text)
-			.ThemeKey(MyTheme.Body1)
-			.TextColor(Colors.White)
+			.FontSize(_fontSize)
 			.OnTapped(async () =>
 			{
 				if (_labelRef.Text != null)

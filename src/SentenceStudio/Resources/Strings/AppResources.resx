@@ -1277,6 +1277,10 @@
     <value>Explanation</value>
     <comment>Explanation dialog title</comment>
   </data>
+  <data name="QuickPhrases" xml:space="preserve">
+    <value>Quick Phrases</value>
+    <comment>Quick phrases popup title for conversation</comment>
+  </data>
   <data name="NoDefinitionFound" xml:space="preserve">
     <value>No definition found</value>
     <comment>Message when word definition lookup fails</comment>

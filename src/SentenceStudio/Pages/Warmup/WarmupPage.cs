@@ -17,12 +17,6 @@ class WarmupPageState
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
 
-    public bool IsExplanationShown { get; set; }
-
-    public bool IsPhraseListShown { get; set; }
-
-    public bool? PopupResult { get; set; }
-
     public string Explanation { get; set; }
 
     public double FontSize { get; set; } = 18.0;
@@ -76,12 +70,9 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
         return ContentPage($"{_localize["Warmup"]}",
             ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
-            ToolbarItem($"{_localize["NewConversation"]}").OnClicked(StartNewConversation),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),
-                RenderExplanationPopup(),
-                RenderPhrasesPopup(),
                 CreateFloatingAudioPlayer()
             )
         )
@@ -118,57 +109,82 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         .VFill();
     }
 
-    VisualNode RenderExplanationPopup() =>
-        new SfBottomSheet(
-            Grid("*", "*",
-                VStack(spacing: MyTheme.ComponentSpacing,
-                    Label(State.Explanation),
+    async void ShowExplanationPopup()
+    {
+        try
+        {
+            var popup = new ListActionPopup
+            {
+                Title = $"{_localize["Explanation"]}",
+                ShowActionButton = false,
+                ItemsSource = new List<string> { State.Explanation },
+                ItemDataTemplate = new Microsoft.Maui.Controls.DataTemplate(() =>
+                {
+                    var tapGesture = new Microsoft.Maui.Controls.TapGestureRecognizer();
+                    tapGesture.Tapped += async (s, e) =>
+                    {
+                        await IPopupService.Current.PopAsync();
+                    };
 
-                    Button("Close")
-                        .OnClicked(() => SetState(s =>
+                    var label = new Microsoft.Maui.Controls.Label
+                    {
+                        TextColor = Colors.White,
+                        FontSize = 16,
+                        LineBreakMode = LineBreakMode.WordWrap
+                    };
+                    label.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, ".");
+                    label.GestureRecognizers.Add(tapGesture);
+                    return label;
+                })
+            };
+            await IPopupService.Current.PushAsync(popup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "WarmupPage: Error showing explanation popup");
+        }
+    }
+
+    async void ShowPhrasesPopup()
+    {
+        try
+        {
+            var popup = new ListActionPopup
+            {
+                Title = $"{_localize["QuickPhrases"]}",
+                ShowActionButton = false,
+                ItemsSource = phrases,
+                ItemDataTemplate = new Microsoft.Maui.Controls.DataTemplate(() =>
+                {
+                    var tapGesture = new Microsoft.Maui.Controls.TapGestureRecognizer();
+                    tapGesture.SetBinding(Microsoft.Maui.Controls.TapGestureRecognizer.CommandParameterProperty, ".");
+                    tapGesture.Tapped += async (s, e) =>
+                    {
+                        if (e is Microsoft.Maui.Controls.TappedEventArgs args && args.Parameter is string phrase)
                         {
-                            s.IsExplanationShown = false;
-                            s.PopupResult = false;
-                        }))
-                )
-                .Background(MyTheme.LightBackground)
-                .Padding(MyTheme.SectionSpacing)
-            )
-        )
-        .GridRowSpan(2)
-        .IsOpen(State.IsExplanationShown);
+                            await IPopupService.Current.PopAsync();
+                            SetState(s => s.UserInput = phrase);
+                        }
+                    };
 
-    VisualNode RenderPhrasesPopup() =>
-        new SfBottomSheet(
-            Grid("*,Auto", "*",
-                ScrollView(
-                    VStack(
-                        phrases.Select(text =>
-                            Label()
-                            .Text(text)
-                            .OnTapped((sender, args) =>
-                            {
-                                SetState(s =>
-                                {
-                                    s.UserInput = (sender as Microsoft.Maui.Controls.Label)?.Text;
-                                    s.IsPhraseListShown = false;
-                                });
-                            })
-                        )
-                    ).Spacing(MyTheme.SectionSpacing)
-                )
-                .GridRow(0),
-                Button("Cancel")
-                    .GridRow(1)
-                    .OnClicked(() => SetState(s => s.IsPhraseListShown = false))
-            )
-            .Background(MyTheme.LightBackground)
-            .Padding(MyTheme.LayoutPadding)
-            .Margin(MyTheme.LayoutPadding)
-            .HFill()
-            .MinimumWidthRequest(320)
-        )
-        .IsOpen(State.IsPhraseListShown);
+                    var label = new Microsoft.Maui.Controls.Label
+                    {
+                        TextColor = Colors.White,
+                        FontSize = 16,
+                        Padding = new Thickness(0, 8)
+                    };
+                    label.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, ".");
+                    label.GestureRecognizers.Add(tapGesture);
+                    return label;
+                })
+            };
+            await IPopupService.Current.PushAsync(popup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "WarmupPage: Error showing phrases popup");
+        }
+    }
 
     async void ShowScenarioSelection()
     {
@@ -204,7 +220,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
                     // Header row with icon, name, and active checkmark
                     var headerLayout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 8 };
-                    
+
                     // Type icon (Repeat for Finite, Chat for OpenEnded)
                     var typeIcon = new Microsoft.Maui.Controls.Image
                     {
@@ -212,10 +228,10 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                         HeightRequest = 16,
                         VerticalOptions = LayoutOptions.Center
                     };
-                    typeIcon.SetBinding(Microsoft.Maui.Controls.Image.SourceProperty, 
-                        new Microsoft.Maui.Controls.Binding("ConversationType", 
+                    typeIcon.SetBinding(Microsoft.Maui.Controls.Image.SourceProperty,
+                        new Microsoft.Maui.Controls.Binding("ConversationType",
                             converter: new ConversationTypeToIconConverter()));
-                    
+
                     // Scenario name
                     var nameLabel = new Microsoft.Maui.Controls.Label
                     {
@@ -236,7 +252,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                         HorizontalOptions = LayoutOptions.EndAndExpand
                     };
                     checkIcon.SetBinding(Microsoft.Maui.Controls.Image.IsVisibleProperty,
-                        new Microsoft.Maui.Controls.Binding("Id", 
+                        new Microsoft.Maui.Controls.Binding("Id",
                             converter: new IsActiveScenarioConverter(State.ActiveScenario?.Id)));
 
                     headerLayout.Children.Add(typeIcon);
@@ -311,7 +327,8 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             // Bot/System message (left-aligned, dark background)
             return Border(
                 new SelectableLabel()
-                    .Text(chunk.Text),
+                    .Text(chunk.Text)
+                    .FontSize(State.FontSize),
                      MenuFlyout(
                         MenuFlyoutItem("Play Audio").OnClicked(() => PlayAudio(chunk.Text))
                     )
@@ -330,6 +347,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             return Border(
                 new SelectableLabel()
                     .Text(chunk.Text)
+                    .FontSize(State.FontSize)
             )
             .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
             .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
@@ -351,11 +369,8 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
         try
         {
-            SetState(s =>
-            {
-                s.Explanation = explanation;
-                s.IsExplanationShown = true;
-            });
+            SetState(s => s.Explanation = explanation);
+            ShowExplanationPopup();
         }
         catch (Exception e)
         {
@@ -364,7 +379,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     }
 
     VisualNode RenderInput() =>
-        Grid("", "* Auto",
+        Grid("", "* Auto Auto Auto",
             Border(
                 Entry()
                     .Placeholder("그건 한국어로 어떻게 말해요?")
@@ -384,21 +399,42 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                 .Padding(new Thickness(MyTheme.LayoutSpacing, 0))
                 .StrokeThickness(1)
                 .VEnd(),
+            ImageButton()
+                .Source(MyTheme.IconFontDecrease)
+                .OnClicked(DecreaseFontSize)
+                .VCenter()
+                .GridColumn(1),
+            ImageButton()
+                .Source(MyTheme.IconFontIncrease)
+                .OnClicked(IncreaseFontSize)
+                .VCenter()
+                .GridColumn(2),
             Button()
                 .Background(MyTheme.Gray300)
                 .ImageSource(MyTheme.IconAdd)
                 .Text("add")
                 .VCenter()
-                .GridColumn(1)
-                .OnPressed(async () =>
-                {
-                    SetState(s => s.IsPhraseListShown = true);
-                })
+                .GridColumn(3)
+                .OnPressed(ShowPhrasesPopup)
         )
         .GridRow(1)
         .Margin(MyTheme.LayoutPadding)
         .ColumnSpacing(MyTheme.LayoutSpacing)
         .VEnd();
+
+    void IncreaseFontSize()
+    {
+        var newSize = Math.Min(State.FontSize + 2, 48.0);
+        SetState(s => s.FontSize = newSize);
+        Preferences.Set("WarmupActivity_FontSize", State.FontSize);
+    }
+
+    void DecreaseFontSize()
+    {
+        var newSize = Math.Max(State.FontSize - 2, 12.0);
+        SetState(s => s.FontSize = newSize);
+        Preferences.Set("WarmupActivity_FontSize", State.FontSize);
+    }
 
     async Task SendMessage()
     {
@@ -831,10 +867,10 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         SetState(s => s.IsBusy = true);
 
         var personaName = State.ActiveScenario?.PersonaName ?? ConversationParticipant.Bot.FirstName;
-        
+
         // Capture the conversation history BEFORE adding the placeholder
         var conversationHistory = State.Chunks.ToList();
-        
+
         // Add placeholder chunk to show loading state
         var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
         SetState(s => s.Chunks.Add(chunk));

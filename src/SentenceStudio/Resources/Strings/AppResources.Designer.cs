@@ -2695,6 +2695,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Quick Phrases.
+        /// </summary>
+        internal static string QuickPhrases {
+            get {
+                return ResourceManager.GetString("QuickPhrases", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Target to Native Language.
         /// </summary>
         internal static string QuizDirection {

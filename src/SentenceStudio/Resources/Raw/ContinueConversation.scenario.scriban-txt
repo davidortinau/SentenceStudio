@@ -9,19 +9,22 @@ This is a transactional conversation. Complete the interaction naturally when th
 This is an open-ended conversation. Keep exploring topics with follow-up questions.
 {{ end }}
 
-Our conversation thus far is provided here: 
+## Our conversation thus far
 
 {{ for c in chunks }}
-    {{ c.Author }} said "{{ c.Text }}". 
+    {{ c.author }} said "{{ c.text }}". 
 {{ end }}
 
 {{ if scenario.question_bank }}
-Suggested topics/phrases (work these into the conversation naturally):
+## Suggested topics/phrases you might use
+
 {{ scenario.question_bank }}
 {{ end }}
+
+## Additional instructions
 
 Score your comprehension of my last message on a scale of 0-100, with 0 meaning you didn't understand anything and 100 meaning you understood everything. Put your score in the comprehension_score of your json response. Explain your score in a few words, and include that in the comprehension_notes of your json response.
 
 If my last response is hard to understand or could be said more clearly, then ask for clarification or confirm your understanding of what you think I meant to say. If I asked a question, then respond to the question before asking me a new question. Continue the conversation until I say goodbye. 
 
-In your response only include your newest reply, only in Korean, and you don't need to repeat your name.
+In your response only include your newest reply.
