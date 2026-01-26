@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services
 {
@@ -15,6 +16,9 @@ namespace SentenceStudio.Services
         private ISyncService _syncService;
         private readonly ILogger<ConversationService> _logger;
 
+        // Default persona name - could be made configurable
+        private const string DefaultPersonaName = "김철수";
+
         public ConversationService(IServiceProvider serviceProvider, IConfiguration configuration, IChatClient chatClient, ILogger<ConversationService> logger)
         {
             _serviceProvider = serviceProvider;
@@ -27,16 +31,63 @@ namespace SentenceStudio.Services
             _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         }
 
+        /// <summary>
+        /// Loads and renders the system prompt template with persona configuration.
+        /// </summary>
+        private async Task<string> GetSystemPromptAsync(string personaName = DefaultPersonaName)
+        {
+            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
+            using var reader = new StreamReader(templateStream);
+            var template = Template.Parse(await reader.ReadToEndAsync());
+            return await template.RenderAsync(new { name = personaName });
+        }
+
+        /// <summary>
+        /// Loads and renders the scenario-specific system prompt template.
+        /// </summary>
+        private async Task<string> GetScenarioSystemPromptAsync(ConversationScenario scenario)
+        {
+            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
+            using var reader = new StreamReader(templateStream);
+            var template = Template.Parse(await reader.ReadToEndAsync());
+            
+            return await template.RenderAsync(new { 
+                scenario = new {
+                    persona_name = scenario.PersonaName,
+                    persona_description = scenario.PersonaDescription,
+                    situation_description = scenario.SituationDescription,
+                    conversation_type = scenario.ConversationType.ToString(),
+                    question_bank = scenario.QuestionBank
+                }
+            });
+        }
+
+        /// <summary>
+        /// Builds a chat message list from conversation history with proper roles.
+        /// </summary>
+        private List<ChatMessage> BuildChatHistory(IEnumerable<ConversationChunk> chunks)
+        {
+            var messages = new List<ChatMessage>();
+
+            foreach (var chunk in chunks.OrderBy(c => c.SentTime))
+            {
+                var role = chunk.Role == ConversationRole.User ? ChatRole.User : ChatRole.Assistant;
+                messages.Add(new ChatMessage(role, chunk.Text ?? string.Empty));
+            }
+
+            return messages;
+        }
+
         public async Task<Conversation> ResumeConversation()
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             var mostRecentConversation = await db.Conversations
                 .Include(c => c.Chunks)
                 .OrderByDescending(c => c.Id)
                 .FirstOrDefaultAsync();
-            
+
             return mostRecentConversation;
         }
 
@@ -44,11 +95,11 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // Set timestamps
             if (chunk.CreatedAt == default)
                 chunk.CreatedAt = DateTime.UtcNow;
-            
+
             try
             {
                 if (chunk.Id != 0)
@@ -59,9 +110,9 @@ namespace SentenceStudio.Services
                 {
                     db.ConversationChunks.Add(chunk);
                 }
-                
+
                 await db.SaveChangesAsync();
-                
+
                 _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -70,55 +121,101 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<string> StartConversation()
+        public async Task<string> StartConversation(ConversationScenario? scenario = null)
         {
-            var prompt = string.Empty;     
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
-            using (StreamReader reader = new StreamReader(templateStream))
-            {
-                var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync();
-
-                // //Debug.WriteLine(prompt);
-            }
-
             try
             {
+                // Build system prompt based on scenario
+                string systemPrompt;
+                string userPrompt;
                 
-                var response = await _client.GetResponseAsync<string>(prompt);
-                return response.Result;
+                if (scenario != null)
+                {
+                    systemPrompt = await GetScenarioSystemPromptAsync(scenario);
+                    _logger.LogInformation("Starting conversation with scenario: {Name}", scenario.Name);
+                    
+                    // Use scenario-specific start conversation template
+                    using Stream scenarioTemplateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
+                    using var scenarioReader = new StreamReader(scenarioTemplateStream);
+                    var scenarioTemplate = Template.Parse(await scenarioReader.ReadToEndAsync());
+                    userPrompt = await scenarioTemplate.RenderAsync(new { 
+                        scenario = new {
+                            persona_name = scenario.PersonaName,
+                            persona_description = scenario.PersonaDescription,
+                            situation_description = scenario.SituationDescription,
+                            conversation_type = scenario.ConversationType.ToString()
+                        }
+                    });
+                }
+                else
+                {
+                    systemPrompt = await GetSystemPromptAsync();
+                    
+                    // Use default start conversation template
+                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
+                    using var reader = new StreamReader(templateStream);
+                    var template = Template.Parse(await reader.ReadToEndAsync());
+                    userPrompt = await template.RenderAsync();
+                }
 
+                // Build chat messages with proper roles
+                var messages = new List<ChatMessage>
+                {
+                    new ChatMessage(ChatRole.System, systemPrompt),
+                    new ChatMessage(ChatRole.User, userPrompt)
+                };
+
+                var response = await _client.GetResponseAsync<string>(messages);
+                return response.Result;
             }
             catch (Exception ex)
             {
-                // Handle any exceptions that occur during the process
                 _logger.LogError(ex, "Error occurred in StartConversation");
                 return string.Empty;
             }
         }
 
-        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks)
-        {       
-            var prompt = string.Empty;     
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
-            using (StreamReader reader = new StreamReader(templateStream))
-            {
-                var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { name = "김철수", chunks = chunks.Take(chunks.Count - 1) });
-
-                // //Debug.WriteLine(prompt);
-            }
-            
+        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks, ConversationScenario? scenario = null)
+        {
             try
             {
+                // Use the single-prompt pattern that works with structured output
+                // Build a complete prompt string with persona, history, and instructions
+                string prompt;
+                
+                if (scenario != null)
+                {
+                    // Use scenario-specific template
+                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scenario.scriban-txt");
+                    using var reader = new StreamReader(templateStream);
+                    var template = Template.Parse(await reader.ReadToEndAsync());
+                    prompt = await template.RenderAsync(new { 
+                        scenario = new {
+                            persona_name = scenario.PersonaName,
+                            persona_description = scenario.PersonaDescription,
+                            situation_description = scenario.SituationDescription,
+                            conversation_type = scenario.ConversationType.ToString(),
+                            question_bank = scenario.QuestionBank
+                        },
+                        chunks = chunks.Take(chunks.Count - 1)
+                    });
+                }
+                else
+                {
+                    // Use default template (original working pattern)
+                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
+                    using var reader = new StreamReader(templateStream);
+                    var template = Template.Parse(await reader.ReadToEndAsync());
+                    prompt = await template.RenderAsync(new { name = DefaultPersonaName, chunks = chunks.Take(chunks.Count - 1) });
+                }
+
                 var response = await _client.GetResponseAsync<Reply>(prompt);
                 return response.Result;
             }
             catch (Exception ex)
             {
-                // Handle any exceptions that occur during the process
                 _logger.LogError(ex, "Error occurred in ContinueConversation");
-                return null;
+                return new Reply { Message = string.Empty };
             }
         }
 
@@ -126,11 +223,11 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // Set timestamps
             if (conversation.CreatedAt == default)
                 conversation.CreatedAt = DateTime.UtcNow;
-            
+
             try
             {
                 if (conversation.Id != 0)
@@ -141,9 +238,9 @@ namespace SentenceStudio.Services
                 {
                     db.Conversations.Add(conversation);
                 }
-                
+
                 await db.SaveChangesAsync();
-                
+
                 _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -158,13 +255,13 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             try
             {
                 // EF Core will handle cascade delete of chunks automatically if configured
                 db.Conversations.Remove(conversation);
                 await db.SaveChangesAsync();
-                
+
                 _syncService?.TriggerSyncAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -177,7 +274,7 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             return await db.Conversations
                 .Include(c => c.Chunks)
                 .OrderByDescending(c => c.CreatedAt)
@@ -188,7 +285,7 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             return await db.Conversations
                 .Include(c => c.Chunks)
                 .Where(c => c.Id == id)
@@ -199,7 +296,7 @@ namespace SentenceStudio.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             return await db.ConversationChunks
                 .Where(cc => cc.ConversationId == conversationId)
                 .OrderBy(cc => cc.CreatedAt)

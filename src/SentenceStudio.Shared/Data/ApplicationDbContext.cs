@@ -43,6 +43,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
         modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationScenario>().ToTable("ConversationScenario").HasKey(e => e.Id);
         modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
@@ -77,6 +78,13 @@ public class ApplicationDbContext : DbContext
             .WithOne()
             .HasForeignKey(cc => cc.ConversationId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure Conversation to ConversationScenario relationship
+        modelBuilder.Entity<Conversation>()
+            .HasOne(c => c.Scenario)
+            .WithMany()
+            .HasForeignKey(c => c.ScenarioId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Create unique constraint to ensure one progress record per vocabulary word per user
         modelBuilder.Entity<VocabularyProgress>()
@@ -181,6 +189,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<SceneImage> SceneImages => Set<SceneImage>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationChunk> ConversationChunks => Set<ConversationChunk>();
+    public DbSet<ConversationScenario> ConversationScenarios => Set<ConversationScenario>();
     public DbSet<ResourceVocabularyMapping> ResourceVocabularyMappings => Set<ResourceVocabularyMapping>();
     public DbSet<VocabularyProgress> VocabularyProgresses => Set<VocabularyProgress>();
     public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();

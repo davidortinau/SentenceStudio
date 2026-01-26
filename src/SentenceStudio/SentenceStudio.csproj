@@ -142,13 +142,17 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
 
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
-		<PackageReference Include="Reactor.Maui" Version="4.0.11-beta" />
+		<!-- Local MauiReactor reference for hot reload fix development -->
+		<!-- <PackageReference Include="Reactor.Maui" Version="4.0.11-beta" /> -->
+		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor\MauiReactor.csproj" />
+		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor.HotReload\MauiReactor.HotReload.csproj" />
+		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor.ScaffoldGenerator\MauiReactor.ScaffoldGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.2" />
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
@@ -168,13 +172,16 @@
 		<PackageReference Include="Syncfusion.Maui.Gauges" Version="32.1.22" />
 		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="32.1.22" />
 		
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.1">
+		<!-- UXD Popups - platform-specific packages only (excludes net10.0 unit test target) -->
+		<PackageReference Include="UXDivers.Popups.Maui" Version="0.9.1" Condition="'$(TargetFramework)' != 'net10.0'" />
+		
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 
-		<PackageReference Include="Microsoft.Extensions.AI" Version="10.1.1" />
-		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.10.1-preview.1.25521.4" />
+		<PackageReference Include="Microsoft.Extensions.AI" Version="10.2.0" />
+		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.2.0-preview.1.26063.2" />
 
 	</ItemGroup>
 

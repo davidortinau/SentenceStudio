@@ -27,6 +27,11 @@ public partial class ConversationChunk : ObservableObject
     public string? Author { get; set; }
     public int ConversationId { get; set; }
     
+    /// <summary>
+    /// The role of this message (User or Assistant).
+    /// </summary>
+    public ConversationRole Role { get; set; }
+    
     // Additional properties for CoreSync compatibility
     [NotMapped]
     public int ConversationID 
@@ -65,5 +70,14 @@ public partial class ConversationChunk : ObservableObject
         Text = text;
         SentTime = sentTime;
         Author = author;
+    }
+    
+    public ConversationChunk(int conversationId, DateTime sentTime, string author, string text, ConversationRole role)
+    {
+        ConversationId = conversationId;
+        Text = text;
+        SentTime = sentTime;
+        Author = author;
+        Role = role;
     }
 }

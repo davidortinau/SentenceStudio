@@ -1917,4 +1917,116 @@
     <value>Create</value>
     <comment>Button to create an item</comment>
   </data>
+  <!-- Warmup Conversation Scenarios [002-warmup-scenarios] -->
+  <data name="ChooseScenario" xml:space="preserve">
+    <value>Choose Scenario</value>
+    <comment>[002-warmup-scenarios] Toolbar button to select scenario</comment>
+  </data>
+  <data name="CreateNewScenario" xml:space="preserve">
+    <value>Create New Scenario</value>
+    <comment>[002-warmup-scenarios] Button to create custom scenario</comment>
+  </data>
+  <data name="FiniteConversation" xml:space="preserve">
+    <value>Ends when complete</value>
+    <comment>[002-warmup-scenarios] Label for finite conversation type</comment>
+  </data>
+  <data name="OpenEndedConversation" xml:space="preserve">
+    <value>Continues indefinitely</value>
+    <comment>[002-warmup-scenarios] Label for open-ended conversation type</comment>
+  </data>
+  <data name="ScenarioCreated" xml:space="preserve">
+    <value>Scenario created!</value>
+    <comment>[002-warmup-scenarios] Success message after creating scenario</comment>
+  </data>
+  <data name="ConversationComplete" xml:space="preserve">
+    <value>Conversation Complete</value>
+    <comment>[002-warmup-scenarios] Title for conversation complete dialog</comment>
+  </data>
+  <data name="ScenarioAskName" xml:space="preserve">
+    <value>What should I call this scenario?</value>
+    <comment>[002-warmup-scenarios] Question asking for scenario name</comment>
+  </data>
+  <data name="ScenarioAskPersona" xml:space="preserve">
+    <value>Who will you be talking to? (name and role, e.g., "박지영, a barista")</value>
+    <comment>[002-warmup-scenarios] Question asking for persona details</comment>
+  </data>
+  <data name="ScenarioAskSituation" xml:space="preserve">
+    <value>What's the situation? Describe it briefly.</value>
+    <comment>[002-warmup-scenarios] Question asking for situation description</comment>
+  </data>
+  <data name="ScenarioAskType" xml:space="preserve">
+    <value>Should this conversation end when the task is complete (finite), or continue with follow-ups (open-ended)?</value>
+    <comment>[002-warmup-scenarios] Question asking about conversation type</comment>
+  </data>
+  <data name="ScenarioConfirmation" xml:space="preserve">
+    <value>Got it! Here's your scenario:
+
+Name: {0}
+You'll talk to: {1}, {2}
+Situation: {3}
+Type: {4}
+
+Ready to practice? Say "yes" to start, or tell me what you'd like to change.</value>
+    <comment>[002-warmup-scenarios] Confirmation message with scenario details</comment>
+  </data>
+  <data name="ScenarioUpdated" xml:space="preserve">
+    <value>Scenario updated!</value>
+    <comment>[002-warmup-scenarios] Success message after updating scenario</comment>
+  </data>
+  <data name="CannotEditPredefined" xml:space="preserve">
+    <value>This is a predefined scenario and cannot be edited. You can create a similar custom scenario instead.</value>
+    <comment>[002-warmup-scenarios] Error message when trying to edit predefined scenario</comment>
+  </data>
+  <data name="ScenarioDeleted" xml:space="preserve">
+    <value>Scenario deleted.</value>
+    <comment>[002-warmup-scenarios] Success message after deleting scenario</comment>
+  </data>
+  <data name="DeleteScenarioConfirm" xml:space="preserve">
+    <value>Delete this scenario?</value>
+    <comment>[002-warmup-scenarios] Confirmation for scenario deletion</comment>
+  </data>
+  <data name="ActiveScenario" xml:space="preserve">
+    <value>Active: {0}</value>
+    <comment>[002-warmup-scenarios] Label showing active scenario name</comment>
+  </data>
+  <data name="PredefinedBadge" xml:space="preserve">
+    <value>Predefined</value>
+    <comment>[002-warmup-scenarios] Badge label for predefined scenarios</comment>
+  </data>
+  <data name="ScenarioCancelled" xml:space="preserve">
+    <value>Scenario creation cancelled.</value>
+    <comment>[002-warmup-scenarios] Message when scenario creation is cancelled</comment>
+  </data>
+  <data name="ScenarioCreated" xml:space="preserve">
+    <value>Scenario "{0}" created! Starting conversation...</value>
+    <comment>[002-warmup-scenarios] Success message when scenario is created</comment>
+  </data>
+  <data name="NoActiveScenarioToEdit" xml:space="preserve">
+    <value>No scenario is currently selected to edit.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to edit with no scenario</comment>
+  </data>
+  <data name="EditingScenario" xml:space="preserve">
+    <value>Editing scenario: {0}</value>
+    <comment>[002-warmup-scenarios] Header when editing a scenario</comment>
+  </data>
+  <data name="EditScenarioPrompt" xml:space="preserve">
+    <value>What would you like to change?</value>
+    <comment>[002-warmup-scenarios] Prompt asking what to change</comment>
+  </data>
+  <data name="NoActiveScenarioToDelete" xml:space="preserve">
+    <value>No scenario is currently selected to delete.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to delete with no scenario</comment>
+  </data>
+  <data name="CannotDeletePredefined" xml:space="preserve">
+    <value>Predefined scenarios cannot be deleted.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to delete predefined scenario</comment>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Yes</value>
+    <comment>Generic yes button label</comment>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+    <comment>Generic no button label</comment>
+  </data>
 </root>

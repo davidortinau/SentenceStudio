@@ -531,6 +531,47 @@ partial class MyTheme
         Size = Size200
     };
 
+    // Conversation scenario icons
+    public static FontImageSource IconChat { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.chat_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
+    public static FontImageSource IconChatSmall { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.chat_16_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray400,
+        Size = Size160
+    };
+
+    public static FontImageSource IconRepeat { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.arrow_repeat_all_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = Size200
+    };
+
+    public static FontImageSource IconRepeatSmall { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.arrow_repeat_1_16_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray400,
+        Size = Size160
+    };
+
+    public static FontImageSource IconPerson { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.person_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Gray400,
+        Size = Size160
+    };
+
     public static ImageSource GetIconForMediaType(string mediaType)
     {
         return mediaType switch

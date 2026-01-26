@@ -14,6 +14,18 @@ public partial class Conversation : ObservableObject
     // Original properties
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
+    /// <summary>
+    /// Optional reference to the scenario used for this conversation.
+    /// Null for conversations started before scenario feature or without a specific scenario.
+    /// </summary>
+    public int? ScenarioId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the conversation scenario.
+    /// </summary>
+    [ForeignKey(nameof(ScenarioId))]
+    public ConversationScenario? Scenario { get; set; }
+
     // Navigation property for EF Core and CoreSync
     public List<ConversationChunk>? Chunks { get; set; }
 
@@ -23,6 +35,13 @@ public partial class Conversation : ObservableObject
     public Conversation(DateTime createdAt)
     {
         CreatedAt = createdAt;
+        Chunks = new List<ConversationChunk>();
+    }
+
+    public Conversation(DateTime createdAt, int? scenarioId)
+    {
+        CreatedAt = createdAt;
+        ScenarioId = scenarioId;
         Chunks = new List<ConversationChunk>();
     }
 }

@@ -29,6 +29,8 @@ using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.MinimalPairs;
 using Microsoft.Maui.Controls.Hosting;
+using MauiReactor.HotReload;
+using UXDivers.Popups.Maui;
 #if ANDROID || IOS || MACCATALYST || WINDOWS
 using System.Globalization;
 #endif
@@ -54,8 +56,8 @@ public static class MauiProgram
 			{
 				app.UseTheme<MyTheme>();
 				app.SetWindowsSpecificAssetsDirectory("Assets");
-				// app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.DarkTheme());
-				// app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.PopupStyles());
+				app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.DarkTheme());
+				app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.PopupStyles());
 
 				// // Add custom resources
 				// var customResources = new ResourceDictionary
@@ -92,7 +94,7 @@ public static class MauiProgram
 				// InitializeSmartResources();
 
 			})
-			// .UseUXDiversPopups()
+			.UseUXDiversPopups()
 
 			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
@@ -255,6 +257,18 @@ public static class MauiProgram
 		{
 			try
 			{
+				logger.LogDebug("🚀 Starting async database initialization");
+				var syncService = app.Services.GetRequiredService<SentenceStudio.Services.ISyncService>();
+
+				await syncService.InitializeDatabaseAsync();
+				logger.LogDebug("✅ Database initialization complete");
+
+				// Seed predefined conversation scenarios
+				var scenarioService = app.Services.GetRequiredService<SentenceStudio.Services.IScenarioService>();
+				await scenarioService.SeedPredefinedScenariosAsync();
+				logger.LogDebug("✅ Conversation scenarios seeded");
+
+				// Trigger background sync after initialization
 				await syncService.TriggerSyncAsync();
 				logger.LogInformation("[CoreSync] Background sync completed successfully");
 			}
@@ -374,6 +388,10 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyProgressService>();
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
 		services.AddSingleton<SmartResourceService>();
+
+		// Scenario service for Warmup conversation scenarios
+		services.AddSingleton<ScenarioRepository>();
+		services.AddSingleton<IScenarioService, ScenarioService>();
 
 		// Vocabulary encoding repositories and services
 		services.AddSingleton<EncodingStrengthCalculator>();

@@ -85,6 +85,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Active: {0}.
+        /// </summary>
+        internal static string ActiveScenario {
+            get {
+                return ResourceManager.GetString("ActiveScenario", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Activities.
         /// </summary>
         internal static string Activities {
@@ -427,6 +436,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Predefined scenarios cannot be deleted..
+        /// </summary>
+        internal static string CannotDeletePredefined {
+            get {
+                return ResourceManager.GetString("CannotDeletePredefined", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This is a predefined scenario and cannot be edited. You can create a similar custom scenario instead..
+        /// </summary>
+        internal static string CannotEditPredefined {
+            get {
+                return ResourceManager.GetString("CannotEditPredefined", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Toggle Language.
         /// </summary>
         internal static string ChangeLanguage {
@@ -468,6 +495,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ChooseImage {
             get {
                 return ResourceManager.GetString("ChooseImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose Scenario.
+        /// </summary>
+        internal static string ChooseScenario {
+            get {
+                return ResourceManager.GetString("ChooseScenario", resourceCulture);
             }
         }
         
@@ -616,6 +652,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Conversation Complete.
+        /// </summary>
+        internal static string ConversationComplete {
+            get {
+                return ResourceManager.GetString("ConversationComplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Copied to clipboard!.
         /// </summary>
         internal static string CopiedToClipboard {
@@ -657,6 +702,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Created {
             get {
                 return ResourceManager.GetString("Created", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create New Scenario.
+        /// </summary>
+        internal static string CreateNewScenario {
+            get {
+                return ResourceManager.GetString("CreateNewScenario", resourceCulture);
             }
         }
         
@@ -760,6 +814,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Delete this scenario?.
+        /// </summary>
+        internal static string DeleteScenarioConfirm {
+            get {
+                return ResourceManager.GetString("DeleteScenarioConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Describe a Scene.
         /// </summary>
         internal static string DescribeAScene {
@@ -855,6 +918,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Edit {
             get {
                 return ResourceManager.GetString("Edit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Editing scenario: {0}.
+        /// </summary>
+        internal static string EditingScenario {
+            get {
+                return ResourceManager.GetString("EditingScenario", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What would you like to change?.
+        /// </summary>
+        internal static string EditScenarioPrompt {
+            get {
+                return ResourceManager.GetString("EditScenarioPrompt", resourceCulture);
             }
         }
         
@@ -1161,6 +1242,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string FilterByTag {
             get {
                 return ResourceManager.GetString("FilterByTag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ends when complete.
+        /// </summary>
+        internal static string FiniteConversation {
+            get {
+                return ResourceManager.GetString("FiniteConversation", resourceCulture);
             }
         }
         
@@ -1930,6 +2020,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No scenario is currently selected to delete..
+        /// </summary>
+        internal static string NoActiveScenarioToDelete {
+            get {
+                return ResourceManager.GetString("NoActiveScenarioToDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No scenario is currently selected to edit..
+        /// </summary>
+        internal static string NoActiveScenarioToEdit {
+            get {
+                return ResourceManager.GetString("NoActiveScenarioToEdit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No audio available to save.
         /// </summary>
         internal static string NoAudioAvailable {
@@ -2133,6 +2241,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string OpenAI_APIKey {
             get {
                 return ResourceManager.GetString("OpenAI_APIKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Continues indefinitely.
+        /// </summary>
+        internal static string OpenEndedConversation {
+            get {
+                return ResourceManager.GetString("OpenEndedConversation", resourceCulture);
             }
         }
         
@@ -2506,6 +2623,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Predefined.
+        /// </summary>
+        internal static string PredefinedBadge {
+            get {
+                return ResourceManager.GetString("PredefinedBadge", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Failed to save preferences. Please try again..
         /// </summary>
         internal static string PreferencesSaveFailed {
@@ -2862,6 +2988,94 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SavingWord {
             get {
                 return ResourceManager.GetString("SavingWord", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What should I call this scenario?.
+        /// </summary>
+        internal static string ScenarioAskName {
+            get {
+                return ResourceManager.GetString("ScenarioAskName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Who will you be talking to? (name and role, e.g., &quot;박지영, a barista&quot;).
+        /// </summary>
+        internal static string ScenarioAskPersona {
+            get {
+                return ResourceManager.GetString("ScenarioAskPersona", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What&apos;s the situation? Describe it briefly..
+        /// </summary>
+        internal static string ScenarioAskSituation {
+            get {
+                return ResourceManager.GetString("ScenarioAskSituation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Should this conversation end when the task is complete (finite), or continue with follow-ups (open-ended)?.
+        /// </summary>
+        internal static string ScenarioAskType {
+            get {
+                return ResourceManager.GetString("ScenarioAskType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scenario creation cancelled..
+        /// </summary>
+        internal static string ScenarioCancelled {
+            get {
+                return ResourceManager.GetString("ScenarioCancelled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Got it! Here&apos;s your scenario:
+        ///
+        ///Name: {0}
+        ///You&apos;ll talk to: {1}, {2}
+        ///Situation: {3}
+        ///Type: {4}
+        ///
+        ///Ready to practice? Say &quot;yes&quot; to start, or tell me what you&apos;d like to change..
+        /// </summary>
+        internal static string ScenarioConfirmation {
+            get {
+                return ResourceManager.GetString("ScenarioConfirmation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scenario created!.
+        /// </summary>
+        internal static string ScenarioCreated {
+            get {
+                return ResourceManager.GetString("ScenarioCreated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scenario deleted..
+        /// </summary>
+        internal static string ScenarioDeleted {
+            get {
+                return ResourceManager.GetString("ScenarioDeleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scenario updated!.
+        /// </summary>
+        internal static string ScenarioUpdated {
+            get {
+                return ResourceManager.GetString("ScenarioUpdated", resourceCulture);
             }
         }
         

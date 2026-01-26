@@ -5,6 +5,9 @@ using SentenceStudio.Pages.Controls;
 using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Dispatching;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Shared.Models;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Warmup;
 
@@ -21,6 +24,17 @@ class WarmupPageState
     public bool? PopupResult { get; set; }
 
     public string Explanation { get; set; }
+
+    public double FontSize { get; set; } = 18.0;
+
+    // Scenario support
+    public ConversationScenario? ActiveScenario { get; set; }
+    public List<ConversationScenario> AvailableScenarios { get; set; } = new();
+    public bool IsConversationComplete { get; set; }
+
+    // Scenario creation support
+    public ScenarioCreationState? CreationState { get; set; }
+    public bool IsCreatingScenario => CreationState != null;
 }
 
 partial class WarmupPage : Component<WarmupPageState, ActivityProps>
@@ -30,6 +44,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] IScenarioService _scenarioService;
     [Inject] ILogger<WarmupPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
     Conversation _conversation;
@@ -51,9 +66,16 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             "한국어로 말해 주세요.",
             "한국어로 쓰세요.",
             "한국어로 번역해 주세요."
-        }; public override VisualNode Render()
+        };
+
+    public override VisualNode Render()
     {
-        return ContentPage("Warmup",
+        // Hot reload diagnostic - this should log every time Render() is called
+        System.Diagnostics.Debug.WriteLine($"🔄 WarmupPage.Render() called at {DateTime.Now:HH:mm:ss.fff}, ActiveScenario={State.ActiveScenario?.Name ?? "none"}");
+        _logger.LogDebug("🔄 WarmupPage.Render() called at {Time}, ActiveScenario={Scenario}", DateTime.Now.ToString("HH:mm:ss.fff"), State.ActiveScenario?.Name ?? "none");
+
+        return ContentPage($"{_localize["Warmup"]}",
+            ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
             ToolbarItem($"{_localize["NewConversation"]}").OnClicked(StartNewConversation),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
@@ -76,13 +98,25 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             onStop: StopAudio
         );
 
-    VisualNode RenderMessageScroll() =>
-        ScrollView(
+    VisualNode RenderMessageScroll()
+    {
+        System.Diagnostics.Debug.WriteLine($"🔍 RenderMessageScroll: IsBusy={State.IsBusy}, ChunksCount={State.Chunks?.Count ?? -1}");
+
+        // Log each chunk being rendered
+        foreach (var c in State.Chunks)
+        {
+            System.Diagnostics.Debug.WriteLine($"📝 Chunk: Author='{c.Author}', Text='{c.Text?.Substring(0, Math.Min(30, c.Text?.Length ?? 0))}...'");
+        }
+
+        return ScrollView(
             VStack(
                 State.Chunks.Select(c => RenderChunk(c)).ToArray()
             )
             .Spacing(MyTheme.LayoutSpacing)
-        );
+        )
+        .GridRow(0)
+        .VFill();
+    }
 
     VisualNode RenderExplanationPopup() =>
         new SfBottomSheet(
@@ -136,10 +170,145 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         )
         .IsOpen(State.IsPhraseListShown);
 
+    async void ShowScenarioSelection()
+    {
+        try
+        {
+            var scenarios = await _scenarioService.GetAllScenariosAsync();
+            SetState(s => s.AvailableScenarios = scenarios);
+
+            var popup = new ListActionPopup
+            {
+                Title = $"{_localize["ChooseScenario"]}",
+                ShowActionButton = false,
+                ItemsSource = scenarios,
+                ItemDataTemplate = new Microsoft.Maui.Controls.DataTemplate(() =>
+                {
+                    var tapGesture = new Microsoft.Maui.Controls.TapGestureRecognizer();
+                    tapGesture.SetBinding(Microsoft.Maui.Controls.TapGestureRecognizer.CommandParameterProperty, ".");
+                    tapGesture.Tapped += async (s, e) =>
+                    {
+                        if (e is Microsoft.Maui.Controls.TappedEventArgs args && args.Parameter is ConversationScenario scenario)
+                        {
+                            await IPopupService.Current.PopAsync();
+                            SelectScenario(scenario);
+                        }
+                    };
+
+                    var layout = new Microsoft.Maui.Controls.VerticalStackLayout
+                    {
+                        Spacing = 4,
+                        Padding = new Thickness(0, 8)
+                    };
+                    layout.GestureRecognizers.Add(tapGesture);
+
+                    // Header row with icon, name, and active checkmark
+                    var headerLayout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 8 };
+                    
+                    // Type icon (Repeat for Finite, Chat for OpenEnded)
+                    var typeIcon = new Microsoft.Maui.Controls.Image
+                    {
+                        WidthRequest = 16,
+                        HeightRequest = 16,
+                        VerticalOptions = LayoutOptions.Center
+                    };
+                    typeIcon.SetBinding(Microsoft.Maui.Controls.Image.SourceProperty, 
+                        new Microsoft.Maui.Controls.Binding("ConversationType", 
+                            converter: new ConversationTypeToIconConverter()));
+                    
+                    // Scenario name
+                    var nameLabel = new Microsoft.Maui.Controls.Label
+                    {
+                        FontSize = 16,
+                        FontAttributes = FontAttributes.Bold,
+                        VerticalOptions = LayoutOptions.Center,
+                        TextColor = Colors.White
+                    };
+                    nameLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "DisplayName");
+
+                    // Active checkmark icon
+                    var checkIcon = new Microsoft.Maui.Controls.Image
+                    {
+                        Source = MyTheme.IconCheckmarkCircleFilledCorrect,
+                        WidthRequest = 16,
+                        HeightRequest = 16,
+                        VerticalOptions = LayoutOptions.Center,
+                        HorizontalOptions = LayoutOptions.EndAndExpand
+                    };
+                    checkIcon.SetBinding(Microsoft.Maui.Controls.Image.IsVisibleProperty,
+                        new Microsoft.Maui.Controls.Binding("Id", 
+                            converter: new IsActiveScenarioConverter(State.ActiveScenario?.Id)));
+
+                    headerLayout.Children.Add(typeIcon);
+                    headerLayout.Children.Add(nameLabel);
+                    headerLayout.Children.Add(checkIcon);
+
+                    // Persona row with icon and name
+                    var personaLayout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 4 };
+                    var personaIcon = new Microsoft.Maui.Controls.Image
+                    {
+                        Source = MyTheme.IconPerson,
+                        WidthRequest = 12,
+                        HeightRequest = 12,
+                        VerticalOptions = LayoutOptions.Center
+                    };
+                    var personaLabel = new Microsoft.Maui.Controls.Label
+                    {
+                        FontSize = 12,
+                        TextColor = Colors.Gray
+                    };
+                    personaLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "PersonaName");
+                    personaLayout.Children.Add(personaIcon);
+                    personaLayout.Children.Add(personaLabel);
+
+                    // Description label
+                    var descLabel = new Microsoft.Maui.Controls.Label
+                    {
+                        FontSize = 14,
+                        TextColor = Colors.LightGray,
+                        MaxLines = 2
+                    };
+                    descLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "SituationDescription");
+
+                    layout.Children.Add(headerLayout);
+                    layout.Children.Add(personaLayout);
+                    layout.Children.Add(descLabel);
+
+                    return layout;
+                })
+            };
+
+            await IPopupService.Current.PushAsync(popup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading scenarios");
+        }
+    }
+
+    async void SelectScenario(ConversationScenario scenario)
+    {
+        _logger.LogInformation("Selected scenario: {Name}", scenario.Name);
+
+        SetState(s =>
+        {
+            s.ActiveScenario = scenario;
+            s.IsConversationComplete = false;
+        });
+
+        // Start a new conversation with the selected scenario
+        await StartConversationWithScenario(scenario);
+    }
+
     VisualNode RenderChunk(ConversationChunk chunk)
     {
-        if (chunk.Author.Equals(ConversationParticipant.Bot.FirstName))
+        // Use the Role property to determine message type - this is the authoritative source
+        var isUserMessage = chunk.Role == ConversationRole.User;
+        System.Diagnostics.Debug.WriteLine($"RenderChunk: Author='{chunk.Author}', Role={chunk.Role}, IsUser={isUserMessage}");
+
+        if (!isUserMessage)
         {
+            // Bot/System message (left-aligned, dark background)
             return Border(
                 new SelectableLabel()
                     .Text(chunk.Text),
@@ -157,6 +326,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         else
         {
+            // User message (right-aligned, highlight background)
             return Border(
                 new SelectableLabel()
                     .Text(chunk.Text)
@@ -232,28 +402,275 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
     async Task SendMessage()
     {
-        if (!string.IsNullOrWhiteSpace(State.UserInput))
+        if (string.IsNullOrWhiteSpace(State.UserInput))
+            return;
+
+        var userMessage = State.UserInput;
+
+        // Check for scenario creation/management intents
+        if (State.IsCreatingScenario)
         {
-            var chunk = new ConversationChunk(
-                _conversation.Id,
-                DateTime.Now,
-                $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}",
-                State.UserInput
-            );
+            await HandleScenarioCreationInput(userMessage);
+            return;
+        }
 
+        // Check for scenario management intents
+        var intent = _scenarioService.DetectScenarioIntent(userMessage);
 
-            await _conversationService.SaveConversationChunk(chunk);
+        switch (intent)
+        {
+            case ScenarioIntent.CreateScenario:
+                await StartScenarioCreation();
+                return;
+
+            case ScenarioIntent.EditScenario:
+                await StartScenarioEditing();
+                return;
+
+            case ScenarioIntent.DeleteScenario:
+                await HandleDeleteScenario();
+                return;
+        }
+
+        // Normal conversation flow
+        var chunk = new ConversationChunk(
+            _conversation.Id,
+            DateTime.Now,
+            $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}",
+            userMessage,
+            ConversationRole.User
+        );
+
+        await _conversationService.SaveConversationChunk(chunk);
+
+        SetState(s =>
+        {
+            s.Chunks.Add(chunk);
+            s.UserInput = string.Empty;
+        });
+
+        // send to the bot for a response
+        await Task.Delay(2000);
+        await GetReply();
+    }
+
+    async Task StartScenarioCreation()
+    {
+        _logger.LogInformation("Starting scenario creation flow");
+
+        var creationState = new ScenarioCreationState
+        {
+            CurrentStep = ScenarioCreationStep.AskName
+        };
+
+        SetState(s =>
+        {
+            s.CreationState = creationState;
+            s.UserInput = string.Empty;
+        });
+
+        // Add system message asking for scenario name
+        var question = await _scenarioService.GetNextClarificationQuestionAsync(creationState);
+        AddSystemMessage(question ?? $"{_localize["ScenarioAskName"]}");
+    }
+
+    async Task HandleScenarioCreationInput(string userMessage)
+    {
+        if (State.CreationState == null)
+            return;
+
+        // Display user's response
+        AddUserMessage(userMessage);
+        SetState(s => s.UserInput = string.Empty);
+
+        // Check for cancellation
+        if (userMessage.ToLowerInvariant().Contains("cancel") || userMessage.Contains("취소"))
+        {
+            AddSystemMessage($"{_localize["ScenarioCancelled"]}");
+            SetState(s => s.CreationState = null);
+            return;
+        }
+
+        // Check for confirmation at the confirm step
+        if (State.CreationState.CurrentStep == ScenarioCreationStep.Confirm)
+        {
+            var lower = userMessage.ToLowerInvariant();
+            if (lower.Contains("yes") || lower.Contains("confirm") || lower.Contains("네") || lower.Contains("확인"))
+            {
+                await FinalizeScenarioCreation();
+                return;
+            }
+            else if (lower.Contains("no") || lower.Contains("restart") || lower.Contains("아니") || lower.Contains("다시"))
+            {
+                // Restart creation
+                await StartScenarioCreation();
+                return;
+            }
+        }
+
+        // Parse response and update state
+        var updatedState = await _scenarioService.ParseCreationResponseAsync(userMessage, State.CreationState);
+        SetState(s => s.CreationState = updatedState);
+
+        // Get next question or finalize
+        var nextQuestion = await _scenarioService.GetNextClarificationQuestionAsync(updatedState);
+        if (nextQuestion != null)
+        {
+            AddSystemMessage(nextQuestion);
+        }
+        else if (updatedState.IsComplete)
+        {
+            await FinalizeScenarioCreation();
+        }
+    }
+
+    async Task FinalizeScenarioCreation()
+    {
+        if (State.CreationState == null)
+            return;
+
+        try
+        {
+            var scenario = await _scenarioService.FinalizeScenarioCreationAsync(State.CreationState);
+
+            AddSystemMessage(string.Format($"{_localize["ScenarioCreated"]}", scenario.Name));
+
+            // Refresh available scenarios
+            var scenarios = await _scenarioService.GetAllScenariosAsync();
+            SetState(s =>
+            {
+                s.CreationState = null;
+                s.AvailableScenarios = scenarios;
+                s.ActiveScenario = scenario;
+            });
+
+            // Optionally start a conversation with the new scenario
+            await StartConversationWithScenario(scenario);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finalizing scenario creation");
+            AddSystemMessage($"Error creating scenario: {ex.Message}");
+            SetState(s => s.CreationState = null);
+        }
+    }
+
+    async Task StartScenarioEditing()
+    {
+        if (State.ActiveScenario == null)
+        {
+            AddSystemMessage($"{_localize["NoActiveScenarioToEdit"]}");
+            return;
+        }
+
+        if (State.ActiveScenario.IsPredefined)
+        {
+            AddSystemMessage($"{_localize["CannotEditPredefined"]}");
+            return;
+        }
+
+        _logger.LogInformation("Starting scenario editing for: {Name}", State.ActiveScenario.Name);
+
+        // Initialize creation state with existing values for editing
+        var editState = new ScenarioCreationState
+        {
+            CurrentStep = ScenarioCreationStep.AskName,
+            IsEditing = true,
+            EditingScenarioId = State.ActiveScenario.Id,
+            Name = State.ActiveScenario.Name,
+            PersonaName = State.ActiveScenario.PersonaName,
+            PersonaDescription = State.ActiveScenario.PersonaDescription,
+            SituationDescription = State.ActiveScenario.SituationDescription,
+            ConversationType = State.ActiveScenario.ConversationType,
+            QuestionBank = State.ActiveScenario.QuestionBank
+        };
+
+        SetState(s =>
+        {
+            s.CreationState = editState;
+            s.UserInput = string.Empty;
+        });
+
+        // Show current values and ask what to change
+        AddSystemMessage(string.Format($"{_localize["EditingScenario"]}", State.ActiveScenario.Name));
+        var question = await _scenarioService.GetNextClarificationQuestionAsync(editState);
+        AddSystemMessage($"{_localize["EditScenarioPrompt"]} {question}");
+    }
+
+    async Task HandleDeleteScenario()
+    {
+        if (State.ActiveScenario == null)
+        {
+            AddSystemMessage($"{_localize["NoActiveScenarioToDelete"]}");
+            return;
+        }
+
+        if (State.ActiveScenario.IsPredefined)
+        {
+            AddSystemMessage($"{_localize["CannotDeletePredefined"]}");
+            return;
+        }
+
+        // Confirm deletion
+        bool confirmed = await Application.Current.MainPage.DisplayAlert(
+            $"{_localize["DeleteScenarioConfirm"]}",
+            State.ActiveScenario.Name,
+            $"{_localize["Yes"]}",
+            $"{_localize["No"]}");
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            await _scenarioService.DeleteScenarioAsync(State.ActiveScenario.Id);
+
+            AddSystemMessage($"{_localize["ScenarioDeleted"]}");
+
+            // Refresh scenarios and switch to default
+            var scenarios = await _scenarioService.GetAllScenariosAsync();
+            var defaultScenario = scenarios.FirstOrDefault(s => s.Name == "First Meeting") ?? scenarios.FirstOrDefault();
 
             SetState(s =>
             {
-                s.Chunks.Add(chunk);
-                s.UserInput = string.Empty;
+                s.AvailableScenarios = scenarios;
+                s.ActiveScenario = defaultScenario;
             });
 
-            // send to the bot for a response
-            await Task.Delay(2000);
-            await GetReply();
+            if (defaultScenario != null)
+            {
+                await StartConversationWithScenario(defaultScenario);
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting scenario");
+            AddSystemMessage($"Error deleting scenario: {ex.Message}");
+        }
+    }
+
+    void AddSystemMessage(string message)
+    {
+        var chunk = new ConversationChunk(
+            _conversation?.Id ?? 0,
+            DateTime.Now,
+            "System",
+            message,
+            ConversationRole.Assistant
+        );
+        SetState(s => s.Chunks.Add(chunk));
+    }
+
+    void AddUserMessage(string message)
+    {
+        var chunk = new ConversationChunk(
+            _conversation?.Id ?? 0,
+            DateTime.Now,
+            $"{ConversationParticipant.Me.FirstName} {ConversationParticipant.Me.LastName}",
+            message,
+            ConversationRole.User
+        );
+        SetState(s => s.Chunks.Add(chunk));
     }
 
     async Task ResumeConversation()
@@ -267,12 +684,36 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
         SetState(s => s.IsBusy = true);
 
+        // Load available scenarios
+        try
+        {
+            var scenarios = await _scenarioService.GetAllScenariosAsync();
+            SetState(s => s.AvailableScenarios = scenarios);
+
+            // Set default scenario if none active
+            if (State.ActiveScenario == null && scenarios.Any())
+            {
+                var defaultScenario = scenarios.FirstOrDefault(s => s.Name == "First Meeting") ?? scenarios.First();
+                SetState(s => s.ActiveScenario = defaultScenario);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading scenarios");
+        }
+
         _conversation = await _conversationService.ResumeConversation();
 
         if (_conversation == null || !_conversation.Chunks.Any())
         {
             await StartConversation();
             return;
+        }
+
+        // Load the scenario if conversation has one
+        if (_conversation.ScenarioId.HasValue && _conversation.Scenario != null)
+        {
+            SetState(s => s.ActiveScenario = _conversation.Scenario);
         }
 
         ObservableCollection<ConversationChunk> chunks = [];
@@ -344,15 +785,42 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 
         SetState(s => s.IsBusy = true);
 
-        _conversation = new Conversation();
+        // Use active scenario or default
+        var scenario = State.ActiveScenario;
+        if (scenario == null)
+        {
+            var scenarios = await _scenarioService.GetAllScenariosAsync();
+            scenario = scenarios.FirstOrDefault(s => s.Name == "First Meeting") ?? scenarios.FirstOrDefault();
+            SetState(s => s.ActiveScenario = scenario);
+        }
+
+        await StartConversationWithScenario(scenario);
+    }
+
+    async Task StartConversationWithScenario(ConversationScenario? scenario)
+    {
+        SetState(s =>
+        {
+            s.IsBusy = true;
+            s.Chunks.Clear();
+            s.IsConversationComplete = false;
+        });
+
+        _conversation = new Conversation
+        {
+            ScenarioId = scenario?.Id
+        };
         await _conversationService.SaveConversation(_conversation);
 
-        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        var personaName = scenario?.PersonaName ?? ConversationParticipant.Bot.FirstName;
+        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
 
         SetState(s => s.Chunks.Add(chunk));
 
         await Task.Delay(1000);
-        chunk.Text = "안녕하세요. 이름이 뭐예요?";
+
+        // Get opening line based on scenario
+        chunk.Text = await _conversationService.StartConversation(scenario);
         await _conversationService.SaveConversationChunk(chunk);
 
         SetState(s => s.IsBusy = false);
@@ -362,12 +830,20 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     {
         SetState(s => s.IsBusy = true);
 
-        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, ConversationParticipant.Bot.FirstName, "...");
+        var personaName = State.ActiveScenario?.PersonaName ?? ConversationParticipant.Bot.FirstName;
+        
+        // Capture the conversation history BEFORE adding the placeholder
+        var conversationHistory = State.Chunks.ToList();
+        
+        // Add placeholder chunk to show loading state
+        var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
         SetState(s => s.Chunks.Add(chunk));
 
-        Reply response = await _conversationService.ContinueConversation(State.Chunks.ToList());
+        // Get AI response using the conversation history (without the placeholder)
+        Reply response = await _conversationService.ContinueConversation(conversationHistory, State.ActiveScenario);
         chunk.Text = response.Message;
 
+        // Update comprehension on the user's previous message (which is now second-to-last)
         var previousChunk = State.Chunks[State.Chunks.Count - 2];
         previousChunk.Comprehension = response.Comprehension;
         previousChunk.ComprehensionNotes = response.ComprehensionNotes;
@@ -564,4 +1040,47 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             _floatingPlayer.UpdatePosition(position);
         }
     }
+}
+
+/// <summary>
+/// Converter to show icon based on conversation type (IconRepeatSmall for Finite, IconChatSmall for OpenEnded)
+/// </summary>
+class ConversationTypeToIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is ConversationType type)
+        {
+            return type == ConversationType.Finite ? MyTheme.IconRepeatSmall : MyTheme.IconChatSmall;
+        }
+        return MyTheme.IconChatSmall;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Converter to check if a scenario ID matches the active scenario
+/// </summary>
+class IsActiveScenarioConverter : IValueConverter
+{
+    private readonly int? _activeScenarioId;
+
+    public IsActiveScenarioConverter(int? activeScenarioId)
+    {
+        _activeScenarioId = activeScenarioId;
+    }
+
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is int id && _activeScenarioId.HasValue)
+        {
+            return id == _activeScenarioId.Value;
+        }
+        return false;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        => throw new NotImplementedException();
 }

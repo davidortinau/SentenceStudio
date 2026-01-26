@@ -1673,4 +1673,116 @@
     <value>만들기</value>
     <comment>Button to create an item</comment>
   </data>
+  <!-- Warmup Conversation Scenarios [002-warmup-scenarios] -->
+  <data name="ChooseScenario" xml:space="preserve">
+    <value>시나리오 선택</value>
+    <comment>[002-warmup-scenarios] Toolbar button to select scenario</comment>
+  </data>
+  <data name="CreateNewScenario" xml:space="preserve">
+    <value>새 시나리오 만들기</value>
+    <comment>[002-warmup-scenarios] Button to create custom scenario</comment>
+  </data>
+  <data name="FiniteConversation" xml:space="preserve">
+    <value>완료 시 종료</value>
+    <comment>[002-warmup-scenarios] Label for finite conversation type</comment>
+  </data>
+  <data name="OpenEndedConversation" xml:space="preserve">
+    <value>계속 진행</value>
+    <comment>[002-warmup-scenarios] Label for open-ended conversation type</comment>
+  </data>
+  <data name="ScenarioCreated" xml:space="preserve">
+    <value>시나리오가 생성되었습니다!</value>
+    <comment>[002-warmup-scenarios] Success message after creating scenario</comment>
+  </data>
+  <data name="ConversationComplete" xml:space="preserve">
+    <value>대화 완료</value>
+    <comment>[002-warmup-scenarios] Title for conversation complete dialog</comment>
+  </data>
+  <data name="ScenarioAskName" xml:space="preserve">
+    <value>이 시나리오의 이름은 무엇인가요?</value>
+    <comment>[002-warmup-scenarios] Question asking for scenario name</comment>
+  </data>
+  <data name="ScenarioAskPersona" xml:space="preserve">
+    <value>누구와 대화하시겠습니까? (이름과 역할, 예: "박지영, 바리스타")</value>
+    <comment>[002-warmup-scenarios] Question asking for persona details</comment>
+  </data>
+  <data name="ScenarioAskSituation" xml:space="preserve">
+    <value>상황이 무엇인가요? 간단히 설명해 주세요.</value>
+    <comment>[002-warmup-scenarios] Question asking for situation description</comment>
+  </data>
+  <data name="ScenarioAskType" xml:space="preserve">
+    <value>작업 완료 시 대화를 종료할까요 (유한), 아니면 후속 질문으로 계속할까요 (무한)?</value>
+    <comment>[002-warmup-scenarios] Question asking about conversation type</comment>
+  </data>
+  <data name="ScenarioConfirmation" xml:space="preserve">
+    <value>알겠습니다! 시나리오입니다:
+
+이름: {0}
+대화 상대: {1}, {2}
+상황: {3}
+유형: {4}
+
+연습할 준비가 되셨나요? "예"라고 하시면 시작하겠습니다, 또는 변경하고 싶은 것을 말씀해 주세요.</value>
+    <comment>[002-warmup-scenarios] Confirmation message with scenario details</comment>
+  </data>
+  <data name="ScenarioUpdated" xml:space="preserve">
+    <value>시나리오가 업데이트되었습니다!</value>
+    <comment>[002-warmup-scenarios] Success message after updating scenario</comment>
+  </data>
+  <data name="CannotEditPredefined" xml:space="preserve">
+    <value>기본 제공 시나리오는 수정할 수 없습니다. 대신 비슷한 사용자 정의 시나리오를 만들 수 있습니다.</value>
+    <comment>[002-warmup-scenarios] Error message when trying to edit predefined scenario</comment>
+  </data>
+  <data name="ScenarioDeleted" xml:space="preserve">
+    <value>시나리오가 삭제되었습니다.</value>
+    <comment>[002-warmup-scenarios] Success message after deleting scenario</comment>
+  </data>
+  <data name="DeleteScenarioConfirm" xml:space="preserve">
+    <value>이 시나리오를 삭제하시겠습니까?</value>
+    <comment>[002-warmup-scenarios] Confirmation for scenario deletion</comment>
+  </data>
+  <data name="ActiveScenario" xml:space="preserve">
+    <value>활성: {0}</value>
+    <comment>[002-warmup-scenarios] Label showing active scenario name</comment>
+  </data>
+  <data name="PredefinedBadge" xml:space="preserve">
+    <value>기본 제공</value>
+    <comment>[002-warmup-scenarios] Badge label for predefined scenarios</comment>
+  </data>
+  <data name="ScenarioCancelled" xml:space="preserve">
+    <value>시나리오 만들기가 취소되었습니다.</value>
+    <comment>[002-warmup-scenarios] Message when scenario creation is cancelled</comment>
+  </data>
+  <data name="ScenarioCreated" xml:space="preserve">
+    <value>시나리오 "{0}" 생성됨! 대화를 시작합니다...</value>
+    <comment>[002-warmup-scenarios] Success message when scenario is created</comment>
+  </data>
+  <data name="NoActiveScenarioToEdit" xml:space="preserve">
+    <value>수정할 시나리오가 선택되지 않았습니다.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to edit with no scenario</comment>
+  </data>
+  <data name="EditingScenario" xml:space="preserve">
+    <value>시나리오 수정 중: {0}</value>
+    <comment>[002-warmup-scenarios] Header when editing a scenario</comment>
+  </data>
+  <data name="EditScenarioPrompt" xml:space="preserve">
+    <value>무엇을 변경하시겠습니까?</value>
+    <comment>[002-warmup-scenarios] Prompt asking what to change</comment>
+  </data>
+  <data name="NoActiveScenarioToDelete" xml:space="preserve">
+    <value>삭제할 시나리오가 선택되지 않았습니다.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to delete with no scenario</comment>
+  </data>
+  <data name="CannotDeletePredefined" xml:space="preserve">
+    <value>기본 제공 시나리오는 삭제할 수 없습니다.</value>
+    <comment>[002-warmup-scenarios] Message when user tries to delete predefined scenario</comment>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>네</value>
+    <comment>Generic yes button label</comment>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>아니요</value>
+    <comment>Generic no button label</comment>
+  </data>
 </root>
