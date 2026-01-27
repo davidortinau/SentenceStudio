@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
+using Microsoft.Agents.AI;
 using OpenAI.Images;
 using Microsoft.Extensions.Logging;
 

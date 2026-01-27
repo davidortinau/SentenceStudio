@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using Microsoft.Agents.AI;
 using OpenAI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;

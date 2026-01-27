@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.AI;
+using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
