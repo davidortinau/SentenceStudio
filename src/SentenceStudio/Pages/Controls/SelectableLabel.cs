@@ -14,11 +14,19 @@ partial class SelectableLabel : Component
 	[Prop]
 	double _fontSize = 18.0;
 
+	[Prop]
+	Color _textColor;
+
 	public override VisualNode Render()
-		=> Label(labelRef => _labelRef = labelRef)
+	{
+		var label = Label(labelRef => _labelRef = labelRef)
 			.Text(_text)
-			.FontSize(_fontSize)
-			.OnTapped(async () =>
+			.FontSize(_fontSize);
+
+		if (_textColor != null)
+			label = label.TextColor(_textColor);
+
+		return label.OnTapped(async () =>
 			{
 				if (_labelRef.Text != null)
 				{
@@ -32,5 +40,6 @@ partial class SelectableLabel : Component
 					await toast.Show(cancellationTokenSource.Token);
 				}
 			});
+	}
 
 }

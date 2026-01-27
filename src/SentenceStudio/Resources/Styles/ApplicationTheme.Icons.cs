@@ -4,6 +4,14 @@ namespace SentenceStudio.Resources.Styles;
 
 partial class MyTheme
 {
+    public static FontImageSource IconGrammarCheck { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.text_grammar_wand_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = Warning,
+        Size = Size160
+    };
+
     public static FontImageSource IconFontDecrease { get; } = new FontImageSource
     {
         Glyph = FluentUI.font_decrease_24_regular,

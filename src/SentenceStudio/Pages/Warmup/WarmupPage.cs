@@ -6,6 +6,7 @@ using SentenceStudio.Pages.Dashboard;
 using Microsoft.Maui.Dispatching;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Services.Agents;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
 
@@ -29,12 +30,16 @@ class WarmupPageState
     // Scenario creation support
     public ScenarioCreationState? CreationState { get; set; }
     public bool IsCreatingScenario => CreationState != null;
+
+    // Grammar corrections for the currently selected message
+    public List<GrammarCorrectionDto> SelectedGrammarCorrections { get; set; } = new();
 }
 
 partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
     [Inject] ConversationService _conversationService;
+    [Inject] IConversationAgentService _agentService;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
@@ -47,6 +52,9 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     private FloatingAudioPlayer _floatingPlayer;
     private IDispatcherTimer _playbackTimer;
     private EventHandler _playbackEndedHandler;
+
+    // Flag to use new agent service (can be toggled for testing)
+    private bool _useAgentService = true;
 
     string[] phrases = new[]
         {
@@ -328,6 +336,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             return Border(
                 new SelectableLabel()
                     .Text(chunk.Text)
+                    .TextColor(Colors.White)
                     .FontSize(State.FontSize),
                      MenuFlyout(
                         MenuFlyoutItem("Play Audio").OnClicked(() => PlayAudio(chunk.Text))
@@ -344,32 +353,73 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         else
         {
             // User message (right-aligned, highlight background)
-            return Border(
-                new SelectableLabel()
-                    .Text(chunk.Text)
-                    .FontSize(State.FontSize)
+            // Check if this message has grammar corrections or feedback
+            var hasCorrections = chunk.GrammarCorrections?.Any() == true;
+            var hasComprehension = chunk.Comprehension > 0;
+            var hasFeedback = hasCorrections || hasComprehension;
+
+            return Grid("Auto", "*, Auto",
+                Border(
+                    new SelectableLabel()
+                        .Text(chunk.Text)
+                        .FontSize(State.FontSize)
+                )
+                .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
+                .Background(MyTheme.HighlightMedium)
+                .Stroke(MyTheme.HighlightMedium)
+                .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
+                .GridColumn(0),
+
+                // Grammar/feedback indicator icon - only show if there's feedback
+                hasFeedback ?
+                    ImageButton()
+                        .Source(hasCorrections ? MyTheme.IconGrammarCheck : MyTheme.IconMeta)
+                        .BackgroundColor(Colors.Transparent)
+                        .Padding(4)
+                        .GridColumn(1)
+                        .VCenter()
+                        .OnClicked(() => ShowExplanation(chunk))
+                    : null
             )
             .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
-            .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
-            .Background(MyTheme.HighlightMedium)
-            .Stroke(MyTheme.HighlightMedium)
-            .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
             .HEnd()
-            .OnTapped(() =>
-            {
-                ShowExplanation(chunk);
-            });
+            .OnTapped(() => ShowExplanation(chunk));
         }
     }
 
     async Task ShowExplanation(ConversationChunk s)
     {
-        string explanation = $"Comprehension Score: {s.Comprehension}" + Environment.NewLine + Environment.NewLine;
-        explanation += $"{s.ComprehensionNotes}" + Environment.NewLine + Environment.NewLine;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Comprehension Score: {s.Comprehension:P0}");
+        sb.AppendLine();
+
+        if (!string.IsNullOrEmpty(s.ComprehensionNotes))
+        {
+            sb.AppendLine(s.ComprehensionNotes);
+            sb.AppendLine();
+        }
+
+        // Add grammar corrections if available
+        var corrections = s.GrammarCorrections;
+        if (corrections?.Any() == true)
+        {
+            sb.AppendLine("📝 Grammar Corrections:");
+            sb.AppendLine();
+            foreach (var correction in corrections)
+            {
+                sb.AppendLine($"❌ {correction.Original}");
+                sb.AppendLine($"✅ {correction.Corrected}");
+                if (!string.IsNullOrEmpty(correction.Explanation))
+                {
+                    sb.AppendLine($"💡 {correction.Explanation}");
+                }
+                sb.AppendLine();
+            }
+        }
 
         try
         {
-            SetState(s => s.Explanation = explanation);
+            SetState(state => state.Explanation = sb.ToString());
             ShowExplanationPopup();
         }
         catch (Exception e)
@@ -744,6 +794,13 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             return;
         }
 
+        // Load memory state for the conversation if using agent service
+        if (_useAgentService && _agentService != null && _conversation.Id > 0)
+        {
+            await _agentService.LoadMemoryStateAsync(_conversation.Id);
+            _logger.LogDebug("Loaded memory state for conversation {ConversationId}", _conversation.Id);
+        }
+
         // Load the scenario if conversation has one
         if (_conversation.ScenarioId.HasValue && _conversation.Scenario != null)
         {
@@ -854,7 +911,14 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         await Task.Delay(1000);
 
         // Get opening line based on scenario
-        chunk.Text = await _conversationService.StartConversation(scenario);
+        if (_useAgentService && _agentService != null)
+        {
+            chunk.Text = await _agentService.StartConversationAsync(scenario);
+        }
+        else
+        {
+            chunk.Text = await _conversationService.StartConversation(scenario);
+        }
         await _conversationService.SaveConversationChunk(chunk);
 
         SetState(s => s.IsBusy = false);
@@ -869,18 +933,39 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Capture the conversation history BEFORE adding the placeholder
         var conversationHistory = State.Chunks.ToList();
 
+        // Get the user's last message for grading
+        var userMessage = conversationHistory.LastOrDefault(c => c.Role == ConversationRole.User)?.Text ?? string.Empty;
+
         // Add placeholder chunk to show loading state
         var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
         SetState(s => s.Chunks.Add(chunk));
 
-        // Get AI response using the conversation history (without the placeholder)
-        Reply response = await _conversationService.ContinueConversation(conversationHistory, State.ActiveScenario);
+        Reply response;
+
+        // Use agent service for parallel conversation + grading, or fallback to original service
+        if (_useAgentService && _agentService != null)
+        {
+            response = await _agentService.ContinueConversationAsync(userMessage, conversationHistory, State.ActiveScenario);
+
+            // Save memory state after each turn
+            if (_conversation?.Id > 0)
+            {
+                await _agentService.SaveMemoryStateAsync(_conversation.Id);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Using legacy conversation service");
+            response = await _conversationService.ContinueConversation(conversationHistory, State.ActiveScenario);
+        }
+
         chunk.Text = response.Message;
 
-        // Update comprehension on the user's previous message (which is now second-to-last)
+        // Update comprehension and grammar corrections on the user's previous message (which is now second-to-last)
         var previousChunk = State.Chunks[State.Chunks.Count - 2];
         previousChunk.Comprehension = response.Comprehension;
         previousChunk.ComprehensionNotes = response.ComprehensionNotes;
+        previousChunk.GrammarCorrections = response.GrammarCorrections;
 
         // Track user activity
         await _userActivityRepository.SaveAsync(new UserActivity

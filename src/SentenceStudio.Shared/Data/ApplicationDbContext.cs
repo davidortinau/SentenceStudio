@@ -52,6 +52,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairSession>().ToTable("MinimalPairSession").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairAttempt>().ToTable("MinimalPairAttempt").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationMemoryState>().ToTable("ConversationMemoryState").HasKey(e => e.Id);
 
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()
@@ -85,6 +86,18 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(c => c.ScenarioId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Configure Conversation to ConversationMemoryState relationship
+        modelBuilder.Entity<ConversationMemoryState>()
+            .HasOne(cms => cms.Conversation)
+            .WithMany()
+            .HasForeignKey(cms => cms.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unique constraint for one memory state per conversation
+        modelBuilder.Entity<ConversationMemoryState>()
+            .HasIndex(cms => cms.ConversationId)
+            .IsUnique();
 
         // Create unique constraint to ensure one progress record per vocabulary word per user
         modelBuilder.Entity<VocabularyProgress>()
@@ -198,5 +211,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<MinimalPair> MinimalPairs => Set<MinimalPair>();
     public DbSet<MinimalPairSession> MinimalPairSessions => Set<MinimalPairSession>();
     public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
+    public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
 
 }

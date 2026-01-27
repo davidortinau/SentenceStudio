@@ -223,6 +223,9 @@ public static class MauiProgram
 		// Register ISyncService for use in repositories
 		builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
+		// Register Multi-Agent Conversation Services
+		builder.Services.AddConversationAgentServices();
+
 		// Register Minimal Pair repositories
 		builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairRepository>();
 		builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairSessionRepository>();

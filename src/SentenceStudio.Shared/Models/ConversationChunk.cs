@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace SentenceStudio.Shared.Models;
 
@@ -31,6 +32,38 @@ public partial class ConversationChunk : ObservableObject
     /// The role of this message (User or Assistant).
     /// </summary>
     public ConversationRole Role { get; set; }
+
+    /// <summary>
+    /// JSON-serialized grammar corrections for user messages.
+    /// </summary>
+    public string? GrammarCorrectionsJson { get; set; }
+
+    /// <summary>
+    /// Deserialized grammar corrections (not mapped to database).
+    /// </summary>
+    [NotMapped]
+    public List<GrammarCorrectionDto> GrammarCorrections
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(GrammarCorrectionsJson))
+                return new List<GrammarCorrectionDto>();
+            try
+            {
+                return JsonSerializer.Deserialize<List<GrammarCorrectionDto>>(GrammarCorrectionsJson) ?? new();
+            }
+            catch
+            {
+                return new List<GrammarCorrectionDto>();
+            }
+        }
+        set
+        {
+            GrammarCorrectionsJson = value?.Any() == true
+                ? JsonSerializer.Serialize(value)
+                : null;
+        }
+    }
     
     // Additional properties for CoreSync compatibility
     [NotMapped]

@@ -3,6 +3,7 @@ using CoreSync.Http.Client;
 using CoreSync.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services.Agents;
 using SentenceStudio.Shared.Models;
 
 
@@ -10,6 +11,16 @@ namespace SentenceStudio;
 
 public static class ServiceCollectionExtentions
 {
+    /// <summary>
+    /// Registers the multi-agent conversation services.
+    /// </summary>
+    public static IServiceCollection AddConversationAgentServices(this IServiceCollection services)
+    {
+        services.AddSingleton<VocabularyLookupTool>();
+        services.AddScoped<IConversationAgentService, ConversationAgentService>();
+        return services;
+    }
+
     public static void AddSyncServices(this IServiceCollection services, string databasePath, Uri serverUri)
     {
         services.AddSingleton<ISyncProvider>(serviceProvider =>
