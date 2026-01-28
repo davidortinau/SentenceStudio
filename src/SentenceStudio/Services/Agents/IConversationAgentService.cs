@@ -44,4 +44,39 @@ public interface IConversationAgentService
     /// Gets the current conversation memory info (for debugging/display).
     /// </summary>
     ConversationMemory? GetCurrentMemory();
+
+    /// <summary>
+    /// Resumes an existing conversation or creates a new one.
+    /// </summary>
+    Task<Conversation> ResumeConversationAsync();
+
+    /// <summary>
+    /// Saves a conversation to the database.
+    /// </summary>
+    Task<int> SaveConversationAsync(Conversation conversation);
+
+    /// <summary>
+    /// Saves a conversation chunk to the database.
+    /// </summary>
+    Task SaveConversationChunkAsync(ConversationChunk chunk);
+
+    /// <summary>
+    /// Deletes a conversation and its chunks.
+    /// </summary>
+    Task DeleteConversationAsync(Conversation conversation);
+
+    /// <summary>
+    /// Gets all conversations.
+    /// </summary>
+    Task<List<Conversation>> GetAllConversationsAsync();
+
+    /// <summary>
+    /// Gets a conversation by ID.
+    /// </summary>
+    Task<Conversation?> GetConversationAsync(int id);
+
+    /// <summary>
+    /// Gets all chunks for a conversation.
+    /// </summary>
+    Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId);
 }

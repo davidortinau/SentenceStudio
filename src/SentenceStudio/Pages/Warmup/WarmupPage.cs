@@ -38,7 +38,6 @@ class WarmupPageState
 partial class WarmupPage : Component<WarmupPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
-    [Inject] ConversationService _conversationService;
     [Inject] IConversationAgentService _agentService;
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] UserActivityRepository _userActivityRepository;
@@ -52,9 +51,6 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     private FloatingAudioPlayer _floatingPlayer;
     private IDispatcherTimer _playbackTimer;
     private EventHandler _playbackEndedHandler;
-
-    // Flag to use new agent service (can be toggled for testing)
-    private bool _useAgentService = true;
 
     string[] phrases = new[]
         {
@@ -525,7 +521,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             ConversationRole.User
         );
 
-        await _conversationService.SaveConversationChunk(chunk);
+        await _agentService.SaveConversationChunkAsync(chunk);
 
         SetState(s =>
         {
@@ -786,7 +782,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             _logger.LogError(ex, "Error loading scenarios");
         }
 
-        _conversation = await _conversationService.ResumeConversation();
+        _conversation = await _agentService.ResumeConversationAsync();
 
         if (_conversation == null || !_conversation.Chunks.Any())
         {
@@ -794,11 +790,10 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             return;
         }
 
-        // Load memory state for the conversation if using agent service
-        if (_useAgentService && _agentService != null && _conversation.Id > 0)
+        // Load memory state for the conversation
+        if (_conversation.Id > 0)
         {
             await _agentService.LoadMemoryStateAsync(_conversation.Id);
-            _logger.LogDebug("Loaded memory state for conversation {ConversationId}", _conversation.Id);
         }
 
         // Load the scenario if conversation has one
@@ -901,7 +896,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         {
             ScenarioId = scenario?.Id
         };
-        await _conversationService.SaveConversation(_conversation);
+        await _agentService.SaveConversationAsync(_conversation);
 
         var personaName = scenario?.PersonaName ?? ConversationParticipant.Bot.FirstName;
         var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
@@ -911,15 +906,8 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         await Task.Delay(1000);
 
         // Get opening line based on scenario
-        if (_useAgentService && _agentService != null)
-        {
-            chunk.Text = await _agentService.StartConversationAsync(scenario);
-        }
-        else
-        {
-            chunk.Text = await _conversationService.StartConversation(scenario);
-        }
-        await _conversationService.SaveConversationChunk(chunk);
+        chunk.Text = await _agentService.StartConversationAsync(scenario);
+        await _agentService.SaveConversationChunkAsync(chunk);
 
         SetState(s => s.IsBusy = false);
     }
@@ -940,23 +928,13 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         var chunk = new ConversationChunk(_conversation.Id, DateTime.Now, personaName, "...", ConversationRole.Assistant);
         SetState(s => s.Chunks.Add(chunk));
 
-        Reply response;
+        // Get response from agent service (runs conversation + grading in parallel)
+        var response = await _agentService.ContinueConversationAsync(userMessage, conversationHistory, State.ActiveScenario);
 
-        // Use agent service for parallel conversation + grading, or fallback to original service
-        if (_useAgentService && _agentService != null)
+        // Save memory state after each turn
+        if (_conversation?.Id > 0)
         {
-            response = await _agentService.ContinueConversationAsync(userMessage, conversationHistory, State.ActiveScenario);
-
-            // Save memory state after each turn
-            if (_conversation?.Id > 0)
-            {
-                await _agentService.SaveMemoryStateAsync(_conversation.Id);
-            }
-        }
-        else
-        {
-            _logger.LogDebug("Using legacy conversation service");
-            response = await _conversationService.ContinueConversation(conversationHistory, State.ActiveScenario);
+            await _agentService.SaveMemoryStateAsync(_conversation.Id);
         }
 
         chunk.Text = response.Message;
@@ -977,8 +955,8 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             UpdatedAt = DateTime.Now
         });
 
-        await _conversationService.SaveConversationChunk(previousChunk);
-        await _conversationService.SaveConversationChunk(chunk);
+        await _agentService.SaveConversationChunkAsync(previousChunk);
+        await _agentService.SaveConversationChunkAsync(chunk);
 
         SetState(s => s.IsBusy = false);
 

@@ -370,4 +370,138 @@ Do not nitpick minor stylistic preferences.";
     }
 
     #endregion
+
+    #region Database Operations
+
+    /// <inheritdoc/>
+    public async Task<Conversation> ResumeConversationAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var conversation = await db.Conversations
+            .Include(c => c.Chunks)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (conversation != null)
+        {
+            _logger.LogDebug("Resumed conversation {Id} with {Count} chunks", conversation.Id, conversation.Chunks?.Count ?? 0);
+        }
+
+        return conversation ?? new Conversation { CreatedAt = DateTime.Now };
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> SaveConversationAsync(Conversation conversation)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        if (conversation.Id == 0)
+        {
+            db.Conversations.Add(conversation);
+        }
+        else
+        {
+            db.Conversations.Update(conversation);
+        }
+
+        await db.SaveChangesAsync();
+        
+        // Trigger sync if available
+        var syncService = scope.ServiceProvider.GetService<ISyncService>();
+        if (syncService != null)
+        {
+            _ = syncService.TriggerSyncAsync();
+        }
+
+        return conversation.Id;
+    }
+
+    /// <inheritdoc/>
+    public async Task SaveConversationChunkAsync(ConversationChunk chunk)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        if (chunk.Id == 0)
+        {
+            db.ConversationChunks.Add(chunk);
+        }
+        else
+        {
+            db.ConversationChunks.Update(chunk);
+        }
+
+        await db.SaveChangesAsync();
+
+        // Trigger sync if available
+        var syncService = scope.ServiceProvider.GetService<ISyncService>();
+        if (syncService != null)
+        {
+            _ = syncService.TriggerSyncAsync();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task DeleteConversationAsync(Conversation conversation)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Delete all chunks first
+        var chunks = await db.ConversationChunks
+            .Where(c => c.ConversationId == conversation.Id)
+            .ToListAsync();
+        
+        db.ConversationChunks.RemoveRange(chunks);
+        db.Conversations.Remove(conversation);
+        
+        await db.SaveChangesAsync();
+
+        // Trigger sync if available
+        var syncService = scope.ServiceProvider.GetService<ISyncService>();
+        if (syncService != null)
+        {
+            _ = syncService.TriggerSyncAsync();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<List<Conversation>> GetAllConversationsAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.Conversations
+            .Include(c => c.Chunks)
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <inheritdoc/>
+    public async Task<Conversation?> GetConversationAsync(int id)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.Conversations
+            .Include(c => c.Chunks)
+            .FirstOrDefaultAsync(c => c.Id == id);
+    }
+
+    /// <inheritdoc/>
+    public async Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.ConversationChunks
+            .Where(c => c.ConversationId == conversationId)
+            .OrderBy(c => c.SentTime)
+            .ToListAsync();
+    }
+
+    #endregion
 }
