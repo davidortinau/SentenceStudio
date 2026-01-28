@@ -107,6 +107,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             VStack(
                 State.Chunks.Select(c => RenderChunk(c)).ToArray()
             )
+            .Padding(0, MyTheme.LayoutPadding.Top, 0, 0)
             .Spacing(MyTheme.LayoutSpacing)
         )
         .GridRow(0)
