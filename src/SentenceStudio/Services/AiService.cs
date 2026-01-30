@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Agents.AI;
 using OpenAI.Images;
 using Microsoft.Extensions.Logging;
+using System.Net.Http;
 
 namespace SentenceStudio.Services;
 
@@ -59,9 +60,27 @@ public class AiService {
         try
         {
             var message = new ChatMessage(ChatRole.User, prompt);
-            message.Contents.Add(
-                new DataContent(new Uri(imagePath), mediaType: "image/jpeg")
-            );
+            
+            // DataContent requires a data URI (base64), not HTTP URLs
+            // Download the image and convert to base64 if it's an HTTP URL
+            if (imagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                imagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                using var httpClient = new HttpClient();
+                var imageBytes = await httpClient.GetByteArrayAsync(imagePath);
+                var base64 = Convert.ToBase64String(imageBytes);
+                
+                // Detect media type from URL or default to jpeg
+                var mediaType = imagePath.Contains(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+                var dataUri = $"data:{mediaType};base64,{base64}";
+                
+                message.Contents.Add(new DataContent(new Uri(dataUri), mediaType: mediaType));
+            }
+            else
+            {
+                // Assume it's already a data URI or local file
+                message.Contents.Add(new DataContent(new Uri(imagePath), mediaType: "image/jpeg"));
+            }
 
             var response = await _client.GetResponseAsync<string>(new List<ChatMessage> { message });
 

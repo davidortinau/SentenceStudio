@@ -292,6 +292,14 @@ partial class MyTheme
         Size = IconSize
     };
 
+    public static FontImageSource IconSend { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.send_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconCancel { get; } = new FontImageSource
     {
         Glyph = FluentUI.error_circle_16_regular,

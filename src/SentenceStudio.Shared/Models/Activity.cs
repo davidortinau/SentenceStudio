@@ -2,7 +2,7 @@ namespace SentenceStudio.Shared.Models;
 
 public enum Activity
 {
-    Warmup,
+    Conversation,
     Writer,
     SceneDescription,
     StoryTelling,

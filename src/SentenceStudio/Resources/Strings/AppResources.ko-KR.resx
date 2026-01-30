@@ -157,8 +157,8 @@
     <value>언어 전환하기</value>
     <comment/>
   </data>
-  <data name="Warmup" xml:space="preserve">
-    <value>워밍업해요!</value>
+  <data name="Conversation" xml:space="preserve">
+    <value>대화</value>
     <comment/>
   </data>
   <data name="Translate" xml:space="preserve">

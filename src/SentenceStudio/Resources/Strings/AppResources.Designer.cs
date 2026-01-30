@@ -652,6 +652,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Conversation.
+        /// </summary>
+        internal static string Conversation {
+            get {
+                return ResourceManager.GetString("Conversation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Conversation Complete.
         /// </summary>
         internal static string ConversationComplete {
@@ -4156,15 +4165,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string WaitCheckingMatch {
             get {
                 return ResourceManager.GetString("WaitCheckingMatch", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Warmup.
-        /// </summary>
-        internal static string Warmup {
-            get {
-                return ResourceManager.GetString("Warmup", resourceCulture);
             }
         }
         

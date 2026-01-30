@@ -26,6 +26,9 @@ public partial class Sentence : ObservableObject
     
     [ObservableProperty]
     private string? _recommendedSentence;
+
+    [ObservableProperty]
+    private bool _isGrading;
     
     // Other properties
     public string? GrammarNotes { get; set; }

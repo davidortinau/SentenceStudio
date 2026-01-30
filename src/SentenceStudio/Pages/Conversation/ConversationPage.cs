@@ -9,10 +9,11 @@ using SentenceStudio.Shared.Models;
 using SentenceStudio.Services.Agents;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using ConversationModel = SentenceStudio.Shared.Models.Conversation;
 
-namespace SentenceStudio.Pages.Warmup;
+namespace SentenceStudio.Pages.Conversation;
 
-class WarmupPageState
+class ConversationPageState
 {
     public ObservableCollection<ConversationChunk> Chunks { get; set; } = new();
     public string UserInput { get; set; }
@@ -35,7 +36,7 @@ class WarmupPageState
     public List<GrammarCorrectionDto> SelectedGrammarCorrections { get; set; } = new();
 }
 
-partial class WarmupPage : Component<WarmupPageState, ActivityProps>
+partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 {
     [Inject] TeacherService _teacherService;
     [Inject] IConversationAgentService _agentService;
@@ -43,9 +44,9 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] IScenarioService _scenarioService;
-    [Inject] ILogger<WarmupPage> _logger;
+    [Inject] ILogger<ConversationPage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
-    Conversation _conversation;
+    ConversationModel _conversation;
 
     private IAudioPlayer _audioPlayer;
     private FloatingAudioPlayer _floatingPlayer;
@@ -69,10 +70,10 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     public override VisualNode Render()
     {
         // Hot reload diagnostic - this should log every time Render() is called
-        System.Diagnostics.Debug.WriteLine($"🔄 WarmupPage.Render() called at {DateTime.Now:HH:mm:ss.fff}, ActiveScenario={State.ActiveScenario?.Name ?? "none"}");
-        _logger.LogDebug("🔄 WarmupPage.Render() called at {Time}, ActiveScenario={Scenario}", DateTime.Now.ToString("HH:mm:ss.fff"), State.ActiveScenario?.Name ?? "none");
+        System.Diagnostics.Debug.WriteLine($"🔄 ConversationPage.Render() called at {DateTime.Now:HH:mm:ss.fff}, ActiveScenario={State.ActiveScenario?.Name ?? "none"}");
+        _logger.LogDebug("🔄 ConversationPage.Render() called at {Time}, ActiveScenario={Scenario}", DateTime.Now.ToString("HH:mm:ss.fff"), State.ActiveScenario?.Name ?? "none");
 
-        return ContentPage($"{_localize["Warmup"]}",
+        return ContentPage($"{_localize["Conversation"]}",
             ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
@@ -146,7 +147,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "WarmupPage: Error showing explanation popup");
+            _logger.LogError(ex, "ConversationPage: Error showing explanation popup");
         }
     }
 
@@ -187,7 +188,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "WarmupPage: Error showing phrases popup");
+            _logger.LogError(ex, "ConversationPage: Error showing phrases popup");
         }
     }
 
@@ -421,7 +422,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "WarmupPage: Error showing explanation");
+            _logger.LogError(e, "ConversationPage: Error showing explanation");
         }
     }
 
@@ -438,7 +439,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
                     {
                         await SendMessage();
                     })
-            // .Bind(Entry.ReturnCommandProperty, nameof(WarmupPageModel.SendMessageCommand))
+            // .Bind(Entry.ReturnCommandProperty, nameof(ConversationPageModel.SendMessageCommand))
             )
                 .Background(Colors.Transparent)
                 .Stroke(MyTheme.Gray300)
@@ -471,14 +472,14 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
     {
         var newSize = Math.Min(State.FontSize + 2, 48.0);
         SetState(s => s.FontSize = newSize);
-        Preferences.Set("WarmupActivity_FontSize", State.FontSize);
+        Preferences.Set("ConversationActivity_FontSize", State.FontSize);
     }
 
     void DecreaseFontSize()
     {
         var newSize = Math.Max(State.FontSize - 2, 12.0);
         SetState(s => s.FontSize = newSize);
-        Preferences.Set("WarmupActivity_FontSize", State.FontSize);
+        Preferences.Set("ConversationActivity_FontSize", State.FontSize);
     }
 
     async Task SendMessage()
@@ -759,8 +760,8 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Start activity timer if launched from Today's Plan (only once)
         if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
         {
-            _logger.LogDebug("WarmupPage: Starting activity timer for Warmup, PlanItemId: {PlanItemId}", Props.PlanItemId);
-            _timerService.StartSession("Warmup", Props.PlanItemId);
+            _logger.LogDebug("ConversationPage: Starting activity timer for Conversation, PlanItemId: {PlanItemId}", Props.PlanItemId);
+            _timerService.StartSession("Conversation", Props.PlanItemId);
         }
 
         SetState(s => s.IsBusy = true);
@@ -824,7 +825,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Pause timer when leaving activity
         if (Props?.FromTodaysPlan == true && _timerService.IsActive)
         {
-            _logger.LogDebug("WarmupPage: Pausing activity timer");
+            _logger.LogDebug("ConversationPage: Pausing activity timer");
             _timerService.Pause();
         }
 
@@ -893,7 +894,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
             s.IsConversationComplete = false;
         });
 
-        _conversation = new Conversation
+        _conversation = new ConversationModel
         {
             ScenarioId = scenario?.Id
         };
@@ -949,7 +950,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         // Track user activity
         await _userActivityRepository.SaveAsync(new UserActivity
         {
-            Activity = SentenceStudio.Shared.Models.Activity.Warmup.ToString(),
+            Activity = SentenceStudio.Shared.Models.Activity.Conversation.ToString(),
             Input = previousChunk.Text,
             Accuracy = response.Comprehension,
             CreatedAt = DateTime.Now,
@@ -1023,7 +1024,7 @@ partial class WarmupPage : Component<WarmupPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "WarmupPage: Error playing audio");
+            _logger.LogError(ex, "ConversationPage: Error playing audio");
 
             // Hide the player on error
             if (_floatingPlayer != null)

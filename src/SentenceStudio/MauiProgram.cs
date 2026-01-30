@@ -9,7 +9,7 @@ using CommunityToolkit.Maui.Media;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using Plugin.Maui.Audio;
 using Syncfusion.Maui.Toolkit.Hosting;
-using SentenceStudio.Pages.Warmup;
+using SentenceStudio.Pages.Conversation;
 using SentenceStudio.Pages.HowDoYouSay;
 using SentenceStudio.Pages.Clozure;
 using SentenceStudio.Pages.Translation;
@@ -309,7 +309,7 @@ public static class MauiProgram
 
 	private static void RegisterRoutes()
 	{
-		MauiReactor.Routing.RegisterRoute<WarmupPage>("warmup");
+		MauiReactor.Routing.RegisterRoute<ConversationPage>("conversation");
 		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
 		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
 		MauiReactor.Routing.RegisterRoute<VocabularyQuizPage>(nameof(VocabularyQuizPage));
@@ -392,7 +392,7 @@ public static class MauiProgram
 		services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
 		services.AddSingleton<SmartResourceService>();
 
-		// Scenario service for Warmup conversation scenarios
+		// Scenario service for Conversation scenarios
 		services.AddSingleton<ScenarioRepository>();
 		services.AddSingleton<IScenarioService, ScenarioService>();
 

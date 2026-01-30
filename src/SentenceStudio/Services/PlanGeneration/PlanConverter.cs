@@ -104,7 +104,7 @@ public static class PlanConverter
             PlanActivityType.Translation => "/translation",
             PlanActivityType.Writing => "/writing",
             PlanActivityType.SceneDescription => "/describe-scene",
-            PlanActivityType.Conversation => "/warmup",
+            PlanActivityType.Conversation => "/conversation",
             PlanActivityType.VocabularyGame => "/vocabulary-matching",
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")
         };
@@ -141,7 +141,7 @@ public static class PlanConverter
 
         return parameters;
     }
-    
+
     /// <summary>
     /// Private helper that wraps the public method for use with PlanActivity objects.
     /// </summary>

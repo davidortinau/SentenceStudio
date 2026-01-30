@@ -270,7 +270,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                 ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border(
                                     VStack(
-                                        Label("Skill(s)"),
+                                        Label("Skills"),
                                         new SfComboBox()
                                             .HeightRequest(44)
                                             .Background(Colors.Transparent)
@@ -312,7 +312,7 @@ partial class DashboardPage : Component<DashboardPageState>
                                 ).Padding(MyTheme.Size160, MyTheme.Size80),
                                 Border(
                                     VStack(
-                                        Label("Resource"),
+                                        Label("Skills"),
                                         new SfComboBox()
                                             .Background(Colors.Transparent)
                                             .ShowBorder(false)
@@ -333,7 +333,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         // Activities
                         Label().ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
-                            new ActivityBorder().LabelText($"{_localize["Warmup"]}").Route("warmup"),
+                            new ActivityBorder().LabelText($"{_localize["Conversation"]}").Route("conversation"),
                             new ActivityBorder().LabelText($"{_localize["DescribeAScene"]}").Route(nameof(DescribeAScenePage)),
                             new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),

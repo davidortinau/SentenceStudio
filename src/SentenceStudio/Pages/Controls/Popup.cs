@@ -35,6 +35,7 @@ class PopupHost : Component
 {
     private CommunityToolkit.Maui.Views.Popup? _popup;
     private bool _isShown;
+    private bool _wasShown;
     private Action<object?>? _onCloseAction;
     private readonly Action<CommunityToolkit.Maui.Views.Popup?>? _nativePopupCreateAction;
 
@@ -57,6 +58,7 @@ class PopupHost : Component
 
     protected override void OnMounted()
     {
+        _wasShown = false;
         InitializePopup();
         base.OnMounted();
     }
@@ -67,10 +69,18 @@ class PopupHost : Component
         base.OnPropsChanged();
     }
 
+    protected override void OnWillUnmount()
+    {
+        // Clean up popup reference when component unmounts
+        _popup = null;
+        base.OnWillUnmount();
+    }
+
     void InitializePopup()
     {
-        if (_isShown && MauiControls.Application.Current != null)
+        if (_isShown && !_wasShown && MauiControls.Application.Current != null)
         {
+            _wasShown = true;
             MauiControls.Application.Current?.Dispatcher.Dispatch(() =>
             {
                 if (ContainerPage == null ||
@@ -79,12 +89,24 @@ class PopupHost : Component
                     return;
                 }
 
-                ContainerPage.ShowPopup(_popup,
-                    new PopupOptions
-                    {
-                        CanBeDismissedByTappingOutsideOfPopup = true
-                    });
+                try
+                {
+                    ContainerPage.ShowPopup(_popup,
+                        new PopupOptions
+                        {
+                            CanBeDismissedByTappingOutsideOfPopup = true
+                        });
+                }
+                catch (InvalidOperationException)
+                {
+                    // Popup might already be shown or in invalid state - ignore
+                }
             });
+        }
+        else if (!_isShown && _wasShown)
+        {
+            _wasShown = false;
+            // Don't try to close here - let the OnClosed handler manage state
         }
     }
 
@@ -102,6 +124,7 @@ class PopupHost : Component
             }
             .OnClosed(args =>
             {
+                _wasShown = false;
                 _onCloseAction?.Invoke(args);
                 _popup = null;
             })

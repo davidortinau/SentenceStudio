@@ -13,6 +13,7 @@ class DescribeAScenePageState
     public Uri ImageUrl { get; set; } = new Uri("https://fdczvxmwwjwpwbeeqcth.supabase.co/storage/v1/object/public/images/239cddf0-4406-4bb7-9326-23511fe938cd/6ed5384c-8025-4395-837c-dd4a73c0a0c1.png");
     public string UserInput { get; set; }
     public bool IsBusy { get; set; }
+    public string LoadingMessage { get; set; } = "Loading...";
     public ImmutableList<Sentence> Sentences { get; set; } = ImmutableList<Sentence>.Empty;
     public ImmutableList<SceneImage> Images { get; set; } = ImmutableList<SceneImage>.Empty;
     public ImmutableList<SceneImage> SelectedImages { get; set; } = ImmutableList<SceneImage>.Empty;
@@ -22,12 +23,12 @@ class DescribeAScenePageState
     public bool IsExplanationShown { get; set; }
     public string ExplanationText { get; set; }
     public bool IsGalleryVisible { get; set; }
-    public string FeedbackMessage { get; set; }
-    public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
-    public bool ShowFeedback { get; set; }
 
     // Added: controls the new SfBottomSheet visibility for mobile
     public bool IsGalleryBottomSheetOpen { get; set; } = false;
+
+    // Bug fix: Prevent reloading random image on every OnAppearing
+    public bool SceneLoaded { get; set; } = false;
 }
 
 partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityProps>
@@ -57,8 +58,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 .IconImageSource(MyTheme.IconSwitch)
                 .OnClicked(ManageImages),
 
-            // Main grid (the single child of the ContentPage)
-            Grid("Auto,*,Auto", "*",
+            // Main grid - only 2 content rows: main content (*) and input (Auto)
+            // Overlays (popup, loading, gallery) span full grid without affecting layout
+            Grid("*,Auto", "*",
                 RenderMainContent(),
                 RenderInput(),
                 RenderExplanationPopup(),
@@ -78,43 +80,33 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .HFill()
                     .VStart()
                     .Margin(MyTheme.Size160)
+                    .AutomationId("SceneImage") // Appium: main scene image
             ).GridColumn(0),
 
             Grid(
                 CollectionView()
                     .ItemsSource(State.Sentences, RenderSentence)
+                    .AutomationId("SentencesList") // Appium: list of scored sentences
                     .Header(
                         ContentView(
                             Label($"{_localize["ISee"]}")
                                 .Padding(MyTheme.Size160)
                         )
-                    ),
-
-                // Enhanced feedback display
-                State.ShowFeedback ?
-                    Border(
-                        Label(State.FeedbackMessage)
-                            .FontSize(16)
-                            .Padding(12)
-                            .Center()
                     )
-                    .StrokeShape(new RoundRectangle().CornerRadius(8))
-                    .StrokeThickness(0)
-                    .Margin(MyTheme.Size160, 8)
-                    : null
             )
             .GridColumn(1)
         )
-        .GridRow(1);
+        .GridRow(0);  // Changed from GridRow(1) to GridRow(0)
 
     VisualNode RenderSentence(Sentence sentence) => VStack(spacing: 2,
             Label(sentence.Answer)
                 .FontSize(18),
-            Label($"Accuracy: {sentence.Accuracy}")
-                .FontSize(12)
+            sentence.IsGrading 
+                ? Label("Grading...").FontSize(12).TextColor(MyTheme.Gray500)
+                : Label($"Accuracy: {sentence.Accuracy}").FontSize(12)
         )
         .Padding(MyTheme.Size160)
-        .OnTapped(() => ShowExplanation(sentence));
+        .OnTapped(() => { if (!sentence.IsGrading) ShowExplanation(sentence); });
 
     VisualNode RenderInput() => new SfTextInputLayout(
             Entry()
@@ -124,10 +116,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 .OnCompleted(GradeMyDescription)
                 .GridColumn(0)
                 .FontSize(18)
+                .AutomationId("DescriptionEntry") // Appium: text input field
         )
         .Hint($"{_localize["WhatDoYouSee"]}")
         .TrailingView(
             HStack(
+                Button()
+                    .Background(Colors.Transparent)
+                    .ImageSource(MyTheme.IconSend)
+                    .OnClicked(GradeMyDescription)
+                    .AutomationId("SubmitButton"),
+
                 Button()
                     .Background(Colors.Transparent)
                     .ImageSource(MyTheme.IconTranslate)
@@ -139,16 +138,27 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .OnClicked(ClearInput)
             ).Spacing(MyTheme.Size40).HStart()
         )
-        .GridRow(2)
+        .GridRow(1)  // Changed from GridRow(2) to GridRow(1)
         .Margin(MyTheme.Size160);
 
     VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
         {
             VStack(spacing: 10,
                 Label()
-                    .Text(State.Description),
+                    .Text(
+                        // Bug fix: Show ExplanationText when available (from sentence tap),
+                        // otherwise show Description (from info toolbar)
+                        !string.IsNullOrWhiteSpace(State.ExplanationText)
+                            ? State.ExplanationText
+                            : (!string.IsNullOrWhiteSpace(State.Description)
+                                ? State.Description
+                                : "No description available. Tap the info button after loading an image.")
+                    ),
                 Button("Close", () => {
-                    SetState(s => s.IsExplanationShown = false);
+                    SetState(s => {
+                        s.IsExplanationShown = false;
+                        s.ExplanationText = string.Empty; // Clear explanation text when closing
+                    });
                     _ = _popup?.CloseAsync();
                 })
             ).Padding(20)
@@ -189,7 +199,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 )//grid
 
         )
-        .GridRowSpan(3)
+        .GridRowSpan(2)  // Changed from 3 to 2 rows
         .IsOpen(State.IsGalleryBottomSheetOpen);
 
     VisualNode RenderGallery() => CollectionView()
@@ -197,17 +207,20 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .SelectionMode(State.SelectionMode)
             .SelectedItems(State.SelectedImages.Cast<object>().ToList())
             .ItemsLayout(
-                new HorizontalGridItemsLayout(4)
-                    .VerticalItemSpacing(MyTheme.Size240)
-                    .HorizontalItemSpacing(MyTheme.Size240)
+                // Bug fix: Use VerticalGridItemsLayout for 4 columns with vertical scroll
+                new VerticalGridItemsLayout(4)
+                    .VerticalItemSpacing(MyTheme.Size80)
+                    .HorizontalItemSpacing(MyTheme.Size80)
             ).GridRow(2);
 
 
+    // Bug fix: Add explicit sizing to gallery items to prevent overlap
     VisualNode RenderGalleryItem(SceneImage image) => Grid(
             Image()
                 .Source(new Uri(image.Url))
-                .Aspect(Aspect.AspectFit)
+                .Aspect(Aspect.AspectFill) // Use AspectFill for uniform card appearance
                 .HeightRequest(100)
+                .WidthRequest(100) // Explicit width for consistent sizing
                 .OnTapped(() => OnImageSelected(image)),
 
             // Checkbox background to avoid overlapping text/artifacts
@@ -237,18 +250,25 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         );
 
     VisualNode RenderLoadingOverlay() => Grid(
-            Label("Analyzing the image...")
-                .FontSize(64)
-                .TextColor(MyTheme.DarkOnLightBackground)
+            Label(State.LoadingMessage)
+                .FontSize(32)
+                .TextColor(Colors.White)
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
         .IsVisible(State.IsBusy)
-        .GridRowSpan(3);
+        .GridRowSpan(2);  // Changed from 3 to 2 rows
 
     // Event handlers and other methods...
     async Task LoadScene()
     {
+        // Bug fix: Skip if scene already loaded to prevent random image changes
+        if (State.SceneLoaded)
+        {
+            _logger.LogDebug("DescribeAScenePage: Scene already loaded, skipping reload");
+            return;
+        }
+
         // Start activity timer if launched from Today's Plan (only once)
         if (Props?.FromTodaysPlan == true && !_timerService.IsActive)
         {
@@ -256,7 +276,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             _timerService.StartSession("SceneDescription", Props.PlanItemId);
         }
 
-        SetState(s => s.IsBusy = true);
+        SetState(s => {
+            s.IsBusy = true;
+            s.LoadingMessage = "Loading scene...";
+        });
 
         try
         {
@@ -268,17 +291,25 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     s.Id = image.Id;
                     s.ImageUrl = new Uri(image.Url);
                     s.Description = image.Description;
+                    s.SceneLoaded = true; // Mark scene as loaded
+                    s.IsBusy = false; // Hide loading once image is loaded
                 });
 
+                // Only analyze if we don't have a saved description
                 if (string.IsNullOrWhiteSpace(State.Description))
                 {
                     await GetDescription();
                 }
             }
+            else
+            {
+                SetState(s => s.IsBusy = false);
+            }
         }
-        finally
+        catch
         {
             SetState(s => s.IsBusy = false);
+            throw;
         }
     }
 
@@ -313,7 +344,23 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     async Task ViewDescription()
     {
-        SetState(s => s.IsExplanationShown = true);
+        // Bug fix: Fetch description if empty before showing popup
+        if (string.IsNullOrWhiteSpace(State.Description))
+        {
+            _logger.LogDebug("DescribeAScenePage: Description is empty, fetching before showing popup");
+            await GetDescription();
+            _logger.LogDebug("DescribeAScenePage: After GetDescription, Description is now: {DescriptionLength} chars", State.Description?.Length ?? 0);
+        }
+        else
+        {
+            _logger.LogDebug("DescribeAScenePage: Description already exists: {DescriptionLength} chars", State.Description?.Length ?? 0);
+        }
+
+        // Clear any existing explanation text so popup shows the AI description
+        SetState(s => {
+            s.ExplanationText = string.Empty;
+            s.IsExplanationShown = true;
+        });
     }
 
     void ShowExplanation(Sentence sentence)
@@ -333,26 +380,48 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     {
         if (string.IsNullOrWhiteSpace(State.UserInput)) return;
 
-        _logger.LogDebug("DescribeAScenePage: Starting grading for user input: '{UserInput}'", State.UserInput);
+        // Capture input before clearing - grading happens asynchronously
+        var userInput = State.UserInput;
+        var description = State.Description;
+        
+        // Create pending sentence and add to list immediately
+        var pendingSentence = new Sentence
+        {
+            Answer = userInput,
+            IsGrading = true
+        };
+        
+        // Clear input and add sentence immediately so user sees it and can keep typing
+        SetState(s => {
+            s.UserInput = string.Empty;
+            s.Sentences = s.Sentences.Insert(0, pendingSentence);
+        });
+
+        _logger.LogDebug("DescribeAScenePage: Starting grading for user input: {UserInput}", userInput);
 
         var stopwatch = Stopwatch.StartNew();
-        SetState(s => s.IsBusy = true);
+        // No loading overlay - grading happens in background
 
         try
         {
-            var grade = await _teacherService.GradeDescription(State.UserInput, State.Description);
+            var grade = await _teacherService.GradeDescription(userInput, description);
             stopwatch.Stop();
 
-            _logger.LogDebug("DescribeAScenePage: Grading completed! Accuracy: {Accuracy:F2}, Fluency: {Fluency:F2}, Response time: {ElapsedMs}ms", grade.Accuracy, grade.Fluency, stopwatch.ElapsedMilliseconds);
+            _logger.LogDebug("DescribeAScenePage: Grading completed! Accuracy: {Accuracy:F2}, Fluency: {Fluency:F2}, ResponseTime: {ElapsedMs}ms", grade.Accuracy, grade.Fluency, stopwatch.ElapsedMilliseconds);
+            _logger.LogDebug("DescribeAScenePage: AccuracyExpl: {AccuracyExpl}, FluencyExpl: {FluencyExpl}, Recommended: {Recommended}", 
+                grade.AccuracyExplanation ?? "(null)", 
+                grade.FluencyExplanation ?? "(null)", 
+                grade.GrammarNotes?.RecommendedTranslation ?? "(null)");
 
             var sentence = new Sentence
             {
-                Answer = State.UserInput,
+                Answer = userInput,
                 Accuracy = grade.Accuracy,
                 Fluency = grade.Fluency,
                 FluencyExplanation = grade.FluencyExplanation,
                 AccuracyExplanation = grade.AccuracyExplanation,
-                RecommendedSentence = grade.RecommendedTranslation,
+                // RecommendedTranslation is inside GrammarNotes from the AI response
+                RecommendedSentence = grade.GrammarNotes?.RecommendedTranslation ?? grade.RecommendedTranslation,
                 GrammarNotes = grade.GrammarNotes?.Explanation
             };
 
@@ -360,7 +429,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             await _userActivityRepository.SaveAsync(new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.SceneDescription.ToString(),
-                Input = State.UserInput,
+                Input = userInput,
                 Accuracy = grade.Accuracy,
                 Fluency = grade.Fluency,
                 CreatedAt = DateTime.Now,
@@ -371,15 +440,18 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
             // Enhanced vocabulary tracking - extract words from user input and process each
             _logger.LogDebug("DescribeAScenePage: Starting enhanced vocabulary tracking...");
-            await ProcessVocabularyFromDescription(State.UserInput, grade, (int)stopwatch.ElapsedMilliseconds);
+            await ProcessVocabularyFromDescription(userInput, grade, (int)stopwatch.ElapsedMilliseconds);
 
-            // Show enhanced feedback
-            ShowEnhancedFeedback(grade, State.UserInput);
+            // Show feedback as toast
+            await ShowEnhancedFeedback(grade, userInput);
 
-            SetState(s =>
-            {
-                s.UserInput = string.Empty;
-                s.Sentences = s.Sentences.Insert(0, sentence);
+            // Update the pending sentence with grading results
+            SetState(s => {
+                var index = s.Sentences.IndexOf(pendingSentence);
+                if (index >= 0)
+                {
+                    s.Sentences = s.Sentences.SetItem(index, sentence);
+                }
             });
 
             _logger.LogDebug("DescribeAScenePage: Grading process completed successfully!");
@@ -388,10 +460,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         {
             _logger.LogError(ex, "DescribeAScenePage: Error during grading");
         }
-        finally
-        {
-            SetState(s => s.IsBusy = false);
-        }
+        // No finally block needed - no loading state to reset
     }
 
     async Task TranslateInput()
@@ -422,7 +491,10 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     async Task GetDescription()
     {
-        SetState(s => s.IsBusy = true);
+        SetState(s => {
+            s.IsBusy = true;
+            s.LoadingMessage = "Analyzing the image...";
+        });
         try
         {
             var prompt = string.Empty;
@@ -781,55 +853,35 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         return Math.Min(difficulty, 2.0f); // Cap at 2.0
     }
 
-    void ShowEnhancedFeedback(GradeResponse grade, string userInput)
+    async Task ShowEnhancedFeedback(GradeResponse grade, string userInput)
     {
         try
         {
+            string message;
             // Determine feedback based on accuracy and fluency
             if (grade.Accuracy >= 0.8 && grade.Fluency >= 0.8)
             {
-                ShowFeedback("🌟 Excellent description! Your Korean is very natural!", "achievement");
+                message = "🌟 Excellent description! Your Korean is very natural!";
             }
             else if (grade.Accuracy >= 0.7)
             {
-                ShowFeedback($"✅ Good work! Accuracy: {(int)(grade.Accuracy * 100)}%", "success");
+                message = $"✅ Good work! Accuracy: {(int)(grade.Accuracy * 100)}%";
             }
             else if (grade.Accuracy >= 0.5)
             {
-                ShowFeedback($"📝 Keep practicing! Some improvements needed - {(int)(grade.Accuracy * 100)}% accuracy", "info");
+                message = $"📝 Keep practicing! {(int)(grade.Accuracy * 100)}% accuracy";
             }
             else
             {
-                ShowFeedback("🔍 Try focusing on simpler sentences first", "hint");
+                message = "🔍 Try focusing on simpler sentences first";
             }
 
-            // Additional context-specific feedback
-            if (userInput.Length > 100)
-            {
-                ShowFeedback("💪 Great job with a detailed description!", "info");
-            }
+            await AppShell.DisplayToastAsync(message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "DescribeAScenePage: Error showing feedback");
         }
-    }
-
-    void ShowFeedback(string message, string type)
-    {
-        SetState(s =>
-        {
-            s.FeedbackMessage = message;
-            s.FeedbackType = type;
-            s.ShowFeedback = true;
-        });
-
-        // Auto-hide feedback after 4 seconds
-        Task.Run(async () =>
-        {
-            await Task.Delay(4000);
-            SetState(s => s.ShowFeedback = false);
-        });
     }
 
     int GetCurrentUserId()

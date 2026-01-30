@@ -1,8 +1,8 @@
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Pages.Warmup;
+namespace SentenceStudio.Pages.Conversation;
 
-public class MessageTemplateSelector: DataTemplateSelector
+public class MessageTemplateSelector : DataTemplateSelector
 {
     public DataTemplate MessageFromMe { get; set; }
 
@@ -24,7 +24,7 @@ public class MessageTemplateSelector: DataTemplateSelector
                 // if(string.IsNullOrWhiteSpace(conversationChunk.Text))
                 //     return MessageFromOtherTyping;
                 // else
-                    return MessageFromOthers;
+                return MessageFromOthers;
             }
 
             // if (conversationChunk is ConversationChunkPaddingTop)
