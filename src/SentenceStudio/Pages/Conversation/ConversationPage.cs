@@ -34,6 +34,9 @@ class ConversationPageState
 
     // Grammar corrections for the currently selected message
     public List<GrammarCorrectionDto> SelectedGrammarCorrections { get; set; } = new();
+
+    // Target language for dynamic placeholders
+    public string TargetLanguage { get; set; } = "Korean";
 }
 
 partial class ConversationPage : Component<ConversationPageState, ActivityProps>
@@ -45,6 +48,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] IScenarioService _scenarioService;
     [Inject] ILogger<ConversationPage> _logger;
+    [Inject] UserProfileRepository _userProfileRepository;
     LocalizationManager _localize => LocalizationManager.Instance;
     ConversationModel _conversation;
 
@@ -53,19 +57,24 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     private IDispatcherTimer _playbackTimer;
     private EventHandler _playbackEndedHandler;
 
-    string[] phrases = new[]
-        {
-            "이거 한국어로 뭐예요?",
-            "더 자세히 설명해 주세요.",
-            "잘 알겠어요.",
-            "잘 이해했어요.",
-            "다시 한 번 말해 주세요.",
-            "한국어 조금밖에 안 해요.",
-            "도와주셔서 감사합니다.",
-            "한국어로 말해 주세요.",
-            "한국어로 쓰세요.",
-            "한국어로 번역해 주세요."
-        };
+    // Helper phrases will be generated dynamically based on target language
+    string GetInputPlaceholder() => string.Format($"{_localize["ConversationInputPlaceholder"]}", State.TargetLanguage);
+
+    // TODO: Make these phrases dynamic based on target language
+    // For now, using generic English helper phrases
+    string[] GetQuickPhrases() => new[]
+    {
+        "How do you say this?",
+        "Can you explain that in more detail?",
+        "I understand.",
+        "Please say that again.",
+        "I only speak a little.",
+        "Thank you for helping.",
+        "Please speak slower.",
+        "What does that mean?",
+        "Can you translate that?"
+    };
+
 
     public override VisualNode Render()
     {
@@ -159,7 +168,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             {
                 Title = $"{_localize["QuickPhrases"]}",
                 ShowActionButton = false,
-                ItemsSource = phrases,
+                ItemsSource = GetQuickPhrases(),
                 ItemDataTemplate = new Microsoft.Maui.Controls.DataTemplate(() =>
                 {
                     var tapGesture = new Microsoft.Maui.Controls.TapGestureRecognizer();
@@ -430,7 +439,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         Grid("", "* Auto Auto Auto",
             Border(
                 Entry()
-                    .Placeholder("그건 한국어로 어떻게 말해요?")
+                    .Placeholder(GetInputPlaceholder())
                     .FontSize(MyTheme.Size200)
                     .ReturnType(ReturnType.Send)
                     .Text(State.UserInput)
@@ -766,6 +775,20 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         SetState(s => s.IsBusy = true);
 
+        // Load user profile for target language
+        try
+        {
+            var userProfile = await _userProfileRepository.GetAsync();
+            if (userProfile != null && !string.IsNullOrEmpty(userProfile.TargetLanguage))
+            {
+                SetState(s => s.TargetLanguage = userProfile.TargetLanguage);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading user profile for target language");
+        }
+
         // Load available scenarios
         try
         {
@@ -786,7 +809,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         _conversation = await _agentService.ResumeConversationAsync();
 
-        if (_conversation == null || !_conversation.Chunks.Any())
+        if (_conversation == null || _conversation.Chunks == null || !_conversation.Chunks.Any())
         {
             await StartConversation();
             return;

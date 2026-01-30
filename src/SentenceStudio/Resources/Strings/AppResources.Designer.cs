@@ -670,6 +670,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to How do you say this in {0}?.
+        /// </summary>
+        internal static string ConversationInputPlaceholder {
+            get {
+                return ResourceManager.GetString("ConversationInputPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Copied to clipboard!.
         /// </summary>
         internal static string CopiedToClipboard {
@@ -3733,6 +3742,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Translation {
             get {
                 return ResourceManager.GetString("Translation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How do you say this in {0}?.
+        /// </summary>
+        internal static string TranslationInputPlaceholder {
+            get {
+                return ResourceManager.GetString("TranslationInputPlaceholder", resourceCulture);
             }
         }
         

@@ -1793,4 +1793,12 @@
     <value>아니요</value>
     <comment>Generic no button label</comment>
   </data>
+  <data name="ConversationInputPlaceholder" xml:space="preserve">
+    <value>그건 {0}(으)로 어떻게 말해요?</value>
+    <comment>Placeholder text for conversation input, {0} is the target language</comment>
+  </data>
+  <data name="TranslationInputPlaceholder" xml:space="preserve">
+    <value>그건 {0}(으)로 어떻게 말해요?</value>
+    <comment>Placeholder text for translation input, {0} is the target language</comment>
+  </data>
 </root>

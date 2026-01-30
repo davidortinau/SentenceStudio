@@ -339,7 +339,8 @@ partial class DashboardPage : Component<DashboardPageState>
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
                             new ActivityBorder().LabelText($"{_localize["Clozures"]}").Route(nameof(ClozurePage)),
                             new ActivityBorder().LabelText($"{_localize["Reading"]}").Route("reading"),
-                            new ActivityBorder().LabelText("Watch").Route(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage)),
+                            // Watch activity hidden - not fully implemented
+                            // new ActivityBorder().LabelText("Watch").Route(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["VocabularyQuiz"]}").Route(nameof(VocabularyQuizPage)),
                             new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
                             new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),

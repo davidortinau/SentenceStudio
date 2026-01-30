@@ -16,6 +16,7 @@ public class ConversationAgentService : IConversationAgentService
 {
     private readonly IChatClient _chatClient;
     private readonly IServiceProvider _serviceProvider;
+    private readonly UserProfileRepository _userProfileRepository;
     private readonly VocabularyLookupTool _vocabularyTool;
     private readonly ILogger<ConversationAgentService> _logger;
 
@@ -30,11 +31,13 @@ public class ConversationAgentService : IConversationAgentService
     public ConversationAgentService(
         IChatClient chatClient,
         IServiceProvider serviceProvider,
+        UserProfileRepository userProfileRepository,
         VocabularyLookupTool vocabularyTool,
         ILogger<ConversationAgentService> logger)
     {
         _chatClient = chatClient;
         _serviceProvider = serviceProvider;
+        _userProfileRepository = userProfileRepository;
         _vocabularyTool = vocabularyTool;
         _logger = logger;
     }
@@ -294,6 +297,10 @@ public class ConversationAgentService : IConversationAgentService
 
     private async Task<string> GetConversationPartnerPromptAsync(ConversationScenario? scenario)
     {
+        // Get user's target language
+        var userProfile = await _userProfileRepository.GetAsync();
+        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
         if (scenario != null)
         {
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
@@ -302,6 +309,7 @@ public class ConversationAgentService : IConversationAgentService
 
             return await template.RenderAsync(new
             {
+                target_language = targetLanguage,
                 scenario = new
                 {
                     persona_name = scenario.PersonaName,
@@ -316,14 +324,18 @@ public class ConversationAgentService : IConversationAgentService
         using Stream defaultStream = await FileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
         using var defaultReader = new StreamReader(defaultStream);
         var defaultTemplate = Template.Parse(await defaultReader.ReadToEndAsync());
-        return await defaultTemplate.RenderAsync(new { name = DefaultPersonaName });
+        return await defaultTemplate.RenderAsync(new { name = DefaultPersonaName, target_language = targetLanguage });
     }
 
     private async Task<string> GetGradingAgentPromptAsync()
     {
-        return @"You are a Korean language grading assistant. Your job is to:
+        // Get user's target language
+        var userProfile = await _userProfileRepository.GetAsync();
+        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
 
-1. Evaluate the user's Korean message for comprehension (0.0 to 1.0 scale):
+        return $@"You are a {targetLanguage} language grading assistant. Your job is to:
+
+1. Evaluate the user's {targetLanguage} message for comprehension (0.0 to 1.0 scale):
    - 1.0: Perfect, native-like communication
    - 0.8-0.9: Minor errors but message is clear
    - 0.6-0.7: Understandable with some effort
@@ -334,7 +346,7 @@ public class ConversationAgentService : IConversationAgentService
 2. Provide brief comprehension notes explaining what worked well or what was unclear.
 
 3. Identify grammar corrections:
-   - Find grammar mistakes in the user's Korean
+   - Find grammar mistakes in the user's {targetLanguage}
    - Provide the corrected version
    - Explain the grammar rule simply
 
@@ -345,6 +357,10 @@ Do not nitpick minor stylistic preferences.";
 
     private async Task<string> GetOpeningPromptAsync(ConversationScenario? scenario)
     {
+        // Get user's target language
+        var userProfile = await _userProfileRepository.GetAsync();
+        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
         if (scenario != null)
         {
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
@@ -353,6 +369,7 @@ Do not nitpick minor stylistic preferences.";
 
             return await template.RenderAsync(new
             {
+                target_language = targetLanguage,
                 scenario = new
                 {
                     persona_name = scenario.PersonaName,
@@ -366,7 +383,7 @@ Do not nitpick minor stylistic preferences.";
         using Stream defaultStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
         using var defaultReader = new StreamReader(defaultStream);
         var defaultTemplate = Template.Parse(await defaultReader.ReadToEndAsync());
-        return await defaultTemplate.RenderAsync();
+        return await defaultTemplate.RenderAsync(new { target_language = targetLanguage });
     }
 
     #endregion

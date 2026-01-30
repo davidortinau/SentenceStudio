@@ -58,6 +58,7 @@ class TranslationPageState
     public string FeedbackMessage { get; set; }
     public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
     public bool ShowFeedback { get; set; }
+    public string TargetLanguage { get; set; } = "Korean"; // Default, will be set from resource or user profile
 }
 
 partial class TranslationPage : Component<TranslationPageState, ActivityProps>
@@ -67,12 +68,16 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
+    [Inject] UserProfileRepository _userProfileRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<TranslationPage> _logger;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
     int _currentSentenceIndex = 0;
+
+    string GetInputPlaceholder() =>
+        string.Format($"{_localize["TranslationInputPlaceholder"]}", State.TargetLanguage);
 
     public override VisualNode Render()
         => ContentPage(
@@ -155,7 +160,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                 .OnCompleted(GradeMe)
         )
-        .Hint("그건 한국어로 어떻게 말해요?")
+        .Hint(GetInputPlaceholder())
         .GridRow(1)
         .GridColumnSpan(4);
 
@@ -327,6 +332,15 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
         try
         {
+            // Get target language from resource or user profile
+            var targetLanguage = Props.Resource?.Language;
+            if (string.IsNullOrEmpty(targetLanguage))
+            {
+                var profile = await _userProfileRepository.GetAsync();
+                targetLanguage = profile?.TargetLanguage ?? "Korean";
+            }
+            SetState(s => s.TargetLanguage = targetLanguage);
+
             // Use the resource Id if available, or fallback to null
             var resourceId = Props.Resource?.Id ?? 0;
             _logger.LogDebug("TranslationPage: Loading sentences for resource {ResourceId}, skill {SkillId}", resourceId, Props.Skill?.Id);
