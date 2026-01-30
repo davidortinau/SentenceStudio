@@ -687,7 +687,11 @@
   </data>
   <data name="WhatIsThisInKorean" xml:space="preserve">
     <value>이것은 한국어로 무엇입니까?</value>
-    <comment>어휘 퀴즈 질문 프롬프트</comment>
+    <comment>DEPRECATED: WhatIsThisInLanguage 사용</comment>
+  </data>
+  <data name="WhatIsThisInLanguage" xml:space="preserve">
+    <value>이것은 {0}(으)로 무엇입니까?</value>
+    <comment>어휘 퀴즈 질문 프롬프트 (언어 플레이스홀더 포함)</comment>
   </data>
   <data name="TypeCorrectAnswerHint" xml:space="preserve">
     <value>정답을 입력하세요</value>

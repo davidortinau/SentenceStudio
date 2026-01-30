@@ -47,6 +47,9 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
                 .IconImageSource(MyTheme.IconChart)
                 .OnClicked(ViewVocabularyProgress),
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Generate Starter")
+                .IconImageSource(MyTheme.IconGenerate)
+                .OnClicked(CreateStarterResource),
 
                 State.IsLoading ?
                     VStack(

@@ -121,6 +121,9 @@ class VocabularyQuizPageState
     public int KnownTermsCount { get; set; } // 3 MC + 3 text entry correct (across entire resource)
     public int TotalResourceTermsCount { get; set; } // Total vocabulary in learning resource
 
+    // Target language for the quiz (from resource)
+    public string TargetLanguage { get; set; } = "the target language";
+
     // Vocabulary Quiz Preferences
     public VocabularyQuizPreferences UserPreferences { get; set; }
 
@@ -490,7 +493,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode TermDisplay() =>
         VStack(spacing: 16,
-            Label($"{_localize["WhatIsThisInKorean"]}")
+            Label(string.Format($"{_localize["WhatIsThisInLanguage"]}", State.TargetLanguage))
                 .FontSize(18)
                 .FontAttributes(FontAttributes.Bold)
                 .Center(),
@@ -1314,6 +1317,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 incompleteItems[0].IsCurrent = true;
             }
 
+            // Get target language from first resource
+            var targetLanguage = resources.FirstOrDefault()?.Language ?? "the target language";
+
             // Update state
             SetState(s =>
             {
@@ -1322,6 +1328,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 s.CorrectAnswersInRound = 0;
                 s.CurrentSetNumber = 1;
                 s.TotalSets = totalSets;
+                s.TargetLanguage = targetLanguage;
             });
 
             // Initialize round-based session (will load first word via StartNewRound)

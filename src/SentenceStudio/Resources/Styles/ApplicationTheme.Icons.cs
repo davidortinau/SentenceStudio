@@ -68,6 +68,14 @@ partial class MyTheme
         Size = IconSize
     };
 
+    public static FontImageSource IconGenerate { get; } = new FontImageSource
+    {
+        Glyph = FluentUI.bot_sparkle_20_regular,
+        FontFamily = FluentUI.FontFamily,
+        Color = IsLightTheme ? DarkOnLightBackground : LightOnDarkBackground,
+        Size = IconSize
+    };
+
     public static FontImageSource IconDelete { get; } = new FontImageSource
     {
         Glyph = FluentUI.delete_32_regular,

@@ -795,7 +795,11 @@
   </data>
   <data name="WhatIsThisInKorean" xml:space="preserve">
     <value>What is this in Korean?</value>
-    <comment>Question prompt for vocabulary quiz</comment>
+    <comment>DEPRECATED: Use WhatIsThisInLanguage instead</comment>
+  </data>
+  <data name="WhatIsThisInLanguage" xml:space="preserve">
+    <value>What is this in {0}?</value>
+    <comment>Question prompt for vocabulary quiz with language placeholder</comment>
   </data>
   <data name="TypeCorrectAnswerHint" xml:space="preserve">
     <value>Type the correct answer</value>

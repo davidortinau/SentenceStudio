@@ -4223,6 +4223,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to What is this in {0}?.
+        /// </summary>
+        internal static string WhatIsThisInLanguage {
+            get {
+                return ResourceManager.GetString("WhatIsThisInLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to ✨ Word mastered in this quiz!.
         /// </summary>
         internal static string WordMasteredInQuiz {
