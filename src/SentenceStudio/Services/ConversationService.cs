@@ -46,8 +46,16 @@ namespace SentenceStudio.Services
         /// <summary>
         /// Loads and renders the scenario-specific system prompt template.
         /// </summary>
-        private async Task<string> GetScenarioSystemPromptAsync(ConversationScenario scenario)
+        private async Task<string> GetScenarioSystemPromptAsync(ConversationScenario scenario, string? targetLanguage = null)
         {
+            // Get target language if not provided
+            if (string.IsNullOrEmpty(targetLanguage))
+            {
+                var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                var userProfile = await userProfileRepo.GetAsync();
+                targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+            }
+            
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
@@ -61,7 +69,8 @@ namespace SentenceStudio.Services
                     situation_description = scenario.SituationDescription,
                     conversation_type = scenario.ConversationType.ToString(),
                     question_bank = scenario.QuestionBank
-                }
+                },
+                target_language = targetLanguage
             });
         }
 
@@ -124,17 +133,25 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<string> StartConversation(ConversationScenario? scenario = null)
+        public async Task<string> StartConversation(ConversationScenario? scenario = null, string? targetLanguage = null)
         {
             try
             {
+                // Get target language if not provided
+                if (string.IsNullOrEmpty(targetLanguage))
+                {
+                    var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                    var userProfile = await userProfileRepo.GetAsync();
+                    targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+                }
+                
                 // Build system prompt based on scenario
                 string systemPrompt;
                 string userPrompt;
 
                 if (scenario != null)
                 {
-                    systemPrompt = await GetScenarioSystemPromptAsync(scenario);
+                    systemPrompt = await GetScenarioSystemPromptAsync(scenario, targetLanguage);
                     _logger.LogInformation("Starting conversation with scenario: {Name}", scenario.Name);
 
                     // Use scenario-specific start conversation template
@@ -149,7 +166,8 @@ namespace SentenceStudio.Services
                             persona_description = scenario.PersonaDescription,
                             situation_description = scenario.SituationDescription,
                             conversation_type = scenario.ConversationType.ToString()
-                        }
+                        },
+                        target_language = targetLanguage
                     });
                 }
                 else
@@ -160,7 +178,7 @@ namespace SentenceStudio.Services
                     using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    userPrompt = await template.RenderAsync();
+                    userPrompt = await template.RenderAsync(new { target_language = targetLanguage });
                 }
 
                 // Build chat messages with proper roles
@@ -180,10 +198,18 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks, ConversationScenario? scenario = null)
+        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks, ConversationScenario? scenario = null, string? targetLanguage = null)
         {
             try
             {
+                // Get target language if not provided
+                if (string.IsNullOrEmpty(targetLanguage))
+                {
+                    var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                    var userProfile = await userProfileRepo.GetAsync();
+                    targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+                }
+                
                 // Use the single-prompt pattern that works with structured output
                 // Build a complete prompt string with persona, history, and instructions
                 string prompt;
@@ -204,7 +230,8 @@ namespace SentenceStudio.Services
                             conversation_type = scenario.ConversationType.ToString()
                             // question_bank = scenario.QuestionBank
                         },
-                        chunks = chunks  // Include ALL chunks including user's latest message
+                        chunks = chunks,  // Include ALL chunks including user's latest message
+                        target_language = targetLanguage
                     });
                 }
                 else
@@ -213,7 +240,11 @@ namespace SentenceStudio.Services
                     using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { name = DefaultPersonaName, chunks = chunks });  // Include ALL chunks
+                    prompt = await template.RenderAsync(new { 
+                        name = DefaultPersonaName, 
+                        chunks = chunks,
+                        target_language = targetLanguage
+                    });  // Include ALL chunks
                 }
 
                 var response = await _client.GetResponseAsync<Reply>(prompt);

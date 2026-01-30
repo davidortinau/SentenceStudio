@@ -48,12 +48,23 @@ namespace SentenceStudio.Services
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
 
+            // Get user's native language and use resource's language as target
+            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+            var userProfile = await userProfileRepo.GetAsync();
+            string nativeLanguage = userProfile?.NativeLanguage ?? "English";
+            string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
+
             var prompt = string.Empty;
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("TellAStory.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { terms = _words, skills = skillProfile?.Description });
+                prompt = await template.RenderAsync(new { 
+                    terms = _words, 
+                    skills = skillProfile?.Description,
+                    native_language = nativeLanguage,
+                    target_language = targetLanguage
+                });
             }
 
             //Debug.WriteLine(prompt);

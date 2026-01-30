@@ -3,18 +3,14 @@ I am a {{ native_language }} speaker learning {{ target_language }}.
 From among the following vocabulary words, generate for me 10 sentences for shadowing practice: ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}). When creating sentences:
 
 1. Include a variety of sentence patterns and grammatical structures appropriate for my skill level
-2. Ensure sentences are natural and conversational
+2. Ensure sentences are natural and conversational in {{ target_language }}
 3. Include some sentences with question intonation
-4. When choosing a subject, avoid using pronouns like he or she; instead substitute names or titles like 김거은, 언니, 형, 선생님, 아저씨, 이모, and others
+4. When choosing a subject, use names and titles that are natural in {{ target_language }} culture
 5. Make sentences clear and concise, ideal for pronunciation practice
-6. For each sentence, provide the target language text, native language translation, and pronunciation notes
+6. For each sentence, provide the target language text, native language translation, and pronunciation notes specific to {{ target_language }}
 
-For example, if the vocabulary includes 학생, 한국어, 공부하다:
-- Target: 저는 학생이에요.
-- Native: I am a student.
-- Pronunciation: Rising intonation on 이에요 at the end. Pronounce 학생 as 'hak-saeng' with a soft 'ng' sound at the end.
-
-- Target: 한국어를 공부하는 것이 재미있어요.
-- Native: Learning Korean is fun.
-- Pronunciation: Stress on 재미 (fun). Keep rhythm steady throughout the sentence.
+**EXAMPLE FORMAT:**
+- Target: [{{ target_language }} sentence]
+- Native: [{{ native_language }} translation]
+- Pronunciation: [Notes on intonation, stress, and challenging sounds for {{ target_language }}]
 

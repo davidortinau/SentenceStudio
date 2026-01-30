@@ -34,4 +34,20 @@ public interface ILanguageSegmenter
     /// Gets common sentence-ending patterns for this language
     /// </summary>
     IEnumerable<string> GetSentenceEndings();
+    
+    /// <summary>
+    /// Gets the minimum word length to consider meaningful for this language.
+    /// Korean: 2 (particles are single char), Latin languages: 3
+    /// </summary>
+    int GetMinimumWordLength();
+    
+    /// <summary>
+    /// Gets trivial/greeting patterns that should be filtered out (e.g., "hello", "안녕하세요")
+    /// </summary>
+    IEnumerable<string> GetTrivialPatterns();
+    
+    /// <summary>
+    /// Gets function words/particles that can be stripped for word matching (e.g., Korean 은/는/이/가)
+    /// </summary>
+    IEnumerable<string> GetFunctionWords();
 }

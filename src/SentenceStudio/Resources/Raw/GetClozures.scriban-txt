@@ -1,23 +1,22 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} Korean sentences for clozure exercises. For each sentence:
+Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} {{ target_language }} sentences for clozure exercises. For each sentence:
 
 CRITICAL REQUIREMENTS:
 1. **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
-2. **Create natural conversational sentences** using common speech patterns
+2. **Create natural conversational sentences** using common speech patterns in {{ target_language }}
 3. **vocabulary_word should be the dictionary form** from the provided vocabulary list
-4. **vocabulary_word_as_used should be the conjugated form** that naturally fits in the conversational sentence
+4. **vocabulary_word_as_used should be the conjugated/inflected form** that naturally fits in the conversational sentence
 5. **Generate 5 plausible multiple-choice options** for `vocabulary_word_guesses`:
    - Include the correct conjugated form (same as `vocabulary_word_as_used`)
-   - Add 4 other conjugated Korean words as distractors (similar conjugation patterns)
+   - Add 4 other conjugated {{ target_language }} words as distractors (similar patterns)
    - All 5 options should be plausible in the sentence context
-6. **Include a recommended_translation** showing the English meaning of the sentence
+6. **Include a recommended_translation** showing the {{ native_language }} meaning of the sentence
 
 EXAMPLE FORMAT:
-If vocabulary word is "먹다" (to eat):
-- sentence_text: "나는 점심을 __" (with __ as placeholder)
-- recommended_translation: "I eat lunch"
-- vocabulary_word: "먹다" 
-- vocabulary_word_as_used: "먹어요" (conjugated form that fits the sentence)
-- vocabulary_word_guesses: "먹어요,마셔요,봐요,가요,와요" (5 options including the correct one)
+- sentence_text: "... __ ..." (with __ as placeholder where the vocabulary word goes)
+- recommended_translation: "{{ native_language }} translation of the sentence"
+- vocabulary_word: "dictionary form" 
+- vocabulary_word_as_used: "conjugated/inflected form that fits the sentence"
+- vocabulary_word_guesses: "option1,option2,option3,option4,option5" (5 options including the correct one)
 
 {{ if skills }}
 Prioritize creating sentences that emphasize these grammar skills: 

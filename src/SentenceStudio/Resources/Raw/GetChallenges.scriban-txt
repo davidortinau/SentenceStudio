@@ -1,11 +1,8 @@
-Using the following vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} natural and conversational sentences in that language along with natural English translations. 
+Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.target_language_term -}} - {{- t.native_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} natural and conversational {{ target_language }} sentences along with natural {{ native_language }} translations. 
 
 {{ if skills }}
 Emphasize the following skills that I want to practice: 
 {{ skills }}
 {{ end }}
 
-Here are some examples Korean sentences and English translations using vocabulary like 학생, 한국어, and 공부하다:
-- 저는 학생이에요. I am a student.
-- 왜 한국어를 공부해요? Why do you study Korean?
-- 언제부터 한국어를 공부했어요? Since when have you studied Korean?
+Create sentences that are useful for everyday conversation and appropriate for a language learner.

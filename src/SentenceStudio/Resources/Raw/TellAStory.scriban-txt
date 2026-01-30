@@ -1,4 +1,4 @@
-Using the following Korean vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), create a 3 to 5 paragraph story for me to practice reading Korean. Provide 3 comprehension questions for me to answer.
+Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), create a 3 to 5 paragraph story for me to practice reading {{ target_language }}. Provide 3 comprehension questions for me to answer in {{ target_language }}.
 
 {{ if skills }}
 Emphasize the following skills that I want to practice: 

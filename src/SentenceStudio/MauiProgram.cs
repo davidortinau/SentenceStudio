@@ -28,6 +28,7 @@ using Syncfusion.Maui.Core.Hosting;
 using SentenceStudio.Pages.LearningResources;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.MinimalPairs;
+using SentenceStudio.Services.LanguageSegmentation;
 using Microsoft.Maui.Controls.Hosting;
 using MauiReactor.HotReload;
 using UXDivers.Popups.Maui;
@@ -364,13 +365,27 @@ public static class MauiProgram
 		services.AddSingleton<VocabularyQuizPreferences>();
 		services.AddSingleton<SpeechVoicePreferences>(); // Global voice preference for learning activities
 
-		// Transcript formatting services - register segmenters as enumerable
+		// Language segmenters - register all supported languages
 		services.AddSingleton<KoreanLanguageSegmenter>();
+		services.AddSingleton<GenericLatinSegmenter>();
+		services.AddSingleton<FrenchLanguageSegmenter>();
+		services.AddSingleton<GermanLanguageSegmenter>();
+		services.AddSingleton<SpanishLanguageSegmenter>();
+		
+		// Register all segmenters as IEnumerable for services that need all of them
 		services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
 			new List<ILanguageSegmenter>
 			{
-				provider.GetRequiredService<KoreanLanguageSegmenter>()
+				provider.GetRequiredService<KoreanLanguageSegmenter>(),
+				provider.GetRequiredService<GenericLatinSegmenter>(),
+				provider.GetRequiredService<FrenchLanguageSegmenter>(),
+				provider.GetRequiredService<GermanLanguageSegmenter>(),
+				provider.GetRequiredService<SpanishLanguageSegmenter>()
 			});
+		
+		// Language segmenter factory for resolving segmenters by language name
+		services.AddSingleton<LanguageSegmenterFactory>();
+		
 		services.AddSingleton<TranscriptFormattingService>();
 		services.AddSingleton<TranscriptSentenceExtractor>();
 

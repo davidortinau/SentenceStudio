@@ -66,10 +66,11 @@ public class ShadowingService
         // Take a random selection of vocabulary words
         _words = resource.Vocabulary.OrderBy(t => random.Next()).Take(10).ToList();
         
-        // Get the user's native and target languages
+        // Get the user's native language and use resource's language as target
         var userProfile = await _userProfileRepository.GetAsync();
         string nativeLanguage = userProfile?.NativeLanguage ?? "English";
-        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        // Use resource's language as target (supports multi-language learning)
+        string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
         
         var prompt = string.Empty;     
         using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");

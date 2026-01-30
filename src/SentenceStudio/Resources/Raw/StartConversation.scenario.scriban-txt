@@ -1,13 +1,13 @@
 Start the conversation with an appropriate greeting for this scenario.
 
-As {{ scenario.persona_name }}, {{ scenario.persona_description }}, begin by greeting the customer/person naturally in Korean and asking an appropriate opening question for this situation:
+As {{ scenario.persona_name }}, {{ scenario.persona_description }}, begin by greeting the customer/person naturally in {{ target_language }} and asking an appropriate opening question for this situation:
 
 Situation: {{ scenario.situation_description }}
 
 {{ if scenario.conversation_type == "Finite" }}
-This is a transactional conversation, so ask something relevant to completing the transaction (e.g., "무엇을 주문하시겠어요?" for ordering, "어디 가시려고요?" for directions).
+This is a transactional conversation, so ask something relevant to completing the transaction in {{ target_language }}.
 {{ else }}
-This is an open-ended conversation, so ask something to get to know them or explore the topic.
+This is an open-ended conversation, so ask something to get to know them or explore the topic in {{ target_language }}.
 {{ end }}
 
-Only respond with your greeting and question in Korean - nothing else.
+Only respond with your greeting and question in {{ target_language }} - nothing else.

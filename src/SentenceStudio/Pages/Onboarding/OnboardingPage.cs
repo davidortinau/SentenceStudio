@@ -14,6 +14,13 @@ public class OnboardingState
     public string Email { get; set; } = string.Empty;
     public string NativeLanguage { get; set; } = string.Empty;
     public string TargetLanguage { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Multiple target languages the user wants to learn.
+    /// Initially populated from TargetLanguage for backward compatibility.
+    /// </summary>
+    public List<string> TargetLanguages { get; set; } = new List<string>();
+    
     public string DisplayLanguage { get; set; } = string.Empty;
     public string OpenAI_APIKey { get; set; } = string.Empty;
     public int PreferredSessionMinutes { get; set; } = 20;
@@ -742,12 +749,21 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
     {
         try
         {
+            // Build TargetLanguages list - for now, use single language from picker
+            // Users can add more languages later through settings
+            var targetLanguages = new List<string>();
+            if (!string.IsNullOrEmpty(State.TargetLanguage))
+            {
+                targetLanguages.Add(State.TargetLanguage);
+            }
+            
             var profile = new UserProfile
             {
                 Name = State.Name,
                 Email = State.Email,
                 NativeLanguage = State.NativeLanguage,
                 TargetLanguage = State.TargetLanguage,
+                TargetLanguages = string.Join(",", targetLanguages), // Store as comma-separated
                 DisplayLanguage = State.DisplayLanguage,
                 OpenAI_APIKey = State.OpenAI_APIKey,
                 PreferredSessionMinutes = State.PreferredSessionMinutes,

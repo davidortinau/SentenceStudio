@@ -1,14 +1,9 @@
-I am an English speaker learning Korean. 
+I am a {{ native_language }} speaker learning {{ target_language }}. 
 
-From among the following vocabulary words generate for me 5 sentence:  ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}). When choosing a subject, avoid using pronouns like he or she; instead subtitute names or titles like 김거은, 언니, 형, 선생님, 아저씨, 이모, and others.
+From among the following vocabulary words generate for me 5 sentences: ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}). 
 
-For example, here are sentences given the vocabulary 학생, 한국어, 공부하다, 많다, 음식, 매우다, 보통, 밥, 주말: 
-
-저는 학생이에요.
-왜 한국어를 공부해요?
-언제부토 한국어를 공부했어요?
-어제 너무 많이 먹은 것 같아요.
-한국 음식은 맛있는데 매워요.
-보통 일찍 자는데 어제는 늦게 잤어요. 
-밥 먹을 때 소리내도 돼요?
-오늘 주말이라서 일 안 해도 돼요.
+When creating sentences:
+1. Use natural {{ target_language }} sentence structures
+2. When choosing subjects, use names and titles appropriate for {{ target_language }} culture
+3. Create varied sentence types (statements, questions, etc.)
+4. Make sentences useful for everyday conversation practice

@@ -35,6 +35,27 @@ public class KoreanLanguageSegmenter : ILanguageSegmenter
     {
         "안녕하세요", "감사합니다", "여러분", "[음악]", "♪", "♫"
     };
+    
+    // Korean particles and function words (ordered by length for proper stripping)
+    private readonly string[] _functionWords = new[]
+    {
+        // Multi-character particles (ordered longest first)
+        "에서부터", "으로부터", "로부터", "에서는", "에서도",
+        "에게는", "에게도", "한테는", "한테도", "보다는",
+        "으로는", "으로도", "에서", "에게", "한테",
+        "으로", "에는", "에도", "와는", "과는",
+        "보다", "부터", "까지", "마다", "처럼", "같이",
+        // Single-character particles
+        "은", "는", "이", "가", "을", "를", "에", "도",
+        "만", "와", "과", "로", "의", "요"
+    };
+    
+    // Trivial phrases that can be filtered
+    private readonly HashSet<string> _trivialPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "안녕하세요", "감사합니다", "네", "아니요", "예",
+        "아니", "응", "어", "음", "그래"
+    };
 
     public bool ShouldPreserveLineBreak(string currentLine, string nextLine)
     {
@@ -98,8 +119,11 @@ public class KoreanLanguageSegmenter : ILanguageSegmenter
         return true;
     }
 
-    public IEnumerable<string> GetSentenceEndings()
-    {
-        return _sentenceEndings;
-    }
+    public IEnumerable<string> GetSentenceEndings() => _sentenceEndings;
+    
+    public int GetMinimumWordLength() => 2; // Korean particles are single char
+    
+    public IEnumerable<string> GetTrivialPatterns() => _trivialPatterns;
+    
+    public IEnumerable<string> GetFunctionWords() => _functionWords;
 }

@@ -45,12 +45,24 @@ namespace SentenceStudio.Services
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillProfileID);
             
+            // Get user's native language and use resource's language as target
+            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+            var userProfile = await userProfileRepo.GetAsync();
+            string nativeLanguage = userProfile?.NativeLanguage ?? "English";
+            string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
+            
             var prompt = string.Empty;     
             using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetChallenges.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { terms = _words, number_of_sentences = numberOfSentences, skills = skillProfile?.Description });
+                prompt = await template.RenderAsync(new { 
+                    terms = _words, 
+                    number_of_sentences = numberOfSentences, 
+                    skills = skillProfile?.Description,
+                    native_language = nativeLanguage,
+                    target_language = targetLanguage
+                });
             }
 
             // //Debug.WriteLine(prompt);
@@ -120,16 +132,31 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation)
+        public async Task<GradeResponse> GradeTranslation(string userInput, string originalSentence, string recommendedTranslation, string? targetLanguage = null, string? nativeLanguage = null)
         {
             try
             {
+                // Get language context if not provided
+                if (string.IsNullOrEmpty(targetLanguage) || string.IsNullOrEmpty(nativeLanguage))
+                {
+                    var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                    var userProfile = await userProfileRepo.GetAsync();
+                    nativeLanguage ??= userProfile?.NativeLanguage ?? "English";
+                    targetLanguage ??= userProfile?.TargetLanguage ?? "Korean";
+                }
+                
                 var prompt = string.Empty;     
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { original_sentence = originalSentence, recommended_translation = recommendedTranslation, user_input = userInput});
+                    prompt = await template.RenderAsync(new { 
+                        original_sentence = originalSentence, 
+                        recommended_translation = recommendedTranslation, 
+                        user_input = userInput,
+                        native_language = nativeLanguage,
+                        target_language = targetLanguage
+                    });
 
                     // //Debug.WriteLine(prompt);
                 }
@@ -167,16 +194,30 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeSentence(string userInput, string userMeaning)
+        public async Task<GradeResponse> GradeSentence(string userInput, string userMeaning, string? targetLanguage = null, string? nativeLanguage = null)
         {
             try
             {
+                // Get language context if not provided
+                if (string.IsNullOrEmpty(targetLanguage) || string.IsNullOrEmpty(nativeLanguage))
+                {
+                    var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                    var userProfile = await userProfileRepo.GetAsync();
+                    nativeLanguage ??= userProfile?.NativeLanguage ?? "English";
+                    targetLanguage ??= userProfile?.TargetLanguage ?? "Korean";
+                }
+                
                 var prompt = string.Empty;     
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { user_input = userInput, user_meaning = userMeaning});
+                    prompt = await template.RenderAsync(new { 
+                        user_input = userInput, 
+                        user_meaning = userMeaning,
+                        native_language = nativeLanguage,
+                        target_language = targetLanguage
+                    });
 
                     // //Debug.WriteLine(prompt);
                 }
@@ -192,16 +233,30 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription)
+        public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription, string? targetLanguage = null, string? nativeLanguage = null)
         {
             try
             {
+                // Get language context if not provided
+                if (string.IsNullOrEmpty(targetLanguage) || string.IsNullOrEmpty(nativeLanguage))
+                {
+                    var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+                    var userProfile = await userProfileRepo.GetAsync();
+                    nativeLanguage ??= userProfile?.NativeLanguage ?? "English";
+                    targetLanguage ??= userProfile?.TargetLanguage ?? "Korean";
+                }
+                
                 var prompt = string.Empty;     
                 using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());
-                    prompt = await template.RenderAsync(new { my_description = myDescription, ai_description = aiDescription});
+                    prompt = await template.RenderAsync(new { 
+                        my_description = myDescription, 
+                        ai_description = aiDescription,
+                        native_language = nativeLanguage,
+                        target_language = targetLanguage
+                    });
 
                     // //Debug.WriteLine(prompt);
                 }
