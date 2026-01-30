@@ -406,10 +406,20 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
 
             // Prioritize words that need more practice
+            // Handle missing progress records by creating defaults for new words
             var wordsWithProgress = words.Select(word => new WordWithProgress
             {
                 Word = word,
-                Progress = progressDict[word.Id]
+                Progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id] :
+                    new SentenceStudio.Shared.Models.VocabularyProgress
+                    {
+                        VocabularyWordId = word.Id,
+                        IsCompleted = false,
+                        MasteryScore = 0.0f,
+                        CurrentPhase = LearningPhase.Recognition,
+                        TotalAttempts = 0,
+                        CorrectAttempts = 0
+                    }
             }).ToList();
 
             // Filter and prioritize words for matching activity
