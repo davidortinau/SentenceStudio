@@ -30,27 +30,19 @@ class SettingsPageState
     public double QuizAutoAdvanceDuration { get; set; }
 }
 
-class SettingsPage : Component<SettingsPageState>
+partial class SettingsPage : Component<SettingsPageState>
 {
-    private IVocabularyProgressService _progressService;
-    private DataExportService _exportService;
-    private ILogger<SettingsPage> _logger;
-    private SpeechVoicePreferences _speechVoicePreferences;
-    private VocabularyQuizPreferences _quizPreferences;
-    private IVoiceDiscoveryService _voiceDiscoveryService;
+    [Inject] IVocabularyProgressService _progressService;
+    [Inject] DataExportService _exportService;
+    [Inject] ILogger<SettingsPage> _logger;
+    [Inject] SpeechVoicePreferences _speechVoicePreferences;
+    [Inject] VocabularyQuizPreferences _quizPreferences;
+    [Inject] IVoiceDiscoveryService _voiceDiscoveryService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
     protected override void OnMounted()
     {
-        var services = MauiControls.Application.Current!.Handler!.MauiContext!.Services;
-        _progressService = services.GetRequiredService<IVocabularyProgressService>();
-        _exportService = services.GetRequiredService<DataExportService>();
-        _logger = services.GetRequiredService<ILogger<SettingsPage>>();
-        _speechVoicePreferences = services.GetRequiredService<SpeechVoicePreferences>();
-        _quizPreferences = services.GetRequiredService<VocabularyQuizPreferences>();
-        _voiceDiscoveryService = services.GetRequiredService<IVoiceDiscoveryService>();
-
         // Check if streak migration has already been done
         var migrationComplete = Preferences.Get("StreakMigrationComplete", false);
 
@@ -74,10 +66,6 @@ class SettingsPage : Component<SettingsPageState>
 
     private async Task LoadVoicesForLanguageAsync(string language)
     {
-        // Guard against calls before OnMounted completes
-        if (_voiceDiscoveryService == null || _speechVoicePreferences == null)
-            return;
-            
         SetState(s => s.IsLoadingVoices = true);
         
         try
@@ -94,7 +82,7 @@ class SettingsPage : Component<SettingsPageState>
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to load voices for {Language}", language);
+            _logger.LogError(ex, "Failed to load voices for {Language}", language);
             SetState(s => s.IsLoadingVoices = false);
         }
     }
