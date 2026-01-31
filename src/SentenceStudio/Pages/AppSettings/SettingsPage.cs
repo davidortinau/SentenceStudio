@@ -74,6 +74,10 @@ class SettingsPage : Component<SettingsPageState>
 
     private async Task LoadVoicesForLanguageAsync(string language)
     {
+        // Guard against calls before OnMounted completes
+        if (_voiceDiscoveryService == null || _speechVoicePreferences == null)
+            return;
+            
         SetState(s => s.IsLoadingVoices = true);
         
         try
@@ -90,7 +94,7 @@ class SettingsPage : Component<SettingsPageState>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load voices for {Language}", language);
+            _logger?.LogError(ex, "Failed to load voices for {Language}", language);
             SetState(s => s.IsLoadingVoices = false);
         }
     }
