@@ -1545,12 +1545,24 @@
     <value>Voice and Quiz Preferences</value>
     <comment>Section header for voice and quiz settings</comment>
   </data>
+  <data name="VoiceLanguage" xml:space="preserve">
+    <value>Voice Language</value>
+    <comment>Label for language selection in voice settings</comment>
+  </data>
+  <data name="VoiceLanguageDescription" xml:space="preserve">
+    <value>Select the language to configure voice for.</value>
+    <comment>Description of voice language selection</comment>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Loading</value>
+    <comment>Generic loading indicator text</comment>
+  </data>
   <data name="PreferredVoice" xml:space="preserve">
     <value>Preferred Voice</value>
     <comment>Label for voice selection</comment>
   </data>
   <data name="PreferredVoiceDescription" xml:space="preserve">
-    <value>Choose the voice used for all audio playback throughout the app.</value>
+    <value>Choose the voice used for audio playback when studying this language.</value>
     <comment>Description of preferred voice setting</comment>
   </data>
   <data name="QuizDirection" xml:space="preserve">

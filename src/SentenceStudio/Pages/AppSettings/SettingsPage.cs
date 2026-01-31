@@ -2,6 +2,7 @@ using MauiReactor;
 using MauiReactor.Shapes;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Pages.AppSettings;
 
@@ -16,8 +17,13 @@ class SettingsPageState
     public bool IsExporting { get; set; }
     public string StatusMessage { get; set; } = string.Empty;
 
-    // Voice and quiz preferences
+    // Voice preferences (per-language)
+    public string SelectedLanguage { get; set; } = "Korean";
     public string SelectedVoiceId { get; set; } = string.Empty;
+    public List<VoiceInfo> AvailableVoices { get; set; } = new();
+    public bool IsLoadingVoices { get; set; }
+    
+    // Quiz preferences
     public bool QuizDirection { get; set; }
     public bool QuizAutoplay { get; set; }
     public bool QuizShowMnemonic { get; set; }
@@ -31,6 +37,7 @@ class SettingsPage : Component<SettingsPageState>
     private ILogger<SettingsPage> _logger;
     private SpeechVoicePreferences _speechVoicePreferences;
     private VocabularyQuizPreferences _quizPreferences;
+    private IVoiceDiscoveryService _voiceDiscoveryService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -42,6 +49,7 @@ class SettingsPage : Component<SettingsPageState>
         _logger = services.GetRequiredService<ILogger<SettingsPage>>();
         _speechVoicePreferences = services.GetRequiredService<SpeechVoicePreferences>();
         _quizPreferences = services.GetRequiredService<VocabularyQuizPreferences>();
+        _voiceDiscoveryService = services.GetRequiredService<IVoiceDiscoveryService>();
 
         // Check if streak migration has already been done
         var migrationComplete = Preferences.Get("StreakMigrationComplete", false);
@@ -50,14 +58,41 @@ class SettingsPage : Component<SettingsPageState>
         SetState(s =>
         {
             s.StreakMigrationComplete = migrationComplete;
-            s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
+            s.SelectedLanguage = "Korean"; // Default to Korean
+            s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage("Korean");
             s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
             s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
             s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
             s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
         });
 
+        // Load voices for default language
+        _ = LoadVoicesForLanguageAsync("Korean");
+
         base.OnMounted();
+    }
+
+    private async Task LoadVoicesForLanguageAsync(string language)
+    {
+        SetState(s => s.IsLoadingVoices = true);
+        
+        try
+        {
+            var voices = await _voiceDiscoveryService.GetVoicesForLanguageAsync(language);
+            var currentVoiceId = _speechVoicePreferences.GetVoiceForLanguage(language);
+            
+            SetState(s =>
+            {
+                s.AvailableVoices = voices;
+                s.SelectedVoiceId = currentVoiceId;
+                s.IsLoadingVoices = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load voices for {Language}", language);
+            SetState(s => s.IsLoadingVoices = false);
+        }
     }
 
     public override VisualNode Render()
@@ -77,36 +112,59 @@ class SettingsPage : Component<SettingsPageState>
 
     private VisualNode RenderVoiceAndQuizSection()
     {
-        var koreanVoices = new Dictionary<string, string>
-        {
-            { Voices.JiYoung, "Ji-Young (Female, Warm)" },
-            { Voices.Yuna, "Yuna (Female, Young)" },
-            { Voices.Jennie, "Jennie (Female, Professional)" },
-            { Voices.Jina, "Jina (Female, News)" },
-            { Voices.HyunBin, "Hyun-Bin (Male, Professional)" },
-            { Voices.DoHyeon, "Do-Hyeon (Male, Mature)" },
-            { Voices.YohanKoo, "Yohan Koo (Male, Authoritative)" }
-        };
+        var supportedLanguages = _voiceDiscoveryService?.SupportedLanguages?.ToList() 
+            ?? new List<string> { "English", "French", "German", "Korean", "Spanish" };
+        
+        var voiceDisplayNames = State.AvailableVoices.Select(v => v.DisplayName).ToList();
+        var selectedVoiceIndex = State.AvailableVoices.FindIndex(v => v.VoiceId == State.SelectedVoiceId);
+        if (selectedVoiceIndex < 0) selectedVoiceIndex = 0;
 
         return VStack(spacing: MyTheme.MicroSpacing,
             Label($"{_localize["VoiceAndQuizSettings"]}")
                 .ThemeKey(MyTheme.Title2),
 
-            // Voice selection
+            // Language selection for voice
+            VStack(spacing: MyTheme.MicroSpacing,
+                Label($"{_localize["VoiceLanguage"]}")
+                    .ThemeKey(MyTheme.Body1Strong),
+                Label($"{_localize["VoiceLanguageDescription"]}")
+                    .ThemeKey(MyTheme.Caption1),
+                Picker()
+                    .ItemsSource(supportedLanguages)
+                    .SelectedIndex(supportedLanguages.IndexOf(State.SelectedLanguage))
+                    .OnSelectedIndexChanged(async idx =>
+                    {
+                        if (idx >= 0 && idx < supportedLanguages.Count)
+                        {
+                            var language = supportedLanguages[idx];
+                            SetState(s => s.SelectedLanguage = language);
+                            await LoadVoicesForLanguageAsync(language);
+                        }
+                    })
+            ),
+
+            // Voice selection for selected language
             VStack(spacing: MyTheme.MicroSpacing,
                 Label($"{_localize["PreferredVoice"]}")
                     .ThemeKey(MyTheme.Body1Strong),
                 Label($"{_localize["PreferredVoiceDescription"]}")
                     .ThemeKey(MyTheme.Caption1),
-                Picker()
-                    .ItemsSource(koreanVoices.Values.ToList())
-                    .SelectedIndex(koreanVoices.Keys.ToList().IndexOf(State.SelectedVoiceId))
-                    .OnSelectedIndexChanged(idx =>
-                    {
-                        var voiceId = koreanVoices.Keys.ToList()[idx];
-                        _speechVoicePreferences.VoiceId = voiceId;
-                        SetState(s => s.SelectedVoiceId = voiceId);
-                    })
+                State.IsLoadingVoices
+                    ? Label($"{_localize["Loading"]}...")
+                        .ThemeKey(MyTheme.Caption1)
+                    : Picker()
+                        .ItemsSource(voiceDisplayNames.Count > 0 ? voiceDisplayNames : new List<string> { "No voices available" })
+                        .SelectedIndex(selectedVoiceIndex >= 0 ? selectedVoiceIndex : 0)
+                        .IsEnabled(voiceDisplayNames.Count > 0)
+                        .OnSelectedIndexChanged(idx =>
+                        {
+                            if (idx >= 0 && idx < State.AvailableVoices.Count)
+                            {
+                                var voice = State.AvailableVoices[idx];
+                                _speechVoicePreferences.SetVoiceForLanguage(State.SelectedLanguage, voice.VoiceId);
+                                SetState(s => s.SelectedVoiceId = voice.VoiceId);
+                            }
+                        })
             ),
 
             //Quiz direction
@@ -194,12 +252,13 @@ class SettingsPage : Component<SettingsPageState>
                     _speechVoicePreferences.ResetToDefault();
                     SetState(s =>
                     {
-                        s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
+                        s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(s.SelectedLanguage);
                         s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
                         s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
                         s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
                         s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
                     });
+                    _ = LoadVoicesForLanguageAsync(State.SelectedLanguage);
                 })
                 .Margin(0, MyTheme.MicroSpacing, 0, 0)
         )

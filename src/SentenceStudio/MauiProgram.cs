@@ -363,7 +363,8 @@ public static class MauiProgram
 		services.AddSingleton<DataExportService>();
 		services.AddSingleton<NameGenerationService>();
 		services.AddSingleton<VocabularyQuizPreferences>();
-		services.AddSingleton<SpeechVoicePreferences>(); // Global voice preference for learning activities
+		services.AddSingleton<SpeechVoicePreferences>(); // Per-language voice preference for learning activities
+		services.AddSingleton<Services.Speech.IVoiceDiscoveryService, Services.Speech.VoiceDiscoveryService>();
 
 		// Language segmenters - register all supported languages
 		services.AddSingleton<KoreanLanguageSegmenter>();

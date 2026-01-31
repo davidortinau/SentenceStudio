@@ -1281,12 +1281,24 @@
     <value>음성 및 퀴즈 설정</value>
     <comment>Section header for voice and quiz settings</comment>
   </data>
+  <data name="VoiceLanguage" xml:space="preserve">
+    <value>음성 언어</value>
+    <comment>Label for language selection in voice settings</comment>
+  </data>
+  <data name="VoiceLanguageDescription" xml:space="preserve">
+    <value>음성을 설정할 언어를 선택하세요.</value>
+    <comment>Description of voice language selection</comment>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>로딩 중</value>
+    <comment>Generic loading indicator text</comment>
+  </data>
   <data name="PreferredVoice" xml:space="preserve">
     <value>선호하는 음성</value>
     <comment>Label for voice selection</comment>
   </data>
   <data name="PreferredVoiceDescription" xml:space="preserve">
-    <value>앱 전체의 모든 오디오 재생에 사용되는 음성을 선택하세요.</value>
+    <value>이 언어를 학습할 때 오디오 재생에 사용되는 음성을 선택하세요.</value>
     <comment>Description of preferred voice setting</comment>
   </data>
   <data name="QuizDirection" xml:space="preserve">

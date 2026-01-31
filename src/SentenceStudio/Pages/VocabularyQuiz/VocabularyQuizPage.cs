@@ -2475,8 +2475,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             Stream audioStream;
             bool fromCache = false;
 
-            // Get the selected voice ID from global voice preferences
-            var voiceId = _speechVoicePreferences.VoiceId;
+            // Get the selected voice ID for the resource's language
+            var voiceId = _speechVoicePreferences.GetVoiceForLanguage(State.TargetLanguage);
 
             // Check if we have cached audio for this word with this voice
             var cachedAudio = await _historyRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, voiceId);
