@@ -11,14 +11,14 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260130214358_AddConversationChunkRole")]
+    [Migration("20260124194629_AddConversationChunkRole")]
     partial class AddConversationChunkRole
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Challenge", b =>
                 {
@@ -61,12 +61,7 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ScenarioId")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("ScenarioId");
 
                     b.ToTable("Conversation", (string)null);
                 });
@@ -89,9 +84,6 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("ConversationId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("GrammarCorrectionsJson")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("Role")
                         .HasColumnType("INTEGER");
 
@@ -106,92 +98,6 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasIndex("ConversationId");
 
                     b.ToTable("ConversationChunk", (string)null);
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationMemoryState", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ConversationSummary")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DetectedProficiencyLevel")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DiscussedVocabulary")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SerializedState")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId")
-                        .IsUnique();
-
-                    b.ToTable("ConversationMemoryState", (string)null);
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationScenario", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ConversationType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsPredefined")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NameKorean")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PersonaDescription")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PersonaName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuestionBank")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SituationDescription")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ConversationScenario", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlanCompletion", b =>
@@ -305,12 +211,10 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<double>("Accuracy")
-                        .HasColumnType("REAL")
-                        .HasJsonPropertyName("accuracy_score");
+                        .HasColumnType("REAL");
 
                     b.Property<string>("AccuracyExplanation")
-                        .HasColumnType("TEXT")
-                        .HasJsonPropertyName("accuracy_explanation");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ChallengeID")
                         .HasColumnType("INTEGER");
@@ -319,12 +223,10 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<double>("Fluency")
-                        .HasColumnType("REAL")
-                        .HasJsonPropertyName("fluency_score");
+                        .HasColumnType("REAL");
 
                     b.Property<string>("FluencyExplanation")
-                        .HasColumnType("TEXT")
-                        .HasJsonPropertyName("fluency_explanation");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RecommendedTranslation")
                         .HasColumnType("TEXT");
@@ -698,9 +600,6 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TargetLanguages")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.ToTable("UserProfile", (string)null);
@@ -921,16 +820,6 @@ namespace SentenceStudio.Shared.Migrations
                     b.ToTable("VocabularyWord", (string)null);
                 });
 
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.ConversationScenario", "Scenario")
-                        .WithMany()
-                        .HasForeignKey("ScenarioId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Scenario");
-                });
-
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>
                 {
                     b.HasOne("SentenceStudio.Shared.Models.Conversation", null)
@@ -938,17 +827,6 @@ namespace SentenceStudio.Shared.Migrations
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationMemoryState", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.Conversation", "Conversation")
-                        .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Conversation");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>

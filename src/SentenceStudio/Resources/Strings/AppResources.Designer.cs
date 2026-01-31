@@ -1597,6 +1597,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Loading.
+        /// </summary>
+        internal static string Loading {
+            get {
+                return ResourceManager.GetString("Loading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Loading content....
         /// </summary>
         internal static string LoadingContent {
@@ -2668,7 +2677,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Choose the voice used for all audio playback throughout the app..
+        ///   Looks up a localized string similar to Choose the voice used for audio playback when studying this language..
         /// </summary>
         internal static string PreferredVoiceDescription {
             get {
@@ -4129,6 +4138,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VoiceJiyoungDesc {
             get {
                 return ResourceManager.GetString("VoiceJiyoungDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Voice Language.
+        /// </summary>
+        internal static string VoiceLanguage {
+            get {
+                return ResourceManager.GetString("VoiceLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select the language to configure voice for..
+        /// </summary>
+        internal static string VoiceLanguageDescription {
+            get {
+                return ResourceManager.GetString("VoiceLanguageDescription", resourceCulture);
             }
         }
         
