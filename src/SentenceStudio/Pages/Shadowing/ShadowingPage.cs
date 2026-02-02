@@ -10,6 +10,7 @@ using CommunityToolkit.Maui.Core;
 using Microsoft.Maui.Dispatching;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -80,6 +81,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] IFileSaver _fileSaver;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] IVoiceDiscoveryService _voiceDiscoveryService;
+    [Inject] SpeechVoicePreferences _speechVoicePreferences;
     [Inject] ILogger<ShadowingPage> _logger;
 
     private IAudioPlayer _audioPlayer;
@@ -157,12 +160,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             _timerService.StartSession("Shadowing", Props.PlanItemId);
         }
 
-        // Initialize voice display names from the service
-        SetState(s =>
-        {
-            s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
-            s.SelectedVoiceId = _speechService.DefaultVoiceId;
-        });
+        // Get target language from resource
+        var targetLanguage = Props.Resource?.Language ?? "Korean";
+        SetState(s => s.TargetLanguage = targetLanguage);
+
+        // Load voices for the target language
+        await LoadVoicesForLanguageAsync(targetLanguage);
 
         // Load sentences if needed
         await Task.Delay(100); // Small delay to ensure UI is ready
@@ -175,26 +178,63 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     }
 
     /// <summary>
-    /// Renders the voice selection bottom sheet.
+    /// Loads available voices for the specified language from VoiceDiscoveryService.
+    /// </summary>
+    private async Task LoadVoicesForLanguageAsync(string language)
+    {
+        SetState(s => s.IsLoadingVoices = true);
+
+        try
+        {
+            var voices = await _voiceDiscoveryService.GetVoicesForLanguageAsync(language);
+            
+            // Get the saved voice preference for this language
+            var savedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(language);
+            
+            SetState(s =>
+            {
+                s.AvailableVoices = voices;
+                s.IsLoadingVoices = false;
+                
+                // Set selected voice: use saved preference if it exists in the list, otherwise use first available
+                if (!string.IsNullOrEmpty(savedVoiceId) && voices.Any(v => v.VoiceId == savedVoiceId))
+                {
+                    s.SelectedVoiceId = savedVoiceId;
+                }
+                else if (voices.Any())
+                {
+                    s.SelectedVoiceId = voices.First().VoiceId;
+                }
+            });
+            
+            _logger.LogInformation("🎙️ Loaded {Count} voices for {Language}", voices.Count, language);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load voices for {Language}", language);
+            SetState(s => s.IsLoadingVoices = false);
+        }
+    }
+
+    /// <summary>
+    /// Renders the voice selection bottom sheet with dynamic voices from VoiceDiscoveryService.
     /// </summary>
     private VisualNode RenderVoiceSelectionBottomSheet() =>
         new SfBottomSheet(
             Grid("*", "*",
                 ScrollView(
                     VStack(
-                        Label($"{_localize["KoreanVoices"]}")
+                        Label($"{State.TargetLanguage} Voices")
                             .FontAttributes(FontAttributes.Bold)
                             .FontSize(18)
                             .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
                             .HCenter()
                             .Margin(0, 0, 0, MyTheme.ComponentSpacing),
-                        CreateVoiceOption("yuna", $"{_localize["VoiceYuna"]}", $"{_localize["VoiceYunaDesc"]}"),
-                        CreateVoiceOption("jiyoung", $"{_localize["VoiceJiyoung"]}", $"{_localize["VoiceJiyoungDesc"]}"),
-                        CreateVoiceOption("jina", $"{_localize["VoiceJina"]}", $"{_localize["VoiceJinaDesc"]}"),
-                        CreateVoiceOption("jennie", $"{_localize["VoiceJennie"]}", $"{_localize["VoiceJennieDesc"]}"),
-                        CreateVoiceOption("hyunbin", $"{_localize["VoiceHyunbin"]}", $"{_localize["VoiceHyunbinDesc"]}"),
-                        CreateVoiceOption("dohyeon", $"{_localize["VoiceDohyeon"]}", $"{_localize["VoiceDohyeonDesc"]}"),
-                        CreateVoiceOption("yohankoo", $"{_localize["VoiceYohankoo"]}", $"{_localize["VoiceYohankooDesc"]}")
+                        State.IsLoadingVoices
+                            ? Label("Loading voices...")
+                                .HCenter()
+                                .TextColor(MyTheme.SecondaryText)
+                            : RenderVoiceOptions()
                     )
                     .Spacing(MyTheme.LayoutSpacing)
                     .Padding(MyTheme.SectionSpacing, MyTheme.ComponentSpacing)
@@ -203,6 +243,25 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         )
         .GridRowSpan(3)
         .IsOpen(State.IsVoiceSelectionVisible);
+
+    /// <summary>
+    /// Renders the dynamic voice options from the available voices list.
+    /// </summary>
+    private VisualNode RenderVoiceOptions()
+    {
+        if (!State.AvailableVoices.Any())
+        {
+            return Label("No voices available for this language")
+                .HCenter()
+                .TextColor(MyTheme.SecondaryText);
+        }
+
+        return VStack(spacing: MyTheme.LayoutSpacing,
+            State.AvailableVoices.Select(voice =>
+                CreateVoiceOption(voice.VoiceId, voice.Name, $"{voice.Gender} - {voice.Accent ?? voice.Description ?? ""}")
+            ).ToArray()
+        );
+    }
 
     /// <summary>
     /// Creates a voice option item for the bottom sheet.
@@ -234,10 +293,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         .OnTapped(() => SelectVoice(voiceId));
 
     /// <summary>
-    /// Handles voice selection.
+    /// Handles voice selection and saves to per-language preferences.
     /// </summary>
     private void SelectVoice(string voiceId)
     {
+        // Save to per-language preference
+        _speechVoicePreferences.SetVoiceForLanguage(State.TargetLanguage, voiceId);
+        
         // Update the selected voice
         SetState(s =>
         {
@@ -250,7 +312,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             s.IsVoiceSelectionVisible = false;
         });
 
-        _logger.LogDebug("ShadowingPage: Selected voice: {VoiceId}", voiceId);
+        _logger.LogInformation("🎙️ Selected voice {VoiceId} for {Language}", voiceId, State.TargetLanguage);
     }
 
     /// <summary>

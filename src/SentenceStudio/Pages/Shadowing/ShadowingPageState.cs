@@ -1,5 +1,6 @@
 using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
+using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -107,7 +108,7 @@ class ShadowingPageState
     /// <summary>
     /// Gets or sets the currently selected voice ID.
     /// </summary>
-    public string SelectedVoiceId { get; set; } = "echo";
+    public string SelectedVoiceId { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets whether the voice selection bottom sheet is visible.
@@ -115,9 +116,19 @@ class ShadowingPageState
     public bool IsVoiceSelectionVisible { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the voice display name dictionary populated from ElevenLabsSpeechService
+    /// Gets or sets the list of available voices from VoiceDiscoveryService.
     /// </summary>
-    public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
+    public List<VoiceInfo> AvailableVoices { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets whether voices are being loaded.
+    /// </summary>
+    public bool IsLoadingVoices { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the target language for this shadowing session (from resource).
+    /// </summary>
+    public string TargetLanguage { get; set; } = "Korean";
 
     /// <summary>
     /// Gets or sets whether the export menu bottom sheet is visible.
@@ -152,10 +163,16 @@ class ShadowingPageState
     /// <summary>
     /// Gets the display name for the currently selected voice.
     /// </summary>
-    public string SelectedVoiceDisplayName =>
-        !string.IsNullOrEmpty(SelectedVoiceId) && VoiceDisplayNames.ContainsKey(SelectedVoiceId) ?
-        VoiceDisplayNames[SelectedVoiceId] :
-        "Hyun-Bin"; // Default to HyunBin if not found
+    public string SelectedVoiceDisplayName
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SelectedVoiceId))
+                return "Select Voice";
+            var voice = AvailableVoices.FirstOrDefault(v => v.VoiceId == SelectedVoiceId);
+            return voice?.Name ?? "Select Voice";
+        }
+    }
 
     /// <summary>
     /// Gets the current sentence text, or an empty string if none is available.

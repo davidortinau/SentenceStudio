@@ -2370,9 +2370,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     /// </summary>
     void LoadUserPreferences()
     {
+        _logger.LogInformation("📋 LoadUserPreferences called. _preferences null? {IsNull}", _preferences == null);
+        if (_preferences != null)
+        {
+            _logger.LogInformation("📋 _preferences.AutoPlayVocabAudio={AutoPlay}", _preferences.AutoPlayVocabAudio);
+        }
         SetState(s => s.UserPreferences = _preferences);
         _logger.LogInformation("📋 Loaded vocabulary quiz preferences: DisplayDirection={Direction}, AutoPlayVocabAudio={AutoPlay}",
-            _preferences.DisplayDirection, _preferences.AutoPlayVocabAudio);
+            _preferences?.DisplayDirection, _preferences?.AutoPlayVocabAudio);
     }
 
     /// <summary>
@@ -2444,9 +2449,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
 
         // Check if auto-play is enabled
-        if (State.UserPreferences?.AutoPlayVocabAudio != true)
+        var prefsLoaded = State.UserPreferences != null;
+        var autoPlayEnabled = State.UserPreferences?.AutoPlayVocabAudio ?? false;
+        _logger.LogDebug("🎧 PlayVocabularyAudioAsync: prefsLoaded={PrefsLoaded}, autoPlayEnabled={AutoPlay}, _preferences.AutoPlayVocabAudio={DirectPref}",
+            prefsLoaded, autoPlayEnabled, _preferences?.AutoPlayVocabAudio);
+        
+        if (!autoPlayEnabled)
         {
-            _logger.LogDebug("🎧 Auto-play vocabulary audio is disabled");
+            _logger.LogDebug("🎧 Auto-play vocabulary audio is disabled (prefsLoaded={PrefsLoaded})", prefsLoaded);
             return;
         }
 

@@ -56,6 +56,18 @@ Documentation via Context7 mcp is here:
 
 Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
 
+## Data Preservation Rules
+
+**CRITICAL: NEVER delete or lose user data!**
+
+1. **NEVER uninstall/reinstall apps** to fix issues - this destroys all user data
+2. **NEVER delete the database file** without explicit user permission AND a verified backup
+3. **When facing database errors**: Fix migrations, adjust schema, or find workarounds - do NOT wipe data
+4. **Before any destructive action**: Ask the user for explicit permission and explain the data loss consequences
+5. **Simulator/device data is precious**: Test data takes significant time to create - treat it as production data
+
+If you encounter errors like "unable to open database file" or migration conflicts, investigate and fix the root cause rather than starting fresh.
+
 ## Troubleshooting and Issue Resolution
 
 When encountering build errors, runtime issues, or unexpected behavior:

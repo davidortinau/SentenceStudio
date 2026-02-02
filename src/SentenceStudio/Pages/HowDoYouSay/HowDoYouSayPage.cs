@@ -5,6 +5,7 @@ using Plugin.Maui.Audio;
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -15,14 +16,23 @@ class HowDoYouSayPageState
 	public ObservableCollection<StreamHistory> StreamHistory { get; set; } = new();
 	public float PlaybackPosition { get; set; } = 0f;
 	public StreamHistory CurrentPlayingItem { get; set; }
-	public string SelectedVoiceId { get; set; } // Initialized from global preference in OnPageAppearing
+	public string SelectedVoiceId { get; set; } // Initialized from per-language preference
 	public bool IsVoiceSelectionVisible { get; set; } = false;
-	public Dictionary<string, string> VoiceDisplayNames { get; set; } = new();
+	public List<VoiceInfo> AvailableVoices { get; set; } = new(); // Dynamic voices from API
+	public bool IsLoadingVoices { get; set; } = false;
+	public string TargetLanguage { get; set; } = "Korean"; // User's primary target language
 	public bool IsPlaying { get; set; } = false; // Track if audio is currently playing
 
-	public string SelectedVoiceDisplayName =>
-		!string.IsNullOrEmpty(SelectedVoiceId) && VoiceDisplayNames.ContainsKey(SelectedVoiceId) ?
-		VoiceDisplayNames[SelectedVoiceId] : "Ji-Young";
+	public string SelectedVoiceDisplayName
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(SelectedVoiceId))
+				return "Select Voice";
+			var voice = AvailableVoices.FirstOrDefault(v => v.VoiceId == SelectedVoiceId);
+			return voice?.Name ?? "Select Voice";
+		}
+	}
 
 	// Export-related properties
 	public bool IsSavingAudio { get; set; } = false;
@@ -41,6 +51,8 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] StreamHistoryRepository _streamHistoryRepository;
 	[Inject] UserActivityRepository _userActivityRepository;
 	[Inject] SpeechVoicePreferences _speechVoicePreferences;
+	[Inject] IVoiceDiscoveryService _voiceDiscoveryService;
+	[Inject] UserProfileRepository _userProfileRepository;
 	[Inject] ILogger<HowDoYouSayPage> _logger;
 	LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -58,21 +70,57 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		).OnAppearing(OnPageAppearing);
 	}
 
-	private Task OnPageAppearing()
+	private async Task OnPageAppearing()
 	{
-		SetState(s =>
-		{
-			s.VoiceDisplayNames = _speechService.VoiceDisplayNames;
-			// Initialize with global voice preference if not already set
-			if (string.IsNullOrEmpty(s.SelectedVoiceId))
-			{
-				s.SelectedVoiceId = _speechVoicePreferences.VoiceId;
-			}
-			s.IsLoading = true;
-		});
+		SetState(s => s.IsLoading = true);
+
+		// Get user's primary target language
+		var userProfile = await _userProfileRepository.GetAsync();
+		var targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+		SetState(s => s.TargetLanguage = targetLanguage);
+
+		// Load voices for the target language
+		await LoadVoicesForLanguageAsync(targetLanguage);
 
 		// Load history from the repository
-		return LoadHistoryAsync();
+		await LoadHistoryAsync();
+	}
+
+	private async Task LoadVoicesForLanguageAsync(string language)
+	{
+		SetState(s => s.IsLoadingVoices = true);
+
+		try
+		{
+			var voices = await _voiceDiscoveryService.GetVoicesForLanguageAsync(language);
+			
+			// Get the saved voice preference for this language
+			var savedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(language);
+			
+			SetState(s =>
+			{
+				s.AvailableVoices = voices;
+				s.IsLoadingVoices = false;
+				
+				// Set selected voice: use saved preference if it exists in the list, otherwise use first available
+				if (!string.IsNullOrEmpty(savedVoiceId) && voices.Any(v => v.VoiceId == savedVoiceId))
+				{
+					s.SelectedVoiceId = savedVoiceId;
+				}
+				else if (voices.Any())
+				{
+					s.SelectedVoiceId = voices.First().VoiceId;
+				}
+			});
+			
+			_logger.LogInformation("🎙️ Loaded {Count} voices for {Language}", voices.Count, language);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to load voices for {Language}", language);
+			SetState(s => s.IsLoadingVoices = false);
+		}
 	}
 
 	private async Task LoadHistoryAsync()
@@ -394,25 +442,23 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	}
 
 	/// <summary>
-	/// Renders the voice selection bottom sheet.
+	/// Renders the voice selection bottom sheet with dynamic voices from VoiceDiscoveryService.
 	/// </summary>
 	private VisualNode RenderVoiceSelectionBottomSheet() =>
 		new SfBottomSheet(
 				Grid("*", "*",
 					ScrollView(
 						VStack(
-							Label("Korean Voices")
+							Label($"{State.TargetLanguage} Voices")
 								.FontAttributes(FontAttributes.Bold)
 								.FontSize(18)
 								.HCenter()
 								.Margin(0, 0, 0, 10),
-							CreateVoiceOption("yuna", "Yuna", "Female - Young, cheerful"),
-							CreateVoiceOption("jiyoung", "Ji-Young", "Female - Warm, clear"),
-							CreateVoiceOption("jina", "Jina", "Female - Mid-aged, news broadcaster"),
-							CreateVoiceOption("jennie", "Jennie", "Female - Youthful, professional"),
-							CreateVoiceOption("hyunbin", "Hyun-Bin", "Male - Cool, professional"),
-							CreateVoiceOption("dohyeon", "Do-Hyeon", "Male - Older, mature"),
-							CreateVoiceOption("yohankoo", "Yohan Koo", "Male - Confident, authoritative")
+							State.IsLoadingVoices
+								? Label("Loading voices...")
+									.HCenter()
+									.TextColor(MyTheme.SecondaryText)
+								: RenderVoiceOptions()
 						)
 						.Spacing(15)
 						.Padding(20, 10)
@@ -422,6 +468,25 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		)
 			.GridRowSpan(4)
 			.IsOpen(State.IsVoiceSelectionVisible);
+
+	/// <summary>
+	/// Renders the dynamic voice options from the available voices list.
+	/// </summary>
+	private VisualNode RenderVoiceOptions()
+	{
+		if (!State.AvailableVoices.Any())
+		{
+			return Label("No voices available for this language")
+				.HCenter()
+				.TextColor(MyTheme.SecondaryText);
+		}
+
+		return VStack(spacing: 15,
+			State.AvailableVoices.Select(voice =>
+				CreateVoiceOption(voice.VoiceId, voice.Name, $"{voice.Gender} - {voice.Accent ?? voice.Description ?? ""}")
+			).ToArray()
+		);
+	}
 
 	/// <summary>
 	/// Creates a voice option item for the bottom sheet.
@@ -454,10 +519,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		;
 
 	/// <summary>
-	/// Handles voice selection.
+	/// Handles voice selection and saves to per-language preferences.
 	/// </summary>
 	private void SelectVoice(string voiceId)
 	{
+		// Save to per-language preference
+		_speechVoicePreferences.SetVoiceForLanguage(State.TargetLanguage, voiceId);
+		
 		// Update the selected voice
 		SetState(s =>
 		{
@@ -467,7 +535,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			s.IsVoiceSelectionVisible = false;
 		});
 
-		_logger.LogDebug("HowDoYouSayPage: Selected voice: {VoiceId}", voiceId);
+		_logger.LogInformation("🎙️ Selected voice {VoiceId} for {Language}", voiceId, State.TargetLanguage);
 	}
 
 	/// <summary>
