@@ -162,7 +162,7 @@ public static class MauiProgram
 		builder.Logging
 			.AddDebug()
 			.AddConsole()
-			.SetMinimumLevel(LogLevel.Information);
+			.SetMinimumLevel(LogLevel.Debug);
 		// builder.UseDebugRibbon();
 #endif
 

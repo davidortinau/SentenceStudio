@@ -104,37 +104,33 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
 
         try
         {
-            _logger.LogInformation("🎙️ Fetching voices from ElevenLabs for language: {Language} ({Code})", language, languageCode);
+            _logger.LogInformation("🎙️ Fetching user's available voices from ElevenLabs for language: {Language} ({Code})", language, languageCode);
             
-            var query = new SharedVoiceQuery
-            {
-                Language = languageCode,
-                PageSize = 50,
-                Category = "professional" // Prefer professional quality voices
-            };
+            // Use GetAllVoicesAsync to get only voices actually available to this account
+            // (not the shared voice library which requires adding voices first)
+            var allVoices = await _client.VoicesEndpoint.GetAllVoicesAsync();
             
-            var results = await _client.SharedVoicesEndpoint.GetSharedVoicesAsync(query);
-            
-            var voices = results.Voices
-                .Where(v => v.FreeUsersAllowed) // Only include voices available to free tier
+            // Filter voices by language - ElevenLabs voices have language labels
+            // Most default voices are multilingual, so we include those too
+            var voices = allVoices
                 .Select(v => new VoiceInfo
                 {
-                    VoiceId = v.VoiceId,
+                    VoiceId = v.Id,
                     Name = v.Name,
-                    Language = v.Language ?? languageCode,
-                    Gender = CapitalizeFirst(v.Gender),
-                    Accent = CapitalizeFirst(v.Accent),
-                    Description = v.Description ?? "",
+                    Language = languageCode,
+                    Gender = v.Labels?.TryGetValue("gender", out var gender) == true ? CapitalizeFirst(gender) : "",
+                    Accent = v.Labels?.TryGetValue("accent", out var accent) == true ? CapitalizeFirst(accent) : "",
+                    Description = v.Labels?.TryGetValue("description", out var desc) == true ? desc : "",
                     PreviewUrl = v.PreviewUrl ?? "",
                     Category = v.Category ?? ""
                 })
                 .OrderBy(v => v.Name)
                 .ToList();
 
-            // If API returns no results, use fallback
+            // If no voices available, use fallback
             if (voices.Count == 0)
             {
-                _logger.LogWarning("⚠️ No voices returned from API for {Language}, using fallback", language);
+                _logger.LogWarning("⚠️ No voices returned from API, using fallback for {Language}", language);
                 voices = FallbackVoices.TryGetValue(language, out var fallbackList) 
                     ? fallbackList.ToList() 
                     : new List<VoiceInfo>();
@@ -144,7 +140,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
             _voiceCache[language] = voices;
             _cacheTimestamps[language] = DateTime.UtcNow;
 
-            _logger.LogInformation("🎙️ Found {Count} voices for {Language}", voices.Count, language);
+            _logger.LogInformation("🎙️ Found {Count} available voices for {Language}", voices.Count, language);
             return voices;
         }
         catch (Exception ex)

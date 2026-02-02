@@ -44,6 +44,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     [Inject] TeacherService _teacherService;
     [Inject] IConversationAgentService _agentService;
     [Inject] ElevenLabsSpeechService _speechService;
+    [Inject] SpeechVoicePreferences _speechVoicePreferences;
     [Inject] UserActivityRepository _userActivityRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] IScenarioService _scenarioService;
@@ -1001,10 +1002,11 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                 _floatingPlayer.ShowLoading();
             }
 
-            // Use ElevenLabsSpeechService to generate audio with Korean voice
+            // Use ElevenLabsSpeechService with per-language voice preference
+            var voiceId = _speechVoicePreferences.GetVoiceForLanguage(State.TargetLanguage);
             var audioStream = await _speechService.TextToSpeechAsync(
                 text,
-                _speechService.DefaultVoiceId);
+                voiceId);
 
             if (audioStream != null)
             {

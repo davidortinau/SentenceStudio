@@ -152,8 +152,23 @@ public class ElevenLabsSpeechService
                 voiceId = VoiceOptions[voiceId];
             }
 
-            var voice = await _client.VoicesEndpoint
-                .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
+            Console.Error.WriteLine($"🎙️ TextToSpeech: Fetching voice {voiceId}");
+            _logger.LogDebug("🎙️ TextToSpeech: Fetching voice {VoiceId} for text '{Text}'", voiceId, text.Length > 50 ? text[..50] + "..." : text);
+
+            Voice voice;
+            try
+            {
+                // Get the voice - this works for voices in the user's account
+                voice = await _client.VoicesEndpoint
+                    .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
+                Console.Error.WriteLine($"✅ Got voice: {voice.Name}");
+            }
+            catch (Exception voiceEx)
+            {
+                Console.Error.WriteLine($"❌ GetVoiceAsync failed for {voiceId}: {voiceEx.Message}");
+                _logger.LogError(voiceEx, "❌ Voice {VoiceId} not accessible. Make sure the voice is added to your ElevenLabs account.", voiceId);
+                return Stream.Null;
+            }
 
             // Create audio generation options with latest model and context parameters
             var request = new TextToSpeechRequest(
@@ -173,13 +188,13 @@ public class ElevenLabsSpeechService
             // Create a memory stream from the audio bytes
             var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
 
-            // Debug.WriteLine($"Generated speech audio: {audioBytes.ClipData.Length} bytes using voice Id {voiceId}");
+            _logger.LogDebug("🎙️ TextToSpeech: Generated {Bytes} bytes of audio", audioBytes.ClipData.Length);
 
             return audioStream;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in TextToSpeechAsync");
+            _logger.LogError(ex, "❌ Error in TextToSpeechAsync for voice {VoiceId} and text '{Text}'", voiceId, text);
             return Stream.Null;
         }
     }

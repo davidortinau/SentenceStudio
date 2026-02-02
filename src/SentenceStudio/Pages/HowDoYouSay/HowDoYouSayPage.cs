@@ -235,9 +235,20 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 
 		try
 		{
+			_logger.LogInformation("HowDoYouSayPage: Submitting phrase '{Phrase}' with voice {VoiceId}", State.Phrase, State.SelectedVoiceId);
+			
 			var stream = await _speechService.TextToSpeechAsync(
 				State.Phrase,
 				State.SelectedVoiceId); // Use the selected voice ID
+
+			// Check for null or empty stream
+			if (stream == null || stream == Stream.Null || stream.Length == 0)
+			{
+				_logger.LogWarning("HowDoYouSayPage: TTS returned empty stream for phrase: {Phrase} with voice: {VoiceId}", State.Phrase, State.SelectedVoiceId);
+				await Application.Current.MainPage.DisplayAlert("Error", "Failed to generate audio. The voice may not be available. Please try a different voice.", "OK");
+				SetState(s => s.IsBusy = false);
+				return;
+			}
 
 			// Create new StreamHistory item
 			var historyItem = new StreamHistory
@@ -352,6 +363,14 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			{
 				audioStream = item.Stream;
 				audioStream.Position = 0;
+			}
+
+			// Check for null or empty stream
+			if (audioStream == null || audioStream == Stream.Null || audioStream.Length == 0)
+			{
+				_logger.LogWarning("HowDoYouSayPage: Audio stream is null or empty for phrase: {Phrase}", item.Phrase);
+				await Application.Current.MainPage.DisplayAlert("Error", "Failed to generate audio. Please check the selected voice.", "OK");
+				return;
 			}
 
 			// Create and play audio
