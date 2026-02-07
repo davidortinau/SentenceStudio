@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -538,7 +540,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 word = await _resourceRepo.GetVocabularyWordByIdAsync(Props.VocabularyWordId);
                 if (word == null)
                 {
-                    await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["VocabularyWordNotFound"]}", $"{_localize["OK"]}");
+                    await IPopupService.Current.PushAsync(new SimpleActionPopup
+                    {
+                        Title = $"{_localize["Error"]}",
+                        Text = $"{_localize["VocabularyWordNotFound"]}",
+                        ActionButtonText = $"{_localize["OK"]}",
+                        ShowSecondaryActionButton = false
+                    });
                     await NavigateBack();
                     return;
                 }
@@ -592,7 +600,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load vocabulary word data");
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             await NavigateBack();
         }
         finally
@@ -700,10 +714,27 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     async Task DeleteVocabularyWord()
     {
-        bool confirm = await Application.Current.MainPage.DisplayAlert(
-            "Confirm Delete",
-            $"Are you sure you want to delete '{State.Word.TargetLanguageTerm}'?\n\nThis action cannot be undone.",
-            "Delete", "Cancel");
+        var deleteTcs = new TaskCompletionSource<bool>();
+        var deleteConfirmPopup = new SimpleActionPopup
+        {
+            Title = "Confirm Delete",
+            Text = $"Are you sure you want to delete '{State.Word.TargetLanguageTerm}'?\n\nThis action cannot be undone.",
+            ActionButtonText = "Delete",
+            SecondaryActionButtonText = "Cancel",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                deleteTcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                deleteTcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(deleteConfirmPopup);
+        bool confirm = await deleteTcs.Task;
 
         if (!confirm) return;
 
@@ -717,7 +748,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete vocabulary word");
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to delete vocabulary word: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {
@@ -804,11 +841,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         {
             _logger.LogError(ex, "❌ Failed to generate audio for word: {Word}", word);
 
-            await Application.Current.MainPage.DisplayAlert(
-                "Audio Error",
-                $"Failed to generate audio: {ex.Message}",
-                "OK"
-            );
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Audio Error",
+                Text = $"Failed to generate audio: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {
@@ -942,10 +981,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     {
         if (Connectivity.NetworkAccess != NetworkAccess.Internet)
         {
-            await Application.Current.MainPage.DisplayAlert(
-                $"{_localize["Error"]}",
-                $"{_localize["NoInternetConnection"]}",
-                $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["NoInternetConnection"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -969,10 +1011,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
             if (!generatedSentences.Any())
             {
-                await Application.Current.MainPage.DisplayAlert(
-                    $"{_localize["Error"]}",
-                    $"{_localize["FailedToGenerateSentences"]}",
-                    $"{_localize["OK"]}");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = $"{_localize["Error"]}",
+                    Text = $"{_localize["FailedToGenerateSentences"]}",
+                    ActionButtonText = $"{_localize["OK"]}",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
@@ -1001,10 +1046,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate example sentences");
-            await Application.Current.MainPage.DisplayAlert(
-                $"{_localize["Error"]}",
-                $"{_localize["FailedToGenerateSentences"]}",
-                $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["FailedToGenerateSentences"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {
@@ -1014,20 +1062,32 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
     async Task AddExampleSentenceAsync()
     {
-        var targetSentence = await Application.Current.MainPage.DisplayPromptAsync(
-            "Add Example Sentence",
-            "Enter the sentence in the target language:",
-            "Add",
-            "Cancel");
+        var targetFields = new List<FormField> { new FormField { Placeholder = "Enter the sentence in the target language" } };
+        var targetFormPopup = new FormPopup
+        {
+            Title = "Add Example Sentence",
+            Text = "Enter the sentence in the target language:",
+            Items = targetFields,
+            ActionButtonText = "Add",
+            SecondaryActionText = "Cancel"
+        };
+        List<string?>? targetFormResult = await IPopupService.Current.PushAsync(targetFormPopup);
+        var targetSentence = targetFormResult?.FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(targetSentence))
             return;
 
-        var nativeSentence = await Application.Current.MainPage.DisplayPromptAsync(
-            "Add Translation",
-            "Enter the translation (optional):",
-            "Add",
-            "Skip");
+        var nativeFields = new List<FormField> { new FormField { Placeholder = "Enter the translation" } };
+        var nativeFormPopup = new FormPopup
+        {
+            Title = "Add Translation",
+            Text = "Enter the translation (optional):",
+            Items = nativeFields,
+            ActionButtonText = "Add",
+            SecondaryActionText = "Skip"
+        };
+        List<string?>? nativeFormResult = await IPopupService.Current.PushAsync(nativeFormPopup);
+        var nativeSentence = nativeFormResult?.FirstOrDefault();
 
         try
         {
@@ -1051,7 +1111,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add example sentence");
-            await Application.Current.MainPage.DisplayAlert("Error", "Failed to add example sentence", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "Failed to add example sentence",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1072,17 +1138,39 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle sentence core status");
-            await Application.Current.MainPage.DisplayAlert("Error", "Failed to update sentence", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "Failed to update sentence",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
     async Task DeleteSentenceAsync(int sentenceId)
     {
-        var confirm = await Application.Current.MainPage.DisplayAlert(
-            "Confirm Delete",
-            "Delete this example sentence?",
-            "Delete",
-            "Cancel");
+        var sentenceDeleteTcs = new TaskCompletionSource<bool>();
+        var sentenceDeletePopup = new SimpleActionPopup
+        {
+            Title = "Confirm Delete",
+            Text = "Delete this example sentence?",
+            ActionButtonText = "Delete",
+            SecondaryActionButtonText = "Cancel",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                sentenceDeleteTcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                sentenceDeleteTcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(sentenceDeletePopup);
+        var confirm = await sentenceDeleteTcs.Task;
 
         if (!confirm) return;
 
@@ -1098,7 +1186,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete example sentence");
-            await Application.Current.MainPage.DisplayAlert("Error", "Failed to delete sentence", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "Failed to delete sentence",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1203,7 +1297,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to play/generate sentence audio");
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"Failed to play audio: {ex.Message}", $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"Failed to play audio: {ex.Message}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {

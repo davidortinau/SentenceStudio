@@ -1,5 +1,7 @@
 using SentenceStudio.Shared.Models;
 using MauiReactor.Shapes;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -102,7 +104,13 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
         if (string.IsNullOrWhiteSpace(State.Word.TargetLanguageTerm) ||
             string.IsNullOrWhiteSpace(State.Word.NativeLanguageTerm))
         {
-            Application.Current.MainPage.DisplayAlert("Validation Error", "Both target and native terms are required", "OK");
+            _ = IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Validation Error",
+                Text = "Both target and native terms are required",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 

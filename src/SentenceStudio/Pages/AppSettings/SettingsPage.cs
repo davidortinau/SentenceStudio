@@ -3,6 +3,9 @@ using MauiReactor.Shapes;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Speech;
+using SentenceStudio.Pages.Controls;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.AppSettings;
 
@@ -22,7 +25,7 @@ class SettingsPageState
     public string SelectedVoiceId { get; set; } = string.Empty;
     public List<VoiceInfo> AvailableVoices { get; set; } = new();
     public bool IsLoadingVoices { get; set; }
-    
+
     // Quiz preferences
     public bool QuizDirection { get; set; }
     public bool QuizAutoplay { get; set; }
@@ -67,12 +70,12 @@ partial class SettingsPage : Component<SettingsPageState>
     private async Task LoadVoicesForLanguageAsync(string language)
     {
         SetState(s => s.IsLoadingVoices = true);
-        
+
         try
         {
             var voices = await _voiceDiscoveryService.GetVoicesForLanguageAsync(language);
             var currentVoiceId = _speechVoicePreferences.GetVoiceForLanguage(language);
-            
+
             SetState(s =>
             {
                 s.AvailableVoices = voices;
@@ -104,13 +107,6 @@ partial class SettingsPage : Component<SettingsPageState>
 
     private VisualNode RenderVoiceAndQuizSection()
     {
-        var supportedLanguages = _voiceDiscoveryService?.SupportedLanguages?.ToList() 
-            ?? new List<string> { "English", "French", "German", "Korean", "Spanish" };
-        
-        var voiceDisplayNames = State.AvailableVoices.Select(v => v.DisplayName).ToList();
-        var selectedVoiceIndex = State.AvailableVoices.FindIndex(v => v.VoiceId == State.SelectedVoiceId);
-        if (selectedVoiceIndex < 0) selectedVoiceIndex = 0;
-
         return VStack(spacing: MyTheme.MicroSpacing,
             Label($"{_localize["VoiceAndQuizSettings"]}")
                 .ThemeKey(MyTheme.Title2),
@@ -121,18 +117,9 @@ partial class SettingsPage : Component<SettingsPageState>
                     .ThemeKey(MyTheme.Body1Strong),
                 Label($"{_localize["VoiceLanguageDescription"]}")
                     .ThemeKey(MyTheme.Caption1),
-                Picker()
-                    .ItemsSource(supportedLanguages)
-                    .SelectedIndex(supportedLanguages.IndexOf(State.SelectedLanguage))
-                    .OnSelectedIndexChanged(async idx =>
-                    {
-                        if (idx >= 0 && idx < supportedLanguages.Count)
-                        {
-                            var language = supportedLanguages[idx];
-                            SetState(s => s.SelectedLanguage = language);
-                            await LoadVoicesForLanguageAsync(language);
-                        }
-                    })
+                Button(State.SelectedLanguage)
+                    .ThemeKey(MyTheme.Secondary)
+                    .OnClicked(ShowLanguageSelectionPopup)
             ),
 
             // Voice selection for selected language
@@ -144,19 +131,11 @@ partial class SettingsPage : Component<SettingsPageState>
                 State.IsLoadingVoices
                     ? Label($"{_localize["Loading"]}...")
                         .ThemeKey(MyTheme.Caption1)
-                    : Picker()
-                        .ItemsSource(voiceDisplayNames.Count > 0 ? voiceDisplayNames : new List<string> { "No voices available" })
-                        .SelectedIndex(selectedVoiceIndex >= 0 ? selectedVoiceIndex : 0)
-                        .IsEnabled(voiceDisplayNames.Count > 0)
-                        .OnSelectedIndexChanged(idx =>
-                        {
-                            if (idx >= 0 && idx < State.AvailableVoices.Count)
-                            {
-                                var voice = State.AvailableVoices[idx];
-                                _speechVoicePreferences.SetVoiceForLanguage(State.SelectedLanguage, voice.VoiceId);
-                                SetState(s => s.SelectedVoiceId = voice.VoiceId);
-                            }
-                        })
+                    : Button(GetSelectedVoiceDisplayName())
+                        .HStart()
+                        .ThemeKey(MyTheme.Secondary)
+                        .IsEnabled(State.AvailableVoices.Count > 0)
+                        .OnClicked(ShowVoiceSelectionPopup)
             ),
 
             //Quiz direction
@@ -256,6 +235,66 @@ partial class SettingsPage : Component<SettingsPageState>
         )
         .Padding(MyTheme.CardPadding)
         .Background(MyTheme.CardBackground);
+    }
+
+    private string GetSelectedVoiceDisplayName()
+    {
+        var selectedVoice = State.AvailableVoices.FirstOrDefault(v => v.VoiceId == State.SelectedVoiceId);
+        return selectedVoice?.DisplayName ?? $"{_localize["SelectVoice"]}";
+    }
+
+    private async void ShowLanguageSelectionPopup()
+    {
+        var supportedLanguages = _voiceDiscoveryService?.SupportedLanguages?.ToList()
+            ?? new List<string> { "English", "French", "German", "Korean", "Spanish" };
+
+        var popup = new ListActionPopup
+        {
+            Title = $"{_localize["VoiceLanguage"]}",
+            ShowActionButton = false,
+            ItemsSource = supportedLanguages,
+            ItemDataTemplate = new MauiControls.DataTemplate(() =>
+            {
+                var tapGesture = new MauiControls.TapGestureRecognizer();
+                tapGesture.Tapped += async (s, e) =>
+                {
+                    if (s is MauiControls.Label label && label.BindingContext is string lang)
+                    {
+                        await IPopupService.Current.PopAsync();
+                        SetState(st => st.SelectedLanguage = lang);
+                        await LoadVoicesForLanguageAsync(lang);
+                    }
+                };
+
+                var label = new MauiControls.Label
+                {
+                    TextColor = MyTheme.TextPrimary,
+                    FontSize = MyTheme.Size160,
+                    Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                };
+                label.SetBinding(MauiControls.Label.TextProperty, ".");
+                label.GestureRecognizers.Add(tapGesture);
+                return label;
+            })
+        };
+
+        await IPopupService.Current.PushAsync(popup);
+    }
+
+    private async void ShowVoiceSelectionPopup()
+    {
+        if (State.AvailableVoices.Count == 0) return;
+
+        await VoiceSelectionPopup.ShowAsync(
+            $"{State.SelectedLanguage} Voices",
+            State.AvailableVoices,
+            State.SelectedVoiceId,
+            voiceId =>
+            {
+                _speechVoicePreferences.SetVoiceForLanguage(State.SelectedLanguage, voiceId);
+                SetState(s => s.SelectedVoiceId = voiceId);
+            }
+        );
     }
 
     private VisualNode RenderDataManagementSection()

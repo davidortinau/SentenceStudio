@@ -3,6 +3,8 @@ using SentenceStudio.Services;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Fonts;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 
 
@@ -211,10 +213,13 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         var grade = await _teacherService.GradeSentence(sentence.Answer, sentence.Problem);
         if (grade == null)
         {
-            await Application.Current.MainPage.DisplayAlert(
-                $"{_localize["Error"]}",
-                $"{_localize["Something went wrong. Check the server."]}",
-                $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["Something went wrong. Check the server."]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -298,7 +303,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             .Background(Theme.IsLightTheme ?
                 MyTheme.LightCardBackgroundBrush :
                 MyTheme.DarkCardBackgroundBrush)
-        ); Task ShowExplanation(Sentence sentence)
+        ); async Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +
@@ -306,10 +311,14 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             $"Fluency: {sentence.FluencyExplanation}\n\n" +
             $"Additional Notes: {sentence.GrammarNotes}";
 
-        return Application.Current.MainPage.DisplayAlert(
-            $"{_localize["Explanation"]}",
-            explanation,
-            $"{_localize["OK"]}");
+        await IPopupService.Current.PushAsync(new SimpleActionPopup
+        {
+            Title = $"{_localize["Explanation"]}",
+            Text = explanation,
+            ActionButtonText = $"{_localize["OK"]}",
+            ShowSecondaryActionButton = false
+        });
+        return;
     }
 
     /// <summary>

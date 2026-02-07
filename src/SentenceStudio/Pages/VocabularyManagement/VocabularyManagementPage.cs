@@ -4,6 +4,9 @@ using SentenceStudio.Helpers;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
+using UXDivers.Popups;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -521,7 +524,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         catch (Exception ex)
         {
             _logger.LogError(ex, "LoadData error");
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["FailedToLoadVocabularyData"]}", $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["FailedToLoadVocabularyData"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
 
             // Set safe defaults on error
             SetState(s =>
@@ -1021,10 +1030,40 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
         var tags = State.AvailableTags.OrderBy(t => t).ToArray();
 
-        var selectedTag = await Application.Current.MainPage.DisplayActionSheet(
-            $"{_localize["SelectTag"]}", $"{_localize["Cancel"]}", null, tags);
+        var tagTcs = new TaskCompletionSource<string>();
+        var tagOptionItems = new List<OptionSheetItem>();
+        foreach (var tag in tags)
+        {
+            var capturedTag = tag;
+            tagOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedTag,
+                Command = new Command(async () =>
+                {
+                    tagTcs.TrySetResult(capturedTag);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var tagPopup = new OptionSheetPopup
+        {
+            Title = $"{_localize["SelectTag"]}",
+            Items = tagOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += tagHandler;
+        void tagHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == tagPopup)
+            {
+                tagTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= tagHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(tagPopup);
+        var selectedTag = await tagTcs.Task;
 
-        if (!string.IsNullOrEmpty(selectedTag) && selectedTag != $"{_localize["Cancel"]}")
+        if (!string.IsNullOrEmpty(selectedTag))
         {
             InsertFilterText("tag", selectedTag);
         }
@@ -1040,10 +1079,40 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Select(r => r.Title ?? $"{_localize["UnnamedResource"]}")
             .ToArray();
 
-        var selectedResource = await Application.Current.MainPage.DisplayActionSheet(
-            $"{_localize["SelectResource"]}", $"{_localize["Cancel"]}", null, resourceNames);
+        var resourceTcs = new TaskCompletionSource<string>();
+        var resourceOptionItems = new List<OptionSheetItem>();
+        foreach (var name in resourceNames)
+        {
+            var capturedName = name;
+            resourceOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedName,
+                Command = new Command(async () =>
+                {
+                    resourceTcs.TrySetResult(capturedName);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var resourcePopup = new OptionSheetPopup
+        {
+            Title = $"{_localize["SelectResource"]}",
+            Items = resourceOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += resourceHandler;
+        void resourceHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == resourcePopup)
+            {
+                resourceTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= resourceHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(resourcePopup);
+        var selectedResource = await resourceTcs.Task;
 
-        if (!string.IsNullOrEmpty(selectedResource) && selectedResource != $"{_localize["Cancel"]}")
+        if (!string.IsNullOrEmpty(selectedResource))
         {
             InsertFilterText("resource", selectedResource);
         }
@@ -1056,10 +1125,40 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
         var lemmas = State.AvailableLemmas.OrderBy(l => l).ToArray();
 
-        var selectedLemma = await Application.Current.MainPage.DisplayActionSheet(
-            $"{_localize["SelectLemma"]}", $"{_localize["Cancel"]}", null, lemmas);
+        var lemmaTcs = new TaskCompletionSource<string>();
+        var lemmaOptionItems = new List<OptionSheetItem>();
+        foreach (var lemma in lemmas)
+        {
+            var capturedLemma = lemma;
+            lemmaOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedLemma,
+                Command = new Command(async () =>
+                {
+                    lemmaTcs.TrySetResult(capturedLemma);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var lemmaPopup = new OptionSheetPopup
+        {
+            Title = $"{_localize["SelectLemma"]}",
+            Items = lemmaOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += lemmaHandler;
+        void lemmaHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == lemmaPopup)
+            {
+                lemmaTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= lemmaHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(lemmaPopup);
+        var selectedLemma = await lemmaTcs.Task;
 
-        if (!string.IsNullOrEmpty(selectedLemma) && selectedLemma != $"{_localize["Cancel"]}")
+        if (!string.IsNullOrEmpty(selectedLemma))
         {
             InsertFilterText("lemma", selectedLemma);
         }
@@ -1075,10 +1174,40 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             $"? {_localize["StatusUnknown"]}"
         };
 
-        var selectedOption = await Application.Current.MainPage.DisplayActionSheet(
-            $"{_localize["SelectStatus"]}", $"{_localize["Cancel"]}", null, statusOptions);
+        var statusTcs = new TaskCompletionSource<string>();
+        var statusOptionItems = new List<OptionSheetItem>();
+        foreach (var option in statusOptions)
+        {
+            var capturedOption = option;
+            statusOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedOption,
+                Command = new Command(async () =>
+                {
+                    statusTcs.TrySetResult(capturedOption);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var statusPopup = new OptionSheetPopup
+        {
+            Title = $"{_localize["SelectStatus"]}",
+            Items = statusOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += statusHandler;
+        void statusHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == statusPopup)
+            {
+                statusTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= statusHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(statusPopup);
+        var selectedOption = await statusTcs.Task;
 
-        if (!string.IsNullOrEmpty(selectedOption) && selectedOption != $"{_localize["Cancel"]}")
+        if (!string.IsNullOrEmpty(selectedOption))
         {
             // Map display text back to status value
             string statusValue = selectedOption switch
@@ -1318,10 +1447,27 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         if (!State.SelectedWordIds.Any()) return;
 
-        bool confirm = await Application.Current.MainPage.DisplayAlert(
-            $"{_localize["ConfirmDelete"]}",
-            string.Format($"{_localize["ConfirmDeleteMultiple"]}", State.SelectedWordIds.Count),
-            $"{_localize["Yes"]}", $"{_localize["No"]}");
+        var bulkDeleteTcs = new TaskCompletionSource<bool>();
+        var bulkDeletePopup = new SimpleActionPopup
+        {
+            Title = $"{_localize["ConfirmDelete"]}",
+            Text = string.Format($"{_localize["ConfirmDeleteMultiple"]}", State.SelectedWordIds.Count),
+            ActionButtonText = $"{_localize["Yes"]}",
+            SecondaryActionButtonText = $"{_localize["No"]}",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                bulkDeleteTcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                bulkDeleteTcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(bulkDeletePopup);
+        bool confirm = await bulkDeleteTcs.Task;
 
         if (!confirm) return;
 
@@ -1335,7 +1481,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToDeleteVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToDeleteVocabulary"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1357,7 +1509,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToAssociateVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToAssociateVocabulary"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1365,15 +1523,51 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         if (!State.AvailableResources.Any())
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["NoResources"]}", "No learning resources available for association.", $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["NoResources"]}",
+                Text = "No learning resources available for association.",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return null;
         }
 
         var resourceNames = State.AvailableResources.Select(r => r.Title ?? "Unknown").ToArray();
-        var selectedName = await Application.Current.MainPage.DisplayActionSheet(
-            "Select Learning Resource", "Cancel", null, resourceNames);
+        var selResourceTcs = new TaskCompletionSource<string>();
+        var selResourceOptionItems = new List<OptionSheetItem>();
+        foreach (var name in resourceNames)
+        {
+            var capturedName = name;
+            selResourceOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedName,
+                Command = new Command(async () =>
+                {
+                    selResourceTcs.TrySetResult(capturedName);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var selResourcePopup = new OptionSheetPopup
+        {
+            Title = "Select Learning Resource",
+            Items = selResourceOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += selResourceHandler;
+        void selResourceHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == selResourcePopup)
+            {
+                selResourceTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= selResourceHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(selResourcePopup);
+        var selectedName = await selResourceTcs.Task;
 
-        if (selectedName == "Cancel" || string.IsNullOrEmpty(selectedName))
+        if (string.IsNullOrEmpty(selectedName))
             return null;
 
         return State.AvailableResources.FirstOrDefault(r => r.Title == selectedName);
@@ -1396,9 +1590,39 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             $"Orphaned ({State.Stats.OrphanedWords})"
         };
 
-        var selection = await Application.Current.MainPage.DisplayActionSheet(
-            "Filter by Status", "Cancel", null, options);
-        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+        var statusFilterTcs = new TaskCompletionSource<string>();
+        var statusFilterOptionItems = new List<OptionSheetItem>();
+        foreach (var option in options)
+        {
+            var capturedOption = option;
+            statusFilterOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedOption,
+                Command = new Command(async () =>
+                {
+                    statusFilterTcs.TrySetResult(capturedOption);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var statusFilterPopup = new OptionSheetPopup
+        {
+            Title = "Filter by Status",
+            Items = statusFilterOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += statusFilterHandler;
+        void statusFilterHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == statusFilterPopup)
+            {
+                statusFilterTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= statusFilterHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(statusFilterPopup);
+        var selection = await statusFilterTcs.Task;
+        if (string.IsNullOrEmpty(selection))
             return;
 
         var index = Array.IndexOf(options, selection);
@@ -1411,9 +1635,39 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     async Task ShowResourceFilterDialog()
     {
         var items = GetResourcePickerItems();
-        var selection = await Application.Current.MainPage.DisplayActionSheet(
-            "Filter by Resource", "Cancel", null, items.ToArray());
-        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+        var resFilterTcs = new TaskCompletionSource<string>();
+        var resFilterOptionItems = new List<OptionSheetItem>();
+        foreach (var item in items)
+        {
+            var capturedItem = item;
+            resFilterOptionItems.Add(new OptionSheetItem
+            {
+                Text = capturedItem,
+                Command = new Command(async () =>
+                {
+                    resFilterTcs.TrySetResult(capturedItem);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var resFilterPopup = new OptionSheetPopup
+        {
+            Title = "Filter by Resource",
+            Items = resFilterOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += resFilterHandler;
+        void resFilterHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == resFilterPopup)
+            {
+                resFilterTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= resFilterHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(resFilterPopup);
+        var selection = await resFilterTcs.Task;
+        if (string.IsNullOrEmpty(selection))
             return;
 
         var index = items.IndexOf(selection);
@@ -1535,7 +1789,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Cleanup failed: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Cleanup failed: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {
@@ -1592,7 +1852,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Cleanup failed: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Cleanup failed: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {

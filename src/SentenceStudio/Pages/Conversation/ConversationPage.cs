@@ -704,11 +704,27 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         }
 
         // Confirm deletion
-        bool confirmed = await Application.Current.MainPage.DisplayAlert(
-            $"{_localize["DeleteScenarioConfirm"]}",
-            State.ActiveScenario.Name,
-            $"{_localize["Yes"]}",
-            $"{_localize["No"]}");
+        var tcs = new TaskCompletionSource<bool>();
+        var confirmPopup = new SimpleActionPopup
+        {
+            Title = $"{_localize["DeleteScenarioConfirm"]}",
+            Text = State.ActiveScenario.Name,
+            ActionButtonText = $"{_localize["Yes"]}",
+            SecondaryActionButtonText = $"{_localize["No"]}",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(confirmPopup);
+        bool confirmed = await tcs.Task;
 
         if (!confirmed)
             return;
@@ -776,19 +792,23 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         SetState(s => s.IsBusy = true);
 
-        // Load user profile for target language
-        try
+        // Load target language from Preferences (set by dashboard tile)
+        var selectedLanguage = Preferences.Default.Get("ConversationActivity_Language", string.Empty);
+        if (string.IsNullOrEmpty(selectedLanguage))
         {
-            var userProfile = await _userProfileRepository.GetAsync();
-            if (userProfile != null && !string.IsNullOrEmpty(userProfile.TargetLanguage))
+            // Fallback to user profile target language
+            try
             {
-                SetState(s => s.TargetLanguage = userProfile.TargetLanguage);
+                var userProfile = await _userProfileRepository.GetAsync();
+                selectedLanguage = userProfile?.TargetLanguage ?? "Korean";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading user profile for target language");
+                selectedLanguage = "Korean";
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading user profile for target language");
-        }
+        SetState(s => s.TargetLanguage = selectedLanguage);
 
         // Load available scenarios
         try
@@ -808,7 +828,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             _logger.LogError(ex, "Error loading scenarios");
         }
 
-        _conversation = await _agentService.ResumeConversationAsync();
+        _conversation = await _agentService.ResumeConversationAsync(selectedLanguage);
 
         if (_conversation == null || _conversation.Chunks == null || !_conversation.Chunks.Any())
         {
@@ -872,10 +892,27 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     async Task StartNewConversation()
     {
         // Show a confirmation dialog
-        bool shouldStart = await Application.Current.MainPage.DisplayAlert(
-            "Start New Conversation",
-            "This will clear the current conversation. Are you sure?",
-            "Yes", "No");
+        var tcs = new TaskCompletionSource<bool>();
+        var confirmPopup = new SimpleActionPopup
+        {
+            Title = "Start New Conversation",
+            Text = "This will clear the current conversation. Are you sure?",
+            ActionButtonText = "Yes",
+            SecondaryActionButtonText = "No",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(confirmPopup);
+        bool shouldStart = await tcs.Task;
 
         if (!shouldStart)
             return;
@@ -920,7 +957,8 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         _conversation = new ConversationModel
         {
-            ScenarioId = scenario?.Id
+            ScenarioId = scenario?.Id,
+            Language = State.TargetLanguage
         };
         await _agentService.SaveConversationAsync(_conversation);
 

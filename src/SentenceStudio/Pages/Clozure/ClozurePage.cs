@@ -4,6 +4,8 @@ using SentenceStudio.Pages.Dashboard;
 using System.Timers;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -855,12 +857,27 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			s.SessionTotalCount = 0;
 		});
 
-		var result = await Application.Current.MainPage.DisplayAlert(
-			$"{_localize["Continue Practice"]}",
-			$"{_localize["Would you like to get more sentences?"]}",
-			$"{_localize["Yes"]}",
-			$"{_localize["No"]}"
-		);
+		var tcs = new TaskCompletionSource<bool>();
+		var confirmPopup = new SimpleActionPopup
+		{
+			Title = $"{_localize["Continue Practice"]}",
+			Text = $"{_localize["Would you like to get more sentences?"]}",
+			ActionButtonText = $"{_localize["Yes"]}",
+			SecondaryActionButtonText = $"{_localize["No"]}",
+			CloseWhenBackgroundIsClicked = false,
+			ActionButtonCommand = new Command(async () =>
+			{
+				tcs.TrySetResult(true);
+				await IPopupService.Current.PopAsync();
+			}),
+			SecondaryActionButtonCommand = new Command(async () =>
+			{
+				tcs.TrySetResult(false);
+				await IPopupService.Current.PopAsync();
+			})
+		};
+		await IPopupService.Current.PushAsync(confirmPopup);
+		var result = await tcs.Task;
 
 		if (result)
 		{
@@ -890,21 +907,25 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				}
 				else
 				{
-					await Application.Current.MainPage.DisplayAlert(
-						$"{_localize["No More Sentences"]}",
-						$"{_localize["There are no more sentences available for this resource."]}",
-						$"{_localize["OK"]}"
-					);
+					await IPopupService.Current.PushAsync(new SimpleActionPopup
+					{
+						Title = $"{_localize["No More Sentences"]}",
+						Text = $"{_localize["There are no more sentences available for this resource."]}",
+						ActionButtonText = $"{_localize["OK"]}",
+						ShowSecondaryActionButton = false
+					});
 				}
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error in CheckAnswer");
-				await Application.Current.MainPage.DisplayAlert(
-					$"{_localize["Error"]}",
-					$"{_localize["Unable to load more sentences."]}",
-					$"{_localize["OK"]}"
-				);
+				await IPopupService.Current.PushAsync(new SimpleActionPopup
+				{
+					Title = $"{_localize["Error"]}",
+					Text = $"{_localize["Unable to load more sentences."]}",
+					ActionButtonText = $"{_localize["OK"]}",
+					ShowSecondaryActionButton = false
+				});
 			}
 			finally
 			{

@@ -3,6 +3,8 @@ using System.Collections.Immutable;
 using SentenceStudio.Services;
 using SentenceStudio.Pages.Dashboard;
 using Microsoft.Extensions.Logging;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Scene;
 
@@ -43,7 +45,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<DescribeAScenePage> _logger;
     LocalizationManager _localize => LocalizationManager.Instance;
-    CommunityToolkit.Maui.Views.Popup? _popup;
 
     public override VisualNode Render()
     {
@@ -63,7 +64,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             Grid("*,Auto", "*",
                 RenderMainContent(),
                 RenderInput(),
-                RenderExplanationPopup(),
                 RenderLoadingOverlay(),
                 RenderGalleryBottomSheet()
             )
@@ -140,31 +140,6 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         )
         .GridRow(1)  // Changed from GridRow(2) to GridRow(1)
         .Margin(MyTheme.Size160);
-
-    VisualNode RenderExplanationPopup() => new PopupHost(r => _popup = r)
-        {
-            VStack(spacing: 10,
-                Label()
-                    .Text(
-                        // Bug fix: Show ExplanationText when available (from sentence tap),
-                        // otherwise show Description (from info toolbar)
-                        !string.IsNullOrWhiteSpace(State.ExplanationText)
-                            ? State.ExplanationText
-                            : (!string.IsNullOrWhiteSpace(State.Description)
-                                ? State.Description
-                                : "No description available. Tap the info button after loading an image.")
-                    ),
-                Button("Close", () => {
-                    SetState(s => {
-                        s.IsExplanationShown = false;
-                        s.ExplanationText = string.Empty; // Clear explanation text when closing
-                    });
-                    _ = _popup?.CloseAsync();
-                })
-            ).Padding(20)
-            .Background(MyTheme.LightBackground)
-        }
-        .IsShown(State.IsExplanationShown);
 
     /// <summary>
     /// Renders a mobile/desktop SfBottomSheet that contains the full gallery management UI.
@@ -356,23 +331,33 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             _logger.LogDebug("DescribeAScenePage: Description already exists: {DescriptionLength} chars", State.Description?.Length ?? 0);
         }
 
-        // Clear any existing explanation text so popup shows the AI description
-        SetState(s => {
-            s.ExplanationText = string.Empty;
-            s.IsExplanationShown = true;
+        var text = !string.IsNullOrWhiteSpace(State.Description)
+            ? State.Description
+            : "No description available. Tap the info button after loading an image.";
+
+        await IPopupService.Current.PushAsync(new SimpleActionPopup
+        {
+            Title = "Description",
+            Text = text,
+            ActionButtonText = "Close",
+            ShowSecondaryActionButton = false
         });
     }
 
-    void ShowExplanation(Sentence sentence)
+    async void ShowExplanation(Sentence sentence)
     {
-        SetState(s =>
+        var explanationText = $"Original: {sentence.Answer}\n\n" +
+                             $"Recommended: {sentence.RecommendedSentence}\n\n" +
+                             $"Accuracy: {sentence.AccuracyExplanation}\n\n" +
+                             $"Fluency: {sentence.FluencyExplanation}\n\n" +
+                             $"Grammar Notes: {sentence.GrammarNotes}";
+
+        await IPopupService.Current.PushAsync(new SimpleActionPopup
         {
-            s.ExplanationText = $"Original: {sentence.Answer}\n\n" +
-                               $"Recommended: {sentence.RecommendedSentence}\n\n" +
-                               $"Accuracy: {sentence.AccuracyExplanation}\n\n" +
-                               $"Fluency: {sentence.FluencyExplanation}\n\n" +
-                               $"Grammar Notes: {sentence.GrammarNotes}";
-            s.IsExplanationShown = true;
+            Title = "Explanation",
+            Text = explanationText,
+            ActionButtonText = "Close",
+            ShowSecondaryActionButton = false
         });
     }
 
@@ -524,13 +509,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     [RelayCommand]
     async Task LoadImage()
     {
-        var result = await Application.Current.MainPage.DisplayPromptAsync(
-            "Enter Image URL",
-            "Please enter the URL of the image you would like to describe.",
-            "OK",
-            "Cancel",
-            "https://example.com/something.jpg"
-        );
+        var formFields = new List<FormField> { new FormField { Placeholder = "https://example.com/something.jpg" } };
+        var formPopup = new FormPopup
+        {
+            Title = "Enter Image URL",
+            Text = "Please enter the URL of the image you would like to describe.",
+            Items = formFields,
+            ActionButtonText = "OK",
+            SecondaryActionText = "Cancel"
+        };
+        List<string?>? formResult = await IPopupService.Current.PushAsync(formPopup);
+        var result = formResult?.FirstOrDefault();
 
         if (result != null)
         {
@@ -631,11 +620,13 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     Task ShowError()
     {
-        return Application.Current.MainPage.DisplayAlert(
-            "Error",
-            "Something went wrong. Check the server.",
-            "OK"
-        );
+        return IPopupService.Current.PushAsync(new SimpleActionPopup
+        {
+            Title = "Error",
+            Text = "Something went wrong. Check the server.",
+            ActionButtonText = "OK",
+            ShowSecondaryActionButton = false
+        });
     }
 
     // Enhanced tracking helper methods

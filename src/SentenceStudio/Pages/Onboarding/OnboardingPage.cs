@@ -3,6 +3,8 @@ using MauiReactor.Parameters;
 using Microsoft.Maui.Graphics;
 using MauiReactor.Shapes;
 using Microsoft.Extensions.Logging;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Onboarding;
 
@@ -607,8 +609,13 @@ public partial class OnboardingPage : Component<OnboardingState>
 
             if (_cancellationTokenSource?.Token.IsCancellationRequested == true) return;
 
-            await Application.Current.MainPage.DisplayAlert("Error",
-                "Failed to create starter content. You can set up learning materials later from the dashboard.", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "Failed to create starter content. You can set up learning materials later from the dashboard.",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
 
             // Still complete onboarding even if starter content creation fails
             await End();
@@ -786,7 +793,13 @@ Example skills to mention: basic vocabulary, simple sentence structure, pronunci
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in OnboardingPage.End()");
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to complete onboarding: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to complete onboarding: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 

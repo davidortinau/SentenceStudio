@@ -2,6 +2,8 @@ using MauiReactor.Shapes;
 using ReactorCustomLayouts;
 using SentenceStudio.Helpers;
 using System.Collections.ObjectModel;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.VocabularyProgress;
 
@@ -333,7 +335,13 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadData"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToLoadData"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
         finally
         {
@@ -405,7 +413,13 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToLoadVocabulary"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 

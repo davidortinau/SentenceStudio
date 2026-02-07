@@ -24,6 +24,7 @@ public class ConversationAgentService : IConversationAgentService
     private AIAgent? _conversationAgent;
     private AIAgent? _gradingAgent;
     private AgentThread? _conversationThread;
+    private string _targetLanguage = "Korean";
 
     // Default persona name
     private const string DefaultPersonaName = "김철수";
@@ -297,9 +298,7 @@ public class ConversationAgentService : IConversationAgentService
 
     private async Task<string> GetConversationPartnerPromptAsync(ConversationScenario? scenario)
     {
-        // Get user's target language
-        var userProfile = await _userProfileRepository.GetAsync();
-        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        string targetLanguage = _targetLanguage;
 
         if (scenario != null)
         {
@@ -329,9 +328,7 @@ public class ConversationAgentService : IConversationAgentService
 
     private async Task<string> GetGradingAgentPromptAsync()
     {
-        // Get user's target language
-        var userProfile = await _userProfileRepository.GetAsync();
-        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        string targetLanguage = _targetLanguage;
 
         return $@"You are a {targetLanguage} language grading assistant. Your job is to:
 
@@ -357,9 +354,7 @@ Do not nitpick minor stylistic preferences.";
 
     private async Task<string> GetOpeningPromptAsync(ConversationScenario? scenario)
     {
-        // Get user's target language
-        var userProfile = await _userProfileRepository.GetAsync();
-        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        string targetLanguage = _targetLanguage;
 
         if (scenario != null)
         {
@@ -391,22 +386,31 @@ Do not nitpick minor stylistic preferences.";
     #region Database Operations
 
     /// <inheritdoc/>
-    public async Task<Conversation> ResumeConversationAsync()
+    public async Task<Conversation> ResumeConversationAsync(string language)
     {
+        _targetLanguage = language;
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var conversation = await db.Conversations
             .Include(c => c.Chunks)
+            .Where(c => c.Language == language)
             .OrderByDescending(c => c.CreatedAt)
             .FirstOrDefaultAsync();
 
         if (conversation != null)
         {
-            _logger.LogDebug("Resumed conversation {Id} with {Count} chunks", conversation.Id, conversation.Chunks?.Count ?? 0);
+            _logger.LogDebug("Resumed {Language} conversation {Id} with {Count} chunks", language, conversation.Id, conversation.Chunks?.Count ?? 0);
         }
 
-        return conversation ?? new Conversation { CreatedAt = DateTime.Now };
+        return conversation ?? new Conversation { CreatedAt = DateTime.Now, Language = language };
+    }
+
+    /// <inheritdoc/>
+    public Task<Conversation> ResumeConversationAsync()
+    {
+        return ResumeConversationAsync(_targetLanguage);
     }
 
     /// <inheritdoc/>

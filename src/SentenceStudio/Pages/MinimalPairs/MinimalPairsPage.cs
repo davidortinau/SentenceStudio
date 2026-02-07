@@ -1,5 +1,7 @@
 using SentenceStudio.Pages.Controls;
 using SentenceStudio.Repositories;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -64,11 +66,13 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
         if (State.SelectedMode == PracticeMode.Focus && State.SelectedPairId == null)
         {
             _logger.LogWarning("Focus mode selected but no pair chosen");
-            await Application.Current!.MainPage!.DisplayAlert(
-                $"{_localize["Error"]}",
-                "Please select a pair to practice in Focus mode",
-                $"{_localize["OK"]}"
-            );
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = "Please select a pair to practice in Focus mode",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -79,11 +83,13 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
         if (pairIds.Length == 0)
         {
             _logger.LogWarning("No pairs available to start session");
-            await Application.Current!.MainPage!.DisplayAlert(
-                $"{_localize["Error"]}",
-                $"{_localize["MinimalPairsEmptyState"]}",
-                $"{_localize["OK"]}"
-            );
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["MinimalPairsEmptyState"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -238,12 +244,27 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     private async Task OnDeletePairAsync(MinimalPair pair)
     {
-        var confirmed = await Application.Current!.MainPage!.DisplayAlert(
-            $"{_localize["MinimalPairsDeleteConfirm"]}",
-            $"{pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}",
-            $"{_localize["Delete"]}",
-            $"{_localize["Cancel"]}"
-        );
+        var tcs = new TaskCompletionSource<bool>();
+        var confirmPopup = new SimpleActionPopup
+        {
+            Title = $"{_localize["MinimalPairsDeleteConfirm"]}",
+            Text = $"{pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}",
+            ActionButtonText = $"{_localize["Delete"]}",
+            SecondaryActionButtonText = $"{_localize["Cancel"]}",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(confirmPopup);
+        var confirmed = await tcs.Task;
 
         if (!confirmed) return;
 

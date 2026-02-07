@@ -1,6 +1,6 @@
-using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Core;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Controls;
 
@@ -32,12 +32,12 @@ partial class SelectableLabel : Component
 				{
 					await Clipboard.SetTextAsync(_labelRef.Text);
 
-					CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-					string text = "Copied to clipboard!";
-					ToastDuration duration = ToastDuration.Short;
-					double fontSize = 14;
-					var toast = Toast.Make(text, duration, fontSize);
-					await toast.Show(cancellationTokenSource.Token);
+					var toast = new UXDivers.Popups.Maui.Controls.Toast { Title = "Copied to clipboard!" };
+					await IPopupService.Current.PushAsync(toast);
+					_ = Task.Delay(2500).ContinueWith(async _ =>
+					{
+						try { await IPopupService.Current.PopAsync(toast); } catch { }
+					});
 				}
 			});
 	}

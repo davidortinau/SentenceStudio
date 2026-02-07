@@ -1,6 +1,9 @@
 using MauiReactor.Shapes;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Helpers;
+using UXDivers.Popups;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -10,10 +13,9 @@ class ListLearningResourcesState
     public bool IsLoading { get; set; } = false;
     public string SearchText { get; set; } = string.Empty;
     public string FilterType { get; set; } = "All";
-    public string FilterLanguage { get; set; } = "All";
+    public List<string> FilterLanguages { get; set; } = [];
     public bool IsMigrating { get; set; } = false;
     public int FilterTypeIndex { get; set; } = 0;
-    public int FilterLanguageIndex { get; set; } = 0;
     public bool IsCreatingStarter { get; set; } = false;
 }
 
@@ -71,19 +73,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                         Label($"{_localize["NoResourcesFound"]}")
                                             .VCenter().HCenter(),
 
-                                        State.IsCreatingStarter ?
-                                        VStack(
-                                            ActivityIndicator()
-                                                .IsRunning(true)
-                                                .HCenter()
-                                                .HeightRequest(30)
-                                                .WidthRequest(30),
-                                            Label("Creating starter vocabulary...")
-                                                .HCenter()
-                                                .ThemeKey(MyTheme.Body2)
-                                                .TextColor(MyTheme.SecondaryText)
-                                        )
-                                        .Spacing(MyTheme.ComponentSpacing) :
                                         VStack(
                                             Button("Add Your First Resource")
                                                 .OnClicked(AddResource)
@@ -101,7 +90,26 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     .Spacing(MyTheme.LayoutSpacing)
                                     .VCenter()
                                 ),// emptyview, end of CollectionView
-                            RenderBottomBar()
+                            RenderBottomBar(),
+                            State.IsCreatingStarter
+                                ? Grid(
+                                    VStack(
+                                        ActivityIndicator()
+                                            .IsRunning(true)
+                                            .HCenter()
+                                            .HeightRequest(30)
+                                            .WidthRequest(30),
+                                        Label("Creating starter vocabulary...")
+                                            .HCenter()
+                                            .ThemeKey(MyTheme.Body2)
+                                            .TextColor(MyTheme.LightOnDarkBackground)
+                                    )
+                                    .Spacing(MyTheme.ComponentSpacing)
+                                    .Center()
+                                )
+                                .BackgroundColor(MyTheme.Gray950.WithAlpha(0.6f))
+                                .GridRow(0).GridRowSpan(2)
+                                : null
                         ) // Grid
                         .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )// contentpage
@@ -322,9 +330,9 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         }
 
         // Apply language filter
-        if (State.FilterLanguage != "All")
+        if (State.FilterLanguages.Count > 0)
         {
-            resources = resources.Where(r => r.Language == State.FilterLanguage).ToList();
+            resources = resources.Where(r => State.FilterLanguages.Contains(r.Language)).ToList();
         }
 
         return resources;
@@ -351,46 +359,121 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     {
         try
         {
-            SetState(s => s.IsCreatingStarter = true);
-
-            // Get user profile to get language preferences
             var profile = await _userProfileRepo.GetOrCreateDefaultAsync();
 
-            if (string.IsNullOrEmpty(profile.NativeLanguage) || string.IsNullOrEmpty(profile.TargetLanguage))
+            if (string.IsNullOrEmpty(profile.NativeLanguage))
             {
-                await Application.Current.MainPage.DisplayAlert(
-                    "Profile Required",
-                    "Please set up your native and target languages in your profile first.",
-                    "OK");
-
-                SetState(s => s.IsCreatingStarter = false);
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Profile Required",
+                    Text = "Please set up your native language in your profile first.",
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
-            // Create the starter vocabulary resource
-            await _resourceRepo.GetStarterVocabulary(profile.NativeLanguage, profile.TargetLanguage);
+            string selectedLanguage = null;
 
-            // Reload resources to show the new starter resource
+            var popup = new ListActionPopup
+            {
+                Title = "Select Language",
+                ShowActionButton = false,
+                ItemsSource = Constants.Languages,
+                ItemDataTemplate = new MauiControls.DataTemplate(() =>
+                {
+                    var tapGesture = new MauiControls.TapGestureRecognizer();
+                    tapGesture.Tapped += async (s, e) =>
+                    {
+                        if (s is MauiControls.Label label && label.BindingContext is string lang)
+                        {
+                            selectedLanguage = lang;
+                            await IPopupService.Current.PopAsync();
+                        }
+                    };
+
+                    var label = new MauiControls.Label
+                    {
+                        TextColor = MyTheme.LightOnDarkBackground,
+                        FontSize = MyTheme.Size160,
+                        Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                    };
+                    label.SetBinding(MauiControls.Label.TextProperty, ".");
+                    label.GestureRecognizers.Add(tapGesture);
+                    return label;
+                })
+            };
+
+            await IPopupService.Current.PushAsync(popup);
+
+            if (string.IsNullOrEmpty(selectedLanguage))
+                return;
+
+            SetState(s => s.IsCreatingStarter = true);
+
+            await _resourceRepo.GetStarterVocabulary(profile.NativeLanguage, selectedLanguage);
+
             await LoadResources();
 
             SetState(s => s.IsCreatingStarter = false);
+
+            var starterToast = new UXDivers.Popups.Maui.Controls.Toast { Title = $"Starter resource created for {selectedLanguage}!" };
+            await IPopupService.Current.PushAsync(starterToast);
+            _ = Task.Delay(3000).ContinueWith(async _ =>
+            {
+                try { await IPopupService.Current.PopAsync(starterToast); } catch { }
+            });
         }
         catch (Exception ex)
         {
             SetState(s => s.IsCreatingStarter = false);
 
-            await Application.Current.MainPage.DisplayAlert(
-                "Error",
-                $"Failed to create starter resource: {ex.Message}",
-                "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to create starter resource: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
     async Task ShowTypeFilterDialog()
     {
-        var selection = await Application.Current.MainPage.DisplayActionSheet(
-            "Filter by Type", "Cancel", null, _mediaTypes.ToArray());
-        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
+        var typeTcs = new TaskCompletionSource<string>();
+        var typeOptionItems = new List<OptionSheetItem>();
+        foreach (var mediaType in _mediaTypes)
+        {
+            var capturedType = mediaType;
+            var isSelected = capturedType == State.FilterType;
+            typeOptionItems.Add(new OptionSheetItem
+            {
+                Text = isSelected ? $"\u2713  {capturedType}" : $"    {capturedType}",
+                Command = new Command(async () =>
+                {
+                    typeTcs.TrySetResult(capturedType);
+                    await IPopupService.Current.PopAsync();
+                })
+            });
+        }
+        var typePopup = new OptionSheetPopup
+        {
+            Title = "Filter by Type",
+            Items = typeOptionItems,
+            CloseWhenBackgroundIsClicked = true
+        };
+        IPopupService.Current.PopupPopped += typeHandler;
+        void typeHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == typePopup)
+            {
+                typeTcs.TrySetResult(null);
+                IPopupService.Current.PopupPopped -= typeHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(typePopup);
+        var selection = await typeTcs.Task;
+        if (string.IsNullOrEmpty(selection))
             return;
 
         var index = _mediaTypes.IndexOf(selection);
@@ -407,20 +490,51 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
     async Task ShowLanguageFilterDialog()
     {
-        var selection = await Application.Current.MainPage.DisplayActionSheet(
-            "Filter by Language", "Cancel", null, _languages.ToArray());
-        if (string.IsNullOrEmpty(selection) || selection == "Cancel")
-            return;
+        var selected = new HashSet<string>(State.FilterLanguages);
+        var tcs = new TaskCompletionSource();
 
-        var index = _languages.IndexOf(selection);
-        if (index >= 0)
+        var popup = new OptionSheetPopup
         {
-            SetState(s =>
+            Title = "Filter by Language",
+            CloseWhenBackgroundIsClicked = true
+        };
+
+        void BuildItems()
+        {
+            var items = new List<OptionSheetItem>();
+            foreach (var lang in Constants.Languages)
             {
-                s.FilterLanguageIndex = index;
-                s.FilterLanguage = _languages[index];
-            });
-            FilterResources();
+                var capturedLang = lang;
+                var isSelected = selected.Contains(capturedLang);
+                items.Add(new OptionSheetItem
+                {
+                    Text = isSelected ? $"\u2713  {capturedLang}" : $"    {capturedLang}",
+                    Command = new Command(() =>
+                    {
+                        if (!selected.Remove(capturedLang))
+                            selected.Add(capturedLang);
+                        BuildItems();
+                    })
+                });
+            }
+            popup.Items = items;
         }
+
+        BuildItems();
+
+        IPopupService.Current.PopupPopped += langHandler;
+        void langHandler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == popup)
+            {
+                tcs.TrySetResult();
+                IPopupService.Current.PopupPopped -= langHandler;
+            }
+        };
+        await IPopupService.Current.PushAsync(popup);
+        await tcs.Task;
+
+        SetState(s => s.FilterLanguages = selected.ToList());
+        await FilterResources();
     }
 }

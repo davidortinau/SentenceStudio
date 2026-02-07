@@ -32,6 +32,9 @@ using SentenceStudio.Services.LanguageSegmentation;
 using Microsoft.Maui.Controls.Hosting;
 using MauiReactor.HotReload;
 using UXDivers.Popups.Maui;
+#if DEBUG
+using MauiDevFlow.Agent;
+#endif
 #if ANDROID || IOS || MACCATALYST || WINDOWS
 using System.Globalization;
 #endif
@@ -163,6 +166,7 @@ public static class MauiProgram
 			.AddDebug()
 			.AddConsole()
 			.SetMinimumLevel(LogLevel.Debug);
+		builder.AddMauiDevFlowAgent(options => { options.Port = 9223; });
 		// builder.UseDebugRibbon();
 #endif
 

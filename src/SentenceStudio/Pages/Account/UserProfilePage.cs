@@ -2,6 +2,8 @@ using System.Globalization;
 using CommunityToolkit.Maui.Storage;
 using MauiReactor.Parameters;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Account;
 
@@ -288,11 +290,27 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
     async Task Reset()
     {
-        var response = await Application.Current.MainPage.DisplayAlert(
-            $"{_localize["Reset"]}",
-            $"{_localize["ResetProfileConfirmation"]}" ?? "Are you sure you want to reset your profile?",
-            $"{_localize["Yes"]}",
-            $"{_localize["No"]}");
+        var responseTcs = new TaskCompletionSource<bool>();
+        var resetPopup = new SimpleActionPopup
+        {
+            Title = $"{_localize["Reset"]}",
+            Text = $"{_localize["ResetProfileConfirmation"]}" ?? "Are you sure you want to reset your profile?",
+            ActionButtonText = $"{_localize["Yes"]}",
+            SecondaryActionButtonText = $"{_localize["No"]}",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                responseTcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                responseTcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(resetPopup);
+        var response = await responseTcs.Task;
 
         if (response)
         {
@@ -360,8 +378,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
-                    result.Exception?.Message ?? "Failed to save export file", "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = $"{_localize["ExportError"]}",
+                    Text = result.Exception?.Message ?? "Failed to save export file",
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
             }
         }
         catch (Exception ex)
@@ -372,8 +395,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
-                $"An error occurred during export: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["ExportError"]}",
+                Text = $"An error occurred during export: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -426,8 +454,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     s.ExportProgressMessage = "Export failed";
                 });
 
-                await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
-                    tempResult.Exception?.Message ?? "Failed to prepare export for sharing", "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = $"{_localize["ExportError"]}",
+                    Text = tempResult.Exception?.Message ?? "Failed to prepare export for sharing",
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
             }
         }
         catch (Exception ex)
@@ -438,8 +471,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                 s.ExportProgressMessage = "Export failed";
             });
 
-            await Application.Current.MainPage.DisplayAlert($"{_localize["ExportError"]}",
-                $"An error occurred during export: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["ExportError"]}",
+                Text = $"An error occurred during export: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 }

@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using System.IO;
 using SentenceStudio.Shared.Services;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -1348,13 +1350,16 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    Task ShowNoVocabularyAlert()
+    async Task ShowNoVocabularyAlert()
     {
         SetState(s => s.IsBusy = false);
-        return Application.Current.MainPage.DisplayAlert(
-            $"{_localize["NoVocabulary"]}",
-            $"{_localize["NoVocabularyMessage"]}",
-            $"{_localize["OK"]}");
+        await IPopupService.Current.PushAsync(new SimpleActionPopup
+        {
+            Title = $"{_localize["NoVocabulary"]}",
+            Text = $"{_localize["NoVocabularyMessage"]}",
+            ActionButtonText = $"{_localize["OK"]}",
+            ShowSecondaryActionButton = false
+        });
     }
 
     async Task CheckAnswer()

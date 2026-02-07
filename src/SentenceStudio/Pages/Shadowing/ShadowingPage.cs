@@ -5,12 +5,13 @@ using MauiReactor.Compatibility;
 using SentenceStudio.Pages.Controls;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Maui.Storage;
-using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Core;
+
 using Microsoft.Maui.Dispatching;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services.Speech;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -109,7 +110,6 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 WaveformDisplay(),
                 NavigationFooter(),
                 LoadingOverlay(),
-                RenderVoiceSelectionBottomSheet(),
                 RenderExportBottomSheet(),
                 RenderNarrowScreenMenu()
             )
@@ -217,82 +217,6 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     }
 
     /// <summary>
-    /// Renders the voice selection bottom sheet with dynamic voices from VoiceDiscoveryService.
-    /// </summary>
-    private VisualNode RenderVoiceSelectionBottomSheet() =>
-        new SfBottomSheet(
-            Grid("*", "*",
-                ScrollView(
-                    VStack(
-                        Label($"{State.TargetLanguage} Voices")
-                            .FontAttributes(FontAttributes.Bold)
-                            .FontSize(18)
-                            .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
-                            .HCenter()
-                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
-                        State.IsLoadingVoices
-                            ? Label("Loading voices...")
-                                .HCenter()
-                                .TextColor(MyTheme.SecondaryText)
-                            : RenderVoiceOptions()
-                    )
-                    .Spacing(MyTheme.LayoutSpacing)
-                    .Padding(MyTheme.SectionSpacing, MyTheme.ComponentSpacing)
-                )
-            )
-        )
-        .GridRowSpan(3)
-        .IsOpen(State.IsVoiceSelectionVisible);
-
-    /// <summary>
-    /// Renders the dynamic voice options from the available voices list.
-    /// </summary>
-    private VisualNode RenderVoiceOptions()
-    {
-        if (!State.AvailableVoices.Any())
-        {
-            return Label("No voices available for this language")
-                .HCenter()
-                .TextColor(MyTheme.SecondaryText);
-        }
-
-        return VStack(spacing: MyTheme.LayoutSpacing,
-            State.AvailableVoices.Select(voice =>
-                CreateVoiceOption(voice.VoiceId, voice.Name, $"{voice.Gender} - {voice.Accent ?? voice.Description ?? ""}")
-            ).ToArray()
-        );
-    }
-
-    /// <summary>
-    /// Creates a voice option item for the bottom sheet.
-    /// </summary>
-    private VisualNode CreateVoiceOption(string voiceId, string displayName, string description) =>
-        Grid("*", "Auto,*",
-            RadioButton()
-                .IsChecked(State.SelectedVoiceId == voiceId)
-                .GroupName("VoiceOptions")
-                .OnCheckedChanged((sender, args) =>
-                {
-                    if (args.Value)
-                    {
-                        SelectVoice(voiceId);
-                    }
-                })
-                .GridColumn(0),
-            VStack(spacing: 0,
-                Label(displayName)
-                    .FontAttributes(FontAttributes.Bold)
-                    .FontSize(16),
-                Label(description)
-                    .FontSize(14)
-                    .TextColor(MyTheme.SecondaryText)
-            )
-            .HStart()
-            .GridColumn(1)
-        )
-        .OnTapped(() => SelectVoice(voiceId));
-
-    /// <summary>
     /// Handles voice selection and saves to per-language preferences.
     /// </summary>
     private void SelectVoice(string voiceId)
@@ -307,20 +231,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
 
             // Reset audio cache when voice changes
             _audioCache.Clear();
-
-            // Close the bottom sheet after selection
-            s.IsVoiceSelectionVisible = false;
         });
 
         _logger.LogInformation("🎙️ Selected voice {VoiceId} for {Language}", voiceId, State.TargetLanguage);
-    }
-
-    /// <summary>
-    /// Handles the bottom sheet closing event.
-    /// </summary>
-    private void OnVoiceSelectionBottomSheetClosing(object sender, EventArgs e)
-    {
-        SetState(s => s.IsVoiceSelectionVisible = false);
     }
 
     /// <summary>
@@ -659,9 +572,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Shows the voice selection bottom sheet.
     /// </summary>
-    private void ShowVoiceSelection()
+    private async void ShowVoiceSelection()
     {
-        SetState(s => s.IsVoiceSelectionVisible = true);
+        await VoiceSelectionPopup.ShowAsync(
+            $"{State.TargetLanguage} Voices",
+            State.AvailableVoices,
+            State.SelectedVoiceId,
+            SelectVoice
+        );
     }
 
     /// <summary>
@@ -748,11 +666,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .OnClicked(() =>
                             {
                                 // Close this menu and open voice selection
-                                SetState(s =>
-                                {
-                                    s.IsNarrowScreenMenuVisible = false;
-                                    s.IsVoiceSelectionVisible = true;
-                                });
+                                SetState(s => s.IsNarrowScreenMenuVisible = false);
+                                ShowVoiceSelection();
                             })
                             .Margin(0, MyTheme.MicroSpacing, 0, 0)
                     )
@@ -1389,7 +1304,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     {
         if (State.CurrentAudioStream == null)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", "No audio available to save", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "No audio available to save",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -1431,7 +1352,12 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 });
 
                 // Show success message
-                await Toast.Make("Audio saved successfully!").Show();
+                var savedToast = new UXDivers.Popups.Maui.Controls.Toast { Title = "Audio saved successfully!" };
+                await IPopupService.Current.PushAsync(savedToast);
+                _ = Task.Delay(2500).ContinueWith(async _ =>
+                {
+                    try { await IPopupService.Current.PopAsync(savedToast); } catch { }
+                });
 
                 // Close the export menu after successful save
                 SetState(s => s.IsExportMenuVisible = false);
@@ -1441,8 +1367,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 // Show error if save was canceled or failed
                 if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
                 {
-                    await Application.Current.MainPage.DisplayAlert("Error",
-                        $"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
+                    await IPopupService.Current.PushAsync(new SimpleActionPopup
+                    {
+                        Title = "Error",
+                        Text = $"Failed to save audio: {fileSaverResult.Exception.Message}",
+                        ActionButtonText = "OK",
+                        ShowSecondaryActionButton = false
+                    });
                 }
 
                 SetState(s => s.IsSavingAudio = false);
@@ -1457,7 +1388,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 s.ExportProgressMessage = $"Error: {ex.Message}";
             });
 
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to save audio: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 

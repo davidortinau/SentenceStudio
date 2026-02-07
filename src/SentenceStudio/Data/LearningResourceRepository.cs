@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Data;
 
@@ -123,7 +125,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return -1;
         }
     }
@@ -236,7 +244,13 @@ public class LearningResourceRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ SaveResourceAsync error");
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return -1;
         }
     }
@@ -257,7 +271,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return -1;
         }
     }
@@ -352,7 +372,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -387,7 +413,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -601,7 +633,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -626,7 +664,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -698,7 +742,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -726,7 +776,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }
@@ -763,7 +819,13 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "Fix it");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = ex.Message,
+                ActionButtonText = "Fix it",
+                ShowSecondaryActionButton = false
+            });
             return false;
         }
     }

@@ -111,11 +111,6 @@ class ShadowingPageState
     public string SelectedVoiceId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets whether the voice selection bottom sheet is visible.
-    /// </summary>
-    public bool IsVoiceSelectionVisible { get; set; } = false;
-
-    /// <summary>
     /// Gets or sets the list of available voices from VoiceDiscoveryService.
     /// </summary>
     public List<VoiceInfo> AvailableVoices { get; set; } = new();

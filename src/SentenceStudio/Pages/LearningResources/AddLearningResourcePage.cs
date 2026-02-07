@@ -2,6 +2,8 @@ using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Services;
 using LukeMauiFilePicker;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -349,7 +351,13 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         // Validate required fields
         if (string.IsNullOrWhiteSpace(State.Resource.Title))
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["ValidationError"]}", $"{_localize["TitleRequired"]}", $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["ValidationError"]}",
+                Text = $"{_localize["TitleRequired"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -421,7 +429,13 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
     {
         if (string.IsNullOrWhiteSpace(State.VocabList))
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoVocabularyToImport"]}", $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = $"{_localize["NoVocabularyToImport"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -432,7 +446,13 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
 
             if (!newWords.Any())
             {
-                await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", $"{_localize["NoValidVocabularyFound"]}", $"{_localize["OK"]}");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = $"{_localize["Error"]}",
+                    Text = $"{_localize["NoValidVocabularyFound"]}",
+                    ActionButtonText = $"{_localize["OK"]}",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
@@ -478,11 +498,23 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                 ? string.Format($"{_localize["VocabularyImportWithDuplicates"]}", addedCount, duplicateCount)
                 : string.Format($"{_localize["VocabularyImportSuccess"]}", addedCount);
 
-            await Application.Current.MainPage.DisplayAlert($"{_localize["ImportComplete"]}", message, $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["ImportComplete"]}",
+                Text = message,
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert($"{_localize["Error"]}", string.Format($"{_localize["FailedToImportVocabulary"]}", ex.Message), $"{_localize["OK"]}");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["Error"]}",
+                Text = string.Format($"{_localize["FailedToImportVocabulary"]}", ex.Message),
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 }

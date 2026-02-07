@@ -15,6 +15,12 @@ public partial class Conversation : ObservableObject
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>
+    /// The target language for this conversation.
+    /// Used to keep separate conversation histories per language.
+    /// </summary>
+    public string Language { get; set; } = "Korean";
+
+    /// <summary>
     /// Optional reference to the scenario used for this conversation.
     /// Null for conversations started before scenario feature or without a specific scenario.
     /// </summary>

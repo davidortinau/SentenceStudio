@@ -2,6 +2,8 @@ using MauiReactor.Shapes;
 using LukeMauiFilePicker;
 using SentenceStudio.Pages.VocabularyProgress;
 using Microsoft.Extensions.Logging;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -693,7 +695,13 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         // Validate required fields
         if (string.IsNullOrWhiteSpace(State.Resource.Title))
         {
-            await Application.Current.MainPage.DisplayAlert("Validation Error", "Title is required", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Validation Error",
+                Text = "Title is required",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             SetState(s => s.IsLoading = false);
             return;
         }
@@ -726,10 +734,27 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
     async Task DeleteResource()
     {
-        bool confirm = await Application.Current.MainPage.DisplayAlert(
-            "Confirm Delete",
-            "Are you sure you want to delete this resource?",
-            "Yes", "No");
+        var tcs = new TaskCompletionSource<bool>();
+        var confirmPopup = new SimpleActionPopup
+        {
+            Title = "Confirm Delete",
+            Text = "Are you sure you want to delete this resource?",
+            ActionButtonText = "Yes",
+            SecondaryActionButtonText = "No",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                tcs.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(confirmPopup);
+        bool confirm = await tcs.Task;
 
         if (confirm)
         {
@@ -826,17 +851,40 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         catch (Exception ex)
         {
             SetState(s => s.IsLoading = false);
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save vocabulary word: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to save vocabulary word: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             _logger.LogError(ex, "SaveVocabularyWordAsync error");
         }
     }
 
     async Task DeleteVocabularyWord(VocabularyWord word)
     {
-        bool confirm = await Application.Current.MainPage.DisplayAlert(
-            "Confirm Delete",
-            $"Are you sure you want to delete '{word.TargetLanguageTerm}'?",
-            "Yes", "No");
+        var tcs2 = new TaskCompletionSource<bool>();
+        var confirmPopup2 = new SimpleActionPopup
+        {
+            Title = "Confirm Delete",
+            Text = $"Are you sure you want to delete '{word.TargetLanguageTerm}'?",
+            ActionButtonText = "Yes",
+            SecondaryActionButtonText = "No",
+            CloseWhenBackgroundIsClicked = false,
+            ActionButtonCommand = new Command(async () =>
+            {
+                tcs2.TrySetResult(true);
+                await IPopupService.Current.PopAsync();
+            }),
+            SecondaryActionButtonCommand = new Command(async () =>
+            {
+                tcs2.TrySetResult(false);
+                await IPopupService.Current.PopAsync();
+            })
+        };
+        await IPopupService.Current.PushAsync(confirmPopup2);
+        bool confirm = await tcs2.Task;
 
         if (!confirm) return;
 
@@ -862,7 +910,13 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         catch (Exception ex)
         {
             SetState(s => s.IsLoading = false);
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete vocabulary word: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to delete vocabulary word: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             _logger.LogError(ex, "DeleteVocabularyWord error");
         }
     }
@@ -940,7 +994,13 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         // Check if there's a transcript to analyze
         if (string.IsNullOrWhiteSpace(State.Resource.Transcript))
         {
-            await Application.Current.MainPage.DisplayAlert("Error", "No transcript available to generate vocabulary from", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "No transcript available to generate vocabulary from",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -1119,20 +1179,38 @@ Transcript:
 
                 _logger.LogInformation("🏴‍☠️ Final stats: {NewWords} new, {ExistingWords} existing, {SkippedWords} skipped", newWordsCreated, existingWordsLinked, localDuplicatesSkipped);
 
-                await Application.Current.MainPage.DisplayAlert("Vocabulary Generated!", message, "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Vocabulary Generated!",
+                    Text = message,
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
             }
             else
             {
                 _logger.LogWarning("⚠️ AI returned null or empty vocabulary list");
                 SetState(s => s.IsGeneratingVocabulary = false);
-                await Application.Current.MainPage.DisplayAlert("Error", "AI did not generate any vocabulary. There might be an issue with the AI service.", "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Error",
+                    Text = "AI did not generate any vocabulary. There might be an issue with the AI service.",
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "GenerateVocabulary error");
             SetState(s => s.IsGeneratingVocabulary = false);
-            await Application.Current.MainPage.DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"An error occurred: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1164,7 +1242,13 @@ Transcript:
     {
         if (string.IsNullOrWhiteSpace(State.VocabList))
         {
-            await Application.Current.MainPage.DisplayAlert("Error", "No vocabulary to import", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "No vocabulary to import",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
             return;
         }
 
@@ -1175,7 +1259,13 @@ Transcript:
 
             if (!newWords.Any())
             {
-                await Application.Current.MainPage.DisplayAlert("Error", "No valid vocabulary words found in the input", "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Error",
+                    Text = "No valid vocabulary words found in the input",
+                    ActionButtonText = "OK",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
@@ -1223,11 +1313,23 @@ Transcript:
                 message += $" Skipped {duplicateCount} duplicates.";
             }
 
-            await Application.Current.MainPage.DisplayAlert("Import Complete", message, "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Import Complete",
+                Text = message,
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to import vocabulary: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to import vocabulary: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1259,7 +1361,13 @@ Transcript:
         catch (Exception ex)
         {
             SetState(s => s.IsCleaningTranscript = false);
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to clean up transcript: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to clean up transcript: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1282,7 +1390,13 @@ Transcript:
             if (string.IsNullOrWhiteSpace(polishedTranscript))
             {
                 SetState(s => s.IsPolishingTranscript = false);
-                await Application.Current.MainPage.DisplayAlert("Error", "AI service returned empty result. Check your internet connection and API key.", "OK");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = "AI service returned empty result. Check your internet connection and API key.",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
                 return;
             }
 
@@ -1309,7 +1423,13 @@ Transcript:
         {
             SetState(s => s.IsPolishingTranscript = false);
             _logger.LogError(ex, "EditLearningResourcePage: ❌ Polish transcript error");
-            await Application.Current.MainPage.DisplayAlert("Error", $"Failed to polish transcript: {ex.Message}", "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to polish transcript: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 }

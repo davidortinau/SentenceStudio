@@ -1,4 +1,3 @@
-using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Storage;
 using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
@@ -6,6 +5,9 @@ using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services.Speech;
+using SentenceStudio.Pages.Controls;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -17,7 +19,6 @@ class HowDoYouSayPageState
 	public float PlaybackPosition { get; set; } = 0f;
 	public StreamHistory CurrentPlayingItem { get; set; }
 	public string SelectedVoiceId { get; set; } // Initialized from per-language preference
-	public bool IsVoiceSelectionVisible { get; set; } = false;
 	public List<VoiceInfo> AvailableVoices { get; set; } = new(); // Dynamic voices from API
 	public bool IsLoadingVoices { get; set; } = false;
 	public string TargetLanguage { get; set; } = "Korean"; // User's primary target language
@@ -64,8 +65,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		return ContentPage($"{_localize["HowDoYouSay"]}",
 			Grid(rows: "Auto,Auto,*", "*",
 				RenderInput(),
-				RenderHistory(),
-				RenderVoiceSelectionBottomSheet()
+				RenderHistory()
 			)
 		).OnAppearing(OnPageAppearing);
 	}
@@ -94,15 +94,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		try
 		{
 			var voices = await _voiceDiscoveryService.GetVoicesForLanguageAsync(language);
-			
+
 			// Get the saved voice preference for this language
 			var savedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(language);
-			
+
 			SetState(s =>
 			{
 				s.AvailableVoices = voices;
 				s.IsLoadingVoices = false;
-				
+
 				// Set selected voice: use saved preference if it exists in the list, otherwise use first available
 				if (!string.IsNullOrEmpty(savedVoiceId) && voices.Any(v => v.VoiceId == savedVoiceId))
 				{
@@ -113,7 +113,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					s.SelectedVoiceId = voices.First().VoiceId;
 				}
 			});
-			
+
 			_logger.LogInformation("🎙️ Loaded {Count} voices for {Language}", voices.Count, language);
 		}
 		catch (Exception ex)
@@ -170,7 +170,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				Button(State.SelectedVoiceDisplayName)
 					.ThemeKey(MyTheme.Secondary)
 					.HEnd()
-					.OnClicked(ShowVoiceSelection)
+					.OnClicked(ShowVoiceSelectionPopup)
 			).Spacing(MyTheme.Size240).HEnd()
 		)
 		.Padding(MyTheme.Size240);
@@ -236,7 +236,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		try
 		{
 			_logger.LogInformation("HowDoYouSayPage: Submitting phrase '{Phrase}' with voice {VoiceId}", State.Phrase, State.SelectedVoiceId);
-			
+
 			var stream = await _speechService.TextToSpeechAsync(
 				State.Phrase,
 				State.SelectedVoiceId); // Use the selected voice ID
@@ -245,7 +245,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			if (stream == null || stream == Stream.Null || stream.Length == 0)
 			{
 				_logger.LogWarning("HowDoYouSayPage: TTS returned empty stream for phrase: {Phrase} with voice: {VoiceId}", State.Phrase, State.SelectedVoiceId);
-				await Application.Current.MainPage.DisplayAlert("Error", "Failed to generate audio. The voice may not be available. Please try a different voice.", "OK");
+				await IPopupService.Current.PushAsync(new SimpleActionPopup
+				{
+					Title = "Error",
+					Text = "Failed to generate audio. The voice may not be available. Please try a different voice.",
+					ActionButtonText = "OK",
+					ShowSecondaryActionButton = false
+				});
 				SetState(s => s.IsBusy = false);
 				return;
 			}
@@ -369,7 +375,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			if (audioStream == null || audioStream == Stream.Null || audioStream.Length == 0)
 			{
 				_logger.LogWarning("HowDoYouSayPage: Audio stream is null or empty for phrase: {Phrase}", item.Phrase);
-				await Application.Current.MainPage.DisplayAlert("Error", "Failed to generate audio. Please check the selected voice.", "OK");
+				await IPopupService.Current.PushAsync(new SimpleActionPopup
+				{
+					Title = "Error",
+					Text = "Failed to generate audio. Please check the selected voice.",
+					ActionButtonText = "OK",
+					ShowSecondaryActionButton = false
+				});
 				return;
 			}
 
@@ -391,7 +403,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "HowDoYouSayPage: Error playing audio");
-			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to play audio: {ex.Message}", "OK");
+			await IPopupService.Current.PushAsync(new SimpleActionPopup
+			{
+				Title = "Error",
+				Text = $"Failed to play audio: {ex.Message}",
+				ActionButtonText = "OK",
+				ShowSecondaryActionButton = false
+			});
 		}
 	}
 
@@ -461,81 +479,42 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	}
 
 	/// <summary>
-	/// Renders the voice selection bottom sheet with dynamic voices from VoiceDiscoveryService.
+	/// Shows the voice selection popup using UXDivers OptionSheetPopup.
 	/// </summary>
-	private VisualNode RenderVoiceSelectionBottomSheet() =>
-		new SfBottomSheet(
-				Grid("*", "*",
-					ScrollView(
-						VStack(
-							Label($"{State.TargetLanguage} Voices")
-								.FontAttributes(FontAttributes.Bold)
-								.FontSize(18)
-								.HCenter()
-								.Margin(0, 0, 0, 10),
-							State.IsLoadingVoices
-								? Label("Loading voices...")
-									.HCenter()
-									.TextColor(MyTheme.SecondaryText)
-								: RenderVoiceOptions()
-						)
-						.Spacing(15)
-						.Padding(20, 10)
-					)
-				)
-
-		)
-			.GridRowSpan(4)
-			.IsOpen(State.IsVoiceSelectionVisible);
-
-	/// <summary>
-	/// Renders the dynamic voice options from the available voices list.
-	/// </summary>
-	private VisualNode RenderVoiceOptions()
+	async void ShowVoiceSelectionPopup()
 	{
-		if (!State.AvailableVoices.Any())
+		if (State.IsLoadingVoices)
 		{
-			return Label("No voices available for this language")
-				.HCenter()
-				.TextColor(MyTheme.SecondaryText);
+			_logger.LogDebug("HowDoYouSayPage: Voices still loading, cannot show popup");
+			return;
 		}
 
-		return VStack(spacing: 15,
-			State.AvailableVoices.Select(voice =>
-				CreateVoiceOption(voice.VoiceId, voice.Name, $"{voice.Gender} - {voice.Accent ?? voice.Description ?? ""}")
-			).ToArray()
-		);
-	}
+		if (!State.AvailableVoices.Any())
+		{
+			_logger.LogWarning("HowDoYouSayPage: No voices available for {Language}", State.TargetLanguage);
+			var noVoicesToast = new UXDivers.Popups.Maui.Controls.Toast { Title = $"No voices available for {State.TargetLanguage}" };
+			await IPopupService.Current.PushAsync(noVoicesToast);
+			_ = Task.Delay(2500).ContinueWith(async _ =>
+			{
+				try { await IPopupService.Current.PopAsync(noVoicesToast); } catch { }
+			});
+			return;
+		}
 
-	/// <summary>
-	/// Creates a voice option item for the bottom sheet.
-	/// </summary>
-	private VisualNode CreateVoiceOption(string voiceId, string displayName, string description) =>
-		Grid("*", "Auto,*",
-			RadioButton()
-				.IsChecked(State.SelectedVoiceId == voiceId)
-				.GroupName("VoiceOptions")
-				.OnCheckedChanged((sender, args) =>
-				{
-					if (args.Value)
-					{
-						SelectVoice(voiceId);
-					}
-				})
-				.GridColumn(0),
-			VStack(spacing: 0,
-				Label(displayName)
-					.FontAttributes(FontAttributes.Bold)
-					.FontSize(16),
-				Label(description)
-					.FontSize(14)
-					.TextColor(MyTheme.SecondaryText)
-			)
-			.HStart()
-			.GridColumn(1)
-		)
-		.OnTapped(() => SelectVoice(voiceId))
-		;
+		try
+		{
+			await VoiceSelectionPopup.ShowAsync(
+				$"{State.TargetLanguage} Voices",
+				State.AvailableVoices,
+				State.SelectedVoiceId,
+				SelectVoice
+			);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "HowDoYouSayPage: Error showing voice selection popup");
+		}
+	}
 
 	/// <summary>
 	/// Handles voice selection and saves to per-language preferences.
@@ -544,25 +523,11 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	{
 		// Save to per-language preference
 		_speechVoicePreferences.SetVoiceForLanguage(State.TargetLanguage, voiceId);
-		
-		// Update the selected voice
-		SetState(s =>
-		{
-			s.SelectedVoiceId = voiceId;
 
-			// Close the bottom sheet after selection
-			s.IsVoiceSelectionVisible = false;
-		});
+		// Update the selected voice
+		SetState(s => s.SelectedVoiceId = voiceId);
 
 		_logger.LogInformation("🎙️ Selected voice {VoiceId} for {Language}", voiceId, State.TargetLanguage);
-	}
-
-	/// <summary>
-	/// Shows the voice selection bottom sheet.
-	/// </summary>
-	private void ShowVoiceSelection()
-	{
-		SetState(s => s.IsVoiceSelectionVisible = true);
 	}
 
 	/// <summary>
@@ -606,7 +571,12 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			if (fileSaverResult.IsSuccessful)
 			{
 				// Show success message
-				await Toast.Make("Audio saved successfully!").Show();
+				var savedToast = new UXDivers.Popups.Maui.Controls.Toast { Title = "Audio saved successfully!" };
+				await IPopupService.Current.PushAsync(savedToast);
+				_ = Task.Delay(2500).ContinueWith(async _ =>
+				{
+					try { await IPopupService.Current.PopAsync(savedToast); } catch { }
+				});
 				// await Application.Current.MainPage.DisplayAlert("Success", $"Audio saved to: {fileSaverResult.FilePath}", "OK");
 			}
 			else
@@ -614,8 +584,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				// Show error if save was canceled or failed
 				if (!string.IsNullOrEmpty(fileSaverResult.Exception?.Message))
 				{
-					await Application.Current.MainPage.DisplayAlert("Error",
-						$"Failed to save audio: {fileSaverResult.Exception.Message}", "OK");
+						await IPopupService.Current.PushAsync(new SimpleActionPopup
+					{
+						Title = "Error",
+						Text = $"Failed to save audio: {fileSaverResult.Exception.Message}",
+						ActionButtonText = "OK",
+						ShowSecondaryActionButton = false
+					});
 				}
 			}
 
@@ -626,7 +601,13 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			_logger.LogError(ex, "HowDoYouSayPage: Error saving audio");
 			SetState(s => s.IsSavingAudio = false);
 
-			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to save audio: {ex.Message}", "OK");
+			await IPopupService.Current.PushAsync(new SimpleActionPopup
+			{
+				Title = "Error",
+				Text = $"Failed to save audio: {ex.Message}",
+				ActionButtonText = "OK",
+				ShowSecondaryActionButton = false
+			});
 		}
 	}
 
@@ -655,10 +636,27 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// </summary>
 	async Task DeleteHistoryItem(StreamHistory item)
 	{
-		bool confirm = await Application.Current.MainPage.DisplayAlert(
-			"Confirm Deletion",
-			$"Are ye sure ye want to delete this phrase: \"{item.Phrase}\"?",
-			"Aye", "Nay");
+		var tcs = new TaskCompletionSource<bool>();
+		var confirmPopup = new SimpleActionPopup
+		{
+			Title = "Confirm Deletion",
+			Text = $"Are ye sure ye want to delete this phrase: \"{item.Phrase}\"?",
+			ActionButtonText = "Aye",
+			SecondaryActionButtonText = "Nay",
+			CloseWhenBackgroundIsClicked = false,
+			ActionButtonCommand = new Command(async () =>
+			{
+				tcs.TrySetResult(true);
+				await IPopupService.Current.PopAsync();
+			}),
+			SecondaryActionButtonCommand = new Command(async () =>
+			{
+				tcs.TrySetResult(false);
+				await IPopupService.Current.PopAsync();
+			})
+		};
+		await IPopupService.Current.PushAsync(confirmPopup);
+		bool confirm = await tcs.Task;
 
 		if (!confirm) return;
 
@@ -691,12 +689,23 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			SetState(s => s.StreamHistory.Remove(item));
 
 			// Show toast notification
-			await Toast.Make("Phrase deleted successfully!").Show();
+			var deletedToast = new UXDivers.Popups.Maui.Controls.Toast { Title = "Phrase deleted successfully!" };
+			await IPopupService.Current.PushAsync(deletedToast);
+			_ = Task.Delay(2500).ContinueWith(async _ =>
+			{
+				try { await IPopupService.Current.PopAsync(deletedToast); } catch { }
+			});
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "HowDoYouSayPage: Error deleting history item");
-			await Application.Current.MainPage.DisplayAlert("Error", $"Failed to delete phrase: {ex.Message}", "OK");
+			await IPopupService.Current.PushAsync(new SimpleActionPopup
+			{
+				Title = "Error",
+				Text = $"Failed to delete phrase: {ex.Message}",
+				ActionButtonText = "OK",
+				ShowSecondaryActionButton = false
+			});
 		}
 	}
 
@@ -773,5 +782,80 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 		{
 			return MyTheme.IconPlay;
 		}
+	}
+}
+
+/// <summary>
+/// Converter to display voice name and gender
+/// </summary>
+class VoiceDisplayConverter : IValueConverter
+{
+	public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		if (value is VoiceInfo voice)
+		{
+			return $"{voice.Name} ({voice.Gender})";
+		}
+		return value?.ToString() ?? "";
+	}
+
+	public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		throw new NotImplementedException();
+	}
+}
+
+/// <summary>
+/// Converter to show checkmark for selected voice
+/// </summary>
+class VoiceSelectedConverter : IValueConverter
+{
+	private readonly string _selectedVoiceId;
+
+	public VoiceSelectedConverter(string selectedVoiceId)
+	{
+		_selectedVoiceId = selectedVoiceId;
+	}
+
+	public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		if (value is string voiceId)
+		{
+			return voiceId == _selectedVoiceId;
+		}
+		return false;
+	}
+
+	public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		throw new NotImplementedException();
+	}
+}
+
+/// <summary>
+/// Converter to display voice with checkmark for selected item
+/// </summary>
+class VoiceDisplayWithCheckConverter : IValueConverter
+{
+	private readonly string _selectedVoiceId;
+
+	public VoiceDisplayWithCheckConverter(string selectedVoiceId)
+	{
+		_selectedVoiceId = selectedVoiceId;
+	}
+
+	public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		if (value is VoiceInfo voice)
+		{
+			var check = voice.VoiceId == _selectedVoiceId ? "✓ " : "   ";
+			return $"{check}{voice.Name} ({voice.Gender})";
+		}
+		return value?.ToString() ?? "";
+	}
+
+	public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		throw new NotImplementedException();
 	}
 }

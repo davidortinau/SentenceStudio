@@ -1,6 +1,6 @@
-﻿using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Core;
-using MauiReactor.Parameters;
+﻿using MauiReactor.Parameters;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 using SentenceStudio.Pages.Account;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Onboarding;
@@ -187,12 +187,13 @@ public partial class AppShell : Component
     //     )
     //     .Padding(15)
 
-    public static Task DisplayToastAsync(string message)
+    public static async Task DisplayToastAsync(string message)
     {
-        ToastDuration duration = ToastDuration.Long;
-        double fontSize = 14;
-        var toast = Toast.Make(message, duration, fontSize);
-        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        return toast.Show(cancellationTokenSource.Token);
+        var toast = new UXDivers.Popups.Maui.Controls.Toast { Title = message };
+        await IPopupService.Current.PushAsync(toast);
+        _ = Task.Delay(3000).ContinueWith(async _ =>
+        {
+            try { await IPopupService.Current.PopAsync(toast); } catch { }
+        });
     }
 }

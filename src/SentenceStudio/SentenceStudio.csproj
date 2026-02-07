@@ -188,6 +188,7 @@
 
 	<ItemGroup Condition="'$(Configuration)'=='Debug'">
 		<RuntimeHostConfigurationOption Include="MauiReactor.HotReload" Value="true" Trim="false" />
+		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(TargetFramework)' != 'net10.0'" />
 	</ItemGroup>
 
 

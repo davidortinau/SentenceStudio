@@ -46,7 +46,13 @@ public interface IConversationAgentService
     ConversationMemory? GetCurrentMemory();
 
     /// <summary>
-    /// Resumes an existing conversation or creates a new one.
+    /// Resumes an existing conversation for the given language, or creates a new one.
+    /// </summary>
+    /// <param name="language">Target language to filter conversations by.</param>
+    Task<Conversation> ResumeConversationAsync(string language);
+
+    /// <summary>
+    /// Resumes an existing conversation or creates a new one (uses current target language).
     /// </summary>
     Task<Conversation> ResumeConversationAsync();
 

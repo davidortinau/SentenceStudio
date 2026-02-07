@@ -1,5 +1,7 @@
 using MauiReactor.Compatibility;
 using Microsoft.Extensions.Logging;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.YouTube;
 
@@ -302,11 +304,27 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             {
                 SetState(s => s.IsSavingResource = false);
 
-                var overwrite = await Application.Current.MainPage.DisplayAlert(
-                    "⚠️ Duplicate Found",
-                    $"A resource with this YouTube URL already exists:\n\n\"{duplicateByUrl.Title}\"\n\nDo you want to view the existing resource instead of creating a duplicate?",
-                    "View Existing",
-                    "Create Anyway");
+                var overwriteTcs = new TaskCompletionSource<bool>();
+                var overwritePopup = new SimpleActionPopup
+                {
+                    Title = "⚠️ Duplicate Found",
+                    Text = $"A resource with this YouTube URL already exists:\n\n\"{duplicateByUrl.Title}\"\n\nDo you want to view the existing resource instead of creating a duplicate?",
+                    ActionButtonText = "View Existing",
+                    SecondaryActionButtonText = "Create Anyway",
+                    CloseWhenBackgroundIsClicked = false,
+                    ActionButtonCommand = new Command(async () =>
+                    {
+                        overwriteTcs.TrySetResult(true);
+                        await IPopupService.Current.PopAsync();
+                    }),
+                    SecondaryActionButtonCommand = new Command(async () =>
+                    {
+                        overwriteTcs.TrySetResult(false);
+                        await IPopupService.Current.PopAsync();
+                    })
+                };
+                await IPopupService.Current.PushAsync(overwritePopup);
+                var overwrite = await overwriteTcs.Task;
 
                 if (overwrite)
                 {
@@ -321,11 +339,27 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             {
                 SetState(s => s.IsSavingResource = false);
 
-                var proceed = await Application.Current.MainPage.DisplayAlert(
-                    "⚠️ Similar Title Found",
-                    $"A resource with a similar title already exists:\n\n\"{duplicateByTitle.Title}\"\n\nAre you sure you want to create a new resource?",
-                    "Create New",
-                    "Cancel");
+                var proceedTcs = new TaskCompletionSource<bool>();
+                var proceedPopup = new SimpleActionPopup
+                {
+                    Title = "⚠️ Similar Title Found",
+                    Text = $"A resource with a similar title already exists:\n\n\"{duplicateByTitle.Title}\"\n\nAre you sure you want to create a new resource?",
+                    ActionButtonText = "Create New",
+                    SecondaryActionButtonText = "Cancel",
+                    CloseWhenBackgroundIsClicked = false,
+                    ActionButtonCommand = new Command(async () =>
+                    {
+                        proceedTcs.TrySetResult(true);
+                        await IPopupService.Current.PopAsync();
+                    }),
+                    SecondaryActionButtonCommand = new Command(async () =>
+                    {
+                        proceedTcs.TrySetResult(false);
+                        await IPopupService.Current.PopAsync();
+                    })
+                };
+                await IPopupService.Current.PushAsync(proceedPopup);
+                var proceed = await proceedTcs.Task;
 
                 if (!proceed)
                 {
@@ -369,11 +403,27 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             });
 
             // Ask user if they want to view the resource
-            var viewResource = await Application.Current.MainPage.DisplayAlert(
-                "Success",
-                "Transcript saved as learning resource! Would you like to view it now?",
-                "Yes",
-                "No");
+            var viewResourceTcs = new TaskCompletionSource<bool>();
+            var viewResourcePopup = new SimpleActionPopup
+            {
+                Title = "Success",
+                Text = "Transcript saved as learning resource! Would you like to view it now?",
+                ActionButtonText = "Yes",
+                SecondaryActionButtonText = "No",
+                CloseWhenBackgroundIsClicked = false,
+                ActionButtonCommand = new Command(async () =>
+                {
+                    viewResourceTcs.TrySetResult(true);
+                    await IPopupService.Current.PopAsync();
+                }),
+                SecondaryActionButtonCommand = new Command(async () =>
+                {
+                    viewResourceTcs.TrySetResult(false);
+                    await IPopupService.Current.PopAsync();
+                })
+            };
+            await IPopupService.Current.PushAsync(viewResourcePopup);
+            var viewResource = await viewResourceTcs.Task;
 
             if (viewResource)
             {

@@ -12,6 +12,8 @@ using SentenceStudio.Pages.VocabularyQuiz;
 using SentenceStudio.Pages.Writing;
 using SentenceStudio.Repositories;
 using SentenceStudio.Services.Progress;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Dashboard;
 
@@ -333,7 +335,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         // Activities
                         Label().ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
                         new HWrap(){
-                            new ActivityBorder().LabelText($"{_localize["Conversation"]}").Route("conversation"),
+                            new ConversationActivityBorder(),
                             new ActivityBorder().LabelText($"{_localize["DescribeAScene"]}").Route(nameof(DescribeAScenePage)),
                             new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
                             new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
@@ -648,10 +650,13 @@ partial class DashboardPage : Component<DashboardPageState>
             _logger.LogError(ex, "❌ Error loading today's plan");
             SetState(s => s.IsLoadingTodaysPlan = false);
 
-            await Application.Current.MainPage.DisplayAlert(
-                "Arrr!",
-                "Failed to load today's plan. Try again, ye scallywag!",
-                "Aye");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Arrr!",
+                Text = "Failed to load today's plan. Try again, ye scallywag!",
+                ActionButtonText = "Aye",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -726,20 +731,26 @@ partial class DashboardPage : Component<DashboardPageState>
                         else
                         {
                             _logger.LogError("❌ ResourceId {ResourceId} not found in database", resourceId);
-                            await Application.Current.MainPage.DisplayAlert(
-                                "Arrr!",
-                                $"The resource for this activity be missin' from the database (ID: {resourceId}). Try regeneratin' yer plan!",
-                                "Aye!");
+                            await IPopupService.Current.PushAsync(new SimpleActionPopup
+                            {
+                                Title = "Arrr!",
+                                Text = $"The resource for this activity be missin' from the database (ID: {resourceId}). Try regeneratin' yer plan!",
+                                ActionButtonText = "Aye!",
+                                ShowSecondaryActionButton = false
+                            });
                             return;
                         }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "❌ CRITICAL ERROR loading resource from plan");
-                        await Application.Current.MainPage.DisplayAlert(
-                            "Shiver me timbers!",
-                            "Failed to load the resource for this activity. Try again!",
-                            "Aye!");
+                        await IPopupService.Current.PushAsync(new SimpleActionPopup
+                        {
+                            Title = "Shiver me timbers!",
+                            Text = "Failed to load the resource for this activity. Try again!",
+                            ActionButtonText = "Aye!",
+                            ShowSecondaryActionButton = false
+                        });
                         return;
                     }
                 }
@@ -749,10 +760,13 @@ partial class DashboardPage : Component<DashboardPageState>
                     if (_parameters.Value?.SelectedResources?.Any() != true)
                     {
                         _logger.LogError("❌ No ResourceId in plan and no selected resources");
-                        await Application.Current.MainPage.DisplayAlert(
-                            "Ahoy!",
-                            "Ye need to select at least one learning resource first, matey!",
-                            "Aye!");
+                        await IPopupService.Current.PushAsync(new SimpleActionPopup
+                        {
+                            Title = "Ahoy!",
+                            Text = "Ye need to select at least one learning resource first, matey!",
+                            ActionButtonText = "Aye!",
+                            ShowSecondaryActionButton = false
+                        });
                         return;
                     }
                     resourcesToUse = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
@@ -801,10 +815,13 @@ partial class DashboardPage : Component<DashboardPageState>
                         else
                         {
                             _logger.LogError("❌ No skills found in database");
-                            await Application.Current.MainPage.DisplayAlert(
-                                "Avast!",
-                                "No skill profiles found in the database. Create one first!",
-                                "Aye!");
+                            await IPopupService.Current.PushAsync(new SimpleActionPopup
+                            {
+                                Title = "Avast!",
+                                Text = "No skill profiles found in the database. Create one first!",
+                                ActionButtonText = "Aye!",
+                                ShowSecondaryActionButton = false
+                            });
                             return;
                         }
                     }
@@ -829,10 +846,13 @@ partial class DashboardPage : Component<DashboardPageState>
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ FATAL ERROR in OnPlanItemTapped");
-            await Application.Current.MainPage.DisplayAlert(
-                "Error",
-                $"Failed to start activity: {ex.Message}",
-                "OK");
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Error",
+                Text = $"Failed to start activity: {ex.Message}",
+                ActionButtonText = "OK",
+                ShowSecondaryActionButton = false
+            });
         }
     }
 
@@ -1098,10 +1118,13 @@ public partial class ActivityBorder : MauiReactor.Component
 
                     if (pairs.Count == 0)
                     {
-                        await Application.Current.MainPage.DisplayAlert(
-                            $"{_localize["MinimalPairsTitle"]}",
-                            $"{_localize["MinimalPairsEmptyState"]}",
-                            $"{_localize["OK"]}");
+                        await IPopupService.Current.PushAsync(new SimpleActionPopup
+                        {
+                            Title = $"{_localize["MinimalPairsTitle"]}",
+                            Text = $"{_localize["MinimalPairsEmptyState"]}",
+                            ActionButtonText = $"{_localize["OK"]}",
+                            ShowSecondaryActionButton = false
+                        });
                         return;
                     }
 
@@ -1119,10 +1142,13 @@ public partial class ActivityBorder : MauiReactor.Component
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to launch minimal pairs session");
-                    await Application.Current.MainPage.DisplayAlert(
-                        $"{_localize["Error"]}",
-                        "Could not start practice session",
-                        $"{_localize["OK"]}");
+                    await IPopupService.Current.PushAsync(new SimpleActionPopup
+                    {
+                        Title = $"{_localize["Error"]}",
+                        Text = "Could not start practice session",
+                        ActionButtonText = $"{_localize["OK"]}",
+                        ShowSecondaryActionButton = false
+                    });
                 }
 
                 return;
@@ -1139,19 +1165,25 @@ public partial class ActivityBorder : MauiReactor.Component
             // 🏴‍☠️ Validate that we have the required selections before navigating
             if (_parameters.Value.SelectedResources?.Any() != true)
             {
-                await Application.Current.MainPage.DisplayAlert(
-                    "Ahoy!",
-                    "Ye need to select at least one learning resource before startin' this activity, matey!",
-                    "Aye, Captain!");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Ahoy!",
+                    Text = "Ye need to select at least one learning resource before startin' this activity, matey!",
+                    ActionButtonText = "Aye, Captain!",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
             if (_parameters.Value.SelectedSkillProfile == null)
             {
-                await Application.Current.MainPage.DisplayAlert(
-                    "Avast!",
-                    "Choose yer skill profile first, ye scallywag!",
-                    "Aye, Captain!");
+                await IPopupService.Current.PushAsync(new SimpleActionPopup
+                {
+                    Title = "Avast!",
+                    Text = "Choose yer skill profile first, ye scallywag!",
+                    ActionButtonText = "Aye, Captain!",
+                    ShowSecondaryActionButton = false
+                });
                 return;
             }
 
@@ -1193,4 +1225,92 @@ class ActivityProps
 
     // Backward compatibility - returns first resource or null
     public LearningResource Resource => Resources?.FirstOrDefault();
+}
+
+class ConversationActivityBorderState
+{
+    public string Language { get; set; } = "Korean";
+}
+
+partial class ConversationActivityBorder : Component<ConversationActivityBorderState>
+{
+    const string PrefKey = "ConversationActivity_Language";
+
+    LocalizationManager _localize => LocalizationManager.Instance;
+
+    protected override void OnMounted()
+    {
+        base.OnMounted();
+        var lang = Preferences.Default.Get(PrefKey, "Korean");
+        SetState(s => s.Language = lang);
+    }
+
+    public override VisualNode Render() =>
+        Border(
+            Grid(rows: "*, Auto", columns: "*",
+                Label($"{_localize["Conversation"]}")
+                    .VCenter()
+                    .HCenter()
+                    .GridRow(0),
+                Label($"{State.Language} \u25BE")
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.AccentText)
+                    .HCenter()
+                    .GridRow(1)
+                    .OnTapped(ShowLanguagePopup)
+            )
+            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
+            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 80)
+        )
+        .StrokeShape(Rectangle())
+        .StrokeThickness(1)
+        .HStart()
+        .OnTapped(NavigateToConversation);
+
+    async void NavigateToConversation()
+    {
+        await MauiControls.Shell.Current.GoToAsync("conversation");
+    }
+
+    async void ShowLanguagePopup()
+    {
+        string selectedLanguage = null;
+
+        var popup = new ListActionPopup
+        {
+            Title = $"{_localize["SelectLanguage"]}",
+            ShowActionButton = false,
+            ItemsSource = Constants.Languages,
+            ItemDataTemplate = new MauiControls.DataTemplate(() =>
+            {
+                var tapGesture = new MauiControls.TapGestureRecognizer();
+                tapGesture.Tapped += async (s, e) =>
+                {
+                    if (s is MauiControls.Label label && label.BindingContext is string lang)
+                    {
+                        selectedLanguage = lang;
+                        await IPopupService.Current.PopAsync();
+                    }
+                };
+
+                var label = new MauiControls.Label
+                {
+                    TextColor = MyTheme.LightOnDarkBackground,
+                    FontSize = MyTheme.Size160,
+                    Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                };
+                label.SetBinding(MauiControls.Label.TextProperty, ".");
+                label.GestureRecognizers.Add(tapGesture);
+                return label;
+            })
+        };
+
+        await IPopupService.Current.PushAsync(popup);
+
+        if (!string.IsNullOrEmpty(selectedLanguage))
+        {
+            Preferences.Default.Set(PrefKey, selectedLanguage);
+            SetState(s => s.Language = selectedLanguage);
+        }
+    }
 }
