@@ -131,12 +131,15 @@ class VocabularyManagementPageState
     public List<string> AvailableLemmas { get; set; } = new();
 
     // Filter Bottom Sheet state (unified for all filter types)
-    public bool IsFilterSheetOpen { get; set; } = false;
-    public string ActiveFilterType { get; set; } = string.Empty; // "tag", "resource", "lemma", "status"
-    public HashSet<string> PendingFilterSelections { get; set; } = new(); // Pending selections before Apply
+
 }
 
-partial class VocabularyManagementPage : Component<VocabularyManagementPageState>, IDisposable
+public class VocabManagementProps
+{
+    public string? ResourceName { get; set; }
+}
+
+partial class VocabularyManagementPage : Component<VocabularyManagementPageState, VocabManagementProps>, IDisposable
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
@@ -169,8 +172,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Grid(rows: "*,Auto", columns: "*",
                     RenderVocabularyList(),
                     RenderBottomBar(),
-                    RenderCleanupSheet(),
-                    RenderFilterBottomSheet()
+                    RenderCleanupSheet()
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
@@ -190,7 +192,26 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         base.OnMounted();
         // Cache device idiom check for performance optimization
-        SetState(s => s.IsPhoneIdiom = DeviceInfo.Idiom == DeviceIdiom.Phone);
+        SetState(s =>
+        {
+            s.IsPhoneIdiom = DeviceInfo.Idiom == DeviceIdiom.Phone;
+
+            // Pre-apply resource filter from navigation props
+            if (!string.IsNullOrEmpty(Props.ResourceName))
+            {
+                var filterValue = Props.ResourceName.Contains(' ')
+                    ? $"resource:\"{Props.ResourceName}\""
+                    : $"resource:{Props.ResourceName}";
+                s.RawSearchQuery = filterValue;
+                s.SearchText = filterValue;
+            }
+        });
+
+        // Parse pre-applied filter so it takes effect on first load
+        if (!string.IsNullOrEmpty(Props.ResourceName))
+        {
+            ParseSearchQuery(State.RawSearchQuery);
+        }
     }
 
     // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
@@ -199,14 +220,14 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     VisualNode RenderCompactSearchBar()
         =>
-                Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
+                Grid(rows: "Auto", columns: "*,Auto",
                         new SfTextInputLayout(
                             Entry()
                                 .Placeholder($"{_localize["SearchVocabulary"]}")
                                 .Text(State.RawSearchQuery)
-                                .OnTextChanged(OnSearchTextUpdated)  // Just update state, no autocomplete
-                                .OnCompleted(OnSearchSubmitted)      // Execute search on Enter/Return
-                                .FontSize(13)
+                                .OnTextChanged(OnSearchTextUpdated)
+                                .OnCompleted(OnSearchSubmitted)
+                                .ThemeKey(MyTheme.Caption1)
                                 .VCenter()
                         )
                         .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
@@ -219,7 +240,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                                 .WidthRequest(MyTheme.IconSize)
                         )
                         .TrailingView(
-                            // Clear button (only show when there's content)
                             !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
                                 ImageButton()
                                     .Source(MyTheme.IconClose)
@@ -232,27 +252,27 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .HeightRequest(54)
                         .FocusedStrokeThickness(0)
                         .UnfocusedStrokeThickness(0)
-                        .HFill()
                         .GridColumn(0)
-                        .GridRow(1),
+                        .VStart(),
 
-                        // Filter buttons (GitHub-style dropdowns)
                         RenderFilterButtons()
 
-                ).RowSpacing(MyTheme.MicroSpacing)
-            .Padding(MyTheme.LayoutSpacing, 0)
+                ).ColumnSpacing(MyTheme.ComponentSpacing)
+            .Padding(new Thickness(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0))
             .GridRow(1);
 
-    // GitHub-style filter buttons that open bottom sheet with chip selection
     VisualNode RenderFilterButtons()
     {
-        return HStack(spacing: 4,
+        return HStack(spacing: MyTheme.ComponentSpacing,
             // Tag filter button
             State.AvailableTags.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconTag)
-                    .Background(Colors.Transparent)
-                    .VCenter()
+                    .Background(MyTheme.LightSecondaryBackground)
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
                     .OnClicked(() => OpenFilterSheet("tag")) :
                 null,
 
@@ -260,8 +280,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             State.AvailableResources.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconResource)
-                    .Background(Colors.Transparent)
-                    .VCenter()
+                    .Background(MyTheme.LightSecondaryBackground)
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
                     .OnClicked(() => OpenFilterSheet("resource")) :
                 null,
 
@@ -269,18 +292,24 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             State.AvailableLemmas.Any() ?
                 ImageButton()
                     .Source(MyTheme.IconLemma)
-                    .Background(Colors.Transparent)
-                    .VCenter()
+                    .Background(MyTheme.LightSecondaryBackground)
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
                     .OnClicked(() => OpenFilterSheet("lemma")) :
                 null,
 
             // Status filter button
             ImageButton()
                 .Source(MyTheme.IconStatusFilter)
-                .Background(Colors.Transparent)
-                .VCenter()
+                .Background(MyTheme.LightSecondaryBackground)
+                .HeightRequest(36)
+                .WidthRequest(36)
+                .CornerRadius(18)
+                .Padding(6)
                 .OnClicked(() => OpenFilterSheet("status"))
-        ).GridColumn(1).GridRow(1).VFill();
+        ).GridColumn(1).VCenter();
     }
 
     VisualNode RenderBulkActionsBar()
@@ -763,9 +792,26 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     /// </summary>
     void OpenFilterSheet(string filterType)
     {
-        // Initialize pending selections from current query filters
-        var pendingSelections = new HashSet<string>();
+        // Launch the OptionSheetPopup directly instead of using SfBottomSheet
+        _ = ShowFilterPopup(filterType);
+    }
 
+    async Task ShowFilterPopup(string filterType)
+    {
+        var title = filterType switch
+        {
+            "tag" => $"{_localize["FilterByTag"]}",
+            "resource" => $"{_localize["FilterByResource"]}",
+            "lemma" => $"{_localize["FilterByLemma"]}",
+            "status" => $"{_localize["FilterByStatus"]}",
+            _ => $"{_localize["Filter"]}"
+        };
+
+        var items = GetFilterItemsForType(filterType);
+        if (!items.Any()) return;
+
+        // Get currently active filters of this type
+        var selected = new HashSet<string>();
         if (State.ParsedQuery != null)
         {
             var existingFilters = filterType switch
@@ -777,73 +823,81 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 _ => new List<string>()
             };
             foreach (var f in existingFilters)
-                pendingSelections.Add(f);
+                selected.Add(f);
         }
 
-        SetState(s =>
-        {
-            s.ActiveFilterType = filterType;
-            s.PendingFilterSelections = pendingSelections;
-            s.IsFilterSheetOpen = true;
-        });
-    }
+        var tcs = new TaskCompletionSource();
 
-    /// <summary>
-    /// Renders the unified filter bottom sheet with chip-style multi-select UI
-    /// </summary>
-    VisualNode RenderFilterBottomSheet()
-    {
-        var title = State.ActiveFilterType switch
+        var popup = new OptionSheetPopup
         {
-            "tag" => $"{_localize["FilterByTag"]}",
-            "resource" => $"{_localize["FilterByResource"]}",
-            "lemma" => $"{_localize["FilterByLemma"]}",
-            "status" => $"{_localize["FilterByStatus"]}",
-            _ => $"{_localize["Filter"]}"
+            Title = title,
+            CloseWhenBackgroundIsClicked = true
         };
 
-        var items = GetFilterItemsForType(State.ActiveFilterType);
-
-        return new SfBottomSheet(
-            VStack(spacing: MyTheme.LayoutSpacing,
-                // Header row with title and Apply button
-                Grid(rows: "Auto", columns: "Auto,*,Auto",
-                    // Clear button on left
-                    Button($"{_localize["Clear"]}")
-                        .TextColor(MyTheme.DarkOnLightBackground)
-                        .Background(Colors.Transparent)
-                        .OnClicked(ClearFilterSelections)
-                        .GridColumn(0),
-                    // Title centered
-                    Label(title)
-                        .FontSize(20)
-                        .FontAttributes(FontAttributes.Bold)
-                        .HCenter()
-                        .VCenter()
-                        .GridColumn(1),
-                    // Apply button on right
-                    Button($"{_localize["Apply"]}")
-                        .ThemeKey(MyTheme.PrimaryButton)
-                        .OnClicked(ApplyFilterSelections)
-                        .GridColumn(2)
-                ).Margin(0, 0, 0, MyTheme.ComponentSpacing),
-
-                // Scrollable chip container
-                RenderFilterChipContainer(items)
-            )
-            .Padding(MyTheme.CardPadding)
-        )
-        .IsOpen(State.IsFilterSheetOpen)
-        .OnStateChanged((sender, args) =>
+        void BuildItems()
         {
-            if (!State.IsFilterSheetOpen) return;
-            SetState(s => s.IsFilterSheetOpen = false);
-        });
+            var optionItems = new List<OptionSheetItem>();
+            foreach (var (value, displayName) in items)
+            {
+                var capturedValue = value;
+                var capturedDisplay = displayName;
+                var isSelected = selected.Contains(capturedValue);
+                optionItems.Add(new OptionSheetItem
+                {
+                    Text = isSelected ? $"\u2713  {capturedDisplay}" : $"    {capturedDisplay}",
+                    Command = new Command(() =>
+                    {
+                        if (!selected.Remove(capturedValue))
+                            selected.Add(capturedValue);
+                        BuildItems();
+                    })
+                });
+            }
+            popup.Items = optionItems;
+        }
+
+        BuildItems();
+
+        IPopupService.Current.PopupPopped += handler;
+        void handler(object s, PopupEventArgs e)
+        {
+            if (e.PopupPage == popup)
+            {
+                tcs.TrySetResult();
+                IPopupService.Current.PopupPopped -= handler;
+            }
+        };
+        await IPopupService.Current.PushAsync(popup);
+        await tcs.Task;
+
+        // Apply selections: remove existing filters of this type, add new ones
+        RemoveFiltersOfType(filterType);
+
+        if (selected.Any())
+        {
+            var filterTexts = selected.Select(value =>
+            {
+                var formattedValue = value.Contains(' ') ? $"\"{value}\"" : value;
+                return $"{filterType}:{formattedValue}";
+            });
+
+            var newFilterText = string.Join(" ", filterTexts);
+            var newQuery = string.IsNullOrWhiteSpace(State.RawSearchQuery)
+                ? newFilterText
+                : $"{State.RawSearchQuery} {newFilterText}";
+
+            SetState(s =>
+            {
+                s.RawSearchQuery = newQuery;
+                s.SearchText = newQuery;
+            });
+
+            ParseSearchQuery(newQuery);
+        }
+
+        ApplyFilters();
     }
 
-    /// <summary>
-    /// Gets the list of available items for the current filter type
-    /// </summary>
     List<(string Value, string DisplayName)> GetFilterItemsForType(string filterType)
     {
         return filterType switch
@@ -875,127 +929,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     }
 
     /// <summary>
-    /// Renders the chip container with wrapping FlexLayout inside ScrollView
-    /// </summary>
-    VisualNode RenderFilterChipContainer(List<(string Value, string DisplayName)> items)
-    {
-        if (!items.Any())
-        {
-            return Label($"{_localize["NoItemsAvailable"]}")
-                .ThemeKey(MyTheme.Body1)
-                .Opacity(0.6)
-                .HCenter();
-        }
-
-        // Wrap FlexLayout in ScrollView for scrollable chips
-        return ScrollView(
-            FlexLayout(
-                items.Select(item => RenderFilterChip(item.Value, item.DisplayName)).ToArray()
-            )
-            .Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap)
-            .JustifyContent(Microsoft.Maui.Layouts.FlexJustify.Start)
-            .AlignItems(Microsoft.Maui.Layouts.FlexAlignItems.Start)
-            .AlignContent(Microsoft.Maui.Layouts.FlexAlignContent.Start)
-        )
-        .MaximumHeightRequest(300); // Limit height so it scrolls
-    }
-
-    /// <summary>
-    /// Renders a single filter chip with selected/unselected state
-    /// </summary>
-    VisualNode RenderFilterChip(string value, string displayName)
-    {
-        var isSelected = State.PendingFilterSelections.Contains(value);
-
-        // Selected: dark background with white text
-        // Unselected: light gray background with dark text
-        var bgColor = isSelected ? MyTheme.HighlightDarkest : MyTheme.Gray200;
-        var textColor = isSelected ? Colors.White : MyTheme.DarkOnLightBackground;
-        var borderColor = isSelected ? MyTheme.HighlightDarkest : MyTheme.Gray300;
-
-        return Border(
-            Label(displayName)
-                .TextColor(textColor)
-                .FontSize(14)
-                .VCenter().TranslationY(-2)
-                .HCenter()
-        )
-        .Background(new SolidColorBrush(bgColor))
-        .StrokeShape(new RoundRectangle().CornerRadius(16))
-        .Stroke(borderColor)
-        .StrokeThickness(1)
-        .Padding(12, 8)
-        .Margin(4)
-        .OnTapped(() => ToggleFilterChipSelection(value));
-    }
-
-    /// <summary>
-    /// Toggles a chip selection on/off
-    /// </summary>
-    void ToggleFilterChipSelection(string value)
-    {
-        SetState(s =>
-        {
-            if (s.PendingFilterSelections.Contains(value))
-                s.PendingFilterSelections.Remove(value);
-            else
-                s.PendingFilterSelections.Add(value);
-        });
-    }
-
-    /// <summary>
-    /// Clears all pending filter selections
-    /// </summary>
-    void ClearFilterSelections()
-    {
-        SetState(s => s.PendingFilterSelections = new HashSet<string>());
-    }
-
-    /// <summary>
-    /// Applies the pending filter selections to the search query
-    /// </summary>
-    void ApplyFilterSelections()
-    {
-        var filterType = State.ActiveFilterType;
-        var selections = State.PendingFilterSelections.ToList();
-
-        // Close the sheet
-        SetState(s => s.IsFilterSheetOpen = false);
-
-        if (!selections.Any())
-        {
-            // Remove all filters of this type from the query
-            RemoveFiltersOfType(filterType);
-            return;
-        }
-
-        // Build filter text for all selections
-        var filterTexts = selections.Select(value =>
-        {
-            var formattedValue = value.Contains(' ') ? $"\"{value}\"" : value;
-            return $"{filterType}:{formattedValue}";
-        });
-
-        // Remove existing filters of this type, then add new ones
-        RemoveFiltersOfType(filterType);
-
-        var newFilterText = string.Join(" ", filterTexts);
-        var newQuery = string.IsNullOrWhiteSpace(State.RawSearchQuery)
-            ? newFilterText
-            : $"{State.RawSearchQuery} {newFilterText}";
-
-        SetState(s =>
-        {
-            s.RawSearchQuery = newQuery;
-            s.SearchText = newQuery;
-        });
-
-        // Parse and apply
-        ParseSearchQuery(newQuery);
-        ApplyFilters();
-    }
-
-    /// <summary>
     /// Removes all filters of a specific type from the current query
     /// </summary>
     void RemoveFiltersOfType(string filterType)
@@ -1021,231 +954,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     }
 
     // ==================== END FILTER BOTTOM SHEET ====================
-
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-    // GitHub-style filter popup for tags - shows all tags, selection inserts filter text
-    async Task dShowTagFilterPopup()
-    {
-        if (!State.AvailableTags.Any()) return;
-
-        var tags = State.AvailableTags.OrderBy(t => t).ToArray();
-
-        var tagTcs = new TaskCompletionSource<string>();
-        var tagOptionItems = new List<OptionSheetItem>();
-        foreach (var tag in tags)
-        {
-            var capturedTag = tag;
-            tagOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedTag,
-                Command = new Command(async () =>
-                {
-                    tagTcs.TrySetResult(capturedTag);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var tagPopup = new OptionSheetPopup
-        {
-            Title = $"{_localize["SelectTag"]}",
-            Items = tagOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += tagHandler;
-        void tagHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == tagPopup)
-            {
-                tagTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= tagHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(tagPopup);
-        var selectedTag = await tagTcs.Task;
-
-        if (!string.IsNullOrEmpty(selectedTag))
-        {
-            InsertFilterText("tag", selectedTag);
-        }
-    }
-
-    // GitHub-style filter popup for resources
-    async Task ShowResourceFilterPopup()
-    {
-        if (!State.AvailableResources.Any()) return;
-
-        var resourceNames = State.AvailableResources
-            .OrderBy(r => r.Title)
-            .Select(r => r.Title ?? $"{_localize["UnnamedResource"]}")
-            .ToArray();
-
-        var resourceTcs = new TaskCompletionSource<string>();
-        var resourceOptionItems = new List<OptionSheetItem>();
-        foreach (var name in resourceNames)
-        {
-            var capturedName = name;
-            resourceOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedName,
-                Command = new Command(async () =>
-                {
-                    resourceTcs.TrySetResult(capturedName);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var resourcePopup = new OptionSheetPopup
-        {
-            Title = $"{_localize["SelectResource"]}",
-            Items = resourceOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += resourceHandler;
-        void resourceHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == resourcePopup)
-            {
-                resourceTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= resourceHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(resourcePopup);
-        var selectedResource = await resourceTcs.Task;
-
-        if (!string.IsNullOrEmpty(selectedResource))
-        {
-            InsertFilterText("resource", selectedResource);
-        }
-    }
-
-    // GitHub-style filter popup for lemmas
-    async Task ShowLemmaFilterPopup()
-    {
-        if (!State.AvailableLemmas.Any()) return;
-
-        var lemmas = State.AvailableLemmas.OrderBy(l => l).ToArray();
-
-        var lemmaTcs = new TaskCompletionSource<string>();
-        var lemmaOptionItems = new List<OptionSheetItem>();
-        foreach (var lemma in lemmas)
-        {
-            var capturedLemma = lemma;
-            lemmaOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedLemma,
-                Command = new Command(async () =>
-                {
-                    lemmaTcs.TrySetResult(capturedLemma);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var lemmaPopup = new OptionSheetPopup
-        {
-            Title = $"{_localize["SelectLemma"]}",
-            Items = lemmaOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += lemmaHandler;
-        void lemmaHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == lemmaPopup)
-            {
-                lemmaTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= lemmaHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(lemmaPopup);
-        var selectedLemma = await lemmaTcs.Task;
-
-        if (!string.IsNullOrEmpty(selectedLemma))
-        {
-            InsertFilterText("lemma", selectedLemma);
-        }
-    }
-
-    // GitHub-style filter popup for status
-    async Task ShowStatusFilterPopup()
-    {
-        var statusOptions = new[]
-        {
-            $"✓ {_localize["StatusKnown"]}",
-            $"⏳ {_localize["StatusLearning"]}",
-            $"? {_localize["StatusUnknown"]}"
-        };
-
-        var statusTcs = new TaskCompletionSource<string>();
-        var statusOptionItems = new List<OptionSheetItem>();
-        foreach (var option in statusOptions)
-        {
-            var capturedOption = option;
-            statusOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedOption,
-                Command = new Command(async () =>
-                {
-                    statusTcs.TrySetResult(capturedOption);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var statusPopup = new OptionSheetPopup
-        {
-            Title = $"{_localize["SelectStatus"]}",
-            Items = statusOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += statusHandler;
-        void statusHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == statusPopup)
-            {
-                statusTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= statusHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(statusPopup);
-        var selectedOption = await statusTcs.Task;
-
-        if (!string.IsNullOrEmpty(selectedOption))
-        {
-            // Map display text back to status value
-            string statusValue = selectedOption switch
-            {
-                var s when s.Contains("StatusKnown") || s.StartsWith("✓") => "known",
-                var s when s.Contains("StatusLearning") || s.StartsWith("⏳") => "learning",
-                var s when s.Contains("StatusUnknown") || s.StartsWith("?") => "unknown",
-                _ => selectedOption.Split(' ').LastOrDefault()?.ToLowerInvariant() ?? "unknown"
-            };
-            InsertFilterText("status", statusValue);
-        }
-    }
-
-    // Insert filter text into search box (GitHub-style)
-    void InsertFilterText(string filterType, string value)
-    {
-        // Quote value if it contains spaces
-        var formattedValue = value.Contains(' ') ? $"\"{value}\"" : value;
-        var filterText = $"{filterType}:{formattedValue}";
-
-        // Append to existing query with space separator
-        var newQuery = string.IsNullOrWhiteSpace(State.RawSearchQuery)
-            ? filterText
-            : $"{State.RawSearchQuery} {filterText}";
-
-        SetState(s =>
-        {
-            s.RawSearchQuery = newQuery;
-            s.SearchText = newQuery;
-        });
-
-        // Parse and apply the filter immediately
-        ParseSearchQuery(newQuery);
-        ApplyFilters();
-
-        _logger.LogDebug("🏷️ Inserted filter: {FilterText}", filterText);
-    }
-#endif
 
     // [T017/T020] Parse search query and generate filter chips
     void ParseSearchQuery(string rawQuery)
@@ -1578,101 +1286,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         return MauiControls.Shell.Current.GoToAsync<VocabularyWordProps>(
             nameof(EditVocabularyWordPage),
             props => props.VocabularyWordId = vocabularyWordId);
-    }
-
-    // Bottom bar dialogs
-    async Task ShowStatusFilterDialog()
-    {
-        var options = new[]
-        {
-            $"All ({State.Stats.TotalWords})",
-            $"Associated ({State.Stats.AssociatedWords})",
-            $"Orphaned ({State.Stats.OrphanedWords})"
-        };
-
-        var statusFilterTcs = new TaskCompletionSource<string>();
-        var statusFilterOptionItems = new List<OptionSheetItem>();
-        foreach (var option in options)
-        {
-            var capturedOption = option;
-            statusFilterOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedOption,
-                Command = new Command(async () =>
-                {
-                    statusFilterTcs.TrySetResult(capturedOption);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var statusFilterPopup = new OptionSheetPopup
-        {
-            Title = "Filter by Status",
-            Items = statusFilterOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += statusFilterHandler;
-        void statusFilterHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == statusFilterPopup)
-            {
-                statusFilterTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= statusFilterHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(statusFilterPopup);
-        var selection = await statusFilterTcs.Task;
-        if (string.IsNullOrEmpty(selection))
-            return;
-
-        var index = Array.IndexOf(options, selection);
-        if (index >= 0)
-        {
-            OnStatusFilterChanged(index);
-        }
-    }
-
-    async Task ShowResourceFilterDialog()
-    {
-        var items = GetResourcePickerItems();
-        var resFilterTcs = new TaskCompletionSource<string>();
-        var resFilterOptionItems = new List<OptionSheetItem>();
-        foreach (var item in items)
-        {
-            var capturedItem = item;
-            resFilterOptionItems.Add(new OptionSheetItem
-            {
-                Text = capturedItem,
-                Command = new Command(async () =>
-                {
-                    resFilterTcs.TrySetResult(capturedItem);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var resFilterPopup = new OptionSheetPopup
-        {
-            Title = "Filter by Resource",
-            Items = resFilterOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += resFilterHandler;
-        void resFilterHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == resFilterPopup)
-            {
-                resFilterTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= resFilterHandler;
-            }
-        };
-        await IPopupService.Current.PushAsync(resFilterPopup);
-        var selection = await resFilterTcs.Task;
-        if (string.IsNullOrEmpty(selection))
-            return;
-
-        var index = items.IndexOf(selection);
-        // Index maps 1..N => specific resource, 0 => All Resources
-        OnResourcePickerIndexChanged(index);
     }
 
     VisualNode RenderCleanupSheet()

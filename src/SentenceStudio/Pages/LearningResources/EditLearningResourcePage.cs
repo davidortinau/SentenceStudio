@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using LukeMauiFilePicker;
 using SentenceStudio.Pages.VocabularyProgress;
+using SentenceStudio.Pages.VocabularyManagement;
 using Microsoft.Extensions.Logging;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
@@ -13,7 +14,6 @@ class EditLearningResourceState
     public bool IsLoading { get; set; } = true;
     public bool IsEditing { get; set; } = false;
     public bool IsVocabularySheetVisible { get; set; } = false;
-    public bool IsVocabularyBottomSheetOpen { get; set; } = false;
     public VocabularyWord CurrentVocabularyWord { get; set; } = new();
     public bool IsAddingNewWord { get; set; } = false;
     public int MediaTypeIndex { get; set; } = 0;
@@ -111,10 +111,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                 .HCenter()
                                 .Padding(30)
                             )
-                            : null,
-
-                        // Vocabulary bottom sheet
-                        RenderVocabularyBottomSheet()
+                            : null
                     )
             )
         ).OnAppearing(LoadResource);
@@ -287,7 +284,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     .FontAttributes(FontAttributes.Bold)
                     .FontSize(16)
                     .ThemeKey(MyTheme.Secondary)
-                    .OnClicked(() => SetState(s => s.IsVocabularyBottomSheetOpen = true))
+                    .OnClicked(NavigateToVocabularyManagement)
                     .IsEnabled(!State.IsGeneratingVocabulary)
                     .GridColumn(0)
                     .HStart(),
@@ -323,95 +320,6 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     null
         )
         .Spacing(MyTheme.MicroSpacing);
-    }
-
-    private VisualNode RenderVocabularyBottomSheet()
-    {
-        var vocabCount = State.Resource.Vocabulary?.Count ?? 0;
-
-        return new SfBottomSheet(
-            Grid(rows: "Auto,*", columns: "*",
-                // Header
-                Grid(rows: "Auto", columns: "Auto,*,Auto",
-                    Button($"{_localize["Close"]}")
-                        .TextColor(MyTheme.DarkOnLightBackground)
-                        .Background(Colors.Transparent)
-                        .OnClicked(() => SetState(s => s.IsVocabularyBottomSheetOpen = false))
-                        .GridColumn(0),
-
-                    Label($"📚 Vocabulary ({vocabCount} terms)")
-                        .FontSize(20)
-                        .FontAttributes(FontAttributes.Bold)
-                        .HCenter()
-                        .VCenter()
-                        .GridColumn(1),
-
-                    // Add word button for editable resources
-                    IsEditable && State.IsEditing ?
-                        Button($"{_localize["Add"]}")
-                            .ThemeKey(MyTheme.PrimaryButton)
-                            .OnClicked(() =>
-                            {
-                                SetState(s =>
-                                {
-                                    s.CurrentVocabularyWord = new VocabularyWord();
-                                    s.IsAddingNewWord = true;
-                                    s.IsVocabularySheetVisible = true;
-                                    s.IsVocabularyBottomSheetOpen = false;
-                                });
-                            })
-                            .GridColumn(2) :
-                        null
-                )
-                .Margin(0, 0, 0, MyTheme.ComponentSpacing)
-                .GridRow(0),
-
-                // Vocabulary list in constrained row
-                vocabCount > 0 ?
-                    CollectionView()
-                        .SelectionMode(SelectionMode.None)
-                        .ItemsSource(State.Resource.Vocabulary, RenderVocabularyItem)
-                        .GridRow(1) :
-                    VStack(
-                        Label("No vocabulary words yet.")
-                            .ThemeKey(MyTheme.Body1)
-                            .TextColor(MyTheme.SecondaryText)
-                            .HCenter()
-                    )
-                    .VCenter()
-                    .GridRow(1)
-            )
-            .Padding(MyTheme.CardPadding)
-        )
-        .IsOpen(State.IsVocabularyBottomSheetOpen)
-        .HalfExpandedRatio(0.6)
-        .OnStateChanged((sender, args) =>
-        {
-            if (!State.IsVocabularyBottomSheetOpen) return;
-            SetState(s => s.IsVocabularyBottomSheetOpen = false);
-        });
-    }
-
-    private VisualNode RenderVocabularyItem(VocabularyWord word)
-    {
-        return Border(
-            Grid(
-                VStack(
-                    Label(word.TargetLanguageTerm)
-                        .FontAttributes(FontAttributes.Bold)
-                        .FontSize(16),
-
-                    Label(word.NativeLanguageTerm)
-                        .FontSize(14)
-                )
-                .Spacing(MyTheme.MicroSpacing)
-            )
-            .Padding(MyTheme.ComponentSpacing)
-        )
-        .Stroke(MyTheme.ItemBorder)
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(5))
-        .Margin(new Thickness(0, 0, 0, 5));
     }
 
     private VisualNode RenderEditMode()
@@ -1222,6 +1130,16 @@ Transcript:
             {
                 props.ResourceId = State.Resource.Id;
                 props.Title = State.Resource.Title;
+            });
+    }
+
+    Task NavigateToVocabularyManagement()
+    {
+        return MauiControls.Shell.Current.GoToAsync<VocabManagementProps>(
+            nameof(VocabularyManagementPage),
+            props =>
+            {
+                props.ResourceName = State.Resource.Title;
             });
     }
 
