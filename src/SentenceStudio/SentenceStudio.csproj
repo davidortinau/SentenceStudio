@@ -16,7 +16,7 @@
 		<RootNamespace>SentenceStudio</RootNamespace>
 		<UseMaui>true</UseMaui>
 
-		<MauiVersion>10.0.20</MauiVersion>
+		<MauiVersion>10.0.31</MauiVersion>
 
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -46,9 +46,9 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+	<!-- <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<UseMonoRuntime>false</UseMonoRuntime>
-	</PropertyGroup>
+	</PropertyGroup> -->
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-ios|AnyCPU'">
 		<CreatePackage>false</CreatePackage>

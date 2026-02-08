@@ -370,60 +370,72 @@ partial class DashboardPage : Component<DashboardPageState>
                                     .HCenter()
                             ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
                             : (State.HasLoadedProgressOnce
-                                ? FlexLayout(
-                                    // Vocab Progress Card - always render if we have data
-                                    (State.VocabSummary != null
-                                        ? Border(
-                                            new VocabProgressCard()
-                                                .Summary(State.VocabSummary)
-                                                .IsVisible(true)
-                                                .OnSegmentTapped(NavigateToVocabularyProgress)
-                                        )
-                                        .StrokeThickness(0)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                        .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                        : Label("No vocabulary progress data available yet. Start practicing!")
-                                            .TextColor(MyTheme.SecondaryText)
-                                            .FontSize(14)
-                                            .Padding(MyTheme.SectionSpacing)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                    ),
-                                    // Practice Heat Card - always render if we have data
-                                    (State.PracticeHeat?.Any() == true
-                                        ? Border(
-                                            new PracticeStreakCard()
-                                                .HeatData(State.PracticeHeat)
-                                                .IsVisible(true)
-                                        )
-                                        .StrokeThickness(0)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                        .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                        : Label("No practice activity data yet. Start practicing!")
-                                            .TextColor(MyTheme.SecondaryText)
-                                            .FontSize(14)
-                                            .Padding(MyTheme.SectionSpacing)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                    )
-                                )
-                                // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
-                                .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
-                                .Wrap(FlexWrap.Wrap)
-                                .AlignItems(FlexAlignItems.Stretch)
-                                .JustifyContent(FlexJustify.Start)
-                                .Padding(0)
+                                ? RenderProgressCards()
                                 : ContentView().HeightRequest(0) // While loading for the first time, don't show cards
                             )
                         )
+        );
+    }
+
+    VisualNode RenderProgressCards()
+    {
+        var vocabCard = State.VocabSummary != null
+            ? (VisualNode)Border(
+                new VocabProgressCard()
+                    .Summary(State.VocabSummary)
+                    .IsVisible(true)
+                    .OnSegmentTapped(NavigateToVocabularyProgress)
+            )
+            .StrokeThickness(0)
+            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
+            : (VisualNode)Label("No vocabulary progress data available yet. Start practicing!")
+                .TextColor(MyTheme.SecondaryText)
+                .FontSize(14)
+                .Padding(MyTheme.SectionSpacing)
+                .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin);
+
+        var practiceCard = State.PracticeHeat?.Any() == true
+            ? (VisualNode)Border(
+                new PracticeStreakCard()
+                    .HeatData(State.PracticeHeat)
+                    .IsVisible(true)
+            )
+            .StrokeThickness(0)
+            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
+            : (VisualNode)Label("No practice activity data yet. Start practicing!")
+                .TextColor(MyTheme.SecondaryText)
+                .FontSize(14)
+                .Padding(MyTheme.SectionSpacing)
+                .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin);
+
+        bool isWide = DeviceInfo.Idiom != DeviceIdiom.Phone && (State.Width / State.Density) > 600;
+
+        if (isWide)
+        {
+            // FlexLayout Row works correctly for wide screens
+            return FlexLayout(
+                vocabCard
+                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, FlexBasis.Auto)
+                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                    .Set(View.MinimumWidthRequestProperty, 340d),
+                practiceCard
+                    .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
+                    .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, FlexBasis.Auto)
+                    .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
+                    .Set(View.MinimumWidthRequestProperty, 340d)
+            )
+            .Direction(FlexDirection.Row)
+            .Wrap(FlexWrap.Wrap)
+            .AlignItems(FlexAlignItems.Stretch)
+            .JustifyContent(FlexJustify.Start)
+            .Padding(0);
+        }
+
+        // VStack for narrow screens — FlexLayout Column has a measurement bug (DesiredSize.Height=0)
+        return VStack(spacing: MyTheme.CardMargin,
+            vocabCard,
+            practiceCard
         );
     }
 
