@@ -131,55 +131,21 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .GridRow(0)
                     .LineBreakMode(LineBreakMode.TailTruncation),
 
-                HStack(
-                    // Smart resource indicator
-                    resource.IsSmartResource
-                        ? Label("⚡")
-                            .ThemeKey(MyTheme.Caption1)
-                            .Margin(new Thickness(0, 0, MyTheme.MicroSpacing, 0))
-                        : null,
-
-                    Label(resource.MediaType)
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.SecondaryText),
-
-                    Label("•")
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.SecondaryText)
-                        .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
-
-                    Label(resource.Language)
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.SecondaryText),
-
-                    // System-generated badge for smart resources
-                    resource.IsSmartResource
-                        ? HStack(
-                            Label("•")
-                                .ThemeKey(MyTheme.Caption1)
-                                .TextColor(MyTheme.SecondaryText)
-                                .Margin(new Thickness(MyTheme.MicroSpacing, 0)),
-                            Label("Auto-updated")
-                                .ThemeKey(MyTheme.Caption1)
-                                .TextColor(MyTheme.AccentText)
-                                .FontAttributes(FontAttributes.Italic)
-                        )
-                        : null
-                )
-                .GridColumn(1)
-                .GridRow(1)
-                .Spacing(MyTheme.MicroSpacing),
+                // Metadata line
+                Label($"{(resource.IsSmartResource ? "⚡ " : "")}{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.SecondaryText)
+                    .GridColumn(1)
+                    .GridRow(1),
 
                 // Date
-                VStack(
-                    Label(resource.CreatedAt.ToString("d"))
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.SecondaryText)
-                        .HEnd()
-                )
-                .GridColumn(2)
-                .GridRowSpan(2)
-                .VCenter()
+                Label(resource.CreatedAt.ToString("d"))
+                    .ThemeKey(MyTheme.Caption1)
+                    .TextColor(MyTheme.SecondaryText)
+                    .HEnd()
+                    .GridColumn(2)
+                    .GridRowSpan(2)
+                    .VCenter()
             )
             .Padding(MyTheme.ComponentSpacing)
             .ColumnSpacing(MyTheme.SectionSpacing).RowSpacing(MyTheme.MicroSpacing)
