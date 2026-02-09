@@ -32,6 +32,11 @@ public class UserProfileRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync(); // Apply any pending migrations
 
+        // Ensure performance indexes exist (CREATE IF NOT EXISTS is idempotent)
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_TargetLanguageTerm ON VocabularyWord(TargetLanguageTerm)");
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_NativeLanguageTerm ON VocabularyWord(NativeLanguageTerm)");
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResourceVocabularyMapping_VocabularyWordId ON ResourceVocabularyMapping(VocabularyWordId)");
+
         var profile = await db.UserProfiles.FirstOrDefaultAsync();
 
         // Ensure DisplayLanguage is never null or empty for existing profiles

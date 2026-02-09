@@ -493,6 +493,7 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
+            .AsNoTracking()
             .Include(vw => vw.LearningResources)
             .ToListAsync();
     }
@@ -593,8 +594,9 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var totalWords = await db.VocabularyWords.CountAsync();
-        var associatedWords = await db.VocabularyWords
-            .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+        var associatedWords = await db.ResourceVocabularyMappings
+            .Select(rvm => rvm.VocabularyWordId)
+            .Distinct()
             .CountAsync();
         var orphanedWords = totalWords - associatedWords;
 

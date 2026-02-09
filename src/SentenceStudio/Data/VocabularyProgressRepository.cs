@@ -94,9 +94,7 @@ public class VocabularyProgressRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyProgresses
-            .Include(vp => vp.VocabularyWord)
-            .Include(vp => vp.LearningContexts)
-                .ThenInclude(lc => lc.LearningResource)
+            .AsNoTracking()
             .Where(vp => vp.UserId == userId)
             .ToListAsync();
     }

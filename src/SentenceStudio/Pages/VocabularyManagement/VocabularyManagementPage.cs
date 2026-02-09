@@ -376,22 +376,17 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         return Border(
             HStack(spacing: MyTheme.LayoutSpacing,
-                // Header with select checkbox (if in multi-select mode)
                 State.IsMultiSelectMode
                     ? CheckBox()
                             .IsChecked(item.IsSelected)
                             .OnCheckedChanged(isChecked => ToggleItemSelection(item.Word.Id, isChecked))
                     : null,
 
-                // Main content - view mode only
                 VStack(spacing: MyTheme.MicroSpacing,
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .ThemeKey(MyTheme.Body2Strong),
-                    Label(item.Word.NativeLanguageTerm ?? "")
-                        .ThemeKey(MyTheme.Caption1),
-                    // Progress status
-                    Label(item.StatusText)
-                        .ThemeKey(MyTheme.Caption2)
+                    Label($"{item.Word.NativeLanguageTerm ?? ""} · {item.StatusText}")
+                        .ThemeKey(MyTheme.Caption1)
                         .TextColor(item.StatusColor)
                 )
             ).Padding(MyTheme.MicroSpacing)
@@ -409,9 +404,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderVocabularyCard(VocabularyCardViewModel item)
     {
         return Border(
-            VStack(
-                // Header with select checkbox (if in multi-select mode)
-                State.IsMultiSelectMode ?
+            State.IsMultiSelectMode ?
+                VStack(
                     HStack(
                         CheckBox()
                             .IsChecked(item.IsSelected)
@@ -419,12 +413,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         Label($"{_localize["Select"]}")
                             .ThemeKey(MyTheme.Caption2)
                             .VCenter()
-                    ).HStart() :
-                    null,
-
-                // Main content - view mode only
+                    ).HStart(),
+                    RenderVocabularyCardViewMode(item)
+                ) :
                 RenderVocabularyCardViewMode(item)
-            )
         )
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
@@ -470,28 +462,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item) =>
         VStack(
-            // Terms            
             Label(item.Word.TargetLanguageTerm ?? "")
                 .ThemeKey(MyTheme.Body1Strong),
             Label(item.Word.NativeLanguageTerm ?? "")
                 .ThemeKey(MyTheme.Body2),
-
-            // [US3-T044] Inline encoding strength indicator
-            HStack(spacing: MyTheme.MicroSpacing,
-                // Progress status
-                Label(item.StatusText)
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(item.StatusColor)
-
-            // Encoding strength badge
-            // RenderEncodingBadge(item.Word)
-            ),
-
-            // Resource association status
-            Label(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))
-                .ThemeKey(MyTheme.Caption2)
-                .TextColor(item.IsOrphaned ? MyTheme.Warning : MyTheme.Gray500)
-
+            Label($"{item.StatusText} · {(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))}")
+                .ThemeKey(MyTheme.Caption1)
+                .TextColor(item.IsOrphaned ? MyTheme.Warning : item.StatusColor)
         );
 
     // Helper method to load data with initial delay for smooth page transitions
