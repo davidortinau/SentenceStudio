@@ -860,15 +860,17 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             var newIndex = State.CurrentSentenceIndex - 1;
 
-            // ALWAYS update the visual highlighting immediately for responsive UI
-            SetState(s => s.CurrentSentenceIndex = newIndex);
-            _logger.LogDebug("PreviousSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
-
-            // If audio is playing and we have an audio manager, also update audio position
+            // If audio is playing, move the audio position AND let the audio manager update the UI
             if (_audioManager != null && State.IsAudioPlaying)
             {
+                _logger.LogDebug("PreviousSentence: Moving audio to sentence {SentenceIndex}", newIndex);
                 await _audioManager.PreviousSentenceAsync();
-                _logger.LogDebug("PreviousSentence: Updated audio position to sentence {SentenceIndex}", newIndex);
+            }
+            else
+            {
+                // If audio is NOT playing, just update the visual highlighting
+                SetState(s => s.CurrentSentenceIndex = newIndex);
+                _logger.LogDebug("PreviousSentence: Updated visual highlighting to sentence {SentenceIndex} (audio not playing)", newIndex);
             }
         }
     }
@@ -886,15 +888,17 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             var newIndex = State.CurrentSentenceIndex + 1;
 
-            // ALWAYS update the visual highlighting immediately for responsive UI
-            SetState(s => s.CurrentSentenceIndex = newIndex);
-            _logger.LogDebug("NextSentence: Updated visual highlighting to sentence {SentenceIndex}", newIndex);
-
-            // If audio is playing and we have an audio manager, also update audio position
+            // If audio is playing, move the audio position AND let the audio manager update the UI
             if (_audioManager != null && State.IsAudioPlaying)
             {
+                _logger.LogDebug("NextSentence: Moving audio to sentence {SentenceIndex}", newIndex);
                 await _audioManager.NextSentenceAsync();
-                _logger.LogDebug("NextSentence: Updated audio position to sentence {SentenceIndex}", newIndex);
+            }
+            else
+            {
+                // If audio is NOT playing, just update the visual highlighting
+                SetState(s => s.CurrentSentenceIndex = newIndex);
+                _logger.LogDebug("NextSentence: Updated visual highlighting to sentence {SentenceIndex} (audio not playing)", newIndex);
             }
         }
     }
@@ -911,7 +915,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     void IncreaseFontSize()
     {
-        var newSize = Math.Min(State.FontSize + 2, 100.0); // Max font size 72 for better accessibility
+        var newSize = Math.Min(State.FontSize + 4, 100.0); // Max font size 100 for better accessibility
         SetState(s =>
         {
             s.FontSize = newSize;
@@ -924,7 +928,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     void DecreaseFontSize()
     {
-        var newSize = Math.Max(State.FontSize - 2, 32.0); // Min font size 12
+        var newSize = Math.Max(State.FontSize - 4, 12.0); // Min font size 12
         SetState(s =>
         {
             s.FontSize = newSize;
