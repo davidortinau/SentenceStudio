@@ -558,6 +558,36 @@ When adding NEW usage contexts (e.g., "Challenge Mode"), update:
 - [ ] Does completion behavior match user expectations?
 - [ ] Are new usage contexts documented?
 
+## Task Validation Requirements
+
+**CRITICAL: Every UI or behavior change MUST be validated by running the app!**
+
+Do NOT mark a task as complete after only a successful build. You MUST use the **maui-ai-debugging** skill (or **appium-automation** skill when appropriate) to verify changes end-to-end on a running app.
+
+### Required validation steps for UI changes:
+1. **Build & deploy** to Mac Catalyst: `dotnet build -t:Run -f net10.0-maccatalyst`
+2. **Navigate** to the affected page/feature in the running app
+3. **Take a screenshot** to confirm the UI renders correctly
+4. **Interact** with the changed elements — tap buttons, open popups, fill forms, trigger actions
+5. **Take screenshots** after interactions to confirm expected behavior (popup appeared, state changed, toast displayed, etc.)
+6. **Verify edge cases** — dismiss popups, cancel actions, trigger error states when feasible
+
+### Required validation steps for non-UI changes (services, models, data):
+1. **Build** the project: `dotnet build -f net10.0-maccatalyst`
+2. **Run existing tests** if they cover the changed code: `dotnet test`
+3. If no tests exist and the change is observable in the app, **run the app** and verify the behavior as described above
+
+### When to use which skill:
+- **maui-ai-debugging**: For build-deploy-inspect-fix loops, visual tree inspection, tapping elements, taking screenshots, reading logs
+- **appium-automation**: For more complex interaction sequences, multi-step flows, or when you need to automate repetitive validation
+
+### What "done" means:
+- ✅ Build passes
+- ✅ App launches without crash
+- ✅ Changed feature works as expected (verified with screenshots)
+- ✅ No regressions in surrounding functionality
+- ❌ "It builds" alone is NOT sufficient for UI changes
+
 ## Localization Guidelines
 
 **CRITICAL: Always use string interpolation with LocalizationManager!**

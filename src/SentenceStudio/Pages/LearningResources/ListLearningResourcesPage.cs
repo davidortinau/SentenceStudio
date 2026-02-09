@@ -40,17 +40,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["LearningResources"]}",
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Search")
-                .IconImageSource(MyTheme.IconSearch)
-                .OnClicked(() => SetState(s => s.SearchText = "")), // Clear search and focus the search field
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
-                .IconImageSource(MyTheme.IconAdd)
+                // .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
-                .IconImageSource(MyTheme.IconChart)
+                // .IconImageSource(MyTheme.IconChart)
                 .OnClicked(ViewVocabularyProgress),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Generate Starter")
-                .IconImageSource(MyTheme.IconGenerate)
+                // .IconImageSource(MyTheme.IconGenerate)
                 .OnClicked(CreateStarterResource),
 
                 State.IsLoading ?
@@ -178,9 +175,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     Label(resource.CreatedAt.ToString("d"))
                         .ThemeKey(MyTheme.Caption1)
                         .TextColor(MyTheme.SecondaryText)
-                        .HEnd(),
-
-                    Label("Details >")
                         .HEnd()
                 )
                 .GridColumn(2)
@@ -470,7 +464,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 typeTcs.TrySetResult(null);
                 IPopupService.Current.PopupPopped -= typeHandler;
             }
-        };
+        }
+        ;
         await IPopupService.Current.PushAsync(typePopup);
         var selection = await typeTcs.Task;
         if (string.IsNullOrEmpty(selection))
@@ -530,7 +525,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 tcs.TrySetResult();
                 IPopupService.Current.PopupPopped -= langHandler;
             }
-        };
+        }
+        ;
         await IPopupService.Current.PushAsync(popup);
         await tcs.Task;
 

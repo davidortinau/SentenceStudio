@@ -16,6 +16,9 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
     public override VisualNode Render()
     {
         return ContentPage("Skill Profiles",
+            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
+                // .IconImageSource(MyTheme.IconAdd)
+                .OnClicked(async () => await AddProfile()),
             VScrollView(
                 VStack(
                     new HWrap()
@@ -35,20 +38,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                             .StrokeThickness(1)
                         )
                     }
-                    .Spacing(MyTheme.Size320),
-
-                    Border(
-                        Grid(
-                            Label("Add")
-                                .Center()
-                        )
-                        .WidthRequest(300)
-                        .HeightRequest(120)
-                        .OnTapped(AddProfile)
-                    )
-                    .StrokeShape(new Rectangle())
-                    .StrokeThickness(1)
-                    .HStart()
+                    .Spacing(MyTheme.Size320)
                 )
                 .Padding(MyTheme.Size160)
                 .Spacing(MyTheme.Size240)
@@ -60,7 +50,9 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
     {
         var profiles = await _skillsRepository.ListAsync();
         SetState(s => s.Profiles = profiles.ToList());
-    }    Task AddProfile()
+    }
+
+    Task AddProfile()
     {
         return MauiControls.Shell.Current.GoToAsync(nameof(AddSkillProfilePage));
     }

@@ -117,7 +117,6 @@ class VocabularyManagementPageState
     public HashSet<int> SelectedWordIds { get; set; } = new();
 
     // Cleanup operations
-    public bool IsCleanupSheetOpen { get; set; } = false;
     public bool IsCleanupRunning { get; set; } = false;
 
     // Platform cache
@@ -155,24 +154,23 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         return ContentPage($"{_localize["VocabularyManagement"]}",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
-                .IconImageSource(MyTheme.IconAdd)
+                // .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(async () => await ToggleQuickAdd()),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Select"]}")
-                .IconImageSource(
-                    State.IsMultiSelectMode ? MyTheme.IconDismiss : MyTheme.IconSelectAll
-                )
+                // .IconImageSource(
+                //     State.IsMultiSelectMode ? MyTheme.IconDismiss : MyTheme.IconSelectAll
+                // )
                 .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Cleanup"]}")
-                .IconImageSource(MyTheme.IconCleanup)
-                .OnClicked(() => SetState(s => s.IsCleanupSheetOpen = true)),
+                // .IconImageSource(MyTheme.IconCleanup)
+                .OnClicked(async () => await ShowCleanupOptions()),
             State.IsLoading ?
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
                 Grid(rows: "*,Auto", columns: "*",
                     RenderVocabularyList(),
-                    RenderBottomBar(),
-                    RenderCleanupSheet()
+                    RenderBottomBar()
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
@@ -309,7 +307,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .CornerRadius(18)
                 .Padding(6)
                 .OnClicked(() => OpenFilterSheet("status"))
-        ).GridColumn(1).VCenter();
+        ).GridColumn(1).VStart();
     }
 
     VisualNode RenderBulkActionsBar()
@@ -483,10 +481,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 // Progress status
                 Label(item.StatusText)
                     .ThemeKey(MyTheme.Caption1)
-                    .TextColor(item.StatusColor),
+                    .TextColor(item.StatusColor)
 
-                // Encoding strength badge
-                RenderEncodingBadge(item.Word)
+            // Encoding strength badge
+            // RenderEncodingBadge(item.Word)
             ),
 
             // Resource association status
@@ -866,7 +864,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 tcs.TrySetResult();
                 IPopupService.Current.PopupPopped -= handler;
             }
-        };
+        }
+        ;
         await IPopupService.Current.PushAsync(popup);
         await tcs.Task;
 
@@ -1271,7 +1270,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 selResourceTcs.TrySetResult(null);
                 IPopupService.Current.PopupPopped -= selResourceHandler;
             }
-        };
+        }
+        ;
         await IPopupService.Current.PushAsync(selResourcePopup);
         var selectedName = await selResourceTcs.Task;
 
@@ -1288,53 +1288,37 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             props => props.VocabularyWordId = vocabularyWordId);
     }
 
-    VisualNode RenderCleanupSheet()
-        => new SfBottomSheet(
-            VStack(
-                Label($"{_localize["VocabularyCleanup"]}")
-                    .FontSize(20)
-                    .FontAttributes(MauiControls.FontAttributes.Bold)
-                    .Margin(0, 0, 0, 8),
+    async Task ShowCleanupOptions()
+    {
+        var popup = new OptionSheetPopup
+        {
+            Title = $"{_localize["VocabularyCleanup"]}",
+            CloseWhenBackgroundIsClicked = true,
+            Items = new List<OptionSheetItem>
+            {
+                new OptionSheetItem
+                {
+                    Text = $"{_localize["FixSwappedLanguages"]}",
+                    Command = new Command(async () =>
+                    {
+                        await IPopupService.Current.PopAsync();
+                        await RunLanguageSwapCleanup();
+                    })
+                },
+                new OptionSheetItem
+                {
+                    Text = $"{_localize["AssignOrphanedWords"]}",
+                    Command = new Command(async () =>
+                    {
+                        await IPopupService.Current.PopAsync();
+                        await RunOrphanAssignment();
+                    })
+                }
+            }
+        };
 
-                Label($"{_localize["FixSwappedLanguages"]}")
-                    .FontSize(16)
-                    .FontAttributes(MauiControls.FontAttributes.Bold),
-                Label($"{_localize["SwapLanguagesDescription"]}")
-                    .FontSize(12)
-                    .Opacity(0.7)
-                    .Margin(0, 0, 0, 4),
-                Button($"{_localize["RunLanguageSwapCleanup"]}")
-                    .OnClicked(RunLanguageSwapCleanup)
-                    .IsEnabled(!State.IsCleanupRunning),
-
-                BoxView()
-                    .HeightRequest(1)
-                    .Background(Colors.Gray.WithAlpha(0.3f))
-                    .Margin(0, 8),
-
-                Label($"{_localize["AssignOrphanedWords"]}")
-                    .FontSize(16)
-                    .FontAttributes(MauiControls.FontAttributes.Bold),
-                Label($"{_localize["AssignOrphanedDescription"]}")
-                    .FontSize(12)
-                    .Opacity(0.7)
-                    .Margin(0, 0, 0, 4),
-                Button($"{_localize["RunOrphanAssignment"]}")
-                    .OnClicked(RunOrphanAssignment)
-                    .IsEnabled(!State.IsCleanupRunning),
-
-                State.IsCleanupRunning
-                    ? HStack(
-                        ActivityIndicator().IsRunning(true),
-                        Label($"{_localize["RunningCleanup"]}").VCenter()
-                    ).Spacing(8).HCenter().Margin(8, 16, 8, 0)
-                    : null
-            )
-            .Spacing(16)
-            .Padding(24)
-        )
-        .IsOpen(State.IsCleanupSheetOpen)
-        .OnStateChanged((sender, args) => SetState(s => s.IsCleanupSheetOpen = !s.IsCleanupSheetOpen));
+        await IPopupService.Current.PushAsync(popup);
+    }
 
     async Task RunLanguageSwapCleanup()
     {
@@ -1412,11 +1396,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         finally
         {
-            SetState(s =>
-            {
-                s.IsCleanupRunning = false;
-                s.IsCleanupSheetOpen = false;
-            });
+            SetState(s => s.IsCleanupRunning = false);
         }
     }
 
@@ -1475,11 +1455,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
         finally
         {
-            SetState(s =>
-            {
-                s.IsCleanupRunning = false;
-                s.IsCleanupSheetOpen = false;
-            });
+            SetState(s => s.IsCleanupRunning = false);
         }
     }
 
