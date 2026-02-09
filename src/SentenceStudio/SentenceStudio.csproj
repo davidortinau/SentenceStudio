@@ -199,10 +199,6 @@
 		<PackageReference Include="System.Text.Json" Version="9.0.2" />
 	</ItemGroup> -->
 
-	<!-- <ItemGroup>
-		<ProjectReference Include="..\..\..\Plugin.Maui.DebugOverlay\src\Plugin.Maui.DebugOverlay\Plugin.Maui.DebugOverlay.csproj" />
-	</ItemGroup> -->
-
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows' AND '$(TargetFramework)' != 'net10.0'">
 
 
@@ -264,8 +260,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../SentenceStudio.ServiceDefaults/SentenceStudio.ServiceDefaults.csproj" />
-		<!-- Exclude DebugOverlay for net10.0 unit testing -->
-		<ProjectReference Include="../../Plugin.Maui.DebugOverlay/src/Plugin.Maui.DebugOverlay/Plugin.Maui.DebugOverlay.csproj" Condition="'$(TargetFramework)' != 'net10.0'" />
 		<ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
 	</ItemGroup>
 
