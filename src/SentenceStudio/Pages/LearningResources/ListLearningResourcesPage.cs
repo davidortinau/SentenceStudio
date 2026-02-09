@@ -28,6 +28,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 {
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
+    [Inject] ILogger<ListLearningResourcesPage> _logger;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -215,6 +216,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
     async Task LoadResources()
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         SetState(s => s.IsLoading = true);
 
         _mediaTypes = new List<string> { "All" };
@@ -223,7 +225,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         _languages = new List<string> { "All" };
         _languages.AddRange(Constants.Languages);
 
-        var resources = await _resourceRepo.GetAllResourcesAsync();
+        var resources = await _resourceRepo.GetAllResourcesLightweightAsync(
+            State.FilterType, State.FilterLanguages);
+
+        sw.Stop();
+        _logger.LogInformation("✅ LoadResources: {Elapsed}ms ({Count} resources)", sw.ElapsedMilliseconds, resources.Count);
 
         SetState(s =>
         {
@@ -244,7 +250,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
         var resources = await _resourceRepo.SearchResourcesAsync(State.SearchText);
 
-        // Apply current filters if necessary
+        // Apply current filters on search results (small list, client-side is fine)
         resources = FilterResourcesList(resources);
 
         SetState(s =>
@@ -256,28 +262,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
     async Task FilterResources()
     {
-        SetState(s => s.IsLoading = true);
-
-        // Start with all resources or search results
-        List<LearningResource> resources;
-
         if (!string.IsNullOrWhiteSpace(State.SearchText))
         {
-            resources = await _resourceRepo.SearchResourcesAsync(State.SearchText);
-        }
-        else
-        {
-            resources = await _resourceRepo.GetAllResourcesAsync();
+            await SearchResources();
+            return;
         }
 
-        // Apply filters
-        resources = FilterResourcesList(resources);
-
-        SetState(s =>
-        {
-            s.Resources = resources;
-            s.IsLoading = false;
-        });
+        // Filters are pushed to SQL via LoadResources
+        await LoadResources();
     }
 
     // Helper method to filter a list of resources

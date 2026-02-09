@@ -146,13 +146,23 @@ public class LearningResourceRepository
     }
 
     /// <summary>
-    /// PHASE 1 OPTIMIZATION: Get all resources WITHOUT vocabulary for lightweight queries (e.g., dropdowns)
+    /// Lightweight query: resources without vocabulary navigation properties.
+    /// Supports optional type/language filters pushed to SQL.
     /// </summary>
-    public async Task<List<LearningResource>> GetAllResourcesLightweightAsync()
+    public async Task<List<LearningResource>> GetAllResourcesLightweightAsync(
+        string filterType = null, List<string> filterLanguages = null)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.LearningResources
+        IQueryable<LearningResource> query = db.LearningResources.AsNoTracking();
+
+        if (!string.IsNullOrEmpty(filterType) && filterType != "All")
+            query = query.Where(r => r.MediaType == filterType);
+
+        if (filterLanguages != null && filterLanguages.Count > 0)
+            query = query.Where(r => filterLanguages.Contains(r.Language));
+
+        return await query
             .OrderByDescending(r => r.UpdatedAt)
             .ThenByDescending(r => r.CreatedAt)
             .ToListAsync();
@@ -288,6 +298,7 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.LearningResources
+            .AsNoTracking()
             .Where(r => r.Title.Contains(query) || r.Description.Contains(query) ||
                    r.Tags.Contains(query) || r.Language.Contains(query))
             .ToListAsync();
