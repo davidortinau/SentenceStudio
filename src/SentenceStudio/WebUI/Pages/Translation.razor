@@ -1,0 +1,305 @@
+@page "/translation"
+
+@if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading sentences...</p>
+    </div>
+}
+else if (sentences.Any())
+{
+    @* Progress indicator *@
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
+            ← Prev
+        </button>
+        <span class="ss-body2 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
+        <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence">
+            Next →
+        </button>
+    </div>
+
+    @* Sentence display *@
+    <div class="mb-4">
+        <p class="ss-display" style="line-height: 1.3;">@currentSentence</p>
+
+        @* Vocabulary scoreboard *@
+        @if (currentVocabulary?.Any() == true)
+        {
+            <div class="d-flex gap-2 mt-2">
+                @foreach (var word in currentVocabulary)
+                {
+                    <span class="badge rounded-pill border border-secondary-subtle text-secondary-ss px-2 py-1"
+                          style="font-size: 0.75rem;">
+                        ◦ @word.TargetLanguageTerm
+                    </span>
+                }
+            </div>
+        }
+    </div>
+
+    @* Feedback *@
+    @if (showFeedback)
+    {
+        <div class="card card-ss p-3 mb-3" style="border-left: 4px solid @GetFeedbackColor();">
+            <p class="ss-body1 mb-0">@feedbackMessage</p>
+            @if (!string.IsNullOrEmpty(recommendedTranslation))
+            {
+                <small class="text-secondary-ss mt-1 d-block">
+                    <strong>Suggested:</strong> @recommendedTranslation
+                </small>
+            }
+        </div>
+    }
+
+    @* Input mode: vocab blocks *@
+    @if (inputMode == "MultipleChoice" && vocabBlocks.Any())
+    {
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @foreach (var block in vocabBlocks)
+            {
+                var b = block;
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseVocabBlock(b)">@b</button>
+            }
+        </div>
+    }
+
+    @* Text input *@
+    <div class="mb-3">
+        <label class="form-label text-secondary-ss">
+            Translate to @targetLanguage
+        </label>
+        <input type="text" class="form-control form-control-ss form-control-lg"
+               @bind="userInput" @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="Type your translation..." />
+    </div>
+
+    @* Actions *@
+    <div class="d-flex gap-2">
+        <button class="btn btn-ss-primary flex-grow-1" @onclick="GradeMe"
+                disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))">
+            @if (isGrading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            Grade
+        </button>
+        <button class="btn btn-ss-secondary"
+                @onclick="ToggleInputMode">
+            @(inputMode == "Text" ? "🔤 Blocks" : "⌨️ Type")
+        </button>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No sentences available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private AiService AiSvc { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Translation> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isGrading;
+    private bool showFeedback;
+    private string userInput = "";
+    private string currentSentence = "";
+    private string feedbackMessage = "";
+    private string feedbackType = "";
+    private string recommendedTranslation = "";
+    private string targetLanguage = "Korean";
+    private string inputMode = "Text";
+    private int currentIndex;
+
+    private List<Challenge> sentences = new();
+    private List<VocabularyWord>? currentVocabulary;
+    private List<string> vocabBlocks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSentences();
+    }
+
+    private async Task LoadSentences()
+    {
+        isBusy = true;
+        try
+        {
+            var resourceId = ResourceIdParam ?? 0;
+            var skillId = SkillIdParam ?? 0;
+
+            var result = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
+            if (result?.Any() == true)
+            {
+                sentences = result;
+                SetCurrentSentence();
+            }
+            else
+            {
+                Toast.ShowWarning("No sentences returned from the translation service.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading sentences");
+            Toast.ShowError($"Error loading sentences: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void SetCurrentSentence()
+    {
+        if (currentIndex < 0 || currentIndex >= sentences.Count) return;
+
+        var challenge = sentences[currentIndex];
+        currentSentence = challenge.RecommendedTranslation ?? "";
+        currentVocabulary = challenge.Vocabulary;
+        recommendedTranslation = "";
+        userInput = "";
+        showFeedback = false;
+        feedbackMessage = "";
+        inputMode = "Text";
+
+        vocabBlocks = challenge.Vocabulary?
+            .Select(v => v.TargetLanguageTerm)
+            .Where(t => !string.IsNullOrEmpty(t))
+            .OrderBy(_ => Random.Shared.Next())
+            .ToList() ?? new();
+    }
+
+    private async Task GradeMe()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        isGrading = true;
+        showFeedback = false;
+        StateHasChanged();
+
+        try
+        {
+            var challenge = sentences[currentIndex];
+            var prompt = $"Grade this translation.\n\nOriginal ({targetLanguage}): {currentSentence}\nUser's translation (English): {userInput}\nExpected translation: {challenge.SentenceText}\n\nProvide a JSON response with: fluency_score (0-100), accuracy_score (0-100), fluency_explanation, accuracy_explanation, recommended_translation.";
+
+            var feedback = await AiSvc.SendPrompt<GradeResponse>(prompt);
+
+            recommendedTranslation = feedback.RecommendedTranslation ?? "";
+            var accuracy = (int)feedback.Accuracy;
+            feedbackType = accuracy >= 80 ? "success" : accuracy >= 50 ? "hint" : "info";
+            feedbackMessage = $"Accuracy: {accuracy}% • Fluency: {(int)feedback.Fluency}%";
+            if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
+                feedbackMessage += $"\n{feedback.AccuracyExplanation}";
+
+            showFeedback = true;
+
+            // Record activity
+            await ActivityRepo.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Translation.ToString(),
+                Input = userInput,
+                Accuracy = feedback.Accuracy,
+                Fluency = feedback.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+
+            Toast.ShowSuccess($"Graded! Accuracy: {accuracy}%");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error grading translation");
+            Toast.ShowError("Error grading your translation. Please try again.");
+        }
+        finally
+        {
+            isGrading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await GradeMe();
+    }
+
+    private void NextSentence()
+    {
+        if (currentIndex < sentences.Count - 1)
+        {
+            currentIndex++;
+            SetCurrentSentence();
+        }
+        else
+        {
+            Toast.ShowInfo("You've completed all sentences! Loading more...");
+            _ = LoadMoreSentences();
+        }
+    }
+
+    private void PreviousSentence()
+    {
+        if (currentIndex > 0)
+        {
+            currentIndex--;
+            SetCurrentSentence();
+        }
+    }
+
+    private async Task LoadMoreSentences()
+    {
+        try
+        {
+            var resourceId = ResourceIdParam ?? 0;
+            var skillId = SkillIdParam ?? 0;
+            var more = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
+            if (more?.Any() == true)
+            {
+                sentences.AddRange(more);
+                currentIndex = sentences.Count - more.Count;
+                SetCurrentSentence();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading more sentences");
+        }
+    }
+
+    private void UseVocabBlock(string word)
+    {
+        userInput = string.IsNullOrEmpty(userInput) ? word : $"{userInput} {word}";
+    }
+
+    private void ToggleInputMode()
+    {
+        inputMode = inputMode == "Text" ? "MultipleChoice" : "Text";
+    }
+
+    private string GetFeedbackColor() => feedbackType switch
+    {
+        "success" => "var(--bs-success)",
+        "achievement" => "var(--bs-warning)",
+        "hint" => "var(--bs-info)",
+        _ => "var(--bs-secondary)"
+    };
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

@@ -1,0 +1,405 @@
+@page "/vocab-matching"
+@using SentenceStudio.Pages.VocabularyMatching
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="ss-title1 mb-0">Vocabulary Matching</h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-ss-secondary" @onclick="ToggleHideMode">
+            @(hideNativeWordsMode ? "👁 Show All" : "🙈 Hide Native")
+        </button>
+        <button class="btn btn-sm btn-ss-secondary" @onclick="RestartGame">🔄 New Game</button>
+    </div>
+</div>
+
+@if (isGameComplete)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 50vh;">
+        <h2 class="ss-title1 mb-3">🎉 Congratulations!</h2>
+        <p class="ss-body1 text-secondary-ss mb-2">All pairs matched!</p>
+        <div class="card card-ss p-3 mb-4" style="min-width: 240px;">
+            <div class="d-flex justify-content-around">
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@matchedPairs</div>
+                    <small class="text-secondary-ss">Matched</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2 text-danger">@incorrectGuesses</div>
+                    <small class="text-secondary-ss">Misses</small>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-ss-primary" @onclick="RestartGame">Play Again</button>
+    </div>
+}
+else if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
+    </div>
+}
+else if (tiles.Any())
+{
+    @* Status bar *@
+    <p class="ss-body1 text-center mb-3">
+        Matched: @matchedPairs / @totalPairs &nbsp;|&nbsp; Misses: @incorrectGuesses
+        @if (!string.IsNullOrEmpty(gameMessage))
+        {
+            <br /><small class="text-secondary-ss">@gameMessage</small>
+        }
+    </p>
+
+    @* Tile grid *@
+    <div class="row g-2">
+        @foreach (var tile in tiles)
+        {
+            var t = tile;
+            if (!t.IsVisible && !t.IsMatched)
+            {
+                <div class="col-3" style="min-height: 60px;"></div>
+                continue;
+            }
+
+            var bgClass = GetTileBgClass(t);
+            var textClass = GetTileTextClass(t);
+            var opacity = t.IsMatched ? "0.3" : "1.0";
+            var cursor = t.IsMatched ? "default" : "pointer";
+
+            <div class="col-6 col-md-3">
+                <div class="card card-ss text-center py-3 px-2 @bgClass"
+                     style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; min-height: 60px; display: flex; align-items: center; justify-content: center;"
+                     @onclick="() => OnTileTapped(t)">
+                    <span class="ss-title3 @textClass">@t.Text</span>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No vocabulary available for matching.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceIds")]
+    public string? ResourceIdsParam { get; set; }
+
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<VocabMatching> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isGameComplete;
+    private bool hideNativeWordsMode = true;
+    private string gameMessage = "";
+    private int matchedPairs;
+    private int totalPairs;
+    private int incorrectGuesses;
+
+    private List<MatchingTile> tiles = new();
+    private List<MatchingTile> selectedTiles = new();
+    private System.Diagnostics.Stopwatch responseTimer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVocabulary();
+    }
+
+    private async Task LoadVocabulary()
+    {
+        isBusy = true;
+        gameMessage = "";
+        try
+        {
+            var resourceIds = ParseResourceIds();
+            if (resourceIds.Length == 0) { isBusy = false; return; }
+
+            var allWords = new List<VocabularyWord>();
+            foreach (var id in resourceIds)
+            {
+                var resource = await ResourceRepo.GetResourceAsync(id);
+                if (resource?.Vocabulary?.Any() == true)
+                    allWords.AddRange(resource.Vocabulary);
+            }
+
+            // Deduplicate and filter
+            allWords = allWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                .GroupBy(w => w.Id).Select(g => g.First()).ToList();
+
+            if (!allWords.Any())
+            {
+                gameMessage = "No vocabulary available.";
+                isBusy = false;
+                return;
+            }
+
+            // Get progress and prioritize
+            var wordIds = allWords.Select(w => w.Id).ToList();
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
+
+            var selectedWords = allWords
+                .Select(w => new { Word = w, Progress = progressDict.ContainsKey(w.Id) ? progressDict[w.Id] : null })
+                .Where(wp => !(wp.Progress?.IsKnown ?? false))
+                .OrderBy(wp => wp.Progress?.MasteryScore ?? 0f)
+                .ThenBy(_ => Guid.NewGuid())
+                .Take(8)
+                .Select(wp => wp.Word)
+                .ToList();
+
+            if (!selectedWords.Any())
+                selectedWords = allWords.OrderBy(_ => Guid.NewGuid()).Take(8).ToList();
+
+            // Create tiles
+            var newTiles = new List<MatchingTile>();
+            int tileId = 0;
+
+            foreach (var word in selectedWords)
+            {
+                newTiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.NativeLanguageTerm!.Trim(),
+                    Language = "native",
+                    VocabularyWordId = word.Id,
+                    IsVisible = !hideNativeWordsMode,
+                    Word = word
+                });
+            }
+            foreach (var word in selectedWords)
+            {
+                newTiles.Add(new MatchingTile
+                {
+                    Id = tileId++,
+                    Text = word.TargetLanguageTerm!.Trim(),
+                    Language = "target",
+                    VocabularyWordId = word.Id,
+                    IsVisible = true,
+                    Word = word
+                });
+            }
+
+            // Shuffle
+            var rng = new Random();
+            for (int i = newTiles.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(0, i + 1);
+                (newTiles[i], newTiles[j]) = (newTiles[j], newTiles[i]);
+            }
+
+            tiles = newTiles;
+            totalPairs = selectedWords.Count;
+            matchedPairs = 0;
+            incorrectGuesses = 0;
+            isGameComplete = false;
+            selectedTiles.Clear();
+            gameMessage = hideNativeWordsMode ? "Tap a target word to reveal native words" : "Match the pairs!";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading vocabulary");
+            Toast.ShowError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void OnTileTapped(MatchingTile tile)
+    {
+        if (tile.IsMatched || isGameComplete || !tile.IsVisible) return;
+
+        // In hide mode, only target words can be selected first
+        if (hideNativeWordsMode && selectedTiles.Count == 0 && tile.Language == "native") return;
+
+        if (tile.IsSelected)
+        {
+            DeselectTile(tile);
+            return;
+        }
+
+        if (selectedTiles.Count >= 2) return;
+
+        if (selectedTiles.Count == 0)
+            responseTimer.Restart();
+
+        // Select tile
+        tile.IsSelected = true;
+        selectedTiles.Add(tile);
+
+        // In hide mode: show native words when target selected
+        if (hideNativeWordsMode && tile.Language == "target" && selectedTiles.Count == 1)
+        {
+            foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                t.IsVisible = true;
+        }
+
+        if (selectedTiles.Count == 1)
+            gameMessage = "Select another tile";
+        else if (selectedTiles.Count == 2)
+        {
+            gameMessage = "Checking...";
+            _ = CheckMatchWithDelay();
+        }
+    }
+
+    private void DeselectTile(MatchingTile tile)
+    {
+        tile.IsSelected = false;
+        selectedTiles.RemoveAll(t => t.Id == tile.Id);
+
+        if (hideNativeWordsMode && selectedTiles.Count == 0)
+        {
+            foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                t.IsVisible = false;
+            gameMessage = "Tap a target word to reveal native words";
+        }
+        else
+        {
+            gameMessage = "Match the pairs!";
+        }
+    }
+
+    private async Task CheckMatchWithDelay()
+    {
+        await Task.Delay(600);
+        await CheckForMatch();
+        StateHasChanged();
+    }
+
+    private async Task CheckForMatch()
+    {
+        if (selectedTiles.Count != 2) return;
+
+        var tile1 = selectedTiles[0];
+        var tile2 = selectedTiles[1];
+
+        bool isMatch = tile1.VocabularyWordId == tile2.VocabularyWordId && tile1.Language != tile2.Language;
+        responseTimer.Stop();
+
+        // Record progress
+        var matchedWord = tile1.Word ?? tile2.Word;
+        if (matchedWord != null)
+        {
+            try
+            {
+                await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                {
+                    VocabularyWordId = matchedWord.Id,
+                    UserId = 1,
+                    Activity = "VocabularyMatching",
+                    InputMode = "MultipleChoice",
+                    WasCorrect = isMatch,
+                    DifficultyWeight = 0.8f,
+                    ContextType = "Isolated",
+                    UserInput = isMatch ? "correct_match" : "incorrect_match",
+                    ExpectedAnswer = $"{matchedWord.NativeLanguageTerm} = {matchedWord.TargetLanguageTerm}",
+                    ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error recording match activity");
+            }
+        }
+
+        if (isMatch)
+        {
+            tile1.IsMatched = true;
+            tile1.IsSelected = false;
+            tile2.IsMatched = true;
+            tile2.IsSelected = false;
+            selectedTiles.Clear();
+            matchedPairs++;
+            gameMessage = "✅ Great match!";
+
+            if (hideNativeWordsMode)
+            {
+                foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                    t.IsVisible = false;
+            }
+
+            if (matchedPairs >= totalPairs)
+            {
+                isGameComplete = true;
+                gameMessage = "";
+                foreach (var t in tiles) t.IsVisible = true;
+                Toast.ShowSuccess("All pairs matched! 🎉");
+            }
+        }
+        else
+        {
+            tile1.IsSelected = false;
+            tile2.IsSelected = false;
+            selectedTiles.Clear();
+            incorrectGuesses++;
+            gameMessage = "❌ Not a match. Try again!";
+
+            if (hideNativeWordsMode)
+            {
+                foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                    t.IsVisible = false;
+            }
+        }
+    }
+
+    private async Task RestartGame()
+    {
+        tiles.Clear();
+        selectedTiles.Clear();
+        matchedPairs = 0;
+        totalPairs = 0;
+        incorrectGuesses = 0;
+        isGameComplete = false;
+        gameMessage = "";
+        await LoadVocabulary();
+    }
+
+    private void ToggleHideMode()
+    {
+        hideNativeWordsMode = !hideNativeWordsMode;
+        if (hideNativeWordsMode)
+        {
+            bool hasTargetSelected = selectedTiles.Any(t => t.Language == "target");
+            foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
+                t.IsVisible = hasTargetSelected;
+        }
+        else
+        {
+            foreach (var t in tiles.Where(t => t.Language == "native"))
+                t.IsVisible = true;
+        }
+    }
+
+    private string GetTileBgClass(MatchingTile tile)
+    {
+        if (tile.IsMatched) return "";
+        if (tile.IsSelected) return "bg-primary text-white border-primary";
+        if (tile.Language == "native") return "";
+        return "border-info";
+    }
+
+    private string GetTileTextClass(MatchingTile tile)
+    {
+        if (tile.IsSelected) return "text-white";
+        if (tile.IsMatched) return "text-secondary";
+        return "";
+    }
+
+    private int[] ParseResourceIds()
+    {
+        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<int>();
+        return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var id) ? id : 0)
+            .Where(id => id > 0).ToArray();
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

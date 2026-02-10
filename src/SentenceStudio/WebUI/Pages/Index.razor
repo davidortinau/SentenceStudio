@@ -1,19 +1,136 @@
 @page "/"
+@using SentenceStudio.Services.Progress
 
-<h1 class="mb-4">SentenceStudio</h1>
-
-<div class="card card-ss p-4">
-    <h5 class="card-title">Blazor Hybrid is running!</h5>
-    <p class="card-text text-secondary">
-        The Blazor infrastructure is set up and working. Pages will be converted from MauiReactor to Blazor components progressively.
-    </p>
-    <p class="card-text">
-        <span class="badge bg-success">Bootstrap @bootstrapCheck</span>
-        <span class="badge bg-primary ms-2">Blazor Hybrid</span>
-        <span class="badge bg-info ms-2">.NET MAUI</span>
-    </p>
+<div class="mb-4">
+    <h1 class="ss-title1 mb-1">@WelcomeMessage</h1>
+    <p class="text-secondary-ss mb-0">Your language learning dashboard</p>
 </div>
 
+@* ============ ACTIVITY LAUNCHER ============ *@
+<h2 class="ss-title2 mb-3">Activities</h2>
+<div class="row g-3 mb-4">
+    @foreach (var activity in activities)
+    {
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card card-ss p-3 text-center h-100" role="button"
+                 @onclick="() => NavigateToActivity(activity.Route)"
+                 style="cursor: pointer;">
+                <div class="fs-2 mb-2">@activity.Icon</div>
+                <div class="ss-body1 fw-semibold">@activity.Label</div>
+            </div>
+        </div>
+    }
+</div>
+
+@* ============ VOCABULARY STATS ============ *@
+<h2 class="ss-title2 mb-3">Vocabulary</h2>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (vocabSummary is not null)
+{
+    var total = vocabSummary.New + vocabSummary.Learning + vocabSummary.Review + vocabSummary.Known;
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold" style="color: #6B8CFF;">@vocabSummary.New</div>
+                <div class="text-secondary-ss small">New</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold" style="color: #FF8C00;">@vocabSummary.Learning</div>
+                <div class="text-secondary-ss small">Learning</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold" style="color: #FFC233;">@vocabSummary.Review</div>
+                <div class="text-secondary-ss small">Review</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold" style="color: #12B886;">@vocabSummary.Known</div>
+                <div class="text-secondary-ss small">Known</div>
+            </div>
+        </div>
+    </div>
+
+    @if (total > 0)
+    {
+        <div class="card card-ss p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="ss-body1">Total words: <strong>@total</strong></span>
+                <span class="text-secondary-ss">7-day accuracy: <strong>@(Math.Round(vocabSummary.SuccessRate7d * 100))%</strong></span>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="card card-ss p-4 mb-4 text-center">
+        <p class="text-secondary-ss mb-0">No vocabulary data yet. Start practicing!</p>
+    </div>
+}
+
 @code {
-    private string bootstrapCheck = "5.3";
+    [Inject] private IAppState AppState { get; set; } = default!;
+    [Inject] private IProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ILogger<Index> Logger { get; set; } = default!;
+
+    private bool isLoading;
+    private VocabProgressSummary? vocabSummary;
+
+    private string WelcomeMessage =>
+        AppState?.CurrentUserProfile?.Name is { Length: > 0 } name
+            ? $"Welcome, {name}!"
+            : "Dashboard";
+
+    private readonly record struct ActivityInfo(string Label, string Icon, string Route);
+
+    private static readonly ActivityInfo[] activities =
+    [
+        new("Conversation", "\U0001F4AC", "conversation"),
+        new("Describe a Scene", "\U0001F5BC", "scene"),
+        new("Translate", "\U0001F310", "translation"),
+        new("Write", "\u270D\uFE0F", "writing"),
+        new("Cloze", "\U0001F9E9", "cloze"),
+        new("Reading", "\U0001F4D6", "reading"),
+        new("Vocabulary Quiz", "\U0001F4DD", "vocabularyquiz"),
+        new("Vocabulary Matching", "\U0001F0CF", "vocabularymatching"),
+        new("Shadowing", "\U0001F50A", "shadowing"),
+        new("How Do You Say", "\U0001F4AC", "howdoyousay"),
+        new("Minimal Pairs", "\U0001F442", "minimalpairs"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVocabStatsAsync();
+    }
+
+    private async Task LoadVocabStatsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var fromUtc = DateTime.UtcNow.AddDays(-30);
+            vocabSummary = await ProgressService.GetVocabSummaryAsync(fromUtc);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load vocabulary stats");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToActivity(string route) => NavManager.NavigateTo($"/{route}");
 }
