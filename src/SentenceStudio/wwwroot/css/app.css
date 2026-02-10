@@ -85,6 +85,7 @@
     --ss-text-secondary: #394150;
     --ss-text-muted: #7A8699;
     --ss-outline: #D6DAF0;
+    --ss-highlight-darkest: #1E4DFF;
 }
 
 /* ============================================
@@ -104,6 +105,7 @@
     --ss-text-secondary: #C6D0E7;
     --ss-text-muted: #93A3C7;
     --ss-outline: #263457;
+    --ss-highlight-darkest: #6B8CFF;
 }
 
 /* ============================================
@@ -258,9 +260,21 @@ h3:focus,
     min-width: 44px;
 }
 
+/* Dark mode: darken primary button bg for white text contrast (5.4:1 AA) */
+[data-bs-theme="dark"] .btn-ss-primary {
+    background-color: #3D5FD0;
+    border-color: #3D5FD0;
+    color: #FFFFFF;
+}
+
 .btn-ss-primary:hover {
     opacity: 0.9;
     color: var(--ss-on-primary);
+}
+
+[data-bs-theme="dark"] .btn-ss-primary:hover {
+    background-color: #4565D5;
+    color: #FFFFFF;
 }
 
 .btn-ss-secondary {
@@ -299,6 +313,32 @@ h3:focus,
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
+}
+
+/* ============================================
+   BOOTSTRAP DARK-MODE OVERRIDES
+   (btn-outline-* text contrast fix)
+   ============================================ */
+[data-bs-theme="dark"] .btn-outline-secondary {
+    color: var(--ss-text-secondary);
+    border-color: var(--ss-outline);
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary:hover,
+[data-bs-theme="dark"] .btn-check:checked + .btn-outline-secondary {
+    background-color: var(--ss-primary);
+    border-color: var(--ss-primary);
+    color: #FFFFFF;
+}
+
+[data-bs-theme="dark"] .btn-outline-danger {
+    color: var(--ss-error);
+    border-color: var(--ss-error);
+}
+
+[data-bs-theme="dark"] .btn-outline-success {
+    color: var(--ss-success);
+    border-color: var(--ss-success);
 }
 
 /* ============================================

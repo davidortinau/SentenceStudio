@@ -114,7 +114,7 @@ else
                    @onkeydown="HandleKeyDown"
                    placeholder="Type your message..."
                    disabled="@isWaitingForReply" />
-            <button class="btn btn-ss-primary px-4" @onclick="SendMessage"
+            <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
                     disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
                 Send
             </button>
