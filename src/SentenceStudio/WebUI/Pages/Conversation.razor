@@ -113,7 +113,8 @@ else
     <div class="card card-ss p-3 flex-shrink-0 mt-auto">
         <div class="d-flex gap-2">
             <input type="text" class="form-control form-control-ss"
-                   @bind="userInput" @bind:event="oninput"
+                   value="@userInput"
+                   @oninput="OnInput"
                    @onkeydown="HandleKeyDown"
                    placeholder="Type your message..."
                    disabled="@isWaitingForReply" />
@@ -307,6 +308,11 @@ else
             activeScenario = scenarios.FirstOrDefault(s => s.Id == id);
             await StartConversation();
         }
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        userInput = e.Value?.ToString() ?? "";
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
