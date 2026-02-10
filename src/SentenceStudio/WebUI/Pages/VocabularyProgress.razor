@@ -164,7 +164,7 @@ else
 
     private static string GetProgressText(ProgressItem item)
     {
-        if (item.IsKnown) return "✅ Known";
+        if (item.IsKnown) return "Known";
         if (item.IsUnknown) return "Start practicing to track progress.";
 
         var parts = new List<string>();

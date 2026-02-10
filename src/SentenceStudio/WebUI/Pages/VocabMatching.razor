@@ -14,7 +14,7 @@
 @if (isGameComplete)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 50vh;">
-        <h2 class="ss-title1 mb-3">🎉 Congratulations!</h2>
+        <h2 class="ss-title1 mb-3"><i class="bi bi-trophy-fill me-2"></i>Congratulations!</h2>
         <p class="ss-body1 text-secondary-ss mb-2">All pairs matched!</p>
         <div class="card card-ss p-3 mb-4" style="min-width: 240px;">
             <div class="d-flex justify-content-around">
@@ -318,7 +318,7 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             matchedPairs++;
-            gameMessage = "✅ Great match!";
+            gameMessage = "Great match!";
 
             if (hideNativeWordsMode)
             {
@@ -331,7 +331,7 @@ else
                 isGameComplete = true;
                 gameMessage = "";
                 foreach (var t in tiles) t.IsVisible = true;
-                Toast.ShowSuccess("All pairs matched! 🎉");
+                Toast.ShowSuccess("All pairs matched!");
             }
         }
         else
@@ -340,7 +340,7 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             incorrectGuesses++;
-            gameMessage = "❌ Not a match. Try again!";
+            gameMessage = "Not a match. Try again!";
 
             if (hideNativeWordsMode)
             {

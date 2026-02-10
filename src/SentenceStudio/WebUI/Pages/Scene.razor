@@ -218,8 +218,8 @@ else
                 UpdatedAt = DateTime.Now
             });
 
-            var emoji = grade.Accuracy >= 80 ? "🎉" : grade.Accuracy >= 50 ? "👍" : "💪";
-            Toast.ShowSuccess($"{emoji} Accuracy: {(int)grade.Accuracy}%");
+            var label = grade.Accuracy >= 80 ? "Excellent" : grade.Accuracy >= 50 ? "Good effort" : "Keep practicing";
+            Toast.ShowSuccess($"{label} — Accuracy: {(int)grade.Accuracy}%");
         }
         catch (Exception ex)
         {

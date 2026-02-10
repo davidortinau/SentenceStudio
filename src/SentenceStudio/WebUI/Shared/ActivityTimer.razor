@@ -5,7 +5,7 @@
     @if (IsActive && _isInitialized)
     {
         <div class="activity-timer__display">
-            <span class="activity-timer__icon">⏱️</span>
+            <span class="activity-timer__icon"><i class="bi bi-stopwatch"></i></span>
             <span class="activity-timer__time ss-body1-strong">@FormatElapsed(_elapsed)</span>
             @if (TargetMinutes > 0)
             {
@@ -36,7 +36,7 @@
     else
     {
         <div class="activity-timer__display">
-            <span class="activity-timer__icon">⏱️</span>
+            <span class="activity-timer__icon"><i class="bi bi-stopwatch"></i></span>
             <span class="activity-timer__time ss-body1 text-muted-ss">--:--</span>
         </div>
     }

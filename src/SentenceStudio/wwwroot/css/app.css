@@ -122,6 +122,16 @@ html, body {
     height: 100%;
 }
 
+/* Remove Blazor's focus-on-navigate outline from content area */
+main:focus,
+h1:focus,
+h2:focus,
+h3:focus,
+[tabindex]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 /* ============================================
    TYPOGRAPHY (matching ApplicationTheme.Styles.cs)
    ============================================ */

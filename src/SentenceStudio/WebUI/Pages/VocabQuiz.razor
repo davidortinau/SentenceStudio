@@ -244,7 +244,7 @@ else
 
             if (!vocabItems.Any())
             {
-                Toast.ShowInfo("All vocabulary in this resource is mastered! 🎉");
+                Toast.ShowInfo("All vocabulary in this resource is mastered!");
                 isBusy = false;
                 return;
             }
@@ -377,7 +377,7 @@ else
             else currentItem.QuizProductionStreak = 0;
         }
 
-        feedbackMessage = isCorrect ? "✅ Correct!" : $"❌ The answer is: {correctAnswer}";
+        feedbackMessage = isCorrect ? "Correct!" : $"The answer is: {correctAnswer}";
 
         // Record attempt
         try

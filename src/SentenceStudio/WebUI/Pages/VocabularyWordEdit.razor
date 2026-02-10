@@ -250,7 +250,7 @@ else
         progressStatusText = isKnown ? "Known" : isLearning ? "Learning" : "Unknown";
 
         if (isKnown)
-            progressDetails = "✅ Known";
+            progressDetails = "Known";
         else if (progress == null || (!isKnown && !isLearning))
             progressDetails = "Start practicing to track progress.";
         else
@@ -341,7 +341,7 @@ else
                     await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
             }
 
-            Toast.ShowSuccess(Id == 0 ? "✅ Vocabulary word added!" : "✅ Vocabulary word updated!");
+            Toast.ShowSuccess(Id == 0 ? "Vocabulary word added!" : "Vocabulary word updated!");
             GoBack();
         }
         catch (Exception ex)

@@ -12,7 +12,7 @@
                @bind="videoUrl" @bind:event="oninput"
                @onkeydown="HandleUrlKeyDown"
                placeholder="https://www.youtube.com/watch?v=..." />
-        <button class="btn btn-ss-primary px-4" @onclick="FetchTranscripts"
+        <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="FetchTranscripts"
                 disabled="@(isLoadingTranscripts || string.IsNullOrWhiteSpace(videoUrl))">
             @if (isLoadingTranscripts)
             {
@@ -68,7 +68,7 @@
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
                     }
-                    ✨ Polish with AI
+                    <i class="bi bi-stars me-1"></i> Polish with AI
                 </button>
                 <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveAsResource"
                         disabled="@isSaving">
@@ -94,7 +94,7 @@
 @if (savedResourceId > 0)
 {
     <div class="alert alert-success d-flex align-items-center gap-2">
-        <span>✅ Resource saved successfully!</span>
+        <span><i class="bi bi-check-circle-fill me-1"></i> Resource saved successfully!</span>
         <button class="btn btn-sm btn-outline-success" @onclick="ViewSavedResource">View Resource</button>
         <button class="btn btn-sm btn-outline-secondary" @onclick="Reset">Import Another</button>
     </div>
