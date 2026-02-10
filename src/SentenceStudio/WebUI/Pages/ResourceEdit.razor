@@ -1,0 +1,357 @@
+@page "/resources/edit/{Id:int}"
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="ss-title1 mb-0">@(resource.Title ?? "Resource")</h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-ss-secondary" @onclick="GoBack">Back</button>
+            @if (!isEditing && isEditable)
+            {
+                <button class="btn btn-ss-primary" @onclick="() => isEditing = true">Edit</button>
+            }
+            @if (isEditing)
+            {
+                <button class="btn btn-ss-secondary" @onclick="CancelEdit">Cancel</button>
+                <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Save
+                </button>
+                @if (isEditable)
+                {
+                    <button class="btn btn-ss-danger" @onclick="DeleteResource">Delete</button>
+                }
+            }
+        </div>
+    </div>
+
+    @if (resource.IsSmartResource)
+    {
+        <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+            <span>🤖</span>
+            <strong>Smart Resource</strong>
+            <span class="text-secondary-ss">— Read-only, auto-updated</span>
+        </div>
+    }
+
+    @if (isEditing)
+    {
+        @* ===== EDIT MODE ===== *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Basic Information</h5>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Title</label>
+                <input type="text" class="form-control form-control-ss" @bind="resource.Title" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Description</label>
+                <textarea class="form-control form-control-ss" @bind="resource.Description" rows="3"></textarea>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label ss-body2 text-secondary-ss">Media Type</label>
+                    <select class="form-select form-control-ss" @bind="resource.MediaType">
+                        @foreach (var type in mediaTypes)
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label ss-body2 text-secondary-ss">Language</label>
+                    <select class="form-select form-control-ss" @bind="resource.Language">
+                        @foreach (var lang in languages)
+                        {
+                            <option value="@lang">@lang</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Media URL</label>
+                <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Tags (comma separated)</label>
+                <input type="text" class="form-control form-control-ss" @bind="resource.Tags" />
+            </div>
+        </div>
+
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Transcript</h5>
+            <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6"></textarea>
+        </div>
+
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Translation</h5>
+            <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6"></textarea>
+        </div>
+
+        @* Vocabulary Edit *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Vocabulary (@(resource.Vocabulary?.Count ?? 0) words)</h5>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Import vocabulary (one pair per line)</label>
+                <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
+                          placeholder="target, native"></textarea>
+            </div>
+
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
+                           checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
+                    <label class="form-check-label ss-body2" for="editDelimComma">Comma</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
+                           checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
+                    <label class="form-check-label ss-body2" for="editDelimTab">Tab</label>
+                </div>
+                <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
+                        disabled="@string.IsNullOrWhiteSpace(vocabList)">
+                    Import
+                </button>
+            </div>
+
+            @if (resource.Vocabulary?.Count > 0)
+            {
+                <div class="list-group list-group-flush">
+                    @foreach (var word in resource.Vocabulary)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-secondary px-0">
+                            <div>
+                                <strong class="ss-body1">@word.TargetLanguageTerm</strong>
+                                <span class="text-secondary-ss ms-2">@word.NativeLanguageTerm</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        @* ===== VIEW MODE ===== *@
+        @if (!string.IsNullOrEmpty(resource.Description))
+        {
+            <p class="ss-body1 mb-4">@resource.Description</p>
+        }
+
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Details</h5>
+            <div class="row g-2">
+                <div class="col-4 col-md-2"><strong class="ss-body2">Type</strong></div>
+                <div class="col-8 col-md-4 ss-body2">@resource.MediaType</div>
+
+                <div class="col-4 col-md-2"><strong class="ss-body2">Language</strong></div>
+                <div class="col-8 col-md-4 ss-body2">@resource.Language</div>
+
+                @if (!string.IsNullOrEmpty(resource.MediaUrl))
+                {
+                    <div class="col-4 col-md-2"><strong class="ss-body2">URL</strong></div>
+                    <div class="col-8 col-md-4 ss-body2">
+                        <a href="@resource.MediaUrl" target="_blank" class="text-decoration-underline">@resource.MediaUrl</a>
+                    </div>
+                }
+
+                <div class="col-4 col-md-2"><strong class="ss-body2">Created</strong></div>
+                <div class="col-8 col-md-4 ss-body2">@resource.CreatedAt.ToString("g")</div>
+
+                <div class="col-4 col-md-2"><strong class="ss-body2">Updated</strong></div>
+                <div class="col-8 col-md-4 ss-body2">@resource.UpdatedAt.ToString("g")</div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(resource.Transcript))
+        {
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">Transcript</h5>
+                <p class="ss-body2" style="white-space: pre-wrap;">@resource.Transcript</p>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(resource.Translation))
+        {
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">Translation</h5>
+                <p class="ss-body2" style="white-space: pre-wrap;">@resource.Translation</p>
+            </div>
+        }
+
+        @* Vocabulary Section *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">📚 Vocabulary (@(resource.Vocabulary?.Count ?? 0) words)</h5>
+            @if (resource.Vocabulary?.Count > 0)
+            {
+                <div class="list-group list-group-flush">
+                    @foreach (var word in resource.Vocabulary)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-secondary px-0">
+                            <div>
+                                <strong class="ss-body1">@word.TargetLanguageTerm</strong>
+                                <span class="text-secondary-ss ms-2">@word.NativeLanguageTerm</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-secondary-ss ss-body2 mb-0">No vocabulary words yet.</p>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ModalService Modal { get; set; } = default!;
+
+    private LearningResource resource = new();
+    private bool isLoading = true;
+    private bool isEditing;
+    private bool isSaving;
+    private string vocabList = "";
+    private string delimiter = "comma";
+
+    private bool isEditable => !resource.IsSmartResource;
+
+    private void SetDelimiterComma() => delimiter = "comma";
+    private void SetDelimiterTab() => delimiter = "tab";
+
+    private readonly string[] mediaTypes = SentenceStudio.Common.Constants.MediaTypes;
+    private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadResource();
+    }
+
+    private async Task LoadResource()
+    {
+        isLoading = true;
+        try
+        {
+            resource = await ResourceRepo.GetResourceAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load resource: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/resources");
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        // Reload to discard changes
+        _ = LoadResource();
+    }
+
+    private async Task SaveResource()
+    {
+        if (string.IsNullOrWhiteSpace(resource.Title))
+        {
+            Toast.ShowError("Title is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(resource.MediaType))
+            resource.MediaType = "Other";
+        if (string.IsNullOrWhiteSpace(resource.Language))
+            resource.Language = "Other";
+
+        isSaving = true;
+        try
+        {
+            resource.UpdatedAt = DateTime.UtcNow;
+            await ResourceRepo.SaveResourceAsync(resource);
+            isEditing = false;
+            Toast.ShowSuccess("Resource saved.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteResource()
+    {
+        var result = await Modal.ConfirmAsync("Delete Resource",
+            "Are you sure you want to delete this resource? This cannot be undone.",
+            "Delete", "Cancel");
+
+        if (result == ModalResult.Confirmed)
+        {
+            try
+            {
+                await ResourceRepo.DeleteResourceAsync(resource);
+                Toast.ShowSuccess("Resource deleted.");
+                NavManager.NavigateTo("/resources");
+            }
+            catch (Exception ex)
+            {
+                Toast.ShowError($"Failed to delete: {ex.Message}");
+            }
+        }
+    }
+
+    private void ImportVocabulary()
+    {
+        if (string.IsNullOrWhiteSpace(vocabList))
+            return;
+
+        try
+        {
+            var newWords = VocabularyWord.ParseVocabularyWords(vocabList, delimiter);
+            resource.Vocabulary ??= new List<VocabularyWord>();
+
+            int added = 0;
+            foreach (var word in newWords)
+            {
+                bool isDuplicate = resource.Vocabulary.Any(existing =>
+                    existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+
+                if (!isDuplicate)
+                {
+                    word.CreatedAt = DateTime.UtcNow;
+                    word.UpdatedAt = DateTime.UtcNow;
+                    resource.Vocabulary.Add(word);
+                    added++;
+                }
+            }
+
+            vocabList = "";
+            Toast.ShowSuccess($"Imported {added} vocabulary words.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Import failed: {ex.Message}");
+        }
+    }
+}

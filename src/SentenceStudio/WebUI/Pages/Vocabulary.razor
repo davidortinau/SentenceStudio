@@ -1,0 +1,205 @@
+@page "/vocabulary"
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="ss-title1 mb-0">Vocabulary Management</h1>
+    <button class="btn btn-ss-primary" @onclick="AddWord">
+        <i class="bi bi-plus-lg me-1"></i> Add Word
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    @* Stats bar *@
+    <div class="d-flex gap-3 mb-3">
+        <span class="badge bg-secondary rounded-pill">Total: @stats.TotalWords</span>
+        <span class="badge bg-success rounded-pill">Associated: @stats.AssociatedWords</span>
+        <span class="badge bg-warning text-dark rounded-pill">Orphaned: @stats.OrphanedWords</span>
+    </div>
+
+    @* Search and filter *@
+    <div class="d-flex gap-2 mb-4">
+        <input type="text" class="form-control form-control-ss flex-grow-1"
+               placeholder="Search vocabulary..."
+               @bind="searchText" @bind:event="oninput" @bind:after="ApplyFilters" />
+
+        <select class="form-select form-control-ss" style="max-width: 180px;"
+                @bind="selectedFilter" @bind:after="ApplyFilters">
+            <option value="All">All</option>
+            <option value="Associated">Associated</option>
+            <option value="Orphaned">Orphaned</option>
+        </select>
+
+        @if (!string.IsNullOrWhiteSpace(searchText) || selectedFilter != "All")
+        {
+            <button class="btn btn-ss-secondary" @onclick="ClearFilters">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        }
+    </div>
+
+    @if (filteredWords.Count == 0)
+    {
+        <div class="text-center p-5">
+            <p class="ss-body1 text-secondary-ss mb-4">
+                @(allWords.Count > 0 ? "No words match the current filter." : "No vocabulary words yet.")
+            </p>
+            @if (allWords.Count == 0)
+            {
+                <button class="btn btn-ss-primary" @onclick="AddWord">Add Your First Word</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var item in filteredWords)
+            {
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card card-ss p-3" role="button" @onclick="() => EditWord(item.Word.Id)" style="cursor: pointer;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1 overflow-hidden">
+                                <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
+                                <span class="ss-body2 text-secondary-ss">@(item.Word.NativeLanguageTerm ?? "")</span>
+                            </div>
+                            <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
+                        </div>
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            @if (item.IsOrphaned)
+                            {
+                                <small class="text-warning">⚠ Orphaned</small>
+                            }
+                            else
+                            {
+                                <small class="text-secondary-ss">📚 @item.AssociatedResources.Count resource(s)</small>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Word.Tags))
+                            {
+                                @foreach (var tag in item.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(3))
+                                {
+                                    <span class="badge bg-secondary bg-opacity-50 fw-normal">@tag</span>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Vocabulary> Logger { get; set; } = default!;
+
+    private List<VocabularyCardItem> allWords = new();
+    private List<VocabularyCardItem> filteredWords = new();
+    private (int TotalWords, int AssociatedWords, int OrphanedWords) stats;
+    private bool isLoading = true;
+    private string searchText = "";
+    private string selectedFilter = "All";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var wordsTask = ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+            var progressTask = ProgressService.GetAllProgressDictionaryAsync();
+            var statsTask = ResourceRepo.GetVocabularyStatsAsync();
+
+            await Task.WhenAll(wordsTask, progressTask, statsTask);
+
+            var words = await wordsTask;
+            var progressData = await progressTask;
+            stats = await statsTask;
+
+            allWords = words.Select(w =>
+            {
+                var progress = progressData.TryGetValue(w.Id, out var p) ? p : null;
+                return new VocabularyCardItem
+                {
+                    Word = w,
+                    AssociatedResources = w.LearningResources?.ToList() ?? new(),
+                    Progress = progress
+                };
+            }).ToList();
+
+            ApplyFilters();
+            Logger.LogInformation("✅ Vocabulary loaded: {Count} words", allWords.Count);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load vocabulary: {ex.Message}");
+            Logger.LogError(ex, "Failed to load vocabulary data");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = allWords.AsEnumerable();
+
+        if (selectedFilter == "Associated")
+            filtered = filtered.Where(v => v.AssociatedResources.Any());
+        else if (selectedFilter == "Orphaned")
+            filtered = filtered.Where(v => !v.AssociatedResources.Any());
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            var search = searchText.ToLower();
+            filtered = filtered.Where(v =>
+                (v.Word.TargetLanguageTerm?.ToLower().Contains(search) == true) ||
+                (v.Word.NativeLanguageTerm?.ToLower().Contains(search) == true) ||
+                (v.Word.Tags?.ToLower().Contains(search) == true));
+        }
+
+        filteredWords = filtered.ToList();
+    }
+
+    private void ClearFilters()
+    {
+        searchText = "";
+        selectedFilter = "All";
+        ApplyFilters();
+    }
+
+    private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
+    private void EditWord(int id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
+
+    private static string GetStatusBadgeClass(VocabularyCardItem item) => item switch
+    {
+        { IsKnown: true } => "bg-success",
+        { IsLearning: true } => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private class VocabularyCardItem
+    {
+        public VocabularyWord Word { get; set; } = null!;
+        public List<LearningResource> AssociatedResources { get; set; } = new();
+        public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+
+        public bool IsKnown => Progress?.IsKnown ?? false;
+        public bool IsLearning => Progress?.IsLearning ?? false;
+        public bool IsOrphaned => !AssociatedResources.Any();
+
+        public string StatusText => IsKnown ? "Known" : IsLearning ? "Learning" : "Unknown";
+    }
+}

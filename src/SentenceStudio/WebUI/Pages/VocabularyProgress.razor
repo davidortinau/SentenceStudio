@@ -1,0 +1,200 @@
+@page "/vocabulary/progress"
+@page "/vocabulary/progress/{WordId:int}"
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="ss-title1 mb-0">Vocabulary Progress</h1>
+</div>
+
+@* Filter tabs *@
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <button class="btn @(selectedFilter == "All" ? "btn-ss-primary" : "btn-ss-secondary")"
+            @onclick='() => SetFilter("All")'>
+        All (@totalWords)
+    </button>
+    <button class="btn @(selectedFilter == "Known" ? "btn-success" : "btn-ss-secondary")"
+            @onclick='() => SetFilter("Known")'>
+        Known (@knownWords)
+    </button>
+    <button class="btn @(selectedFilter == "Learning" ? "btn-warning text-dark" : "btn-ss-secondary")"
+            @onclick='() => SetFilter("Learning")'>
+        Learning (@learningWords)
+    </button>
+    <button class="btn @(selectedFilter == "Unknown" ? "btn-secondary" : "btn-ss-secondary")"
+            @onclick='() => SetFilter("Unknown")'>
+        Unknown (@unknownWords)
+    </button>
+</div>
+
+@* Search *@
+<div class="mb-4">
+    <input type="text" class="form-control form-control-ss"
+           placeholder="Search vocabulary..."
+           @bind="searchText" @bind:event="oninput" @bind:after="ApplyFilters" />
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (filteredItems.Count == 0)
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No vocabulary words match the current filter.</p>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var item in filteredItems)
+        {
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card card-ss p-3" style="border-left: 3px solid @GetStatusColor(item);">
+                    <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
+                    <span class="ss-body2 text-secondary-ss mb-2">@(item.Word.NativeLanguageTerm ?? "")</span>
+                    <div class="mb-1">
+                        <span class="badge @GetStatusBadgeClass(item)">@GetStatusText(item)</span>
+                    </div>
+                    <small class="text-secondary-ss d-block mb-1">@GetProgressText(item)</small>
+                    <small class="@GetReviewDateClass(item)">@GetReviewDateText(item)</small>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int WordId { get; set; }
+
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<VocabularyProgress> Logger { get; set; } = default!;
+
+    private List<ProgressItem> allItems = new();
+    private List<ProgressItem> filteredItems = new();
+    private bool isLoading = true;
+    private string selectedFilter = "All";
+    private string searchText = "";
+
+    private int totalWords => allItems.Count;
+    private int knownWords => allItems.Count(i => i.IsKnown);
+    private int learningWords => allItems.Count(i => i.IsLearning);
+    private int unknownWords => allItems.Count(i => i.IsUnknown);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var words = await ResourceRepo.GetAllVocabularyWordsAsync();
+            var wordIds = words.Select(w => w.Id).ToList();
+            var progressData = await ProgressService.GetProgressForWordsAsync(wordIds);
+
+            allItems = words.Select(w => new ProgressItem
+            {
+                Word = w,
+                Progress = progressData.TryGetValue(w.Id, out var p) ? p : null
+            }).ToList();
+
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load vocabulary progress: {ex.Message}");
+            Logger.LogError(ex, "Failed to load vocabulary progress");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetFilter(string filter)
+    {
+        selectedFilter = filter;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = allItems.AsEnumerable();
+
+        filtered = selectedFilter switch
+        {
+            "Known" => filtered.Where(i => i.IsKnown),
+            "Learning" => filtered.Where(i => i.IsLearning),
+            "Unknown" => filtered.Where(i => i.IsUnknown),
+            _ => filtered
+        };
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            var search = searchText.ToLower();
+            filtered = filtered.Where(i =>
+                (i.Word.TargetLanguageTerm?.ToLower().Contains(search) == true) ||
+                (i.Word.NativeLanguageTerm?.ToLower().Contains(search) == true));
+        }
+
+        filteredItems = filtered.ToList();
+    }
+
+    private static string GetStatusText(ProgressItem item) =>
+        item.IsKnown ? "Known" : item.IsLearning ? "Learning" : "Unknown";
+
+    private static string GetStatusBadgeClass(ProgressItem item) => item switch
+    {
+        { IsKnown: true } => "bg-success",
+        { IsLearning: true } => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string GetStatusColor(ProgressItem item) => item switch
+    {
+        { IsKnown: true } => "#198754",
+        { IsLearning: true } => "#ffc107",
+        _ => "#6c757d"
+    };
+
+    private static string GetProgressText(ProgressItem item)
+    {
+        if (item.IsKnown) return "✅ Known";
+        if (item.IsUnknown) return "Start practicing to track progress.";
+
+        var parts = new List<string>();
+        parts.Add($"🔥 Streak: {item.Progress?.CurrentStreak ?? 0}");
+        parts.Add($"✍️ {item.Progress?.ProductionInStreak ?? 0}/2 Production");
+        parts.Add($"📊 {(int)((item.Progress?.MasteryScore ?? 0f) * 100)}%");
+        return string.Join(" | ", parts);
+    }
+
+    private static string GetReviewDateText(ProgressItem item)
+    {
+        if (item.Progress?.NextReviewDate == null) return "Not scheduled";
+        var now = DateTime.Now.Date;
+        var reviewDate = item.Progress.NextReviewDate.Value.Date;
+        if (reviewDate <= now) return "📅 Due now";
+        if (reviewDate == now.AddDays(1)) return "📅 Tomorrow";
+        if (reviewDate <= now.AddDays(7)) return $"📅 {(reviewDate - now).Days} days away";
+        return $"📅 {reviewDate:MMM d}";
+    }
+
+    private static string GetReviewDateClass(ProgressItem item) =>
+        item.Progress?.IsDueForReview == true ? "text-warning" : "text-secondary-ss";
+
+    private class ProgressItem
+    {
+        public VocabularyWord Word { get; set; } = null!;
+        public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+
+        public bool IsKnown => Progress?.IsKnown ?? false;
+        public bool IsLearning => Progress?.IsLearning ?? false;
+        public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
+    }
+}

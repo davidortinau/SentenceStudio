@@ -1,0 +1,81 @@
+@page "/skills/add"
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="ss-title1 mb-0">Add Skill Profile</h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-ss-secondary" @onclick="Cancel">Cancel</button>
+        <button class="btn btn-ss-primary" @onclick="SaveProfile" disabled="@isSaving">
+            @if (isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            Save
+        </button>
+    </div>
+</div>
+
+<div class="card card-ss p-4 mb-3">
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Title *</label>
+        <input type="text" class="form-control form-control-ss" @bind="title" placeholder="Skill profile title" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Skills Description</label>
+        <textarea class="form-control form-control-ss" @bind="description" rows="6"
+                  placeholder="Describe the skills for this profile"></textarea>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-5">
+    <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile" disabled="@isSaving">
+        @if (isSaving)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Save Skill Profile
+    </button>
+</div>
+
+@code {
+    [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private string title = "";
+    private string description = "";
+    private bool isSaving;
+
+    private void Cancel() => NavManager.NavigateTo("/skills");
+
+    private async Task SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            Toast.ShowError("Title is required.");
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var profile = new SkillProfile
+            {
+                Title = title,
+                Description = description
+            };
+
+            await SkillRepo.SaveAsync(profile);
+            Toast.ShowSuccess("Skill profile saved.");
+            NavManager.NavigateTo("/skills");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

@@ -1,0 +1,147 @@
+@page "/skills/edit/{Id:int}"
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="ss-title1 mb-0">Edit Skill Profile</h1>
+        <div class="d-flex gap-2">
+            <button class="btn btn-ss-secondary" @onclick="GoBack">Back</button>
+            <button class="btn btn-ss-primary" @onclick="SaveProfile" disabled="@isSaving">
+                @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                Save
+            </button>
+            <button class="btn btn-ss-danger" @onclick="DeleteProfile">Delete</button>
+        </div>
+    </div>
+
+    <div class="card card-ss p-4 mb-3">
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Title</label>
+            <input type="text" class="form-control form-control-ss" @bind="title" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Skills Description</label>
+            <textarea class="form-control form-control-ss" @bind="description" rows="6"></textarea>
+        </div>
+    </div>
+
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Details</h5>
+        <div class="row g-2">
+            <div class="col-4 col-md-2"><strong class="ss-body2">Created</strong></div>
+            <div class="col-8 col-md-4 ss-body2">@profile.CreatedAt.ToString("g")</div>
+
+            <div class="col-4 col-md-2"><strong class="ss-body2">Updated</strong></div>
+            <div class="col-8 col-md-4 ss-body2">@profile.UpdatedAt.ToString("g")</div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ModalService Modal { get; set; } = default!;
+
+    private SkillProfile profile = new();
+    private string title = "";
+    private string description = "";
+    private bool isLoading = true;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            var loaded = await SkillRepo.GetSkillProfileAsync(Id);
+            if (loaded != null)
+            {
+                profile = loaded;
+                title = profile.Title ?? "";
+                description = profile.Description ?? "";
+            }
+            else
+            {
+                Toast.ShowError("Skill profile not found.");
+                NavManager.NavigateTo("/skills");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/skills");
+
+    private async Task SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            Toast.ShowError("Title is required.");
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            profile.Title = title;
+            profile.Description = description;
+
+            var result = await SkillRepo.SaveAsync(profile);
+            if (result > 0)
+            {
+                Toast.ShowSuccess("Skill profile saved.");
+            }
+            NavManager.NavigateTo("/skills");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteProfile()
+    {
+        var result = await Modal.ConfirmAsync("Delete Skill Profile",
+            "Are you sure you want to delete this skill profile? This cannot be undone.",
+            "Delete", "Cancel");
+
+        if (result == ModalResult.Confirmed)
+        {
+            try
+            {
+                await SkillRepo.DeleteAsync(profile);
+                Toast.ShowSuccess("Skill profile deleted.");
+                NavManager.NavigateTo("/skills");
+            }
+            catch (Exception ex)
+            {
+                Toast.ShowError($"Failed to delete: {ex.Message}");
+            }
+        }
+    }
+}

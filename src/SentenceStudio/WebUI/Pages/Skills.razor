@@ -1,0 +1,76 @@
+@page "/skills"
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="ss-title1 mb-0">Skill Profiles</h1>
+    <button class="btn btn-ss-primary" @onclick="AddProfile">
+        <i class="bi bi-plus-lg me-1"></i> Add
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (profiles.Count == 0)
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss mb-4">No skill profiles yet</p>
+        <button class="btn btn-ss-primary" @onclick="AddProfile">Add Your First Skill Profile</button>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var profile in profiles)
+        {
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card card-ss p-3" role="button" @onclick="() => EditProfile(profile.Id)" style="cursor: pointer; min-height: 120px;">
+                    <div class="d-flex flex-column justify-content-center h-100">
+                        <h6 class="ss-title3 mb-1">@profile.Title</h6>
+                        @if (!string.IsNullOrEmpty(profile.Description))
+                        {
+                            <small class="text-secondary-ss text-truncate">@profile.Description</small>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private List<SkillProfile> profiles = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfiles();
+    }
+
+    private async Task LoadProfiles()
+    {
+        isLoading = true;
+        try
+        {
+            profiles = await SkillRepo.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load skill profiles: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void AddProfile() => NavManager.NavigateTo("/skills/add");
+
+    private void EditProfile(int id) => NavManager.NavigateTo($"/skills/edit/{id}");
+}

@@ -1,0 +1,223 @@
+@page "/resources"
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="ss-title1 mb-0">Learning Resources</h1>
+    <button class="btn btn-ss-primary" @onclick="AddResource">
+        <i class="bi bi-plus-lg me-1"></i> Add Resource
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    @* Search and filters *@
+    <div class="d-flex gap-2 mb-4">
+        <input type="text" class="form-control form-control-ss flex-grow-1"
+               placeholder="Search resources..."
+               @bind="searchText" @bind:after="SearchResources" />
+
+        <select class="form-select form-control-ss" style="max-width: 180px;"
+                @bind="filterType" @bind:after="FilterResources">
+            <option value="All">All Types</option>
+            @foreach (var type in mediaTypes)
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+
+        <select class="form-select form-control-ss" style="max-width: 180px;"
+                @bind="filterLanguage" @bind:after="FilterResources">
+            <option value="All">All Languages</option>
+            @foreach (var lang in languages)
+            {
+                <option value="@lang">@lang</option>
+            }
+        </select>
+    </div>
+
+    @if (resources.Count == 0)
+    {
+        <div class="text-center p-5">
+            <p class="ss-body1 text-secondary-ss mb-4">No resources found</p>
+            <div class="d-flex gap-2 justify-content-center">
+                <button class="btn btn-ss-primary" @onclick="AddResource">Add Your First Resource</button>
+                <button class="btn btn-ss-secondary" @onclick="CreateStarterResource" disabled="@isCreatingStarter">
+                    @if (isCreatingStarter)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    Create a Starter Resource
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var resource in resources)
+            {
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)" style="cursor: pointer;">
+                        <div class="d-flex align-items-start gap-3">
+                            <span class="fs-4">@GetMediaTypeIcon(resource.MediaType)</span>
+                            <div class="flex-grow-1 overflow-hidden">
+                                <h6 class="ss-title3 mb-1 text-truncate">@resource.Title</h6>
+                                <small class="text-secondary-ss">
+                                    @if (resource.IsSmartResource) { <span>⚡ </span> }
+                                    @resource.MediaType • @resource.Language
+                                    @if (resource.IsSmartResource) { <span> • Auto-updated</span> }
+                                </small>
+                            </div>
+                            <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@if (isCreatingStarter)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+         style="background: rgba(0,0,0,0.6); z-index: 1050;">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <p class="ss-body2 text-white">Creating starter vocabulary...</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Resources> Logger { get; set; } = default!;
+
+    private List<LearningResource> resources = new();
+    private bool isLoading = true;
+    private bool isCreatingStarter;
+    private string searchText = "";
+    private string filterType = "All";
+    private string filterLanguage = "All";
+
+    private readonly string[] mediaTypes = SentenceStudio.Common.Constants.MediaTypes;
+    private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadResources();
+    }
+
+    private async Task LoadResources()
+    {
+        isLoading = true;
+        try
+        {
+            var filterLanguages = filterLanguage == "All"
+                ? new List<string>()
+                : new List<string> { filterLanguage };
+
+            resources = await ResourceRepo.GetAllResourcesLightweightAsync(filterType, filterLanguages);
+            Logger.LogInformation("✅ LoadResources: {Count} resources", resources.Count);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load resources: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SearchResources()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            await LoadResources();
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var results = await ResourceRepo.SearchResourcesAsync(searchText);
+
+            if (filterType != "All")
+                results = results.Where(r => r.MediaType == filterType).ToList();
+            if (filterLanguage != "All")
+                results = results.Where(r => r.Language == filterLanguage).ToList();
+
+            resources = results;
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Search failed: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task FilterResources()
+    {
+        if (!string.IsNullOrWhiteSpace(searchText))
+            await SearchResources();
+        else
+            await LoadResources();
+    }
+
+    private void AddResource() => NavManager.NavigateTo("/resources/add");
+
+    private void EditResource(int id) => NavManager.NavigateTo($"/resources/edit/{id}");
+
+    private async Task CreateStarterResource()
+    {
+        try
+        {
+            var profile = await UserProfileRepo.GetOrCreateDefaultAsync();
+            if (string.IsNullOrEmpty(profile.NativeLanguage))
+            {
+                Toast.ShowError("Please set up your native language in your profile first.");
+                return;
+            }
+
+            // Default to target language or first available
+            var targetLang = profile.TargetLanguage ?? languages.FirstOrDefault() ?? "Korean";
+
+            isCreatingStarter = true;
+            StateHasChanged();
+
+            await ResourceRepo.GetStarterVocabulary(profile.NativeLanguage, targetLang);
+            await LoadResources();
+
+            Toast.ShowSuccess($"Starter resource created for {targetLang}!");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to create starter resource: {ex.Message}");
+        }
+        finally
+        {
+            isCreatingStarter = false;
+        }
+    }
+
+    private static string GetMediaTypeIcon(string? mediaType) => mediaType switch
+    {
+        "Video" => "🎬",
+        "Podcast" => "🎙️",
+        "Image" => "🖼️",
+        "Vocabulary List" => "📝",
+        "Article" => "📄",
+        _ => "📁"
+    };
+}
