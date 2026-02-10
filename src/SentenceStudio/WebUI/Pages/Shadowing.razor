@@ -1,0 +1,311 @@
+@page "/shadowing"
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+@using SentenceStudio.Services.Speech
+@using SentenceStudio.Services.Timer
+@using Plugin.Maui.Audio
+@implements IDisposable
+
+@if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Generating sentences...</p>
+    </div>
+}
+else if (sentences.Any())
+{
+    @* Activity Timer *@
+    @if (fromPlan)
+    {
+        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+    }
+
+    @* Progress *@
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="ss-caption1 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
+        <div class="progress flex-grow-1" style="height: 4px;">
+            <div class="progress-bar" style="width: @((int)((double)(currentIndex + 1) / sentences.Count * 100))%"></div>
+        </div>
+    </div>
+
+    @* Current sentence card *@
+    <div class="card card-ss p-4 mb-3 text-center">
+        <p class="ss-display mb-2" style="line-height: 1.4;">@currentSentence.TargetLanguageText</p>
+        @if (showTranslation && !string.IsNullOrEmpty(currentSentence.NativeLanguageText))
+        {
+            <p class="ss-body1 text-secondary-ss mb-2">@currentSentence.NativeLanguageText</p>
+        }
+        @if (!string.IsNullOrEmpty(currentSentence.PronunciationNotes))
+        {
+            <small class="text-secondary-ss fst-italic">@currentSentence.PronunciationNotes</small>
+        }
+        <div class="mt-2">
+            <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranslation">
+                @(showTranslation ? "Hide" : "Show") translation
+            </button>
+        </div>
+    </div>
+
+    @* Waveform display *@
+    @if (waveformData is not null)
+    {
+        <WaveformDisplay
+            WaveformData="@waveformData"
+            Duration="@audioDuration"
+            CurrentPosition="@playbackPosition"
+            OnPositionChanged="HandleSeek" />
+    }
+
+    @* Audio controls *@
+    <div class="d-flex justify-content-center gap-3 my-3">
+        <button class="btn btn-ss-secondary" @onclick="() => SetPlaybackSpeed(0.6f)"
+                disabled="@isBuffering">
+            <span class="@(playbackSpeed == 0.6f ? "fw-bold" : "")">🐢 Slow</span>
+        </button>
+        <button class="btn btn-ss-primary btn-lg px-5" @onclick="TogglePlayback"
+                disabled="@isBuffering">
+            @if (isBuffering)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <span>@(isAudioPlaying ? "⏸ Pause" : "▶ Play")</span>
+            }
+        </button>
+        <button class="btn btn-ss-secondary" @onclick="() => SetPlaybackSpeed(1.0f)"
+                disabled="@isBuffering">
+            <span class="@(playbackSpeed == 1.0f ? "fw-bold" : "")">🏃 Normal</span>
+        </button>
+    </div>
+
+    @* Navigation *@
+    <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
+            ← Previous
+        </button>
+        <button class="btn btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
+            Next →
+        </button>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No sentences available for shadowing.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fromPlan")]
+    public bool FromPlanParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "targetMinutes")]
+    public int? TargetMinutesParam { get; set; }
+
+    [Inject] private ShadowingService ShadowingSvc { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private IAudioManager AudioMgr { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Shadowing> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isBuffering;
+    private bool isAudioPlaying;
+    private bool showTranslation;
+    private bool fromPlan;
+    private int targetMinutes;
+    private int currentIndex;
+    private float playbackSpeed = 1.0f;
+    private double playbackPosition;
+    private TimeSpan audioDuration = TimeSpan.Zero;
+    private float[]? waveformData;
+    private string voiceId = "";
+
+    private List<ShadowingSentence> sentences = new();
+    private ShadowingSentence currentSentence = new();
+    private IAudioPlayer? audioPlayer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromPlan = FromPlanParam;
+        targetMinutes = TargetMinutesParam ?? 15;
+
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            voiceId = VoicePrefs.GetVoiceForLanguage(profile?.TargetLanguage ?? "Korean");
+
+            await LoadSentences();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize shadowing");
+            Toast.ShowError("Could not load shadowing exercise.");
+        }
+    }
+
+    private async Task LoadSentences()
+    {
+        if (ResourceIdParam is null or 0) return;
+        isBusy = true;
+        try
+        {
+            var result = await ShadowingSvc.GetOrGenerateSentencesAsync(
+                ResourceIdParam.Value, 10, SkillIdParam ?? 0);
+            sentences = result ?? new();
+
+            if (sentences.Any())
+            {
+                currentIndex = 0;
+                currentSentence = sentences[0];
+                await GenerateAudioForCurrent();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load sentences");
+            Toast.ShowError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task GenerateAudioForCurrent()
+    {
+        if (string.IsNullOrEmpty(currentSentence.TargetLanguageText)) return;
+        isBuffering = true;
+        StateHasChanged();
+
+        try
+        {
+            var vid = !string.IsNullOrEmpty(voiceId) ? voiceId : "echo";
+            var stream = await SpeechService.TextToSpeechAsync(
+                currentSentence.TargetLanguageText, vid, speed: playbackSpeed);
+
+            // Save to temp and prepare for playback
+            var tempPath = Path.Combine(FileSystem.CacheDirectory, $"shadow_{currentIndex}_{Guid.NewGuid():N}.mp3");
+            using (var fs = File.Create(tempPath))
+            {
+                await stream.CopyToAsync(fs);
+            }
+
+            StopAudio();
+            using var playStream = File.OpenRead(tempPath);
+            audioPlayer = AudioMgr.CreatePlayer(playStream);
+            audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
+
+            // Generate simple placeholder waveform
+            waveformData = GeneratePlaceholderWaveform();
+            playbackPosition = 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to generate audio");
+        }
+        finally
+        {
+            isBuffering = false;
+        }
+    }
+
+    private static float[] GeneratePlaceholderWaveform()
+    {
+        var rng = new Random(42);
+        var data = new float[200];
+        for (int i = 0; i < data.Length; i++)
+            data[i] = (float)(0.3 + rng.NextDouble() * 0.7);
+        return data;
+    }
+
+    private async Task TogglePlayback()
+    {
+        if (audioPlayer is null)
+        {
+            await GenerateAudioForCurrent();
+            if (audioPlayer is null) return;
+        }
+
+        if (isAudioPlaying)
+        {
+            audioPlayer.Pause();
+            isAudioPlaying = false;
+        }
+        else
+        {
+            audioPlayer.Play();
+            isAudioPlaying = true;
+        }
+    }
+
+    private async Task SetPlaybackSpeed(float speed)
+    {
+        playbackSpeed = speed;
+        StopAudio();
+        await GenerateAudioForCurrent();
+    }
+
+    private Task HandleSeek(double position)
+    {
+        playbackPosition = position;
+        if (audioPlayer is not null)
+        {
+            audioPlayer.Seek(position * audioPlayer.Duration);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task NextSentence()
+    {
+        if (currentIndex >= sentences.Count - 1) return;
+        StopAudio();
+        currentIndex++;
+        currentSentence = sentences[currentIndex];
+        showTranslation = false;
+        playbackPosition = 0;
+        waveformData = null;
+        await GenerateAudioForCurrent();
+    }
+
+    private async Task PreviousSentence()
+    {
+        if (currentIndex <= 0) return;
+        StopAudio();
+        currentIndex--;
+        currentSentence = sentences[currentIndex];
+        showTranslation = false;
+        playbackPosition = 0;
+        waveformData = null;
+        await GenerateAudioForCurrent();
+    }
+
+    private void ToggleTranslation() => showTranslation = !showTranslation;
+
+    private void StopAudio()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+        isAudioPlaying = false;
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose()
+    {
+        StopAudio();
+    }
+}

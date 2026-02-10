@@ -1,0 +1,241 @@
+@page "/scene"
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+@using SentenceStudio.Services.Timer
+
+@if (isBusy && string.IsNullOrEmpty(imageUrl))
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading scene...</p>
+    </div>
+}
+else if (!string.IsNullOrEmpty(imageUrl))
+{
+    @* Activity Timer *@
+    @if (fromPlan)
+    {
+        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+    }
+
+    <div class="row g-3">
+        @* Scene image *@
+        <div class="col-md-6">
+            <div class="card card-ss p-2 text-center">
+                <img src="@imageUrl" alt="Scene" class="img-fluid rounded" style="max-height: 400px; object-fit: contain;" />
+            </div>
+
+            @* Input area *@
+            <div class="card card-ss p-3 mt-3">
+                <label class="form-label text-secondary-ss">Describe what you see</label>
+                <textarea class="form-control form-control-ss" rows="3"
+                          @bind="userInput" @bind:event="oninput"
+                          placeholder="Write a description in your target language..."></textarea>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-ss-primary flex-grow-1" @onclick="SubmitDescription"
+                            disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))">
+                        @if (isGrading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Grade
+                    </button>
+                    <button class="btn btn-ss-secondary" @onclick="LoadNewScene">🔄 New Scene</button>
+                </div>
+            </div>
+        </div>
+
+        @* Graded sentences *@
+        <div class="col-md-6">
+            <h3 class="ss-title3 mb-3">Results</h3>
+            @if (gradedSentences.Any())
+            {
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var sentence in gradedSentences)
+                    {
+                        var color = sentence.Accuracy >= 80 ? "success" : sentence.Accuracy >= 50 ? "warning" : "danger";
+                        <div class="card card-ss p-3" style="border-left: 4px solid var(--bs-@color);">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <p class="ss-body1 fw-bold mb-0">@sentence.Answer</p>
+                                <span class="badge bg-@color">@((int)sentence.Accuracy)%</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
+                            {
+                                <small class="text-secondary-ss">@sentence.AccuracyExplanation</small>
+                            }
+                            @if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
+                            {
+                                <div class="mt-1">
+                                    <small class="text-success">💡 @sentence.RecommendedSentence</small>
+                                </div>
+                            }
+
+                            @if (expandedSentenceIndex == gradedSentences.IndexOf(sentence))
+                            {
+                                <div class="mt-2 pt-2 border-top border-secondary-subtle">
+                                    @if (sentence.Fluency > 0)
+                                    {
+                                        <small class="d-block text-secondary-ss">Fluency: @((int)sentence.Fluency)%</small>
+                                    }
+                                    @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
+                                    {
+                                        <small class="d-block text-secondary-ss">@sentence.FluencyExplanation</small>
+                                    }
+                                    @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
+                                    {
+                                        <small class="d-block text-secondary-ss mt-1">📝 @sentence.GrammarNotes</small>
+                                    }
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary-ss text-start"
+                                    @onclick="() => ToggleExpand(gradedSentences.IndexOf(sentence))">
+                                @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? "Less ▲" : "More ▼")
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-secondary-ss ss-body2">Submit a description to see your score here.</p>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No scene images available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "fromPlan")]
+    public bool FromPlanParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "targetMinutes")]
+    public int? TargetMinutesParam { get; set; }
+
+    [Inject] private SceneImageService SceneSvc { get; set; } = default!;
+    [Inject] private TeacherService TeacherSvc { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Scene> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isGrading;
+    private bool fromPlan;
+    private int targetMinutes;
+    private string imageUrl = "";
+    private string sceneDescription = "";
+    private string userInput = "";
+    private string targetLanguage = "Korean";
+    private string nativeLanguage = "English";
+    private int expandedSentenceIndex = -1;
+
+    private List<Sentence> gradedSentences = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromPlan = FromPlanParam;
+        targetMinutes = TargetMinutesParam ?? 10;
+
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            targetLanguage = profile?.TargetLanguage ?? "Korean";
+            nativeLanguage = profile?.NativeLanguage ?? "English";
+        }
+        catch { }
+
+        await LoadNewScene();
+    }
+
+    private async Task LoadNewScene()
+    {
+        isBusy = true;
+        try
+        {
+            var scene = await SceneSvc.GetRandomAsync();
+            if (scene is not null)
+            {
+                imageUrl = scene.Url ?? "";
+                sceneDescription = scene.Description ?? "";
+            }
+            else
+            {
+                Toast.ShowWarning("No scene images found. Please add some first.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load scene");
+            Toast.ShowError("Error loading scene image.");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task SubmitDescription()
+    {
+        if (string.IsNullOrWhiteSpace(userInput) || isGrading) return;
+
+        var input = userInput.Trim();
+        userInput = "";
+        isGrading = true;
+        StateHasChanged();
+
+        try
+        {
+            var grade = await TeacherSvc.GradeDescription(input, sceneDescription, targetLanguage, nativeLanguage);
+
+            var sentence = new Sentence
+            {
+                Answer = input,
+                Accuracy = grade.Accuracy,
+                AccuracyExplanation = grade.AccuracyExplanation,
+                Fluency = grade.Fluency,
+                FluencyExplanation = grade.FluencyExplanation,
+                RecommendedSentence = grade.GrammarNotes?.RecommendedTranslation ?? grade.RecommendedTranslation,
+                GrammarNotes = grade.GrammarNotes?.Explanation
+            };
+            gradedSentences.Insert(0, sentence);
+
+            // Record activity
+            await ActivityRepo.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.SceneDescription.ToString(),
+                Input = input,
+                Accuracy = grade.Accuracy,
+                Fluency = grade.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+
+            var emoji = grade.Accuracy >= 80 ? "🎉" : grade.Accuracy >= 50 ? "👍" : "💪";
+            Toast.ShowSuccess($"{emoji} Accuracy: {(int)grade.Accuracy}%");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error grading description");
+            Toast.ShowError("Could not grade your description. Please try again.");
+        }
+        finally
+        {
+            isGrading = false;
+        }
+    }
+
+    private void ToggleExpand(int index)
+    {
+        expandedSentenceIndex = expandedSentenceIndex == index ? -1 : index;
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

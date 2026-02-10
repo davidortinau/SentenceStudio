@@ -1,0 +1,34 @@
+.interactive-text {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    color: var(--ss-text-primary);
+    user-select: none;
+    cursor: default;
+}
+
+.word {
+    cursor: pointer;
+    border-radius: var(--ss-radius-sm);
+    padding: 1px 2px;
+    transition: background-color 0.15s ease;
+}
+
+.word:hover {
+    background-color: var(--ss-surface-elevated);
+}
+
+.word--vocab {
+    color: var(--ss-secondary);
+    font-weight: 600;
+    border-bottom: 2px solid var(--ss-secondary);
+}
+
+.word--vocab:hover {
+    background-color: rgba(33, 214, 164, 0.15);
+}
+
+.sentence--selected {
+    background-color: rgba(107, 140, 255, 0.12);
+    border-radius: var(--ss-radius-sm);
+    padding: 2px 0;
+}

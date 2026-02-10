@@ -1,0 +1,66 @@
+.activity-timer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ss-component-spacing);
+    padding: var(--ss-micro-spacing) var(--ss-component-spacing);
+    border-radius: var(--ss-radius-md);
+    background-color: var(--ss-surface-variant);
+    min-height: 40px;
+}
+
+.activity-timer--inactive {
+    opacity: 0.6;
+}
+
+.activity-timer__display {
+    display: flex;
+    align-items: center;
+    gap: var(--ss-micro-spacing);
+}
+
+.activity-timer__icon {
+    font-size: 1rem;
+}
+
+.activity-timer__time {
+    font-variant-numeric: tabular-nums;
+}
+
+.activity-timer__controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.activity-timer__btn {
+    color: var(--ss-text-primary);
+    font-size: 1rem;
+    padding: 2px 6px;
+    min-width: 28px;
+    min-height: 28px;
+    text-decoration: none;
+}
+
+.activity-timer__btn:hover {
+    color: var(--ss-primary);
+}
+
+.activity-timer__btn--stop:hover {
+    color: var(--ss-error);
+}
+
+.activity-timer__progress {
+    width: 100%;
+    height: 3px;
+    background-color: var(--ss-gray-600);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.activity-timer__progress-bar {
+    height: 100%;
+    background-color: var(--ss-secondary);
+    border-radius: 2px;
+    transition: width 1s linear;
+}

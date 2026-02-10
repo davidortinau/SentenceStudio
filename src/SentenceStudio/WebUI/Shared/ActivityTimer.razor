@@ -1,0 +1,93 @@
+@implements IDisposable
+@using SentenceStudio.Services.Timer
+
+<div class="activity-timer @(IsActive ? "" : "activity-timer--inactive")">
+    @if (IsActive && _isInitialized)
+    {
+        <div class="activity-timer__display">
+            <span class="activity-timer__icon">⏱️</span>
+            <span class="activity-timer__time ss-body1-strong">@FormatElapsed(_elapsed)</span>
+            @if (TargetMinutes > 0)
+            {
+                <span class="activity-timer__target ss-caption1 text-muted-ss">/ @TargetMinutes min</span>
+            }
+        </div>
+        <div class="activity-timer__controls">
+            @if (_isRunning)
+            {
+                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandlePause" title="Pause">⏸</button>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandleResume" title="Resume">▶</button>
+            }
+            <button class="btn btn-sm btn-link activity-timer__btn activity-timer__btn--stop"
+                    @onclick="HandleStop" title="Stop">⏹</button>
+        </div>
+        @if (TargetMinutes > 0)
+        {
+            <div class="activity-timer__progress">
+                <div class="activity-timer__progress-bar"
+                     style="width: @(Math.Min(100, _elapsed.TotalMinutes / TargetMinutes * 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;">
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="activity-timer__display">
+            <span class="activity-timer__icon">⏱️</span>
+            <span class="activity-timer__time ss-body1 text-muted-ss">--:--</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] private IActivityTimerService TimerService { get; set; } = default!;
+
+    [Parameter] public bool IsActive { get; set; }
+    [Parameter] public int TargetMinutes { get; set; }
+
+    private TimeSpan _elapsed = TimeSpan.Zero;
+    private bool _isRunning;
+    private bool _isInitialized;
+
+    protected override void OnInitialized()
+    {
+        TimerService.TimerStateChanged += OnTimerStateChanged;
+        TimerService.TimerTick += OnTimerTick;
+
+        _isRunning = TimerService.IsRunning;
+        _elapsed = TimerService.ElapsedTime;
+        _isInitialized = true;
+    }
+
+    private async void OnTimerStateChanged(object? sender, EventArgs e)
+    {
+        _isRunning = TimerService.IsRunning;
+        _elapsed = TimerService.ElapsedTime;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnTimerTick(object? sender, TimeSpan elapsed)
+    {
+        _elapsed = elapsed;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandlePause() => TimerService.Pause();
+    private void HandleResume() => TimerService.Resume();
+    private void HandleStop() => TimerService.StopSession();
+
+    private static string FormatElapsed(TimeSpan ts)
+    {
+        var minutes = (int)ts.TotalMinutes;
+        return $"{minutes:00}:{ts.Seconds:00}";
+    }
+
+    public void Dispose()
+    {
+        TimerService.TimerStateChanged -= OnTimerStateChanged;
+        TimerService.TimerTick -= OnTimerTick;
+    }
+}

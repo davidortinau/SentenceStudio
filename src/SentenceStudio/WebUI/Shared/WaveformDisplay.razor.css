@@ -1,0 +1,46 @@
+.waveform-display {
+    position: relative;
+    background-color: var(--ss-surface-variant);
+    border-radius: var(--ss-radius-md);
+    padding: var(--ss-component-spacing);
+    cursor: pointer;
+    min-height: 80px;
+    overflow: hidden;
+}
+
+.waveform-bars {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 60px;
+    padding: 0 4px;
+}
+
+.waveform-bar {
+    flex: 1;
+    min-width: 2px;
+    background-color: var(--ss-gray-400);
+    border-radius: 1px;
+    transition: background-color 0.1s ease;
+    align-self: center;
+}
+
+.waveform-bar--played {
+    background-color: var(--ss-accent);
+}
+
+.waveform-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--ss-primary);
+    pointer-events: none;
+    transition: left 0.05s linear;
+}
+
+.waveform-time {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 4px;
+}

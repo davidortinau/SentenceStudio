@@ -1,0 +1,325 @@
+@page "/conversation"
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+@using SentenceStudio.Services.Speech
+@using SentenceStudio.Services.Timer
+@using Plugin.Maui.Audio
+@implements IDisposable
+
+@if (isBusy && !chunks.Any())
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Starting conversation...</p>
+    </div>
+}
+else
+{
+    @* Activity Timer *@
+    @if (fromPlan)
+    {
+        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+    }
+
+    @* Scenario selector *@
+    @if (scenarios.Any())
+    {
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <label class="ss-caption1 text-secondary-ss mb-0">Scenario:</label>
+            <select class="form-select form-select-sm" style="width: auto;" @onchange="OnScenarioChanged">
+                @foreach (var s in scenarios)
+                {
+                    <option value="@s.Id" selected="@(s.Id == activeScenario?.Id)">@s.DisplayName</option>
+                }
+            </select>
+        </div>
+    }
+
+    @* Chat messages *@
+    <div class="d-flex flex-column gap-2 mb-3" style="min-height: 40vh; max-height: 60vh; overflow-y: auto;" @ref="chatContainer">
+        @foreach (var chunk in chunks)
+        {
+            var isUser = chunk.Role == ConversationRole.User;
+            <div class="d-flex @(isUser ? "justify-content-end" : "justify-content-start")">
+                <div class="card p-3 @(isUser ? "bg-primary bg-opacity-10" : "card-ss")"
+                     style="max-width: 75%; border-radius: 16px; @(isUser ? "border-bottom-right-radius: 4px;" : "border-bottom-left-radius: 4px;")">
+                    <p class="ss-body1 mb-0">@chunk.Text</p>
+
+                    @if (chunk.GrammarCorrections?.Any() == true)
+                    {
+                        <div class="mt-2 pt-2 border-top border-secondary-subtle">
+                            @foreach (var correction in chunk.GrammarCorrections)
+                            {
+                                <div class="mb-1">
+                                    <small>
+                                        <span class="text-danger text-decoration-line-through">@correction.Original</span>
+                                        → <span class="text-success fw-bold">@correction.Corrected</span>
+                                    </small>
+                                    @if (!string.IsNullOrEmpty(correction.Explanation))
+                                    {
+                                        <br /><small class="text-secondary-ss">@correction.Explanation</small>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (chunk.Comprehension > 0)
+                    {
+                        <div class="mt-1">
+                            <small class="text-secondary-ss">Comprehension: @((int)chunk.Comprehension)%</small>
+                        </div>
+                    }
+
+                    @if (!isUser)
+                    {
+                        <button class="btn btn-sm btn-link p-0 mt-1 text-start" @onclick="() => PlayChunkAudio(chunk)">
+                            🔊 Listen
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isWaitingForReply)
+        {
+            <div class="d-flex justify-content-start">
+                <div class="card card-ss p-3" style="border-radius: 16px; border-bottom-left-radius: 4px;">
+                    <div class="d-flex gap-1">
+                        <div class="spinner-grow spinner-grow-sm text-secondary" role="status"></div>
+                        <div class="spinner-grow spinner-grow-sm text-secondary" role="status" style="animation-delay: 0.15s;"></div>
+                        <div class="spinner-grow spinner-grow-sm text-secondary" role="status" style="animation-delay: 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Audio player for TTS *@
+    @if (isPlayingAudio)
+    {
+        <div class="card card-ss p-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio">⏹ Stop</button>
+                <span class="ss-caption1 text-secondary-ss">Playing audio...</span>
+            </div>
+        </div>
+    }
+
+    @* Input area *@
+    <div class="card card-ss p-3">
+        <div class="d-flex gap-2">
+            <input type="text" class="form-control form-control-ss"
+                   @bind="userInput" @bind:event="oninput"
+                   @onkeydown="HandleKeyDown"
+                   placeholder="Type your message..."
+                   disabled="@isWaitingForReply" />
+            <button class="btn btn-ss-primary px-4" @onclick="SendMessage"
+                    disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
+                Send
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "scenarioId")]
+    public int? ScenarioIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fromPlan")]
+    public bool FromPlanParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "targetMinutes")]
+    public int? TargetMinutesParam { get; set; }
+
+    [Inject] private ConversationService ConversationSvc { get; set; } = default!;
+    [Inject] private IScenarioService ScenarioSvc { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private IAudioManager AudioMgr { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Conversation> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isWaitingForReply;
+    private bool isPlayingAudio;
+    private bool fromPlan;
+    private int targetMinutes;
+    private string userInput = "";
+    private string targetLanguage = "Korean";
+    private string voiceId = "";
+
+    private List<ConversationChunk> chunks = new();
+    private List<ConversationScenario> scenarios = new();
+    private ConversationScenario? activeScenario;
+    private IAudioPlayer? audioPlayer;
+    private ElementReference chatContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromPlan = FromPlanParam;
+        targetMinutes = TargetMinutesParam ?? 15;
+
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            targetLanguage = profile?.TargetLanguage ?? "Korean";
+            voiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
+
+            scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
+
+            if (ScenarioIdParam is not null and > 0)
+                activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam.Value);
+
+            activeScenario ??= scenarios.FirstOrDefault();
+
+            await StartConversation();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize conversation");
+            Toast.ShowError("Could not start conversation.");
+        }
+    }
+
+    private async Task StartConversation()
+    {
+        isBusy = true;
+        try
+        {
+            chunks.Clear();
+            var opening = await ConversationSvc.StartConversation(activeScenario, targetLanguage);
+            if (!string.IsNullOrEmpty(opening))
+            {
+                chunks.Add(new ConversationChunk
+                {
+                    Text = opening,
+                    Author = activeScenario?.PersonaName ?? "AI",
+                    Role = ConversationRole.Assistant,
+                    SentTime = DateTime.Now
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to start conversation");
+            Toast.ShowError("Error starting conversation.");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput) || isWaitingForReply) return;
+
+        var message = userInput.Trim();
+        userInput = "";
+
+        var userChunk = new ConversationChunk
+        {
+            Text = message,
+            Author = "Me",
+            Role = ConversationRole.User,
+            SentTime = DateTime.Now
+        };
+        chunks.Add(userChunk);
+        isWaitingForReply = true;
+        StateHasChanged();
+
+        try
+        {
+            var reply = await ConversationSvc.ContinueConversation(chunks, activeScenario, targetLanguage);
+            if (reply is not null)
+            {
+                // Apply grammar corrections to user chunk
+                if (reply.GrammarCorrections?.Any() == true)
+                {
+                    userChunk.GrammarCorrections = reply.GrammarCorrections;
+                }
+                userChunk.Comprehension = reply.Comprehension;
+
+                var aiChunk = new ConversationChunk
+                {
+                    Text = reply.Message ?? "",
+                    Author = activeScenario?.PersonaName ?? "AI",
+                    Role = ConversationRole.Assistant,
+                    SentTime = DateTime.Now
+                };
+                chunks.Add(aiChunk);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to get reply");
+            Toast.ShowError("Error getting response. Please try again.");
+        }
+        finally
+        {
+            isWaitingForReply = false;
+        }
+    }
+
+    private async Task PlayChunkAudio(ConversationChunk chunk)
+    {
+        if (string.IsNullOrEmpty(chunk.Text)) return;
+        StopAudio();
+
+        try
+        {
+            isPlayingAudio = true;
+            StateHasChanged();
+
+            var vid = !string.IsNullOrEmpty(voiceId) ? voiceId : "echo";
+            var stream = await SpeechService.TextToSpeechAsync(chunk.Text, vid);
+
+            // Save to temp file for playback
+            var tempPath = Path.Combine(FileSystem.CacheDirectory, $"conv_{Guid.NewGuid():N}.mp3");
+            using (var fs = File.Create(tempPath))
+            {
+                await stream.CopyToAsync(fs);
+            }
+
+            using var playStream = File.OpenRead(tempPath);
+            audioPlayer = AudioMgr.CreatePlayer(playStream);
+            audioPlayer.Play();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play audio");
+            isPlayingAudio = false;
+            Toast.ShowError("Audio playback failed.");
+        }
+    }
+
+    private async Task OnScenarioChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            activeScenario = scenarios.FirstOrDefault(s => s.Id == id);
+            await StartConversation();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendMessage();
+    }
+
+    private void StopAudio()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+        isPlayingAudio = false;
+    }
+
+    public void Dispose()
+    {
+        StopAudio();
+    }
+}

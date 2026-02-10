@@ -1,0 +1,146 @@
+@page "/video-watching"
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+@using SentenceStudio.Services.Timer
+
+@if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading video...</p>
+    </div>
+}
+else if (!string.IsNullOrEmpty(embedUrl))
+{
+    @* Activity Timer *@
+    @if (fromPlan)
+    {
+        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+    }
+
+    @* Title *@
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="ss-title2 mb-0">@(resource?.Title ?? "Video")</h2>
+        @if (!string.IsNullOrEmpty(resource?.MediaUrl))
+        {
+            <a href="@resource.MediaUrl" target="_blank" class="btn btn-sm btn-ss-secondary">
+                ↗ Open in YouTube
+            </a>
+        }
+    </div>
+
+    @* Video player *@
+    <div class="card card-ss p-0 mb-3 overflow-hidden" style="aspect-ratio: 16/9;">
+        <iframe src="@embedUrl"
+                style="width: 100%; height: 100%; border: none;"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+    </div>
+
+    @* Transcript *@
+    @if (!string.IsNullOrEmpty(resource?.Transcript))
+    {
+        <div class="card card-ss p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3 class="ss-title3 mb-0">Transcript</h3>
+                <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranscript">
+                    @(showTranscript ? "Hide ▲" : "Show ▼")
+                </button>
+            </div>
+            @if (showTranscript)
+            {
+                <div style="max-height: 300px; overflow-y: auto; line-height: 1.8;">
+                    <p class="ss-body1" style="white-space: pre-wrap;">@resource.Transcript</p>
+                </div>
+            }
+        </div>
+    }
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-danger">@errorMessage</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No video resource found.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fromPlan")]
+    public bool FromPlanParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "targetMinutes")]
+    public int? TargetMinutesParam { get; set; }
+
+    [Inject] private VideoWatchingService VideoSvc { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<VideoWatching> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool showTranscript;
+    private bool fromPlan;
+    private int targetMinutes;
+    private string embedUrl = "";
+    private string errorMessage = "";
+    private LearningResource? resource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromPlan = FromPlanParam;
+        targetMinutes = TargetMinutesParam ?? 20;
+        await LoadVideo();
+    }
+
+    private async Task LoadVideo()
+    {
+        if (ResourceIdParam is null or 0)
+        {
+            errorMessage = "No resource specified.";
+            return;
+        }
+
+        isBusy = true;
+        try
+        {
+            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam.Value);
+            if (resource is null)
+            {
+                errorMessage = "Resource not found.";
+                return;
+            }
+
+            var videoId = VideoSvc.ExtractYouTubeVideoId(resource.MediaUrl);
+            if (string.IsNullOrEmpty(videoId))
+            {
+                errorMessage = "Could not extract YouTube video ID from this resource.";
+                return;
+            }
+
+            embedUrl = VideoSvc.GetEmbedUrl(videoId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load video");
+            errorMessage = $"Error loading video: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ToggleTranscript() => showTranscript = !showTranscript;
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

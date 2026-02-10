@@ -1,0 +1,281 @@
+@page "/reading"
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+@using SentenceStudio.Services.Speech
+@using SentenceStudio.Services.Timer
+@using Plugin.Maui.Audio
+@implements IDisposable
+
+@if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading passage...</p>
+    </div>
+}
+else if (resource is not null && sentences.Any())
+{
+    @* Activity Timer *@
+    @if (fromPlan)
+    {
+        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+    }
+
+    @* Title & progress *@
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="ss-title2 mb-0">@resource.Title</h2>
+        <div class="d-flex align-items-center gap-2">
+            <label class="ss-caption1 text-secondary-ss mb-0">Font</label>
+            <input type="range" class="form-range" style="width: 80px;"
+                   min="14" max="32" step="2" @bind="fontSize" @bind:event="oninput" />
+        </div>
+    </div>
+
+    @* Audio controls *@
+    @if (hasAudio)
+    {
+        <div class="card card-ss p-2 mb-3">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-ss-primary" @onclick="ToggleAudioPlayback">
+                    @(isAudioPlaying ? "⏸ Pause" : "▶ Play")
+                </button>
+                <div class="progress flex-grow-1" style="height: 6px;">
+                    <div class="progress-bar" style="width: @((audioProgress * 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                </div>
+                <span class="ss-caption1 text-secondary-ss">@FormatTime(currentAudioTime) / @FormatTime(audioDuration)</span>
+                <select class="form-select form-select-sm" style="width: auto;" @bind="playbackSpeed">
+                    <option value="0.5">0.5×</option>
+                    <option value="0.75">0.75×</option>
+                    <option value="1.0">1.0×</option>
+                    <option value="1.25">1.25×</option>
+                    <option value="1.5">1.5×</option>
+                </select>
+            </div>
+        </div>
+    }
+
+    @* Reading passage with interactive text *@
+    <div class="card card-ss p-4 mb-3" style="font-size: @(fontSize)px; line-height: 1.8;">
+        <InteractiveText
+            Sentences="@sentences"
+            VocabularyWords="@vocabularyWords"
+            SelectedSentenceIndex="@currentSentenceIndex"
+            OnWordClicked="HandleWordClicked"
+            OnVocabularyWordClicked="HandleVocabularyWordClicked"
+            OnSentenceClicked="HandleSentenceClicked" />
+    </div>
+
+    @* Word lookup panel *@
+    @if (showWordPanel)
+    {
+        <div class="card card-ss p-3 mb-3" style="border-left: 4px solid var(--ss-highlight-darkest);">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="ss-title3 mb-1" style="color: var(--ss-highlight-darkest);">@selectedWord</h4>
+                    @if (isTranslating)
+                    {
+                        <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                    }
+                    else if (!string.IsNullOrEmpty(wordDefinition))
+                    {
+                        <p class="ss-body1 mb-1">@wordDefinition</p>
+                    }
+                    @if (selectedVocabWord is not null)
+                    {
+                        <small class="text-secondary-ss">
+                            @selectedVocabWord.NativeLanguageTerm
+                        </small>
+                    }
+                </div>
+                <button class="btn btn-sm btn-link text-secondary-ss" @onclick="CloseWordPanel">✕</button>
+            </div>
+            @if (selectedVocabWord is null && !string.IsNullOrEmpty(wordDefinition))
+            {
+                <button class="btn btn-sm btn-ss-secondary mt-2" @onclick="SaveWordToVocabulary">
+                    💾 Save to Vocabulary
+                </button>
+            }
+        </div>
+    }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No reading content available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fromPlan")]
+    public bool FromPlanParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "targetMinutes")]
+    public int? TargetMinutesParam { get; set; }
+
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Reading> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool fromPlan;
+    private int targetMinutes;
+    private int fontSize = 20;
+    private LearningResource? resource;
+    private List<string> sentences = new();
+    private List<VocabularyWord> vocabularyWords = new();
+
+    // Audio state
+    private bool hasAudio;
+    private bool isAudioPlaying;
+    private double audioProgress;
+    private double currentAudioTime;
+    private double audioDuration;
+    private string playbackSpeed = "1.0";
+
+    // Word lookup
+    private bool showWordPanel;
+    private bool isTranslating;
+    private string selectedWord = "";
+    private string wordDefinition = "";
+    private VocabularyWord? selectedVocabWord;
+    private int currentSentenceIndex = -1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromPlan = FromPlanParam;
+        targetMinutes = TargetMinutesParam ?? 15;
+        await LoadResource();
+    }
+
+    private async Task LoadResource()
+    {
+        if (ResourceIdParam is null or 0) return;
+        isBusy = true;
+        try
+        {
+            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam.Value);
+            if (resource is null) return;
+
+            vocabularyWords = resource.Vocabulary ?? new();
+
+            // Split transcript into sentences
+            if (!string.IsNullOrEmpty(resource.Transcript))
+            {
+                sentences = SplitIntoSentences(resource.Transcript);
+            }
+
+            hasAudio = !string.IsNullOrEmpty(resource.MediaUrl);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load reading resource");
+            Toast.ShowError($"Error loading resource: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private static List<string> SplitIntoSentences(string text)
+    {
+        var result = new List<string>();
+        // Split by sentence-ending punctuation, keeping Korean sentence endings too
+        var parts = System.Text.RegularExpressions.Regex.Split(text, @"(?<=[.!?。！？\n])\s*");
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (!string.IsNullOrEmpty(trimmed))
+                result.Add(trimmed);
+        }
+        return result;
+    }
+
+    private async Task HandleWordClicked(string word)
+    {
+        selectedWord = word;
+        selectedVocabWord = null;
+        wordDefinition = "";
+        showWordPanel = true;
+        isTranslating = true;
+        StateHasChanged();
+
+        try
+        {
+            wordDefinition = await TranslationSvc.TranslateAsync(word);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Translation failed for word: {Word}", word);
+            wordDefinition = "(translation unavailable)";
+        }
+        finally
+        {
+            isTranslating = false;
+        }
+    }
+
+    private Task HandleVocabularyWordClicked(VocabularyWord vw)
+    {
+        selectedWord = vw.TargetLanguageTerm ?? "";
+        selectedVocabWord = vw;
+        wordDefinition = vw.NativeLanguageTerm ?? "";
+        showWordPanel = true;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleSentenceClicked(int index)
+    {
+        currentSentenceIndex = index == currentSentenceIndex ? -1 : index;
+        return Task.CompletedTask;
+    }
+
+    private async Task ToggleAudioPlayback()
+    {
+        isAudioPlaying = !isAudioPlaying;
+        // Audio playback would be managed via JS interop or IAudioManager in a full implementation
+        await Task.CompletedTask;
+    }
+
+    private void CloseWordPanel()
+    {
+        showWordPanel = false;
+        selectedWord = "";
+        wordDefinition = "";
+        selectedVocabWord = null;
+    }
+
+    private async Task SaveWordToVocabulary()
+    {
+        if (string.IsNullOrEmpty(selectedWord)) return;
+        try
+        {
+            Toast.ShowSuccess($"Saved '{selectedWord}' to vocabulary!");
+            CloseWordPanel();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save word");
+            Toast.ShowError("Could not save word.");
+        }
+        await Task.CompletedTask;
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        if (seconds < 0 || double.IsNaN(seconds)) seconds = 0;
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose() { }
+}
