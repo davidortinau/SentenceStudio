@@ -6,9 +6,10 @@
 @using Plugin.Maui.Audio
 @implements IDisposable
 
+<div class="d-flex flex-column h-100">
 @if (isBusy && !chunks.Any())
 {
-    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+    <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
         <div class="spinner-border text-primary mb-3" role="status"></div>
         <p class="ss-body1 text-secondary-ss">Starting conversation...</p>
     </div>
@@ -18,13 +19,15 @@ else
     @* Activity Timer *@
     @if (fromPlan)
     {
-        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+        <div class="flex-shrink-0">
+            <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+        </div>
     }
 
     @* Scenario selector *@
     @if (scenarios.Any())
     {
-        <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2 mb-3 flex-shrink-0">
             <label class="ss-caption1 text-secondary-ss mb-0">Scenario:</label>
             <select class="form-select form-select-sm" style="width: auto;" @onchange="OnScenarioChanged">
                 @foreach (var s in scenarios)
@@ -35,8 +38,8 @@ else
         </div>
     }
 
-    @* Chat messages *@
-    <div class="d-flex flex-column gap-2 mb-3" style="min-height: 40vh; max-height: 60vh; overflow-y: auto;" @ref="chatContainer">
+    @* Chat messages — scrollable, fills remaining space *@
+    <div class="d-flex flex-column gap-2 flex-grow-1 overflow-auto pb-2" @ref="chatContainer">
         @foreach (var chunk in chunks)
         {
             var isUser = chunk.Role == ConversationRole.User;
@@ -98,7 +101,7 @@ else
     @* Audio player for TTS *@
     @if (isPlayingAudio)
     {
-        <div class="card card-ss p-2 mb-2">
+        <div class="card card-ss p-2 mb-2 flex-shrink-0">
             <div class="d-flex align-items-center gap-2">
                 <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio"><i class="bi bi-stop-fill me-1"></i> Stop</button>
                 <span class="ss-caption1 text-secondary-ss">Playing audio...</span>
@@ -106,8 +109,8 @@ else
         </div>
     }
 
-    @* Input area *@
-    <div class="card card-ss p-3">
+    @* Input area — anchored to bottom *@
+    <div class="card card-ss p-3 flex-shrink-0 mt-auto">
         <div class="d-flex gap-2">
             <input type="text" class="form-control form-control-ss"
                    @bind="userInput" @bind:event="oninput"
@@ -121,6 +124,7 @@ else
         </div>
     </div>
 }
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "scenarioId")]
