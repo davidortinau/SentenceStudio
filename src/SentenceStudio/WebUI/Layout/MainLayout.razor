@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+
+<div class="d-flex flex-column vh-100" data-bs-theme="dark">
+    @* Navigation will be added in Phase 1 *@
+    <nav class="navbar navbar-dark bg-dark border-bottom border-secondary px-3">
+        <a class="navbar-brand" href="">SentenceStudio</a>
+    </nav>
+
+    <main class="flex-grow-1 overflow-auto">
+        <div class="container-fluid p-3">
+            @Body
+        </div>
+    </main>
+</div>

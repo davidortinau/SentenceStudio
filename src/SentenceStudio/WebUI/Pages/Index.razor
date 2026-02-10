@@ -1,0 +1,19 @@
+@page "/"
+
+<h1 class="mb-4">SentenceStudio</h1>
+
+<div class="card card-ss p-4">
+    <h5 class="card-title">Blazor Hybrid is running!</h5>
+    <p class="card-text text-secondary">
+        The Blazor infrastructure is set up and working. Pages will be converted from MauiReactor to Blazor components progressively.
+    </p>
+    <p class="card-text">
+        <span class="badge bg-success">Bootstrap @bootstrapCheck</span>
+        <span class="badge bg-primary ms-2">Blazor Hybrid</span>
+        <span class="badge bg-info ms-2">.NET MAUI</span>
+    </p>
+</div>
+
+@code {
+    private string bootstrapCheck = "5.3";
+}

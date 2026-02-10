@@ -1,0 +1,71 @@
+/* SentenceStudio Blazor Hybrid - Custom Styles */
+
+/* Theme CSS custom properties (mapped from MyTheme.cs) */
+:root {
+    /* Dark theme (default) */
+    --ss-bg-primary: #0c0b10;
+    --ss-bg-secondary: #1a1a2e;
+    --ss-text-primary: #f5f5f5;
+    --ss-text-secondary: #a0a0a0;
+    --ss-accent: #708C89;
+    --ss-accent-hover: #5a7673;
+    --ss-success: #2FFF74;
+    --ss-warning: #FF7134;
+    --ss-danger: #FF0000;
+
+    /* Spacing */
+    --ss-spacing-xs: 4px;
+    --ss-spacing-sm: 8px;
+    --ss-spacing-md: 16px;
+    --ss-spacing-lg: 24px;
+    --ss-spacing-xl: 32px;
+
+    /* Border radius */
+    --ss-radius-sm: 4px;
+    --ss-radius-md: 8px;
+    --ss-radius-lg: 16px;
+}
+
+/* Safe area for mobile status bars */
+.status-bar-safe-area {
+    display: none;
+}
+
+/* Override Bootstrap theme to match app design */
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--ss-bg-primary);
+    --bs-body-color: var(--ss-text-primary);
+}
+
+html, body {
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    background-color: var(--ss-bg-primary);
+    color: var(--ss-text-primary);
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+#app {
+    height: 100%;
+}
+
+/* Card styling matching existing theme */
+.card-ss {
+    background-color: var(--ss-bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--ss-radius-md);
+}
+
+/* Primary button matching theme */
+.btn-ss-primary {
+    background-color: var(--ss-accent);
+    border-color: var(--ss-accent);
+    color: white;
+}
+
+.btn-ss-primary:hover {
+    background-color: var(--ss-accent-hover);
+    border-color: var(--ss-accent-hover);
+    color: white;
+}

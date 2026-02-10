@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Maui;
+using Microsoft.AspNetCore.Components.WebView.Maui;
+using CommunityToolkit.Maui;
 using Microsoft.Maui.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -161,11 +162,14 @@ public static class MauiProgram
 #endif
 
 
+		builder.Services.AddMauiBlazorWebView();
+
 #if DEBUG
 		builder.Logging
 			.AddDebug()
 			.AddConsole()
 			.SetMinimumLevel(LogLevel.Debug);
+		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.AddMauiDevFlowAgent(options => { options.Port = 9223; });
 		// builder.UseDebugRibbon();
 #endif
