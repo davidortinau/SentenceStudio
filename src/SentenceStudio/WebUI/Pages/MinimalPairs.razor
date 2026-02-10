@@ -1,11 +1,12 @@
 @page "/minimal-pairs"
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="ss-title1 mb-0">Minimal Pairs</h1>
-    <button class="btn btn-ss-primary" @onclick="CreatePair">
-        <i class="bi bi-plus-lg me-1"></i> Create Pair
-    </button>
-</div>
+<PageHeader Title="Minimal Pairs">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="CreatePair">
+            <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Create Pair</span>
+        </button>
+    </PrimaryActions>
+</PageHeader>
 
 @* Mode selector *@
 <div class="d-flex align-items-center gap-3 mb-4">

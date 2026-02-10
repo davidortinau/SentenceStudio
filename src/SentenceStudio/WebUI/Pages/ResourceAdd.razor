@@ -1,18 +1,13 @@
 @page "/resources/add"
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="ss-title1 mb-0">Add Resource</h1>
-    <div class="d-flex gap-2">
-        <button class="btn btn-ss-secondary" @onclick="Cancel">Cancel</button>
+<PageHeader Title="Add Resource" ShowBack="true" OnBack="Cancel">
+    <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
-            @if (isSaving)
-            {
-                <span class="spinner-border spinner-border-sm me-1"></span>
-            }
+            @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
             Save
         </button>
-    </div>
-</div>
+    </PrimaryActions>
+</PageHeader>
 
 @if (isSaving)
 {

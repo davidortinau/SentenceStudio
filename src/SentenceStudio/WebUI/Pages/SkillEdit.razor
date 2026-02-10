@@ -8,17 +8,17 @@
 }
 else
 {
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="ss-title1 mb-0">Edit Skill Profile</h1>
-        <div class="d-flex gap-2">
-            <button class="btn btn-ss-secondary" @onclick="GoBack">Back</button>
+    <PageHeader Title="Edit Skill Profile" ShowBack="true" OnBack="GoBack">
+        <PrimaryActions>
             <button class="btn btn-ss-primary" @onclick="SaveProfile" disabled="@isSaving">
                 @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                 Save
             </button>
-            <button class="btn btn-ss-danger" @onclick="DeleteProfile">Delete</button>
-        </div>
-    </div>
+        </PrimaryActions>
+        <SecondaryActions>
+            <li><button class="dropdown-item text-danger" @onclick="DeleteProfile"><i class="bi bi-trash me-2"></i>Delete</button></li>
+        </SecondaryActions>
+    </PageHeader>
 
     <div class="card card-ss p-4 mb-3">
         <div class="mb-3">

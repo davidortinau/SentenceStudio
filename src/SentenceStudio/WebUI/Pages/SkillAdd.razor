@@ -1,18 +1,13 @@
 @page "/skills/add"
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="ss-title1 mb-0">Add Skill Profile</h1>
-    <div class="d-flex gap-2">
-        <button class="btn btn-ss-secondary" @onclick="Cancel">Cancel</button>
+<PageHeader Title="Add Skill Profile" ShowBack="true" OnBack="Cancel">
+    <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="SaveProfile" disabled="@isSaving">
-            @if (isSaving)
-            {
-                <span class="spinner-border spinner-border-sm me-1"></span>
-            }
+            @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
             Save
         </button>
-    </div>
-</div>
+    </PrimaryActions>
+</PageHeader>
 
 <div class="card card-ss p-4 mb-3">
     <div class="mb-3">

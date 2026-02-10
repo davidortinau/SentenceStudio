@@ -8,20 +8,31 @@
 }
 else
 {
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="ss-title1 mb-0">@(Id == 0 ? "Add Vocabulary Word" : "Edit Vocabulary Word")</h1>
-        <div class="d-flex gap-2">
-            <button class="btn btn-ss-secondary" @onclick="GoBack">Back</button>
-            <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
-                @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                @(Id == 0 ? "Add Word" : "Save Changes")
-            </button>
-            @if (Id > 0)
-            {
-                <button class="btn btn-ss-danger" @onclick="DeleteWord" disabled="@isSaving">Delete</button>
-            }
-        </div>
-    </div>
+    @if (Id > 0)
+    {
+        <PageHeader Title="Edit Vocabulary Word" ShowBack="true" OnBack="GoBack">
+            <PrimaryActions>
+                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Save
+                </button>
+            </PrimaryActions>
+            <SecondaryActions>
+                <li><button class="dropdown-item text-danger" @onclick="DeleteWord" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
+            </SecondaryActions>
+        </PageHeader>
+    }
+    else
+    {
+        <PageHeader Title="Add Vocabulary Word" ShowBack="true" OnBack="GoBack">
+            <PrimaryActions>
+                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Add
+                </button>
+            </PrimaryActions>
+        </PageHeader>
+    }
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {

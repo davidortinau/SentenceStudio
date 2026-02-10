@@ -487,3 +487,85 @@ h3:focus,
     background-color: var(--ss-surface) !important;
     color: var(--ss-text-primary) !important;
 }
+
+/* ============================================
+   MOBILE / RESPONSIVE
+   ============================================ */
+
+/* iOS safe area insets */
+:root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Page header */
+.page-header {
+    min-height: 44px;
+}
+
+/* Icon-only buttons (touch-friendly 44px targets) */
+.btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--ss-radius-md);
+    background: transparent;
+    border: none;
+}
+.btn-icon:hover, .btn-icon:focus {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Mobile: < 768px */
+@media (max-width: 767.98px) {
+    /* Pad for safe area on mobile */
+    .mobile-navbar {
+        padding-top: var(--safe-area-top);
+    }
+
+    /* Tighter page padding */
+    main.p-3 {
+        padding: var(--ss-size-120) !important;
+    }
+
+    /* Compact page header on mobile */
+    .page-header h1 {
+        font-size: 1.25rem;
+    }
+
+    /* Touch-friendly form controls */
+    .form-control, .form-select {
+        min-height: 44px;
+        font-size: 16px; /* prevents iOS zoom on focus */
+    }
+
+    /* Touch-friendly buttons */
+    .btn {
+        min-height: 44px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    .btn-sm {
+        min-height: 36px;
+    }
+
+    /* Cards: reduce padding on mobile */
+    .card-ss {
+        padding: var(--ss-size-100);
+    }
+
+    /* Dropdown menus: larger touch targets */
+    .dropdown-menu .dropdown-item {
+        padding: 10px 16px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Stack header actions that don't fit */
+    .page-header .btn .btn-label-text {
+        display: none;
+    }
+}

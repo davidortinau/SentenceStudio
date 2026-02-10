@@ -1,15 +1,16 @@
 @page "/vocab-matching"
 @using SentenceStudio.Pages.VocabularyMatching
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="ss-title1 mb-0">Vocabulary Matching</h1>
-    <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-ss-secondary" @onclick="ToggleHideMode">
-            @(hideNativeWordsMode ? "Show All" : "Hide Native")
-        </button>
-        <button class="btn btn-sm btn-ss-secondary" @onclick="RestartGame"><i class="bi bi-arrow-clockwise me-1"></i> New Game</button>
-    </div>
-</div>
+<PageHeader Title="Vocabulary Matching">
+    <PrimaryActions>
+        <button class="btn btn-sm btn-ss-secondary" @onclick="RestartGame"><i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-sm-inline">New Game</span></button>
+    </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="ToggleHideMode">
+            <i class="bi @(hideNativeWordsMode ? "bi-eye" : "bi-eye-slash") me-2"></i>@(hideNativeWordsMode ? "Show All" : "Hide Native")
+        </button></li>
+    </SecondaryActions>
+</PageHeader>
 
 @if (isGameComplete)
 {

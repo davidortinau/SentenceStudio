@@ -8,28 +8,32 @@
 }
 else
 {
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="ss-title1 mb-0">@(resource.Title ?? "Resource")</h1>
-        <div class="d-flex gap-2">
-            <button class="btn btn-ss-secondary" @onclick="GoBack">Back</button>
+    <PageHeader Title="@(resource.Title ?? "Resource")" ShowBack="true" OnBack="GoBack">
+        <PrimaryActions>
             @if (!isEditing && isEditable)
             {
-                <button class="btn btn-ss-primary" @onclick="() => isEditing = true">Edit</button>
+                <button class="btn btn-ss-primary" @onclick="() => isEditing = true"><i class="bi bi-pencil me-1"></i><span class="d-none d-sm-inline">Edit</span></button>
             }
             @if (isEditing)
             {
-                <button class="btn btn-ss-secondary" @onclick="CancelEdit">Cancel</button>
                 <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
                     @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                     Save
                 </button>
+            }
+        </PrimaryActions>
+        <SecondaryActions>
+            @if (isEditing)
+            {
+                <li><button class="dropdown-item" @onclick="CancelEdit"><i class="bi bi-x-lg me-2"></i>Cancel</button></li>
                 @if (isEditable)
                 {
-                    <button class="btn btn-ss-danger" @onclick="DeleteResource">Delete</button>
+                    <li><hr class="dropdown-divider" /></li>
+                    <li><button class="dropdown-item text-danger" @onclick="DeleteResource"><i class="bi bi-trash me-2"></i>Delete</button></li>
                 }
             }
-        </div>
-    </div>
+        </SecondaryActions>
+    </PageHeader>
 
     @if (resource.IsSmartResource)
     {

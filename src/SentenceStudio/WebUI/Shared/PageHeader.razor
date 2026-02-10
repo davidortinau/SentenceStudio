@@ -1,0 +1,40 @@
+@* Reusable page header with iOS-like toolbar behavior on mobile.
+   Primary actions show as visible buttons; secondary actions go in an overflow dropdown. *@
+
+<div class="page-header d-flex justify-content-between align-items-center mb-3 mb-md-4">
+    <div class="d-flex align-items-center gap-2 overflow-hidden">
+        @if (ShowBack)
+        {
+            <button class="btn btn-sm btn-icon text-primary-ss p-1" @onclick="OnBack">
+                <i class="bi bi-chevron-left" style="font-size: 1.25rem;"></i>
+            </button>
+        }
+        <h1 class="ss-title1 mb-0 text-truncate">@Title</h1>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        @if (PrimaryActions != null)
+        {
+            @PrimaryActions
+        }
+        @if (SecondaryActions != null)
+        {
+            <div class="dropdown">
+                <button class="btn btn-sm btn-icon text-secondary-ss" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots-vertical" style="font-size: 1.25rem;"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" data-bs-theme="dark">
+                    @SecondaryActions
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? PrimaryActions { get; set; }
+    [Parameter] public RenderFragment? SecondaryActions { get; set; }
+    [Parameter] public bool ShowBack { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+}

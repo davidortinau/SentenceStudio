@@ -1,11 +1,12 @@
 @page "/skills"
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="ss-title1 mb-0">Skill Profiles</h1>
-    <button class="btn btn-ss-primary" @onclick="AddProfile">
-        <i class="bi bi-plus-lg me-1"></i> Add
-    </button>
-</div>
+<PageHeader Title="Skill Profiles">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="AddProfile">
+            <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Add</span>
+        </button>
+    </PrimaryActions>
+</PageHeader>
 
 @if (isLoading)
 {

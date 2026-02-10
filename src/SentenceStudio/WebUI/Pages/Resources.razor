@@ -1,11 +1,12 @@
 @page "/resources"
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="ss-title1 mb-0">Learning Resources</h1>
-    <button class="btn btn-ss-primary" @onclick="AddResource">
-        <i class="bi bi-plus-lg me-1"></i> Add Resource
-    </button>
-</div>
+<PageHeader Title="Learning Resources">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="AddResource">
+            <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Add Resource</span>
+        </button>
+    </PrimaryActions>
+</PageHeader>
 
 @if (isLoading)
 {
