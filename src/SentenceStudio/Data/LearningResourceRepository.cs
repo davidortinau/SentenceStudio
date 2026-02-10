@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using UXDivers.Popups.Maui.Controls;
-using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Data;
 
@@ -125,13 +123,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return -1;
         }
     }
@@ -254,13 +246,7 @@ public class LearningResourceRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ SaveResourceAsync error");
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return -1;
         }
     }
@@ -281,13 +267,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return -1;
         }
     }
@@ -383,13 +363,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -424,13 +398,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -485,7 +453,7 @@ public class LearningResourceRepository
                 await AddVocabularyToResourceAsync(resource.Id, word.Id);
             }
 
-            await AppShell.DisplayToastAsync("Starter vocabulary resource created");
+            _logger.LogInformation("Starter vocabulary resource created");
         }
         catch (Exception ex)
         {
@@ -646,13 +614,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -677,13 +639,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -755,13 +711,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -789,13 +739,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }
@@ -832,13 +776,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            await IPopupService.Current.PushAsync(new SimpleActionPopup
-            {
-                Title = "Error",
-                Text = ex.Message,
-                ActionButtonText = "Fix it",
-                ShowSecondaryActionButton = false
-            });
+            // UXDivers popup removed - error already logged above
             return false;
         }
     }

@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using UXDivers.Popups.Maui.Controls;
-using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Data;
 
@@ -62,13 +60,7 @@ public class StoryRepository
             _logger.LogError(ex, "Error occurred in SaveAsync");
             if (item.Id == 0)
             {
-                await IPopupService.Current.PushAsync(new SimpleActionPopup
-                {
-                    Title = "Error",
-                    Text = ex.Message,
-                    ActionButtonText = "Fix it",
-                    ShowSecondaryActionButton = false
-                });
+                // UXDivers popup removed - error already logged above
             }
             return -1;
         }

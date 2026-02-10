@@ -22,8 +22,6 @@ global using SentenceStudio.Data;
 global using SentenceStudio.Resources.Styles;
 global using System.Diagnostics;
 global using SentenceStudio.Common;
-global using SentenceStudio.Pages.Controls;
-global using MauiReactor;
 global using System.Collections.Generic;
 global using System.Threading.Tasks;
 global using System.Threading;

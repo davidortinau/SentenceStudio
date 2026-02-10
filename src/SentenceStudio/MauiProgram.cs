@@ -8,32 +8,14 @@ using Microsoft.Extensions.Logging;
 using Shiny;
 #endif
 using CommunityToolkit.Maui.Media;
-using SkiaSharp.Views.Maui.Controls.Hosting;
 using Plugin.Maui.Audio;
-using Syncfusion.Maui.Toolkit.Hosting;
-using SentenceStudio.Pages.Conversation;
-using SentenceStudio.Pages.HowDoYouSay;
-using SentenceStudio.Pages.Clozure;
-using SentenceStudio.Pages.Translation;
-using SentenceStudio.Pages.Skills;
-using SentenceStudio.Pages.Writing;
-using SentenceStudio.Pages.Scene;
-using SentenceStudio.Pages.VocabularyMatching;
-using SentenceStudio.Pages.VocabularyQuiz;
-using SentenceStudio.Pages.Reading;
 using Microsoft.Extensions.AI;
 using OpenTelemetry.Trace;
 using OpenAI;
 using ElevenLabs;
 using CommunityToolkit.Maui.Storage;
-using Syncfusion.Maui.Core.Hosting;
-using SentenceStudio.Pages.LearningResources;
-using SentenceStudio.Pages.VocabularyProgress;
-using SentenceStudio.Pages.MinimalPairs;
 using SentenceStudio.Services.LanguageSegmentation;
 using Microsoft.Maui.Controls.Hosting;
-using MauiReactor.HotReload;
-using UXDivers.Popups.Maui;
 #if DEBUG
 using MauiDevFlow.Agent;
 #endif
@@ -54,62 +36,12 @@ public static class MauiProgram
 
 		var builder = MauiApp.CreateBuilder();
 		builder
-			// .UseMauiApp<App>(app =>
-			// {
-
-			// })
-			.UseMauiReactorApp<SentenceStudioApp>(app =>
-			{
-				app.UseTheme<MyTheme>();
-				app.SetWindowsSpecificAssetsDirectory("Assets");
-				app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.DarkTheme());
-				app.Resources.MergedDictionaries.Add(new UXDivers.Popups.Maui.Controls.PopupStyles());
-
-				// // Add custom resources
-				// var customResources = new ResourceDictionary
-				// {
-				// 	// Font Families
-				// 	{ "IconsFontFamily", MaterialSymbolsFont.FontFamily },
-				// 	{ "AppFontFamily", "Manrope" },
-				// 	{ "AppSemiBoldFamily", "ManropeSemibold" },
-
-				// 	// UXDivers Popups Icon Overrides
-				// 	{ "UXDPopupsCloseIconButton", MaterialSymbolsFont.Close },
-				// 	{ "UXDPopupsCheckCircleIconButton", MaterialSymbolsFont.Check_circle },
-
-				// 	// Icon Colors
-				// 	// { "IconOrange", Color.FromArgb("#FF7134") },
-				// 	// { "IconMagenta", Color.FromArgb("#FF1AD9") },
-				// 	// { "IconCyan", Color.FromArgb("#05D9FF") },
-				// 	// { "IconGreen", Color.FromArgb("#2FFF74") },
-				// 	// { "IconPurple", Color.FromArgb("#BD3BFF") },
-				// 	// { "IconBlue", Color.FromArgb("#1C7BFF") },
-				// 	// { "IconLime", Color.FromArgb("#C8FF01") },
-				// 	// { "IconRed", Color.FromArgb("#FF0000") },
-				// 	// { "IconDarkBlue", Color.FromArgb("#6422FF") },
-				// 	{ "BackgroundColor", MyTheme.DarkBackground },
-				// 	{ "BackgroundSecondaryColor", MyTheme.DarkSecondaryBackground },
-				// 	{ "BackgroundTertiaryColor", Colors.Purple },
-				// 	{ "PrimaryColor", MyTheme.PrimaryDark},
-				// 	{ "TextColor", MyTheme.PrimaryDarkText },
-				// 	{ "PopupBorderColor", MyTheme.DarkSecondaryBackground }
-				// };
-				// app.Resources.MergedDictionaries.Add(customResources);
-
-				// InitializeUserCulture();
-				// InitializeSmartResources();
-
-			})
-			.UseUXDiversPopups()
-
+			.UseMauiApp<BlazorApp>()
 			// .AddServiceDefaults()
 #if ANDROID || IOS || MACCATALYST
 			.UseShiny()
 #endif
 			.UseMauiCommunityToolkit()
-			.UseSkiaSharp()
-			.ConfigureSyncfusionToolkit()
-			.ConfigureSyncfusionCore()
 			.AddAudio(
 				playbackOptions =>
 				{
@@ -182,7 +114,6 @@ public static class MauiProgram
 		// builder.UseDebugRibbon();
 #endif
 
-		RegisterRoutes();
 		RegisterServices(builder.Services);
 
 		// TODO: Is this still necessary or move to ServiceDefaults?
@@ -195,11 +126,7 @@ public static class MauiProgram
 		// 			.AddConsoleExporter(); // Export traces to console for debugging
 		// 	});
 
-		var sfKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
-			? Environment.GetEnvironmentVariable("SyncfusionKey")!
-			: builder.Configuration.GetRequiredSection("Settings").Get<Settings>().SyncfusionKey;
-
-		Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(sfKey);
+		// Syncfusion licensing removed - using Bootstrap + Chart.js instead
 
 		var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
 			? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
@@ -322,39 +249,6 @@ public static class MauiProgram
 		return app;
 	}
 
-
-
-	private static void RegisterRoutes()
-	{
-		MauiReactor.Routing.RegisterRoute<ConversationPage>("conversation");
-		MauiReactor.Routing.RegisterRoute<HowDoYouSayPage>("howdoyousay");
-		MauiReactor.Routing.RegisterRoute<ClozurePage>(nameof(ClozurePage));
-		MauiReactor.Routing.RegisterRoute<VocabularyQuizPage>(nameof(VocabularyQuizPage));
-		MauiReactor.Routing.RegisterRoute<TranslationPage>(nameof(TranslationPage));
-		MauiReactor.Routing.RegisterRoute<CreateMinimalPairPage>(nameof(CreateMinimalPairPage));
-		MauiReactor.Routing.RegisterRoute<MinimalPairSessionPage>(nameof(MinimalPairSessionPage));
-		MauiReactor.Routing.RegisterRoute<EditSkillProfilePage>(nameof(EditSkillProfilePage));
-		MauiReactor.Routing.RegisterRoute<AddSkillProfilePage>(nameof(AddSkillProfilePage));
-
-		MauiReactor.Routing.RegisterRoute<WritingPage>(nameof(WritingPage));
-		MauiReactor.Routing.RegisterRoute<DescribeAScenePage>(nameof(DescribeAScenePage));
-		MauiReactor.Routing.RegisterRoute<VocabularyMatchingPage>(nameof(VocabularyMatchingPage));
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.Shadowing.ShadowingPage>("shadowing");
-		MauiReactor.Routing.RegisterRoute<ReadingPage>("reading");
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VideoWatching.VideoWatchingPage>(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage));
-		// MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.YouTube.YouTubeImportPage>(nameof(YouTubeImportPage));
-
-		// Register Learning Resources pages
-		MauiReactor.Routing.RegisterRoute<AddLearningResourcePage>(nameof(AddLearningResourcePage));
-		MauiReactor.Routing.RegisterRoute<EditLearningResourcePage>(nameof(EditLearningResourcePage));
-
-		// Register Vocabulary Progress pages
-		MauiReactor.Routing.RegisterRoute<VocabularyLearningProgressPage>(nameof(VocabularyLearningProgressPage));
-
-		// Register Vocabulary Management pages
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyManagement.VocabularyManagementPage>(nameof(SentenceStudio.Pages.VocabularyManagement.VocabularyManagementPage));
-		MauiReactor.Routing.RegisterRoute<SentenceStudio.Pages.VocabularyManagement.EditVocabularyWordPage>(nameof(SentenceStudio.Pages.VocabularyManagement.EditVocabularyWordPage));
-	}
 
 
 	static void RegisterServices(IServiceCollection services)
