@@ -37,7 +37,7 @@ else if (resource is not null && sentences.Any())
         <div class="card card-ss p-2 mb-3">
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-sm btn-ss-primary" @onclick="ToggleAudioPlayback">
-                    @(isAudioPlaying ? "⏸ Pause" : "▶ Play")
+                    @if (isAudioPlaying) { <i class="bi bi-pause-fill me-1"></i><text>Pause</text> } else { <i class="bi bi-play-fill me-1"></i><text>Play</text> }
                 </button>
                 <div class="progress flex-grow-1" style="height: 6px;">
                     <div class="progress-bar" style="width: @((audioProgress * 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%"></div>
@@ -87,12 +87,12 @@ else if (resource is not null && sentences.Any())
                         </small>
                     }
                 </div>
-                <button class="btn btn-sm btn-link text-secondary-ss" @onclick="CloseWordPanel">✕</button>
+                <button class="btn btn-sm btn-link text-secondary-ss" @onclick="CloseWordPanel"><i class="bi bi-x-lg"></i></button>
             </div>
             @if (selectedVocabWord is null && !string.IsNullOrEmpty(wordDefinition))
             {
                 <button class="btn btn-sm btn-ss-secondary mt-2" @onclick="SaveWordToVocabulary">
-                    💾 Save to Vocabulary
+                    <i class="bi bi-save me-1"></i> Save to Vocabulary
                 </button>
             }
         </div>

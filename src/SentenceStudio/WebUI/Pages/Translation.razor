@@ -12,11 +12,11 @@ else if (sentences.Any())
     @* Progress indicator *@
     <div class="d-flex align-items-center justify-content-between mb-3">
         <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
-            ← Prev
+            <i class="bi bi-chevron-left me-1"></i> Prev
         </button>
         <span class="ss-body2 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
         <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence">
-            Next →
+            Next <i class="bi bi-chevron-right ms-1"></i>
         </button>
     </div>
 
@@ -88,7 +88,7 @@ else if (sentences.Any())
         </button>
         <button class="btn btn-ss-secondary"
                 @onclick="ToggleInputMode">
-            @(inputMode == "Text" ? "🔤 Blocks" : "⌨️ Type")
+            @(inputMode == "Text" ? "Blocks" : "Type")
         </button>
     </div>
 }

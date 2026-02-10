@@ -15,14 +15,14 @@
         <div class="activity-timer__controls">
             @if (_isRunning)
             {
-                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandlePause" title="Pause">⏸</button>
+                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandlePause" title="Pause"><i class="bi bi-pause-fill"></i></button>
             }
             else
             {
-                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandleResume" title="Resume">▶</button>
+                <button class="btn btn-sm btn-link activity-timer__btn" @onclick="HandleResume" title="Resume"><i class="bi bi-play-fill"></i></button>
             }
             <button class="btn btn-sm btn-link activity-timer__btn activity-timer__btn--stop"
-                    @onclick="HandleStop" title="Stop">⏹</button>
+                    @onclick="HandleStop" title="Stop"><i class="bi bi-stop-fill"></i></button>
         </div>
         @if (TargetMinutes > 0)
         {

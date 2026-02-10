@@ -74,7 +74,7 @@ else
                     @if (!isUser)
                     {
                         <button class="btn btn-sm btn-link p-0 mt-1 text-start" @onclick="() => PlayChunkAudio(chunk)">
-                            🔊 Listen
+                            <i class="bi bi-volume-up me-1"></i> Listen
                         </button>
                     }
                 </div>
@@ -100,7 +100,7 @@ else
     {
         <div class="card card-ss p-2 mb-2">
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio">⏹ Stop</button>
+                <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio"><i class="bi bi-stop-fill me-1"></i> Stop</button>
                 <span class="ss-caption1 text-secondary-ss">Playing audio...</span>
             </div>
         </div>

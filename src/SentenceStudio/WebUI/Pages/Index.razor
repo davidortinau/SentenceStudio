@@ -15,7 +15,7 @@
             <div class="card card-ss p-3 text-center h-100" role="button"
                  @onclick="() => NavigateToActivity(activity.Route)"
                  style="cursor: pointer;">
-                <div class="fs-2 mb-2">@activity.Icon</div>
+                <div class="fs-2 mb-2"><i class="bi @activity.Icon"></i></div>
                 <div class="ss-body1 fw-semibold">@activity.Label</div>
             </div>
         </div>
@@ -96,17 +96,17 @@ else
 
     private static readonly ActivityInfo[] activities =
     [
-        new("Conversation", "\U0001F4AC", "conversation"),
-        new("Describe a Scene", "\U0001F5BC", "scene"),
-        new("Translate", "\U0001F310", "translation"),
-        new("Write", "\u270D\uFE0F", "writing"),
-        new("Cloze", "\U0001F9E9", "cloze"),
-        new("Reading", "\U0001F4D6", "reading"),
-        new("Vocabulary Quiz", "\U0001F4DD", "vocabularyquiz"),
-        new("Vocabulary Matching", "\U0001F0CF", "vocabularymatching"),
-        new("Shadowing", "\U0001F50A", "shadowing"),
-        new("How Do You Say", "\U0001F4AC", "howdoyousay"),
-        new("Minimal Pairs", "\U0001F442", "minimalpairs"),
+        new("Conversation", "bi-chat-dots", "conversation"),
+        new("Describe a Scene", "bi-image", "scene"),
+        new("Translate", "bi-translate", "translation"),
+        new("Write", "bi-pencil-square", "writing"),
+        new("Cloze", "bi-puzzle", "cloze"),
+        new("Reading", "bi-book", "reading"),
+        new("Vocabulary Quiz", "bi-card-checklist", "vocabularyquiz"),
+        new("Vocabulary Matching", "bi-grid-3x3-gap", "vocabularymatching"),
+        new("Shadowing", "bi-soundwave", "shadowing"),
+        new("How Do You Say", "bi-chat-left-dots", "howdoyousay"),
+        new("Minimal Pairs", "bi-ear", "minimalpairs"),
     ];
 
     protected override async Task OnInitializedAsync()

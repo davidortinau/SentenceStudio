@@ -10,11 +10,11 @@
                 disabled="@(AudioData is null || AudioData.Length == 0)">
             @if (IsPlaying)
             {
-                <span>⏸</span>
+                <span><i class="bi bi-pause-fill"></i></span>
             }
             else
             {
-                <span>▶</span>
+                <span><i class="bi bi-play-fill"></i></span>
             }
         </button>
         <div class="audio-player__time ss-caption1">

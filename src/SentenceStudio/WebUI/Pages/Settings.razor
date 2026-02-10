@@ -145,7 +145,7 @@
         quizDirection = QuizPrefs.DisplayDirection;
         quizAutoplay = QuizPrefs.AutoPlayVocabAudio;
         quizShowMnemonic = QuizPrefs.ShowMnemonicImage;
-        quizAutoAdvanceDuration = QuizPrefs.AutoAdvanceDuration;
+        quizAutoAdvanceDuration = QuizPrefs.AutoAdvanceDuration / 1000.0;
         selectedLanguage = "Korean";
         selectedVoiceId = VoicePrefs.GetVoiceForLanguage(selectedLanguage) ?? "";
     }
@@ -177,7 +177,7 @@
         QuizPrefs.DisplayDirection = quizDirection;
         QuizPrefs.AutoPlayVocabAudio = quizAutoplay;
         QuizPrefs.ShowMnemonicImage = quizShowMnemonic;
-        QuizPrefs.AutoAdvanceDuration = (int)quizAutoAdvanceDuration;
+        QuizPrefs.AutoAdvanceDuration = (int)(quizAutoAdvanceDuration * 1000);
         VoicePrefs.SetVoiceForLanguage(selectedLanguage, selectedVoiceId);
         Toast.ShowSuccess("Preferences saved");
     }

@@ -72,11 +72,11 @@ else
                         <div class="mt-2 d-flex gap-2 flex-wrap">
                             @if (item.IsOrphaned)
                             {
-                                <small class="text-warning">⚠ Orphaned</small>
+                                <small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Orphaned</small>
                             }
                             else
                             {
-                                <small class="text-secondary-ss">📚 @item.AssociatedResources.Count resource(s)</small>
+                                <small class="text-secondary-ss"><i class="bi bi-book me-1"></i>@item.AssociatedResources.Count resource(s)</small>
                             }
                             @if (!string.IsNullOrWhiteSpace(item.Word.Tags))
                             {

@@ -39,7 +39,7 @@
         }
         else
         {
-            <span>🔊 Speak</span>
+            <span><i class="bi bi-volume-up me-1"></i> Speak</span>
         }
     </button>
 </div>
@@ -69,11 +69,11 @@ else if (history.Any())
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm @(isPlaying ? "btn-ss-primary" : "btn-ss-secondary")"
                                 @onclick="() => PlayHistoryItem(h)">
-                            @(isPlaying ? "⏸" : "▶")
+                            @if (isPlaying) { <i class="bi bi-pause-fill"></i> } else { <i class="bi bi-play-fill"></i> }
                         </button>
                         <button class="btn btn-sm btn-outline-danger"
                                 @onclick="() => DeleteHistoryItem(h)">
-                            🗑
+                            <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </div>

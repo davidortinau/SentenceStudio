@@ -5,7 +5,7 @@
     {
         <div class="toast show toast-ss mb-2 @GetToastClass(toast.Type)" role="alert">
             <div class="toast-body d-flex align-items-center gap-2">
-                <span>@GetIcon(toast.Type)</span>
+                <i class="bi @GetIcon(toast.Type)"></i>
                 <span class="flex-grow-1">@toast.Text</span>
                 <button type="button" class="btn-close btn-close-white btn-sm" @onclick="() => Remove(toast)"></button>
             </div>
@@ -51,10 +51,10 @@
 
     private static string GetIcon(ToastType type) => type switch
     {
-        ToastType.Success => "✓",
-        ToastType.Error => "✕",
-        ToastType.Warning => "⚠",
-        ToastType.Info => "ℹ",
+        ToastType.Success => "bi-check-circle-fill",
+        ToastType.Error => "bi-x-circle-fill",
+        ToastType.Warning => "bi-exclamation-triangle-fill",
+        ToastType.Info => "bi-info-circle-fill",
         _ => ""
     };
 

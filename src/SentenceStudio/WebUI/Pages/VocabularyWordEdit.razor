@@ -367,7 +367,7 @@ else
         try
         {
             await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
-            Toast.ShowSuccess("🗑️ Vocabulary word deleted!");
+            Toast.ShowSuccess("Vocabulary word deleted!");
             GoBack();
         }
         catch (Exception ex)

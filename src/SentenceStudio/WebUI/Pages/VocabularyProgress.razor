@@ -168,9 +168,9 @@ else
         if (item.IsUnknown) return "Start practicing to track progress.";
 
         var parts = new List<string>();
-        parts.Add($"🔥 Streak: {item.Progress?.CurrentStreak ?? 0}");
-        parts.Add($"✍️ {item.Progress?.ProductionInStreak ?? 0}/2 Production");
-        parts.Add($"📊 {(int)((item.Progress?.MasteryScore ?? 0f) * 100)}%");
+        parts.Add($"Streak: {item.Progress?.CurrentStreak ?? 0}");
+        parts.Add($"Production: {item.Progress?.ProductionInStreak ?? 0}/2");
+        parts.Add($"Mastery: {(int)((item.Progress?.MasteryScore ?? 0f) * 100)}%");
         return string.Join(" | ", parts);
     }
 

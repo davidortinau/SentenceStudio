@@ -71,22 +71,22 @@ else if (sentences.Any())
             }
             else
             {
-                <span>@(isAudioPlaying ? "⏸ Pause" : "▶ Play")</span>
+                <span>@if (isAudioPlaying) { <i class="bi bi-pause-fill me-1"></i> } else { <i class="bi bi-play-fill me-1"></i> } @(isAudioPlaying ? "Pause" : "Play")</span>
             }
         </button>
         <button class="btn btn-ss-secondary" @onclick="() => SetPlaybackSpeed(1.0f)"
                 disabled="@isBuffering">
-            <span class="@(playbackSpeed == 1.0f ? "fw-bold" : "")">🏃 Normal</span>
+            <span class="@(playbackSpeed == 1.0f ? "fw-bold" : "")">Normal</span>
         </button>
     </div>
 
     @* Navigation *@
     <div class="d-flex justify-content-between mt-4">
         <button class="btn btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
-            ← Previous
+            <i class="bi bi-chevron-left me-1"></i> Previous
         </button>
         <button class="btn btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
-            Next →
+            Next <i class="bi bi-chevron-right ms-1"></i>
         </button>
     </div>
 }
