@@ -18,6 +18,7 @@ using SentenceStudio.Services.LanguageSegmentation;
 using Microsoft.Maui.Controls.Hosting;
 #if DEBUG
 using MauiDevFlow.Agent;
+using MauiDevFlow.Blazor;
 #endif
 #if ANDROID || IOS || MACCATALYST || WINDOWS
 using System.Globalization;
@@ -111,6 +112,7 @@ public static class MauiProgram
 			.SetMinimumLevel(LogLevel.Debug);
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.AddMauiDevFlowAgent(options => { options.Port = 9223; });
+		builder.AddMauiBlazorDevFlowTools();
 		// builder.UseDebugRibbon();
 #endif
 
