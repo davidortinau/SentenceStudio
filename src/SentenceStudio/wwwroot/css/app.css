@@ -1,45 +1,117 @@
-/* SentenceStudio Blazor Hybrid - Custom Styles */
+/* SentenceStudio Blazor Hybrid - Theme & Custom Styles */
+/* Mapped from ApplicationTheme.cs / ApplicationTheme.Styles.cs */
 
-/* Theme CSS custom properties (mapped from MyTheme.cs) */
+/* ============================================
+   THEME: CSS Custom Properties
+   ============================================ */
+
 :root {
-    /* Dark theme (default) */
-    --ss-bg-primary: #0c0b10;
-    --ss-bg-secondary: #1a1a2e;
-    --ss-text-primary: #f5f5f5;
-    --ss-text-secondary: #a0a0a0;
-    --ss-accent: #708C89;
-    --ss-accent-hover: #5a7673;
-    --ss-success: #2FFF74;
-    --ss-warning: #FF7134;
-    --ss-danger: #FF0000;
+    /* === Sizing Scale === */
+    --ss-size-none: 0;
+    --ss-size-20: 2px;
+    --ss-size-40: 4px;
+    --ss-size-60: 6px;
+    --ss-size-80: 8px;
+    --ss-size-100: 10px;
+    --ss-size-120: 12px;
+    --ss-size-160: 16px;
+    --ss-size-200: 20px;
+    --ss-size-240: 24px;
+    --ss-size-280: 28px;
+    --ss-size-320: 32px;
+    --ss-size-360: 36px;
+    --ss-size-400: 40px;
+    --ss-size-480: 48px;
+    --ss-size-520: 52px;
+    --ss-size-560: 56px;
 
-    /* Spacing */
-    --ss-spacing-xs: 4px;
-    --ss-spacing-sm: 8px;
-    --ss-spacing-md: 16px;
-    --ss-spacing-lg: 24px;
-    --ss-spacing-xl: 32px;
+    /* === Spacing === */
+    --ss-micro-spacing: 4px;
+    --ss-component-spacing: 8px;
+    --ss-layout-padding: 16px;
+    --ss-layout-spacing: 16px;
+    --ss-section-spacing: 24px;
+    --ss-card-padding: 12px;
+    --ss-card-margin: 12px;
+    --ss-grid-spacing: 12px;
 
-    /* Border radius */
+    /* === Border Radius === */
     --ss-radius-sm: 4px;
     --ss-radius-md: 8px;
     --ss-radius-lg: 16px;
+    --ss-radius-xl: 20px;
+
+    /* === Typography === */
+    --ss-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    --ss-font-family-semibold: 'Manrope SemiBold', 'Segoe UI Semibold', -apple-system, BlinkMacSystemFont, sans-serif;
+    --ss-font-family-korean: 'Yeonsung', sans-serif;
+
+    /* === Gray Scale === */
+    --ss-gray-100: #E1E1E1;
+    --ss-gray-200: #C8C8C8;
+    --ss-gray-300: #ACACAC;
+    --ss-gray-400: #919191;
+    --ss-gray-500: #6E6E6E;
+    --ss-gray-600: #404040;
+    --ss-gray-900: #212121;
+    --ss-gray-950: #141414;
+
+    /* === Status Colors === */
+    --ss-success: #12B886;
+    --ss-success-light: #E8F9F3;
+    --ss-success-dark: #0A6C4E;
+    --ss-warning: #FFC233;
+    --ss-error: #E13B30;
+    --ss-info: #1E4DFF;
+
+    /* === Proficiency === */
+    --ss-proficiency-low: #FF8C00;
 }
 
-/* Safe area for mobile status bars */
-.status-bar-safe-area {
-    display: none;
+/* ============================================
+   LIGHT THEME
+   ============================================ */
+[data-bs-theme="light"], .theme-light {
+    --ss-bg: #F7F8FF;
+    --ss-surface: #FFFFFF;
+    --ss-surface-variant: #EEF1FF;
+    --ss-surface-elevated: #FCFDFF;
+    --ss-primary: #1E4DFF;
+    --ss-on-primary: #FFFFFF;
+    --ss-secondary: #12B886;
+    --ss-accent: #FF6A3D;
+    --ss-on-accent: #FFFFFF;
+    --ss-text-primary: #0B0D12;
+    --ss-text-secondary: #394150;
+    --ss-text-muted: #7A8699;
+    --ss-outline: #D6DAF0;
 }
 
-/* Override Bootstrap theme to match app design */
-[data-bs-theme="dark"] {
-    --bs-body-bg: var(--ss-bg-primary);
-    --bs-body-color: var(--ss-text-primary);
+/* ============================================
+   DARK THEME (default)
+   ============================================ */
+[data-bs-theme="dark"], .theme-dark {
+    --ss-bg: #060913;
+    --ss-surface: #0C1222;
+    --ss-surface-variant: #121B33;
+    --ss-surface-elevated: #1A2545;
+    --ss-primary: #6B8CFF;
+    --ss-on-primary: #081022;
+    --ss-secondary: #21D6A4;
+    --ss-accent: #FF7A4D;
+    --ss-on-accent: #0B0D12;
+    --ss-text-primary: #F8FAFF;
+    --ss-text-secondary: #C6D0E7;
+    --ss-text-muted: #93A3C7;
+    --ss-outline: #263457;
 }
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
 html, body {
-    font-family: 'Manrope', 'Segoe UI', sans-serif;
-    background-color: var(--ss-bg-primary);
+    font-family: var(--ss-font-family);
+    background-color: var(--ss-bg);
     color: var(--ss-text-primary);
     margin: 0;
     padding: 0;
@@ -50,22 +122,318 @@ html, body {
     height: 100%;
 }
 
-/* Card styling matching existing theme */
-.card-ss {
-    background-color: var(--ss-bg-secondary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--ss-radius-md);
+/* ============================================
+   TYPOGRAPHY (matching ApplicationTheme.Styles.cs)
+   ============================================ */
+.ss-display {
+    font-size: 60px;
+    line-height: 1.17;
+    font-weight: 700;
+    color: var(--ss-text-primary);
 }
 
-/* Primary button matching theme */
+.ss-large-title {
+    font-size: 34px;
+    line-height: 1.21;
+    font-weight: 700;
+    color: var(--ss-text-primary);
+}
+
+.ss-title1 {
+    font-size: 28px;
+    line-height: 1.21;
+    color: var(--ss-text-primary);
+}
+
+.ss-title2 {
+    font-size: 22px;
+    line-height: 1.27;
+    font-weight: 600;
+    color: var(--ss-text-primary);
+}
+
+.ss-title3 {
+    font-size: 20px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: var(--ss-text-primary);
+}
+
+.ss-headline {
+    font-size: 32px;
+    text-align: center;
+    color: var(--ss-text-primary);
+}
+
+.ss-subheadline {
+    font-size: 24px;
+    text-align: center;
+    color: var(--ss-text-primary);
+}
+
+.ss-body1 {
+    font-size: 17px;
+    line-height: 1.29;
+    color: var(--ss-text-primary);
+}
+
+.ss-body1-strong {
+    font-size: 17px;
+    line-height: 1.29;
+    font-weight: 600;
+    color: var(--ss-text-primary);
+}
+
+.ss-body2 {
+    font-size: 15px;
+    line-height: 1.33;
+    color: var(--ss-text-primary);
+}
+
+.ss-body2-strong {
+    font-size: 15px;
+    line-height: 1.33;
+    font-weight: 600;
+    color: var(--ss-text-primary);
+}
+
+.ss-caption1 {
+    font-size: 13px;
+    line-height: 1.38;
+    color: var(--ss-text-secondary);
+}
+
+.ss-caption1-strong {
+    font-size: 13px;
+    line-height: 1.38;
+    font-weight: 600;
+    color: var(--ss-text-secondary);
+}
+
+.ss-caption2 {
+    font-size: 12px;
+    line-height: 1.33;
+    color: var(--ss-text-muted);
+}
+
+/* ============================================
+   CARD STYLES
+   ============================================ */
+.card-ss {
+    background-color: var(--ss-surface-variant);
+    border: none;
+    border-radius: var(--ss-radius-xl);
+    padding: var(--ss-card-padding);
+}
+
+.card-ss-elevated {
+    background-color: var(--ss-surface-elevated);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-xl);
+    padding: var(--ss-card-padding);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================
+   BUTTON STYLES (matching theme)
+   ============================================ */
 .btn-ss-primary {
-    background-color: var(--ss-accent);
-    border-color: var(--ss-accent);
-    color: white;
+    background-color: var(--ss-primary);
+    border-color: var(--ss-primary);
+    color: var(--ss-on-primary);
+    font-size: 14px;
+    border-radius: var(--ss-radius-md);
+    padding: 10px 14px;
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .btn-ss-primary:hover {
-    background-color: var(--ss-accent-hover);
-    border-color: var(--ss-accent-hover);
+    opacity: 0.9;
+    color: var(--ss-on-primary);
+}
+
+.btn-ss-secondary {
+    background-color: var(--ss-surface-variant);
+    border-color: var(--ss-outline);
+    color: var(--ss-text-primary);
+    font-size: 14px;
+    border-radius: var(--ss-radius-md);
+    padding: 10px 14px;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.btn-ss-secondary:hover {
+    background-color: var(--ss-surface-elevated);
+    color: var(--ss-text-primary);
+}
+
+.btn-ss-accent {
+    background-color: var(--ss-accent);
+    border-color: var(--ss-accent);
+    color: var(--ss-on-accent);
+    font-size: 14px;
+    border-radius: var(--ss-radius-md);
+    padding: 10px 14px;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.btn-ss-danger {
+    background-color: var(--ss-error);
+    border-color: var(--ss-error);
     color: white;
+    font-size: 14px;
+    border-radius: var(--ss-radius-md);
+    padding: 10px 14px;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* ============================================
+   FORM INPUT STYLES
+   ============================================ */
+.form-control-ss {
+    background-color: var(--ss-surface-variant);
+    border: 1px solid var(--ss-outline);
+    color: var(--ss-text-primary);
+    border-radius: var(--ss-radius-md);
+    min-height: 44px;
+    font-size: 14px;
+}
+
+.form-control-ss:focus {
+    background-color: var(--ss-surface-variant);
+    border-color: var(--ss-primary);
+    color: var(--ss-text-primary);
+    box-shadow: 0 0 0 0.2rem rgba(107, 140, 255, 0.25);
+}
+
+.form-control-ss::placeholder {
+    color: var(--ss-text-muted);
+}
+
+/* ============================================
+   BADGE STYLES
+   ============================================ */
+.badge-ss {
+    background-color: var(--ss-surface-variant);
+    color: var(--ss-text-primary);
+    border-radius: var(--ss-radius-sm);
+    font-size: 13px;
+    padding: 4px 8px;
+}
+
+.badge-ss-success {
+    background-color: var(--ss-success);
+    color: white;
+}
+
+.badge-ss-warning {
+    background-color: var(--ss-warning);
+    color: var(--ss-gray-900);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+.text-primary-ss { color: var(--ss-text-primary) !important; }
+.text-secondary-ss { color: var(--ss-text-secondary) !important; }
+.text-muted-ss { color: var(--ss-text-muted) !important; }
+.text-success-ss { color: var(--ss-success) !important; }
+.text-warning-ss { color: var(--ss-warning) !important; }
+.text-error-ss { color: var(--ss-error) !important; }
+.text-accent-ss { color: var(--ss-accent) !important; }
+
+.bg-surface { background-color: var(--ss-surface) !important; }
+.bg-surface-variant { background-color: var(--ss-surface-variant) !important; }
+.bg-surface-elevated { background-color: var(--ss-surface-elevated) !important; }
+
+/* ============================================
+   MOBILE-RESPONSIVE OVERRIDES
+   ============================================ */
+@media (max-width: 768px) {
+    :root {
+        --ss-layout-padding: 12px;
+        --ss-layout-spacing: 12px;
+        --ss-section-spacing: 20px;
+        --ss-card-padding: 8px;
+        --ss-card-margin: 8px;
+        --ss-grid-spacing: 8px;
+    }
+
+    .ss-display { font-size: 42px; }
+    .ss-large-title { font-size: 28px; }
+    .ss-title1 { font-size: 24px; }
+    .ss-headline { font-size: 26px; }
+    .ss-subheadline { font-size: 20px; }
+}
+
+/* Safe area for mobile status bars */
+.status-bar-safe-area {
+    display: none;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+    .status-bar-safe-area {
+        display: block;
+        height: env(safe-area-inset-top);
+    }
+}
+
+
+/* ============================================
+   NAVIGATION STYLES
+   ============================================ */
+.sidebar-nav {
+    background-color: var(--ss-surface) !important;
+}
+
+.nav-link-ss {
+    color: var(--ss-text-secondary) !important;
+    font-size: 15px;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.nav-link-ss:hover {
+    background-color: var(--ss-surface-variant) !important;
+    color: var(--ss-text-primary) !important;
+}
+
+.nav-link-ss.active {
+    background-color: var(--ss-surface-variant) !important;
+    color: var(--ss-primary) !important;
+    font-weight: 600;
+}
+
+/* ============================================
+   TOAST NOTIFICATION STYLES
+   ============================================ */
+.toast-container-ss {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1090;
+}
+
+.toast-ss {
+    background-color: var(--ss-surface-elevated);
+    color: var(--ss-text-primary);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-md);
+}
+
+/* ============================================
+   MODAL OVERRIDES
+   ============================================ */
+.modal-content-ss {
+    background-color: var(--ss-surface);
+    border: 1px solid var(--ss-outline);
+    color: var(--ss-text-primary);
+}
+
+.offcanvas-ss {
+    background-color: var(--ss-surface) !important;
+    color: var(--ss-text-primary) !important;
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.WebView.Maui;
+using SentenceStudio.WebUI.Services;
 using CommunityToolkit.Maui;
 using Microsoft.Maui.Platform;
 using Microsoft.Extensions.Configuration;
@@ -163,6 +164,12 @@ public static class MauiProgram
 
 
 		builder.Services.AddMauiBlazorWebView();
+
+		// Blazor UI services
+		builder.Services.AddSingleton<ToastService>();
+		builder.Services.AddSingleton<ModalService>();
+		builder.Services.AddSingleton<BlazorLocalizationService>();
+		builder.Services.AddScoped<JsInteropService>();
 
 #if DEBUG
 		builder.Logging

@@ -1,14 +1,41 @@
 @inherits LayoutComponentBase
 
-<div class="d-flex flex-column vh-100" data-bs-theme="dark">
-    @* Navigation will be added in Phase 1 *@
-    <nav class="navbar navbar-dark bg-dark border-bottom border-secondary px-3">
-        <a class="navbar-brand" href="">SentenceStudio</a>
+<div class="d-flex vh-100 theme-dark" data-bs-theme="dark">
+    @* Sidebar navigation (desktop) *@
+    <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav"
+         style="width: 260px; border-right: 1px solid var(--ss-outline);">
+        <div class="p-3">
+            <span class="fs-5 fw-semibold text-primary-ss">SentenceStudio</span>
+        </div>
+        <NavMenu />
     </nav>
 
-    <main class="flex-grow-1 overflow-auto">
-        <div class="container-fluid p-3">
+    <div class="d-flex flex-column flex-grow-1 overflow-hidden">
+        @* Top navbar (mobile) *@
+        <nav class="navbar d-md-none bg-surface border-bottom px-3"
+             style="border-color: var(--ss-outline) !important;">
+            <button class="btn btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav">
+                <span style="color: var(--ss-text-primary); font-size: 24px;">&#9776;</span>
+            </button>
+            <span class="navbar-brand mb-0 text-primary-ss">SentenceStudio</span>
+            <div style="width: 40px;"></div>
+        </nav>
+
+        @* Main content *@
+        <main class="flex-grow-1 overflow-auto p-3">
             @Body
+        </main>
+    </div>
+
+    @* Mobile offcanvas navigation *@
+    <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav" data-bs-theme="dark"
+         style="border-right: 1px solid var(--ss-outline);">
+        <div class="offcanvas-header border-bottom" style="border-color: var(--ss-outline) !important;">
+            <h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
         </div>
-    </main>
+        <div class="offcanvas-body p-0">
+            <NavMenu />
+        </div>
+    </div>
 </div>

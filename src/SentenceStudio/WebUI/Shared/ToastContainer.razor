@@ -1,0 +1,65 @@
+@implements IDisposable
+
+<div class="toast-container-ss">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast show toast-ss mb-2 @GetToastClass(toast.Type)" role="alert">
+            <div class="toast-body d-flex align-items-center gap-2">
+                <span>@GetIcon(toast.Type)</span>
+                <span class="flex-grow-1">@toast.Text</span>
+                <button type="button" class="btn-close btn-close-white btn-sm" @onclick="() => Remove(toast)"></button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] private ToastService ToastService { get; set; }
+
+    private readonly List<ToastMessage> _toasts = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShow += ShowToast;
+    }
+
+    private async void ShowToast(ToastMessage message)
+    {
+        _toasts.Add(message);
+        await InvokeAsync(StateHasChanged);
+
+        _ = Task.Delay(message.DurationMs).ContinueWith(async _ =>
+        {
+            _toasts.Remove(message);
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void Remove(ToastMessage toast)
+    {
+        _toasts.Remove(toast);
+    }
+
+    private static string GetToastClass(ToastType type) => type switch
+    {
+        ToastType.Success => "border-start border-4 border-success",
+        ToastType.Error => "border-start border-4 border-danger",
+        ToastType.Warning => "border-start border-4 border-warning",
+        ToastType.Info => "border-start border-4 border-info",
+        _ => ""
+    };
+
+    private static string GetIcon(ToastType type) => type switch
+    {
+        ToastType.Success => "✓",
+        ToastType.Error => "✕",
+        ToastType.Warning => "⚠",
+        ToastType.Info => "ℹ",
+        _ => ""
+    };
+
+    public void Dispose()
+    {
+        ToastService.OnShow -= ShowToast;
+    }
+}
