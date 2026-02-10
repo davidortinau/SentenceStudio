@@ -169,6 +169,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ToastService>();
 		builder.Services.AddSingleton<ModalService>();
 		builder.Services.AddSingleton<BlazorLocalizationService>();
+		builder.Services.AddSingleton<BlazorNavigationService>();
 		builder.Services.AddScoped<JsInteropService>();
 
 #if DEBUG

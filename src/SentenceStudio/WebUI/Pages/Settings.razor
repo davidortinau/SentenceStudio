@@ -1,0 +1,224 @@
+@page "/settings"
+
+<h1 class="ss-title1 mb-4">Settings</h1>
+
+@* Voice & Quiz Settings *@
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-3">Voice & Quiz</h5>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Language</label>
+        <select class="form-select form-control-ss" @bind="selectedLanguage" @bind:after="OnLanguageChanged">
+            <option value="Korean">Korean</option>
+            <option value="English">English</option>
+            <option value="French">French</option>
+            <option value="German">German</option>
+            <option value="Spanish">Spanish</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Voice</label>
+        @if (isLoadingVoices)
+        {
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        }
+        else
+        {
+            <select class="form-select form-control-ss" @bind="selectedVoiceId">
+                @foreach (var voice in availableVoices)
+                {
+                    <option value="@voice.Id">@voice.Name</option>
+                }
+            </select>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Quiz Direction</label>
+        <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="quizDir" id="dirForward" value="Forward" @onchange="@(() => quizDirection = "Forward")" checked="@(quizDirection == "Forward")" />
+            <label class="btn btn-outline-secondary" for="dirForward">Forward</label>
+            <input type="radio" class="btn-check" name="quizDir" id="dirReverse" value="Reverse" @onchange="@(() => quizDirection = "Reverse")" checked="@(quizDirection == "Reverse")" />
+            <label class="btn btn-outline-secondary" for="dirReverse">Reverse</label>
+            <input type="radio" class="btn-check" name="quizDir" id="dirMixed" value="Mixed" @onchange="@(() => quizDirection = "Mixed")" checked="@(quizDirection == "Mixed")" />
+            <label class="btn btn-outline-secondary" for="dirMixed">Mixed</label>
+        </div>
+    </div>
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="autoplay" @bind="quizAutoplay" />
+        <label class="form-check-label ss-body2" for="autoplay">Autoplay Audio</label>
+    </div>
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="showMnemonic" @bind="quizShowMnemonic" />
+        <label class="form-check-label ss-body2" for="showMnemonic">Show Mnemonics</label>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">
+            Auto-Advance Duration: @quizAutoAdvanceDuration s
+        </label>
+        <input type="range" class="form-range" min="1" max="10" step="0.5"
+               @bind="quizAutoAdvanceDuration" @bind:event="oninput" />
+    </div>
+
+    <button class="btn btn-ss-primary" @onclick="SavePreferences">Save Preferences</button>
+</div>
+
+@* Data Management *@
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-3">Data Management</h5>
+
+    <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
+        @if (isExporting)
+        {
+            <span class="spinner-border spinner-border-sm me-2"></span>
+        }
+        Export Data
+    </button>
+</div>
+
+@* Database Migrations *@
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-3">Database Migrations</h5>
+
+    @if (streakMigrationComplete)
+    {
+        <div class="alert alert-success ss-body2">Streak migration complete</div>
+    }
+    else
+    {
+        <button class="btn btn-ss-secondary w-100" @onclick="RunStreakMigration" disabled="@isMigrating">
+            @if (isMigrating)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            Run Streak Migration
+        </button>
+    }
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <p class="ss-caption1 mt-2">@statusMessage</p>
+    }
+</div>
+
+@* About *@
+<div class="card card-ss p-4">
+    <h5 class="ss-title3 mb-2">About</h5>
+    <p class="ss-caption1 text-muted-ss">SentenceStudio v1.0</p>
+</div>
+
+@code {
+    [Inject] private IVocabularyProgressService VocabProgressService { get; set; }
+    [Inject] private DataExportService ExportService { get; set; }
+    [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; }
+    [Inject] private SpeechVoicePreferences VoicePrefs { get; set; }
+    [Inject] private VocabularyQuizPreferences QuizPrefs { get; set; }
+    [Inject] private ToastService Toast { get; set; }
+
+    private string selectedLanguage = "Korean";
+    private string selectedVoiceId = "";
+    private List<VoiceInfo> availableVoices = new();
+    private bool isLoadingVoices;
+    private string quizDirection = "Forward";
+    private bool quizAutoplay;
+    private bool quizShowMnemonic;
+    private double quizAutoAdvanceDuration = 3.0;
+    private bool isExporting;
+    private bool isMigrating;
+    private bool streakMigrationComplete;
+    private string statusMessage = "";
+
+    private record VoiceInfo(string Id, string Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadPreferences();
+        await LoadVoicesAsync();
+    }
+
+    private void LoadPreferences()
+    {
+        quizDirection = QuizPrefs.DisplayDirection;
+        quizAutoplay = QuizPrefs.AutoPlayVocabAudio;
+        quizShowMnemonic = QuizPrefs.ShowMnemonicImage;
+        quizAutoAdvanceDuration = QuizPrefs.AutoAdvanceDuration;
+        selectedLanguage = "Korean";
+        selectedVoiceId = VoicePrefs.GetVoiceForLanguage(selectedLanguage) ?? "";
+    }
+
+    private async Task LoadVoicesAsync()
+    {
+        isLoadingVoices = true;
+        try
+        {
+            var voices = await VoiceDiscovery.GetVoicesForLanguageAsync(selectedLanguage);
+            availableVoices = voices.Select(v => new VoiceInfo(v.VoiceId, v.Name)).ToList();
+            if (!availableVoices.Any(v => v.Id == selectedVoiceId) && availableVoices.Any())
+                selectedVoiceId = availableVoices.First().Id;
+        }
+        catch { }
+        finally
+        {
+            isLoadingVoices = false;
+        }
+    }
+
+    private async Task OnLanguageChanged()
+    {
+        await LoadVoicesAsync();
+    }
+
+    private void SavePreferences()
+    {
+        QuizPrefs.DisplayDirection = quizDirection;
+        QuizPrefs.AutoPlayVocabAudio = quizAutoplay;
+        QuizPrefs.ShowMnemonicImage = quizShowMnemonic;
+        QuizPrefs.AutoAdvanceDuration = (int)quizAutoAdvanceDuration;
+        VoicePrefs.SetVoiceForLanguage(selectedLanguage, selectedVoiceId);
+        Toast.ShowSuccess("Preferences saved");
+    }
+
+    private async Task ExportData()
+    {
+        isExporting = true;
+        try
+        {
+            await ExportService.ExportAllDataAsZipAsync();
+            Toast.ShowSuccess("Data exported successfully");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+        }
+    }
+
+    private async Task RunStreakMigration()
+    {
+        isMigrating = true;
+        statusMessage = "Running migration...";
+        try
+        {
+            await VocabProgressService.MigrateToStreakBasedScoringAsync();
+            streakMigrationComplete = true;
+            statusMessage = "Migration completed successfully";
+            Toast.ShowSuccess("Streak migration complete");
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Migration failed: {ex.Message}";
+            Toast.ShowError(statusMessage);
+        }
+        finally
+        {
+            isMigrating = false;
+        }
+    }
+}
