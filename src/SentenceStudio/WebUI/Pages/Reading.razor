@@ -70,10 +70,10 @@ else if (resource is not null && sentences.Any())
     @* Word lookup panel *@
     @if (showWordPanel)
     {
-        <div class="card card-ss p-3 mb-3" style="border-left: 4px solid var(--ss-highlight-darkest);">
+        <div class="card card-ss p-3 mb-3" style="border-left: 4px solid var(--bs-primary);">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h4 class="ss-title3 mb-1" style="color: var(--ss-highlight-darkest);">@selectedWord</h4>
+                    <h4 class="ss-title3 mb-1" style="color: var(--bs-primary);">@selectedWord</h4>
                     @if (isTranslating)
                     {
                         <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>

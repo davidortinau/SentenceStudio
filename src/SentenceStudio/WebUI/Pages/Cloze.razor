@@ -17,7 +17,7 @@
                     <small class="text-secondary-ss">Incorrect</small>
                 </div>
                 <div class="text-center">
-                    <div class="ss-title2" style="color: var(--ss-highlight-darkest);">
+                    <div class="ss-title2" style="color: var(--bs-primary);">
                         @(sessionTotalCount > 0 ? (int)((float)sessionCorrectCount / sessionTotalCount * 100) : 0)%
                     </div>
                     <small class="text-secondary-ss">Accuracy</small>
@@ -103,7 +103,7 @@ else if (sentences.Any())
                 }
                 else if (opt == selectedOption)
                 {
-                    borderStyle = "border-color: var(--ss-highlight-darkest) !important;";
+                    borderStyle = "border-color: var(--bs-primary) !important;";
                 }
 
                 <button class="btn btn-outline-secondary py-2 ss-body1 @bgClass"

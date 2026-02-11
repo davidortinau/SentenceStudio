@@ -33,7 +33,7 @@
                     var iconClass = item.ReadyToRotateOut ? "bi-check-circle text-success" : item.QuizRecognitionStreak > 0 ? "bi-arrow-repeat text-warning" : "bi-x-circle text-danger";
                     <div class="d-flex align-items-center gap-2 py-1">
                         <i class="bi @iconClass"></i>
-                        <span class="ss-body1 fw-bold" style="color: var(--ss-highlight-darkest);">@item.Word.TargetLanguageTerm</span>
+                        <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
                         <span class="text-secondary-ss">→</span>
                         <span class="ss-body1">@item.Word.NativeLanguageTerm</span>
                     </div>
@@ -64,7 +64,7 @@ else if (currentItem != null)
     @* Term display — show the target language word *@
     <div class="text-center my-4">
         <p class="ss-body1 text-secondary-ss mb-2">What does this mean?</p>
-        <h1 class="ss-display mb-2" style="color: var(--ss-highlight-darkest);">@questionText</h1>
+        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
 
         @if (showAnswer)
         {
@@ -105,7 +105,7 @@ else if (currentItem != null)
                 }
                 else if (optCopy == userGuess)
                 {
-                    borderStyle = "border-color: var(--ss-highlight-darkest) !important;";
+                    borderStyle = "border-color: var(--bs-primary) !important;";
                     bgClass = "bg-opacity-10";
                 }
 

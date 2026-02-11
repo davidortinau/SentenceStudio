@@ -93,7 +93,7 @@
                             }
                             else
                             {
-                                <i class="bi @GetActivityIcon(item.ActivityType) fs-4" style="color: var(--ss-primary);"></i>
+                                <i class="bi @GetActivityIcon(item.ActivityType) fs-4" style="color: var(--bs-primary);"></i>
                             }
                         </div>
                         <div class="flex-grow-1">
@@ -176,25 +176,25 @@ else if (vocabSummary is not null)
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="card card-ss p-3 text-center">
-                <div class="fs-3 fw-bold" style="color: var(--ss-primary);">@vocabSummary.New</div>
+                <div class="fs-3 fw-bold" style="color: var(--bs-primary);">@vocabSummary.New</div>
                 <div class="text-secondary-ss small">New</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card card-ss p-3 text-center">
-                <div class="fs-3 fw-bold" style="color: #FF8C00;">@vocabSummary.Learning</div>
+                <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Learning</div>
                 <div class="text-secondary-ss small">Learning</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card card-ss p-3 text-center">
-                <div class="fs-3 fw-bold" style="color: #FFC233;">@vocabSummary.Review</div>
+                <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Review</div>
                 <div class="text-secondary-ss small">Review</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card card-ss p-3 text-center">
-                <div class="fs-3 fw-bold" style="color: #12B886;">@vocabSummary.Known</div>
+                <div class="fs-3 fw-bold text-success-ss">@vocabSummary.Known</div>
                 <div class="text-secondary-ss small">Known</div>
             </div>
         </div>
