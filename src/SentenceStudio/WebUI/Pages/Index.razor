@@ -257,7 +257,6 @@ else
         new("Conversation", "bi-chat-dots", "conversation"),
         new("Describe a Scene", "bi-image", "scene"),
         new("Translate", "bi-translate", "translation"),
-        new("Write", "bi-pencil-square", "writing"),
         new("Cloze", "bi-puzzle", "cloze"),
         new("Reading", "bi-book", "reading"),
         new("Vocabulary Quiz", "bi-card-checklist", "vocab-quiz"),
@@ -475,8 +474,17 @@ else
     private void NavigateToActivity(string route)
     {
         var query = new List<string>();
+
+        // Activities that support multiple resources
+        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
+
         if (selectedResourceIds.Count > 0)
-            query.Add($"resourceIds={string.Join(",", selectedResourceIds)}");
+        {
+            if (multiResourceRoutes.Contains(route))
+                query.Add($"resourceIds={string.Join(",", selectedResourceIds)}");
+            else
+                query.Add($"resourceId={selectedResourceIds.First()}");
+        }
         if (!string.IsNullOrEmpty(selectedSkillId))
             query.Add($"skillId={selectedSkillId}");
 
