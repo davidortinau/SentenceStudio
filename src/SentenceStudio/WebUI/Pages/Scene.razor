@@ -98,27 +98,25 @@ else if (!string.IsNullOrEmpty(imageUrl))
 
     @* Sticky input bar — always anchored to bottom of viewport *@
     <div class="activity-input-bar">
-        <div class="d-flex gap-2 align-items-end">
-            <textarea class="form-control form-control-ss flex-grow-1" rows="2"
-                      @bind="userInput" @bind:event="oninput"
-                      @onkeydown="HandleInputKeyDown"
-                      placeholder="Describe what you see..."></textarea>
-            <div class="d-flex flex-column gap-1">
-                <button class="btn btn-ss-primary" @onclick="SubmitDescription"
-                        disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))" title="Grade">
-                    @if (isGrading)
-                    {
-                        <span class="spinner-border spinner-border-sm"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-send"></i>
-                    }
-                </button>
-                <button class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
+        <div class="d-flex gap-2 align-items-center">
+            <input type="text" class="form-control form-control-ss flex-grow-1"
+                   @bind="userInput" @bind:event="oninput"
+                   @onkeydown="HandleInputKeyDown"
+                   placeholder="Describe what you see..." />
+            <button class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-ss-primary" @onclick="SubmitDescription"
+                    disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))" title="Grade">
+                @if (isGrading)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                else
+                {
+                    <i class="bi bi-send"></i>
+                }
+            </button>
         </div>
     </div>
 }

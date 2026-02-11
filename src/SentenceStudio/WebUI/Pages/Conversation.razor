@@ -112,6 +112,16 @@ else
 
     @* Input area — anchored to bottom *@
     <div class="card card-ss p-3 flex-shrink-0 mt-auto">
+        @if (showQuickPhrases)
+        {
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                @foreach (var phrase in quickPhrases)
+                {
+                    var p = phrase;
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseQuickPhrase(p)">@p</button>
+                }
+            </div>
+        }
         <div class="d-flex gap-2">
             <input type="text" class="form-control form-control-ss"
                    value="@userInput"
@@ -119,6 +129,10 @@ else
                    @onkeydown="HandleKeyDown"
                    placeholder="Type your message..."
                    disabled="@isWaitingForReply" />
+            <button class="btn btn-ss-secondary btn-sm px-2" @onclick="ToggleQuickPhrases"
+                    title="Quick phrases" disabled="@isWaitingForReply">
+                <i class="bi bi-chat-quote"></i>
+            </button>
             <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
                     disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
                 Send
@@ -151,6 +165,7 @@ else
     private bool isBusy;
     private bool isWaitingForReply;
     private bool isPlayingAudio;
+    private bool showQuickPhrases;
     private bool fromPlan;
     private int targetMinutes;
     private string userInput = "";
@@ -162,6 +177,28 @@ else
     private ConversationScenario? activeScenario;
     private IAudioPlayer? audioPlayer;
     private ElementReference chatContainer;
+
+    // TODO: Make these dynamic based on target language
+    private static readonly string[] quickPhrases = new[]
+    {
+        "How do you say this?",
+        "Can you explain that in more detail?",
+        "I understand.",
+        "Please say that again.",
+        "I only speak a little.",
+        "Thank you for helping.",
+        "Please speak slower.",
+        "What does that mean?",
+        "Can you translate that?"
+    };
+
+    private void ToggleQuickPhrases() => showQuickPhrases = !showQuickPhrases;
+
+    private void UseQuickPhrase(string phrase)
+    {
+        userInput = phrase;
+        showQuickPhrases = false;
+    }
 
     protected override async Task OnInitializedAsync()
     {
