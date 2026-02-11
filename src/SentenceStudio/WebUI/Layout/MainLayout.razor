@@ -11,7 +11,7 @@
             <NavMenu />
         </div>
         <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;">
-            <button class="btn btn-sm btn-icon w-100 d-flex align-items-center justify-content-center"
+            <button class="btn btn-sm btn-icon d-flex align-items-center @(sidebarCollapsed ? "justify-content-center w-100" : "ms-auto")"
                     title="@(sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
                     @onclick="ToggleSidebar">
                 <i class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
