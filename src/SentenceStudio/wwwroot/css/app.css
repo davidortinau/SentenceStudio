@@ -507,6 +507,24 @@ h3:focus,
     border: none;
     border-radius: var(--bs-border-radius-xl);
     padding: var(--bs-card-spacer-y);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-ss.clickable,
+.card-ss[role="button"] {
+    cursor: pointer;
+}
+
+.card-ss.clickable:hover,
+.card-ss[role="button"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.card-ss.clickable:active,
+.card-ss[role="button"]:active {
+    transform: translateY(0);
+    box-shadow: none;
 }
 
 .card-ss-elevated {
@@ -953,4 +971,107 @@ h3:focus,
     font-size: 13px;
     color: var(--bs-body-color);
     font-weight: 500;
+}
+
+/* ============================================
+   HOVER STATES: Interactive & Clickable Elements
+   ============================================ */
+
+/* Interactive text: word-level tappable spans */
+.interactive-text span[style*="cursor"] {
+    transition: background-color 0.15s ease, color 0.15s ease;
+    border-radius: 3px;
+    padding: 1px 2px;
+}
+
+.interactive-text span[style*="cursor"]:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.15);
+}
+
+/* Waveform display: audio seeking */
+.waveform-display {
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.waveform-display:hover {
+    opacity: 0.85;
+}
+
+/* Audio player progress bar: seeking */
+.audio-player__progress {
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.audio-player__progress:hover {
+    opacity: 0.85;
+}
+
+/* Cloze quiz options */
+.cloze-option {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.cloze-option:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-color: var(--bs-primary) !important;
+}
+
+/* Vocabulary matching tiles */
+.card-ss.clickable:not([style*="opacity: 0.5"]):hover {
+    transform: scale(1.03);
+}
+
+/* Minimal pairs: word selection buttons */
+.minimal-pair-option {
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.minimal-pair-option:hover {
+    border-color: var(--bs-primary) !important;
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+/* Scene description: expandable sections */
+.expandable-section {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.expandable-section:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+/* HowDoYouSay: history list items */
+.history-item {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.history-item:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+/* Generic: any element with role="button" that isn't a card or button */
+[role="button"]:not(.card-ss):not(.btn):not(button) {
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+[role="button"]:not(.card-ss):not(.btn):not(button):hover {
+    filter: brightness(1.1);
+}
+
+/* Dropdown items */
+.dropdown-item {
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.15);
+    color: var(--bs-primary);
 }

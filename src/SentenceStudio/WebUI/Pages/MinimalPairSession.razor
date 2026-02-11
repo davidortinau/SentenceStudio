@@ -351,8 +351,8 @@ else
                 iconHtml = "<i class='bi bi-check-lg'></i>";
         }
 
-        <div class="card card-ss p-4 text-center @borderClass @bgClass"
-             style="width: 150px; height: 150px; cursor: pointer; border-width: 3px !important; display: flex; align-items: center; justify-content: center; position: relative;"
+        <div class="card card-ss clickable p-4 text-center @borderClass @bgClass"
+             style="width: 150px; height: 150px; border-width: 3px !important; display: flex; align-items: center; justify-content: center; position: relative;"
              @onclick="() => SelectWord(word.Id)">
             <span class="ss-title2">@word.TargetLanguageTerm</span>
             @if (!string.IsNullOrEmpty(iconHtml))

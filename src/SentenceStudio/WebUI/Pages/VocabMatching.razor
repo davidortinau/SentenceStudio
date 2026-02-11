@@ -67,7 +67,7 @@ else if (tiles.Any())
             var cursor = t.IsMatched ? "default" : "pointer";
 
             <div class="col-6 col-md-3">
-                <div class="card card-ss text-center py-3 px-2 @bgClass"
+                <div class="card card-ss clickable text-center py-3 px-2 @bgClass"
                      style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; min-height: 60px; display: flex; align-items: center; justify-content: center;"
                      @onclick="() => OnTileTapped(t)">
                     <span class="ss-title3 @textClass">@t.Text</span>

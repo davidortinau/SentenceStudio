@@ -32,7 +32,7 @@ else
         @foreach (var profile in profiles)
         {
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="card card-ss p-3" role="button" @onclick="() => EditProfile(profile.Id)" style="cursor: pointer; min-height: 120px;">
+                <div class="card card-ss p-3" role="button" @onclick="() => EditProfile(profile.Id)" style="min-height: 120px;">
                     <div class="d-flex flex-column justify-content-center h-100">
                         <h6 class="ss-title3 mb-1">@profile.Title</h6>
                         @if (!string.IsNullOrEmpty(profile.Description))

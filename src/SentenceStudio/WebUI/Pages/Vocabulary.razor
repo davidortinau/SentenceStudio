@@ -67,7 +67,7 @@ else
             @foreach (var item in filteredWords)
             {
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card card-ss p-3" role="button" @onclick="() => EditWord(item.Word.Id)" style="cursor: pointer;">
+                    <div class="card card-ss p-3" role="button" @onclick="() => EditWord(item.Word.Id)">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1 overflow-hidden">
                                 <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>

@@ -83,7 +83,7 @@
             @foreach (var item in todaysPlan.Items)
             {
                 <div class="card card-ss p-3 @(item.IsCompleted ? "opacity-75" : "")"
-                     role="button" style="cursor: pointer;"
+                     role="button"
                      @onclick="() => LaunchPlanItem(item)">
                     <div class="d-flex align-items-center gap-3">
                         <div>
@@ -152,8 +152,7 @@ else
         {
             <div class="col-6 col-md-4 col-lg-3">
                 <div class="card card-ss p-3 text-center h-100" role="button"
-                     @onclick="() => NavigateToActivity(activity.Route)"
-                     style="cursor: pointer;">
+                     @onclick="() => NavigateToActivity(activity.Route)">
                     <div class="fs-2 mb-2"><i class="bi @activity.Icon"></i></div>
                     <div class="ss-body1 fw-semibold">@activity.Label</div>
                 </div>

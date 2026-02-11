@@ -74,7 +74,7 @@ else
             @foreach (var resource in resources)
             {
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)" style="cursor: pointer;">
+                    <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)">
                         <div class="d-flex align-items-start gap-3">
                             <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-4"></i>
                             <div class="flex-grow-1 overflow-hidden">
