@@ -729,18 +729,6 @@ h3:focus,
     width: 64px;
 }
 
-/* Header title: hide when collapsed */
-.sidebar-nav .sidebar-header {
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.sidebar-nav.collapsed .sidebar-header .nav-label {
-    opacity: 0;
-    width: 0;
-    overflow: hidden;
-}
-
 /* Nav links: icon + label layout */
 .sidebar-nav .nav-link-ss {
     white-space: nowrap;
