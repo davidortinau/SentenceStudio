@@ -388,6 +388,11 @@ html, body {
 
 #app {
     height: 100%;
+    background-color: var(--bs-body-bg);
+}
+
+main.main-content {
+    background-color: var(--bs-body-bg);
 }
 
 /* Remove Blazor's focus-on-navigate outline from content area */
@@ -526,21 +531,9 @@ h3:focus,
     min-width: 44px;
 }
 
-/* Dark mode: darken primary button bg for white text contrast (5.4:1 AA) */
-[data-bs-theme="dark"] .btn-ss-primary {
-    background-color: #3D5FD0;
-    border-color: #3D5FD0;
-    color: #FFFFFF;
-}
-
 .btn-ss-primary:hover {
     opacity: 0.9;
     color: var(--ss-on-primary);
-}
-
-[data-bs-theme="dark"] .btn-ss-primary:hover {
-    background-color: #4565D5;
-    color: #FFFFFF;
 }
 
 .btn-ss-secondary {
