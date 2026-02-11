@@ -414,8 +414,7 @@ else
             // Set initial values if saved
             if (selectedResourceIds.Count > 0)
             {
-                foreach (var id in selectedResourceIds)
-                    await JS.InvokeVoidAsync("eval", $"window.tomSelects?.resourceSelect?.addItem('{id}', true)");
+                await jsModule.InvokeVoidAsync("setTomSelectValues", "resourceSelect", selectedResourceIds.ToArray());
             }
 
             // Init skill dropdown
@@ -424,7 +423,7 @@ else
 
             // Set initial value if saved
             if (!string.IsNullOrEmpty(selectedSkillId))
-                await JS.InvokeVoidAsync("eval", $"window.tomSelects?.skillSelect?.addItem('{selectedSkillId}', true)");
+                await jsModule.InvokeVoidAsync("setTomSelectValues", "skillSelect", new[] { selectedSkillId });
         }
         catch (Exception ex)
         {

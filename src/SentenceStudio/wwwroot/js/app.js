@@ -111,6 +111,20 @@ export function getTomSelectValues(elementId) {
 }
 
 /**
+ * Set selected values on a Tom Select instance.
+ * @param {string} elementId - Select element ID
+ * @param {string[]} values - Values to select
+ */
+export function setTomSelectValues(elementId, values) {
+    if (tomSelects[elementId]) {
+        tomSelects[elementId].clear(true);
+        if (values && values.length > 0) {
+            values.forEach(v => tomSelects[elementId].addItem(v, true));
+        }
+    }
+}
+
+/**
  * Destroy a Tom Select instance.
  * @param {string} elementId - Select element ID
  */
