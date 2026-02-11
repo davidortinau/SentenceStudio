@@ -1,7 +1,10 @@
 @page "/cloze"
 
+<div class="activity-page-wrapper">
+
 <PageHeader Title="Cloze" ShowBack="true" OnBack="GoBack" />
 
+<div class="activity-content">
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
@@ -77,11 +80,23 @@ else if (sentences.Any())
             @feedbackMessage
         </div>
     }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No cloze sentences available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div>
 
+@if (sentences.Any() && !showSessionSummary && !isBusy)
+{
+<div class="activity-input-bar">
     @* Multiple choice mode *@
     @if (inputMode == "MultipleChoice" && guessOptions != null && guessOptions.Length > 0)
     {
-        <div class="d-flex flex-column gap-2 mx-auto mb-3" style="max-width: 500px;">
+        <div class="d-flex flex-column gap-2 mx-auto mb-2" style="max-width: 500px;">
             @foreach (var option in guessOptions)
             {
                 var opt = option;
@@ -119,8 +134,7 @@ else if (sentences.Any())
     @* Text input mode *@
     @if (inputMode == "Text")
     {
-        <div class="mx-auto mb-3" style="max-width: 500px;">
-            <label class="form-label text-secondary-ss fw-bold">Answer</label>
+        <div class="mx-auto mb-2" style="max-width: 500px;">
             <input type="text" class="form-control form-control-ss form-control-lg"
                    @bind="userInput" @bind:event="oninput"
                    @onkeydown="HandleKeyDown"
@@ -129,7 +143,7 @@ else if (sentences.Any())
     }
 
     @* Bottom controls *@
-    <div class="d-flex justify-content-between align-items-center mt-3">
+    <div class="d-flex justify-content-between align-items-center">
         <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(GetCurrentIndex() <= 0)">
             <i class="bi bi-chevron-left me-1"></i> Prev
         </button>
@@ -146,14 +160,10 @@ else if (sentences.Any())
             Next <i class="bi bi-chevron-right ms-1"></i>
         </button>
     </div>
+</div>
 }
-else
-{
-    <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No cloze sentences available.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
-    </div>
-}
+
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
