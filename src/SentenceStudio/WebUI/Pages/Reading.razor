@@ -7,69 +7,79 @@
 @using Plugin.Maui.Audio
 @implements IDisposable
 
-<PageHeader Title="Reading" ShowBack="true" OnBack="GoBack" />
-
-@if (isBusy)
-{
-    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
-        <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading passage...</p>
-    </div>
-}
-else if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="text-center p-5">
-        <i class="bi bi-exclamation-triangle fs-1 text-warning-ss d-block mb-3"></i>
-        <p class="ss-body1 text-secondary-ss">@errorMessage</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
-    </div>
-}
-else if (resource is not null && sentences.Any())
-{
-    @* Activity Timer (daily plan mode) *@
-    @if (fromPlan)
-    {
-        <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
-    }
-
-    @* Audio generation progress banner *@
-    @if (isGeneratingAudio)
-    {
-        <div class="audio-gen-banner d-flex align-items-center gap-3 mb-3">
-            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-            <div class="flex-grow-1">
-                <div class="ss-body2 mb-1">@audioGenStatus</div>
-                @if (audioGenProgress > 0)
-                {
-                    <div class="progress" style="height: 4px;">
-                        <div class="progress-bar" style="width: @((audioGenProgress * 100).ToString("F0", System.Globalization.CultureInfo.InvariantCulture))%"></div>
-                    </div>
-                }
+<div class="reading-page">
+    @* ── Fixed header ── *@
+    <div class="reading-page__header">
+        <PageHeader Title="Reading" ShowBack="true" OnBack="GoBack" />
+        @if (resource is not null && sentences.Any())
+        {
+            <div class="d-flex align-items-center px-3 pb-2">
+                <h2 class="ss-title2 mb-0">@resource.Title</h2>
             </div>
-        </div>
-    }
-
-    @* Title & font size control *@
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <h2 class="ss-title2 mb-0">@resource.Title</h2>
-        <div class="d-flex align-items-center gap-2">
-            <label class="ss-caption1 text-secondary-ss mb-0">Font</label>
-            <input type="range" class="form-range" style="width: 80px;"
-                   min="14" max="40" step="2" value="@fontSize"
-                   @oninput="OnFontSizeChanged" />
-        </div>
+        }
     </div>
 
-    @* Reading passage with interactive text *@
-    <div class="card card-ss p-4 mb-3" style="font-size: @(fontSize)px;">
-        <InteractiveText
-            Sentences="@sentences"
-            VocabularyWords="@vocabularyWords"
-            SelectedSentenceIndex="@currentSentenceIndex"
-            OnWordClicked="HandleWordClicked"
-            OnVocabularyWordClicked="HandleVocabularyWordClicked"
-            OnSentenceClicked="HandleSentenceClicked"
-            OnSentenceDoubleClicked="HandleSentenceDoubleClicked" />
+    @* ── Scrollable content ── *@
+    <div class="reading-page__content">
+        @if (isBusy)
+        {
+            <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p class="ss-body1 text-secondary-ss">Loading passage...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="text-center p-5">
+                <i class="bi bi-exclamation-triangle fs-1 text-warning-ss d-block mb-3"></i>
+                <p class="ss-body1 text-secondary-ss">@errorMessage</p>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+            </div>
+        }
+        else if (resource is not null && sentences.Any())
+        {
+            @* Activity Timer (daily plan mode) *@
+            @if (fromPlan)
+            {
+                <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
+            }
+
+            @* Audio generation progress banner *@
+            @if (isGeneratingAudio)
+            {
+                <div class="audio-gen-banner d-flex align-items-center gap-3 mb-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <div class="flex-grow-1">
+                        <div class="ss-body2 mb-1">@audioGenStatus</div>
+                        @if (audioGenProgress > 0)
+                        {
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar" style="width: @((audioGenProgress * 100).ToString("F0", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Reading passage — no card wrapper, sits on page background *@
+            <div class="interactive-text-wrapper" style="font-size: @(fontSize)px;">
+                <InteractiveText
+                    Sentences="@sentences"
+                    VocabularyWords="@vocabularyWords"
+                    SelectedSentenceIndex="@currentSentenceIndex"
+                    OnWordClicked="HandleWordClicked"
+                    OnVocabularyWordClicked="HandleVocabularyWordClicked"
+                    OnSentenceClicked="HandleSentenceClicked"
+                    OnSentenceDoubleClicked="HandleSentenceDoubleClicked" />
+            </div>
+        }
+        else
+        {
+            <div class="text-center p-5">
+                <p class="ss-body1 text-secondary-ss">No reading content available.</p>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+            </div>
+        }
     </div>
 
     @* Word lookup offcanvas (bottom) *@
@@ -120,10 +130,10 @@ else if (resource is not null && sentences.Any())
         <div class="offcanvas-backdrop fade show" @onclick="CloseWordPanel"></div>
     }
 
-    @* Audio transport bar (sticky bottom) *@
-    @if (isAudioLoaded || sentences.Any())
+    @* ── Fixed footer: transport + font slider ── *@
+    @if (resource is not null && sentences.Any() && (isAudioLoaded || sentences.Any()))
     {
-        <div class="audio-transport">
+        <div class="reading-page__footer">
             <div class="d-flex align-items-center gap-2">
                 @* Prev / Play-Pause / Next *@
                 <button class="btn btn-sm btn-icon" @onclick="PreviousSentence" disabled="@(!isAudioLoaded)">
@@ -170,17 +180,18 @@ else if (resource is not null && sentences.Any())
                     <option value="1.5">1.5×</option>
                     <option value="2">2.0×</option>
                 </select>
+
+                @* Font size slider *@
+                <span class="d-none d-md-inline-flex align-items-center gap-1 ms-2 border-start ps-2" style="border-color: var(--bs-border-color) !important;">
+                    <i class="bi bi-fonts ss-caption1 text-secondary-ss"></i>
+                    <input type="range" class="form-range" style="width: 64px;"
+                           min="14" max="40" step="2" value="@fontSize"
+                           @oninput="OnFontSizeChanged" />
+                </span>
             </div>
         </div>
     }
-}
-else
-{
-    <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No reading content available.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
-    </div>
-}
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
@@ -202,6 +213,7 @@ else
     [Inject] private ILogger<TimestampedAudioManager> AudioManagerLogger { get; set; } = default!;
     [Inject] private ILogger<SentenceTimingCalculator> TimingCalcLogger { get; set; } = default!;
     [Inject] private IActivityTimerService TimerService { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     // Content state
     private bool isBusy;
@@ -379,7 +391,14 @@ else
         if (currentSentenceIndex != sentenceIndex)
         {
             currentSentenceIndex = sentenceIndex;
-            _ = InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                // Auto-scroll current sentence into view
+                await Task.Yield(); // let DOM update
+                await JS.InvokeVoidAsync("eval",
+                    "document.querySelector('.sentence--selected')?.scrollIntoView({behavior:'smooth',block:'center'})");
+            });
         }
     }
 
