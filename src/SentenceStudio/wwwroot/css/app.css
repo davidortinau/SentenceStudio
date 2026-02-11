@@ -528,6 +528,7 @@ h3:focus,
     main.main-content {
         padding: 0 var(--ss-size-120) var(--ss-size-120) var(--ss-size-120) !important;
         overflow-x: hidden !important;
+        overscroll-behavior-y: none; /* prevent rubber-band bounce that reveals gap above header */
     }
 
     /* Offcanvas flyout: 90% width, not full screen */
