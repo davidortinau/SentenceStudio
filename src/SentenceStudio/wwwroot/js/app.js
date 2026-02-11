@@ -64,12 +64,14 @@ export function updateChartData(canvasId, values) {
 }
 
 /**
- * Initialize a Tom Select combobox.
+ * Initialize a Tom Select combobox with optional Blazor callback.
  * @param {string} elementId - Select element ID
  * @param {object[]} options - Options array [{value, text}]
  * @param {boolean} multiple - Allow multiple selection
+ * @param {object} dotNetRef - Optional DotNet object reference for change callback
+ * @param {string} callbackMethod - Optional method name to invoke on change
  */
-export function initTomSelect(elementId, options, multiple) {
+export function initTomSelect(elementId, options, multiple, dotNetRef, callbackMethod) {
     const el = document.getElementById(elementId);
     if (!el) return;
 
@@ -85,6 +87,14 @@ export function initTomSelect(elementId, options, multiple) {
         create: false,
         allowEmptyOption: true
     });
+
+    if (dotNetRef && callbackMethod) {
+        tomSelects[elementId].on('change', function() {
+            const val = tomSelects[elementId].getValue();
+            const values = Array.isArray(val) ? val : (val ? [val] : []);
+            dotNetRef.invokeMethodAsync(callbackMethod, values);
+        });
+    }
 }
 
 /**
