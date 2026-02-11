@@ -593,3 +593,40 @@ h3:focus,
         display: none;
     }
 }
+
+/* ── Tom Select dark-mode overrides ── */
+.ts-wrapper .ts-control,
+.ts-wrapper .ts-control input {
+    color: var(--bs-body-color, #dee2e6);
+}
+
+.ts-wrapper .ts-control {
+    background-color: var(--bs-tertiary-bg, #2b3035);
+    border-color: var(--bs-border-color, #495057);
+}
+
+.ts-wrapper .ts-dropdown {
+    background-color: var(--bs-tertiary-bg, #2b3035);
+    border-color: var(--bs-border-color, #495057);
+    color: var(--bs-body-color, #dee2e6);
+}
+
+.ts-wrapper .ts-dropdown .active {
+    background-color: var(--bs-primary, #4a6cf7);
+    color: #fff;
+}
+
+.ts-wrapper .ts-dropdown .option {
+    color: var(--bs-body-color, #dee2e6);
+}
+
+.ts-wrapper.focus .ts-control {
+    border-color: var(--bs-primary, #4a6cf7);
+    box-shadow: 0 0 0 0.2rem rgba(74, 108, 247, 0.25);
+}
+
+.ts-wrapper .ts-control .item {
+    background-color: var(--bs-primary, #4a6cf7);
+    color: #fff;
+    border: none;
+}
