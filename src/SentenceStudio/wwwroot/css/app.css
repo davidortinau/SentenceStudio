@@ -1146,21 +1146,29 @@ h3:focus,
     color: var(--bs-primary);
 }
 
-/* ─── Scene page: Sticky Input Bar ─── */
+/* ─── Scene page: Layout ─── */
+.scene-page-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% + 2rem); /* 100% of main content-box + 2rem to fill negative margins */
+    margin: -1rem; /* counteract main padding so wrapper fills the area */
+    padding: 1rem; /* re-apply padding inside */
+}
+
 .scene-content {
-    padding-bottom: 100px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* allow flex child to shrink */
 }
 
 .scene-input-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 1040;
+    flex-shrink: 0;
     background: var(--bs-body-bg);
     border-top: 1px solid var(--bs-border-color);
     padding: 0.75rem 1rem;
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    margin: 0 -1rem; /* bleed edge-to-edge within content area */
+    margin-bottom: -1rem;
 }
 
 .scene-input-bar textarea {
@@ -1272,6 +1280,6 @@ h3:focus,
     }
 
     .scene-content {
-        padding-bottom: 110px;
+        flex: 1;
     }
 }

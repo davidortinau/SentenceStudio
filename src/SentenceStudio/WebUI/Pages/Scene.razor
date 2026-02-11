@@ -3,6 +3,8 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
 
+<div class="scene-page-wrapper">
+
 <PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
         <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="OpenGallery" title="Image gallery">
@@ -25,7 +27,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
         <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
     }
 
-    @* Scrollable content area — padded at bottom so input bar doesn't cover it *@
+    @* Scrollable content area *@
     <div class="scene-content">
         <div class="row g-3">
             @* Scene image *@
@@ -128,6 +130,8 @@ else
         <button class="btn btn-ss-secondary mt-2 ms-2" @onclick="GoBack">Go Back</button>
     </div>
 }
+
+</div> @* end scene-page-wrapper *@
 
 @* ─── Image Gallery Overlay ─── *@
 @if (showGallery)
