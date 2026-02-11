@@ -1147,8 +1147,8 @@ h3:focus,
     color: var(--bs-primary);
 }
 
-/* ─── Scene page: Layout ─── */
-.scene-page-wrapper {
+/* ─── Shared activity page layout (sticky bottom input) ─── */
+.activity-page-wrapper {
     display: flex;
     flex-direction: column;
     height: calc(100% + 2rem); /* 100% of main content-box + 2rem to fill negative margins */
@@ -1156,13 +1156,13 @@ h3:focus,
     padding: 1rem; /* re-apply padding inside */
 }
 
-.scene-content {
+.activity-content {
     flex: 1;
     overflow-y: auto;
     min-height: 0; /* allow flex child to shrink */
 }
 
-.scene-input-bar {
+.activity-input-bar {
     flex-shrink: 0;
     background: var(--bs-body-bg);
     border-top: 1px solid var(--bs-border-color);
@@ -1172,7 +1172,7 @@ h3:focus,
     margin-bottom: -1rem;
 }
 
-.scene-input-bar textarea {
+.activity-input-bar textarea {
     resize: none;
     font-size: 1rem;
     min-height: 2.5rem;
@@ -1280,7 +1280,7 @@ h3:focus,
         grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     }
 
-    .scene-content {
+    .activity-content {
         flex: 1;
     }
 }

@@ -3,7 +3,7 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
 
-<div class="scene-page-wrapper">
+<div class="activity-page-wrapper">
 
 <PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
@@ -28,7 +28,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
     }
 
     @* Scrollable content area *@
-    <div class="scene-content">
+    <div class="activity-content">
         <div class="row g-3">
             @* Scene image *@
             <div class="col-md-6">
@@ -97,7 +97,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
     </div>
 
     @* Sticky input bar — always anchored to bottom of viewport *@
-    <div class="scene-input-bar">
+    <div class="activity-input-bar">
         <div class="d-flex gap-2 align-items-end">
             <textarea class="form-control form-control-ss flex-grow-1" rows="2"
                       @bind="userInput" @bind:event="oninput"
@@ -131,7 +131,7 @@ else
     </div>
 }
 
-</div> @* end scene-page-wrapper *@
+</div> @* end activity-page-wrapper *@
 
 @* ─── Image Gallery Overlay ─── *@
 @if (showGallery)

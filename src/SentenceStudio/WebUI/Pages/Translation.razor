@@ -1,7 +1,10 @@
 @page "/translation"
 
+<div class="activity-page-wrapper">
+
 <PageHeader Title="Translation" ShowBack="true" OnBack="GoBack" />
 
+<div class="activity-content">
 @if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
@@ -54,11 +57,23 @@ else if (sentences.Any())
             }
         </div>
     }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No sentences available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div>
 
+@if (sentences.Any())
+{
+<div class="activity-input-bar">
     @* Input mode: vocab blocks *@
     @if (inputMode == "MultipleChoice" && vocabBlocks.Any())
     {
-        <div class="d-flex flex-wrap gap-2 mb-3">
+        <div class="d-flex flex-wrap gap-2 mb-2">
             @foreach (var block in vocabBlocks)
             {
                 var b = block;
@@ -68,14 +83,11 @@ else if (sentences.Any())
     }
 
     @* Text input *@
-    <div class="mb-3">
-        <label class="form-label text-secondary-ss">
-            Translate to @targetLanguage
-        </label>
+    <div class="mb-2">
         <input type="text" class="form-control form-control-ss form-control-lg"
                @bind="userInput" @bind:event="oninput"
                @onkeydown="HandleKeyDown"
-               placeholder="Type your translation..." />
+               placeholder="Translate to @targetLanguage..." />
     </div>
 
     @* Actions *@
@@ -93,14 +105,10 @@ else if (sentences.Any())
             @(inputMode == "Text" ? "Blocks" : "Type")
         </button>
     </div>
+</div>
 }
-else
-{
-    <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No sentences available.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
-    </div>
-}
+
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
