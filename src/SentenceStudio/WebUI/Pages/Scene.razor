@@ -3,7 +3,13 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
 
-<PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack">
+    <ToolbarActions>
+        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="OpenGallery" title="Image gallery">
+            <i class="bi bi-images" style="font-size: 1.25rem;"></i>
+        </button>
+    </ToolbarActions>
+</PageHeader>
 
 @if (isBusy && string.IsNullOrEmpty(imageUrl))
 {
@@ -14,94 +20,103 @@
 }
 else if (!string.IsNullOrEmpty(imageUrl))
 {
-    @* Activity Timer *@
     @if (fromPlan)
     {
         <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
     }
 
-    <div class="row g-3">
-        @* Scene image *@
-        <div class="col-md-6">
-            <div class="card card-ss p-2 text-center">
-                <img src="@imageUrl" alt="Scene" class="img-fluid rounded" style="max-height: 400px; object-fit: contain;" />
+    @* Scrollable content area — padded at bottom so input bar doesn't cover it *@
+    <div class="scene-content">
+        <div class="row g-3">
+            @* Scene image *@
+            <div class="col-md-6">
+                <div class="card card-ss p-2 text-center">
+                    <img src="@imageUrl" alt="Scene" class="img-fluid rounded" style="max-height: 400px; object-fit: contain;" />
+                </div>
             </div>
 
-            @* Input area *@
-            <div class="card card-ss p-3 mt-3">
-                <label class="form-label text-secondary-ss">Describe what you see</label>
-                <textarea class="form-control form-control-ss" rows="3"
-                          @bind="userInput" @bind:event="oninput"
-                          placeholder="Write a description in your target language..."></textarea>
-                <div class="d-flex gap-2 mt-2">
-                    <button class="btn btn-ss-primary flex-grow-1" @onclick="SubmitDescription"
-                            disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))">
-                        @if (isGrading)
+            @* Graded sentences *@
+            <div class="col-md-6">
+                <h3 class="ss-title3 mb-3">Results</h3>
+                @if (gradedSentences.Any())
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var sentence in gradedSentences)
                         {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            var color = sentence.Accuracy >= 80 ? "success" : sentence.Accuracy >= 50 ? "warning" : "danger";
+                            <div class="card card-ss p-3" style="border-left: 4px solid var(--bs-@color);">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <p class="ss-body1 fw-bold mb-0">@sentence.Answer</p>
+                                    <span class="badge bg-@color">@((int)sentence.Accuracy)%</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
+                                {
+                                    <small class="text-secondary-ss">@sentence.AccuracyExplanation</small>
+                                }
+                                @if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
+                                {
+                                    <div class="mt-1">
+                                        <small class="text-success"><i class="bi bi-lightbulb me-1"></i>@sentence.RecommendedSentence</small>
+                                    </div>
+                                }
+
+                                @if (expandedSentenceIndex == gradedSentences.IndexOf(sentence))
+                                {
+                                    <div class="mt-2 pt-2 border-top border-secondary-subtle">
+                                        @if (sentence.Fluency > 0)
+                                        {
+                                            <small class="d-block text-secondary-ss">Fluency: @((int)sentence.Fluency)%</small>
+                                        }
+                                        @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
+                                        {
+                                            <small class="d-block text-secondary-ss">@sentence.FluencyExplanation</small>
+                                        }
+                                        @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
+                                        {
+                                            <small class="d-block text-secondary-ss mt-1"><i class="bi bi-pencil me-1"></i>@sentence.GrammarNotes</small>
+                                        }
+                                    </div>
+                                }
+
+                                <button class="btn btn-sm btn-link p-0 mt-1 text-secondary-ss text-start"
+                                        @onclick="() => ToggleExpand(gradedSentences.IndexOf(sentence))">
+                                    @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? "Less ▲" : "More ▼")
+                                </button>
+                            </div>
                         }
-                        Grade
-                    </button>
-                    <button class="btn btn-ss-secondary" @onclick="LoadNewScene"><i class="bi bi-arrow-clockwise me-1"></i> New Scene</button>
-                </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-secondary-ss ss-body2">Submit a description to see your score here.</p>
+                }
             </div>
         </div>
+    </div>
 
-        @* Graded sentences *@
-        <div class="col-md-6">
-            <h3 class="ss-title3 mb-3">Results</h3>
-            @if (gradedSentences.Any())
-            {
-                <div class="d-flex flex-column gap-2">
-                    @foreach (var sentence in gradedSentences)
+    @* Sticky input bar — always anchored to bottom of viewport *@
+    <div class="scene-input-bar">
+        <div class="d-flex gap-2 align-items-end">
+            <textarea class="form-control form-control-ss flex-grow-1" rows="2"
+                      @bind="userInput" @bind:event="oninput"
+                      @onkeydown="HandleInputKeyDown"
+                      placeholder="Describe what you see..."></textarea>
+            <div class="d-flex flex-column gap-1">
+                <button class="btn btn-ss-primary" @onclick="SubmitDescription"
+                        disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))" title="Grade">
+                    @if (isGrading)
                     {
-                        var color = sentence.Accuracy >= 80 ? "success" : sentence.Accuracy >= 50 ? "warning" : "danger";
-                        <div class="card card-ss p-3" style="border-left: 4px solid var(--bs-@color);">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <p class="ss-body1 fw-bold mb-0">@sentence.Answer</p>
-                                <span class="badge bg-@color">@((int)sentence.Accuracy)%</span>
-                            </div>
-                            @if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
-                            {
-                                <small class="text-secondary-ss">@sentence.AccuracyExplanation</small>
-                            }
-                            @if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
-                            {
-                                <div class="mt-1">
-                                    <small class="text-success"><i class="bi bi-lightbulb me-1"></i>@sentence.RecommendedSentence</small>
-                                </div>
-                            }
-
-                            @if (expandedSentenceIndex == gradedSentences.IndexOf(sentence))
-                            {
-                                <div class="mt-2 pt-2 border-top border-secondary-subtle">
-                                    @if (sentence.Fluency > 0)
-                                    {
-                                        <small class="d-block text-secondary-ss">Fluency: @((int)sentence.Fluency)%</small>
-                                    }
-                                    @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
-                                    {
-                                        <small class="d-block text-secondary-ss">@sentence.FluencyExplanation</small>
-                                    }
-                                    @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
-                                    {
-                                        <small class="d-block text-secondary-ss mt-1"><i class="bi bi-pencil me-1"></i>@sentence.GrammarNotes</small>
-                                    }
-                                </div>
-                            }
-
-                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary-ss text-start"
-                                    @onclick="() => ToggleExpand(gradedSentences.IndexOf(sentence))">
-                                @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? "Less ▲" : "More ▼")
-                            </button>
-                        </div>
+                        <span class="spinner-border spinner-border-sm"></span>
                     }
-                </div>
-            }
-            else
-            {
-                <p class="text-secondary-ss ss-body2">Submit a description to see your score here.</p>
-            }
+                    else
+                    {
+                        <i class="bi bi-send"></i>
+                    }
+                </button>
+                <button class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
         </div>
     </div>
 }
@@ -109,7 +124,84 @@ else
 {
     <div class="text-center p-5">
         <p class="ss-body1 text-secondary-ss">No scene images available.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <button class="btn btn-ss-primary mt-2" @onclick="OpenGallery"><i class="bi bi-images me-1"></i> Browse Gallery</button>
+        <button class="btn btn-ss-secondary mt-2 ms-2" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@* ─── Image Gallery Overlay ─── *@
+@if (showGallery)
+{
+    <div class="scene-gallery-backdrop" @onclick="CloseGallery"></div>
+    <div class="scene-gallery-overlay">
+        @* Header *@
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+            <h2 class="ss-title2 mb-0">Image Gallery</h2>
+            <div class="d-flex gap-1">
+                @if (isSelecting)
+                {
+                    <button class="btn btn-sm btn-ss-danger" @onclick="DeleteSelectedImages"
+                            disabled="@(!selectedImageIds.Any())">
+                        <i class="bi bi-trash me-1"></i> Delete (@selectedImageIds.Count)
+                    </button>
+                }
+                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="ToggleSelectMode" title="Select multiple">
+                    <i class="bi bi-check2-square" style="font-size: 1.25rem;"></i>
+                </button>
+                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="CloseGallery" title="Close">
+                    <i class="bi bi-x-lg" style="font-size: 1.25rem;"></i>
+                </button>
+            </div>
+        </div>
+
+        @* Add image bar *@
+        <div class="d-flex gap-2 p-3 border-bottom">
+            <input type="url" class="form-control form-control-ss flex-grow-1"
+                   @bind="newImageUrl" placeholder="Paste image URL to add..." />
+            <button class="btn btn-ss-primary" @onclick="AddImage"
+                    disabled="@string.IsNullOrWhiteSpace(newImageUrl)">
+                <i class="bi bi-plus-lg me-1"></i> Add
+            </button>
+        </div>
+
+        @* Image grid *@
+        <div class="scene-gallery-grid p-3">
+            @if (isLoadingGallery)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            }
+            else if (!galleryImages.Any())
+            {
+                <div class="text-center p-4">
+                    <p class="text-secondary-ss ss-body2">No cached images yet. Paste a URL above to add one.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var img in galleryImages)
+                {
+                    var isActive = img.Url == imageUrl;
+                    var isChecked = selectedImageIds.Contains(img.Id);
+                    <div class="scene-gallery-item @(isActive ? "active" : "") @(isChecked ? "selected" : "")"
+                         @onclick="() => OnGalleryItemClick(img)">
+                        <img src="@img.Url" alt="@(img.Description ?? "Scene")" loading="lazy" />
+                        @if (isActive)
+                        {
+                            <span class="scene-gallery-active-badge">Current</span>
+                        }
+                        @if (isSelecting)
+                        {
+                            <div class="scene-gallery-checkbox">
+                                <i class="bi @(isChecked ? "bi-check-circle-fill text-primary" : "bi-circle")"
+                                   style="font-size: 1.25rem;"></i>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
     </div>
 }
 
@@ -138,8 +230,16 @@ else
     private string targetLanguage = "Korean";
     private string nativeLanguage = "English";
     private int expandedSentenceIndex = -1;
-
     private List<Sentence> gradedSentences = new();
+
+    // Gallery state
+    private bool showGallery;
+    private bool isLoadingGallery;
+    private bool isSelecting;
+    private string newImageUrl = "";
+    private List<SceneImage> galleryImages = new();
+    private HashSet<int> selectedImageIds = new();
+    private int currentSceneId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,6 +267,7 @@ else
             {
                 imageUrl = scene.Url ?? "";
                 sceneDescription = scene.Description ?? "";
+                currentSceneId = scene.Id;
             }
             else
             {
@@ -181,6 +282,14 @@ else
         finally
         {
             isBusy = false;
+        }
+    }
+
+    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SubmitDescription();
         }
     }
 
@@ -209,7 +318,6 @@ else
             };
             gradedSentences.Insert(0, sentence);
 
-            // Record activity
             await ActivityRepo.SaveAsync(new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.SceneDescription.ToString(),
@@ -237,6 +345,117 @@ else
     private void ToggleExpand(int index)
     {
         expandedSentenceIndex = expandedSentenceIndex == index ? -1 : index;
+    }
+
+    // ─── Gallery methods ───
+
+    private async Task OpenGallery()
+    {
+        showGallery = true;
+        isLoadingGallery = true;
+        isSelecting = false;
+        selectedImageIds.Clear();
+        StateHasChanged();
+
+        try
+        {
+            galleryImages = await SceneSvc.ListAsync() ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load gallery images");
+            Toast.ShowError("Could not load gallery.");
+        }
+        finally
+        {
+            isLoadingGallery = false;
+        }
+    }
+
+    private void CloseGallery()
+    {
+        showGallery = false;
+        isSelecting = false;
+        selectedImageIds.Clear();
+        newImageUrl = "";
+    }
+
+    private void ToggleSelectMode()
+    {
+        isSelecting = !isSelecting;
+        if (!isSelecting)
+            selectedImageIds.Clear();
+    }
+
+    private async Task OnGalleryItemClick(SceneImage img)
+    {
+        if (isSelecting)
+        {
+            if (!selectedImageIds.Add(img.Id))
+                selectedImageIds.Remove(img.Id);
+        }
+        else
+        {
+            imageUrl = img.Url ?? "";
+            sceneDescription = img.Description ?? "";
+            currentSceneId = img.Id;
+            gradedSentences.Clear();
+            expandedSentenceIndex = -1;
+            CloseGallery();
+        }
+    }
+
+    private async Task AddImage()
+    {
+        if (string.IsNullOrWhiteSpace(newImageUrl)) return;
+
+        var url = newImageUrl.Trim();
+        newImageUrl = "";
+
+        try
+        {
+            var sceneImage = new SceneImage { Url = url };
+            await SceneSvc.SaveAsync(sceneImage);
+            galleryImages = await SceneSvc.ListAsync() ?? new();
+            Toast.ShowSuccess("Image added to gallery.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to add image");
+            Toast.ShowError("Could not save image.");
+        }
+    }
+
+    private async Task DeleteSelectedImages()
+    {
+        if (!selectedImageIds.Any()) return;
+
+        var toDelete = galleryImages.Where(i => selectedImageIds.Contains(i.Id)).ToList();
+        try
+        {
+            foreach (var img in toDelete)
+            {
+                await SceneSvc.DeleteAsync(img);
+            }
+
+            galleryImages = await SceneSvc.ListAsync() ?? new();
+            selectedImageIds.Clear();
+            isSelecting = false;
+
+            // If we deleted the current image, clear the scene
+            if (toDelete.Any(i => i.Url == imageUrl))
+            {
+                imageUrl = "";
+                sceneDescription = "";
+            }
+
+            Toast.ShowSuccess($"Deleted {toDelete.Count} image(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete images");
+            Toast.ShowError("Could not delete images.");
+        }
     }
 
     private void GoBack() => NavManager.NavigateTo("/");
