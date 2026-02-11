@@ -112,7 +112,7 @@ else
         @if (inputMode == "Text")
         {
             <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
-                   @bind="userInput" @bind:event="oninput"
+                   @bind="userInput"
                    @onkeydown="HandleKeyDown"
                    placeholder="Type the missing word..." />
         }
@@ -120,7 +120,7 @@ else
             @(inputMode == "Text" ? "Choices" : "Type")
         </button>
         <button class="btn btn-ss-primary" @onclick="GradeAnswer"
-                disabled="@(hasBeenGraded || (inputMode == "Text" && string.IsNullOrWhiteSpace(userInput)))">
+                disabled="@hasBeenGraded">
             GO
         </button>
     </div>
@@ -153,6 +153,7 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Cloze> Logger { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool showSessionSummary;
@@ -310,7 +311,11 @@ else
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await GradeAnswer();
+        if (e.Key == "Enter")
+        {
+            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
+            await GradeAnswer();
+        }
     }
 
     private void JumpTo(int index)

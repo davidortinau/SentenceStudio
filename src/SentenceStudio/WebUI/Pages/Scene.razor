@@ -100,14 +100,14 @@ else if (!string.IsNullOrEmpty(imageUrl))
     <div class="activity-input-bar">
         <div class="d-flex gap-2 align-items-center">
             <input type="text" class="form-control form-control-ss flex-grow-1"
-                   @bind="userInput" @bind:event="oninput"
+                   @bind="userInput"
                    @onkeydown="HandleInputKeyDown"
                    placeholder="Describe what you see..." />
             <button class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
             <button class="btn btn-ss-primary" @onclick="SubmitDescription"
-                    disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))" title="Grade">
+                    disabled="@isGrading" title="Grade">
                 @if (isGrading)
                 {
                     <span class="spinner-border spinner-border-sm"></span>
@@ -221,6 +221,7 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Scene> Logger { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool isGrading;
@@ -291,6 +292,7 @@ else
     {
         if (e.Key == "Enter" && !e.ShiftKey)
         {
+            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
             await SubmitDescription();
         }
     }

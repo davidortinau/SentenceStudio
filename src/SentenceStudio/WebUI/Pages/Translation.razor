@@ -88,14 +88,14 @@ else
     @* Input + actions row *@
     <div class="d-flex gap-2 mb-2">
         <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
-               @bind="userInput" @bind:event="oninput"
+               @bind="userInput"
                @onkeydown="HandleKeyDown"
                placeholder="Translate to @targetLanguage..." />
         <button class="btn btn-ss-secondary" @onclick="ToggleInputMode">
             @(inputMode == "Text" ? "Blocks" : "Type")
         </button>
         <button class="btn btn-ss-primary" @onclick="GradeMe"
-                disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))">
+                disabled="@isGrading">
             @if (isGrading)
             {
                 <span class="spinner-border spinner-border-sm"></span>
@@ -136,6 +136,7 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Translation> Logger { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool isGrading;
@@ -266,7 +267,11 @@ else
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await GradeMe();
+        if (e.Key == "Enter")
+        {
+            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
+            await GradeMe();
+        }
     }
 
     private void NextSentence()
