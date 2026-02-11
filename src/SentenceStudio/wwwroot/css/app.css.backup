@@ -140,108 +140,108 @@ h3:focus,
     font-size: 60px;
     line-height: 1.17;
     font-weight: 700;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-large-title {
     font-size: 34px;
     line-height: 1.21;
     font-weight: 700;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-title1 {
     font-size: 28px;
     line-height: 1.21;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-title2 {
     font-size: 22px;
     line-height: 1.27;
     font-weight: 600;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-title3 {
     font-size: 20px;
     line-height: 1.25;
     font-weight: 600;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-headline {
     font-size: 32px;
     text-align: center;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-subheadline {
     font-size: 24px;
     text-align: center;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-body1 {
     font-size: 17px;
     line-height: 1.29;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-body1-strong {
     font-size: 17px;
     line-height: 1.29;
     font-weight: 600;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-body2 {
     font-size: 15px;
     line-height: 1.33;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-body2-strong {
     font-size: 15px;
     line-height: 1.33;
     font-weight: 600;
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ss-caption1 {
     font-size: 13px;
     line-height: 1.38;
-    color: var(--bs-secondary-color);
+    color: var(--ss-text-secondary);
 }
 
 .ss-caption1-strong {
     font-size: 13px;
     line-height: 1.38;
     font-weight: 600;
-    color: var(--bs-secondary-color);
+    color: var(--ss-text-secondary);
 }
 
 .ss-caption2 {
     font-size: 12px;
     line-height: 1.33;
-    color: var(--bs-tertiary-color);
+    color: var(--ss-text-muted);
 }
 
 /* ============================================
    CARD STYLES
    ============================================ */
 .card-ss {
-    background-color: var(--bs-tertiary-bg);
+    background-color: var(--ss-surface-variant);
     border: none;
-    border-radius: var(--bs-border-radius-xl);
-    padding: var(--bs-card-spacer-y);
+    border-radius: var(--ss-radius-xl);
+    padding: var(--ss-card-padding);
 }
 
 .card-ss-elevated {
     background-color: var(--ss-surface-elevated);
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius-xl);
-    padding: var(--bs-card-spacer-y);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-xl);
+    padding: var(--ss-card-padding);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
 }
 
@@ -249,11 +249,11 @@ h3:focus,
    BUTTON STYLES (matching theme)
    ============================================ */
 .btn-ss-primary {
-    background-color: var(--bs-primary);
-    border-color: var(--bs-primary);
+    background-color: var(--ss-primary);
+    border-color: var(--ss-primary);
     color: var(--ss-on-primary);
     font-size: 14px;
-    border-radius: var(--bs-border-radius);
+    border-radius: var(--ss-radius-md);
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
@@ -277,11 +277,11 @@ h3:focus,
 }
 
 .btn-ss-secondary {
-    background-color: var(--bs-tertiary-bg);
-    border-color: var(--bs-border-color);
-    color: var(--bs-body-color);
+    background-color: var(--ss-surface-variant);
+    border-color: var(--ss-outline);
+    color: var(--ss-text-primary);
     font-size: 14px;
-    border-radius: var(--bs-border-radius);
+    border-radius: var(--ss-radius-md);
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
@@ -289,7 +289,7 @@ h3:focus,
 
 .btn-ss-secondary:hover {
     background-color: var(--ss-surface-elevated);
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .btn-ss-accent {
@@ -297,18 +297,18 @@ h3:focus,
     border-color: var(--ss-accent);
     color: var(--ss-on-accent);
     font-size: 14px;
-    border-radius: var(--bs-border-radius);
+    border-radius: var(--ss-radius-md);
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
 }
 
 .btn-ss-danger {
-    background-color: var(--bs-danger);
-    border-color: var(--bs-danger);
+    background-color: var(--ss-error);
+    border-color: var(--ss-error);
     color: white;
     font-size: 14px;
-    border-radius: var(--bs-border-radius);
+    border-radius: var(--ss-radius-md);
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
@@ -319,84 +319,84 @@ h3:focus,
    (btn-outline-* text contrast fix)
    ============================================ */
 [data-bs-theme="dark"] .btn-outline-secondary {
-    color: var(--bs-secondary-color);
-    border-color: var(--bs-border-color);
+    color: var(--ss-text-secondary);
+    border-color: var(--ss-outline);
 }
 
 [data-bs-theme="dark"] .btn-outline-secondary:hover,
 [data-bs-theme="dark"] .btn-check:checked + .btn-outline-secondary {
-    background-color: var(--bs-primary);
-    border-color: var(--bs-primary);
+    background-color: var(--ss-primary);
+    border-color: var(--ss-primary);
     color: #FFFFFF;
 }
 
 [data-bs-theme="dark"] .btn-outline-danger {
-    color: var(--bs-danger);
-    border-color: var(--bs-danger);
+    color: var(--ss-error);
+    border-color: var(--ss-error);
 }
 
 [data-bs-theme="dark"] .btn-outline-success {
-    color: var(--bs-success);
-    border-color: var(--bs-success);
+    color: var(--ss-success);
+    border-color: var(--ss-success);
 }
 
 /* ============================================
    FORM INPUT STYLES
    ============================================ */
 .form-control-ss {
-    background-color: var(--bs-tertiary-bg);
-    border: 1px solid var(--bs-border-color);
-    color: var(--bs-body-color);
-    border-radius: var(--bs-border-radius);
+    background-color: var(--ss-surface-variant);
+    border: 1px solid var(--ss-outline);
+    color: var(--ss-text-primary);
+    border-radius: var(--ss-radius-md);
     min-height: 44px;
     font-size: 14px;
 }
 
 .form-control-ss:focus {
-    background-color: var(--bs-tertiary-bg);
-    border-color: var(--bs-primary);
-    color: var(--bs-body-color);
+    background-color: var(--ss-surface-variant);
+    border-color: var(--ss-primary);
+    color: var(--ss-text-primary);
     box-shadow: 0 0 0 0.2rem rgba(107, 140, 255, 0.25);
 }
 
 .form-control-ss::placeholder {
-    color: var(--bs-tertiary-color);
+    color: var(--ss-text-muted);
 }
 
 /* ============================================
    BADGE STYLES
    ============================================ */
 .badge-ss {
-    background-color: var(--bs-tertiary-bg);
-    color: var(--bs-body-color);
-    border-radius: var(--bs-border-radius-sm);
+    background-color: var(--ss-surface-variant);
+    color: var(--ss-text-primary);
+    border-radius: var(--ss-radius-sm);
     font-size: 13px;
     padding: 4px 8px;
 }
 
 .badge-ss-success {
-    background-color: var(--bs-success);
+    background-color: var(--ss-success);
     color: white;
 }
 
 .badge-ss-warning {
-    background-color: var(--bs-warning);
-    color: var(--bs-gray-900);
+    background-color: var(--ss-warning);
+    color: var(--ss-gray-900);
 }
 
 /* ============================================
    UTILITY CLASSES
    ============================================ */
-.text-primary-ss { color: var(--bs-body-color) !important; }
-.text-secondary-ss { color: var(--bs-secondary-color) !important; }
-.text-muted-ss { color: var(--bs-tertiary-color) !important; }
-.text-success-ss { color: var(--bs-success) !important; }
-.text-warning-ss { color: var(--bs-warning) !important; }
-.text-error-ss { color: var(--bs-danger) !important; }
+.text-primary-ss { color: var(--ss-text-primary) !important; }
+.text-secondary-ss { color: var(--ss-text-secondary) !important; }
+.text-muted-ss { color: var(--ss-text-muted) !important; }
+.text-success-ss { color: var(--ss-success) !important; }
+.text-warning-ss { color: var(--ss-warning) !important; }
+.text-error-ss { color: var(--ss-error) !important; }
 .text-accent-ss { color: var(--ss-accent) !important; }
 
-.bg-surface { background-color: var(--bs-secondary-bg) !important; }
-.bg-surface-variant { background-color: var(--bs-tertiary-bg) !important; }
+.bg-surface { background-color: var(--ss-surface) !important; }
+.bg-surface-variant { background-color: var(--ss-surface-variant) !important; }
 .bg-surface-elevated { background-color: var(--ss-surface-elevated) !important; }
 
 /* ============================================
@@ -436,23 +436,23 @@ h3:focus,
    NAVIGATION STYLES
    ============================================ */
 .sidebar-nav {
-    background-color: var(--bs-secondary-bg) !important;
+    background-color: var(--ss-surface) !important;
 }
 
 .nav-link-ss {
-    color: var(--bs-secondary-color) !important;
+    color: var(--ss-text-secondary) !important;
     font-size: 15px;
     transition: background-color 0.15s, color 0.15s;
 }
 
 .nav-link-ss:hover {
-    background-color: var(--bs-tertiary-bg) !important;
-    color: var(--bs-body-color) !important;
+    background-color: var(--ss-surface-variant) !important;
+    color: var(--ss-text-primary) !important;
 }
 
 .nav-link-ss.active {
-    background-color: var(--bs-tertiary-bg) !important;
-    color: var(--bs-primary) !important;
+    background-color: var(--ss-surface-variant) !important;
+    color: var(--ss-primary) !important;
     font-weight: 600;
 }
 
@@ -468,23 +468,23 @@ h3:focus,
 
 .toast-ss {
     background-color: var(--ss-surface-elevated);
-    color: var(--bs-body-color);
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
+    color: var(--ss-text-primary);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-md);
 }
 
 /* ============================================
    MODAL OVERRIDES
    ============================================ */
 .modal-content-ss {
-    background-color: var(--bs-secondary-bg);
-    border: 1px solid var(--bs-border-color);
-    color: var(--bs-body-color);
+    background-color: var(--ss-surface);
+    border: 1px solid var(--ss-outline);
+    color: var(--ss-text-primary);
 }
 
 .offcanvas-ss {
-    background-color: var(--bs-secondary-bg) !important;
-    color: var(--bs-body-color) !important;
+    background-color: var(--ss-surface) !important;
+    color: var(--ss-text-primary) !important;
 }
 
 /* ============================================
@@ -500,7 +500,7 @@ h3:focus,
 /* Page header */
 .page-header {
     min-height: 44px;
-    margin-bottom: calc(var(--bs-spacer) * 160 / 16);
+    margin-bottom: var(--ss-size-160);
 }
 .page-header-inner {
     min-height: 44px;
@@ -513,7 +513,7 @@ h3:focus,
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--bs-border-radius);
+    border-radius: var(--ss-radius-md);
     background: transparent;
     border: none;
 }
@@ -525,7 +525,7 @@ h3:focus,
 @media (max-width: 767.98px) {
     /* Mobile main: horizontal padding for all content, no top padding (header handles it) */
     main.main-content {
-        padding: 0 calc(var(--bs-spacer) * 120 / 16) calc(var(--bs-spacer) * 120 / 16) calc(var(--bs-spacer) * 120 / 16) !important;
+        padding: 0 var(--ss-size-120) var(--ss-size-120) var(--ss-size-120) !important;
         overflow-x: hidden !important;
         overscroll-behavior-y: none; /* prevent rubber-band bounce that reveals gap above header */
     }
@@ -540,12 +540,12 @@ h3:focus,
         position: sticky;
         top: 0;
         z-index: 1030;
-        background: var(--bs-secondary-bg);
-        border-bottom: 1px solid var(--bs-border-color);
-        margin: 0 calc(-1 * calc(var(--bs-spacer) * 120 / 16));
-        padding: 0 calc(var(--bs-spacer) * 120 / 16);
+        background: var(--ss-surface);
+        border-bottom: 1px solid var(--ss-outline);
+        margin: 0 calc(-1 * var(--ss-size-120));
+        padding: 0 var(--ss-size-120);
         padding-top: env(safe-area-inset-top, 0px);
-        margin-bottom: calc(var(--bs-spacer) * 120 / 16);
+        margin-bottom: var(--ss-size-120);
         min-height: calc(44px + env(safe-area-inset-top, 0px));
     }
     .page-header .page-header-inner {
@@ -576,7 +576,7 @@ h3:focus,
 
     /* Cards: reduce padding on mobile */
     .card-ss {
-        padding: calc(var(--bs-spacer) * 100 / 16);
+        padding: var(--ss-size-100);
     }
 
     /* Dropdown menus: larger touch targets */
@@ -596,45 +596,45 @@ h3:focus,
 /* ── Tom Select theme overrides ── */
 .ts-wrapper .ts-control,
 .ts-wrapper .ts-control input {
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ts-wrapper .ts-control {
-    background-color: var(--bs-tertiary-bg);
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
+    background-color: var(--ss-surface-variant);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-md);
     min-height: 44px;
 }
 
 .ts-wrapper .ts-dropdown {
-    background-color: var(--bs-tertiary-bg);
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
-    color: var(--bs-body-color);
+    background-color: var(--ss-surface-variant);
+    border: 1px solid var(--ss-outline);
+    border-radius: var(--ss-radius-md);
+    color: var(--ss-text-primary);
 }
 
 .ts-wrapper .ts-dropdown .active {
-    background-color: var(--bs-primary);
+    background-color: var(--ss-primary);
     color: var(--ss-on-primary);
 }
 
 .ts-wrapper .ts-dropdown .option {
-    color: var(--bs-body-color);
+    color: var(--ss-text-primary);
 }
 
 .ts-wrapper .ts-control::placeholder,
 .ts-wrapper .ts-control input::placeholder {
-    color: var(--bs-tertiary-color);
+    color: var(--ss-text-muted);
 }
 
 .ts-wrapper.focus .ts-control {
-    border-color: var(--bs-primary);
+    border-color: var(--ss-primary);
     box-shadow: 0 0 0 0.2rem rgba(107, 140, 255, 0.25);
 }
 
 .ts-wrapper .ts-control .item {
-    background-color: var(--bs-primary);
+    background-color: var(--ss-primary);
     color: var(--ss-on-primary);
     border: none;
-    border-radius: var(--bs-border-radius-sm);
+    border-radius: var(--ss-radius-sm);
 }
