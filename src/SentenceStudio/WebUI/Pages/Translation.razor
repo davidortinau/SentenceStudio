@@ -5,7 +5,35 @@
 <PageHeader Title="Translation" ShowBack="true" OnBack="GoBack" />
 
 <div class="activity-content">
-@if (isBusy)
+@if (showSessionSummary)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Complete!</h2>
+        <div class="card card-ss p-4" style="min-width: 340px;">
+            <div class="d-flex justify-content-around mb-3">
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@sessionGradedCount</div>
+                    <small class="text-secondary-ss">Graded</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2" style="color: var(--bs-primary);">
+                        @(sessionGradedCount > 0 ? (int)(sessionAccuracySum / sessionGradedCount) : 0)%
+                    </div>
+                    <small class="text-secondary-ss">Avg Accuracy</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2" style="color: var(--bs-info);">
+                        @(sessionGradedCount > 0 ? (int)(sessionFluencySum / sessionGradedCount) : 0)%
+                    </div>
+                    <small class="text-secondary-ss">Avg Fluency</small>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">Continue Practice</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+    </div>
+}
+else if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
@@ -42,7 +70,7 @@ else
 }
 </div>
 
-@if (sentences.Any())
+@if (sentences.Any() && !showSessionSummary && !isBusy)
 {
 <div class="activity-input-bar">
     @* Input mode: vocab blocks *@
@@ -112,6 +140,7 @@ else
     private bool isBusy;
     private bool isGrading;
     private bool showFeedback;
+    private bool showSessionSummary;
     private string userInput = "";
     private string currentSentence = "";
     private string feedbackMessage = "";
@@ -120,6 +149,9 @@ else
     private string targetLanguage = "Korean";
     private string inputMode = "Text";
     private int currentIndex;
+    private int sessionGradedCount;
+    private double sessionAccuracySum;
+    private double sessionFluencySum;
 
     private List<Challenge> sentences = new();
     private List<VocabularyWord>? currentVocabulary;
@@ -204,6 +236,10 @@ else
 
             showFeedback = true;
 
+            sessionGradedCount++;
+            sessionAccuracySum += feedback.Accuracy;
+            sessionFluencySum += feedback.Fluency;
+
             // Record activity
             await ActivityRepo.SaveAsync(new UserActivity
             {
@@ -242,8 +278,7 @@ else
         }
         else
         {
-            Toast.ShowInfo("You've completed all sentences! Loading more...");
-            _ = LoadMoreSentences();
+            showSessionSummary = true;
         }
     }
 
@@ -254,6 +289,17 @@ else
             currentIndex--;
             SetCurrentSentence();
         }
+    }
+
+    private async Task ContinueAfterSummary()
+    {
+        showSessionSummary = false;
+        sessionGradedCount = 0;
+        sessionAccuracySum = 0;
+        sessionFluencySum = 0;
+        currentIndex = 0;
+        sentences.Clear();
+        await LoadSentences();
     }
 
     private async Task LoadMoreSentences()
