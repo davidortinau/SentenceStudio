@@ -5,12 +5,21 @@
 
 <div class="d-flex vh-100">
     @* Sidebar navigation (desktop only) *@
-    <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav"
-         style="width: 260px; border-right: 1px solid var(--bs-border-color);">
-        <div class="p-3">
-            <span class="fs-5 fw-semibold text-primary-ss">SentenceStudio</span>
+    <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
+         style="border-right: 1px solid var(--bs-border-color);">
+        <div class="sidebar-header p-3">
+            <span class="fs-5 fw-semibold text-primary-ss nav-label">SentenceStudio</span>
         </div>
-        <NavMenu />
+        <div class="flex-grow-1 overflow-auto">
+            <NavMenu />
+        </div>
+        <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;">
+            <button class="btn btn-sm btn-icon w-100 d-flex align-items-center justify-content-center"
+                    title="@(sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
+                    @onclick="ToggleSidebar">
+                <i class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+            </button>
+        </div>
     </nav>
 
     <div class="d-flex flex-column flex-grow-1 overflow-hidden">
@@ -36,6 +45,12 @@
 
 @code {
     private IJSObjectReference? jsModule;
+    private bool sidebarCollapsed;
+
+    protected override void OnInitialized()
+    {
+        sidebarCollapsed = Preferences.Default.Get("SidebarCollapsed", false);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -45,6 +60,12 @@
             await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
             ThemeService.ThemeChanged += OnThemeChanged;
         }
+    }
+
+    private void ToggleSidebar()
+    {
+        sidebarCollapsed = !sidebarCollapsed;
+        Preferences.Default.Set("SidebarCollapsed", sidebarCollapsed);
     }
 
     private async void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
@@ -61,4 +82,3 @@
         jsModule?.DisposeAsync();
     }
 }
-

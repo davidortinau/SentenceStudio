@@ -719,7 +719,89 @@ h3:focus,
    NAVIGATION STYLES
    ============================================ */
 .sidebar-nav {
+    width: 260px;
     background-color: var(--bs-secondary-bg) !important;
+    transition: width 0.2s ease;
+    overflow: hidden;
+}
+
+.sidebar-nav.collapsed {
+    width: 64px;
+}
+
+/* Header title: hide when collapsed */
+.sidebar-nav .sidebar-header {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar-nav.collapsed .sidebar-header .nav-label {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+}
+
+/* Nav links: icon + label layout */
+.sidebar-nav .nav-link-ss {
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sidebar-nav .nav-link-ss i {
+    flex-shrink: 0;
+    width: 1.25em;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.sidebar-nav .nav-link-ss .nav-label {
+    transition: opacity 0.15s ease, width 0.2s ease;
+    overflow: hidden;
+}
+
+/* Collapsed: hide labels, center icons */
+.sidebar-nav.collapsed .nav-link-ss {
+    justify-content: center;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.sidebar-nav.collapsed .nav-link-ss .nav-label {
+    opacity: 0;
+    width: 0;
+    position: absolute;
+}
+
+.sidebar-nav.collapsed .nav > hr {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+/* Collapsed: tooltip on hover */
+.sidebar-nav.collapsed .nav-link-ss {
+    position: relative;
+}
+
+.sidebar-nav.collapsed .nav-link-ss:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 8px;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 4px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+    z-index: 1050;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .nav-link-ss {
