@@ -120,3 +120,16 @@ export function destroyTomSelect(elementId) {
         delete tomSelects[elementId];
     }
 }
+
+/**
+ * Apply theme to the HTML element.
+ * Sets both data-bs-theme (light/dark) and data-ss-theme (color palette).
+ * @param {string} theme - Theme name (seoul-pop, ocean, forest, sunset, monochrome)
+ * @param {string} mode - Mode (light or dark)
+ */
+export function applyTheme(theme, mode) {
+    const html = document.documentElement;
+    html.setAttribute('data-bs-theme', mode);
+    html.setAttribute('data-ss-theme', theme);
+}
+

@@ -259,6 +259,8 @@ public static class MauiProgram
 		//         services.AddLogging(configure => configure.AddDebug());
 		// #endif
 
+		// Theme management
+		services.AddSingleton<ThemeService>();
 
 		services.AddSingleton<TeacherService>();
 		services.AddSingleton<ConversationService>();

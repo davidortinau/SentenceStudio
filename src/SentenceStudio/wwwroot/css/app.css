@@ -14,97 +14,364 @@
 }
 
 /* ============================================
-   LIGHT THEME (Bootstrap overrides)
+   LIGHT THEME BASE (Bootstrap overrides)
    ============================================ */
 [data-bs-theme="light"] {
-    /* Override Bootstrap color variables */
-    --bs-primary: #1E4DFF;
-    --bs-primary-rgb: 30, 77, 255;
-    --bs-secondary: #12B886;
-    --bs-secondary-rgb: 18, 184, 134;
+    /* Status colors (shared across all themes) */
     --bs-success: #12B886;
     --bs-success-rgb: 18, 184, 134;
     --bs-warning: #FFC233;
     --bs-warning-rgb: 255, 194, 51;
     --bs-danger: #E13B30;
     --bs-danger-rgb: 225, 59, 48;
+}
+
+/* ============================================
+   DARK THEME BASE (Bootstrap overrides)
+   ============================================ */
+[data-bs-theme="dark"] {
+    /* Status colors (shared across all themes) */
+    --bs-success: #12B886;
+    --bs-success-rgb: 18, 184, 134;
+    --bs-warning: #FFC233;
+    --bs-warning-rgb: 255, 194, 51;
+    --bs-danger: #E13B30;
+    --bs-danger-rgb: 225, 59, 48;
+}
+
+/* ============================================
+   THEME: Seoul Pop (Obangsaek-inspired)
+   ============================================ */
+[data-ss-theme="seoul-pop"][data-bs-theme="light"] {
+    --bs-primary: #1E4DFF;
+    --bs-primary-rgb: 30, 77, 255;
+    --bs-secondary: #12B886;
+    --bs-secondary-rgb: 18, 184, 134;
     --bs-info: #1E4DFF;
     --bs-info-rgb: 30, 77, 255;
     
-    /* Body/background colors */
     --bs-body-bg: #F7F8FF;
     --bs-body-bg-rgb: 247, 248, 255;
     --bs-body-color: #0B0D12;
     --bs-body-color-rgb: 11, 13, 18;
     
-    /* Secondary background levels */
     --bs-secondary-bg: #FFFFFF;
     --bs-secondary-bg-rgb: 255, 255, 255;
     --bs-tertiary-bg: #EEF1FF;
     --bs-tertiary-bg-rgb: 238, 241, 255;
     
-    /* Text colors */
     --bs-secondary-color: #394150;
     --bs-secondary-color-rgb: 57, 65, 80;
     --bs-tertiary-color: #7A8699;
     --bs-tertiary-color-rgb: 122, 134, 153;
     
-    /* Borders */
     --bs-border-color: #D6DAF0;
     --bs-border-color-rgb: 214, 218, 240;
     
-    /* Custom: no Bootstrap equivalent */
     --ss-on-primary: #FFFFFF;
     --ss-accent: #FF6A3D;
     --ss-on-accent: #FFFFFF;
     --ss-surface-elevated: #FCFDFF;
 }
 
-/* ============================================
-   DARK THEME (Bootstrap overrides)
-   ============================================ */
-[data-bs-theme="dark"] {
-    /* Override Bootstrap color variables */
+[data-ss-theme="seoul-pop"][data-bs-theme="dark"] {
     --bs-primary: #6B8CFF;
     --bs-primary-rgb: 107, 140, 255;
     --bs-secondary: #21D6A4;
     --bs-secondary-rgb: 33, 214, 164;
-    --bs-success: #12B886;
-    --bs-success-rgb: 18, 184, 134;
-    --bs-warning: #FFC233;
-    --bs-warning-rgb: 255, 194, 51;
-    --bs-danger: #E13B30;
-    --bs-danger-rgb: 225, 59, 48;
     --bs-info: #6B8CFF;
     --bs-info-rgb: 107, 140, 255;
     
-    /* Body/background colors */
     --bs-body-bg: #060913;
     --bs-body-bg-rgb: 6, 9, 19;
     --bs-body-color: #F8FAFF;
     --bs-body-color-rgb: 248, 250, 255;
     
-    /* Secondary background levels */
     --bs-secondary-bg: #0C1222;
     --bs-secondary-bg-rgb: 12, 18, 34;
     --bs-tertiary-bg: #121B33;
     --bs-tertiary-bg-rgb: 18, 27, 51;
     
-    /* Text colors */
     --bs-secondary-color: #C6D0E7;
     --bs-secondary-color-rgb: 198, 208, 231;
     --bs-tertiary-color: #93A3C7;
     --bs-tertiary-color-rgb: 147, 163, 199;
     
-    /* Borders */
     --bs-border-color: #263457;
     --bs-border-color-rgb: 38, 52, 87;
     
-    /* Custom: no Bootstrap equivalent */
     --ss-on-primary: #081022;
     --ss-accent: #FF7A4D;
     --ss-on-accent: #0B0D12;
     --ss-surface-elevated: #1A2545;
+}
+
+/* ============================================
+   THEME: Ocean (Teal/Cyan)
+   ============================================ */
+[data-ss-theme="ocean"][data-bs-theme="light"] {
+    --bs-primary: #0891B2;
+    --bs-primary-rgb: 8, 145, 178;
+    --bs-secondary: #06B6D4;
+    --bs-secondary-rgb: 6, 182, 212;
+    --bs-info: #0891B2;
+    --bs-info-rgb: 8, 145, 178;
+    
+    --bs-body-bg: #F0FDFA;
+    --bs-body-bg-rgb: 240, 253, 250;
+    --bs-body-color: #0F172A;
+    --bs-body-color-rgb: 15, 23, 42;
+    
+    --bs-secondary-bg: #FFFFFF;
+    --bs-secondary-bg-rgb: 255, 255, 255;
+    --bs-tertiary-bg: #E0F2FE;
+    --bs-tertiary-bg-rgb: 224, 242, 254;
+    
+    --bs-secondary-color: #475569;
+    --bs-secondary-color-rgb: 71, 85, 105;
+    --bs-tertiary-color: #94A3B8;
+    --bs-tertiary-color-rgb: 148, 163, 184;
+    
+    --bs-border-color: #BAE6FD;
+    --bs-border-color-rgb: 186, 230, 253;
+    
+    --ss-on-primary: #FFFFFF;
+    --ss-accent: #14B8A6;
+    --ss-on-accent: #FFFFFF;
+    --ss-surface-elevated: #FCFEFF;
+}
+
+[data-ss-theme="ocean"][data-bs-theme="dark"] {
+    --bs-primary: #22D3EE;
+    --bs-primary-rgb: 34, 211, 238;
+    --bs-secondary: #2DD4BF;
+    --bs-secondary-rgb: 45, 212, 191;
+    --bs-info: #22D3EE;
+    --bs-info-rgb: 34, 211, 238;
+    
+    --bs-body-bg: #0C1821;
+    --bs-body-bg-rgb: 12, 24, 33;
+    --bs-body-color: #F0F9FF;
+    --bs-body-color-rgb: 240, 249, 255;
+    
+    --bs-secondary-bg: #164E63;
+    --bs-secondary-bg-rgb: 22, 78, 99;
+    --bs-tertiary-bg: #155E75;
+    --bs-tertiary-bg-rgb: 21, 94, 117;
+    
+    --bs-secondary-color: #BAE6FD;
+    --bs-secondary-color-rgb: 186, 230, 253;
+    --bs-tertiary-color: #7DD3FC;
+    --bs-tertiary-color-rgb: 125, 211, 252;
+    
+    --bs-border-color: #0E7490;
+    --bs-border-color-rgb: 14, 116, 144;
+    
+    --ss-on-primary: #082F49;
+    --ss-accent: #5EEAD4;
+    --ss-on-accent: #0F172A;
+    --ss-surface-elevated: #1E3A4A;
+}
+
+/* ============================================
+   THEME: Forest (Emerald/Green)
+   ============================================ */
+[data-ss-theme="forest"][data-bs-theme="light"] {
+    --bs-primary: #059669;
+    --bs-primary-rgb: 5, 150, 105;
+    --bs-secondary: #F59E0B;
+    --bs-secondary-rgb: 245, 158, 11;
+    --bs-info: #059669;
+    --bs-info-rgb: 5, 150, 105;
+    
+    --bs-body-bg: #F0FDF4;
+    --bs-body-bg-rgb: 240, 253, 244;
+    --bs-body-color: #1C2B1F;
+    --bs-body-color-rgb: 28, 43, 31;
+    
+    --bs-secondary-bg: #FFFFFF;
+    --bs-secondary-bg-rgb: 255, 255, 255;
+    --bs-tertiary-bg: #DCFCE7;
+    --bs-tertiary-bg-rgb: 220, 252, 231;
+    
+    --bs-secondary-color: #4B5563;
+    --bs-secondary-color-rgb: 75, 85, 99;
+    --bs-tertiary-color: #9CA3AF;
+    --bs-tertiary-color-rgb: 156, 163, 175;
+    
+    --bs-border-color: #BBF7D0;
+    --bs-border-color-rgb: 187, 247, 208;
+    
+    --ss-on-primary: #FFFFFF;
+    --ss-accent: #FBBF24;
+    --ss-on-accent: #1F2937;
+    --ss-surface-elevated: #FDFFFE;
+}
+
+[data-ss-theme="forest"][data-bs-theme="dark"] {
+    --bs-primary: #34D399;
+    --bs-primary-rgb: 52, 211, 153;
+    --bs-secondary: #FBBF24;
+    --bs-secondary-rgb: 251, 191, 36;
+    --bs-info: #34D399;
+    --bs-info-rgb: 52, 211, 153;
+    
+    --bs-body-bg: #0F1C13;
+    --bs-body-bg-rgb: 15, 28, 19;
+    --bs-body-color: #F0FDF4;
+    --bs-body-color-rgb: 240, 253, 244;
+    
+    --bs-secondary-bg: #14532D;
+    --bs-secondary-bg-rgb: 20, 83, 45;
+    --bs-tertiary-bg: #166534;
+    --bs-tertiary-bg-rgb: 22, 101, 52;
+    
+    --bs-secondary-color: #BBF7D0;
+    --bs-secondary-color-rgb: 187, 247, 208;
+    --bs-tertiary-color: #86EFAC;
+    --bs-tertiary-color-rgb: 134, 239, 172;
+    
+    --bs-border-color: #15803D;
+    --bs-border-color-rgb: 21, 128, 61;
+    
+    --ss-on-primary: #052E16;
+    --ss-accent: #FDE047;
+    --ss-on-accent: #1F2937;
+    --ss-surface-elevated: #1E3D29;
+}
+
+/* ============================================
+   THEME: Sunset (Amber/Orange)
+   ============================================ */
+[data-ss-theme="sunset"][data-bs-theme="light"] {
+    --bs-primary: #EA580C;
+    --bs-primary-rgb: 234, 88, 12;
+    --bs-secondary: #DB2777;
+    --bs-secondary-rgb: 219, 39, 119;
+    --bs-info: #EA580C;
+    --bs-info-rgb: 234, 88, 12;
+    
+    --bs-body-bg: #FFF7ED;
+    --bs-body-bg-rgb: 255, 247, 237;
+    --bs-body-color: #1C1917;
+    --bs-body-color-rgb: 28, 25, 23;
+    
+    --bs-secondary-bg: #FFFFFF;
+    --bs-secondary-bg-rgb: 255, 255, 255;
+    --bs-tertiary-bg: #FFEDD5;
+    --bs-tertiary-bg-rgb: 255, 237, 213;
+    
+    --bs-secondary-color: #57534E;
+    --bs-secondary-color-rgb: 87, 83, 78;
+    --bs-tertiary-color: #A8A29E;
+    --bs-tertiary-color-rgb: 168, 162, 158;
+    
+    --bs-border-color: #FED7AA;
+    --bs-border-color-rgb: 254, 215, 170;
+    
+    --ss-on-primary: #FFFFFF;
+    --ss-accent: #F472B6;
+    --ss-on-accent: #FFFFFF;
+    --ss-surface-elevated: #FFFBFA;
+}
+
+[data-ss-theme="sunset"][data-bs-theme="dark"] {
+    --bs-primary: #FB923C;
+    --bs-primary-rgb: 251, 146, 60;
+    --bs-secondary: #F472B6;
+    --bs-secondary-rgb: 244, 114, 182;
+    --bs-info: #FB923C;
+    --bs-info-rgb: 251, 146, 60;
+    
+    --bs-body-bg: #1C1310;
+    --bs-body-bg-rgb: 28, 19, 16;
+    --bs-body-color: #FFF7ED;
+    --bs-body-color-rgb: 255, 247, 237;
+    
+    --bs-secondary-bg: #431407;
+    --bs-secondary-bg-rgb: 67, 20, 7;
+    --bs-tertiary-bg: #7C2D12;
+    --bs-tertiary-bg-rgb: 124, 45, 18;
+    
+    --bs-secondary-color: #FED7AA;
+    --bs-secondary-color-rgb: 254, 215, 170;
+    --bs-tertiary-color: #FDBA74;
+    --bs-tertiary-color-rgb: 253, 186, 116;
+    
+    --bs-border-color: #C2410C;
+    --bs-border-color-rgb: 194, 65, 12;
+    
+    --ss-on-primary: #431407;
+    --ss-accent: #FBA7D8;
+    --ss-on-accent: #1F2937;
+    --ss-surface-elevated: #52251A;
+}
+
+/* ============================================
+   THEME: Monochrome (Grayscale)
+   ============================================ */
+[data-ss-theme="monochrome"][data-bs-theme="light"] {
+    --bs-primary: #374151;
+    --bs-primary-rgb: 55, 65, 81;
+    --bs-secondary: #6B7280;
+    --bs-secondary-rgb: 107, 114, 128;
+    --bs-info: #374151;
+    --bs-info-rgb: 55, 65, 81;
+    
+    --bs-body-bg: #FFFFFF;
+    --bs-body-bg-rgb: 255, 255, 255;
+    --bs-body-color: #111827;
+    --bs-body-color-rgb: 17, 24, 39;
+    
+    --bs-secondary-bg: #F9FAFB;
+    --bs-secondary-bg-rgb: 249, 250, 251;
+    --bs-tertiary-bg: #F3F4F6;
+    --bs-tertiary-bg-rgb: 243, 244, 246;
+    
+    --bs-secondary-color: #4B5563;
+    --bs-secondary-color-rgb: 75, 85, 99;
+    --bs-tertiary-color: #9CA3AF;
+    --bs-tertiary-color-rgb: 156, 163, 175;
+    
+    --bs-border-color: #E5E7EB;
+    --bs-border-color-rgb: 229, 231, 235;
+    
+    --ss-on-primary: #FFFFFF;
+    --ss-accent: #1F2937;
+    --ss-on-accent: #FFFFFF;
+    --ss-surface-elevated: #FEFEFE;
+}
+
+[data-ss-theme="monochrome"][data-bs-theme="dark"] {
+    --bs-primary: #D1D5DB;
+    --bs-primary-rgb: 209, 213, 219;
+    --bs-secondary: #9CA3AF;
+    --bs-secondary-rgb: 156, 163, 175;
+    --bs-info: #D1D5DB;
+    --bs-info-rgb: 209, 213, 219;
+    
+    --bs-body-bg: #0A0A0A;
+    --bs-body-bg-rgb: 10, 10, 10;
+    --bs-body-color: #F9FAFB;
+    --bs-body-color-rgb: 249, 250, 251;
+    
+    --bs-secondary-bg: #1F2937;
+    --bs-secondary-bg-rgb: 31, 41, 55;
+    --bs-tertiary-bg: #374151;
+    --bs-tertiary-bg-rgb: 55, 65, 81;
+    
+    --bs-secondary-color: #D1D5DB;
+    --bs-secondary-color-rgb: 209, 213, 219;
+    --bs-tertiary-color: #9CA3AF;
+    --bs-tertiary-color-rgb: 156, 163, 175;
+    
+    --bs-border-color: #4B5563;
+    --bs-border-color-rgb: 75, 85, 99;
+    
+    --ss-on-primary: #111827;
+    --ss-accent: #F3F4F6;
+    --ss-on-accent: #111827;
+    --ss-surface-elevated: #2D3748;
 }
 
 /* ============================================
@@ -637,4 +904,48 @@ h3:focus,
     color: var(--ss-on-primary);
     border: none;
     border-radius: var(--bs-border-radius-sm);
+}
+
+/* ============================================
+   THEME SWATCH PICKER (Settings page)
+   ============================================ */
+.theme-swatch {
+    border: 2px solid transparent;
+    border-radius: var(--bs-border-radius);
+    padding: 8px;
+    background-color: var(--bs-tertiary-bg);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1 1 calc(50% - 8px);
+    min-width: 140px;
+}
+
+.theme-swatch:hover {
+    border-color: var(--bs-border-color);
+}
+
+.theme-swatch.selected {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-secondary-bg);
+}
+
+.theme-swatch-colors {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 40px;
+}
+
+.theme-swatch-colors .color-primary,
+.theme-swatch-colors .color-accent {
+    flex: 1;
+}
+
+.theme-swatch-label {
+    text-align: center;
+    font-size: 13px;
+    color: var(--bs-body-color);
+    font-weight: 500;
 }

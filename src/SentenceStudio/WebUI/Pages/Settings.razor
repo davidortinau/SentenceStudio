@@ -1,6 +1,54 @@
 @page "/settings"
+@inject ThemeService ThemeService
+@inject IJSRuntime JS
 
 <PageHeader Title="Settings" />
+
+@* Appearance *@
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-3">Appearance</h5>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Theme</label>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var theme in ThemeService.AvailableThemes)
+            {
+                var (primary, accent) = ThemeService.GetThemeColors(theme, ThemeService.CurrentMode);
+                var isSelected = ThemeService.CurrentTheme == theme;
+
+                <button type="button" 
+                        class="theme-swatch @(isSelected ? "selected" : "")"
+                        @onclick="() => OnThemeSelected(theme)"
+                        title="@ThemeService.GetThemeDisplayName(theme)">
+                    <div class="theme-swatch-colors">
+                        <div class="color-primary" style="background-color: @primary"></div>
+                        <div class="color-accent" style="background-color: @accent"></div>
+                    </div>
+                    <div class="theme-swatch-label">@ThemeService.GetThemeDisplayName(theme)</div>
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Mode</label>
+        <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="themeMode" id="modeLight" 
+                   checked="@(!ThemeService.IsDarkMode)" 
+                   @onchange="@(() => OnModeChanged("light"))" />
+            <label class="btn btn-outline-secondary" for="modeLight">
+                <i class="bi bi-sun me-1"></i> Light
+            </label>
+            
+            <input type="radio" class="btn-check" name="themeMode" id="modeDark" 
+                   checked="@ThemeService.IsDarkMode" 
+                   @onchange="@(() => OnModeChanged("dark"))" />
+            <label class="btn btn-outline-secondary" for="modeDark">
+                <i class="bi bi-moon me-1"></i> Dark
+            </label>
+        </div>
+    </div>
+</div>
 
 @* Voice & Quiz Settings *@
 <div class="card card-ss p-4 mb-3">
@@ -119,6 +167,8 @@
     [Inject] private VocabularyQuizPreferences QuizPrefs { get; set; }
     [Inject] private ToastService Toast { get; set; }
 
+    private IJSObjectReference? jsModule;
+
     private string selectedLanguage = "Korean";
     private string selectedVoiceId = "";
     private List<VoiceInfo> availableVoices = new();
@@ -136,8 +186,31 @@
 
     protected override async Task OnInitializedAsync()
     {
+        jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
         LoadPreferences();
         await LoadVoicesAsync();
+    }
+
+    private async Task OnThemeSelected(string theme)
+    {
+        ThemeService.SetTheme(theme);
+        await ApplyThemeToDOM();
+        StateHasChanged();
+    }
+
+    private async Task OnModeChanged(string mode)
+    {
+        ThemeService.SetMode(mode);
+        await ApplyThemeToDOM();
+        StateHasChanged();
+    }
+
+    private async Task ApplyThemeToDOM()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
+        }
     }
 
     private void LoadPreferences()
