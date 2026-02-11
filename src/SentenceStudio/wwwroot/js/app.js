@@ -141,9 +141,22 @@ export function destroyTomSelect(elementId) {
  * @param {string} theme - Theme name (seoul-pop, ocean, forest, sunset, monochrome)
  * @param {string} mode - Mode (light or dark)
  */
+const BOOTSTRAP_CDN = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css';
+const BOOTSWATCH_THEMES = ['flatly', 'sketchy', 'slate', 'vapor', 'brite'];
+
 export function applyTheme(theme, mode) {
     const html = document.documentElement;
     html.setAttribute('data-bs-theme', mode);
     html.setAttribute('data-ss-theme', theme);
+
+    // Swap Bootstrap CSS for Bootswatch themes
+    const link = document.getElementById('bootstrap-theme');
+    if (link) {
+        if (BOOTSWATCH_THEMES.includes(theme)) {
+            link.href = `css/themes/${theme}.min.css`;
+        } else {
+            link.href = BOOTSTRAP_CDN;
+        }
+    }
 }
 

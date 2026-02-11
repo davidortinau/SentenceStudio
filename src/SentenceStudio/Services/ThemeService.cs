@@ -3,6 +3,9 @@ namespace SentenceStudio.Services;
 /// <summary>
 /// Service for managing app theme (color palette) and mode (light/dark).
 /// Persists user preferences via Microsoft.Maui.Storage.Preferences.
+/// Themes fall into two categories:
+///   - Custom CSS-variable themes (seoul-pop, ocean, forest, sunset, monochrome) that override --bs-* on default Bootstrap
+///   - Bootswatch themes (flatly, sketchy, slate, vapor, brite) that swap the entire Bootstrap CSS file
 /// </summary>
 public class ThemeService
 {
@@ -18,7 +21,6 @@ public class ThemeService
 
     public ThemeService()
     {
-        // Load preferences on init
         _currentTheme = Preferences.Default.Get(PREF_THEME, DEFAULT_THEME);
         _currentMode = Preferences.Default.Get(PREF_MODE, DEFAULT_MODE);
     }
@@ -84,7 +86,12 @@ public class ThemeService
         "ocean",
         "forest",
         "sunset",
-        "monochrome"
+        "monochrome",
+        "flatly",
+        "sketchy",
+        "slate",
+        "vapor",
+        "brite"
     };
 
     /// <summary>
@@ -99,6 +106,11 @@ public class ThemeService
             "forest" => "Forest",
             "sunset" => "Sunset",
             "monochrome" => "Monochrome",
+            "flatly" => "Flatly",
+            "sketchy" => "Sketchy",
+            "slate" => "Slate",
+            "vapor" => "Vapor",
+            "brite" => "Brite",
             _ => theme
         };
     }
@@ -120,6 +132,11 @@ public class ThemeService
             ("sunset", "dark") => ("#FB923C", "#FBA7D8"),
             ("monochrome", "light") => ("#374151", "#1F2937"),
             ("monochrome", "dark") => ("#D1D5DB", "#F3F4F6"),
+            ("flatly", _) => ("#2c3e50", "#18bc9c"),
+            ("sketchy", _) => ("#333333", "#868e96"),
+            ("slate", _) => ("#3a3f44", "#7a8288"),
+            ("vapor", _) => ("#6f42c1", "#ea39b8"),
+            ("brite", _) => ("#a2e436", "#ff7518"),
             _ => ("#6B8CFF", "#FF7A4D")
         };
     }
