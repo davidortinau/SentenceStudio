@@ -532,7 +532,7 @@ h3:focus,
 }
 
 .btn-ss-primary:hover {
-    opacity: 0.9;
+    filter: brightness(1.1);
     color: var(--ss-on-primary);
 }
 
@@ -578,16 +578,21 @@ h3:focus,
    BOOTSTRAP DARK-MODE OVERRIDES
    (btn-outline-* text contrast fix)
    ============================================ */
-[data-bs-theme="dark"] .btn-outline-secondary {
+.btn-outline-secondary {
     color: var(--bs-secondary-color);
     border-color: var(--bs-border-color);
 }
 
-[data-bs-theme="dark"] .btn-outline-secondary:hover,
-[data-bs-theme="dark"] .btn-check:checked + .btn-outline-secondary {
+.btn-outline-secondary:hover {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
-    color: #FFFFFF;
+    color: var(--ss-on-primary);
+}
+
+.btn-check:checked + .btn-outline-secondary {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: var(--ss-on-primary);
 }
 
 [data-bs-theme="dark"] .btn-outline-danger {
@@ -893,10 +898,17 @@ h3:focus,
 }
 
 .ts-wrapper .ts-control .item {
-    background-color: var(--bs-primary);
-    color: var(--ss-on-primary);
-    border: none;
+    background-color: var(--bs-primary) !important;
+    color: var(--ss-on-primary) !important;
+    border: none !important;
     border-radius: var(--bs-border-radius-sm);
+}
+
+/* Single select: selected value text uses primary color */
+.ts-wrapper.single .ts-control .item {
+    background-color: transparent !important;
+    color: var(--bs-primary) !important;
+    font-weight: 500;
 }
 
 /* ============================================
