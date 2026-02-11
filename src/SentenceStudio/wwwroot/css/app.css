@@ -501,6 +501,10 @@ h3:focus,
 /* Page header */
 .page-header {
     min-height: 44px;
+    margin-bottom: var(--ss-size-160);
+}
+.page-header-inner {
+    min-height: 44px;
 }
 
 /* Icon-only buttons (touch-friendly 44px targets) */
@@ -520,19 +524,46 @@ h3:focus,
 
 /* Mobile: < 768px */
 @media (max-width: 767.98px) {
-    /* Pad for safe area on mobile */
-    .mobile-navbar {
-        padding-top: var(--safe-area-top);
-    }
-
-    /* Tighter page padding */
+    /* Remove main padding — PageHeader handles top, content gets side padding */
     main.p-3 {
-        padding: var(--ss-size-120) !important;
+        padding: 0 !important;
+        /* Content after page-header gets padding */
+    }
+    /* All direct children of main EXCEPT page-header get horizontal padding */
+    main > *:not(.page-header) {
+        padding-left: var(--ss-size-120);
+        padding-right: var(--ss-size-120);
+    }
+    /* But don't double-pad elements that manage their own padding */
+    main > .page-header + * {
+        padding-top: var(--ss-size-120);
     }
 
-    /* Compact page header on mobile */
+    /* Offcanvas flyout: 90% width, not full screen */
+    .offcanvas {
+        --bs-offcanvas-width: 90%;
+    }
+
+    /* Mobile page header — acts as the navbar */
+    .page-header {
+        position: sticky;
+        top: 0;
+        z-index: 1030;
+        background: var(--ss-surface);
+        border-bottom: 1px solid var(--ss-outline);
+        padding: 0 var(--ss-size-120);
+        padding-top: env(safe-area-inset-top, 0px);
+        margin-bottom: 0;
+        min-height: calc(44px + env(safe-area-inset-top, 0px));
+    }
+    .page-header .page-header-inner {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
     .page-header h1 {
-        font-size: 1.25rem;
+        font-size: 1.125rem;
+        font-weight: 600;
     }
 
     /* Touch-friendly form controls */
@@ -564,7 +595,7 @@ h3:focus,
         align-items: center;
     }
 
-    /* Stack header actions that don't fit */
+    /* Hide desktop-only button labels on mobile */
     .page-header .btn .btn-label-text {
         display: none;
     }

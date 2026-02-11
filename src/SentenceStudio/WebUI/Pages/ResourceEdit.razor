@@ -9,10 +9,25 @@
 else
 {
     <PageHeader Title="@(resource.Title ?? "Resource")" ShowBack="true" OnBack="GoBack">
+        <ToolbarActions>
+            @if (!isEditing && isEditable)
+            {
+                <button class="btn btn-sm btn-icon text-primary-ss" @onclick="() => isEditing = true" title="Edit">
+                    <i class="bi bi-pencil" style="font-size: 1.125rem;"></i>
+                </button>
+            }
+            @if (isEditing)
+            {
+                <button class="btn btn-sm btn-icon text-primary-ss" @onclick="SaveResource" disabled="@isSaving" title="Save">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm"></span> }
+                    else { <i class="bi bi-check-lg" style="font-size: 1.25rem;"></i> }
+                </button>
+            }
+        </ToolbarActions>
         <PrimaryActions>
             @if (!isEditing && isEditable)
             {
-                <button class="btn btn-ss-primary" @onclick="() => isEditing = true"><i class="bi bi-pencil me-1"></i><span class="d-none d-sm-inline">Edit</span></button>
+                <button class="btn btn-ss-primary" @onclick="() => isEditing = true"><i class="bi bi-pencil me-1"></i>Edit</button>
             }
             @if (isEditing)
             {

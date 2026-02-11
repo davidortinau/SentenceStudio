@@ -3,6 +3,8 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
 
+<PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack" />
+
 @if (isBusy && string.IsNullOrEmpty(imageUrl))
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">

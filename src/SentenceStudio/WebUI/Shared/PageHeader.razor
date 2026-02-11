@@ -1,38 +1,65 @@
-@* Reusable page header with iOS-like toolbar behavior on mobile.
-   Primary actions show as visible buttons; secondary actions go in an overflow dropdown. *@
+@* Reusable page header. On mobile: sticky navbar with hamburger/back + title + toolbar actions.
+   On desktop: inline header row with title + action buttons. *@
 
-<div class="page-header d-flex justify-content-between align-items-center mb-3 mb-md-4">
-    <div class="d-flex align-items-center gap-2 overflow-hidden">
-        @if (ShowBack)
-        {
-            <button class="btn btn-sm btn-icon text-primary-ss p-1" @onclick="OnBack">
-                <i class="bi bi-chevron-left" style="font-size: 1.25rem;"></i>
-            </button>
-        }
-        <h1 class="ss-title1 mb-0 text-truncate">@Title</h1>
-    </div>
-    <div class="d-flex align-items-center gap-2 flex-shrink-0">
-        @if (PrimaryActions != null)
-        {
-            @PrimaryActions
-        }
-        @if (SecondaryActions != null)
-        {
-            <div class="dropdown">
-                <button class="btn btn-sm btn-icon text-secondary-ss" type="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-three-dots-vertical" style="font-size: 1.25rem;"></i>
+<div class="page-header">
+    <div class="page-header-inner d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2 overflow-hidden">
+            @* Mobile: hamburger or back chevron *@
+            @if (ShowBack)
+            {
+                <button class="btn btn-sm btn-icon text-primary-ss p-1 d-md-none" @onclick="OnBack">
+                    <i class="bi bi-chevron-left" style="font-size: 1.25rem;"></i>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" data-bs-theme="dark">
-                    @SecondaryActions
-                </ul>
-            </div>
-        }
+            }
+            else
+            {
+                <button class="btn btn-sm btn-icon d-md-none" type="button"
+                        data-bs-toggle="offcanvas" data-bs-target="#mobileNav">
+                    <i class="bi bi-list" style="color: var(--ss-text-primary); font-size: 1.5rem;"></i>
+                </button>
+            }
+            @* Desktop: back chevron only (no hamburger needed) *@
+            @if (ShowBack)
+            {
+                <button class="btn btn-sm btn-icon text-primary-ss p-1 d-none d-md-inline-flex" @onclick="OnBack">
+                    <i class="bi bi-chevron-left" style="font-size: 1.25rem;"></i>
+                </button>
+            }
+            <h1 class="ss-title1 mb-0 text-truncate">@Title</h1>
+        </div>
+        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            @* Toolbar actions — icon buttons in the header on all sizes *@
+            @if (ToolbarActions != null)
+            {
+                @ToolbarActions
+            }
+            @* Desktop-only: full action buttons *@
+            @if (PrimaryActions != null)
+            {
+                <div class="d-none d-md-flex gap-2">
+                    @PrimaryActions
+                </div>
+            }
+            @* Overflow menu for secondary actions *@
+            @if (SecondaryActions != null)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-icon text-secondary-ss" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots-vertical" style="font-size: 1.25rem;"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" data-bs-theme="dark">
+                        @SecondaryActions
+                    </ul>
+                </div>
+            }
+        </div>
     </div>
 </div>
 
 @code {
     [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ToolbarActions { get; set; }
     [Parameter] public RenderFragment? PrimaryActions { get; set; }
     [Parameter] public RenderFragment? SecondaryActions { get; set; }
     [Parameter] public bool ShowBack { get; set; }

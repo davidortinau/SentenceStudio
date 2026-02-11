@@ -7,6 +7,7 @@
 @implements IDisposable
 
 <div class="d-flex flex-column h-100">
+<PageHeader Title="Conversation" ShowBack="true" OnBack="GoBack" />
 @if (isBusy && !chunks.Any())
 {
     <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
@@ -332,4 +333,6 @@ else
     {
         StopAudio();
     }
+
+    private void GoBack() => NavManager.NavigateTo("/");
 }

@@ -1,7 +1,7 @@
 @inherits LayoutComponentBase
 
 <div class="d-flex vh-100 theme-dark" data-bs-theme="dark">
-    @* Sidebar navigation (desktop) *@
+    @* Sidebar navigation (desktop only) *@
     <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav"
          style="width: 260px; border-right: 1px solid var(--ss-outline);">
         <div class="p-3">
@@ -11,17 +11,7 @@
     </nav>
 
     <div class="d-flex flex-column flex-grow-1 overflow-hidden">
-        @* Top navbar (mobile) *@
-        <nav class="navbar d-md-none bg-surface border-bottom px-3 mobile-navbar"
-             style="border-color: var(--ss-outline) !important;">
-            <button class="btn btn-sm btn-icon" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav">
-                <i class="bi bi-list" style="color: var(--ss-text-primary); font-size: 24px;"></i>
-            </button>
-            <span class="navbar-brand mb-0 text-primary-ss fw-semibold">SentenceStudio</span>
-            <div style="width: 44px;"></div>
-        </nav>
-
-        @* Main content *@
+        @* Main content — PageHeader renders as sticky mobile navbar inside here *@
         <main class="flex-grow-1 overflow-auto p-3">
             @Body
         </main>
@@ -30,7 +20,8 @@
     @* Mobile offcanvas navigation *@
     <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav" data-bs-theme="dark"
          style="border-right: 1px solid var(--ss-outline);">
-        <div class="offcanvas-header border-bottom" style="border-color: var(--ss-outline) !important;">
+        <div class="offcanvas-header border-bottom"
+             style="border-color: var(--ss-outline) !important; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);">
             <h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
         </div>

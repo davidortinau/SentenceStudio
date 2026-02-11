@@ -1,9 +1,20 @@
 @page "/resources"
 
 <PageHeader Title="Learning Resources">
+    <ToolbarActions>
+        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="ToggleSearch" title="Search">
+            <i class="bi bi-search" style="font-size: 1.125rem;"></i>
+        </button>
+        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="GoToProgress" title="Progress">
+            <i class="bi bi-graph-up" style="font-size: 1.125rem;"></i>
+        </button>
+        <button class="btn btn-sm btn-icon text-primary-ss" @onclick="AddResource" title="Add Resource">
+            <i class="bi bi-plus-lg" style="font-size: 1.25rem;"></i>
+        </button>
+    </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddResource">
-            <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Add Resource</span>
+            <i class="bi bi-plus-lg me-1"></i> Add Resource
         </button>
     </PrimaryActions>
 </PageHeader>
@@ -104,6 +115,7 @@ else
     private List<LearningResource> resources = new();
     private bool isLoading = true;
     private bool isCreatingStarter;
+    private bool showSearch;
     private string searchText = "";
     private string filterType = "All";
     private string filterLanguage = "All";
@@ -221,4 +233,7 @@ else
         "Article" => "bi-file-text",
         _ => "bi-folder"
     };
+
+    private void ToggleSearch() => showSearch = !showSearch;
+    private void GoToProgress() => NavManager.NavigateTo("vocabulary/progress");
 }
