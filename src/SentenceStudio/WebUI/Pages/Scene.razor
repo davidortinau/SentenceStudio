@@ -98,15 +98,14 @@ else if (!string.IsNullOrEmpty(imageUrl))
 
     @* Sticky input bar — always anchored to bottom of viewport *@
     <div class="activity-input-bar">
-        <div class="d-flex gap-2 align-items-center">
+        <form @onsubmit="SubmitDescription" @onsubmit:preventDefault class="d-flex gap-2 align-items-center">
             <input type="text" class="form-control form-control-ss flex-grow-1"
                    @bind="userInput"
-                   @onkeydown="HandleInputKeyDown"
                    placeholder="Describe what you see..." />
-            <button class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
+            <button type="button" class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
-            <button class="btn btn-ss-primary" @onclick="SubmitDescription"
+            <button type="submit" class="btn btn-ss-primary"
                     disabled="@isGrading" title="Grade">
                 @if (isGrading)
                 {
@@ -117,7 +116,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
                     <i class="bi bi-send"></i>
                 }
             </button>
-        </div>
+        </form>
     </div>
 }
 else
@@ -221,7 +220,6 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Scene> Logger { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool isGrading;
@@ -285,15 +283,6 @@ else
         finally
         {
             isBusy = false;
-        }
-    }
-
-    private async Task HandleInputKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !e.ShiftKey)
-        {
-            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
-            await SubmitDescription();
         }
     }
 

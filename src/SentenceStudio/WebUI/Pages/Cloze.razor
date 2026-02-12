@@ -108,22 +108,21 @@ else
     }
 
     @* Input + actions row *@
-    <div class="d-flex gap-2 mb-2">
+    <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
         @if (inputMode == "Text")
         {
             <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
                    @bind="userInput"
-                   @onkeydown="HandleKeyDown"
                    placeholder="Type the missing word..." />
         }
-        <button class="btn btn-ss-secondary" @onclick="ToggleMode">
+        <button type="button" class="btn btn-ss-secondary" @onclick="ToggleMode">
             @(inputMode == "Text" ? "Choices" : "Type")
         </button>
-        <button class="btn btn-ss-primary" @onclick="GradeAnswer"
+        <button type="submit" class="btn btn-ss-primary"
                 disabled="@hasBeenGraded">
             GO
         </button>
-    </div>
+    </form>
 
     @* Nav row *@
     <div class="d-flex justify-content-between align-items-center">
@@ -153,7 +152,6 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Cloze> Logger { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool showSessionSummary;
@@ -309,13 +307,9 @@ else
         _ = GradeAnswer();
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
+    private async Task SubmitInput()
     {
-        if (e.Key == "Enter")
-        {
-            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
-            await GradeAnswer();
-        }
+        await GradeAnswer();
     }
 
     private void JumpTo(int index)

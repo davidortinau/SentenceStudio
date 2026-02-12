@@ -120,14 +120,13 @@ else if (currentItem != null)
     }
     else
     {
-        <div class="mx-auto" style="max-width: 500px;">
+        <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
             <label class="form-label text-secondary-ss">Type the translation</label>
             <input type="text" class="form-control form-control-ss form-control-lg"
                    @bind="userInput"
-                   @onkeydown="HandleTextKeyDown"
                    disabled="@(showAnswer && !requireCorrectTyping)"
                    placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
-        </div>
+        </form>
     }
 
     @* Next button *@
@@ -158,7 +157,6 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
-    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -346,16 +344,12 @@ else
         await CheckAnswer();
     }
 
-    private async Task HandleTextKeyDown(KeyboardEventArgs e)
+    private async Task SubmitTextInput()
     {
-        if (e.Key == "Enter")
-        {
-            userInput = await JS.InvokeAsync<string>("eval", "document.activeElement?.value || ''");
-            if (requireCorrectTyping)
-                await NextItem();
-            else
-                await CheckAnswer();
-        }
+        if (requireCorrectTyping)
+            await NextItem();
+        else
+            await CheckAnswer();
     }
 
     private async Task CheckAnswer()
