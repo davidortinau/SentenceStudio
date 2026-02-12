@@ -2,7 +2,7 @@
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Translation" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title="Translate" ShowBack="true" OnBack="GoBack" />
 
 <div class="activity-content">
 @if (showSessionSummary)
@@ -43,7 +43,7 @@ else if (isBusy)
 else if (sentences.Any())
 {
     @* Sentence display *@
-    <div class="mb-4">
+    <div class="mb-4 px-3">
         <p class="ss-display" style="line-height: 1.3;">@currentSentence</p>
     </div>
 

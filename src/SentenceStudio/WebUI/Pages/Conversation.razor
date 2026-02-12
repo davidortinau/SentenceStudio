@@ -178,18 +178,17 @@ else
     private IAudioPlayer? audioPlayer;
     private ElementReference chatContainer;
 
-    // TODO: Make these dynamic based on target language
+    // Helper phrases in Korean (target language)
     private static readonly string[] quickPhrases = new[]
     {
-        "How do you say this?",
-        "Can you explain that in more detail?",
-        "I understand.",
-        "Please say that again.",
-        "I only speak a little.",
-        "Thank you for helping.",
-        "Please speak slower.",
-        "What does that mean?",
-        "Can you translate that?"
+        "이게 뭐예요?",         // What is this?
+        "더 자세히 설명해 주세요.", // Can you explain in more detail?
+        "이해해요.",             // I understand.
+        "다시 말해 주세요.",      // Please say that again.
+        "조금만 할 수 있어요.",   // I only speak a little.
+        "도와줘서 감사합니다.",    // Thank you for helping.
+        "천천히 말해 주세요.",    // Please speak slower.
+        "그게 무슨 뜻이에요?",   // What does that mean?
     };
 
     private void ToggleQuickPhrases() => showQuickPhrases = !showQuickPhrases;
@@ -329,6 +328,11 @@ else
 
             using var playStream = File.OpenRead(tempPath);
             audioPlayer = AudioMgr.CreatePlayer(playStream);
+            audioPlayer.PlaybackEnded += (s, e) =>
+            {
+                isPlayingAudio = false;
+                InvokeAsync(StateHasChanged);
+            };
             audioPlayer.Play();
         }
         catch (Exception ex)

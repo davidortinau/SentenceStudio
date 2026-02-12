@@ -1,6 +1,6 @@
 @page "/minimal-pairs"
 
-<PageHeader Title="Minimal Pairs">
+<PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="CreatePair">
             <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Create Pair</span>
@@ -173,4 +173,6 @@ else
     }
 
     private void CreatePair() => NavManager.NavigateTo("/minimal-pairs/create");
+
+    private void GoBack() => NavManager.NavigateTo("/");
 }

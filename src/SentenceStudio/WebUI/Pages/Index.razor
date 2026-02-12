@@ -3,16 +3,20 @@
 @using SentenceStudio.Data
 @implements IAsyncDisposable
 
-<PageHeader Title="Dashboard">
-    <SecondaryActions>
-        @if (isTodaysPlanMode)
-        {
+@if (isTodaysPlanMode)
+{
+    <PageHeader Title="Dashboard">
+        <SecondaryActions>
             <button class="dropdown-item" @onclick="RegeneratePlanAsync">
                 <i class="bi bi-arrow-clockwise me-2"></i>Regenerate Plan
             </button>
-        }
-    </SecondaryActions>
-</PageHeader>
+        </SecondaryActions>
+    </PageHeader>
+}
+else
+{
+    <PageHeader Title="Dashboard" />
+}
 
 @if (AppState?.CurrentUserProfile?.Name is { Length: > 0 })
 {
@@ -376,8 +380,14 @@ else
         var route = MapActivityRoute(item.ActivityType);
         // Pass resource/skill via query params when available
         var query = new List<string>();
+        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
         if (item.ResourceId.HasValue)
-            query.Add($"resourceId={item.ResourceId}");
+        {
+            if (multiResourceRoutes.Contains(route))
+                query.Add($"resourceIds={item.ResourceId}");
+            else
+                query.Add($"resourceId={item.ResourceId}");
+        }
         if (item.SkillId.HasValue)
             query.Add($"skillId={item.SkillId}");
         query.Add($"planItemId={item.Id}");
@@ -530,7 +540,7 @@ else
         PlanActivityType.Listening => "Listening",
         PlanActivityType.Shadowing => "Shadowing",
         PlanActivityType.Cloze => "Cloze Exercise",
-        PlanActivityType.Translation => "Translation",
+        PlanActivityType.Translation => "Translate",
         PlanActivityType.Writing => "Writing",
         PlanActivityType.SceneDescription => "Describe a Scene",
         PlanActivityType.Conversation => "Conversation",

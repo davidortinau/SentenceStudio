@@ -1,7 +1,7 @@
 @page "/vocab-matching"
 @using SentenceStudio.Pages.VocabularyMatching
 
-<PageHeader Title="Vocabulary Matching">
+<PageHeader Title="Vocabulary Matching" ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-sm btn-ss-secondary" @onclick="RestartGame"><i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-sm-inline">New Game</span></button>
     </PrimaryActions>
@@ -57,7 +57,7 @@ else if (tiles.Any())
             var t = tile;
             if (!t.IsVisible && !t.IsMatched)
             {
-                <div class="col-3" style="min-height: 60px;"></div>
+                <div class="col-3" style="min-height: 80px;"></div>
                 continue;
             }
 
@@ -68,7 +68,7 @@ else if (tiles.Any())
 
             <div class="col-6 col-md-3">
                 <div class="card card-ss clickable text-center py-3 px-2 @bgClass"
-                     style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; min-height: 60px; display: flex; align-items: center; justify-content: center;"
+                     style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; min-height: 80px; height: 100%; display: flex; align-items: center; justify-content: center;"
                      @onclick="() => OnTileTapped(t)">
                     <span class="ss-title3 @textClass">@t.Text</span>
                 </div>

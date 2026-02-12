@@ -3,7 +3,7 @@
 @using SentenceStudio.Services.Speech
 @implements IDisposable
 
-<PageHeader Title="How Do You Say...?" />
+<PageHeader Title="How Do You Say...?" ShowBack="true" OnBack="GoBack" />
 
 @* Input area *@
 <div class="card card-ss p-3 mb-4">
@@ -292,4 +292,6 @@ else if (history.Any())
     {
         StopAudio();
     }
+
+    private void GoBack() => NavManager.NavigateTo("/");
 }

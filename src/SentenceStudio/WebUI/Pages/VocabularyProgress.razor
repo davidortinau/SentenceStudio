@@ -1,7 +1,7 @@
 @page "/vocabulary/progress"
 @page "/vocabulary/progress/{WordId:int}"
 
-<PageHeader Title="Vocabulary Progress" />
+<PageHeader Title="Vocabulary Progress" ShowBack="true" OnBack="GoBack" />
 
 @* Filter tabs *@
 <div class="d-flex flex-wrap gap-2 mb-3">
@@ -69,6 +69,7 @@ else
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabularyProgress> Logger { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
 
     private List<ProgressItem> allItems = new();
     private List<ProgressItem> filteredItems = new();
@@ -195,4 +196,6 @@ else
         public bool IsLearning => Progress?.IsLearning ?? false;
         public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
     }
+
+    private void GoBack() => NavManager.NavigateTo("/vocabulary");
 }

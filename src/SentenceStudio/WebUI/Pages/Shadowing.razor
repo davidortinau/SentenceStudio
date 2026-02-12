@@ -6,8 +6,11 @@
 @using Plugin.Maui.Audio
 @implements IDisposable
 
+<div class="activity-page-wrapper">
+
 <PageHeader Title="Shadowing" ShowBack="true" OnBack="GoBack" />
 
+<div class="activity-content">
 @if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
@@ -22,14 +25,6 @@ else if (sentences.Any())
     {
         <ActivityTimer IsActive="true" TargetMinutes="targetMinutes" />
     }
-
-    @* Progress *@
-    <div class="d-flex align-items-center gap-2 mb-3">
-        <span class="ss-caption1 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
-        <div class="progress flex-grow-1" style="height: 4px;">
-            <div class="progress-bar" style="width: @((int)((double)(currentIndex + 1) / sentences.Count * 100))%"></div>
-        </div>
-    </div>
 
     @* Current sentence card *@
     <div class="card card-ss p-4 mb-3 text-center">
@@ -58,39 +53,6 @@ else if (sentences.Any())
             CurrentPosition="@playbackPosition"
             OnPositionChanged="HandleSeek" />
     }
-
-    @* Audio controls *@
-    <div class="d-flex justify-content-center gap-3 my-3">
-        <button class="btn btn-ss-secondary" @onclick="() => SetPlaybackSpeed(0.6f)"
-                disabled="@isBuffering">
-            <span class="@(playbackSpeed == 0.6f ? "fw-bold" : "")">🐢 Slow</span>
-        </button>
-        <button class="btn btn-ss-primary btn-lg px-5" @onclick="TogglePlayback"
-                disabled="@isBuffering">
-            @if (isBuffering)
-            {
-                <span class="spinner-border spinner-border-sm"></span>
-            }
-            else
-            {
-                <span>@if (isAudioPlaying) { <i class="bi bi-pause-fill me-1"></i> } else { <i class="bi bi-play-fill me-1"></i> } @(isAudioPlaying ? "Pause" : "Play")</span>
-            }
-        </button>
-        <button class="btn btn-ss-secondary" @onclick="() => SetPlaybackSpeed(1.0f)"
-                disabled="@isBuffering">
-            <span class="@(playbackSpeed == 1.0f ? "fw-bold" : "")">Normal</span>
-        </button>
-    </div>
-
-    @* Navigation *@
-    <div class="d-flex justify-content-between mt-4">
-        <button class="btn btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
-            <i class="bi bi-chevron-left me-1"></i> Previous
-        </button>
-        <button class="btn btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
-            Next <i class="bi bi-chevron-right ms-1"></i>
-        </button>
-    </div>
 }
 else
 {
@@ -98,6 +60,44 @@ else
         <p class="ss-body1 text-secondary-ss">No sentences available for shadowing.</p>
         <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
     </div>
+}
+</div> @* end activity-content *@
+
+@if (sentences.Any() && !isBusy)
+{
+    <div class="activity-footer">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
+                <i class="bi bi-chevron-left me-1"></i> Prev
+            </button>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm @(playbackSpeed == 0.6f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(0.6f)"
+                        disabled="@isBuffering">Slow</button>
+                <button class="btn btn-ss-primary px-4" @onclick="TogglePlayback"
+                        disabled="@isBuffering">
+                    @if (isBuffering)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="bi @(isAudioPlaying ? "bi-pause-fill" : "bi-play-fill")"></i>
+                    }
+                </button>
+                <button class="btn btn-sm @(playbackSpeed == 1.0f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(1.0f)"
+                        disabled="@isBuffering">Normal</button>
+            </div>
+            <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
+                Next <i class="bi bi-chevron-right ms-1"></i>
+            </button>
+        </div>
+        <div class="text-center">
+            <span class="ss-caption1 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
+        </div>
+    </div>
+}
+
+</div> @* end activity-page-wrapper *@
 }
 
 @code {
@@ -208,6 +208,11 @@ else
             StopAudio();
             using var playStream = File.OpenRead(tempPath);
             audioPlayer = AudioMgr.CreatePlayer(playStream);
+            audioPlayer.PlaybackEnded += (s, e) =>
+            {
+                isAudioPlaying = false;
+                InvokeAsync(StateHasChanged);
+            };
             audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
 
             // Generate simple placeholder waveform
@@ -239,6 +244,9 @@ else
         {
             await GenerateAudioForCurrent();
             if (audioPlayer is null) return;
+            audioPlayer.Play();
+            isAudioPlaying = true;
+            return;
         }
 
         if (isAudioPlaying)
@@ -248,6 +256,11 @@ else
         }
         else
         {
+            // If playback completed, seek to start before replaying
+            if (audioPlayer.CurrentPosition >= audioPlayer.Duration - 0.1)
+            {
+                audioPlayer.Seek(0);
+            }
             audioPlayer.Play();
             isAudioPlaying = true;
         }
@@ -258,6 +271,11 @@ else
         playbackSpeed = speed;
         StopAudio();
         await GenerateAudioForCurrent();
+        if (audioPlayer is not null)
+        {
+            audioPlayer.Play();
+            isAudioPlaying = true;
+        }
     }
 
     private Task HandleSeek(double position)

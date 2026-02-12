@@ -1,7 +1,10 @@
 @page "/vocab-quiz"
 
+<div class="activity-page-wrapper">
+
 <PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack" />
 
+<div class="activity-content">
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
@@ -52,18 +55,8 @@ else if (isBusy)
 }
 else if (currentItem != null)
 {
-    @* Score + Progress bar *@
-    <div class="d-flex align-items-center gap-2 mb-3">
-        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount</span>
-        <div class="progress flex-grow-1" style="height: 6px;">
-            <div class="progress-bar bg-success" style="width: @((int)((double)currentTurnInRound / TurnsPerRound * 100))%"></div>
-        </div>
-        <span class="badge bg-secondary rounded-pill px-3">@(currentTurnInRound + 1) / @TurnsPerRound</span>
-    </div>
-
     @* Term display — show the target language word *@
     <div class="text-center my-4">
-        <p class="ss-body1 text-secondary-ss mb-2">What does this mean?</p>
         <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
 
         @if (showAnswer)
@@ -144,6 +137,17 @@ else
         <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
     </div>
 }
+</div> @* end activity-content *@
+
+@if (currentItem != null && !showSessionSummary)
+{
+    <div class="activity-footer d-flex justify-content-between align-items-center">
+        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @TurnsPerRound</span>
+        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+    </div>
+}
+
+</div> @* end activity-page-wrapper *@
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceIds")]
