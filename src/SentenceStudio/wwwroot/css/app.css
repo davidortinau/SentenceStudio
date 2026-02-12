@@ -551,11 +551,20 @@ h3:focus,
 /* ============================================
    BUTTON STYLES (matching theme)
    ============================================ */
+
+/* Global font-scale for all buttons and form controls */
+.btn {
+    font-size: calc(14px * var(--ss-font-scale, 1));
+}
+.form-control, .form-select {
+    font-size: calc(14px * var(--ss-font-scale, 1));
+}
+
 .btn-ss-primary {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
     color: var(--ss-on-primary, #fff);
-    font-size: 14px;
+    font-size: calc(14px * var(--ss-font-scale, 1));
     border-radius: var(--bs-border-radius);
     padding: 10px 14px;
     min-height: 44px;
@@ -571,7 +580,7 @@ h3:focus,
     background-color: var(--bs-tertiary-bg);
     border-color: var(--bs-border-color);
     color: var(--bs-body-color);
-    font-size: 14px;
+    font-size: calc(14px * var(--ss-font-scale, 1));
     border-radius: var(--bs-border-radius);
     padding: 10px 14px;
     min-height: 44px;
@@ -587,7 +596,7 @@ h3:focus,
     background-color: var(--ss-accent);
     border-color: var(--ss-accent);
     color: var(--ss-on-accent);
-    font-size: 14px;
+    font-size: calc(14px * var(--ss-font-scale, 1));
     border-radius: var(--bs-border-radius);
     padding: 10px 14px;
     min-height: 44px;
@@ -598,7 +607,7 @@ h3:focus,
     background-color: var(--bs-danger);
     border-color: var(--bs-danger);
     color: white;
-    font-size: 14px;
+    font-size: calc(14px * var(--ss-font-scale, 1));
     border-radius: var(--bs-border-radius);
     padding: 10px 14px;
     min-height: 44px;
@@ -645,7 +654,7 @@ h3:focus,
     color: var(--bs-body-color);
     border-radius: var(--bs-border-radius);
     min-height: 44px;
-    font-size: 14px;
+    font-size: calc(14px * var(--ss-font-scale, 1));
 }
 
 .form-control-ss:focus {
@@ -667,7 +676,7 @@ h3:focus,
     color: var(--bs-body-color);
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius-sm);
-    font-size: 13px;
+    font-size: calc(13px * var(--ss-font-scale, 1));
     padding: 4px 8px;
 }
 
@@ -799,7 +808,7 @@ h3:focus,
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius);
     padding: 4px 10px;
-    font-size: 13px;
+    font-size: calc(13px * var(--ss-font-scale, 1));
     white-space: nowrap;
     z-index: 1050;
     pointer-events: none;
@@ -808,7 +817,7 @@ h3:focus,
 
 .nav-link-ss {
     color: var(--bs-secondary-color) !important;
-    font-size: 15px;
+    font-size: calc(15px * var(--ss-font-scale, 1));
     transition: background-color 0.15s, color 0.15s;
 }
 
@@ -928,7 +937,7 @@ h3:focus,
     /* Touch-friendly form controls */
     .form-control, .form-select {
         min-height: 44px;
-        font-size: 16px; /* prevents iOS zoom on focus */
+        font-size: calc(16px * var(--ss-font-scale, 1)); /* prevents iOS zoom on focus */
     }
 
     /* Touch-friendly buttons */
@@ -1052,7 +1061,7 @@ h3:focus,
 
 .theme-swatch-label {
     text-align: center;
-    font-size: 13px;
+    font-size: calc(13px * var(--ss-font-scale, 1));
     color: var(--bs-body-color);
     font-weight: 500;
 }
@@ -1304,7 +1313,7 @@ h3:focus,
 
 .activity-input-bar textarea {
     resize: none;
-    font-size: 1rem;
+    font-size: calc(16px * var(--ss-font-scale, 1));
     min-height: 2.5rem;
 }
 
