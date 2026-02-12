@@ -9,8 +9,18 @@
     /* Korean typography */
     --ss-font-family-korean: 'Yeonsung', sans-serif;
     
+    /* On-primary text color — contrasting color for primary backgrounds.
+       Default white works for most themes with dark primary colors.
+       Themes with light primary colors override below. */
+    --ss-on-primary: #fff;
+    
     /* Proficiency colors */
     --ss-proficiency-low: #FF8C00;
+}
+
+/* Brite theme has a light primary (#a2e436) — needs dark text */
+[data-ss-theme="brite"] {
+    --ss-on-primary: #000;
 }
 
 /* ============================================
@@ -541,7 +551,7 @@ h3:focus,
 .btn-ss-primary {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
     font-size: 14px;
     border-radius: var(--bs-border-radius);
     padding: 10px 14px;
@@ -551,7 +561,7 @@ h3:focus,
 
 .btn-ss-primary:hover {
     filter: brightness(1.1);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
 }
 
 .btn-ss-secondary {
@@ -604,13 +614,13 @@ h3:focus,
 .btn-outline-secondary:hover {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
 }
 
 .btn-check:checked + .btn-outline-secondary {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
 }
 
 [data-bs-theme="dark"] .btn-outline-danger {
@@ -969,7 +979,7 @@ h3:focus,
 
 .ts-wrapper .ts-dropdown .active {
     background-color: var(--bs-primary);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
 }
 
 .ts-wrapper .ts-dropdown .option {
@@ -988,7 +998,7 @@ h3:focus,
 
 .ts-wrapper .ts-control .item {
     background-color: var(--bs-primary) !important;
-    color: var(--ss-on-primary) !important;
+    color: var(--ss-on-primary, #fff) !important;
     border: none !important;
     border-radius: var(--bs-border-radius-sm);
 }
@@ -1364,7 +1374,7 @@ h3:focus,
     top: 0.375rem;
     left: 0.375rem;
     background: var(--bs-primary);
-    color: var(--ss-on-primary);
+    color: var(--ss-on-primary, #fff);
     font-size: 0.675rem;
     font-weight: 600;
     padding: 0.125rem 0.5rem;
