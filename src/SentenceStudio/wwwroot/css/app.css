@@ -1349,6 +1349,19 @@ h3:focus,
     margin-bottom: -1rem;
 }
 
+/* ─── Vocabulary Matching tile grid ─── */
+.matching-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    align-content: stretch;
+}
+@media (max-width: 768px) {
+    .matching-tile-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 /* ─── Scene page: Gallery Overlay ─── */
 .scene-gallery-backdrop {
     position: fixed;

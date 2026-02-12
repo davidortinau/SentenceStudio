@@ -12,9 +12,11 @@
     </SecondaryActions>
 </PageHeader>
 
+<div class="activity-page-wrapper">
+<div class="activity-content d-flex flex-column">
 @if (isGameComplete)
 {
-    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 50vh;">
+    <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
         <h2 class="ss-title1 mb-3"><i class="bi bi-trophy-fill me-2"></i>Congratulations!</h2>
         <p class="ss-body1 text-secondary-ss mb-2">All pairs matched!</p>
         <div class="card card-ss p-3 mb-4" style="min-width: 240px;">
@@ -34,7 +36,7 @@
 }
 else if (isBusy)
 {
-    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+    <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
         <div class="spinner-border text-primary mb-3" role="status"></div>
         <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
     </div>
@@ -50,14 +52,14 @@ else if (tiles.Any())
         }
     </p>
 
-    @* Tile grid *@
-    <div class="row g-2">
+    @* Tile grid — fills remaining height *@
+    <div class="matching-tile-grid flex-grow-1">
         @foreach (var tile in tiles)
         {
             var t = tile;
             if (!t.IsVisible && !t.IsMatched)
             {
-                <div class="col-3" style="min-height: 80px;"></div>
+                <div></div>
                 continue;
             }
 
@@ -66,23 +68,23 @@ else if (tiles.Any())
             var opacity = t.IsMatched ? "0.3" : "1.0";
             var cursor = t.IsMatched ? "default" : "pointer";
 
-            <div class="col-6 col-md-3">
-                <div class="card card-ss clickable text-center py-3 px-2 @bgClass"
-                     style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; min-height: 80px; height: 100%; display: flex; align-items: center; justify-content: center;"
-                     @onclick="() => OnTileTapped(t)">
-                    <span class="ss-title3 @textClass">@t.Text</span>
-                </div>
+            <div class="card card-ss clickable text-center @bgClass"
+                 style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; display: flex; align-items: center; justify-content: center;"
+                 @onclick="() => OnTileTapped(t)">
+                <span class="ss-title3 @textClass">@t.Text</span>
             </div>
         }
     </div>
 }
 else
 {
-    <div class="text-center p-5">
+    <div class="text-center p-5 flex-grow-1 d-flex flex-column align-items-center justify-content-center">
         <p class="ss-body1 text-secondary-ss">No vocabulary available for matching.</p>
         <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
     </div>
 }
+</div>
+</div>
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceIds")]
