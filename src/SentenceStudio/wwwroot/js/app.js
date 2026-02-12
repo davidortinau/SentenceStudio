@@ -160,3 +160,7 @@ export function applyTheme(theme, mode) {
     }
 }
 
+export function setFontScale(scale) {
+    document.documentElement.style.setProperty('--ss-font-scale', scale);
+}
+

@@ -9,6 +9,9 @@
     /* Korean typography */
     --ss-font-family-korean: 'Yeonsung', sans-serif;
     
+    /* Global font scale — controlled from Settings, applied via JS */
+    --ss-font-scale: 1;
+    
     /* On-primary text color — contrasting color for primary backgrounds.
        Default white works for most themes with dark primary colors.
        Themes with light primary colors override below. */
@@ -419,92 +422,92 @@ h3:focus,
    TYPOGRAPHY (matching ApplicationTheme.Styles.cs)
    ============================================ */
 .ss-display {
-    font-size: 60px;
+    font-size: calc(60px * var(--ss-font-scale, 1));
     line-height: 1.17;
     font-weight: 700;
     color: var(--bs-body-color);
 }
 
 .ss-large-title {
-    font-size: 34px;
+    font-size: calc(34px * var(--ss-font-scale, 1));
     line-height: 1.21;
     font-weight: 700;
     color: var(--bs-body-color);
 }
 
 .ss-title1 {
-    font-size: 28px;
+    font-size: calc(28px * var(--ss-font-scale, 1));
     line-height: 1.21;
     color: var(--bs-body-color);
 }
 
 .ss-title2 {
-    font-size: 22px;
+    font-size: calc(22px * var(--ss-font-scale, 1));
     line-height: 1.27;
     font-weight: 600;
     color: var(--bs-body-color);
 }
 
 .ss-title3 {
-    font-size: 20px;
+    font-size: calc(20px * var(--ss-font-scale, 1));
     line-height: 1.25;
     font-weight: 600;
     color: var(--bs-body-color);
 }
 
 .ss-headline {
-    font-size: 32px;
+    font-size: calc(32px * var(--ss-font-scale, 1));
     text-align: center;
     color: var(--bs-body-color);
 }
 
 .ss-subheadline {
-    font-size: 24px;
+    font-size: calc(24px * var(--ss-font-scale, 1));
     text-align: center;
     color: var(--bs-body-color);
 }
 
 .ss-body1 {
-    font-size: 17px;
+    font-size: calc(17px * var(--ss-font-scale, 1));
     line-height: 1.29;
     color: var(--bs-body-color);
 }
 
 .ss-body1-strong {
-    font-size: 17px;
+    font-size: calc(17px * var(--ss-font-scale, 1));
     line-height: 1.29;
     font-weight: 600;
     color: var(--bs-body-color);
 }
 
 .ss-body2 {
-    font-size: 15px;
+    font-size: calc(15px * var(--ss-font-scale, 1));
     line-height: 1.33;
     color: var(--bs-body-color);
 }
 
 .ss-body2-strong {
-    font-size: 15px;
+    font-size: calc(15px * var(--ss-font-scale, 1));
     line-height: 1.33;
     font-weight: 600;
     color: var(--bs-body-color);
 }
 
 .ss-caption1 {
-    font-size: 13px;
+    font-size: calc(13px * var(--ss-font-scale, 1));
     line-height: 1.38;
     color: var(--bs-secondary-color);
 }
 
 .ss-caption1-strong {
-    font-size: 13px;
+    font-size: calc(13px * var(--ss-font-scale, 1));
     line-height: 1.38;
     font-weight: 600;
     color: var(--bs-secondary-color);
 }
 
 .ss-caption2 {
-    font-size: 12px;
+    font-size: calc(12px * var(--ss-font-scale, 1));
     line-height: 1.33;
     color: var(--bs-tertiary-color);
 }
@@ -706,11 +709,11 @@ h3:focus,
         --ss-grid-spacing: 8px;
     }
 
-    .ss-display { font-size: 42px; }
-    .ss-large-title { font-size: 28px; }
-    .ss-title1 { font-size: 24px; }
-    .ss-headline { font-size: 26px; }
-    .ss-subheadline { font-size: 20px; }
+    .ss-display { font-size: calc(42px * var(--ss-font-scale, 1)); }
+    .ss-large-title { font-size: calc(28px * var(--ss-font-scale, 1)); }
+    .ss-title1 { font-size: calc(24px * var(--ss-font-scale, 1)); }
+    .ss-headline { font-size: calc(26px * var(--ss-font-scale, 1)); }
+    .ss-subheadline { font-size: calc(20px * var(--ss-font-scale, 1)); }
 }
 
 /* Safe area for mobile status bars */

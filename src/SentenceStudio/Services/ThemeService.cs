@@ -11,11 +11,14 @@ public class ThemeService
 {
     private const string PREF_THEME = "AppTheme";
     private const string PREF_MODE = "AppThemeMode";
+    private const string PREF_FONT_SCALE = "AppFontScale";
     private const string DEFAULT_THEME = "seoul-pop";
     private const string DEFAULT_MODE = "dark";
+    private const double DEFAULT_FONT_SCALE = 1.0;
 
     private string _currentTheme = DEFAULT_THEME;
     private string _currentMode = DEFAULT_MODE;
+    private double _fontScale = DEFAULT_FONT_SCALE;
 
     public event EventHandler<ThemeChangedEventArgs>? ThemeChanged;
 
@@ -23,10 +26,12 @@ public class ThemeService
     {
         _currentTheme = Preferences.Default.Get(PREF_THEME, DEFAULT_THEME);
         _currentMode = Preferences.Default.Get(PREF_MODE, DEFAULT_MODE);
+        _fontScale = Preferences.Default.Get(PREF_FONT_SCALE, DEFAULT_FONT_SCALE);
     }
 
     public string CurrentTheme => _currentTheme;
     public string CurrentMode => _currentMode;
+    public double FontScale => _fontScale;
 
     public bool IsDarkMode => _currentMode == "dark";
 
@@ -45,6 +50,15 @@ public class ThemeService
 
         _currentMode = mode;
         Preferences.Default.Set(PREF_MODE, mode);
+        OnThemeChanged();
+    }
+
+    public void SetFontScale(double scale)
+    {
+        if (Math.Abs(_fontScale - scale) < 0.001) return;
+
+        _fontScale = scale;
+        Preferences.Default.Set(PREF_FONT_SCALE, scale);
         OnThemeChanged();
     }
 
@@ -74,7 +88,7 @@ public class ThemeService
 
     private void OnThemeChanged()
     {
-        ThemeChanged?.Invoke(this, new ThemeChangedEventArgs(_currentTheme, _currentMode));
+        ThemeChanged?.Invoke(this, new ThemeChangedEventArgs(_currentTheme, _currentMode, _fontScale));
     }
 
     /// <summary>
@@ -146,10 +160,12 @@ public class ThemeChangedEventArgs : EventArgs
 {
     public string Theme { get; }
     public string Mode { get; }
+    public double FontScale { get; }
 
-    public ThemeChangedEventArgs(string theme, string mode)
+    public ThemeChangedEventArgs(string theme, string mode, double fontScale)
     {
         Theme = theme;
         Mode = mode;
+        FontScale = fontScale;
     }
 }

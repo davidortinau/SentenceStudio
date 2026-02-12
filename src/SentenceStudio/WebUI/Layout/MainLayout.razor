@@ -55,6 +55,7 @@
         {
             jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
             await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
+            await jsModule.InvokeVoidAsync("setFontScale", ThemeService.FontScale);
             ThemeService.ThemeChanged += OnThemeChanged;
         }
     }
@@ -70,6 +71,7 @@
         if (jsModule != null)
         {
             await jsModule.InvokeVoidAsync("applyTheme", e.Theme, e.Mode);
+            await jsModule.InvokeVoidAsync("setFontScale", e.FontScale);
         }
     }
 

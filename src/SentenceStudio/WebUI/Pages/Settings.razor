@@ -48,6 +48,18 @@
             </label>
         </div>
     </div>
+
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">
+            Text Size: @((int)(fontScale * 100))%
+        </label>
+        <input type="range" class="form-range" min="0.85" max="1.5" step="0.05"
+               @bind="fontScale" @bind:event="oninput" @bind:after="OnFontScaleChanged" />
+        <div class="d-flex justify-content-between">
+            <small class="text-secondary-ss">85%</small>
+            <small class="text-secondary-ss">150%</small>
+        </div>
+    </div>
 </div>
 
 @* Voice & Quiz Settings *@
@@ -177,6 +189,7 @@
     private bool quizAutoplay;
     private bool quizShowMnemonic;
     private double quizAutoAdvanceDuration = 3.0;
+    private double fontScale = 1.0;
     private bool isExporting;
     private bool isMigrating;
     private bool streakMigrationComplete;
@@ -187,6 +200,7 @@
     protected override async Task OnInitializedAsync()
     {
         jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
+        fontScale = ThemeService.FontScale;
         LoadPreferences();
         await LoadVoicesAsync();
     }
@@ -203,6 +217,13 @@
         ThemeService.SetMode(mode);
         await ApplyThemeToDOM();
         StateHasChanged();
+    }
+
+    private async Task OnFontScaleChanged()
+    {
+        ThemeService.SetFontScale(fontScale);
+        if (jsModule != null)
+            await jsModule.InvokeVoidAsync("setFontScale", fontScale);
     }
 
     private async Task ApplyThemeToDOM()
