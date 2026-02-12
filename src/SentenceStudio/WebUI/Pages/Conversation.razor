@@ -7,7 +7,30 @@
 @implements IDisposable
 
 <div class="d-flex flex-column h-100">
-<PageHeader Title="Conversation" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title="Conversation" ShowBack="true" OnBack="GoBack">
+    <ToolbarActions>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                    title="Change language">
+                <i class="bi bi-translate"></i>
+                <span class="d-none d-md-inline ss-caption1">@targetLanguage</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                @foreach (var lang in SentenceStudio.Common.Constants.Languages)
+                {
+                    var l = lang;
+                    <li>
+                        <button class="dropdown-item @(l == targetLanguage ? "active" : "")"
+                                @onclick="() => ChangeLanguage(l)">
+                            @l
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+    </ToolbarActions>
+</PageHeader>
 @if (isBusy && !chunks.Any())
 {
     <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
@@ -224,6 +247,14 @@ else
             Logger.LogError(ex, "Failed to initialize conversation");
             Toast.ShowError("Could not start conversation.");
         }
+    }
+
+    private async Task ChangeLanguage(string language)
+    {
+        if (language == targetLanguage) return;
+        targetLanguage = language;
+        voiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
+        await StartConversation();
     }
 
     private async Task StartConversation()
