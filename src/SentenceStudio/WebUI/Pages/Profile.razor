@@ -132,7 +132,7 @@ else
     [Inject] private DataExportService ExportService { get; set; }
     [Inject] private CommunityToolkit.Maui.Storage.IFileSaver FileSaver { get; set; }
     [Inject] private ToastService Toast { get; set; }
-    [Inject] private ModalService Modal { get; set; }
+    [Inject] private IJSRuntime JS { get; set; }
     [Inject] private IAppState AppState { get; set; }
 
     private bool isLoading = true;
@@ -146,6 +146,7 @@ else
     private string targetCEFRLevel = "A2";
     private bool isExporting;
     private string exportProgressMessage = "";
+    private IJSObjectReference? jsModule;
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
     private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
@@ -154,6 +155,12 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadProfile();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
     }
 
     private async Task LoadProfile()
@@ -227,11 +234,11 @@ else
 
     private async Task ResetProfile()
     {
-        var result = await Modal.ConfirmAsync("Reset Profile",
-            "This will delete your profile and all preferences. This cannot be undone.",
-            "Reset", "Cancel");
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            "This will delete your profile and all preferences. This cannot be undone.");
 
-        if (result == ModalResult.Confirmed)
+        if (confirmed)
         {
             try
             {

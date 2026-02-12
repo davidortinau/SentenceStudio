@@ -7,6 +7,9 @@
             Save
         </button>
     </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+    </SecondaryActions>
 </PageHeader>
 
 @if (isSaving)

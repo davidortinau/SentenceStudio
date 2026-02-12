@@ -1,16 +1,14 @@
 @page "/vocabulary"
 
 <PageHeader Title="Vocabulary">
-    <ToolbarActions>
-        <button class="btn btn-sm btn-icon text-primary-ss" @onclick="AddWord" title="Add Word">
-            <i class="bi bi-plus-lg" style="font-size: 1.25rem;"></i>
-        </button>
-    </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddWord">
             <i class="bi bi-plus-lg me-1"></i> Add Word
         </button>
     </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>Add Word</button></li>
+    </SecondaryActions>
 </PageHeader>
 
 @if (isLoading)

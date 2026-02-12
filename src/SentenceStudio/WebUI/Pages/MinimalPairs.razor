@@ -3,9 +3,12 @@
 <PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="CreatePair">
-            <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">Create Pair</span>
+            <i class="bi bi-plus-lg me-1"></i>Create Pair
         </button>
     </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="CreatePair"><i class="bi bi-plus-lg me-2"></i>Create Pair</button></li>
+    </SecondaryActions>
 </PageHeader>
 
 @* Mode selector *@
@@ -82,17 +85,24 @@ else
     [Inject] private MinimalPairRepository PairRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
-    [Inject] private ModalService Modal { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<MinimalPairs> Logger { get; set; } = default!;
 
     private List<MinimalPair> pairs = new();
     private bool isLoading = true;
     private string selectedMode = "Focus";
     private int? selectedPairId;
+    private IJSObjectReference? jsModule;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPairs();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
     }
 
     private async Task LoadPairs()
@@ -150,11 +160,11 @@ else
 
     private async Task DeletePair(MinimalPair pair)
     {
-        var result = await Modal.ConfirmAsync("Delete Pair",
-            $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?",
-            "Delete", "Cancel");
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?");
 
-        if (result != ModalResult.Confirmed) return;
+        if (!confirmed) return;
 
         try
         {

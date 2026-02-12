@@ -18,6 +18,8 @@ else
                 </button>
             </PrimaryActions>
             <SecondaryActions>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+                <li><hr class="dropdown-divider" /></li>
                 <li><button class="dropdown-item text-danger" @onclick="DeleteWord" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
             </SecondaryActions>
         </PageHeader>
@@ -31,6 +33,9 @@ else
                     Add
                 </button>
             </PrimaryActions>
+            <SecondaryActions>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Add</button></li>
+            </SecondaryActions>
         </PageHeader>
     }
 
@@ -159,13 +164,14 @@ else
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
-    [Inject] private ModalService Modal { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<VocabularyWordEdit> Logger { get; set; } = default!;
 
     private VocabularyWord word = new();
     private bool isLoading = true;
     private bool isSaving;
     private string errorMessage = "";
+    private IJSObjectReference? jsModule;
 
     // Form fields
     private string targetLanguageTerm = "";
@@ -194,6 +200,12 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
     }
 
     private async Task LoadData()
@@ -368,11 +380,11 @@ else
 
     private async Task DeleteWord()
     {
-        var result = await Modal.ConfirmAsync("Delete Word",
-            $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.",
-            "Delete", "Cancel");
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.");
 
-        if (result != ModalResult.Confirmed) return;
+        if (!confirmed) return;
 
         isSaving = true;
         try

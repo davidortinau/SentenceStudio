@@ -5,9 +5,13 @@
         <button class="btn btn-ss-primary" @onclick="CreatePair"
                 disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)">
             @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-            <span class="d-none d-sm-inline">Create</span><span class="d-sm-none">Create</span>
+            Create
         </button>
     </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="CreatePair"
+                    disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)"><i class="bi bi-check-lg me-2"></i>Create</button></li>
+    </SecondaryActions>
 </PageHeader>
 
 @if (isLoading)
