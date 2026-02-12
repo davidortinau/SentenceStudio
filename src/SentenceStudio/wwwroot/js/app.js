@@ -169,3 +169,36 @@ export function resetScroll() {
     if (main) main.scrollTop = 0;
 }
 
+/**
+ * Show a confirm dialog using a Bootstrap modal instead of native confirm()
+ * to avoid the ugly app://0.0.0.1 origin in WebView.
+ */
+export function showConfirm(message) {
+    return new Promise(resolve => {
+        const id = 'ss-confirm-' + Date.now();
+        const html = `
+            <div class="modal fade" id="${id}" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-body p-4">
+                            <p class="ss-body1 mb-0">${message}</p>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-ss-secondary" data-action="cancel">Cancel</button>
+                            <button type="button" class="btn btn-ss-danger" data-action="confirm">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const el = document.getElementById(id);
+        const modal = new bootstrap.Modal(el);
+
+        el.querySelector('[data-action="confirm"]').addEventListener('click', () => { modal.hide(); resolve(true); });
+        el.querySelector('[data-action="cancel"]').addEventListener('click', () => { modal.hide(); resolve(false); });
+        el.addEventListener('hidden.bs.modal', () => { el.remove(); });
+
+        modal.show();
+    });
+}
+

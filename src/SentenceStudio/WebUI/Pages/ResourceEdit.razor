@@ -1,4 +1,5 @@
 @page "/resources/edit/{Id:int}"
+@using SentenceStudio.Services
 
 @if (isLoading)
 {
@@ -9,12 +10,6 @@
 else
 {
     <PageHeader Title="@(resource.Title ?? "Resource")" ShowBack="true" OnBack="GoBack">
-        <ToolbarActions>
-            <button class="btn btn-sm btn-icon text-primary-ss" @onclick="SaveResource" disabled="@isSaving" title="Save">
-                @if (isSaving) { <span class="spinner-border spinner-border-sm"></span> }
-                else { <i class="bi bi-check-lg" style="font-size: 1.25rem;"></i> }
-            </button>
-        </ToolbarActions>
         <PrimaryActions>
             <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
                 @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -22,6 +17,8 @@ else
             </button>
         </PrimaryActions>
         <SecondaryActions>
+            <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+            <li><hr class="dropdown-divider" /></li>
             <li><button class="dropdown-item text-danger" @onclick="DeleteResource"><i class="bi bi-trash me-2"></i>Delete</button></li>
         </SecondaryActions>
     </PageHeader>
@@ -100,7 +97,25 @@ else
 
     @* Vocabulary *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Vocabulary (@(resource.Vocabulary?.Count ?? 0) words)</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="ss-title3 mb-0">Vocabulary (@(resource.Vocabulary?.Count ?? 0) words)</h5>
+            @if (!string.IsNullOrWhiteSpace(resource.Transcript))
+            {
+                <button class="btn btn-ss-secondary btn-sm" @onclick="GenerateVocabulary"
+                        disabled="@isGeneratingVocabulary">
+                    @if (isGeneratingVocabulary)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-stars me-1"></i>
+                        <span>Generate from Transcript</span>
+                    }
+                </button>
+            }
+        </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Import vocabulary (one pair per line)</label>
@@ -150,15 +165,20 @@ else
     [Parameter] public int Id { get; set; }
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private AiService AiSvc { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private ILogger<ResourceEdit> Logger { get; set; } = default!;
 
     private LearningResource resource = new();
     private bool isLoading = true;
     private bool isSaving;
+    private bool isGeneratingVocabulary;
     private string vocabList = "";
     private string delimiter = "comma";
+    private IJSObjectReference? jsModule;
 
     private void SetDelimiterComma() => delimiter = "comma";
     private void SetDelimiterTab() => delimiter = "tab";
@@ -169,6 +189,12 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadResource();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
     }
 
     private async Task LoadResource()
@@ -222,7 +248,8 @@ else
 
     private async Task DeleteResource()
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
             "Are you sure you want to delete this resource? This cannot be undone.");
 
         if (confirmed)
@@ -272,5 +299,166 @@ else
         {
             Toast.ShowError($"Import failed: {ex.Message}");
         }
+    }
+
+    private async Task GenerateVocabulary()
+    {
+        if (string.IsNullOrWhiteSpace(resource.Transcript))
+        {
+            Toast.ShowError("No transcript available to generate vocabulary from.");
+            return;
+        }
+
+        isGeneratingVocabulary = true;
+        StateHasChanged();
+
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            var targetLanguage = !string.IsNullOrWhiteSpace(resource.Language)
+                ? resource.Language
+                : profile?.TargetLanguage ?? "Korean";
+            var nativeLanguage = profile?.NativeLanguage ?? "English";
+
+            string prompt = $@"
+You are a language learning assistant. Analyze this {targetLanguage} transcript and extract ALL vocabulary words that would be useful for a learner.
+
+CRITICAL: Pay close attention to which field is which:
+- TargetLanguageTerm = The word in {targetLanguage} (the language being learned, NOT {nativeLanguage})
+- NativeLanguageTerm = The {nativeLanguage} translation
+
+For EACH word or phrase you find in the transcript, provide:
+1. TargetLanguageTerm: The word in {targetLanguage} - use dictionary/base form when appropriate
+2. NativeLanguageTerm: The {nativeLanguage} translation
+
+Include:
+- Nouns, verbs, adjectives, adverbs
+- Common expressions and phrases
+- Grammar patterns if useful
+- ALL words that appear in the transcript, even if they seem basic
+
+IMPORTANT:
+- TargetLanguageTerm MUST be in {targetLanguage}
+- NativeLanguageTerm MUST be in {nativeLanguage}
+- Do NOT swap these fields
+
+Format your response as a valid JSON array of objects with TargetLanguageTerm and NativeLanguageTerm properties.
+
+Transcript:
+{resource.Transcript}
+";
+
+            Logger.LogDebug("Generating vocabulary for {Language} transcript ({Length} chars)", targetLanguage, resource.Transcript.Length);
+
+            var vocabulary = await AiSvc.SendPrompt<List<VocabularyWord>>(prompt);
+
+            if (vocabulary == null || !vocabulary.Any())
+            {
+                Toast.ShowError("AI did not generate any vocabulary. Try again.");
+                return;
+            }
+
+            Logger.LogDebug("AI returned {Count} vocabulary words", vocabulary.Count);
+
+            resource.Vocabulary ??= new List<VocabularyWord>();
+            int newWordsCreated = 0;
+            int existingWordsLinked = 0;
+            int duplicatesSkipped = 0;
+
+            foreach (var wordData in vocabulary)
+            {
+                if (string.IsNullOrWhiteSpace(wordData.TargetLanguageTerm))
+                    continue;
+
+                var targetTerm = wordData.TargetLanguageTerm.Trim();
+                var nativeTerm = wordData.NativeLanguageTerm?.Trim() ?? "";
+
+                // Detect swapped terms
+                bool targetIsEnglish = IsLikelyEnglish(targetTerm);
+                bool nativeIsEnglish = IsLikelyEnglish(nativeTerm);
+
+                if (targetIsEnglish && !nativeIsEnglish)
+                    (targetTerm, nativeTerm) = (nativeTerm, targetTerm);
+                else if (targetIsEnglish && nativeIsEnglish)
+                    continue;
+
+                // Skip if already in resource
+                if (resource.Vocabulary.Any(w =>
+                    w.TargetLanguageTerm?.Trim().Equals(targetTerm, StringComparison.OrdinalIgnoreCase) == true))
+                {
+                    duplicatesSkipped++;
+                    continue;
+                }
+
+                try
+                {
+                    var word = await GetOrCreateWordAsync(targetTerm, nativeTerm);
+                    resource.Vocabulary.Add(word);
+
+                    if ((DateTime.UtcNow - word.CreatedAt).TotalSeconds < 5)
+                        newWordsCreated++;
+                    else
+                        existingWordsLinked++;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error processing word '{Term}'", targetTerm);
+                }
+            }
+
+            // Save resource with new vocabulary associations
+            await ResourceRepo.SaveResourceAsync(resource);
+
+            var msg = $"Generated {vocabulary.Count} words: {newWordsCreated} new, {existingWordsLinked} linked";
+            if (duplicatesSkipped > 0)
+                msg += $", {duplicatesSkipped} skipped (already in resource)";
+            Toast.ShowSuccess(msg);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "GenerateVocabulary error");
+            Toast.ShowError($"Vocabulary generation failed: {ex.Message}");
+        }
+        finally
+        {
+            isGeneratingVocabulary = false;
+        }
+    }
+
+    private async Task<VocabularyWord> GetOrCreateWordAsync(string targetTerm, string nativeTerm)
+    {
+        var existing = await ResourceRepo.GetWordByTargetTermAsync(targetTerm);
+        if (existing != null)
+            return existing;
+
+        var word = new VocabularyWord
+        {
+            TargetLanguageTerm = targetTerm,
+            NativeLanguageTerm = nativeTerm,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var result = await ResourceRepo.SaveWordAsync(word);
+        if (result <= 0)
+            throw new Exception($"Failed to save word: {targetTerm}");
+
+        return word;
+    }
+
+    private static bool IsLikelyEnglish(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        int latinCount = 0, totalLetters = 0;
+        foreach (char c in text)
+        {
+            if (char.IsLetter(c))
+            {
+                totalLetters++;
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                    latinCount++;
+            }
+        }
+        return totalLetters > 0 && (latinCount / (double)totalLetters) > 0.8;
     }
 }
