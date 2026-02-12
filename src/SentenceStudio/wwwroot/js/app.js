@@ -164,3 +164,8 @@ export function setFontScale(scale) {
     document.documentElement.style.setProperty('--ss-font-scale', scale);
 }
 
+export function resetScroll() {
+    const main = document.querySelector('.main-content');
+    if (main) main.scrollTop = 0;
+}
+

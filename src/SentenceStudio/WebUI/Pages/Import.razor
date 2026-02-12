@@ -270,6 +270,7 @@
             };
 
             var id = await ResourceRepo.SaveResourceAsync(resource);
+            if (id <= 0) throw new Exception("Save returned no valid resource ID");
             savedResourceId = id;
             Toast.ShowSuccess("Resource saved successfully!");
         }

@@ -237,11 +237,11 @@ public class LearningResourceRepository
                 }
             }
 
-            int result = await db.SaveChangesAsync();
+            await db.SaveChangesAsync();
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
-            return result;
+            return resource.Id;
         }
         catch (Exception ex)
         {

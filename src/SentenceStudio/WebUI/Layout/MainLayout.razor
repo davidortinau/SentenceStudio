@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -47,6 +48,7 @@
     protected override void OnInitialized()
     {
         sidebarCollapsed = Preferences.Default.Get("SidebarCollapsed", false);
+        NavigationManager.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -66,6 +68,16 @@
         Preferences.Default.Set("SidebarCollapsed", sidebarCollapsed);
     }
 
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        try
+        {
+            if (jsModule != null)
+                await jsModule.InvokeVoidAsync("resetScroll");
+        }
+        catch { /* component may be disposed */ }
+    }
+
     private async void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
     {
         if (jsModule != null)
@@ -78,6 +90,7 @@
     public void Dispose()
     {
         ThemeService.ThemeChanged -= OnThemeChanged;
+        NavigationManager.LocationChanged -= OnLocationChanged;
         jsModule?.DisposeAsync();
     }
 }

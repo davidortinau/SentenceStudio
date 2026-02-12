@@ -583,9 +583,13 @@ h3:focus,
     min-width: 44px;
 }
 
-.btn-ss-primary:hover {
+.btn-ss-primary:hover,
+.btn-ss-primary:focus,
+.btn-ss-primary:active {
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+    color: var(--ss-on-primary, #fff) !important;
     filter: brightness(1.1);
-    color: var(--ss-on-primary, #fff);
 }
 
 .btn-group .btn-ss-primary,
@@ -610,9 +614,12 @@ h3:focus,
     min-width: 44px;
 }
 
-.btn-ss-secondary:hover {
-    background-color: var(--ss-surface-elevated);
-    color: var(--bs-body-color);
+.btn-ss-secondary:hover,
+.btn-ss-secondary:focus,
+.btn-ss-secondary:active {
+    background-color: var(--ss-surface-elevated) !important;
+    border-color: var(--bs-border-color) !important;
+    color: var(--bs-body-color) !important;
 }
 
 .btn-ss-accent {
@@ -626,6 +633,15 @@ h3:focus,
     min-width: 44px;
 }
 
+.btn-ss-accent:hover,
+.btn-ss-accent:focus,
+.btn-ss-accent:active {
+    background-color: var(--ss-accent) !important;
+    border-color: var(--ss-accent) !important;
+    color: var(--ss-on-accent) !important;
+    filter: brightness(1.1);
+}
+
 .btn-ss-danger {
     background-color: var(--bs-danger);
     border-color: var(--bs-danger);
@@ -635,6 +651,15 @@ h3:focus,
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
+}
+
+.btn-ss-danger:hover,
+.btn-ss-danger:focus,
+.btn-ss-danger:active {
+    background-color: var(--bs-danger) !important;
+    border-color: var(--bs-danger) !important;
+    color: white !important;
+    filter: brightness(1.1);
 }
 
 /* ============================================
