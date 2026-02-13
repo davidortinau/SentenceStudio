@@ -104,6 +104,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<BlazorLocalizationService>();
 		builder.Services.AddSingleton<BlazorNavigationService>();
 		builder.Services.AddSingleton<TranslationBridge>();
+		builder.Services.AddSingleton<WritingBridge>();
 		builder.Services.AddScoped<NavigationMemoryService>();
 		builder.Services.AddScoped<JsInteropService>();
 

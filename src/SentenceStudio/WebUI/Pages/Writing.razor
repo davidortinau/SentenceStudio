@@ -1,0 +1,448 @@
+@page "/writing"
+@implements IDisposable
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title="Writing" ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+@if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
+    </div>
+}
+else if (vocabBlocks.Any())
+{
+    @* Instruction *@
+    <div class="mb-4 px-3 text-center">
+        <p class="ss-title2 text-secondary-ss mb-2">Write a sentence using this vocabulary</p>
+        <div class="d-flex flex-wrap justify-content-center gap-2 mb-3">
+            @foreach (var word in vocabBlocks)
+            {
+                <span class="badge bg-primary fs-6 px-3 py-2">@word.TargetLanguageTerm</span>
+            }
+        </div>
+    </div>
+
+    @* Sentence history *@
+    @if (sentences.Any())
+    {
+        <div class="px-3">
+            <h3 class="ss-title3 mb-3">Your Sentences</h3>
+            @foreach (var sentence in sentences)
+            {
+                <div class="card card-ss p-3 mb-3" @onclick="() => ShowExplanation(sentence)" role="button">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <p class="ss-body1 mb-0 flex-grow-1">@sentence.Answer</p>
+                        @if (sentence.IsGrading)
+                        {
+                            <span class="spinner-border spinner-border-sm ms-2"></span>
+                        }
+                    </div>
+                    @if (!sentence.IsGrading && sentence.Accuracy > 0)
+                    {
+                        <div class="d-flex gap-3">
+                            <span class="text-secondary-ss small">
+                                <i class="bi bi-bullseye me-1"></i>Accuracy: <strong class="@GetScoreClass(sentence.Accuracy)">@((int)sentence.Accuracy)%</strong>
+                            </span>
+                            <span class="text-secondary-ss small">
+                                <i class="bi bi-water me-1"></i>Fluency: <strong class="@GetScoreClass(sentence.Fluency)">@((int)sentence.Fluency)%</strong>
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No vocabulary available.</p>
+        <p class="text-secondary-ss small mb-3">Select a learning resource with vocabulary to practice writing.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div>
+
+@* Blazor input bar — shown on all platforms except macOS where native footer handles input *@
+@if (!useNativeFooter && vocabBlocks.Any() && !isBusy)
+{
+<div class="activity-input-bar">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+        @foreach (var word in vocabBlocks)
+        {
+            var w = word;
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseVocab(w.TargetLanguageTerm)">@w.TargetLanguageTerm</button>
+        }
+    </div>
+
+    <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
+        <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
+               @bind="userInput"
+               placeholder="Write a sentence in @targetLanguage..." />
+        <button type="button" class="btn btn-ss-secondary" @onclick="TranslateInput" title="Translate">
+            <i class="bi bi-translate"></i>
+        </button>
+        <button type="submit" class="btn btn-ss-primary"
+                disabled="@isGrading">
+            @if (isGrading)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <span>Grade</span>
+            }
+        </button>
+    </form>
+</div>
+}
+
+</div>
+
+@* Explanation Modal *@
+@if (showExplanationModal && selectedSentence != null)
+{
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" @onclick="CloseExplanation">
+    <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation>
+        <div class="modal-content card-ss">
+            <div class="modal-header border-0">
+                <h5 class="modal-title ss-title2">Feedback</h5>
+                <button type="button" class="btn-close" @onclick="CloseExplanation"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="ss-body2 fw-semibold">Your Sentence</label>
+                    <p class="ss-body1">@selectedSentence.Answer</p>
+                </div>
+                @if (!string.IsNullOrEmpty(selectedSentence.RecommendedSentence))
+                {
+                <div class="mb-3">
+                    <label class="ss-body2 fw-semibold">Recommended</label>
+                    <p class="ss-body1 text-success">@selectedSentence.RecommendedSentence</p>
+                </div>
+                }
+                @if (!string.IsNullOrEmpty(selectedSentence.AccuracyExplanation))
+                {
+                <div class="mb-3">
+                    <label class="ss-body2 fw-semibold">Accuracy (@((int)selectedSentence.Accuracy)%)</label>
+                    <p class="ss-body1 text-secondary-ss">@selectedSentence.AccuracyExplanation</p>
+                </div>
+                }
+                @if (!string.IsNullOrEmpty(selectedSentence.FluencyExplanation))
+                {
+                <div class="mb-3">
+                    <label class="ss-body2 fw-semibold">Fluency (@((int)selectedSentence.Fluency)%)</label>
+                    <p class="ss-body1 text-secondary-ss">@selectedSentence.FluencyExplanation</p>
+                </div>
+                }
+                @if (!string.IsNullOrEmpty(selectedSentence.GrammarNotes))
+                {
+                <div class="mb-0">
+                    <label class="ss-body2 fw-semibold">Grammar Notes</label>
+                    <p class="ss-body1 text-secondary-ss mb-0">@selectedSentence.GrammarNotes</p>
+                </div>
+                }
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-ss-secondary" @onclick="() => CopySentence(selectedSentence)">
+                    <i class="bi bi-clipboard me-1"></i>Copy
+                </button>
+                <button type="button" class="btn btn-ss-primary" @onclick="CloseExplanation">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public int? PlanItemIdParam { get; set; }
+
+    [Inject] private TeacherService TeacherSvc { get; set; } = default!;
+    [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Writing> Logger { get; set; } = default!;
+    [Inject] private WritingBridge Bridge { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+
+    // Native footer only on macOS (Korean IME workaround for WKWebView)
+    private bool useNativeFooter = OperatingSystem.IsMacCatalyst();
+
+    private bool isBusy;
+    private bool isGrading;
+    private bool showExplanationModal;
+    private string userInput = "";
+    private string targetLanguage = "Korean";
+    private Sentence? selectedSentence;
+
+    private List<Sentence> sentences = new();
+    private List<VocabularyWord> vocabBlocks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (useNativeFooter)
+        {
+            Bridge.OnGradeRequested += OnBridgeGrade;
+            Bridge.OnTranslateRequested += OnBridgeTranslate;
+        }
+
+        // Load user's target language
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            if (profile != null && !string.IsNullOrEmpty(profile.TargetLanguage))
+                targetLanguage = profile.TargetLanguage;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load user profile for target language");
+        }
+
+        await LoadVocabulary();
+    }
+
+    private async Task LoadVocabulary()
+    {
+        isBusy = true;
+        if (useNativeFooter) Bridge.NotifyContentReady(false);
+        try
+        {
+            var resourceId = ResourceIdParam ?? 0;
+            if (resourceId > 0)
+            {
+                var resource = await ResourceRepo.GetResourceAsync(resourceId);
+                if (resource?.Vocabulary?.Any() == true)
+                {
+                    var random = new Random();
+                    vocabBlocks = resource.Vocabulary
+                        .Where(v => !string.IsNullOrEmpty(v.TargetLanguageTerm))
+                        .OrderBy(_ => random.Next())
+                        .Take(4)
+                        .ToList();
+                }
+            }
+
+            if (!vocabBlocks.Any())
+            {
+                Toast.ShowWarning("No vocabulary available. Please select a resource with vocabulary.");
+            }
+            else if (useNativeFooter)
+            {
+                Bridge.NotifyVocabBlocks(vocabBlocks.Select(v => v.TargetLanguageTerm).ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading vocabulary");
+            Toast.ShowError($"Error loading vocabulary: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+            if (useNativeFooter) Bridge.NotifyContentReady(vocabBlocks.Any());
+        }
+    }
+
+    private async Task GradeMe()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        var sentence = new Sentence
+        {
+            Answer = userInput,
+            Problem = "", // User's intended meaning (optional for Writing)
+            IsGrading = true
+        };
+
+        sentences.Insert(0, sentence);
+        userInput = "";
+        isGrading = true;
+        if (useNativeFooter)
+        {
+            Bridge.NotifyGradingState(true);
+            Bridge.NotifyClearInput();
+        }
+        StateHasChanged();
+
+        try
+        {
+            var grade = await TeacherSvc.GradeSentence(sentence.Answer, sentence.Problem ?? "");
+
+            sentence.Accuracy = grade?.Accuracy ?? 0;
+            sentence.Fluency = grade?.Fluency ?? 0;
+            sentence.AccuracyExplanation = grade?.AccuracyExplanation;
+            sentence.FluencyExplanation = grade?.FluencyExplanation;
+            sentence.RecommendedSentence = grade?.GrammarNotes?.RecommendedTranslation;
+            sentence.GrammarNotes = grade?.GrammarNotes?.Explanation;
+            sentence.IsGrading = false;
+
+            await ActivityRepo.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Writer.ToString(),
+                Input = sentence.Answer,
+                Accuracy = sentence.Accuracy,
+                Fluency = sentence.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+
+            // Process vocabulary from writing
+            await ProcessVocabularyFromWriting(sentence.Answer, grade);
+
+            Toast.ShowSuccess($"Graded! Accuracy: {(int)sentence.Accuracy}%");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error grading sentence");
+            sentence.IsGrading = false;
+            sentence.AccuracyExplanation = "Error grading. Please try again.";
+            Toast.ShowError("Error grading your sentence. Please try again.");
+        }
+        finally
+        {
+            isGrading = false;
+            if (useNativeFooter) Bridge.NotifyGradingState(false);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessVocabularyFromWriting(string userInput, GradeResponse? grade)
+    {
+        if (grade?.VocabularyAnalysis == null || !grade.VocabularyAnalysis.Any()) return;
+
+        try
+        {
+            foreach (var vocabItem in grade.VocabularyAnalysis)
+            {
+                var matchedVocab = vocabBlocks.FirstOrDefault(v =>
+                    v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedVocab != null)
+                {
+                    var attempt = new VocabularyAttempt
+                    {
+                        VocabularyWordId = matchedVocab.Id,
+                        UserId = 1,
+                        Activity = "Writing",
+                        InputMode = InputMode.Text.ToString(),
+                        WasCorrect = vocabItem.UsageCorrect,
+                        DifficultyWeight = 1.0f,
+                        ContextType = "Application",
+                        UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
+                        ExpectedAnswer = vocabItem.DictionaryForm,
+                        ResponseTimeMs = 0,
+                        UserConfidence = 0.5f
+                    };
+
+                    await ProgressService.RecordAttemptAsync(attempt);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error processing vocabulary from writing");
+        }
+    }
+
+    private async Task TranslateInput()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        try
+        {
+            var translation = await TranslationSvc.TranslateAsync(userInput);
+            Toast.ShowInfo($"Translation: {translation}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error translating input");
+            Toast.ShowError("Translation failed");
+        }
+    }
+
+    // ── Blazor input bar handlers (non-macOS platforms) ──
+
+    private async Task SubmitInput()
+    {
+        await GradeMe();
+    }
+
+    private void UseVocab(string word)
+    {
+        userInput = string.IsNullOrEmpty(userInput) ? word : $"{userInput}{word}";
+    }
+
+    // ── Bridge event handlers (called from native footer, macOS only) ──
+
+    private async void OnBridgeGrade(string input)
+    {
+        userInput = input;
+        await InvokeAsync(async () =>
+        {
+            await GradeMe();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnBridgeTranslate()
+    {
+        await InvokeAsync(async () =>
+        {
+            await TranslateInput();
+        });
+    }
+
+    // ── Modal and utility methods ──
+
+    private void ShowExplanation(Sentence sentence)
+    {
+        if (sentence.IsGrading) return;
+        selectedSentence = sentence;
+        showExplanationModal = true;
+    }
+
+    private void CloseExplanation()
+    {
+        showExplanationModal = false;
+        selectedSentence = null;
+    }
+
+    private void CopySentence(Sentence sentence)
+    {
+        userInput = sentence.Answer ?? "";
+        CloseExplanation();
+    }
+
+    private string GetScoreClass(double score) => score switch
+    {
+        >= 80 => "text-success",
+        >= 50 => "text-warning-ss",
+        _ => "text-danger"
+    };
+
+    private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose()
+    {
+        if (useNativeFooter)
+        {
+            Bridge.NotifyContentReady(false);
+            Bridge.OnGradeRequested -= OnBridgeGrade;
+            Bridge.OnTranslateRequested -= OnBridgeTranslate;
+        }
+    }
+}

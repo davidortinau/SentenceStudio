@@ -6,7 +6,7 @@ namespace SentenceStudio;
 
 /// <summary>
 /// MAUI ContentPage that hosts the BlazorWebView.
-/// On macOS (Mac Catalyst), includes a native footer for the Translation page
+/// On macOS (Mac Catalyst), includes native footers for Translation and Writing pages
 /// to work around Korean IME cursor-jumping in WKWebView.
 /// Other platforms use the Blazor input bar directly.
 /// </summary>
@@ -14,20 +14,34 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
 {
     private static bool IsMacCatalyst => OperatingSystem.IsMacCatalyst();
 
-    private TranslationBridge? _bridge;
+    // ── Bridges ──
+    private TranslationBridge? _translationBridge;
+    private WritingBridge? _writingBridge;
+
+    // ── Shared footer elements ──
     private Grid? _footerGrid;
     private Entry? _inputEntry;
     private Border? _inputBorder;
     private Button? _gradeButton;
+    private FlexLayout? _vocabBlocksLayout;
+    private BoxView? _separator;
+
+    // ── Translation-specific elements ──
+    private Grid? _translationNavRow;
     private Button? _toggleButton;
     private Button? _prevButton;
     private Button? _nextButton;
     private Label? _progressLabel;
-    private FlexLayout? _vocabBlocksLayout;
-    private BoxView? _separator;
 
+    // ── Writing-specific elements ──
+    private Button? _translateButton;
+
+    // ── State ──
     private string _inputMode = "Text";
     private bool _isGrading;
+    private FooterMode _currentFooterMode = FooterMode.None;
+
+    private enum FooterMode { None, Translation, Writing }
 
     public BlazorHostPage()
     {
@@ -73,10 +87,14 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
 
         if (!IsMacCatalyst) return;
 
-        // Resolve DI bridge now that Handler is available
-        _bridge = Handler?.MauiContext?.Services.GetService<TranslationBridge>();
-        if (_bridge != null)
-            SubscribeToBridge(_bridge);
+        // Resolve DI bridges now that Handler is available
+        _translationBridge = Handler?.MauiContext?.Services.GetService<TranslationBridge>();
+        _writingBridge = Handler?.MauiContext?.Services.GetService<WritingBridge>();
+
+        if (_translationBridge != null)
+            SubscribeToTranslationBridge(_translationBridge);
+        if (_writingBridge != null)
+            SubscribeToWritingBridge(_writingBridge);
 
         // Apply theme colors now that the platform is fully initialized
         ApplyThemeColors();
@@ -91,15 +109,24 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         MainThread.BeginInvokeOnMainThread(ApplyThemeColors);
     }
 
-    private void SubscribeToBridge(TranslationBridge bridge)
+    private void SubscribeToTranslationBridge(TranslationBridge bridge)
     {
-        bridge.OnProgressChanged += OnProgressChanged;
+        bridge.OnProgressChanged += OnTranslationProgressChanged;
         bridge.OnGradingStateChanged += OnGradingStateChanged;
         bridge.OnVocabBlocksChanged += OnVocabBlocksChanged;
         bridge.OnInputModeChanged += OnInputModeChanged;
         bridge.OnCanGoPreviousChanged += OnCanGoPreviousChanged;
         bridge.OnInputClearRequested += OnInputClearRequested;
-        bridge.OnContentReadyChanged += OnContentReadyChanged;
+        bridge.OnContentReadyChanged += (ready) => OnContentReadyChanged(ready, FooterMode.Translation);
+        bridge.OnVocabBlockAppend += OnVocabBlockAppend;
+    }
+
+    private void SubscribeToWritingBridge(WritingBridge bridge)
+    {
+        bridge.OnGradingStateChanged += OnGradingStateChanged;
+        bridge.OnVocabBlocksChanged += OnWritingVocabBlocksChanged;
+        bridge.OnInputClearRequested += OnInputClearRequested;
+        bridge.OnContentReadyChanged += (ready) => OnContentReadyChanged(ready, FooterMode.Writing);
         bridge.OnVocabBlockAppend += OnVocabBlockAppend;
     }
 
@@ -137,6 +164,7 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             _gradeButton.TextColor = onPrimaryColor;
         }
 
+        // Translation-specific buttons
         if (_toggleButton != null)
         {
             _toggleButton.BackgroundColor = surfaceVariant;
@@ -159,13 +187,21 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         }
 
         if (_progressLabel != null) _progressLabel.TextColor = mutedTextColor;
+
+        // Writing-specific button
+        if (_translateButton != null)
+        {
+            _translateButton.BackgroundColor = surfaceVariant;
+            _translateButton.TextColor = textColor;
+            _translateButton.BorderColor = borderColor;
+        }
     }
 
     private void BuildFooter()
     {
         _inputEntry = new Entry
         {
-            Placeholder = "Translate to Korean...",
+            Placeholder = "Type here...",
             FontSize = 16,
             MinimumHeightRequest = 44,
             HorizontalOptions = LayoutOptions.Fill,
@@ -193,6 +229,7 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         };
         _gradeButton.Clicked += OnGradeClicked;
 
+        // Translation-specific: Toggle button
         _toggleButton = new Button
         {
             Text = "Blocks",
@@ -205,6 +242,7 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         };
         _toggleButton.Clicked += OnToggleClicked;
 
+        // Translation-specific: Navigation buttons
         _prevButton = new Button
         {
             Text = "‹",
@@ -216,7 +254,7 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             BorderWidth = 1,
             IsEnabled = false
         };
-        _prevButton.Clicked += (s, e) => _bridge?.RequestPrevious();
+        _prevButton.Clicked += (s, e) => _translationBridge?.RequestPrevious();
 
         _nextButton = new Button
         {
@@ -228,7 +266,7 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             CornerRadius = 6,
             BorderWidth = 1
         };
-        _nextButton.Clicked += (s, e) => _bridge?.RequestNext();
+        _nextButton.Clicked += (s, e) => _translationBridge?.RequestNext();
 
         _progressLabel = new Label
         {
@@ -237,6 +275,19 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center
         };
+
+        // Writing-specific: Translate button
+        _translateButton = new Button
+        {
+            Text = "Translate",
+            FontSize = 14,
+            MinimumHeightRequest = 44,
+            MinimumWidthRequest = 44,
+            Padding = new Thickness(14, 10),
+            CornerRadius = 6,
+            BorderWidth = 1
+        };
+        _translateButton.Clicked += OnTranslateClicked;
 
         _vocabBlocksLayout = new FlexLayout
         {
@@ -248,7 +299,8 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             Margin = new Thickness(0, 0, 0, 0)
         };
 
-        // Input row: Entry + Toggle + Grade
+        // Input row: Entry + (Toggle or Translate) + Grade
+        // We'll swap the middle button based on mode
         var inputRow = new Grid
         {
             ColumnDefinitions =
@@ -261,11 +313,13 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             Margin = new Thickness(0, 0, 0, 8)
         };
         inputRow.Add(_inputBorder, 0);
-        inputRow.Add(_toggleButton, 1);
+        inputRow.Add(_toggleButton, 1);       // Translation mode default
+        inputRow.Add(_translateButton, 1);    // Writing mode (hidden initially)
         inputRow.Add(_gradeButton, 2);
+        _translateButton.IsVisible = false;
 
-        // Nav row: < progress >
-        var navRow = new Grid
+        // Nav row (Translation only): < progress >
+        _translationNavRow = new Grid
         {
             ColumnDefinitions =
             {
@@ -273,11 +327,12 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto)
             },
-            ColumnSpacing = 8
+            ColumnSpacing = 8,
+            IsVisible = false
         };
-        navRow.Add(_prevButton, 0);
-        navRow.Add(_progressLabel, 1);
-        navRow.Add(_nextButton, 2);
+        _translationNavRow.Add(_prevButton, 0);
+        _translationNavRow.Add(_progressLabel, 1);
+        _translationNavRow.Add(_nextButton, 2);
 
         _separator = new BoxView
         {
@@ -292,44 +347,117 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
             {
                 new RowDefinition(GridLength.Auto), // vocab blocks
                 new RowDefinition(GridLength.Auto), // input row
-                new RowDefinition(GridLength.Auto)  // nav row
+                new RowDefinition(GridLength.Auto)  // nav row (Translation only)
             },
             Padding = new Thickness(16, 12, 16, 12),
-            IsVisible = false // hidden until Translation page signals ready
+            IsVisible = false // hidden until page signals ready
         };
         _footerGrid.Add(_vocabBlocksLayout, 0, 0);
         _footerGrid.Add(inputRow, 0, 1);
-        _footerGrid.Add(navRow, 0, 2);
+        _footerGrid.Add(_translationNavRow, 0, 2);
+    }
+
+    private void SwitchFooterMode(FooterMode mode)
+    {
+        if (_currentFooterMode == mode) return;
+        _currentFooterMode = mode;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            switch (mode)
+            {
+                case FooterMode.Translation:
+                    if (_inputEntry != null) _inputEntry.Placeholder = "Translate to Korean...";
+                    if (_toggleButton != null) _toggleButton.IsVisible = true;
+                    if (_translateButton != null) _translateButton.IsVisible = false;
+                    if (_translationNavRow != null) _translationNavRow.IsVisible = true;
+                    if (_vocabBlocksLayout != null) _vocabBlocksLayout.IsVisible = _inputMode == "MultipleChoice";
+                    break;
+
+                case FooterMode.Writing:
+                    if (_inputEntry != null) _inputEntry.Placeholder = "Write a sentence...";
+                    if (_toggleButton != null) _toggleButton.IsVisible = false;
+                    if (_translateButton != null) _translateButton.IsVisible = true;
+                    if (_translationNavRow != null) _translationNavRow.IsVisible = false;
+                    if (_vocabBlocksLayout != null) _vocabBlocksLayout.IsVisible = true;
+                    break;
+
+                case FooterMode.None:
+                    break;
+            }
+        });
     }
 
     // ── Entry/Button event handlers ──
 
     private void OnEntryCompleted(object? sender, EventArgs e)
     {
-        if (!_isGrading)
-            _bridge?.RequestGrade(_inputEntry?.Text ?? "");
+        if (_isGrading) return;
+        
+        switch (_currentFooterMode)
+        {
+            case FooterMode.Translation:
+                _translationBridge?.RequestGrade(_inputEntry?.Text ?? "");
+                break;
+            case FooterMode.Writing:
+                _writingBridge?.RequestGrade(_inputEntry?.Text ?? "");
+                break;
+        }
     }
 
     private void OnGradeClicked(object? sender, EventArgs e)
     {
-        if (!_isGrading)
-            _bridge?.RequestGrade(_inputEntry?.Text ?? "");
+        if (_isGrading) return;
+
+        switch (_currentFooterMode)
+        {
+            case FooterMode.Translation:
+                _translationBridge?.RequestGrade(_inputEntry?.Text ?? "");
+                break;
+            case FooterMode.Writing:
+                _writingBridge?.RequestGrade(_inputEntry?.Text ?? "");
+                break;
+        }
     }
 
     private void OnToggleClicked(object? sender, EventArgs e)
     {
-        _bridge?.RequestToggleInputMode();
+        _translationBridge?.RequestToggleInputMode();
     }
 
-    // ── Bridge → Native event handlers ──
+    private void OnTranslateClicked(object? sender, EventArgs e)
+    {
+        _writingBridge?.RequestTranslate();
+    }
 
-    private void OnProgressChanged(int current, int total)
+    // ── Translation Bridge → Native event handlers ──
+
+    private void OnTranslationProgressChanged(int current, int total)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (_progressLabel != null) _progressLabel.Text = $"{current} / {total}";
         });
     }
+
+    private void OnInputModeChanged(string mode)
+    {
+        _inputMode = mode;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_toggleButton != null) _toggleButton.Text = mode == "Text" ? "Blocks" : "Type";
+        });
+    }
+
+    private void OnCanGoPreviousChanged(bool canGo)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_prevButton != null) _prevButton.IsEnabled = canGo;
+        });
+    }
+
+    // ── Shared Bridge event handlers ──
 
     private void OnGradingStateChanged(bool isGrading)
     {
@@ -389,20 +517,49 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         });
     }
 
-    private void OnInputModeChanged(string mode)
+    private void OnWritingVocabBlocksChanged(List<string> blocks)
     {
-        _inputMode = mode;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (_toggleButton != null) _toggleButton.Text = mode == "Text" ? "Blocks" : "Type";
-        });
-    }
+            if (_vocabBlocksLayout == null || _inputEntry == null) return;
 
-    private void OnCanGoPreviousChanged(bool canGo)
-    {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_prevButton != null) _prevButton.IsEnabled = canGo;
+            _vocabBlocksLayout.Children.Clear();
+            var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+            var borderColor = isDark ? Color.FromArgb("#263457") : Color.FromArgb("#dee2e6");
+            var mutedTextColor = isDark ? Color.FromArgb("#C6D0E7") : Color.FromArgb("#6c757d");
+
+            if (blocks.Any())
+            {
+                foreach (var word in blocks)
+                {
+                    var btn = new Button
+                    {
+                        Text = word,
+                        BackgroundColor = Colors.Transparent,
+                        TextColor = mutedTextColor,
+                        FontSize = 14,
+                        Padding = new Thickness(10, 6),
+                        CornerRadius = 6,
+                        BorderColor = borderColor,
+                        BorderWidth = 1,
+                        MinimumHeightRequest = 32,
+                        Margin = new Thickness(0, 0, 8, 8)
+                    };
+                    var w = word;
+                    btn.Clicked += (s, e) =>
+                    {
+                        var current = _inputEntry.Text ?? "";
+                        // For Korean, append without space
+                        _inputEntry.Text = string.IsNullOrEmpty(current) ? w : $"{current}{w}";
+                    };
+                    _vocabBlocksLayout.Children.Add(btn);
+                }
+                _vocabBlocksLayout.IsVisible = true;
+            }
+            else
+            {
+                _vocabBlocksLayout.IsVisible = false;
+            }
         });
     }
 
@@ -414,10 +571,14 @@ public class BlazorHostPage : Microsoft.Maui.Controls.ContentPage
         });
     }
 
-    private void OnContentReadyChanged(bool ready)
+    private void OnContentReadyChanged(bool ready, FooterMode mode)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (ready)
+            {
+                SwitchFooterMode(mode);
+            }
             if (_footerGrid != null) _footerGrid.IsVisible = ready;
             if (_separator != null) _separator.IsVisible = ready;
         });
