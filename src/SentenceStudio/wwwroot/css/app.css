@@ -6,6 +6,9 @@
    ============================================ */
 
 :root {
+    /* Bootstrap spacer — used in calc() expressions */
+    --bs-spacer: 1rem;
+    
     /* Korean typography */
     --ss-font-family-korean: 'Yeonsung', sans-serif;
     
@@ -581,6 +584,9 @@ h3:focus,
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-ss-primary:hover,
@@ -612,6 +618,9 @@ h3:focus,
     padding: 10px 14px;
     min-height: 44px;
     min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-ss-secondary:hover,
@@ -925,7 +934,7 @@ h3:focus,
 /* Page header */
 .page-header {
     min-height: 44px;
-    margin-bottom: calc(var(--bs-spacer) * 160 / 16);
+    margin-bottom: 1rem;
 }
 .page-header-inner {
     min-height: 44px;
@@ -948,9 +957,9 @@ h3:focus,
 
 /* Mobile: < 768px */
 @media (max-width: 767.98px) {
-    /* Mobile main: horizontal padding for all content, no top padding (header handles it) */
+    /* Mobile main: 16px horizontal padding for all content, no top padding (header handles it) */
     main.main-content {
-        padding: 0 calc(var(--bs-spacer) * 120 / 16) calc(var(--bs-spacer) * 120 / 16) calc(var(--bs-spacer) * 120 / 16) !important;
+        padding: 0 1rem 1rem 1rem !important;
         overflow-x: hidden !important;
         overscroll-behavior-y: none; /* prevent rubber-band bounce that reveals gap above header */
     }
@@ -967,10 +976,10 @@ h3:focus,
         z-index: 1030;
         background: var(--bs-secondary-bg);
         border-bottom: 1px solid var(--bs-border-color);
-        margin: 0 calc(-1 * calc(var(--bs-spacer) * 120 / 16));
-        padding: 0 calc(var(--bs-spacer) * 120 / 16);
+        margin: 0 -1rem;
+        padding: 0 1rem;
         padding-top: env(safe-area-inset-top, 0px);
-        margin-bottom: calc(var(--bs-spacer) * 120 / 16);
+        margin-bottom: 1rem;
         min-height: calc(44px + env(safe-area-inset-top, 0px));
     }
     .page-header .page-header-inner {
@@ -1001,7 +1010,7 @@ h3:focus,
 
     /* Cards: reduce padding on mobile */
     .card-ss {
-        padding: calc(var(--bs-spacer) * 100 / 16);
+        padding: 0.75rem;
     }
 
     /* Dropdown menus: larger touch targets */
@@ -1222,9 +1231,9 @@ h3:focus,
 
 @media (max-width: 767.98px) {
     .reading-page {
-        /* Mobile main has: padding: 0 Xrem Xrem Xrem */
-        margin: 0 calc(-1 * calc(var(--bs-spacer, 1rem) * 120 / 16)) calc(-1 * calc(var(--bs-spacer, 1rem) * 120 / 16));
-        height: calc(100% + calc(var(--bs-spacer, 1rem) * 120 / 16));
+        /* Mobile main has: padding: 0 1rem 1rem 1rem — break out to fill viewport */
+        margin: 0 -1rem -1rem;
+        height: calc(100% + 1rem);
     }
     .reading-page__header .page-header {
         /* Reset mobile sticky header overrides — the reading-page handles its own layout */

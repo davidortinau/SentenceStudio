@@ -1,4 +1,5 @@
 @page "/translation"
+@implements IDisposable
 
 <div class="activity-page-wrapper">
 
@@ -70,10 +71,10 @@ else
 }
 </div>
 
-@if (sentences.Any() && !showSessionSummary && !isBusy)
+@* Blazor input bar — shown on all platforms except macOS where native footer handles input *@
+@if (!useNativeFooter && sentences.Any() && !showSessionSummary && !isBusy)
 {
 <div class="activity-input-bar">
-    @* Input mode: vocab blocks *@
     @if (inputMode == "MultipleChoice" && vocabBlocks.Any())
     {
         <div class="d-flex flex-wrap gap-2 mb-2">
@@ -85,7 +86,6 @@ else
         </div>
     }
 
-    @* Input + actions row *@
     <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
         <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
                @bind="userInput"
@@ -106,7 +106,6 @@ else
         </button>
     </form>
 
-    @* Nav row *@
     <div class="d-flex justify-content-between align-items-center">
         <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
             <i class="bi bi-chevron-left"></i>
@@ -135,6 +134,10 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Translation> Logger { get; set; } = default!;
+    [Inject] private TranslationBridge Bridge { get; set; } = default!;
+
+    // Native footer only on macOS (Korean IME workaround for WKWebView)
+    private bool useNativeFooter = OperatingSystem.IsMacCatalyst();
 
     private bool isBusy;
     private bool isGrading;
@@ -158,12 +161,21 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (useNativeFooter)
+        {
+            Bridge.OnGradeRequested += OnBridgeGrade;
+            Bridge.OnNextRequested += OnBridgeNext;
+            Bridge.OnPreviousRequested += OnBridgePrevious;
+            Bridge.OnToggleInputModeRequested += OnBridgeToggle;
+        }
+
         await LoadSentences();
     }
 
     private async Task LoadSentences()
     {
         isBusy = true;
+        if (useNativeFooter) Bridge.NotifyContentReady(false);
         try
         {
             var resourceId = ResourceIdParam ?? 0;
@@ -188,6 +200,7 @@ else
         finally
         {
             isBusy = false;
+            if (useNativeFooter) Bridge.NotifyContentReady(sentences.Any() && !showSessionSummary);
         }
     }
 
@@ -209,11 +222,16 @@ else
             .Where(t => !string.IsNullOrEmpty(t))
             .OrderBy(_ => Random.Shared.Next())
             .ToList() ?? new();
-    }
 
-    private async Task SubmitInput()
-    {
-        await GradeMe();
+        // Notify native footer (macOS only)
+        if (useNativeFooter)
+        {
+            Bridge.NotifyProgress(currentIndex + 1, sentences.Count);
+            Bridge.NotifyCanGoPrevious(currentIndex > 0);
+            Bridge.NotifyVocabBlocks(vocabBlocks);
+            Bridge.NotifyInputMode(inputMode);
+            Bridge.NotifyClearInput();
+        }
     }
 
     private async Task GradeMe()
@@ -222,6 +240,7 @@ else
 
         isGrading = true;
         showFeedback = false;
+        if (useNativeFooter) Bridge.NotifyGradingState(true);
         StateHasChanged();
 
         try
@@ -244,7 +263,6 @@ else
             sessionAccuracySum += feedback.Accuracy;
             sessionFluencySum += feedback.Fluency;
 
-            // Record activity
             await ActivityRepo.SaveAsync(new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.Translation.ToString(),
@@ -265,6 +283,7 @@ else
         finally
         {
             isGrading = false;
+            if (useNativeFooter) Bridge.NotifyGradingState(false);
         }
     }
 
@@ -274,10 +293,13 @@ else
         {
             currentIndex++;
             SetCurrentSentence();
+            StateHasChanged();
         }
         else
         {
             showSessionSummary = true;
+            if (useNativeFooter) Bridge.NotifyContentReady(false);
+            StateHasChanged();
         }
     }
 
@@ -287,6 +309,7 @@ else
         {
             currentIndex--;
             SetCurrentSentence();
+            StateHasChanged();
         }
     }
 
@@ -301,25 +324,21 @@ else
         await LoadSentences();
     }
 
-    private async Task LoadMoreSentences()
+    private void ToggleInputMode()
     {
-        try
+        inputMode = inputMode == "Text" ? "MultipleChoice" : "Text";
+        if (useNativeFooter)
         {
-            var resourceId = ResourceIdParam ?? 0;
-            var skillId = SkillIdParam ?? 0;
-            var more = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
-            if (more?.Any() == true)
-            {
-                sentences.AddRange(more);
-                currentIndex = sentences.Count - more.Count;
-                SetCurrentSentence();
-                StateHasChanged();
-            }
+            Bridge.NotifyInputMode(inputMode);
+            Bridge.NotifyVocabBlocks(vocabBlocks);
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading more sentences");
-        }
+    }
+
+    // ── Blazor input bar handlers (non-macOS platforms) ──
+
+    private async Task SubmitInput()
+    {
+        await GradeMe();
     }
 
     private void UseVocabBlock(string word)
@@ -327,9 +346,41 @@ else
         userInput = string.IsNullOrEmpty(userInput) ? word : $"{userInput} {word}";
     }
 
-    private void ToggleInputMode()
+    // ── Bridge event handlers (called from native footer, macOS only) ──
+
+    private async void OnBridgeGrade(string input)
     {
-        inputMode = inputMode == "Text" ? "MultipleChoice" : "Text";
+        userInput = input;
+        await InvokeAsync(async () =>
+        {
+            await GradeMe();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnBridgeNext()
+    {
+        await InvokeAsync(() =>
+        {
+            NextSentence();
+        });
+    }
+
+    private async void OnBridgePrevious()
+    {
+        await InvokeAsync(() =>
+        {
+            PreviousSentence();
+        });
+    }
+
+    private async void OnBridgeToggle()
+    {
+        await InvokeAsync(() =>
+        {
+            ToggleInputMode();
+            StateHasChanged();
+        });
     }
 
     private string GetFeedbackColor() => feedbackType switch
@@ -341,4 +392,16 @@ else
     };
 
     private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose()
+    {
+        if (useNativeFooter)
+        {
+            Bridge.NotifyContentReady(false);
+            Bridge.OnGradeRequested -= OnBridgeGrade;
+            Bridge.OnNextRequested -= OnBridgeNext;
+            Bridge.OnPreviousRequested -= OnBridgePrevious;
+            Bridge.OnToggleInputModeRequested -= OnBridgeToggle;
+        }
+    }
 }

@@ -9,6 +9,29 @@
 <div class="d-flex flex-column h-100">
 <PageHeader Title="Conversation" ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
+        @* Scenario switcher (mobile only — desktop shows inline below) *@
+        @if (scenarios.Any())
+        {
+            <div class="dropdown d-md-none">
+                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                        title="Change scenario">
+                    <i class="bi bi-chat-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @foreach (var s in scenarios)
+                    {
+                        var scenario = s;
+                        <li>
+                            <button class="dropdown-item @(scenario.Id == activeScenario?.Id ? "active" : "")"
+                                    @onclick="() => SelectScenario(scenario)">
+                                @scenario.DisplayName
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                     type="button" data-bs-toggle="dropdown" aria-expanded="false"
@@ -48,10 +71,10 @@ else
         </div>
     }
 
-    @* Scenario selector *@
+    @* Scenario selector (desktop only — mobile uses navbar dropdown) *@
     @if (scenarios.Any())
     {
-        <div class="d-flex align-items-center gap-2 mb-3 flex-shrink-0">
+        <div class="d-none d-md-flex align-items-center gap-2 mb-3 flex-shrink-0">
             <label class="ss-caption1 text-secondary-ss mb-0">Scenario:</label>
             <select class="form-select form-select-sm" style="width: auto;" @onchange="OnScenarioChanged">
                 @foreach (var s in scenarios)
@@ -381,6 +404,13 @@ else
             activeScenario = scenarios.FirstOrDefault(s => s.Id == id);
             await StartConversation();
         }
+    }
+
+    private async Task SelectScenario(ConversationScenario scenario)
+    {
+        if (scenario.Id == activeScenario?.Id) return;
+        activeScenario = scenario;
+        await StartConversation();
     }
 
     private void OnInput(ChangeEventArgs e)

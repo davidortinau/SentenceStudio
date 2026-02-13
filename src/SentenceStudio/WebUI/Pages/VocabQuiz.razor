@@ -1,153 +1,170 @@
 @page "/vocab-quiz"
+@using Plugin.Maui.Audio
+@implements IDisposable
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack" />
+    <PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack" />
 
-<div class="activity-content">
-@if (showSessionSummary)
-{
-    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Summary</h2>
-        <div class="card card-ss p-4" style="min-width: 340px;">
-            <div class="d-flex justify-content-around mb-3">
-                <div class="text-center">
-                    <div class="ss-title2 text-success">@correctCount</div>
-                    <small class="text-secondary-ss">Correct</small>
+    <div class="activity-content d-flex flex-column" style="overflow-y: visible;">
+        @if (showSessionSummary)
+        {
+            <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+                <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Summary</h2>
+                <div class="card card-ss p-4" style="min-width: 340px;">
+                    <div class="d-flex justify-content-around mb-3">
+                        <div class="text-center">
+                            <div class="ss-title2 text-success">@correctCount</div>
+                            <small class="text-secondary-ss">Correct</small>
+                        </div>
+                        <div class="text-center">
+                            <div class="ss-title2">@totalTurns</div>
+                            <small class="text-secondary-ss">Total</small>
+                        </div>
+                        <div class="text-center">
+                            <div class="ss-title2 text-success">@wordsMastered</div>
+                            <small class="text-secondary-ss">Mastered</small>
+                        </div>
+                        <div class="text-center">
+                            <div class="ss-title2">@roundsCompleted</div>
+                            <small class="text-secondary-ss">Rounds</small>
+                        </div>
+                    </div>
+                    @if (sessionItems.Any())
+                    {
+                        <hr class="border-secondary" />
+                        @foreach (var item in sessionItems)
+                        {
+                            var iconClass = item.ReadyToRotateOut ? "bi-check-circle text-success" : item.QuizRecognitionStreak > 0
+                        ? "bi-arrow-repeat text-warning" : "bi-x-circle text-danger";
+                            <div class="d-flex align-items-center gap-2 py-1">
+                                <i class="bi @iconClass"></i>
+                                <span class="ss-body1 fw-bold"
+                                      style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
+                                <span class="text-secondary-ss">→</span>
+                                <span class="ss-body1">@item.Word.NativeLanguageTerm</span>
+                            </div>
+                        }
+                    }
                 </div>
-                <div class="text-center">
-                    <div class="ss-title2">@totalTurns</div>
-                    <small class="text-secondary-ss">Total</small>
-                </div>
-                <div class="text-center">
-                    <div class="ss-title2 text-success">@wordsMastered</div>
-                    <small class="text-secondary-ss">Mastered</small>
-                </div>
-                <div class="text-center">
-                    <div class="ss-title2">@roundsCompleted</div>
-                    <small class="text-secondary-ss">Rounds</small>
-                </div>
+                <button class="btn btn-ss-primary mt-4" @onclick="SetupNewRound">Continue</button>
+                <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
             </div>
-            @if (sessionItems.Any())
-            {
-                <hr class="border-secondary" />
-                @foreach (var item in sessionItems)
+        }
+        else if (isBusy)
+        {
+            <div class="d-flex justify-content-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (currentItem != null)
+        {
+            @* Question area — centered vertically in remaining space *@
+            <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1" style="min-height: 0;">
+                <h1 class="ss-display mb-2 text-center" style="color: var(--bs-primary);">@questionText</h1>
+
+                @if (showAnswer)
                 {
-                    var iconClass = item.ReadyToRotateOut ? "bi-check-circle text-success" : item.QuizRecognitionStreak > 0 ? "bi-arrow-repeat text-warning" : "bi-x-circle text-danger";
-                    <div class="d-flex align-items-center gap-2 py-1">
-                        <i class="bi @iconClass"></i>
-                        <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
-                        <span class="text-secondary-ss">→</span>
-                        <span class="ss-body1">@item.Word.NativeLanguageTerm</span>
+                    <p class="ss-title2 text-center">@correctAnswer</p>
+                }
+
+                @if (!string.IsNullOrEmpty(feedbackMessage))
+                {
+                    <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mt-3" style="max-width: 500px; width: 100%;">
+                        @feedbackMessage
                     </div>
                 }
-            }
-        </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="SetupNewRound">Continue</button>
-        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
-    </div>
-}
-else if (isBusy)
-{
-    <div class="d-flex justify-content-center p-5">
-        <div class="spinner-border text-primary" role="status"></div>
-    </div>
-}
-else if (currentItem != null)
-{
-    @* Term display — show the target language word *@
-    <div class="text-center my-4">
-        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
 
-        @if (showAnswer)
-        {
-            <p class="ss-title2">@correctAnswer</p>
-        }
-    </div>
+                @if (showAnswer && !requireCorrectTyping)
+                {
+                    <button class="btn btn-ss-primary px-5 mt-3" @onclick="NextItem">Next <i
+                        class="bi bi-chevron-right ms-1"></i></button>
+                }
+            </div>
 
-    @* Feedback *@
-    @if (!string.IsNullOrEmpty(feedbackMessage))
-    {
-        <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mb-3">
-            @feedbackMessage
-        </div>
-    }
-
-    @* Input section *@
-    @if (userMode == "MultipleChoice")
-    {
-        <div class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
-            @foreach (var option in choiceOptions)
+            @* Input section — pinned to bottom *@
+            @if (userMode == "MultipleChoice")
             {
-                var optCopy = option;
-                var bgClass = "";
-                var borderStyle = "";
-
-                if (showAnswer)
-                {
-                    if (optCopy == correctAnswer)
+                <div class="d-flex flex-column gap-2 mx-auto flex-shrink-0 pb-4" style="max-width: 500px; width: 100%;">
+                    @foreach (var option in choiceOptions)
                     {
-                        bgClass = "bg-success text-white";
-                        borderStyle = "border-color: var(--bs-success) !important;";
-                    }
-                    else if (optCopy == userGuess && optCopy != correctAnswer)
-                    {
-                        bgClass = "bg-danger text-white";
-                        borderStyle = "border-color: var(--bs-danger) !important;";
-                    }
-                }
-                else if (optCopy == userGuess)
-                {
-                    borderStyle = "border-color: var(--bs-primary) !important;";
-                    bgClass = "bg-opacity-10";
-                }
+                        var optCopy = option;
+                        var bgClass = "";
+                        var borderStyle = "";
 
-                <button class="btn btn-outline-secondary py-3 ss-title3 @bgClass"
-                        style="@borderStyle"
-                        disabled="@showAnswer"
-                        @onclick="() => SelectMultipleChoice(optCopy)">
-                    @optCopy
-                </button>
+                        if (showAnswer)
+                        {
+                            if (optCopy == correctAnswer)
+                            {
+                                bgClass = "bg-success text-white";
+                                borderStyle = "border-color: var(--bs-success) !important;";
+                            }
+                            else if (optCopy == userGuess && optCopy != correctAnswer)
+                            {
+                                bgClass = "bg-danger text-white";
+                                borderStyle = "border-color: var(--bs-danger) !important;";
+                            }
+                        }
+                        else if (optCopy == userGuess)
+                        {
+                            borderStyle = "border-color: var(--bs-primary) !important;";
+                            bgClass = "bg-opacity-10";
+                        }
+
+                        <button class="btn btn-outline-secondary py-3 ss-title3 @bgClass" style="@borderStyle"
+                                disabled="@showAnswer" @onclick="() => SelectMultipleChoice(optCopy)">
+                            @optCopy
+                        </button>
+                    }
+                </div>
             }
-        </div>
-    }
-    else
-    {
-        <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
-            <label class="form-label text-secondary-ss">Type the translation</label>
-            <input type="text" class="form-control form-control-ss form-control-lg"
-                   @bind="userInput"
-                   disabled="@(showAnswer && !requireCorrectTyping)"
-                   placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
-        </form>
-    }
+            else
+            {
+                <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto flex-shrink-0 pb-4" style="max-width: 500px; width: 100%;">
+                    <label class="form-label text-secondary-ss">Type the translation</label>
+                    <input type="text" class="form-control form-control-ss form-control-lg" @bind="userInput"
+                           disabled="@(showAnswer && !requireCorrectTyping)"
+                           placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
+                </form>
+            }
+            }
+            else
+            {
+                <div class="text-center p-5">
+                    <p class="ss-body1 text-secondary-ss">No vocabulary loaded.</p>
+                    <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+                </div>
+            }
+        </div> @* end activity-content *@
 
-    @* Next button *@
-    @if (showAnswer && !requireCorrectTyping)
-    {
-        <div class="text-center mt-4">
-            <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
-        </div>
-    }
-}
-else
-{
-    <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No vocabulary loaded.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
-    </div>
-}
-</div> @* end activity-content *@
+        @if (currentItem != null && !showSessionSummary)
+        {
+            <div class="activity-footer flex-shrink-0">
+                @* Auto-advance progress bar *@
+                @if (isAutoAdvancing)
+                {
+                    <div class="progress" style="height: 3px; margin: -0.75rem -1rem 0.5rem -1rem; border-radius: 0;">
+                        <div class="progress-bar bg-primary" role="progressbar"
+                             style="width: @((autoTransitionProgress * 100).ToString("F0"))%; transition: width 100ms linear;"></div>
+                    </div>
+                }
 
-@if (currentItem != null && !showSessionSummary)
-{
-    <div class="activity-footer d-flex justify-content-between align-items-center">
-        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @TurnsPerRound</span>
-        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
-    </div>
-}
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @TurnsPerRound</span>
 
-</div> @* end activity-page-wrapper *@
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm @(isPlayingAudio ? "btn-primary" : "btn-outline-secondary")"
+                                disabled="@isPlayingAudio" @onclick="PlayAudioManually"
+                                title="Play pronunciation">
+                            <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                        </button>
+                        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+    </div> @* end activity-page-wrapper *@
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceIds")]
@@ -161,6 +178,11 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.VocabularyQuizPreferences QuizPrefs { get; set; } = default!;
+    [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -193,6 +215,15 @@ else
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
+
+    // Audio state
+    private IAudioPlayer? audioPlayer;
+    private bool isPlayingAudio;
+
+    // Auto-advance state
+    private bool isAutoAdvancing;
+    private double autoTransitionProgress;
+    private System.Timers.Timer? autoAdvanceTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -236,8 +267,12 @@ else
                 var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
                     : new SentenceStudio.Shared.Models.VocabularyProgress
                     {
-                        VocabularyWordId = word.Id, IsCompleted = false, MasteryScore = 0.0f,
-                        CurrentPhase = LearningPhase.Recognition, TotalAttempts = 0, CorrectAttempts = 0
+                        VocabularyWordId = word.Id,
+                        IsCompleted = false,
+                        MasteryScore = 0.0f,
+                        CurrentPhase = LearningPhase.Recognition,
+                        TotalAttempts = 0,
+                        CorrectAttempts = 0
                     };
                 return new VocabularyQuizItem { Word = word, Progress = progress };
             })
@@ -294,6 +329,8 @@ else
 
     private async Task LoadCurrentItem()
     {
+        StopAutoAdvance();
+
         if (currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
         {
             // Round complete
@@ -325,6 +362,12 @@ else
         }
 
         responseTimer.Restart();
+
+        // Autoplay audio if enabled
+        if (QuizPrefs.AutoPlayVocabAudio)
+        {
+            _ = PlayWordAudio(currentItem.Word);
+        }
     }
 
     private string[] GenerateChoiceOptions(VocabularyQuizItem item)
@@ -411,10 +454,16 @@ else
             requireCorrectTyping = true;
             userInput = "";
         }
+        else
+        {
+            // Start auto-advance countdown
+            StartAutoAdvance();
+        }
     }
 
     private async Task NextItem()
     {
+        StopAutoAdvance();
         currentTurnInRound++;
         requireCorrectTyping = false;
         await LoadCurrentItem();
@@ -430,6 +479,131 @@ else
         }
     }
 
+    // ── Audio ──
+
+    private async Task PlayAudioManually()
+    {
+        if (currentItem == null) return;
+        await PlayWordAudio(currentItem.Word);
+    }
+
+    private async Task PlayWordAudio(VocabularyWord word)
+    {
+        var targetTerm = word.TargetLanguageTerm;
+        if (string.IsNullOrWhiteSpace(targetTerm)) return;
+
+        try
+        {
+            isPlayingAudio = true;
+            StateHasChanged();
+
+            StopAudio();
+
+            Stream audioStream;
+            var voiceId = VoicePrefs.VoiceId;
+
+            // Check cache first
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetTerm, voiceId);
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.Current.NetworkAccess.HasFlag(NetworkAccess.Internet))
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(targetTerm, voiceId, 0.5f, 0.75f);
+
+                // Cache for future use
+                var cacheDir = Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = targetTerm, VoiceId = voiceId, AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                Logger.LogWarning("⚠️ No network for audio playback");
+                isPlayingAudio = false;
+                return;
+            }
+
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            audioPlayer.PlaybackEnded += (s, e) =>
+            {
+                isPlayingAudio = false;
+                InvokeAsync(StateHasChanged);
+            };
+            audioPlayer.Play();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play audio for {Term}", targetTerm);
+            isPlayingAudio = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void StopAudio()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+        isPlayingAudio = false;
+    }
+
+    // ── Auto-advance timer ──
+
+    private void StartAutoAdvance()
+    {
+        if (isAutoAdvancing) return;
+
+        isAutoAdvancing = true;
+        autoTransitionProgress = 0.0;
+
+        var durationMs = QuizPrefs.AutoAdvanceDuration;
+        var startTime = DateTime.Now;
+        var duration = TimeSpan.FromMilliseconds(durationMs);
+
+        autoAdvanceTimer = new System.Timers.Timer(100);
+        autoAdvanceTimer.Elapsed += (sender, e) =>
+        {
+            var elapsed = DateTime.Now - startTime;
+            var progress = Math.Min(elapsed.TotalMilliseconds / duration.TotalMilliseconds, 1.0);
+
+            InvokeAsync(() =>
+            {
+                autoTransitionProgress = progress;
+                StateHasChanged();
+
+                if (progress >= 1.0)
+                {
+                    StopAutoAdvance();
+                    _ = NextItem();
+                }
+            });
+        };
+        autoAdvanceTimer.Start();
+    }
+
+    private void StopAutoAdvance()
+    {
+        autoAdvanceTimer?.Stop();
+        autoAdvanceTimer?.Dispose();
+        autoAdvanceTimer = null;
+        isAutoAdvancing = false;
+        autoTransitionProgress = 0.0;
+    }
+
+    // ── Helpers ──
+
     private int[] ParseResourceIds()
     {
         if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<int>();
@@ -439,4 +613,10 @@ else
     }
 
     private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose()
+    {
+        StopAutoAdvance();
+        StopAudio();
+    }
 }
