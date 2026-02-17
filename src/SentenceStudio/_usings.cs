@@ -30,3 +30,5 @@ global using System.Threading;
 global using System.IO;
 global using System.Linq;
 global using Fonts;
+global using MauiBootstrapTheme.Reactor;
+global using IconFont.Maui.BootstrapIcons;

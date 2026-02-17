@@ -148,6 +148,12 @@
 		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor\MauiReactor.csproj" />
 		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor.HotReload\MauiReactor.HotReload.csproj" />
 		<ProjectReference Include="..\..\..\reactorui-maui\src\MauiReactor.ScaffoldGenerator\MauiReactor.ScaffoldGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+
+		<!-- Local Bootstrap theming and icons libraries (platform-specific only) -->
+		<ProjectReference Include="..\..\..\MauiBootstrapTheme\src\MauiBootstrapTheme\MauiBootstrapTheme.csproj" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<ProjectReference Include="..\..\..\MauiBootstrapTheme\src\MauiBootstrapTheme.Reactor\MauiBootstrapTheme.Reactor.csproj" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<ProjectReference Include="..\..\..\MauiBootstrapTheme\src\MauiBootstrapTheme.Build\MauiBootstrapTheme.Build.csproj" ReferenceOutputAssembly="false" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<ProjectReference Include="..\..\..\IconFont.Maui.BootstrapIcons\src\IconFont.Maui.BootstrapIcons\IconFont.Maui.BootstrapIcons.csproj" Condition="'$(TargetFramework)' != 'net10.0'" />
 		
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
@@ -242,6 +248,7 @@
 		<Compile Remove="Services\Progress\*.cs" />
 		<Compile Remove="Services\Timer\*.cs" />
 		<Compile Remove="Services\PlanGeneration\*.cs" />
+		<Compile Remove="Services\NativeThemeService.cs" />
 		<!-- Exclude repositories with App/UI dependencies or dependencies on excluded services -->
 		<Compile Remove="Data\LearningResourceRepository.cs" />
 		<Compile Remove="Data\UserActivityRepository.cs" />
@@ -286,5 +293,23 @@
 		</NativeReference>
 	</ItemGroup> -->
 
+
+	<!-- Bootstrap theme CSS files (parsed at build time into ResourceDictionary classes) -->
+	<ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+		<BootstrapCss Include="Resources\Themes\bootstrap.min.css" ThemeName="default" />
+		<BootstrapCss Include="Resources\Themes\darkly.min.css" />
+		<BootstrapCss Include="Resources\Themes\flatly.min.css" />
+		<BootstrapCss Include="Resources\Themes\sketchy.min.css" />
+		<BootstrapCss Include="Resources\Themes\slate.min.css" />
+		<BootstrapCss Include="Resources\Themes\vapor.min.css" />
+		<BootstrapCss Include="Resources\Themes\brite.min.css" />
+		<BootstrapCss Include="Resources\Themes\seoul-pop.min.css" />
+		<BootstrapCss Include="Resources\Themes\ocean.min.css" />
+		<BootstrapCss Include="Resources\Themes\forest.min.css" />
+		<BootstrapCss Include="Resources\Themes\sunset.min.css" />
+		<BootstrapCss Include="Resources\Themes\monochrome.min.css" />
+	</ItemGroup>
+
+	<Import Project="..\..\..\MauiBootstrapTheme\src\MauiBootstrapTheme.Build\build\Plugin.Maui.BootstrapTheme.Build.targets" Condition="'$(TargetFramework)' != 'net10.0'" />
 
 </Project>
