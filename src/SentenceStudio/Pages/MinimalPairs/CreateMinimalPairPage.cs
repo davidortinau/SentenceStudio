@@ -1,5 +1,5 @@
 using SentenceStudio.Repositories;
-using SentenceStudio.Pages.Controls.Inputs;
+using MauiReactor.Shapes;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -14,7 +14,8 @@ namespace SentenceStudio.Pages.MinimalPairs;
 class CreateMinimalPairPageState
 {
     public List<VocabularyWord> AvailableWords { get; set; } = new();
-    public string SearchQuery { get; set; } = string.Empty;
+    public string SearchQueryA { get; set; } = string.Empty;
+    public string SearchQueryB { get; set; } = string.Empty;
     public VocabularyWord? SelectedWordA { get; set; }
     public VocabularyWord? SelectedWordB { get; set; }
     public string ContrastLabel { get; set; } = string.Empty;
@@ -128,64 +129,118 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
         );
     }
 
+    private List<VocabularyWord> FilterWords(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return State.AvailableWords;
+        return State.AvailableWords
+            .Where(w => (w.TargetLanguageTerm ?? "").StartsWith(query, StringComparison.OrdinalIgnoreCase)
+                     || (w.NativeLanguageTerm ?? "").StartsWith(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private VisualNode RenderWordSelector(string label, string searchQuery, VocabularyWord? selectedWord,
+        Action<string> onSearchChanged, Action<VocabularyWord?> onWordSelected)
+    {
+        var theme = BootstrapTheme.Current;
+        var filtered = FilterWords(searchQuery);
+
+        return Border(
+            VStack(spacing: 8,
+                Label(label)
+                    .H5(),
+
+                SearchBar()
+                    .Placeholder($"{_localize["Search"]}")
+                    .Text(searchQuery)
+                    .OnTextChanged(text => onSearchChanged(text)),
+
+                Picker()
+                    .Title($"{_localize["Search"]}")
+                    .ItemsSource(filtered.Select(w => $"{w.TargetLanguageTerm} — {w.NativeLanguageTerm}").ToList())
+                    .SelectedIndex(selectedWord != null ? filtered.FindIndex(w => w.Id == selectedWord.Id) : -1)
+                    .OnSelectedIndexChanged((index) =>
+                    {
+                        if (index >= 0 && index < filtered.Count)
+                            onWordSelected(filtered[index]);
+                        else
+                            onWordSelected(null);
+                    }),
+
+                selectedWord != null
+                    ? Label(selectedWord.TargetLanguageTerm)
+                        .FontSize(14)
+                        .TextColor(theme.Primary)
+                    : null
+            )
+            .Padding(16)
+        )
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
+    }
+
     private VisualNode RenderForm()
     {
+        var theme = BootstrapTheme.Current;
+
         return ScrollView(
-            VStack(spacing: MyTheme.Size160,
+            VStack(spacing: 16,
                 // Word A selection
-                VStack(spacing: MyTheme.Size80,
-                    Label($"{_localize["MinimalPairsSelectFirstWord"]}")
-                        .ThemeKey(MyTheme.Caption1),
-
-                    new SfAutocomplete()
-                        .ItemsSource(State.AvailableWords)
-                        .DisplayMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .TextMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .TextSearchMode(Syncfusion.Maui.Inputs.AutocompleteTextSearchMode.StartsWith)
-
-                        .Placeholder($"{_localize["Search"]}")
-                        .SelectedItem(State.SelectedWordA)
-                        .OnSelectionChanged((s, e) => SetState(state => state.SelectedWordA = e.AddedItems?.FirstOrDefault() as VocabularyWord))
+                RenderWordSelector(
+                    $"{_localize["MinimalPairsSelectFirstWord"]}",
+                    State.SearchQueryA,
+                    State.SelectedWordA,
+                    text => SetState(s => s.SearchQueryA = text),
+                    word => SetState(s => s.SelectedWordA = word)
                 ),
 
                 // Word B selection
-                VStack(spacing: MyTheme.Size80,
-                    Label($"{_localize["MinimalPairsSelectSecondWord"]}")
-                        .ThemeKey(MyTheme.Caption1),
-
-                    new SfAutocomplete()
-                        .ItemsSource(State.AvailableWords)
-                        .DisplayMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .TextMemberPath(nameof(VocabularyWord.TargetLanguageTerm))
-                        .TextSearchMode(Syncfusion.Maui.Inputs.AutocompleteTextSearchMode.StartsWith)
-                        .Placeholder($"{_localize["Search"]}")
-                        .SelectedItem(State.SelectedWordB)
-                        .OnSelectionChanged((s, e) => SetState(state => state.SelectedWordB = e.AddedItems?.FirstOrDefault() as VocabularyWord))
+                RenderWordSelector(
+                    $"{_localize["MinimalPairsSelectSecondWord"]}",
+                    State.SearchQueryB,
+                    State.SelectedWordB,
+                    text => SetState(s => s.SearchQueryB = text),
+                    word => SetState(s => s.SelectedWordB = word)
                 ),
 
                 // Contrast label input
-                VStack(spacing: MyTheme.Size80,
-                    Label($"{_localize["MinimalPairsContrastLabel"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
+                Border(
+                    VStack(spacing: 8,
+                        Label($"{_localize["MinimalPairsContrastLabel"]}")
+                            .H5(),
 
-                    Entry()
-                        .Placeholder("e.g., ㅂ vs ㅃ")
-                        .Text(State.ContrastLabel)
-                        .OnTextChanged(text => SetState(s => s.ContrastLabel = text))
-                ),
+                        Entry()
+                            .Placeholder("e.g., ㅂ vs ㅃ")
+                            .Text(State.ContrastLabel)
+                            .OnTextChanged(text => SetState(s => s.ContrastLabel = text))
+                    )
+                    .Padding(16)
+                )
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(12)),
 
                 // Error message
                 string.IsNullOrEmpty(State.ErrorMessage)
                     ? null
                     : Label(State.ErrorMessage)
-                        .ThemeKey(MyTheme.Caption1),
+                        .Small()
+                        .TextColor(theme.Danger),
 
                 // Create button
                 Button($"{_localize["Create"]}")
+                    .Background(new SolidColorBrush(theme.Primary))
+                    .TextColor(Colors.White)
+                    .BorderColor(theme.Primary)
+                    .BorderWidth(1)
+                    .CornerRadius(6)
                     .OnClicked(async () => await OnCreatePairAsync())
                     .IsEnabled(!State.IsSaving && State.SelectedWordA != null && State.SelectedWordB != null)
             )
-            .Padding(MyTheme.Size160)
+            .Padding(16)
         );
     }
 }

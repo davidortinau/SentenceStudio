@@ -113,7 +113,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 RenderExportBottomSheet(),
                 RenderNarrowScreenMenu()
             )
-            .RowSpacing(MyTheme.CardMargin)
+            .RowSpacing(16)
         )
         .Title($"{_localize["Shadowing"]}")
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
@@ -243,23 +243,23 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <returns>A visual node for displaying the current sentence.</returns>
     private VisualNode SentenceDisplay() =>
         ScrollView(
-            VStack(spacing: MyTheme.Size160,
+            VStack(spacing: 16,
                 // Only show target language text (Korean/Spanish/etc.)
                 Label(State.CurrentSentenceText)
-                    .ThemeKey(MyTheme.LargeTitle)
+                    .H2()
                     .HCenter()
-                    .Margin(MyTheme.Size160),
+                    .Margin(16),
 
                 // Show pronunciation notes if available (from AI-generated sentences)
                 !string.IsNullOrWhiteSpace(State.CurrentSentencePronunciationNotes)
                     ? Label(State.CurrentSentencePronunciationNotes)
-                        .ThemeKey(MyTheme.Title3)
+                        .H5()
                         .HCenter()
-                        .TextColor(MyTheme.SecondaryText)
-                        .Margin(MyTheme.Size160)
+                        .Muted()
+                        .Margin(16)
                     : null
             )
-            .Padding(MyTheme.Size160)
+            .Padding(16)
         ).GridRow(0);
 
     /// <summary>
@@ -280,8 +280,8 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
             HScrollView(hscroll => _waveformScrollView = hscroll,
                 Grid("100", "*",
                     new WaveformView()
-                        .WaveColor(MyTheme.WaveformDefault)
-                        .PlayedColor(MyTheme.WaveformPlayed)
+                        .WaveColor(BootstrapTheme.Current.GetOutline())
+                        .PlayedColor(BootstrapTheme.Current.Primary)
                         .Amplitude(Constants.Amplitude)
                         .PlaybackPosition(State.PlaybackPosition)
                         .AudioId($"{State.CurrentSentenceIndex}_{State.CurrentSentenceText?.GetHashCode() ?? 0}")
@@ -299,13 +299,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(1)
-            .Stroke(MyTheme.BorderLight)
+            .Stroke(BootstrapTheme.Current.GetOutline())
             .HeightRequest(100)
-            .Padding(MyTheme.Size160, 0)
+            .Padding(16, 0)
             .IsVisible(true)
         )
-            .Spacing(MyTheme.Size160)
-            .Margin(MyTheme.SectionSpacing, 0)
+            .Spacing(16)
+            .Margin(24, 0)
             .GridRow(1);
 
     private void OnWaveformInteractionStarted()
@@ -446,12 +446,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(MyTheme.IconPrevious)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.SkipStartFill, BootstrapTheme.Current.GetOnBackground(), 24))
                     .GridRow(0).GridColumn(0)
                     .OnClicked(PreviousSentence),
 
                 ImageButton()
-                    .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
+                    .Source(State.IsAudioPlaying
+                        ? BootstrapIcons.Create(BootstrapIcons.PauseFill, BootstrapTheme.Current.GetOnBackground(), 24)
+                        : BootstrapIcons.Create(BootstrapIcons.PlayFill, BootstrapTheme.Current.GetOnBackground(), 24))
                     .Aspect(Aspect.Center)
                     .Background(Colors.Transparent)
                     .GridRow(0).GridColumn(2)
@@ -461,7 +463,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 ImageButton()
                     .Background(Colors.Transparent)
                     .Aspect(Aspect.Center)
-                    .Source(MyTheme.IconNext)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.SkipEndFill, BootstrapTheme.Current.GetOnBackground(), 24))
                     .GridRow(0).GridColumn(4)
                     .OnClicked(NextSentence),
 
@@ -487,73 +489,80 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 State.IsNarrowScreen ?
                 // Narrow layout - just show a menu button that opens bottom sheet with all controls
                 Button()
-                    .ImageSource(MyTheme.IconMore)
-                    .ThemeKey(MyTheme.Secondary)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.ThreeDotsVertical, BootstrapTheme.Current.GetOnBackground(), 16))
+                    .Background(new SolidColorBrush(Colors.Transparent))
+                    .TextColor(BootstrapTheme.Current.GetOnBackground())
+                    .BorderColor(BootstrapTheme.Current.GetOutline())
+                    .BorderWidth(1)
                     .HeightRequest(35)
                     .WidthRequest(35)
                     .Padding(0)
                     .GridColumn(2)
                     .HEnd()
-                    .Margin(0, 0, MyTheme.ComponentSpacing, 0)
+                    .Margin(0, 0, 8, 0)
                     .OnClicked(ShowNarrowScreenMenu)
                 :
                 // Wide layout - show all controls
                 HStack(
                     Button()
-                        .ImageSource(MyTheme.IconSave)
-                        .ThemeKey(MyTheme.Secondary)
+                        .ImageSource(BootstrapIcons.Create(BootstrapIcons.Download, BootstrapTheme.Current.GetOnBackground(), 16))
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(BootstrapTheme.Current.GetOnBackground())
+                        .BorderColor(BootstrapTheme.Current.GetOutline())
+                        .BorderWidth(1)
                         .HeightRequest(35)
                         .WidthRequest(35)
                         .Padding(0)
-                        .Margin(0, 0, MyTheme.CardMargin, 0)
+                        .Margin(0, 0, 16, 0)
                         .OnClicked(SaveAudioAsMp3),
 
-                    new SfSegmentedControl(
-                        new SfSegmentItem()
-                                .ImageSource(MyTheme.IconSpeedVerySlow),
-                            new SfSegmentItem()
-                                .ImageSource(MyTheme.IconSpeedSlow),
-                            new SfSegmentItem()
-                                .ImageSource(MyTheme.IconSpeedNormal)
+                    HStack(spacing: 0,
+                        Button("0.6x")
+                            .Background(new SolidColorBrush(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                            .TextColor(State.SelectedSpeedIndex == 0 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
+                            .HeightRequest(35)
+                            .Padding(8, 0)
+                            .OnClicked(() =>
+                            {
+                                SetState(s => { s.SelectedSpeedIndex = 0; s.PlaybackSpeed = 0.6f; });
+                            }),
+                        Button("0.8x")
+                            .Background(new SolidColorBrush(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                            .TextColor(State.SelectedSpeedIndex == 1 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
+                            .HeightRequest(35)
+                            .Padding(8, 0)
+                            .OnClicked(() =>
+                            {
+                                SetState(s => { s.SelectedSpeedIndex = 1; s.PlaybackSpeed = 0.8f; });
+                            }),
+                        Button("1x")
+                            .Background(new SolidColorBrush(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                            .TextColor(State.SelectedSpeedIndex == 2 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
+                            .HeightRequest(35)
+                            .Padding(8, 0)
+                            .OnClicked(() =>
+                            {
+                                SetState(s => { s.SelectedSpeedIndex = 2; s.PlaybackSpeed = 1.0f; });
+                            })
                     )
-                        .Background(Colors.Transparent)
-                        .ShowSeparator(true)
-                        .SegmentCornerRadius(0)
-                        .Stroke(MyTheme.Gray300)
-                        .SegmentWidth(40)
-                        .SegmentHeight(44)
-                        .Margin(0, 0, MyTheme.CardMargin, 0)
-                        .SelectionIndicatorSettings(
-                            new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
-                            {
-                                SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
-                            }
-                        )
-                        .SelectedIndex(State.SelectedSpeedIndex)
-                        .OnSelectionChanged((s, e) =>
-                        {
-                            State.SelectedSpeedIndex = e.NewIndex;
-                            switch (e.NewIndex)
-                            {
-                                case 0:
-                                    SetState(s => s.PlaybackSpeed = 0.6f);
-                                    break;
-                                case 1:
-                                    SetState(s => s.PlaybackSpeed = 0.8f);
-                                    break;
-                                case 2:
-                                    SetState(s => s.PlaybackSpeed = 1.0f);
-                                    break;
-                            }
+                    .Margin(0, 0, 16, 0),
 
-                        }),
                         Button(State.SelectedVoiceDisplayName)
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
                             .VCenter()
                             .OnClicked(ShowVoiceSelection)
 
                 )
-                .Margin(0, 0, MyTheme.ComponentSpacing, 0)
+                .Margin(0, 0, 8, 0)
                 .GridColumn(2).HEnd()
 
 
@@ -594,15 +603,20 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// Renders the bottom sheet menu for narrow screens.
     /// </summary>
     private VisualNode RenderNarrowScreenMenu() =>
-        new SfBottomSheet(
-            Grid("*", "*",
+        State.IsNarrowScreenMenuVisible ?
+        Grid("*", "*",
+            // Semi-transparent overlay
+            BoxView()
+                .Background(Color.FromArgb("#80000000"))
+                .OnTapped(() => SetState(s => s.IsNarrowScreenMenuVisible = false)),
+            Border(
                 VStack(
                     Label("Shadowing Options")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(20)
-                        .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                        .TextColor(BootstrapTheme.Current.GetOnBackground())
                         .HCenter()
-                        .Margin(0, 0, 0, MyTheme.SectionSpacing),
+                        .Margin(0, 0, 0, 24),
 
                     // Playback Speed Section
                     VStack(
@@ -611,46 +625,42 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .FontSize(16)
                             .HStart(),
 
-                        new SfSegmentedControl(
-                            new SfSegmentItem()
-                                // .Text("Very Slow")
-                                .ImageSource(MyTheme.IconSpeedVerySlow),
-                            new SfSegmentItem()
-                                // .Text("Slow")
-                                .ImageSource(MyTheme.IconSpeedSlow),
-                            new SfSegmentItem()
-                                // .Text("Normal")
-                                .ImageSource(MyTheme.IconSpeedNormal)
+                        HStack(spacing: 0,
+                            Button("0.6x")
+                                .Background(new SolidColorBrush(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                                .TextColor(State.SelectedSpeedIndex == 0 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .BorderColor(BootstrapTheme.Current.GetOutline())
+                                .BorderWidth(1)
+                                .HeightRequest(44)
+                                .Padding(12, 0)
+                                .OnClicked(() =>
+                                {
+                                    SetState(s => { s.SelectedSpeedIndex = 0; s.PlaybackSpeed = 0.6f; });
+                                }),
+                            Button("0.8x")
+                                .Background(new SolidColorBrush(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                                .TextColor(State.SelectedSpeedIndex == 1 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .BorderColor(BootstrapTheme.Current.GetOutline())
+                                .BorderWidth(1)
+                                .HeightRequest(44)
+                                .Padding(12, 0)
+                                .OnClicked(() =>
+                                {
+                                    SetState(s => { s.SelectedSpeedIndex = 1; s.PlaybackSpeed = 0.8f; });
+                                }),
+                            Button("1x")
+                                .Background(new SolidColorBrush(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.Primary : Colors.Transparent))
+                                .TextColor(State.SelectedSpeedIndex == 2 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .BorderColor(BootstrapTheme.Current.GetOutline())
+                                .BorderWidth(1)
+                                .HeightRequest(44)
+                                .Padding(12, 0)
+                                .OnClicked(() =>
+                                {
+                                    SetState(s => { s.SelectedSpeedIndex = 2; s.PlaybackSpeed = 1.0f; });
+                                })
                         )
-                            .Background(Colors.Transparent)
-                            .ShowSeparator(true)
-                            .SegmentCornerRadius(4)
-                            .Stroke(MyTheme.Gray300)
-                            .SegmentHeight(44)
-                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
-                            .SelectionIndicatorSettings(
-                                new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings
-                                {
-                                    SelectionIndicatorPlacement = Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorPlacement.BottomBorder
-                                }
-                            )
-                            .SelectedIndex(State.SelectedSpeedIndex)
-                            .OnSelectionChanged((s, e) =>
-                            {
-                                State.SelectedSpeedIndex = e.NewIndex;
-                                switch (e.NewIndex)
-                                {
-                                    case 0:
-                                        SetState(s => s.PlaybackSpeed = 0.6f);
-                                        break;
-                                    case 1:
-                                        SetState(s => s.PlaybackSpeed = 0.8f);
-                                        break;
-                                    case 2:
-                                        SetState(s => s.PlaybackSpeed = 1.0f);
-                                        break;
-                                }
-                            })
+                        .Margin(0, 4, 0, 0)
                     )
                     .Margin(0, 0, 0, 20),
 
@@ -662,14 +672,16 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HStart(),
 
                         Button(State.SelectedVoiceDisplayName)
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
                             .OnClicked(() =>
                             {
-                                // Close this menu and open voice selection
                                 SetState(s => s.IsNarrowScreenMenuVisible = false);
                                 ShowVoiceSelection();
                             })
-                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
+                            .Margin(0, 4, 0, 0)
                     )
                     .Margin(0, 0, 0, 20),
 
@@ -681,28 +693,29 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HStart(),
 
                         Button("Save as MP3")
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(BootstrapTheme.Current.GetOnBackground())
+                            .BorderColor(BootstrapTheme.Current.GetOutline())
+                            .BorderWidth(1)
                             .OnClicked(() =>
                             {
-                                // Close this menu and save audio
                                 SetState(s => s.IsNarrowScreenMenuVisible = false);
                                 SaveAudioAsMp3();
                             })
-                            .Margin(0, MyTheme.MicroSpacing, 0, 0)
+                            .Margin(0, 4, 0, 0)
                     )
                 )
-                .Padding(MyTheme.SectionSpacing)
+                .Padding(24)
             )
+            .BackgroundColor(BootstrapTheme.Current.GetSurface())
+            .Stroke(BootstrapTheme.Current.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .VEnd()
+            .Margin(16)
         )
-        .IsOpen(State.IsNarrowScreenMenuVisible)
-        .OnStateChanged((sender, args) =>
-        {
-            if (args.NewState == Syncfusion.Maui.Toolkit.BottomSheet.BottomSheetState.Hidden)
-            {
-                SetState(s => s.IsNarrowScreenMenuVisible = false);
-            }
-        })
-        .GridRowSpan(3);
+        .GridRowSpan(3)
+        : null;
 
     /// <summary>
     /// Creates a visual node for the loading overlay displayed during busy operations.
@@ -712,9 +725,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Grid(
             Label("Thinking.....")
                 .FontSize(64)
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .TextColor(BootstrapTheme.Current.GetOnBackground())
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
@@ -725,15 +736,20 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// Renders the export options bottom sheet.
     /// </summary>
     private VisualNode RenderExportBottomSheet() =>
-        new SfBottomSheet(
-            Grid("*", "*",
+        State.IsExportMenuVisible ?
+        Grid("*", "*",
+            // Semi-transparent overlay
+            BoxView()
+                .Background(Color.FromArgb("#80000000"))
+                .OnTapped(() => SetState(s => s.IsExportMenuVisible = false)),
+            Border(
                 VStack(
                     Label("Export Audio")
                         .FontAttributes(FontAttributes.Bold)
                         .FontSize(20)
-                        .TextColor(Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
+                        .TextColor(BootstrapTheme.Current.GetOnBackground())
                         .HCenter()
-                        .Margin(0, 0, 0, MyTheme.SectionSpacing),
+                        .Margin(0, 0, 0, 24),
 
                     State.IsSavingAudio ?
                     VStack(
@@ -742,35 +758,43 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             .HCenter()
                             .HeightRequest(50)
                             .WidthRequest(50)
-                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
+                            .Margin(0, 0, 0, 8),
                         Label(State.ExportProgressMessage)
                             .FontSize(16)
                             .HCenter()
                     ) :
                     VStack(
                         Button("Save as MP3")
-                            .ThemeKey(MyTheme.PrimaryButton)
+                            .Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
+                            .TextColor(Colors.White)
                             .OnClicked(SaveAudioAsMp3)
-                            .Margin(0, 0, 0, MyTheme.ComponentSpacing),
+                            .Margin(0, 0, 0, 8),
 
                         !string.IsNullOrEmpty(State.LastSavedFilePath) ?
                         VStack(
                             Label("Last Saved:")
                                 .FontSize(14)
-                                .TextColor(MyTheme.SecondaryText)
+                                .Muted()
                                 .HCenter(),
                             Label(State.LastSavedFilePath)
                                 .FontSize(14)
-                                .TextColor(MyTheme.SecondaryText)
+                                .Muted()
                                 .HCenter()
                         ) : null
                     )
                 )
-                .Padding(MyTheme.SectionSpacing)
+                .Padding(24)
                 .HCenter()
             )
+            .BackgroundColor(BootstrapTheme.Current.GetSurface())
+            .Stroke(BootstrapTheme.Current.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .VEnd()
+            .Margin(16)
         )
-        .IsOpen(State.IsExportMenuVisible);
+        .GridRowSpan(3)
+        : null;
 
     /// <summary>
     /// Loads sentences for shadowing practice.

@@ -37,6 +37,8 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage($"{_localize["AddResource"]}",
             ToolbarItem($"{_localize["Save"]}").OnClicked(SaveResource),
             ToolbarItem($"{_localize["Cancel"]}").OnClicked(() => MauiControls.Shell.Current.GoToAsync("..")),
@@ -56,9 +58,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Title)
                                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                                 )
-                                .ThemeKey(MyTheme.InputWrapper)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Description
                             VStack(
@@ -71,9 +76,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                                         .HeightRequest(100)
                                 )
-                                .ThemeKey(MyTheme.InputWrapper)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Media Type
                             VStack(
@@ -89,9 +97,13 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             s.MediaTypeIndex = index;
                                             s.Resource.MediaType = Constants.MediaTypes[index];
                                         }))
-                                ).ThemeKey(MyTheme.InputWrapper)
+                                )
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Language
                             VStack(
@@ -108,9 +120,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             s.Resource.Language = Constants.Languages[index];
                                         }))
                                 )
-                                .ThemeKey(MyTheme.InputWrapper)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Media URL - show for all types except Vocabulary List
                             State.Resource.MediaType != "Vocabulary List" ?
@@ -124,9 +139,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                                             .Keyboard(Keyboard.Url)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Transcript - show for all types except Vocabulary List
@@ -141,9 +159,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Translation - show for all types except Vocabulary List
@@ -158,9 +179,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Tags
@@ -173,9 +197,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .Text(State.Resource.Tags)
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
-                                .ThemeKey(MyTheme.InputWrapper)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Vocabulary section - show for ALL media types
                             VStack(
@@ -188,10 +215,14 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.VocabList = text))
                                         .MinimumHeightRequest(200)
                                         .MaximumHeightRequest(400)
-                                ).ThemeKey(MyTheme.InputWrapper),
+                                )
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8),
 
                                 Button()
-                                    .ImageSource(MyTheme.IconFileExplorer)
+                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
                                     .Background(Colors.Transparent)
                                     .HEnd()
                                     .OnClicked(ChooseFile),
@@ -208,21 +239,24 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnCheckedChanged(e =>
                                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                                     Button($"{_localize["ImportVocabulary"]}")
-                                        .ThemeKey(MyTheme.Secondary)
+                                        .Background(new SolidColorBrush(Colors.Transparent))
+                                        .TextColor(theme.GetOnBackground())
+                                        .BorderColor(theme.GetOutline())
+                                        .BorderWidth(1)
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )
-                                .Spacing(MyTheme.Size320),
+                                .Spacing(32),
 
                                 // Show current vocabulary count if any exists
                                 State.Resource.Vocabulary?.Count > 0 ?
                                     Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
                                         .FontSize(14)
-                                        .TextColor(MyTheme.SecondaryText)
+                                        .Muted()
                                         .HStart() :
                                     null
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Media URL - show for all types except Vocabulary List
                             State.Resource.MediaType != "Vocabulary List" ?
@@ -236,9 +270,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                                             .Keyboard(Keyboard.Url)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Transcript - show for all types except Vocabulary List
@@ -253,9 +290,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Translation - show for all types except Vocabulary List
@@ -270,23 +310,29 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                                             .HeightRequest(150)
                                     )
-                                    .ThemeKey(MyTheme.InputWrapper)
+                                    .BackgroundColor(theme.GetSurface())
+                                    .Stroke(theme.GetOutline())
+                                    .StrokeThickness(1)
+                                    .Padding(8)
                                 )
-                                .Spacing(MyTheme.MicroSpacing) :
+                                .Spacing(4) :
                                 null,
 
                             // Tags
                             VStack(
                                 Label($"{_localize["Tags"]} (comma separated)")
-                                    .ThemeKey(MyTheme.Body1Strong),
+                                    .FontAttributes(FontAttributes.Bold),
                                 Border(
                                     Entry()
                                         .Text(State.Resource.Tags)
                                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                                 )
-                                .ThemeKey(MyTheme.InputWrapper)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8)
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             // Vocabulary section - show for ALL media types
                             VStack(
@@ -299,10 +345,14 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnTextChanged(text => SetState(s => s.VocabList = text))
                                         .MinimumHeightRequest(200)
                                         .MaximumHeightRequest(400)
-                                ).ThemeKey(MyTheme.InputWrapper),
+                                )
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .Padding(8),
 
                                 Button()
-                                    .ImageSource(MyTheme.IconFileExplorer)
+                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
                                     .Background(Colors.Transparent)
                                     .HEnd()
                                     .OnClicked(ChooseFile),
@@ -319,28 +369,32 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         .OnCheckedChanged(e =>
                                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                                     Button($"{_localize["ImportVocabulary"]}")
-                                        .ThemeKey(MyTheme.Secondary)
+                                        .Background(new SolidColorBrush(Colors.Transparent))
+                                        .TextColor(theme.GetOnBackground())
+                                        .BorderColor(theme.GetOutline())
+                                        .BorderWidth(1)
                                         .OnClicked(ImportVocabulary)
                                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                 )
-                                .Spacing(MyTheme.Size320),
+                                .Spacing(32),
 
                                 // Show current vocabulary count if any exists
                                 State.Resource.Vocabulary?.Count > 0 ?
                                     Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
                                         .FontSize(14)
-                                        .TextColor(MyTheme.SecondaryText)
+                                        .Muted()
                                         .HStart() :
                                     null
                             )
-                            .Spacing(MyTheme.MicroSpacing),
+                            .Spacing(4),
 
                             Button($"{_localize["Save"]}")
+                                .Primary()
                                 .OnClicked(SaveResource)
                                 .HFill()
                         )
                         .Padding(new Thickness(15))
-                        .Spacing(MyTheme.LayoutSpacing)
+                        .Spacing(16)
                     )
             )
         );

@@ -99,8 +99,8 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	private const int SENTENCE_FONT_SIZE_DESKTOP = 64;
 	private const int SENTENCE_FONT_SIZE_MOBILE = 32;
 
-	// Note: Spacing and padding values now use MyTheme semantic constants
-	// (LayoutPadding, LayoutSpacing, CardPadding, CardMargin, SectionSpacing, ComponentSpacing, MicroSpacing)
+	// Note: Spacing and padding values now use Bootstrap theme constants
+	// (via BootstrapTheme.Current for colors and semantic tokens)
 
 	#endregion
 
@@ -115,13 +115,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						SentenceScoreboard(),
 						SentenceDisplay(),
 						UserInput()
-					).RowSpacing(MyTheme.ComponentSpacing)
+					).RowSpacing(8)
 				),
 				NavigationFooter(),
 				AutoTransitionBar(),
 				LoadingOverlay(),
 				SessionSummaryOverlay()
-			).RowSpacing(MyTheme.CardMargin)
+			).RowSpacing(8)
 		)
 		.Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
@@ -164,123 +164,121 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	#region Main UI Components
 
-	VisualNode AutoTransitionBar() =>
-		ProgressBar()
+	VisualNode AutoTransitionBar()
+	{
+		var theme = BootstrapTheme.Current;
+		return ProgressBar()
 			.Progress(State.AutoTransitionProgress)
 			.HeightRequest(4)
 			.Background(Colors.Transparent)
-			.ProgressColor(MyTheme.HighlightDarkest)
+			.ProgressColor(theme.Primary)
 			.VStart();
+	}
 
-	VisualNode LoadingOverlay() =>
-		Grid(
+	VisualNode LoadingOverlay()
+	{
+		var theme = BootstrapTheme.Current;
+		return Grid(
 			Label("Thinking.....")
-				.ThemeKey(MyTheme.Display)
-				.TextColor(Theme.IsLightTheme ?
-					MyTheme.DarkOnLightBackground :
-					MyTheme.LightOnDarkBackground)
+				.FontSize(48).FontAttributes(FontAttributes.Bold)
+				.TextColor(theme.GetOnBackground())
 				.Center()
 		)
 		.Background(Color.FromArgb("#80000000"))
 		.GridRowSpan(2)
 		.IsVisible(State.IsBusy);
+	}
 
-	VisualNode SessionSummaryOverlay() =>
-		Grid(
+	VisualNode SessionSummaryOverlay()
+	{
+		var theme = BootstrapTheme.Current;
+		return Grid(
 			ScrollView(
-				VStack(spacing: MyTheme.LayoutSpacing,
+				VStack(spacing: 16,
 					// Header
 					Label("📚 Session Complete!")
-						.ThemeKey(MyTheme.Title1)
-						.TextColor(MyTheme.HighlightDarkest)
+						.H3()
+						.TextColor(theme.Primary)
 						.Center(),
 
 					Label("Great work! Here's your progress:")
-						.ThemeKey(MyTheme.Body1)
 						.Center()
-						.TextColor(Theme.IsLightTheme ?
-							MyTheme.DarkOnLightBackground :
-							MyTheme.LightOnDarkBackground),
+						.TextColor(theme.GetOnBackground()),
 
 					// Session stats
 					Border(
-						VStack(spacing: MyTheme.CardMargin,
+						VStack(spacing: 8,
 							Label("📊 Session Results")
-								.ThemeKey(MyTheme.Title3)
+								.H5()
 								.Center()
-								.TextColor(MyTheme.HighlightDarkest),
+								.TextColor(theme.Primary),
 
-							HStack(spacing: MyTheme.SectionSpacing,
-								VStack(spacing: MyTheme.MicroSpacing,
+							HStack(spacing: 24,
+								VStack(spacing: 4,
 									Label($"{State.SessionCorrectCount}")
-										.ThemeKey(MyTheme.Headline)
-										.TextColor(MyTheme.Success)
+										.H4()
+										.TextColor(theme.Success)
 										.Center(),
 									Label("Correct")
-										.ThemeKey(MyTheme.Body2)
+										.FontSize(14)
 										.Center()
 								),
-								VStack(spacing: MyTheme.MicroSpacing,
+								VStack(spacing: 4,
 									Label($"{State.SessionTotalCount - State.SessionCorrectCount}")
-										.ThemeKey(MyTheme.Headline)
-										.TextColor(MyTheme.Error)
+										.H4()
+										.TextColor(theme.Danger)
 										.Center(),
 									Label("Incorrect")
-										.ThemeKey(MyTheme.Body2)
+										.FontSize(14)
 										.Center()
 								),
-								VStack(spacing: MyTheme.MicroSpacing,
+								VStack(spacing: 4,
 									Label($"{(State.SessionTotalCount > 0 ? (int)((float)State.SessionCorrectCount / State.SessionTotalCount * 100) : 0)}%")
-										.ThemeKey(MyTheme.Headline)
-										.TextColor(MyTheme.HighlightDarkest)
+										.H4()
+										.TextColor(theme.Primary)
 										.Center(),
 									Label("Accuracy")
-										.ThemeKey(MyTheme.Body2)
+										.FontSize(14)
 										.Center()
 								)
 							).Center()
 						)
-						.Padding(MyTheme.LayoutPadding)
+						.Padding(new Thickness(16))
 					)
-					.Background(Theme.IsLightTheme ?
-						MyTheme.LightSecondaryBackground :
-						MyTheme.DarkSecondaryBackground)
+					.Background(theme.GetSurface())
 					.StrokeShape(new RoundRectangle().CornerRadius(8))
-					.Margin(0, MyTheme.LayoutSpacing),
+					.Margin(0, 16),
 
 					// Sentences review
 					Label($"You practiced {State.SessionTotalCount} sentence{(State.SessionTotalCount == 1 ? "" : "s")}")
-						.ThemeKey(MyTheme.Body2)
+						.FontSize(14)
 						.Center()
-						.TextColor(Theme.IsLightTheme ?
-							MyTheme.DarkOnLightBackground :
-							MyTheme.LightOnDarkBackground)
-						.Margin(0, MyTheme.ComponentSpacing),
+						.TextColor(theme.GetOnBackground())
+						.Margin(0, 8),
 
 					// Continue button
 					Button("Continue Practice")
 						.OnClicked(ContinueAfterSummary)
-						.Background(MyTheme.HighlightDarkest)
+						.Background(new SolidColorBrush(theme.Primary))
 						.TextColor(Colors.White)
 						.CornerRadius(8)
-						.Padding(MyTheme.SectionSpacing, MyTheme.CardMargin)
-						.Margin(0, MyTheme.LayoutSpacing)
+						.Padding(24, 8)
+						.Margin(0, 16)
 				)
-				.Padding(MyTheme.LayoutPadding)
+				.Padding(new Thickness(16))
 			)
 		)
-		.Background(Theme.IsLightTheme ?
-			MyTheme.LightBackground :
-			MyTheme.DarkBackground)
+		.Background(theme.GetBackground())
 		.GridRowSpan(2)
 		.IsVisible(State.ShowSessionSummary);
+	}
 
-	VisualNode NavigationFooter() =>
-		Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
+	VisualNode NavigationFooter()
+	{
+		var theme = BootstrapTheme.Current;
+		return Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
 			Button("GO")
-				.TextColor(Theme.IsLightTheme ?
-					MyTheme.DarkOnLightBackground :
-					MyTheme.LightOnDarkBackground)
+				.TextColor(theme.GetOnBackground())
 				.Background(Colors.Transparent)
 				.GridRow(1).GridColumn(4)
 				.OnClicked(GradeMe),
@@ -293,14 +291,14 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(MyTheme.IconPrevious)
+				.Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 24))
 				.GridRow(1).GridColumn(0)
 				.OnClicked(PreviousSentence),
 
 			ImageButton()
 				.Background(Colors.Transparent)
 				.Aspect(Aspect.Center)
-				.Source(MyTheme.IconNext)
+				.Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 24))
 				.GridRow(1).GridColumn(6)
 				.OnClicked(NextSentence),
 
@@ -324,16 +322,17 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.WidthRequest(1)
 				.GridRow(1).GridColumn(5)
 		).GridRow(1);
+	}
 
-	VisualNode SentenceScoreboard() =>
-		ScrollView(
+	VisualNode SentenceScoreboard()
+	{
+		var theme = BootstrapTheme.Current;
+		return ScrollView(
 			HStack(spacing: 2,
 				ActivityIndicator()
 					.IsRunning(State.IsBuffering)
 					.IsVisible(State.IsBuffering)
-					.Color(Theme.IsLightTheme ?
-						MyTheme.DarkOnLightBackground :
-						MyTheme.LightOnDarkBackground)
+					.Color(theme.GetOnBackground())
 					.VCenter(),
 				HStack(spacing: 4,
 					State.Sentences.Select(sentence =>
@@ -356,12 +355,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			)
 			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ?
 				new Thickness(16, 6) :
-				new Thickness(MyTheme.Size240))
+				new Thickness(24))
 		)
 		.Orientation(ScrollOrientation.Horizontal)
 		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
 		.GridRow(0)
 		.VCenter();
+	}
 
 	VisualNode SentenceDisplay() =>
 		VStack(spacing: 16,
@@ -369,7 +369,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.FontSize(State.IsDesktopPlatform ? SENTENCE_FONT_SIZE_DESKTOP : SENTENCE_FONT_SIZE_MOBILE),
 			Label(State.RecommendedTranslation)
 		)
-		.Margin(MyTheme.SectionSpacing)
+		.Margin(24)
 		.GridRow(1);
 
 	#endregion
@@ -382,14 +382,15 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				RenderMultipleChoice() :
 				RenderTextInput()
 		)
-		.RowSpacing(State.IsDesktopPlatform ? 0 : MyTheme.MicroSpacing)
-		.Padding(State.IsDesktopPlatform ? MyTheme.SectionSpacing : new Thickness(MyTheme.LayoutSpacing, 0))
+		.RowSpacing(State.IsDesktopPlatform ? 0 : 4)
+		.Padding(State.IsDesktopPlatform ? 24 : new Thickness(16, 0))
 		.GridRow(2);
 
-	VisualNode RenderTextInput() =>
-
-		VStack(
-			Label("Answer").ThemeKey(MyTheme.Body1Strong),
+	VisualNode RenderTextInput()
+	{
+		var theme = BootstrapTheme.Current;
+		return VStack(
+			Label("Answer").FontAttributes(FontAttributes.Bold),
 			Border(
 				Entry()
 					.FontSize(32)
@@ -397,12 +398,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
 					.ReturnType(ReturnType.Go)
 					.OnCompleted(GradeMe)
-			).ThemeKey(MyTheme.InputWrapper)
+			).BackgroundColor(theme.GetSurface()).Stroke(theme.GetOutline()).StrokeThickness(1).StrokeShape(new RoundRectangle().CornerRadius(8)).Padding(4)
 		)
 		.GridRow(1)
 		.GridColumn(0)
 		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-		.Margin(0, 0, 0, MyTheme.CardMargin);
+		.Margin(0, 0, 0, 8);
+	}
 
 	VisualNode RenderMultipleChoice()
 	{
@@ -419,7 +421,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		return VStack(spacing: 8,
 			tiles.ToArray()
 		)
-		.Padding(State.IsDesktopPlatform ? new Thickness(MyTheme.SectionSpacing, 0) : new Thickness(MyTheme.LayoutSpacing, 0))
+		.Padding(State.IsDesktopPlatform ? new Thickness(24, 0) : new Thickness(16, 0))
 		.GridRow(0)
 		.GridColumnSpan(4);
 	}
@@ -431,13 +433,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 				.FontSize(20)
 				.Center()
 				.TextColor(GetOptionTileTextColor(option))
-				.Padding(MyTheme.LayoutSpacing, MyTheme.CardMargin)
+				.Padding(16, 8)
 		)
 		.Background(GetOptionTileBackgroundColor(option))
 		.Stroke(GetOptionTileBorderColor(option))
 		.StrokeThickness(2)
 		.StrokeShape(new RoundRectangle().CornerRadius(8))
-		.Margin(0, MyTheme.MicroSpacing)
+		.Margin(0, 4)
 		.OnTapped(() => OnOptionTapped(option));
 	}
 
@@ -447,37 +449,41 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	ImageSource UserActivityToImageSource(UserActivity activity)
 	{
+		var theme = BootstrapTheme.Current;
 		if (activity == null) return null;
 
 		return activity.Accuracy == 100 ?
-			MyTheme.IconCircleCheckmark :
-			MyTheme.IconCancel;
+			BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, theme.Success, 20) :
+			BootstrapIcons.Create(BootstrapIcons.XCircleFill, theme.Danger, 20);
 	}
 
 	Color GetIndicatorBackgroundColor(UserActivity activity)
 	{
+		var theme = BootstrapTheme.Current;
 		if (activity == null) return Colors.Transparent;
 
 		return activity.Accuracy == 100 ?
-			MyTheme.Success :
-			MyTheme.Error;
+			theme.Success :
+			theme.Danger;
 	}
 
 	Color GetIndicatorBorderColor(UserActivity activity, bool isCurrent)
 	{
+		var theme = BootstrapTheme.Current;
 		if (isCurrent)
-			return MyTheme.Dark.Primary;
+			return theme.Primary;
 
 		if (activity == null)
-			return MyTheme.Gray200;
+			return theme.GetOutline();
 
 		return activity.Accuracy == 100 ?
-			MyTheme.Success :
-			MyTheme.Error;
+			theme.Success :
+			theme.Danger;
 	}
 
 	Color GetOptionTileBackgroundColor(string option)
 	{
+		var theme = BootstrapTheme.Current;
 		var isSelected = State.SelectedOption == option;
 		var showFeedback = State.HasBeenGraded;
 		var isCorrect = option == State.CorrectAnswer;
@@ -488,16 +494,16 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			if (isCorrect)
 			{
-				backgroundColor = MyTheme.Success;
+				backgroundColor = theme.Success;
 			}
 			else if (isSelected && !isCorrect)
 			{
-				backgroundColor = MyTheme.Error;
+				backgroundColor = theme.Danger;
 			}
 		}
 		else if (isSelected)
 		{
-			backgroundColor = MyTheme.HighlightDarkest.WithAlpha(0.1f);
+			backgroundColor = theme.Primary.WithAlpha(0.1f);
 		}
 
 		return backgroundColor;
@@ -505,13 +511,12 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	Color GetOptionTileTextColor(string option)
 	{
+		var theme = BootstrapTheme.Current;
 		var isSelected = State.SelectedOption == option;
 		var showFeedback = State.HasBeenGraded;
 		var isCorrect = option == State.CorrectAnswer;
 
-		Color textColor = Theme.IsLightTheme ?
-			MyTheme.DarkOnLightBackground :
-			MyTheme.LightOnDarkBackground;
+		Color textColor = theme.GetOnBackground();
 
 		if (showFeedback)
 		{
@@ -530,26 +535,27 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	Color GetOptionTileBorderColor(string option)
 	{
+		var theme = BootstrapTheme.Current;
 		var isSelected = State.SelectedOption == option;
 		var showFeedback = State.HasBeenGraded;
 		var isCorrect = option == State.CorrectAnswer;
 
-		Color borderColor = MyTheme.Gray200;
+		Color borderColor = theme.GetOutline();
 
 		if (showFeedback)
 		{
 			if (isCorrect)
 			{
-				borderColor = MyTheme.Success;
+				borderColor = theme.Success;
 			}
 			else if (isSelected && !isCorrect)
 			{
-				borderColor = MyTheme.Error;
+				borderColor = theme.Danger;
 			}
 		}
 		else if (isSelected)
 		{
-			borderColor = MyTheme.HighlightDarkest;
+			borderColor = theme.Primary;
 		}
 
 		return borderColor;

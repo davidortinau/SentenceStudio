@@ -1,4 +1,5 @@
 using SentenceStudio.Pages.Controls;
+using MauiReactor.Shapes;
 using SentenceStudio.Repositories;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
@@ -107,9 +108,11 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage($"{_localize["MinimalPairsTitle"]}",
             ToolbarItem($"{_localize["MinimalPairsCreatePair"]}")
-                .IconImageSource(MyTheme.IconAdd)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(() => OnCreatePair()),
 
             Grid(rows: "Auto,*", columns: "*",
@@ -132,55 +135,49 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     private VisualNode RenderModeSelector()
     {
-        return HStack(spacing: MyTheme.Size120,
+        var theme = BootstrapTheme.Current;
+
+        return HStack(spacing: 12,
             Label($"{_localize["Mode"]}:")
-                .ThemeKey(MyTheme.Body1Strong)
+                .FontSize(14)
+                .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
                 .VCenter(),
 
-            new SfSegmentedControl(
-                new SfSegmentItem()
-                    .Text($"{_localize["MinimalPairsModeFocus"]}")
-                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground),
-                new SfSegmentItem()
-                    .Text($"{_localize["MinimalPairsModeMixed"]}")
-                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground)
-            )
-            .TextStyle(new Syncfusion.Maui.Toolkit.SegmentedControl.SegmentTextStyle()
-            {
-                TextColor = MyTheme.Gray600
-            })
-            .SelectionIndicatorSettings(new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings()
-            {
-                Background = MyTheme.PrimaryButtonBackground,
-                TextColor = Colors.White
-            })
-            .SelectedIndex((int)State.SelectedMode)
-            .Background(MyTheme.SecondaryButtonBackground)
-            .CornerRadius((float)MyTheme.Size80)
-            .OnSelectionChanged((s, e) =>
-            {
-                if (e.NewIndex >= 0)
-                {
-                    SetState(state =>
+            // Bootstrap btn-group: active = primary, inactive = outline
+            HStack(spacing: 0,
+                Button($"{_localize["MinimalPairsModeFocus"]}")
+                    .Background(new SolidColorBrush(State.SelectedMode == PracticeMode.Focus ? theme.Primary : Colors.Transparent))
+                    .TextColor(State.SelectedMode == PracticeMode.Focus ? Colors.White : theme.GetOnBackground())
+                    .BorderColor(theme.GetOutline())
+                    .BorderWidth(1)
+                    .CornerRadius(6)
+                    .OnClicked(() => SetState(s =>
                     {
-                        state.SelectedMode = (PracticeMode)e.NewIndex;
+                        s.SelectedMode = PracticeMode.Focus;
+                    })),
+
+                Button($"{_localize["MinimalPairsModeMixed"]}")
+                    .Background(new SolidColorBrush(State.SelectedMode == PracticeMode.Mixed ? theme.Primary : Colors.Transparent))
+                    .TextColor(State.SelectedMode == PracticeMode.Mixed ? Colors.White : theme.GetOnBackground())
+                    .BorderColor(theme.GetOutline())
+                    .BorderWidth(1)
+                    .CornerRadius(6)
+                    .OnClicked(() => SetState(s =>
+                    {
+                        s.SelectedMode = PracticeMode.Mixed;
                         // Clear selection when switching to Mixed mode
-                        if (state.SelectedMode == PracticeMode.Mixed)
-                        {
-                            state.SelectedPairId = null;
-                        }
-                    });
-                }
-            })
+                        s.SelectedPairId = null;
+                    }))
+            )
             .HFill()
         )
-        .Padding(MyTheme.Size160);
+        .Padding(16);
     }
 
     private VisualNode RenderEmptyState()
     {
         return Label($"{_localize["MinimalPairsEmptyState"]}")
-            .ThemeKey(MyTheme.Body1)
+            .FontSize(14)
             .Center()
             .GridRow(1);
     }
@@ -194,45 +191,50 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     private VisualNode RenderPairItem(MinimalPair pair)
     {
+        var theme = BootstrapTheme.Current;
+
         // In Mixed mode, all pairs are considered selected
         // In Focus mode, only the explicitly selected pair is highlighted
         var isSelected = State.SelectedMode == PracticeMode.Mixed ||
                         (State.SelectedMode == PracticeMode.Focus && State.SelectedPairId == pair.Id);
 
         return Border(
-            HStack(spacing: MyTheme.Size120,
+            HStack(spacing: 12,
                 // Pair content
-                VStack(spacing: MyTheme.Size80,
-                    HStack(spacing: MyTheme.Size120,
+                VStack(spacing: 8,
+                    HStack(spacing: 12,
                         Label(pair.VocabularyWordA?.TargetLanguageTerm ?? "")
-                            .ThemeKey(MyTheme.Title2),
+                            .H4(),
 
                         Label("vs")
-                            .ThemeKey(MyTheme.Caption1),
+                            .Small(),
 
                         Label(pair.VocabularyWordB?.TargetLanguageTerm ?? "")
-                            .ThemeKey(MyTheme.Title2)
+                            .H4()
                     ),
 
                     string.IsNullOrEmpty(pair.ContrastLabel)
                         ? null
                         : Label(pair.ContrastLabel)
-                            .ThemeKey(MyTheme.Caption1)
+                            .Small()
                 )
                 .HFill(),
 
                 // Delete button - far right
                 ImageButton()
-                    .Source(MyTheme.IconDelete)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20))
+                    .Background(Colors.Transparent)
                     .OnClicked(async () => await OnDeletePairAsync(pair))
                     .WidthRequest(40)
                     .HeightRequest(40)
             )
-            .Padding(MyTheme.Size120)
+            .Padding(12)
         )
-        .ThemeKey(MyTheme.CardStyle)
-        .Background(isSelected ? MyTheme.PrimaryDark : Colors.Transparent)
-        .Margin(MyTheme.Size80, MyTheme.Size40)
+        .BackgroundColor(isSelected ? theme.Primary : theme.GetSurface())
+        .Stroke(isSelected ? theme.Primary : theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Margin(8, 4)
         .OnTapped(() =>
         {
             if (State.SelectedMode == PracticeMode.Focus)

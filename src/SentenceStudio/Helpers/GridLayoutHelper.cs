@@ -24,7 +24,7 @@ public static class GridLayoutHelper
         double? customPadding = null)
     {
         var span = CalculateOptimalSpan(desiredItemWidth, minColumns, maxColumns, customSpacing, customPadding);
-        var spacing = customSpacing ?? MyTheme.LayoutSpacing;
+        var spacing = customSpacing ?? 16;
 
         return new GridItemsLayout(span, orientation)
         {
@@ -39,8 +39,8 @@ public static class GridLayoutHelper
     /// <param name="desiredItemWidth">The minimum desired width for each item in device-independent pixels</param>
     /// <param name="minColumns">Minimum number of columns (default: 1)</param>
     /// <param name="maxColumns">Maximum number of columns (default: 3)</param>
-    /// <param name="customSpacing">Custom spacing between items. If null, uses MyTheme.LayoutSpacing</param>
-    /// <param name="customPadding">Custom container padding. If null, uses MyTheme.LayoutPadding.Left</param>
+    /// <param name="customSpacing">Custom spacing between items. If null, uses 16 (Bootstrap default)</param>
+    /// <param name="customPadding">Custom container padding. If null, uses 16</param>
     /// <returns>The optimal span (number of columns/rows)</returns>
     public static int CalculateOptimalSpan(
         double desiredItemWidth,
@@ -52,9 +52,9 @@ public static class GridLayoutHelper
         // Get screen width in device-independent pixels
         var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
 
-        // Use provided values or defaults from theme
-        var spacing = customSpacing ?? MyTheme.LayoutSpacing;
-        var containerPadding = customPadding ?? MyTheme.LayoutPadding.Left;
+        // Use provided values or defaults
+        var spacing = customSpacing ?? 16;
+        var containerPadding = customPadding ?? 16;
 
         // Calculate available width after accounting for container padding
         var availableWidth = screenWidth - containerPadding;

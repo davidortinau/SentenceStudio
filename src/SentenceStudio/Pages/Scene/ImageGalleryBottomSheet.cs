@@ -13,38 +13,40 @@ partial class ImageGalleryBottomSheet : Component
         return Grid("Auto,*","",
             RenderHeader(),
             RenderGallery()
-        ).RowSpacing(MyTheme.Size120)
-        .Margin(MyTheme.Size240);
+        ).RowSpacing(12)
+        .Margin(24);
     }
 
-    VisualNode RenderHeader() =>
-        Grid(
+    VisualNode RenderHeader()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             Label("Choose an image")
-                .ThemeKey(MyTheme.Title1)
+                .H3()
                 .HStart(),
 
-            HStack(spacing: MyTheme.Size60,
+            HStack(spacing: 6,
                 Button()
-                    .ImageSource(MyTheme.IconImageExport)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Images, theme.GetOnBackground(), 20))
                     .Background(Colors.Transparent)
-                    .TextColor(MyTheme.DarkOnLightBackground)
+                    .TextColor(theme.GetOnBackground())
                     .Padding(0)
                     .Margin(0)
                     .VCenter()
                     .IsVisible(!_state.IsDeleteVisible),
 
                 Button()
-                    .ImageSource(MyTheme.IconCheckbox)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Check2Square, theme.GetOnBackground(), 20))
                     .Background(Colors.Transparent)
-                    .TextColor(MyTheme.DarkOnLightBackground)
+                    .TextColor(theme.GetOnBackground())
                     .Padding(0)
                     .Margin(0)
                     .VCenter(),
 
                 Button()
-                    .ImageSource(MyTheme.IconDelete)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20))
                     .Background(Colors.Transparent)
-                    .TextColor(MyTheme.DarkOnLightBackground)
+                    .TextColor(theme.GetOnBackground())
                     .Padding(0)
                     .Margin(0)
                     .VCenter()
@@ -52,6 +54,7 @@ partial class ImageGalleryBottomSheet : Component
             )
             .HEnd()
         );
+    }
 
     VisualNode RenderGallery() =>
         CollectionView()
@@ -59,8 +62,8 @@ partial class ImageGalleryBottomSheet : Component
             .SelectionMode(_state.SelectionMode)
             .SelectedItems(_state.SelectedImages.Cast<object>().ToList())
             .ItemsLayout(new VerticalGridItemsLayout(2)
-                .VerticalItemSpacing(MyTheme.Size240)
-                .HorizontalItemSpacing(MyTheme.Size240))
+                .VerticalItemSpacing(24)
+                .HorizontalItemSpacing(24))
             .GridRow(1);
 
     VisualNode RenderGalleryItem(SceneImage image) =>
@@ -73,14 +76,14 @@ partial class ImageGalleryBottomSheet : Component
                 ,
 
             Image()
-                .Source(MyTheme.IconCheckbox)
+                .Source(BootstrapIcons.Create(BootstrapIcons.Square, BootstrapTheme.Current.GetOnBackground(), 20))
                 .VEnd()
                 .HEnd()
                 .IsVisible(_state.IsSelecting)
                 .Margin(4),
 
             Image()
-                .Source(MyTheme.IconCheckboxSelected)
+                .Source(BootstrapIcons.Create(BootstrapIcons.CheckSquareFill, BootstrapTheme.Current.Primary, 20))
                 .VEnd()
                 .HEnd()
                 .IsVisible(image.IsSelected)

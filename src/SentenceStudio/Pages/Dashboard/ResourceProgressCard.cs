@@ -15,9 +15,11 @@ public partial class ResourceProgressCard : Component
     {
         if (!_isVisible || _resources?.Any() != true) return ContentView();
 
+        var theme = BootstrapTheme.Current;
+
         return Border(
             VStack(
-                Label("Recent Resources").FontSize(16).FontAttributes(FontAttributes.Bold),
+                Label("Recent Resources").H5(),
                 VStack(
                     _resources.Take(3).Select(resource =>
                         Border(
@@ -30,39 +32,40 @@ public partial class ResourceProgressCard : Component
                                     Label($"{Math.Round(resource.Proficiency * 100)}%")
                                         .FontSize(12)
                                         .TextColor(GetProficiencyColor(resource.Proficiency))
-                                ).Spacing(MyTheme.ComponentSpacing),
+                                ).Spacing(8),
                                 ProgressBar()
                                     .Progress(resource.Proficiency)
                                     .ProgressColor(GetProficiencyColor(resource.Proficiency))
-                                    .Margin(0, MyTheme.MicroSpacing, 0, 0),
+                                    .Margin(0, 4, 0, 0),
                                 HStack(
                                     Label($"{resource.Attempts} attempts")
-                                        .FontSize(10)
-                                        .TextColor(MyTheme.SecondaryText),
+                                        .Small()
+                                        .Muted(),
                                     Label($"{Math.Round(resource.CorrectRate * 100)}% correct")
-                                        .FontSize(10)
-                                        .TextColor(MyTheme.SecondaryText),
+                                        .Small()
+                                        .Muted(),
                                     Label($"{resource.Minutes} min")
-                                        .FontSize(10)
-                                        .TextColor(MyTheme.SecondaryText)
+                                        .Small()
+                                        .Muted()
                                         .HEnd()
-                                ).Spacing(MyTheme.ComponentSpacing)
-                            ).Spacing(MyTheme.MicroSpacing).Padding(MyTheme.ComponentSpacing)
-                        ).StrokeThickness(0.5).Stroke(MyTheme.ItemBorder).Margin(0, MyTheme.MicroSpacing)
+                                ).Spacing(8)
+                            ).Spacing(4).Padding(8)
+                        ).StrokeThickness(0.5).Stroke(theme.GetOutline()).Margin(0, 4)
                     ).ToArray()
-                ).Spacing(MyTheme.MicroSpacing)
-            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding)
-        ).StrokeThickness(1).Stroke(MyTheme.ItemBorder);
+                ).Spacing(4)
+            ).Spacing(8).Padding(16)
+        ).StrokeThickness(1).Stroke(theme.GetOutline());
     }
 
     private Color GetProficiencyColor(double proficiency)
     {
+        var theme = BootstrapTheme.Current;
         return proficiency switch
         {
-            >= 0.8 => MyTheme.ProficiencyHigh,
-            >= 0.6 => MyTheme.ProficiencyMedium,
-            >= 0.4 => MyTheme.ProficiencyLow,
-            _ => MyTheme.ProficiencyVeryLow
+            >= 0.8 => theme.Success,
+            >= 0.6 => theme.Warning,
+            >= 0.4 => Color.FromArgb("#FF8C00"),
+            _ => theme.Danger
         };
     }
 }

@@ -78,13 +78,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 ).VCenter().HCenter() :
                 Grid(rows: "*,Auto", columns: "*",
                     ScrollView(
-                        VStack(spacing: MyTheme.SectionSpacing,
+                        VStack(spacing: 24,
                             RenderWordForm(),
                             RenderEncodingSection(),
                             Props.VocabularyWordId > 0 ? RenderExampleSentencesSection() : null,
                             Props.VocabularyWordId > 0 ? RenderProgressSection() : null,
                             RenderResourceAssociations()
-                        ).Padding(MyTheme.LayoutSpacing)
+                        ).Padding(16)
                     ),
                     RenderActionButtons()
                 ).Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
@@ -93,10 +93,12 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         .OnAppearing(LoadData);
     }
 
-    VisualNode RenderWordForm() =>
-        VStack(spacing: 16,
+    VisualNode RenderWordForm()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             Label($"{_localize["VocabularyTerms"]}")
-                .FontSize(20)
+                .H5()
                 .FontAttributes(FontAttributes.Bold),
 
             // Target Language
@@ -112,15 +114,18 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                             .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
                             .FontSize(16)
                     )
-                    .ThemeKey(MyTheme.InputWrapper)
-                    .Padding(MyTheme.CardPadding)
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(8))
+                    .Padding(16)
                     .HFill(),
 
                     // Inline audio play button - only show for saved words with text
                     State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
                         ImageButton()
-                            .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
-                            .Background(MyTheme.SecondaryButtonBackground)
+                            .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty,
+                                BootstrapIcons.Create(BootstrapIcons.PlayFill, theme.GetOnBackground(), 16))
+                            .Background(new SolidColorBrush(theme.GetSurface()))
                             .HeightRequest(44)
                             .WidthRequest(44)
                             .CornerRadius(8)
@@ -144,32 +149,37 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Placeholder($"{_localize["EnterNativeLanguageTerm"]}")
                         .FontSize(16)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Padding(16)
             ),
 
             // Error message
             !string.IsNullOrEmpty(State.ErrorMessage) ?
                 Label(State.ErrorMessage)
-                    .TextColor(MyTheme.Error)
+                    .TextColor(theme.Danger)
                     .FontSize(12)
                     .HStart() :
                 null
         );
+    }
 
-    VisualNode RenderEncodingSection() =>
-        VStack(spacing: 16,
+    VisualNode RenderEncodingSection()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             Label("Encoding & Memory Aids")
-                .FontSize(20)
+                .H5()
                 .FontAttributes(FontAttributes.Bold),
 
             Label($"Encoding Strength: {State.EncodingStrengthLabel}")
                 .FontSize(14)
                 .TextColor(State.EncodingStrengthLabel switch
                 {
-                    "Strong" => MyTheme.Success,
-                    "Good" => MyTheme.Warning,
-                    _ => MyTheme.Gray600
+                    "Strong" => theme.Success,
+                    "Good" => theme.Warning,
+                    _ => theme.GetOutline()
                 }),
 
             // Lemma
@@ -184,8 +194,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Placeholder("e.g., 가다 for 갔다, 가요, etc.")
                         .FontSize(16)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Padding(16)
             ),
 
             // Tags
@@ -200,8 +212,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Placeholder("e.g., nature, season, visual")
                         .FontSize(16)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Padding(16)
             ),
 
             // Mnemonic Text
@@ -217,8 +231,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .FontSize(16)
                         .HeightRequest(80)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Padding(16)
             ),
 
             // Mnemonic Image URI
@@ -233,8 +249,10 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Placeholder("https://example.com/image.jpg")
                         .FontSize(16)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
-                .Padding(MyTheme.CardPadding),
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Padding(16),
 
                 !string.IsNullOrWhiteSpace(State.MnemonicImageUri) ?
                     Image()
@@ -244,12 +262,15 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     : null
 
         ));
+    }
 
-    VisualNode RenderExampleSentencesSection() =>
-        VStack(spacing: 16,
+    VisualNode RenderExampleSentencesSection()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             HStack(spacing: 10,
                 Label($"{_localize["ExampleSentences"]}")
-                    .FontSize(20)
+                    .H5()
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),
@@ -258,11 +279,15 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     ActivityIndicator().IsRunning(true).WidthRequest(24).HeightRequest(24) :
                     HStack(spacing: 8,
                         Button($"{_localize["GenerateWithAI"]}")
-                            .ThemeKey(MyTheme.PrimaryButton)
+                            .Background(new SolidColorBrush(theme.Primary))
+                            .TextColor(Colors.White)
                             .OnClicked(() => _ = GenerateExampleSentencesAsync()),
 
                         Button($"{_localize["AddManually"]}")
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(theme.GetOnBackground())
+                            .BorderColor(theme.GetOutline())
+                            .BorderWidth(1)
                             .OnClicked(() => _ = AddExampleSentenceAsync())
                     )
             ),
@@ -277,12 +302,15 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     ) :
                     Label($"{_localize["NoExampleSentencesYet"]}")
                         .FontSize(14)
-                        .TextColor(MyTheme.Gray500)
+                        .Muted()
                         .FontAttributes(FontAttributes.Italic)
         );
+    }
 
-    VisualNode RenderExampleSentenceItem(ExampleSentence sentence) =>
-        Border(
+    VisualNode RenderExampleSentenceItem(ExampleSentence sentence)
+    {
+        var theme = BootstrapTheme.Current;
+        return Border(
             VStack(spacing: 8,
                 Label(sentence.TargetSentence)
                     .FontSize(16)
@@ -291,20 +319,21 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 !string.IsNullOrWhiteSpace(sentence.NativeSentence) ?
                     Label(sentence.NativeSentence)
                         .FontSize(14)
-                        .TextColor(MyTheme.Gray600) :
+                        .Muted() :
                     null,
 
                 HStack(spacing: 8,
                     sentence.IsCore ?
                         Label("⭐ Core")
                             .FontSize(12)
-                            .TextColor(MyTheme.Warning) :
+                            .TextColor(theme.Warning) :
                         null,
 
-                    // Audio play button - generates on first tap, plays cached audio on subsequent taps
+                    // Audio play button
                     ImageButton()
-                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconPlay)
-                        .Background(MyTheme.SecondaryButtonBackground)
+                        .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty,
+                            BootstrapIcons.Create(BootstrapIcons.PlayFill, theme.GetOnBackground(), 16))
+                        .Background(new SolidColorBrush(theme.GetSurface()))
                         .HeightRequest(36)
                         .WidthRequest(36)
                         .CornerRadius(8)
@@ -313,28 +342,37 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .OnClicked(() => _ = PlaySentenceAudioAsync(sentence)),
 
                     Button("Toggle Core")
-                        .ThemeKey(MyTheme.Secondary)
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(theme.GetOnBackground())
+                        .BorderColor(theme.GetOutline())
+                        .BorderWidth(1)
                         .OnClicked(() => _ = ToggleSentenceCoreAsync(sentence.Id)),
 
                     Button("Delete")
-                        .ThemeKey(MyTheme.Danger)
+                        .Background(new SolidColorBrush(theme.Danger))
+                        .TextColor(Colors.White)
                         .OnClicked(() => _ = DeleteSentenceAsync(sentence.Id))
                 )
             )
-            .Padding(MyTheme.CardPadding)
+            .Padding(16)
         )
-        .ThemeKey(MyTheme.CardStyle);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
+    }
 
     VisualNode RenderProgressSection()
     {
+        var theme = BootstrapTheme.Current;
         var progress = State.Progress;
         var isKnown = progress?.IsKnown ?? false;
         var isLearning = progress?.IsLearning ?? false;
         var isUnknown = progress == null || (!isKnown && !isLearning);
 
-        var statusColor = isKnown ? MyTheme.Success :
-                         isLearning ? MyTheme.Warning :
-                         MyTheme.Gray400;
+        var statusColor = isKnown ? theme.Success :
+                         isLearning ? theme.Warning :
+                         theme.GetOutline();
 
         var statusText = isKnown ? $"Status: {_localize["Known"]}" :
                         isLearning ? $"Status: {_localize["Learning"]}" :
@@ -391,45 +429,47 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
         return VStack(
             Label($"{_localize["LearningProgress"]}")
-                .FontSize(20)
+                .H5()
                 .FontAttributes(FontAttributes.Bold),
 
             Border(
-                VStack(spacing: MyTheme.ComponentSpacing,
+                VStack(spacing: 8,
                     Label(statusText)
-                        .ThemeKey(MyTheme.Body2),
+                        .FontSize(14),
 
                     // Progress details
                     Label(progressDetails)
-                        .ThemeKey(MyTheme.Body2),
+                        .FontSize(14),
 
                     // Review date
                     Label(reviewDateText)
-                        .ThemeKey(MyTheme.Body2)
+                        .FontSize(14)
                 )
-                .Padding(MyTheme.CardPadding)
+                .Padding(16)
             )
         );
     }
 
-    VisualNode RenderResourceAssociations() =>
-        VStack(spacing: 16,
+    VisualNode RenderResourceAssociations()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             HStack(spacing: 10,
                 Label($"{_localize["ResourceAssociations"]}")
-                    .FontSize(20)
+                    .H5()
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),
 
                 Label(string.Format($"{_localize["Selected"]}", State.SelectedResourceIds.Count))
                     .FontSize(12)
-                    .TextColor(MyTheme.Gray600)
+                    .Muted()
                     .VCenter()
             ),
 
             Label($"{_localize["SelectResourceToAssociate"]}")
                 .FontSize(14)
-                .TextColor(MyTheme.Gray600),
+                .Muted(),
 
             State.AvailableResources.Any() ?
                 VStack(spacing: 8,
@@ -439,16 +479,20 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 ) :
                 Label($"{_localize["NoResourcesAvailable"]}")
                     .FontSize(14)
-                    .TextColor(MyTheme.Gray500)
+                    .Muted()
                     .FontAttributes(FontAttributes.Italic)
                     .Center()
         );
+    }
 
-    VisualNode RenderResourceItem(LearningResource resource) =>
-        Border(
+    VisualNode RenderResourceItem(LearningResource resource)
+    {
+        var theme = BootstrapTheme.Current;
+        var isSelected = State.SelectedResourceIds.Contains(resource.Id);
+        return Border(
             HStack(
                 CheckBox()
-                    .IsChecked(State.SelectedResourceIds.Contains(resource.Id))
+                    .IsChecked(isSelected)
                     .OnCheckedChanged(isChecked => ToggleResourceSelection(resource.Id, isChecked))
                     .VCenter(),
 
@@ -460,45 +504,48 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     resource.Description != null ?
                         Label(resource.Description)
                             .FontSize(12)
-                            .TextColor(MyTheme.Gray600)
+                            .Muted()
                             .MaxLines(2) :
                         null
                 ).VCenter().HFill()
 
             )
         )
-        .Stroke(State.SelectedResourceIds.Contains(resource.Id) ? MyTheme.Success : MyTheme.Gray300)
+        .Stroke(isSelected ? theme.Success : theme.GetOutline())
         .StrokeThickness(1)
-        .Background(State.SelectedResourceIds.Contains(resource.Id) ?
-            (Theme.IsLightTheme ? MyTheme.SuccessLight : MyTheme.DarkSecondaryBackground) :
-            (Theme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground))  // Let the theme handle the default background
-        .OnTapped(() => ToggleResourceSelection(resource.Id, !State.SelectedResourceIds.Contains(resource.Id)));
+        .BackgroundColor(isSelected ? theme.Success.WithAlpha(0.1f) : theme.GetSurface())
+        .OnTapped(() => ToggleResourceSelection(resource.Id, !isSelected));
+    }
 
-    VisualNode RenderActionButtons() =>
-        Grid(
+    VisualNode RenderActionButtons()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             rows: "Auto,Auto",
             columns: Props.VocabularyWordId > 0 ? "*,Auto" : "*",
             // Save/Add button on the left
             Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
-                .ThemeKey(MyTheme.PrimaryButton)
+                .Background(new SolidColorBrush(theme.Primary))
+                .TextColor(Colors.White)
                 .OnClicked(SaveVocabularyWord)
                 .IsEnabled(!State.IsSaving &&
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&
                           !string.IsNullOrWhiteSpace(State.NativeLanguageTerm.Trim()))
                 .FontSize(16)
-                .Padding(MyTheme.LayoutSpacing, MyTheme.CardPadding)
+                .Padding(16, 16)
                 .GridRow(0)
                 .GridColumn(0),
 
             // Delete icon button on the right (only for existing words)
             Props.VocabularyWordId > 0 ?
                 ImageButton()
-                    .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDelete)
-                    .Background(MyTheme.LightSecondaryBackground)
+                    .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty,
+                        BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20))
+                    .Background(new SolidColorBrush(theme.GetSurface()))
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)
-                    .Padding(MyTheme.MicroSpacing)
+                    .Padding(4)
                     .OnClicked(DeleteVocabularyWord)
                     .IsEnabled(!State.IsSaving)
                     .GridRow(0)
@@ -513,7 +560,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .Scale(0.8),
                     Label("Saving...")
                         .FontSize(14)
-                        .TextColor(MyTheme.Gray600)
+                        .Muted()
                         .VCenter()
                 )
                 .HCenter()
@@ -521,8 +568,9 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 .GridColumnSpan(Props.VocabularyWordId > 0 ? 2 : 1) :
                 null
         )
-        .ThemeKey(MyTheme.Surface1)
+        .BackgroundColor(theme.GetSurface())
         .GridRow(1);
+    }
 
     async Task LoadData()
     {

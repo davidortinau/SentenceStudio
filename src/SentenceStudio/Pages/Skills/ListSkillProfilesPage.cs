@@ -15,34 +15,58 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage("Skill Profiles",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
-                // .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(async () => await AddProfile()),
-            VScrollView(
-                VStack(
-                    new HWrap()
-                    {
-                        State.Profiles.Select(profile =>
-                            Border(
-                                Grid(
-                                    Label()
-                                        .Center()
-                                        .Text(profile.Title)
+            State.Profiles.Count == 0
+                ? (VisualNode)VStack(spacing: 16,
+                    Label("No skill profiles yet")
+                        .Muted()
+                        .HCenter(),
+                    Button($"{_localize["Add"]}")
+                        .Primary()
+                        .HCenter()
+                        .OnClicked(async () => await AddProfile())
+                  )
+                  .Padding(40)
+                  .VCenter()
+                : VScrollView(
+                    VStack(
+                        new HWrap()
+                        {
+                            State.Profiles.Select(profile =>
+                                Border(
+                                    VStack(spacing: 4,
+                                        Label(profile.Title)
+                                            .H6()
+                                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
+                                        string.IsNullOrEmpty(profile.Description)
+                                            ? null
+                                            : Label(profile.Description)
+                                                .Small()
+                                                .Muted()
+                                                .LineBreakMode(LineBreakMode.TailTruncation)
+                                                .MaxLines(2)
+                                    )
+                                    .VCenter()
+                                    .Padding(16)
                                 )
                                 .WidthRequest(300)
-                                .HeightRequest(120)
+                                .MinimumHeightRequest(120)
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .StrokeShape(new RoundRectangle().CornerRadius(12))
                                 .OnTapped(() => EditProfile(profile))
                             )
-                            .StrokeShape(new Rectangle())
-                            .StrokeThickness(1)
-                        )
-                    }
-                    .Spacing(MyTheme.Size320)
+                        }
+                        .Spacing(12)
+                    )
+                    .Padding(16)
+                    .Spacing(24)
                 )
-                .Padding(MyTheme.Size160)
-                .Spacing(MyTheme.Size240)
-            )
         ).OnAppearing(LoadProfiles);
     }
 

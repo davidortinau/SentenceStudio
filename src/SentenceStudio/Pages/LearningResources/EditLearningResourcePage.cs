@@ -54,6 +54,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
             // Only show Edit button for non-smart resources when not already editing
             (State.IsEditing || !IsEditable) ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
@@ -78,7 +80,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     RenderViewMode()
                             )
                             .Padding(new Thickness(15))
-                            .Spacing(MyTheme.LayoutSpacing)
+                            .Spacing(16)
                         ),
 
                         // Vocabulary word editor overlay
@@ -129,6 +131,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
     private VisualNode RenderViewMode()
     {
+        var theme = BootstrapTheme.Current;
+
         return VStack(
             // Show media content based on type
             // RenderMediaContent(),
@@ -141,19 +145,19 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Label($"{_localize["SmartResource"]}")
                         .FontSize(14)
                         .FontAttributes(FontAttributes.Bold)
-                        .TextColor(MyTheme.HighlightDarkest),
+                        .TextColor(theme.Primary),
                     Label($" - {_localize["ReadOnlyResource"]}")
                         .FontSize(12)
-                        .TextColor(MyTheme.SecondaryText)
+                        .Muted()
                 )
-                .Spacing(MyTheme.MicroSpacing)
-                .Padding(new Thickness(MyTheme.Size80, MyTheme.Size40))
-                .Background(MyTheme.HighlightLightest)
+                .Spacing(4)
+                .Padding(new Thickness(8, 4))
+                .BackgroundColor(theme.Info.WithAlpha(0.1f))
                 : null,
 
             // Title
             Label(State.Resource.Title ?? string.Empty)
-                .FontSize(24)
+                .H4()
                 .FontAttributes(FontAttributes.Bold),
 
             // Description
@@ -211,10 +215,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .GridRow(4)
                         .GridColumn(1)
                 )
-                .RowSpacing(MyTheme.MicroSpacing)
-                .ColumnSpacing(MyTheme.ComponentSpacing)
+                .RowSpacing(4)
+                .ColumnSpacing(8)
             )
-            .Stroke(MyTheme.ItemBorder),
+            .Stroke(theme.GetOutline()),
 
             // Transcript if available
             !string.IsNullOrEmpty(State.Resource.Transcript) ?
@@ -229,23 +233,29 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             Button("Clean Up Format")
                                 .OnClicked(CleanUpTranscript)
                                 .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                                .ThemeKey(MyTheme.Secondary),
+                                .Background(new SolidColorBrush(Colors.Transparent))
+                                .TextColor(theme.GetOnBackground())
+                                .BorderColor(theme.GetOutline())
+                                .BorderWidth(1),
 
                             Button("Polish with AI")
                                 .OnClicked(PolishTranscriptWithAi)
                                 .IsEnabled(!State.IsCleaningTranscript && !State.IsPolishingTranscript)
-                                .ThemeKey(MyTheme.Secondary)
+                                .Background(new SolidColorBrush(Colors.Transparent))
+                                .TextColor(theme.GetOnBackground())
+                                .BorderColor(theme.GetOutline())
+                                .BorderWidth(1)
                         )
-                        .Spacing(MyTheme.ComponentSpacing)
+                        .Spacing(8)
                         .HStart() : null,
 
                     Border(
                         Label(State.Resource.Transcript)
                     )
-                    .Stroke(MyTheme.ItemBorder)
-                    .Padding(MyTheme.ComponentSpacing)
+                    .Stroke(theme.GetOutline())
+                    .Padding(8)
                 )
-                .Spacing(MyTheme.ComponentSpacing) :
+                .Spacing(8) :
                 null,
 
             // Translation if available
@@ -258,20 +268,21 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Border(
                         Label(State.Resource.Translation)
                     )
-                    .Stroke(MyTheme.ItemBorder)
-                    .Padding(MyTheme.ComponentSpacing)
+                    .Stroke(theme.GetOutline())
+                    .Padding(8)
                 )
-                .Spacing(MyTheme.ComponentSpacing) :
+                .Spacing(8) :
                 null,
 
             // Vocabulary section - button to open bottom sheet
             RenderVocabularySection()
         )
-        .Spacing(MyTheme.LayoutSpacing);
+        .Spacing(16);
     }
 
     private VisualNode RenderVocabularySection()
     {
+        var theme = BootstrapTheme.Current;
         var vocabCount = State.Resource.Vocabulary?.Count ?? 0;
 
         return VStack(
@@ -283,7 +294,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         : "📚 Vocabulary (0 terms)")
                     .FontAttributes(FontAttributes.Bold)
                     .FontSize(16)
-                    .ThemeKey(MyTheme.Secondary)
+                    .Background(new SolidColorBrush(Colors.Transparent))
+                    .TextColor(theme.GetOnBackground())
+                    .BorderColor(theme.GetOutline())
+                    .BorderWidth(1)
                     .OnClicked(NavigateToVocabularyManagement)
                     .IsEnabled(!State.IsGeneratingVocabulary)
                     .GridColumn(0)
@@ -293,7 +307,10 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 IsEditable ?
                     HStack(
                         Button($"{_localize["Generate"]}")
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(theme.GetOnBackground())
+                            .BorderColor(theme.GetOutline())
+                            .BorderWidth(1)
                             .OnClicked(GenerateVocabulary)
                             .IsEnabled(!State.IsGeneratingVocabulary)
                             .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
@@ -303,7 +320,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .IsVisible(State.IsGeneratingVocabulary)
                             .Scale(0.8)
                     )
-                    .Spacing(MyTheme.ComponentSpacing)
+                    .Spacing(8)
                     .GridColumn(1)
                     .HEnd() : null
             )
@@ -311,19 +328,21 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
             State.IsGeneratingVocabulary ?
                 Label("Analyzing transcript and generating vocabulary...")
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.SecondaryText) :
+                    .Small()
+                    .Muted() :
                 vocabCount == 0 ?
                     Label("No vocabulary words yet. Tap Generate to extract from transcript.")
-                        .ThemeKey(MyTheme.Caption1)
-                        .TextColor(MyTheme.SecondaryText) :
+                        .Small()
+                        .Muted() :
                     null
         )
-        .Spacing(MyTheme.MicroSpacing);
+        .Spacing(4);
     }
 
     private VisualNode RenderEditMode()
     {
+        var theme = BootstrapTheme.Current;
+
         return VStack(
             // Title
             VStack(
@@ -335,9 +354,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Title)
                         .OnTextChanged(text => SetState(s => s.Resource.Title = text))
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Description
             VStack(
@@ -350,16 +372,19 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Description = text))
                         .HeightRequest(100)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Media Type
             VStack(
                 Label("Media Type")
                     .FontAttributes(FontAttributes.Bold)
                     .HStart(),
-                new SfTextInputLayout(
+                Border(
                     Picker()
                         .ItemsSource(Constants.MediaTypes)
                         .SelectedIndex(State.MediaTypeIndex)
@@ -369,16 +394,19 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             s.Resource.MediaType = Constants.MediaTypes[index];
                         }))
                 )
-                .Hint("Media Type")
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Language
             VStack(
                 Label("Language")
                     .FontAttributes(FontAttributes.Bold)
                     .HStart(),
-                new SfTextInputLayout(
+                Border(
                     Picker()
                         .ItemsSource(Constants.Languages)
                         .SelectedIndex(State.LanguageIndex)
@@ -388,9 +416,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             s.Resource.Language = Constants.Languages[index];
                         }))
                 )
-                .Hint("Language")
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Media URL
             VStack(
@@ -403,9 +434,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
                         .Keyboard(Keyboard.Url)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Transcript
             VStack(
@@ -418,9 +452,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
                         .HeightRequest(150)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Translation
             VStack(
@@ -433,9 +470,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
                         .HeightRequest(150)
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Tags
             VStack(
@@ -447,23 +487,32 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Text(State.Resource.Tags)
                         .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
                 )
-                .ThemeKey(MyTheme.InputWrapper)
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .Padding(8)
             )
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
 
             // Vocabulary section
             VStack(
                 Label("Vocabulary")
-                        .ThemeKey(MyTheme.Title1)
+                        .H3()
                         .GridColumn(0),
 
                 HStack(
                     Button("+ Add Word")
-                        .ThemeKey(MyTheme.Secondary)
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(theme.GetOnBackground())
+                        .BorderColor(theme.GetOutline())
+                        .BorderWidth(1)
                         .OnClicked(AddVocabularyWord),
 
                     Button("Generate")
-                        .ThemeKey(MyTheme.Secondary)
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(theme.GetOnBackground())
+                        .BorderColor(theme.GetOutline())
+                        .BorderWidth(1)
                         .OnClicked(GenerateVocabulary)
                         .IsEnabled(!State.IsGeneratingVocabulary)
                         .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
@@ -473,7 +522,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .IsVisible(State.IsGeneratingVocabulary)
                         .Scale(0.8)
                 )
-                .Spacing(MyTheme.ComponentSpacing),
+                .Spacing(8),
 
                 // Vocabulary import section
 
@@ -481,16 +530,19 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     .FontAttributes(FontAttributes.Bold)
                     .HStart(),
                 Grid(
-                    new SfTextInputLayout{
+                    Border(
                         Editor()
                             .Text(State.VocabList)
                             .OnTextChanged(text => SetState(s => s.VocabList = text))
                             .MinimumHeightRequest(150)
                             .MaximumHeightRequest(250)
-                        }
-                        .Hint($"{_localize["Vocabulary"]}"),
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .Padding(8),
                     Button()
-                        .ImageSource(MyTheme.IconFileExplorer)
+                        .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
                         .Background(Colors.Transparent)
                         .HEnd()
                         .VEnd()
@@ -511,11 +563,14 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .OnCheckedChanged(e =>
                             { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                     Button("Import")
-                        .ThemeKey(MyTheme.Secondary)
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(theme.GetOnBackground())
+                        .BorderColor(theme.GetOutline())
+                        .BorderWidth(1)
                         .OnClicked(ImportVocabulary)
                         .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                 )
-                .Spacing(MyTheme.Size320),
+                .Spacing(32),
 
                 VStack(
                     State.Resource.Vocabulary?.Select(word =>
@@ -529,36 +584,42 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     Label(word.NativeLanguageTerm)
                                         .FontSize(14)
                                 )
-                                .Spacing(MyTheme.MicroSpacing)
+                                .Spacing(4)
                                 .GridColumn(0),
 
                                 HStack(
                                     Button("Edit")
                                         .OnClicked(() => EditVocabularyWord(word))
-                                        .ThemeKey(MyTheme.Secondary),
+                                        .Background(new SolidColorBrush(Colors.Transparent))
+                                        .TextColor(theme.GetOnBackground())
+                                        .BorderColor(theme.GetOutline())
+                                        .BorderWidth(1),
 
                                     Button("Delete")
                                         .OnClicked(() => DeleteVocabularyWord(word))
-                                        .ThemeKey(MyTheme.Secondary)
+                                        .Background(new SolidColorBrush(Colors.Transparent))
+                                        .TextColor(theme.GetOnBackground())
+                                        .BorderColor(theme.GetOutline())
+                                        .BorderWidth(1)
                                 )
                                 .GridColumn(1)
                                 .HEnd()
-                                .Spacing(MyTheme.MicroSpacing)
+                                .Spacing(4)
                             )
                             .Columns("*, Auto")
-                            .Padding(MyTheme.ComponentSpacing)
+                            .Padding(8)
                         )
-                        .Stroke(MyTheme.ItemBorder)
+                        .Stroke(theme.GetOutline())
                         .StrokeThickness(1)
                         .StrokeShape(new RoundRectangle().CornerRadius(5))
                         .Margin(new Thickness(0, 0, 0, 5))
                     ).ToArray() ?? Array.Empty<VisualNode>()
                 )
-                .Spacing(MyTheme.MicroSpacing)
+                .Spacing(4)
             )
-            .Spacing(MyTheme.LayoutSpacing)
+            .Spacing(16)
         )
-        .Spacing(MyTheme.LayoutSpacing);
+        .Spacing(16);
     }
 
     async Task LoadResource()

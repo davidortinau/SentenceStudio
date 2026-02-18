@@ -28,7 +28,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                         .HCenter(),
                     Label("Loading video...")
                         .HCenter()
-                        .ThemeKey(MyTheme.Body1)
+                        .FontSize(14)
                 )
                 .VCenter()
                 .HCenter()
@@ -44,14 +44,14 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                         .HCenter(),
                     Label(State.ErrorMessage)
                         .HCenter()
-                        .ThemeKey(MyTheme.Body1),
+                        .FontSize(14),
                     Button("Go Back")
                         .OnClicked(GoBack)
                         .HCenter()
                 )
                 .VCenter()
                 .HCenter()
-                .Spacing(MyTheme.Size160)
+                .Spacing(16)
             );
         }
 
@@ -73,7 +73,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
             return Label("No video URL available")
                 .HCenter()
                 .VCenter()
-                .ThemeKey(MyTheme.Body1);
+                .FontSize(14);
         }
 
         // Use mobile YouTube URL which displays video more prominently

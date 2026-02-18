@@ -32,6 +32,8 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return Grid(
             // Semi-transparent background
             BoxView()
@@ -43,7 +45,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
             Border(
                 VStack(
                     Label(State.IsNew ? "Add Vocabulary Word" : "Edit Vocabulary Word")
-                        .FontSize(20)
+                        .H5()
                         .FontAttributes(FontAttributes.Bold)
                         .HorizontalTextAlignment(TextAlignment.Center),
 
@@ -56,7 +58,10 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                                 .Text(State.Word.TargetLanguageTerm)
                                 .OnTextChanged(text => SetState(s => s.Word.TargetLanguageTerm = text))
                         )
-                        .ThemeKey(MyTheme.InputWrapper)
+                        .BackgroundColor(theme.GetSurface())
+                        .Stroke(theme.GetOutline())
+                        .StrokeThickness(1)
+                        .Padding(8)
                     )
                     .Spacing(5),
 
@@ -69,16 +74,23 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                                 .Text(State.Word.NativeLanguageTerm)
                                 .OnTextChanged(text => SetState(s => s.Word.NativeLanguageTerm = text))
                         )
-                        .ThemeKey(MyTheme.InputWrapper)
+                        .BackgroundColor(theme.GetSurface())
+                        .Stroke(theme.GetOutline())
+                        .StrokeThickness(1)
+                        .Padding(8)
                     )
                     .Spacing(5),
 
                     HStack(
                         Button("Save")
+                            .Primary()
                             .OnClicked(SaveWord),
 
                         Button("Cancel")
-                            .ThemeKey(MyTheme.Secondary)
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(theme.GetOnBackground())
+                            .BorderColor(theme.GetOutline())
+                            .BorderWidth(1)
                             .OnClicked(Cancel)
                     )
                     .Spacing(10)
@@ -88,8 +100,8 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
             )
             .StrokeShape(new RoundRectangle().CornerRadius(10))
             .StrokeThickness(1)
-            .Stroke(MyTheme.ItemBorder)
-            .Background(MyTheme.CardBackground)
+            .Stroke(theme.GetOutline())
+            .BackgroundColor(theme.GetSurface())
             .MaximumWidthRequest(400)
             .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 320 : 400)
             .HCenter()

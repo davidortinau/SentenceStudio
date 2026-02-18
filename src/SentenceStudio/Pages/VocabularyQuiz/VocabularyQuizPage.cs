@@ -167,12 +167,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     Grid(rows: "*,Auto", columns: "*",
                         TermDisplay(),
                         UserInputSection()
-                    ).RowSpacing(MyTheme.ComponentSpacing)
+                    ).RowSpacing(8)
                 ).GridRow(2),
                 AutoTransitionBar(),
                 LoadingOverlay(),
                 SessionSummaryOverlay()
-            ).RowSpacing(MyTheme.CardMargin)
+            ).RowSpacing(8)
         )
         .TitleView(RenderTitleView())
         .Title($"{_localize["VocabularyQuiz"]}")
@@ -202,43 +202,46 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         }
     }
 
-    VisualNode AutoTransitionBar() =>
-        ProgressBar()
+    VisualNode AutoTransitionBar()
+    {
+        var theme = BootstrapTheme.Current;
+        return ProgressBar()
             .Progress(State.AutoTransitionProgress)
             .HeightRequest(4)
             .Background(Colors.Transparent)
-            .ProgressColor(MyTheme.HighlightDarkest)
+            .ProgressColor(theme.Primary)
             .VStart();
+    }
 
-    VisualNode LoadingOverlay() =>
-        Grid(
+    VisualNode LoadingOverlay()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             Label($"{_localize["LoadingVocabulary"]}")
-                .ThemeKey(MyTheme.Display)
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .FontSize(48).FontAttributes(FontAttributes.Bold)
+                .TextColor(theme.GetOnBackground())
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
         .GridRowSpan(3)
         .IsVisible(State.IsBusy);
+    }
 
-    VisualNode SessionSummaryOverlay() =>
-        Grid(
+    VisualNode SessionSummaryOverlay()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             ScrollView(
-                VStack(spacing: MyTheme.LayoutSpacing,
+                VStack(spacing: 16,
                     // Header - show round summary or session summary
                     Label($"📚 {(State.CurrentRound > 0 && State.SessionSummaryItems.Count <= VocabularyQuizPageState.TurnsPerRound ? $"Round {State.CurrentRound} Summary" : $"Session Summary")}")
-                        .ThemeKey(MyTheme.Title1)
-                        .TextColor(MyTheme.HighlightDarkest)
+                        .H3()
+                        .TextColor(theme.Primary)
                         .Center(),
 
                     Label($"{_localize["ReviewVocabularyStudied"]}")
-                        .ThemeKey(MyTheme.Body1)
                         .Center()
-                        .TextColor(Theme.IsLightTheme ?
-                            MyTheme.DarkOnLightBackground :
-                            MyTheme.LightOnDarkBackground),
+                        .TextColor(theme.GetOnBackground()),
 
                     // Vocabulary list
                     VStack(spacing: 8,
@@ -251,128 +254,126 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                             // Round progress indicator
                             VStack(spacing: 4,
                                 Label($"{_localize["SessionProgress"]}")
-                                    .ThemeKey(MyTheme.Body1Strong)
+                                    .FontAttributes(FontAttributes.Bold)
                                     .Center()
-                                    .TextColor(MyTheme.HighlightDarkest),
+                                    .TextColor(theme.Primary),
 
                                 // Show round-based stats
                                 HStack(spacing: 20,
                                     VStack(spacing: 2,
                                         Label($"{State.RoundsCompleted}")
-                                            .ThemeKey(MyTheme.Title3)
-                                            .TextColor(MyTheme.HighlightDarkest)
+                                            .H5()
+                                            .TextColor(theme.Primary)
                                             .Center(),
                                         Label($"{_localize["RoundsCompleted"]}")
-                                            .ThemeKey(MyTheme.Caption2)
+                                            .Small()
                                             .Center()
-                                            .TextColor(MyTheme.SecondaryText)
+                                            .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
                                     ),
                                     VStack(spacing: 2,
                                         Label($"{State.WordsMasteredThisSession}")
-                                            .ThemeKey(MyTheme.Title3)
-                                            .TextColor(MyTheme.Success)
+                                            .H5()
+                                            .TextColor(theme.Success)
                                             .Center(),
                                         Label($"{_localize["WordsMastered"]}")
-                                            .ThemeKey(MyTheme.Caption2)
+                                            .Small()
                                             .Center()
-                                            .TextColor(MyTheme.SecondaryText)
+                                            .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
                                     ),
                                     VStack(spacing: 2,
                                         Label($"{State.TotalTurnsCompleted}")
-                                            .ThemeKey(MyTheme.Title3)
-                                            .TextColor(MyTheme.HighlightMedium)
+                                            .H5()
+                                            .TextColor(theme.Info)
                                             .Center(),
                                         Label($"{_localize["TotalTurns"]}")
-                                            .ThemeKey(MyTheme.Caption2)
+                                            .Small()
                                             .Center()
-                                            .TextColor(MyTheme.SecondaryText)
+                                            .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
                                     )
                                 ).Center()
                             )
                             .Margin(0, 0, 0, 16),
 
                             Label($"{_localize["RoundPerformance"]}")
-                                .ThemeKey(MyTheme.Title3)
+                                .H5()
                                 .Center()
-                                .TextColor(MyTheme.HighlightDarkest),
+                                .TextColor(theme.Primary),
 
                             HStack(spacing: 20,
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => (i.QuizRecognitionStreak >= 3 && i.QuizProductionStreak >= 3) || i.ReadyToRotateOut)}")
-                                        .ThemeKey(MyTheme.Title2)
-                                        .TextColor(MyTheme.Success)
+                                        .H4()
+                                        .TextColor(theme.Success)
                                         .Center(),
                                     Label($"{_localize["Strong"]}")
-                                        .ThemeKey(MyTheme.Caption1)
+                                        .Small()
                                         .Center()
                                 ),
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => !i.ReadyToRotateOut && (i.QuizRecognitionStreak > 0 || i.QuizProductionStreak > 0))}")
-                                        .ThemeKey(MyTheme.Title2)
-                                        .TextColor(MyTheme.Warning)
+                                        .H4()
+                                        .TextColor(theme.Warning)
                                         .Center(),
                                     Label($"{_localize["Learning"]}")
-                                        .ThemeKey(MyTheme.Caption1)
+                                        .Small()
                                         .Center()
                                 ),
                                 VStack(spacing: 4,
                                     Label($"{State.SessionSummaryItems.Count(i => i.QuizRecognitionStreak == 0 && i.QuizProductionStreak == 0)}")
-                                        .ThemeKey(MyTheme.Title2)
-                                        .TextColor(MyTheme.Error)
+                                        .H4()
+                                        .TextColor(theme.Danger)
                                         .Center(),
                                     Label($"{_localize["NeedsWork"]}")
-                                        .ThemeKey(MyTheme.Caption1)
+                                        .Small()
                                         .Center()
                                 )
                             ).Center()
                         )
-                        .Padding(MyTheme.LayoutSpacing)
+                        .Padding(16)
                     )
-                    .Background(Theme.IsLightTheme ?
-                        MyTheme.LightSecondaryBackground :
-                        MyTheme.DarkSecondaryBackground)
+                    .Background(theme.GetSurface())
                     .StrokeShape(new RoundRectangle().CornerRadius(8))
-                    .Margin(0, MyTheme.LayoutSpacing),
+                    .Margin(0, 16),
 
                     // Buttons - show different options based on context
                     Props.FromTodaysPlan
-                        ? VStack(spacing: MyTheme.ComponentSpacing,
+                        ? VStack(spacing: 8,
                             // Next Activity button (for plan mode)
                             Button($"{_localize["PlanNextActivityButton"]}")
                                 .OnClicked(async () => await NavigateToNextPlanActivity())
-                                .Background(MyTheme.HighlightDarkest)
+                                .Background(new SolidColorBrush(theme.Primary))
                                 .TextColor(Colors.White)
                                 .CornerRadius(8)
-                                .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
+                                .Padding(24, 16)
                                 .IsEnabled(IsSessionGoalMet()),
 
                             // Continue practicing button (secondary option)
                             Button($"{_localize["ContinueSessionButton"]}")
                                 .OnClicked(async () => await SetupNewRound())
                                 .Background(Colors.Transparent)
-                                .TextColor(MyTheme.HighlightDarkest)
+                                .TextColor(theme.Primary)
                                 .CornerRadius(8)
-                                .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding / 2)
+                                .Padding(24, 8)
                         )
                         : Button($"{_localize["ContinueToNextSession"]}")
                             .OnClicked(async () => await SetupNewRound())
-                            .Background(MyTheme.HighlightDarkest)
+                            .Background(new SolidColorBrush(theme.Primary))
                             .TextColor(Colors.White)
                             .CornerRadius(8)
-                            .Padding(MyTheme.SectionSpacing, MyTheme.CardPadding)
+                            .Padding(24, 16)
                             .Margin(0, 16)
                 )
-                .Padding(MyTheme.LayoutPadding)
+                .Padding(new Thickness(16))
             )
         )
-        .Background(Theme.IsLightTheme ?
-                            MyTheme.LightBackground :
-                            MyTheme.DarkBackground)
+        .Background(theme.GetBackground())
         .GridRowSpan(3)
         .IsVisible(State.ShowSessionSummary);
+    }
 
     VisualNode RenderSummaryItem(VocabularyQuizItem item)
     {
+        var theme = BootstrapTheme.Current;
         var accuracy = item.Progress?.Accuracy ?? 0f;
         var masteryScore = item.Progress?.MasteryScore ?? 0f;
         var sessionPercentage = accuracy * 100;
@@ -393,9 +394,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                           daysUntilNext == 0 ? "📌 Due today" :
                           "📌 Overdue";
 
-        Color statusColor = accuracy >= 0.8f ? MyTheme.Success :
-                           accuracy >= 0.5f ? MyTheme.Warning :
-                           MyTheme.Error;
+        Color statusColor = accuracy >= 0.8f ? theme.Success :
+                           accuracy >= 0.5f ? theme.Warning :
+                           theme.Danger;
 
         string statusIcon = accuracy >= 0.8f ? "✅" :
                            accuracy >= 0.5f ? "🔄" :
@@ -410,21 +411,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     Label(item.Word.NativeLanguageTerm ?? "")
                         .FontSize(16)
                         .FontAttributes(FontAttributes.Bold)
-                        .TextColor(Theme.IsLightTheme ?
-                            MyTheme.DarkOnLightBackground :
-                            MyTheme.LightOnDarkBackground),
+                        .TextColor(theme.GetOnBackground()),
 
                     Label(item.Word.TargetLanguageTerm ?? "")
                         .FontSize(14)
-                        .TextColor(MyTheme.HighlightDarkest),
+                        .TextColor(theme.Primary),
 
                     Label($"Session: {sessionPercentage:F0}% | Mastery: {masteryPercentage:F0}%")
                         .FontSize(12)
-                        .TextColor(MyTheme.SecondaryDarkText),
+                        .TextColor(theme.GetOnBackground().WithAlpha(0.6f)),
 
                     Label($"{srsStatus} • {totalAttempts} attempts" + (daysSinceReview > 0 ? $" • Last: {daysSinceReview}d ago" : ""))
                         .FontSize(10)
-                        .TextColor(isCompleted ? MyTheme.Success : MyTheme.SecondaryDarkText)
+                        .TextColor(isCompleted ? theme.Success : theme.GetOnBackground().WithAlpha(0.6f))
                 )
                 .HStart(),
 
@@ -433,19 +432,18 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     .HEnd()
                     .VCenter()
             )
-            .Padding(MyTheme.CardPadding)
+            .Padding(16)
         )
-        .Background(Theme.IsLightTheme ?
-            Colors.White :
-            MyTheme.DarkSecondaryBackground)
+        .Background(theme.GetSurface())
         .Stroke(statusColor.WithAlpha(0.3f))
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(6))
-        .Margin(0, MyTheme.MicroSpacing);
+        .Margin(0, 4);
     }
 
     VisualNode LearningProgressBar()
     {
+        var theme = BootstrapTheme.Current;
         return Grid(rows: "Auto", columns: "Auto,*,Auto",
             // Left bubble shows current turn in round (1-based for display)
             Border(
@@ -456,23 +454,23 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     .TranslationY(-4)
                     .Center()
             )
-            .Background(MyTheme.Success)
+            .Background(theme.Success)
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(MyTheme.Size160, 2)
+            .Padding(16, 2)
             .GridColumn(0)
             .VCenter(),
 
             // Center progress bar shows progress through current round
             ProgressBar()
                 .Progress((double)State.CurrentTurnInRound / VocabularyQuizPageState.TurnsPerRound)
-                .ProgressColor(MyTheme.Success)
+                .ProgressColor(theme.Success)
                 .Background(Colors.LightGray)
                 .HeightRequest(6)
                 .GridColumn(1)
                 .VCenter()
-                .Margin(MyTheme.CardMargin, 0),
+                .Margin(8, 0),
 
             // Right bubble shows turns per round (always 10)
             Border(
@@ -487,14 +485,16 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
-            .Padding(MyTheme.Size160, 2)
+            .Padding(16, 2)
             .GridColumn(2)
             .VCenter()
-        ).Padding(MyTheme.LayoutSpacing).GridRow(1);
+        ).Padding(16).GridRow(1);
     }
 
-    VisualNode TermDisplay() =>
-        VStack(spacing: 16,
+    VisualNode TermDisplay()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             Label(string.Format($"{_localize["WhatIsThisInLanguage"]}", State.TargetLanguage))
                 .FontSize(18)
                 .FontAttributes(FontAttributes.Bold)
@@ -510,7 +510,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
                 // Play vocabulary audio button
                 ImageButton()
-                    .Source(MyTheme.IconPlay)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.PlayFill, theme.GetOnBackground(), 24))
                     .HeightRequest(64)
                     .WidthRequest(64)
                     .Aspect(Aspect.Center)
@@ -522,22 +522,22 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(24)
                 .Center()
                 .FontAttributes(FontAttributes.Bold)
-                .TextColor(MyTheme.HighlightDarkest)
+                .TextColor(theme.Primary)
                 .IsVisible((State.ShowAnswer || State.ShowCorrectAnswer) && State.UserMode != "MultipleChoice"),
             Label(State.RequireCorrectTyping ? "Type the correct answer to continue:" : "")
                 .FontSize(14)
                 .Center()
-                .TextColor(MyTheme.Warning)
+                .TextColor(theme.Warning)
                 .IsVisible(State.RequireCorrectTyping)
 
         // Auto-advance countdown for multiple choice
         // Label($"Next question in {State.AutoAdvanceCountdown}...")
         //     .FontSize(14)
         //     .Center()
-        //     .TextColor(MyTheme.HighlightMedium)
+        //     .TextColor(theme.Info)
         //     .IsVisible(State.IsAutoAdvancing)
         )
-        .Margin(MyTheme.SectionSpacing)
+        .Margin(24)
         .GridRow(0)
         // Allow manual advance by tapping during countdown
         .OnTapped(async () =>
@@ -548,6 +548,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 await NextItem();
             }
         });
+    }
 
     VisualNode UserInputSection() =>
         Grid(rows: "*, *", columns: "*, Auto, Auto, Auto",
@@ -559,27 +560,37 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         .Padding(DeviceInfo.Platform == DevicePlatform.WinUI ? new Thickness(30) : new Thickness(15, 0))
         .GridRow(1);
 
-    VisualNode RenderTextInput() =>
-        new SfTextInputLayout(
-            Entry(entryRef => _textInputRef = entryRef)
-                .FontSize(32)
-                .Text(State.UserInput)
-                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                .ReturnType(ReturnType.Go)
-                .OnCompleted(() =>
-                {
-                    if (State.RequireCorrectTyping)
-                        NextItem();
-                    else
-                        CheckAnswer();
-                })
-                .IsEnabled(!State.ShowAnswer || State.RequireCorrectTyping)
+    VisualNode RenderTextInput()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(
+            Label(State.RequireCorrectTyping ? $"{_localize["TypeCorrectAnswerHint"]}" : $"{_localize["TypeYourAnswerHint"]}").Small().Muted(),
+            Border(
+                Entry(entryRef => _textInputRef = entryRef)
+                    .FontSize(32)
+                    .Text(State.UserInput)
+                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                    .ReturnType(ReturnType.Go)
+                    .OnCompleted(() =>
+                    {
+                        if (State.RequireCorrectTyping)
+                            NextItem();
+                        else
+                            CheckAnswer();
+                    })
+                    .IsEnabled(!State.ShowAnswer || State.RequireCorrectTyping)
+            )
+            .BackgroundColor(theme.GetSurface())
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .Padding(4)
         )
-        .Hint(State.RequireCorrectTyping ? $"{_localize["TypeCorrectAnswerHint"]}" : $"{_localize["TypeYourAnswerHint"]}")
         .GridRow(1)
         .GridColumn(0)
         .GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-        .Margin(0, 0, 0, MyTheme.CardMargin);
+        .Margin(0, 0, 0, 8);
+    }
 
     VisualNode RenderMultipleChoice() =>
         VStack(spacing: 8,
@@ -589,35 +600,34 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     VisualNode RenderChoiceOption(string option)
     {
+        var theme = BootstrapTheme.Current;
         var isSelected = State.UserGuess == option;
         var showFeedback = State.ShowAnswer;
         var isCorrect = option == State.CurrentTargetLanguageTerm;
 
         Color backgroundColor = Colors.Transparent;
-        Color borderColor = MyTheme.Gray200;
-        Color textColor = Theme.IsLightTheme ?
-            MyTheme.DarkOnLightBackground :
-            MyTheme.LightOnDarkBackground;
+        Color borderColor = theme.GetOutline();
+        Color textColor = theme.GetOnBackground();
 
         if (showFeedback)
         {
             if (isCorrect)
             {
-                backgroundColor = MyTheme.Success;
-                borderColor = MyTheme.Success;
+                backgroundColor = theme.Success;
+                borderColor = theme.Success;
                 textColor = Colors.White;
             }
             else if (isSelected && !isCorrect)
             {
-                backgroundColor = MyTheme.Error;
-                borderColor = MyTheme.Error;
+                backgroundColor = theme.Danger;
+                borderColor = theme.Danger;
                 textColor = Colors.White;
             }
         }
         else if (isSelected)
         {
-            borderColor = MyTheme.HighlightDarkest;
-            backgroundColor = MyTheme.HighlightDarkest.WithAlpha(0.1f);
+            borderColor = theme.Primary;
+            backgroundColor = theme.Primary.WithAlpha(0.1f);
         }
 
         return Border(
@@ -625,13 +635,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .FontSize(20)
                 .Center()
                 .TextColor(textColor)
-                .Padding(MyTheme.LayoutSpacing, MyTheme.CardPadding)
+                .Padding(16, 16)
         )
         .Background(backgroundColor)
         .Stroke(borderColor)
         .StrokeThickness(2)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Margin(0, MyTheme.MicroSpacing)
+        .Margin(0, 4)
         .OnTapped(async () =>
         {
             if (!State.ShowAnswer)
@@ -645,13 +655,14 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     ImageSource VocabularyItemToImageSource(VocabularyQuizItem item)
     {
+        var theme = BootstrapTheme.Current;
         if (item.IsCompleted)
-            return MyTheme.IconCircleCheckmark;
+            return BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, theme.Success, 20);
 
         if (item.IsPromoted)
-            return MyTheme.IconEdit;
+            return BootstrapIcons.Create(BootstrapIcons.PencilSquare, theme.Primary, 20);
 
-        return MyTheme.IconStatus;
+        return BootstrapIcons.Create(BootstrapIcons.Circle, theme.GetOutline(), 20);
     }
 
     private double CalculateOverallMasteryProgress()
@@ -667,11 +678,12 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
 
     Color GetItemBackgroundColor(VocabularyQuizItem item)
     {
+        var theme = BootstrapTheme.Current;
         if (item.IsCompleted)
-            return MyTheme.Success.WithAlpha(0.2f);
+            return theme.Success.WithAlpha(0.2f);
 
         if (item.IsPromoted)
-            return MyTheme.Warning.WithAlpha(0.2f);
+            return theme.Warning.WithAlpha(0.2f);
 
         return Colors.Transparent;
     }

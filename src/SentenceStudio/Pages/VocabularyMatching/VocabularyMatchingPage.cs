@@ -150,16 +150,16 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     VisualNode RenderHeader() =>
         VStack(spacing: 2,
             Label(string.Format($"{_localize["MatchedAndMisses"]}", State.MatchedPairs, State.TotalPairs, State.IncorrectGuesses))
-                .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
             State.GameMessage.Length > 0 ?
                 Label(State.GameMessage)
-                    .ThemeKey(MyTheme.Caption1Strong)
+                    .Small()
+                    .FontAttributes(FontAttributes.Bold)
                     .HCenter() :
                 null
         )
-        .Padding(MyTheme.Size60);
+        .Padding(6);
 
     VisualNode RenderLoading() =>
         VStack(spacing: 16,
@@ -167,7 +167,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .IsRunning(true)
                 .HCenter(),
             Label($"{_localize["LoadingVocabulary"]}")
-                .ThemeKey(MyTheme.Body2)
+                .FontSize(14)
                 .HCenter()
         )
         .VCenter()
@@ -176,14 +176,15 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     VisualNode RenderGameComplete() =>
         VStack(spacing: 20,
             Label($"{_localize["Congratulations"]}")
-                .ThemeKey(MyTheme.Title1)
+                .H3()
                 .HCenter(),
 
             Label($"{_localize["AllPairsMatched"]}")
-                .ThemeKey(MyTheme.Body1)
                 .HCenter(),
 
             Button($"{_localize["PlayAgain"]}")
+                .Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
+                .TextColor(Colors.White)
                 .OnClicked(RestartGame)
                 .HCenter()
         )
@@ -248,7 +249,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         )
         .RowSpacing(8)
         .ColumnSpacing(8)
-        .Padding(MyTheme.Size160)
+        .Padding(16)
         .VFill()
         .HFill();
     }
@@ -283,7 +284,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
         return Border(
             Label(tile.Text)
-                .ThemeKey(MyTheme.Title3)
+                .H5()
                 .HCenter()
                 .VCenter()
                 .TextColor(GetTileTextColor(tile))
@@ -302,43 +303,36 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
 
     Color GetTileBackgroundColor(MatchingTile tile)
     {
+        var theme = BootstrapTheme.Current;
         if (tile.IsMatched)
-            return MyTheme.Gray200;
+            return theme.GetOutline();
         if (tile.IsSelected)
-            return MyTheme.HighlightDarkest;
+            return theme.Primary;
         if (tile.Language == "native")
-            return MyTheme.LightBackground;
-        return MyTheme.HighlightMedium;
+            return theme.GetSurface();
+        return theme.Info;
     }
 
     Color GetTileTextColor(MatchingTile tile)
     {
+        var theme = BootstrapTheme.Current;
         if (tile.IsSelected)
             return Colors.White;
 
-        // Arrr, make sure the text be visible in both light and dark seas!
-        // If tile is matched, use a more muted color
         if (tile.IsMatched)
-        {
-            return Theme.IsLightTheme ? MyTheme.Gray500 : MyTheme.Gray300;
-        }
+            return theme.GetOutline();
 
-        // For native tiles, use the right contrast for the background
-        if (tile.Language == "native")
-        {
-            return Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
-        }
-        // For target tiles, use the right contrast for secondary background
-        return Theme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
+        return theme.GetOnBackground();
     }
 
     Color GetTileBorderColor(MatchingTile tile)
     {
+        var theme = BootstrapTheme.Current;
         if (tile.IsSelected)
-            return MyTheme.HighlightDarkest;
+            return theme.Primary;
         if (tile.IsMatched)
-            return MyTheme.Gray400;
-        return MyTheme.Gray300;
+            return theme.GetOutline();
+        return theme.GetOutline();
     }
 
     async Task LoadVocabulary()

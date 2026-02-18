@@ -53,10 +53,10 @@ public class FilterChip
         // Get appropriate icon for filter type
         var iconGlyph = token.Type.ToLowerInvariant() switch
         {
-            "tag" => FluentUI.tag_20_regular,
-            "resource" => FluentUI.book_20_regular,
-            "lemma" => FluentUI.text_case_title_20_regular,
-            "status" => FluentUI.checkmark_circle_20_regular,
+            "tag" => BootstrapIcons.Tag,
+            "resource" => BootstrapIcons.Book,
+            "lemma" => BootstrapIcons.Type,
+            "status" => BootstrapIcons.CheckCircle,
             _ => null
         };
 

@@ -1,3 +1,5 @@
+using MauiReactor.Shapes;
+
 namespace SentenceStudio.Pages.Clozure;
 
 partial class ModeSelector : Component
@@ -10,28 +12,30 @@ partial class ModeSelector : Component
 
     public override VisualNode Render()
     {
-        return new SfSegmentedControl{
-                    new SfSegmentItem().ImageSource(MyTheme.IconKeyboard),
-                    new SfSegmentItem().ImageSource(MyTheme.IconMultiSelect)
-                }
-                .Background(Colors.Transparent)
-                .ShowSeparator(true)
-                .SegmentCornerRadius(0)
-                .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
-                .StrokeThickness(1)
-                .SelectedIndex(_selectedMode == "Text" ? 0 : 1)
-                .OnSelectionChanged((s, e) => {
-                    if(e.NewIndex == 0)
-                    {
-                        _onSelectedModeChanged?.Invoke("Text");
-                    }
-                    else
-                    {
-                        _onSelectedModeChanged?.Invoke("MultipleChoice");
-                    }
-                })
-                .SegmentWidth(40)
-                .SegmentHeight(40)
-                .HCenter();
+        var theme = BootstrapTheme.Current;
+        var isText = _selectedMode == "Text";
+        var selectedColor = Colors.White;
+        var unselectedColor = theme.GetOnBackground();
+
+        return Border(
+            HStack(spacing: 0,
+                ImageButton()
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Keyboard, isText ? selectedColor : unselectedColor, 20))
+                    .BackgroundColor(isText ? theme.Primary : Colors.Transparent)
+                    .WidthRequest(40)
+                    .HeightRequest(40)
+                    .OnClicked(() => _onSelectedModeChanged?.Invoke("Text")),
+                ImageButton()
+                    .Source(BootstrapIcons.Create(BootstrapIcons.ListUl, !isText ? selectedColor : unselectedColor, 20))
+                    .BackgroundColor(!isText ? theme.Primary : Colors.Transparent)
+                    .WidthRequest(40)
+                    .HeightRequest(40)
+                    .OnClicked(() => _onSelectedModeChanged?.Invoke("MultipleChoice"))
+            )
+        )
+        .Stroke(theme.GetOutline())
+        .StrokeShape(new RoundRectangle().CornerRadius(4))
+        .Padding(0)
+        .HCenter();
     }
 } 

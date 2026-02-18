@@ -39,9 +39,9 @@ public class VocabularyProgressItem
     public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
 
     // Color coding
-    public Color StatusColor => IsKnown ? MyTheme.Success :
-                                IsLearning ? MyTheme.Warning :
-                                MyTheme.Gray400;
+    public Color StatusColor => IsKnown ? BootstrapTheme.Current.Success :
+                                IsLearning ? BootstrapTheme.Current.Warning :
+                                BootstrapTheme.Current.GetOutline();
 
     public string StatusText
     {
@@ -177,7 +177,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 Grid(rows: "Auto,*", columns: "*",
                     RenderFilterBar(),
                     RenderVocabularyCollectionView()
-                ).Padding(MyTheme.LayoutPadding)
+                ).Padding(16)
         )
         .OnAppearing(LoadData)
         .OnSizeChanged(() => OnPageSizeChanged());
@@ -185,73 +185,43 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
 
     VisualNode RenderFilterBar()
     {
-        var selectedIndex = State.SelectedFilter switch
-        {
-            VocabularyFilterType.All => 0,
-            VocabularyFilterType.Known => 1,
-            VocabularyFilterType.Learning => 2,
-            VocabularyFilterType.Unknown => 3,
-            _ => 0
-        };
+        var theme = BootstrapTheme.Current;
 
         // Determine selection indicator color based on current filter
         var selectionColor = State.SelectedFilter switch
         {
-            VocabularyFilterType.Known => MyTheme.Success,
-            VocabularyFilterType.Learning => MyTheme.Warning,
-            VocabularyFilterType.Unknown => MyTheme.Gray400,
-            _ => MyTheme.PrimaryButtonBackground // All
+            VocabularyFilterType.Known => theme.Success,
+            VocabularyFilterType.Learning => theme.Warning,
+            VocabularyFilterType.Unknown => theme.GetOutline(),
+            _ => theme.Primary // All
         };
 
-        return VStack(spacing: MyTheme.ComponentSpacing,
-            // Segmented control with inline counts
-            new SfSegmentedControl(
-                new SfSegmentItem()
-                    .Text($"{_localize["All"]} ({State.TotalWords})")
-                    .SelectedSegmentTextColor(Colors.White),
-                new SfSegmentItem()
-                    .Text($"{_localize["Known"]} ({State.KnownWords})")
-                    .SelectedSegmentTextColor(Colors.White),
-                new SfSegmentItem()
-                    .Text($"{_localize["Learning"]} ({State.LearningWords})")
-                    .SelectedSegmentTextColor(Colors.White),
-                new SfSegmentItem()
-                    .Text($"{_localize["Unknown"]} ({State.UnknownWords})")
-                    .SelectedSegmentTextColor(Colors.White)
-            )
-            .TextStyle(new Syncfusion.Maui.Toolkit.SegmentedControl.SegmentTextStyle()
-            {
-                TextColor = MyTheme.Gray600
-            })
-            .SelectionIndicatorSettings(new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings()
-            {
-                Background = selectionColor,
-                TextColor = Colors.White
-            })
-            .SelectedIndex(selectedIndex)
-            .SegmentWidth(120)
-            .Background(MyTheme.SecondaryButtonBackground)
-            .CornerRadius((float)MyTheme.Size80)
-            .HeightRequest(44)
-            .OnSelectionChanged((s, e) =>
-            {
-                var filter = e.NewIndex switch
-                {
-                    0 => VocabularyFilterType.All,
-                    1 => VocabularyFilterType.Known,
-                    2 => VocabularyFilterType.Learning,
-                    3 => VocabularyFilterType.Unknown,
-                    _ => VocabularyFilterType.All
-                };
-                OnFilterChanged(filter);
-            }),
+        return VStack(spacing: 8,
+            // Filter buttons (replacing SfSegmentedControl with native buttons)
+            HStack(spacing: 8,
+                RenderFilterButton($"{_localize["All"]} ({State.TotalWords})", VocabularyFilterType.All, theme.Primary, theme),
+                RenderFilterButton($"{_localize["Known"]} ({State.KnownWords})", VocabularyFilterType.Known, theme.Success, theme),
+                RenderFilterButton($"{_localize["Learning"]} ({State.LearningWords})", VocabularyFilterType.Learning, theme.Warning, theme),
+                RenderFilterButton($"{_localize["Unknown"]} ({State.UnknownWords})", VocabularyFilterType.Unknown, theme.GetOutline(), theme)
+            ),
 
             // Search entry
             Entry()
                 .Placeholder($"{_localize["SearchVocabulary"]}")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
-        ).Padding(MyTheme.LayoutSpacing, MyTheme.ComponentSpacing, MyTheme.LayoutSpacing, MyTheme.ComponentSpacing).GridRow(0);
+        ).Padding(16, 8, 16, 8).GridRow(0);
+    }
+
+    VisualNode RenderFilterButton(string text, VocabularyFilterType filter, Color activeColor, BootstrapTheme theme)
+    {
+        var isActive = State.SelectedFilter == filter;
+        return Button(text)
+            .Background(new SolidColorBrush(isActive ? activeColor : Colors.Transparent))
+            .TextColor(isActive ? Colors.White : theme.GetOnBackground())
+            .BorderColor(theme.GetOutline())
+            .BorderWidth(isActive ? 0 : 1)
+            .OnClicked(() => OnFilterChanged(filter));
     }
 
     VisualNode RenderVocabularyCollectionView()
@@ -268,35 +238,39 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .GridRow(1);
     }
 
-    VisualNode RenderVocabularyCard(VocabularyProgressItem item) =>
-        Border(
-            VStack(spacing: MyTheme.MicroSpacing,
+    VisualNode RenderVocabularyCard(VocabularyProgressItem item)
+    {
+        var theme = BootstrapTheme.Current;
+        return Border(
+            VStack(spacing: 4,
                 // Word and translation
                 Label(item.Word.TargetLanguageTerm ?? "")
-                    .ThemeKey(MyTheme.Title3),
+                    .H5(),
                 Label(item.Word.NativeLanguageTerm ?? "")
-                    .ThemeKey(MyTheme.Subtitle),
+                    .FontSize(14)
+                    .Muted(),
 
                 // Status badge
                 Label(item.StatusText)
-                    .ThemeKey(MyTheme.Caption1)
+                    .Small()
                     .TextColor(item.StatusColor),
 
                 // Progress breakdown (streak-based)
                 Label(item.ProgressRequirementsText)
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.Gray600),
+                    .Small()
+                    .Muted(),
 
                 // SRS Review date
                 Label(item.ReviewDateText)
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(item.IsDueForReview ? MyTheme.Warning : MyTheme.Gray500)
+                    .Small()
+                    .TextColor(item.IsDueForReview ? theme.Warning : theme.GetOutline())
             )
-            .Padding(MyTheme.ComponentSpacing)
+            .Padding(8)
         )
-        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.ComponentSpacing))
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(1)
         .Stroke(item.StatusColor);
+    }
 
     async Task LoadData()
     {

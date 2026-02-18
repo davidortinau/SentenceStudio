@@ -17,6 +17,7 @@ public partial class PracticeStreakCard : Component
     {
         if (!_isVisible || _heatData?.Any() != true) return ContentView();
 
+        var theme = BootstrapTheme.Current;
         var allDays = _heatData.ToList();
         var currentStreak = CalculateCurrentStreak(allDays);
         var maxStreak = CalculateMaxStreak(allDays);
@@ -28,7 +29,7 @@ public partial class PracticeStreakCard : Component
         return
             VStack(
                 Label(string.Format($"{_localize["PracticesRecent"]}", totalPractice))
-                    .ThemeKey(MyTheme.SubHeadline),
+                    .H5(),
 
                     // No HScrollView needed for 6 weeks - fits on screen
                     // GitHub-style contribution calendar
@@ -40,25 +41,25 @@ public partial class PracticeStreakCard : Component
                                 GetMonthLabels(calendarData).Select(month =>
                                     Label(month.Label)
                                         .FontSize(10)
-                                        .TextColor(MyTheme.SecondaryText)
+                                        .Muted()
                                         .WidthRequest(month.Width * 13) // 11px squares + 2px spacing
                                         .HorizontalTextAlignment(TextAlignment.Start)
                                 ).ToArray()
                             ).Spacing(0)
-                        ).Margin(0, 0, 0, MyTheme.MicroSpacing),
+                        ).Margin(0, 0, 0, 4),
 
                         // Main calendar grid with day labels
                         HStack(
                             // Day of week labels
                             VStack(
                                 Label("").HeightRequest(11), // Sun (hidden)
-                                Label($"{_localize["Mon"]}").FontSize(9).TextColor(MyTheme.SecondaryText).HeightRequest(11),
+                                Label($"{_localize["Mon"]}").FontSize(9).Muted().HeightRequest(11),
                                 Label("").HeightRequest(11), // Tue (hidden)
-                                Label($"{_localize["Wed"]}").FontSize(9).TextColor(MyTheme.SecondaryText).HeightRequest(11),
+                                Label($"{_localize["Wed"]}").FontSize(9).Muted().HeightRequest(11),
                                 Label("").HeightRequest(11), // Thu (hidden)
-                                Label($"{_localize["Fri"]}").FontSize(9).TextColor(MyTheme.SecondaryText).HeightRequest(11),
+                                Label($"{_localize["Fri"]}").FontSize(9).Muted().HeightRequest(11),
                                 Label("").HeightRequest(11)  // Sat (hidden)
-                            ).Spacing(MyTheme.MicroSpacing).WidthRequest(15),
+                            ).Spacing(4).WidthRequest(15),
 
                             // Calendar squares grid
                             HStack(
@@ -78,14 +79,14 @@ public partial class PracticeStreakCard : Component
                                                 .Opacity(isFuture ? 0.4 : 1.0)
                                                 .Set(ToolTipProperties.TextProperty, day?.Date.ToShortDateString() ?? "");
                                         }).ToArray()
-                                    ).Spacing(MyTheme.MicroSpacing)
+                                    ).Spacing(4)
                                 ).ToArray()
-                            ).Spacing(MyTheme.MicroSpacing)
+                            ).Spacing(4)
                         ).Spacing(0)
                     ),
 
                 HStack(
-                    Label($"{_localize["Less"]}").FontSize(10).TextColor(MyTheme.SecondaryText).VCenter(),
+                    Label($"{_localize["Less"]}").FontSize(10).Muted().VCenter(),
                     HStack(
                         Border().WidthRequest(11).HeightRequest(11).StrokeShape(Rectangle()).Padding(0)
                             .Background(GetGitHubColor(0)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
@@ -97,10 +98,10 @@ public partial class PracticeStreakCard : Component
                             .Background(GetGitHubColor(4)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30)),
                         Border().WidthRequest(11).HeightRequest(11).StrokeShape(Rectangle()).Padding(0)
                             .Background(GetGitHubColor(5)).StrokeThickness(1).Stroke(Color.FromRgba(0, 0, 0, 30))
-                    ).Spacing(MyTheme.MicroSpacing).VCenter(),
-                    Label($"{_localize["More"]}").FontSize(10).TextColor(MyTheme.SecondaryText).VCenter()
-                ).Spacing(MyTheme.MicroSpacing).HStart()
-            ).Spacing(MyTheme.LayoutSpacing).Padding(MyTheme.LayoutSpacing);
+                    ).Spacing(4).VCenter(),
+                    Label($"{_localize["More"]}").FontSize(10).Muted().VCenter()
+                ).Spacing(4).HStart()
+            ).Spacing(16).Padding(16);
     }
 
     private int CalculateCurrentStreak(List<PracticeHeatPoint> allData)

@@ -48,15 +48,16 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
-                .IconImageSource(MyTheme.IconInfo)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.InfoCircle, theme.GetOnBackground(), 20))
                 .OnClicked(ViewDescription),
 
             // Removed direct toolbar Add/Image button — image add is now inside the gallery bottom sheet
 
             ToolbarItem()
-                .IconImageSource(MyTheme.IconSwitch)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Images, theme.GetOnBackground(), 20))
                 .OnClicked(ManageImages),
 
             // Main grid - only 2 content rows: main content (*) and input (Auto)
@@ -79,7 +80,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .Aspect(Aspect.AspectFit)
                     .HFill()
                     .VStart()
-                    .Margin(MyTheme.Size160)
+                    .Margin(16)
                     .AutomationId("SceneImage") // Appium: main scene image
             ).GridColumn(0),
 
@@ -90,7 +91,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .Header(
                         ContentView(
                             Label($"{_localize["ISee"]}")
-                                .Padding(MyTheme.Size160)
+                                .Padding(16)
                         )
                     )
             )
@@ -102,51 +103,61 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             Label(sentence.Answer)
                 .FontSize(18),
             sentence.IsGrading 
-                ? Label("Grading...").FontSize(12).TextColor(MyTheme.Gray500)
+                ? Label("Grading...").FontSize(12).Muted()
                 : Label($"Accuracy: {sentence.Accuracy}").FontSize(12)
         )
-        .Padding(MyTheme.Size160)
+        .Padding(16)
         .OnTapped(() => { if (!sentence.IsGrading) ShowExplanation(sentence); });
 
-    VisualNode RenderInput() => new SfTextInputLayout(
-            Entry()
-                .Text(State.UserInput)
-                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                .ReturnType(ReturnType.Next)
-                .OnCompleted(GradeMyDescription)
-                .GridColumn(0)
-                .FontSize(18)
-                .AutomationId("DescriptionEntry") // Appium: text input field
-        )
-        .Hint($"{_localize["WhatDoYouSee"]}")
-        .TrailingView(
+    VisualNode RenderInput()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("Auto", "*,Auto",
+            Border(
+                Entry()
+                    .Text(State.UserInput)
+                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                    .ReturnType(ReturnType.Next)
+                    .OnCompleted(GradeMyDescription)
+                    .FontSize(18)
+                    .Placeholder($"{_localize["WhatDoYouSee"]}")
+                    .AutomationId("DescriptionEntry") // Appium: text input field
+            )
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .Padding(4)
+            .GridColumn(0),
             HStack(
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(MyTheme.IconSend)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Send, theme.GetOnBackground(), 20))
                     .OnClicked(GradeMyDescription)
                     .AutomationId("SubmitButton"),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(MyTheme.IconTranslate)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Translate, theme.GetOnBackground(), 20))
                     .OnClicked(TranslateInput),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(MyTheme.IconErase)
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Eraser, theme.GetOnBackground(), 20))
                     .OnClicked(ClearInput)
-            ).Spacing(MyTheme.Size40).HStart()
+            ).Spacing(4).HStart().GridColumn(1)
         )
         .GridRow(1)  // Changed from GridRow(2) to GridRow(1)
-        .Margin(MyTheme.Size160);
+        .Margin(16);
+    }
 
     /// <summary>
     /// Renders a mobile/desktop SfBottomSheet that contains the full gallery management UI.
     /// Top-aligned actions (Add, MultiSelect, Delete, Close) and a boxy card style.
     /// </summary>
-    VisualNode RenderGalleryBottomSheet() =>
-        new SfBottomSheet(
+    VisualNode RenderGalleryBottomSheet()
+    {
+        var theme = BootstrapTheme.Current;
+        return new SfBottomSheet(
 
                 Grid("Auto,Auto,*,Auto", "*",
 
@@ -155,14 +166,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                         .FontAttributes(FontAttributes.Bold),
 
                     HStack(
-                        Button().ImageSource(MyTheme.IconImageExport).Background(Colors.Transparent).OnClicked(LoadImage),
+                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Images, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(LoadImage),
 
-                        Button().ImageSource(MyTheme.IconMultiSelect).Background(Colors.Transparent).OnClicked(ToggleSelection),
+                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Check2Square, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(ToggleSelection),
 
-                        Button().ImageSource(MyTheme.IconDelete).Background(Colors.Transparent).OnClicked(DeleteImages).IsVisible(State.IsDeleteVisible),
+                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20)).Background(Colors.Transparent).OnClicked(DeleteImages).IsVisible(State.IsDeleteVisible),
 
-                        Button().ImageSource(MyTheme.IconClose).Background(Colors.Transparent).OnClicked(() => SetState(s => s.IsGalleryBottomSheetOpen = false))
-                    ).Spacing(MyTheme.Size40).HEnd().GridRow(1),
+                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.XCircle, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(() => SetState(s => s.IsGalleryBottomSheetOpen = false))
+                    ).Spacing(4).HEnd().GridRow(1),
 
 
                     // Gallery content row
@@ -170,12 +181,13 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
                     // Small status row under the gallery (keeps hierarchy but is unobtrusive)
                     Label(State.IsSelecting ? $"Selected: {State.SelectedImages.Count}" : "Tap an image to select it")
-                        .Padding(MyTheme.Size160).GridRow(3)
+                        .Padding(16).GridRow(3)
                 )//grid
 
         )
         .GridRowSpan(2)  // Changed from 3 to 2 rows
         .IsOpen(State.IsGalleryBottomSheetOpen);
+    }
 
     VisualNode RenderGallery() => CollectionView()
             .ItemsSource(State.Images, RenderGalleryItem)
@@ -184,8 +196,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .ItemsLayout(
                 // Bug fix: Use VerticalGridItemsLayout for 4 columns with vertical scroll
                 new VerticalGridItemsLayout(4)
-                    .VerticalItemSpacing(MyTheme.Size80)
-                    .HorizontalItemSpacing(MyTheme.Size80)
+                    .VerticalItemSpacing(8)
+                    .HorizontalItemSpacing(8)
             ).GridRow(2);
 
 
@@ -200,7 +212,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
             // Checkbox background to avoid overlapping text/artifacts
             Border(
-                Image().Source(MyTheme.IconCheckbox).WidthRequest(24).HeightRequest(24)
+                Image().Source(BootstrapIcons.Create(BootstrapIcons.Square, BootstrapTheme.Current.GetOnBackground(), 24)).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
             .Background(Color.FromArgb("#CCFFFFFF"))
@@ -212,7 +224,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .Margin(4),
 
             Border(
-                Image().Source(MyTheme.IconCheckboxSelected).WidthRequest(24).HeightRequest(24)
+                Image().Source(BootstrapIcons.Create(BootstrapIcons.CheckSquareFill, BootstrapTheme.Current.Primary, 24)).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
             .Background(Color.FromArgb("#CCFFFFFF"))

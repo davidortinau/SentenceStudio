@@ -1,4 +1,5 @@
 using System.Globalization;
+using MauiReactor.Shapes;
 using CommunityToolkit.Maui.Storage;
 using MauiReactor.Parameters;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
@@ -41,187 +42,228 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage($"{_localize["UserProfile"]}",
             ToolbarItem($"{_localize["Reset"]}").OnClicked(Reset),
             VScrollView(
-                VStack(
-                    Label($"{_localize["Name"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Border(
-                        Entry()
-                            .Text(State.Name)
-                            .OnTextChanged(text => SetState(s => s.Name = text))
-                    ).ThemeKey(MyTheme.InputWrapper),
+                VStack(spacing: 12,
 
-                    Label($"{_localize["Email"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
+                    // Personal Information Card
                     Border(
-                        Entry()
-                            .Text(State.Email)
-                            .OnTextChanged(text => SetState(s => s.Email = text))
-                    ).ThemeKey(MyTheme.InputWrapper),
+                        VStack(spacing: 12,
+                            Label("Personal Information")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                    Label($"{_localize["NativeLanguage"]}")
-                                    .ThemeKey(MyTheme.Body1Strong),
+                            Label($"{_localize["Name"]}").Muted(),
+                            Entry()
+                                .Text(State.Name)
+                                .OnTextChanged(text => SetState(s => s.Name = text)),
+
+                            Label($"{_localize["Email"]}").Muted(),
+                            Entry()
+                                .Text(State.Email)
+                                .OnTextChanged(text => SetState(s => s.Email = text))
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
+
+                    // Language Settings Card
                     Border(
-                        Picker()
-                            .ItemsSource(Constants.Languages)
-                            .SelectedIndex(State.NativeLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s =>
-                            {
-                                s.NativeLanguage = Constants.Languages[index];
-                                s.NativeLanguageIndex = index; // Save the index too!
-                            }))
-                    ).ThemeKey(MyTheme.InputWrapper),
+                        VStack(spacing: 12,
+                            Label("Language Settings")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                    Label($"{_localize["TargetLanguage"]}")
-                                    .ThemeKey(MyTheme.Body1Strong),
-                    Border(
-                        Picker()
-                            .ItemsSource(Constants.Languages)
-                            .SelectedIndex(State.TargetLanguageIndex)
-                            .OnSelectedIndexChanged(index => SetState(s =>
-                            {
-                                s.TargetLanguage = Constants.Languages[index];
-                                s.TargetLanguageIndex = index; // Save the index too!
-                            }))
-                    ).ThemeKey(MyTheme.InputWrapper),
-
-                    Label($"{_localize["DisplayLanguage"]}")
-                                    .ThemeKey(MyTheme.Body1Strong),
-
-                    Border(
-                        Picker()
-                            .ItemsSource(DisplayLanguages)
-                            .SelectedIndex(State.DisplayLanguageIndex)
-                            .OnSelectedIndexChanged(index =>
-                            {
-                                string newDisplayLanguage = DisplayLanguages[index];
-                                SetState(s =>
+                            Label($"{_localize["NativeLanguage"]}").Muted(),
+                            Picker()
+                                .ItemsSource(Constants.Languages)
+                                .SelectedIndex(State.NativeLanguageIndex)
+                                .OnSelectedIndexChanged(index => SetState(s =>
                                 {
-                                    s.DisplayLanguage = newDisplayLanguage;
-                                    s.DisplayLanguageIndex = index; // Save the index too!
-                                });
+                                    s.NativeLanguage = Constants.Languages[index];
+                                    s.NativeLanguageIndex = index;
+                                })),
 
-                                // Set culture based on display language selection
-                                var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
-                                _localize.SetCulture(culture);
-                            })
-                    ).ThemeKey(MyTheme.InputWrapper),
-
-                    Label($"{_localize["OpenAI_APIKey"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Border(
-                        Entry()
-                            .IsPassword(true)
-                            .Text(State.OpenAI_APIKey)
-                            .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
-                    ).ThemeKey(MyTheme.InputWrapper),
-
-                    Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
-                        .TextDecorations(TextDecorations.Underline)
-                        // .TextColor(Theme.IsLightTheme ? MyTheme.Secondary : MyTheme.SecondaryDark)
-                        .OnTapped(GoToOpenAI),
-
-                    // Learning Preferences Section
-                    Label("Learning Preferences")
-                        .ThemeKey(MyTheme.Title3)
-                        .Margin(0, 20, 0, 10),
-
-                    Label("Preferred Session Length")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Border(
-                        Picker()
-                            .ItemsSource(new[] { "5 minutes", "10 minutes", "15 minutes", "20 minutes", "25 minutes", "30 minutes", "45 minutes" })
-                            .SelectedIndex(State.PreferredSessionMinutesIndex)
-                            .OnSelectedIndexChanged(index =>
-                            {
-                                var minutes = new[] { 5, 10, 15, 20, 25, 30, 45 }[index];
-                                SetState(s =>
+                            Label($"{_localize["TargetLanguage"]}").Muted(),
+                            Picker()
+                                .ItemsSource(Constants.Languages)
+                                .SelectedIndex(State.TargetLanguageIndex)
+                                .OnSelectedIndexChanged(index => SetState(s =>
                                 {
-                                    s.PreferredSessionMinutes = minutes;
-                                    s.PreferredSessionMinutesIndex = index;
-                                });
-                            })
-                    ).ThemeKey(MyTheme.InputWrapper),
-                    Label("How long you'd like to practice each day. Plans adapt to your choice.")
-                        .FontSize(12)
-                        .TextColor(MyTheme.SecondaryText)
-                        .Margin(0, 4, 0, 12),
+                                    s.TargetLanguage = Constants.Languages[index];
+                                    s.TargetLanguageIndex = index;
+                                })),
 
-                    Label("Target CEFR Level (Optional)")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Border(
-                        Picker()
-                            .ItemsSource(new[] { "Not Set", "A1 - Beginner", "A2 - Elementary", "B1 - Intermediate", "B2 - Upper Intermediate", "C1 - Advanced", "C2 - Mastery" })
-                            .SelectedIndex(State.TargetCEFRLevelIndex)
-                            .OnSelectedIndexChanged(index =>
-                            {
-                                var levels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
-                                SetState(s =>
+                            Label($"{_localize["DisplayLanguage"]}").Muted(),
+                            Picker()
+                                .ItemsSource(DisplayLanguages)
+                                .SelectedIndex(State.DisplayLanguageIndex)
+                                .OnSelectedIndexChanged(index =>
                                 {
-                                    s.TargetCEFRLevel = levels[index];
-                                    s.TargetCEFRLevelIndex = index;
-                                });
-                            })
-                    ).ThemeKey(MyTheme.InputWrapper),
-                    Label("Your language proficiency goal. Helps AI choose appropriate resources.")
-                        .FontSize(12)
-                        .TextColor(MyTheme.SecondaryText)
-                        .Margin(0, 4, 0, 12),
+                                    string newDisplayLanguage = DisplayLanguages[index];
+                                    SetState(s =>
+                                    {
+                                        s.DisplayLanguage = newDisplayLanguage;
+                                        s.DisplayLanguageIndex = index;
+                                    });
 
+                                    // Set culture based on display language selection
+                                    var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
+                                    _localize.SetCulture(culture);
+                                })
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
+
+                    // Learning Preferences Card
+                    Border(
+                        VStack(spacing: 12,
+                            Label("Learning Preferences")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
+
+                            Label("Preferred Session Length").Muted(),
+                            Picker()
+                                .ItemsSource(new[] { "5 minutes", "10 minutes", "15 minutes", "20 minutes", "25 minutes", "30 minutes", "45 minutes" })
+                                .SelectedIndex(State.PreferredSessionMinutesIndex)
+                                .OnSelectedIndexChanged(index =>
+                                {
+                                    var minutes = new[] { 5, 10, 15, 20, 25, 30, 45 }[index];
+                                    SetState(s =>
+                                    {
+                                        s.PreferredSessionMinutes = minutes;
+                                        s.PreferredSessionMinutesIndex = index;
+                                    });
+                                }),
+                            Label("How long you'd like to practice each day. Plans adapt to your choice.")
+                                .Small().Muted(),
+
+                            Label("Target CEFR Level (Optional)").Muted(),
+                            Picker()
+                                .ItemsSource(new[] { "Not Set", "A1 - Beginner", "A2 - Elementary", "B1 - Intermediate", "B2 - Upper Intermediate", "C1 - Advanced", "C2 - Mastery" })
+                                .SelectedIndex(State.TargetCEFRLevelIndex)
+                                .OnSelectedIndexChanged(index =>
+                                {
+                                    var levels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
+                                    SetState(s =>
+                                    {
+                                        s.TargetCEFRLevel = levels[index];
+                                        s.TargetCEFRLevelIndex = index;
+                                    });
+                                }),
+                            Label("Your language proficiency goal. Helps AI choose appropriate resources.")
+                                .Small().Muted()
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
+
+                    // API Configuration Card
+                    Border(
+                        VStack(spacing: 12,
+                            Label("API Configuration")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
+
+                            Label($"{_localize["OpenAI_APIKey"]}").Muted(),
+                            Entry()
+                                .IsPassword(true)
+                                .Text(State.OpenAI_APIKey)
+                                .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text)),
+
+                            Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
+                                .TextDecorations(TextDecorations.Underline)
+                                .TextColor(theme.Primary)
+                                .OnTapped(GoToOpenAI)
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
+
+                    // Save Button
                     Button($"{_localize["Save"]}")
                         .OnClicked(Save)
-                        .HorizontalOptions(DeviceInfo.Idiom == DeviceIdiom.Desktop ? LayoutOptions.Start : LayoutOptions.Fill)
-                        .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Desktop ? 300 : -1),
+                        .Primary()
+                        .HFill(),
 
-                    // Export Data Section
-                    VStack(
-                        Label($"{_localize["ExportData"]}")
-                            .FontAttributes(FontAttributes.Bold)
-                            .FontSize(18)
-                            .Margin(0, 20, 0, 10),
+                    // Data Export Card
+                    Border(
+                        VStack(spacing: 12,
+                            Label($"{_localize["ExportData"]}")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                        Label($"{_localize["ExportDataDescription"]}")
-                            .FontSize(14)
-                            .TextColor(MyTheme.SecondaryText)
-                            .Margin(0, 0, 0, 15),
+                            Label($"{_localize["ExportDataDescription"]}")
+                                .Muted(),
 
-                        State.IsExporting ?
-                        VStack(
-                            ActivityIndicator()
-                                .IsRunning(true)
-                                .HCenter()
-                                .HeightRequest(30)
-                                .WidthRequest(30)
-                                .Margin(0, 0, 0, 10),
-                            Label(State.ExportProgressMessage)
-                                .FontSize(14)
-                                .HCenter()
-                                .TextColor(MyTheme.SecondaryText)
-                        ) :
-                        HStack(
-                            Button($"{_localize["SaveToDevice"]}")
-                                .OnClicked(ExportDataToFile)
-                                .ImageSource(MyTheme.IconSave)
-                                .HFill()
-                                .Margin(0, 0, 5, 0),
+                            State.IsExporting ?
+                            VStack(
+                                ActivityIndicator()
+                                    .IsRunning(true)
+                                    .HCenter()
+                                    .HeightRequest(30)
+                                    .WidthRequest(30)
+                                    .Margin(0, 0, 0, 10),
+                                Label(State.ExportProgressMessage)
+                                    .FontSize(14)
+                                    .HCenter()
+                                    .Muted()
+                            ) :
+                            HStack(spacing: 8,
+                                Button($"{_localize["SaveToDevice"]}")
+                                    .OnClicked(ExportDataToFile)
+                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 16))
+                                    .Secondary().Outlined()
+                                    .HFill(),
 
-                            Button($"{_localize["Share"]}")
-                                .OnClicked(ExportAndShare)
-                                .ImageSource(MyTheme.IconShare)
-                                .HFill()
-                                .Margin(5, 0, 0, 0)
-                        ),
+                                Button($"{_localize["Share"]}")
+                                    .OnClicked(ExportAndShare)
+                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Share, theme.GetOnBackground(), 16))
+                                    .Secondary().Outlined()
+                                    .HFill()
+                            ),
 
-                        !string.IsNullOrEmpty(State.LastExportFilePath) ?
-                        Label($"Last exported: {State.LastExportFilePath}")
-                            .FontSize(12)
-                            .TextColor(MyTheme.SecondaryText)
-                            .Margin(0, 10, 0, 0) : null
+                            !string.IsNullOrEmpty(State.LastExportFilePath) ?
+                            Label($"Last exported: {State.LastExportFilePath}")
+                                .Small().Muted() : null
+                        )
                     )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
+
+                    // Danger Zone Card
+                    Border(
+                        VStack(spacing: 12,
+                            Label("Danger Zone")
+                                .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                                .TextColor(theme.Danger),
+
+                            Button($"{_localize["Reset"]}")
+                                .OnClicked(Reset)
+                                .Danger()
+                                .HFill()
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.Danger)
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16)
                 )
-                .Spacing(MyTheme.Size320)
                 .Padding(24)
             )
         ).OnAppearing(LoadProfile);

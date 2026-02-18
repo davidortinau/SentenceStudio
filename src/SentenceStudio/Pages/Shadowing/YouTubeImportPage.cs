@@ -1,4 +1,5 @@
 using MauiReactor.Compatibility;
+using MauiReactor.Shapes;
 using Microsoft.Extensions.Logging;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
@@ -38,17 +39,21 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
             Grid(
                 ScrollView(
-                    VStack(spacing: MyTheme.LayoutSpacing,
+                    VStack(spacing: 16,
                         Label($"{_localize["ImportAudioClipFromYouTube"]}")
-                        .ThemeKey(MyTheme.Title),
+                        .H4(),
 
-                    new SfTextInputLayout
-                    {
+                    Border(
                         Entry()
                             .Text(State.VideoUrl)
+                            .Placeholder($"{_localize["YouTubeURL"]}")
                             .OnTextChanged((url) => SetState(s => s.VideoUrl = url))
-                    }
-                        .Hint($"{_localize["YouTubeURL"]}"),
+                    )
+                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
+                        .Stroke(BootstrapTheme.Current.GetOutline())
+                        .StrokeThickness(1)
+                        .StrokeShape(new RoundRectangle().CornerRadius(8))
+                        .Padding(4),
 
                     Button($"{_localize["FetchTranscripts"]}")
                         .OnClicked(FetchTranscriptsAsync)
@@ -62,22 +67,30 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptMessage)),
 
                 // Transcript picker (when multiple transcripts available)
-                new SfTextInputLayout
-                {
-                    Picker()
-                        .ItemsSource(State.AvailableTranscripts.Select(t => t.LanguageName).ToList())
-                        .SelectedIndex(State.AvailableTranscripts.IndexOf(State.SelectedTranscript))
-                        .OnSelectedIndexChanged(async (index) =>
-                        {
-                            if (index >= 0 && index < State.AvailableTranscripts.Count)
+                VStack(
+                    Label($"{_localize["SelectTranscriptLanguage"]}")
+                        .Muted()
+                        .Small(),
+                    Border(
+                        Picker()
+                            .ItemsSource(State.AvailableTranscripts.Select(t => t.LanguageName).ToList())
+                            .SelectedIndex(State.AvailableTranscripts.IndexOf(State.SelectedTranscript))
+                            .OnSelectedIndexChanged(async (index) =>
                             {
-                                var selected = State.AvailableTranscripts[index];
-                                SetState(s => s.SelectedTranscript = selected);
-                                await LoadTranscriptAsync(selected);
-                            }
-                        })
-                }
-                    .Hint($"{_localize["SelectTranscriptLanguage"]}")
+                                if (index >= 0 && index < State.AvailableTranscripts.Count)
+                                {
+                                    var selected = State.AvailableTranscripts[index];
+                                    SetState(s => s.SelectedTranscript = selected);
+                                    await LoadTranscriptAsync(selected);
+                                }
+                            })
+                    )
+                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
+                        .Stroke(BootstrapTheme.Current.GetOutline())
+                        .StrokeThickness(1)
+                        .StrokeShape(new RoundRectangle().CornerRadius(8))
+                        .Padding(4)
+                )
                     .IsVisible(State.ShowTranscriptPicker),
 
                 VStack(
@@ -91,15 +104,23 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 .IsVisible(State.SelectedTranscript != null && State.ShowTranscriptPicker),
 
                 // Transcript display
-                new SfTextInputLayout
-                {
-                    Editor()
-                        .Text(State.TranscriptText)
-                        .OnTextChanged(text => SetState(s => s.TranscriptText = text))
-                        .MinimumHeightRequest(200)
-                        .AutoSize(EditorAutoSizeOption.TextChanges)
-                }
-                    .Hint($"{_localize["Transcript"]}")
+                VStack(
+                    Label($"{_localize["Transcript"]}")
+                        .Muted()
+                        .Small(),
+                    Border(
+                        Editor()
+                            .Text(State.TranscriptText)
+                            .OnTextChanged(text => SetState(s => s.TranscriptText = text))
+                            .MinimumHeightRequest(200)
+                            .AutoSize(EditorAutoSizeOption.TextChanges)
+                    )
+                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
+                        .Stroke(BootstrapTheme.Current.GetOutline())
+                        .StrokeThickness(1)
+                        .StrokeShape(new RoundRectangle().CornerRadius(8))
+                        .Padding(4)
+                )
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText)),
 
                 // Polish with AI button

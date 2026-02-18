@@ -101,6 +101,6 @@ partial class ActivityTimerBar : Component<ActivityTimerBarState>
         return Label(timeText)
             .FontSize(16)
             .FontAttributes(MauiControls.FontAttributes.Bold)
-            .TextColor(MyTheme.PrimaryText);
+            .TextColor(BootstrapTheme.Current.GetOnBackground());
     }
 }

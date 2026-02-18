@@ -1,4 +1,5 @@
 using SentenceStudio.Services.Speech;
+using MauiReactor.Shapes;
 using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Controls;
@@ -24,9 +25,11 @@ public static class VoiceSelectionPopup
     {
         var localize = LocalizationManager.Instance;
 
+        var theme = BootstrapTheme.Current;
+
         var popup = new UXDivers.Popups.Maui.PopupPage
         {
-            BackgroundColor = MyTheme.Gray950.WithAlpha(0.5f),
+            BackgroundColor = Colors.Black.WithAlpha(0.5f),
             CloseWhenBackgroundIsClicked = true
         };
 
@@ -34,23 +37,23 @@ public static class VoiceSelectionPopup
         {
             VerticalOptions = LayoutOptions.End,
             HorizontalOptions = LayoutOptions.Fill,
-            BackgroundColor = MyTheme.SurfaceElevated,
-            Padding = new Thickness(MyTheme.Size160),
+            BackgroundColor = theme.GetSurface(),
+            Padding = new Thickness(16),
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(20, 20, 0, 0) },
             Stroke = Colors.Transparent
         };
 
-        var mainLayout = new MauiControls.VerticalStackLayout { Spacing = MyTheme.Size120 };
+        var mainLayout = new MauiControls.VerticalStackLayout { Spacing = 12 };
 
         // Title
         var titleLabel = new MauiControls.Label
         {
             Text = title,
-            TextColor = MyTheme.TextPrimary,
-            FontSize = MyTheme.Size200,
+            TextColor = theme.GetOnBackground(),
+            FontSize = 20,
             FontAttributes = FontAttributes.Bold,
             HorizontalTextAlignment = TextAlignment.Center,
-            Margin = new Thickness(0, 0, 0, MyTheme.Size80)
+            Margin = new Thickness(0, 0, 0, 8)
         };
         mainLayout.Children.Add(titleLabel);
 
@@ -61,7 +64,7 @@ public static class VoiceSelectionPopup
             VerticalScrollBarVisibility = ScrollBarVisibility.Always
         };
 
-        var voiceStack = new MauiControls.VerticalStackLayout { Spacing = MyTheme.Size40 };
+        var voiceStack = new MauiControls.VerticalStackLayout { Spacing = 4 };
 
         foreach (var voice in availableVoices)
         {
@@ -70,10 +73,10 @@ public static class VoiceSelectionPopup
             {
                 Text = $"{(isSelected ? "✓ " : "   ")}{voice.Name} ({voice.Gender})",
                 BackgroundColor = Colors.Transparent,
-                TextColor = isSelected ? MyTheme.Success : MyTheme.TextPrimary,
-                FontSize = MyTheme.Size160,
+                TextColor = isSelected ? theme.Success : theme.GetOnBackground(),
+                FontSize = 16,
                 HorizontalOptions = LayoutOptions.Start,
-                Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                Padding = new Thickness(8, 12)
             };
 
             var capturedVoiceId = voice.VoiceId;
@@ -93,11 +96,11 @@ public static class VoiceSelectionPopup
         var closeButton = new MauiControls.Button
         {
             Text = $"{localize["Cancel"]}",
-            BackgroundColor = MyTheme.SecondaryButtonBackground,
-            TextColor = MyTheme.SecondaryButtonText,
+            BackgroundColor = theme.GetSurface(),
+            TextColor = theme.GetOnBackground(),
             CornerRadius = 8,
             HeightRequest = 44,
-            Margin = new Thickness(0, MyTheme.Size80, 0, 0)
+            Margin = new Thickness(0, 8, 0, 0)
         };
         closeButton.Clicked += async (s, e) => await IPopupService.Current.PopAsync();
         mainLayout.Children.Add(closeButton);

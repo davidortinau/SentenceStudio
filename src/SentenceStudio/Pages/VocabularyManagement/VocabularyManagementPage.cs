@@ -40,9 +40,9 @@ public class VocabularyCardViewModel
     public bool IsLearning => Progress?.IsLearning ?? false;
     public bool IsUnknown => Progress == null || (!Progress.IsKnown && !Progress.IsLearning);
 
-    public Color StatusColor => IsKnown ? MyTheme.Success :
-                                IsLearning ? MyTheme.Warning :
-                                MyTheme.Gray400;
+    public Color StatusColor => IsKnown ? BootstrapTheme.Current.Success :
+                                IsLearning ? BootstrapTheme.Current.Warning :
+                                BootstrapTheme.Current.GetOutline();
 
     public string StatusText
     {
@@ -217,56 +217,58 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         => State.IsMultiSelectMode ? RenderBulkActionsBar() : RenderCompactSearchBar();
 
     VisualNode RenderCompactSearchBar()
-        =>
-                Grid(rows: "Auto", columns: "*,Auto",
-                        new SfTextInputLayout(
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(rows: "Auto", columns: "*,Auto",
+                    Border(
+                        HStack(spacing: 8,
+                            Image()
+                                .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
+                                .HeightRequest(16)
+                                .WidthRequest(16)
+                                .VCenter(),
                             Entry()
                                 .Placeholder($"{_localize["SearchVocabulary"]}")
                                 .Text(State.RawSearchQuery)
                                 .OnTextChanged(OnSearchTextUpdated)
                                 .OnCompleted(OnSearchSubmitted)
-                                .ThemeKey(MyTheme.Caption1)
+                                .Small()
                                 .VCenter()
-                        )
-                        .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
-                        .OutlineCornerRadius(27)
-                        .ShowHint(false)
-                        .LeadingView(
-                            Image()
-                                .Source(MyTheme.IconSearch)
-                                .HeightRequest(MyTheme.IconSize)
-                                .WidthRequest(MyTheme.IconSize)
-                        )
-                        .TrailingView(
+                                .HFill(),
                             !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
                                 ImageButton()
-                                    .Source(MyTheme.IconClose)
+                                    .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 16))
                                     .HeightRequest(20)
                                     .WidthRequest(20)
                                     .OnClicked(ClearAllFilters)
                                     .Background(Colors.Transparent) :
                                 null
-                        )
-                        .HeightRequest(54)
-                        .FocusedStrokeThickness(0)
-                        .UnfocusedStrokeThickness(0)
-                        .GridColumn(0)
-                        .VStart(),
+                        ).Padding(8, 4)
+                    )
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(27))
+                    .HeightRequest(54)
+                    .GridColumn(0)
+                    .VStart(),
 
-                        RenderFilterButtons()
+                    RenderFilterButtons()
 
-                ).ColumnSpacing(MyTheme.ComponentSpacing)
-            .Padding(new Thickness(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0))
+            ).ColumnSpacing(8)
+            .Padding(new Thickness(16, 16, 16, 0))
             .GridRow(1);
+    }
 
     VisualNode RenderFilterButtons()
     {
-        return HStack(spacing: MyTheme.ComponentSpacing,
+        var theme = BootstrapTheme.Current;
+        var bgColor = theme.GetSurface();
+        return HStack(spacing: 8,
             // Tag filter button
             State.AvailableTags.Any() ?
                 ImageButton()
-                    .Source(MyTheme.IconTag)
-                    .Background(MyTheme.LightSecondaryBackground)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Tag, theme.GetOnBackground(), 16))
+                    .Background(new SolidColorBrush(bgColor))
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)
@@ -277,8 +279,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // Resource filter button
             State.AvailableResources.Any() ?
                 ImageButton()
-                    .Source(MyTheme.IconResource)
-                    .Background(MyTheme.LightSecondaryBackground)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Book, theme.GetOnBackground(), 16))
+                    .Background(new SolidColorBrush(bgColor))
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)
@@ -289,8 +291,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // Lemma filter button
             State.AvailableLemmas.Any() ?
                 ImageButton()
-                    .Source(MyTheme.IconLemma)
-                    .Background(MyTheme.LightSecondaryBackground)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Braces, theme.GetOnBackground(), 16))
+                    .Background(new SolidColorBrush(bgColor))
                     .HeightRequest(36)
                     .WidthRequest(36)
                     .CornerRadius(18)
@@ -300,8 +302,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
             // Status filter button
             ImageButton()
-                .Source(MyTheme.IconStatusFilter)
-                .Background(MyTheme.LightSecondaryBackground)
+                .Source(BootstrapIcons.Create(BootstrapIcons.Funnel, theme.GetOnBackground(), 16))
+                .Background(new SolidColorBrush(bgColor))
                 .HeightRequest(36)
                 .WidthRequest(36)
                 .CornerRadius(18)
@@ -311,42 +313,52 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     }
 
     VisualNode RenderBulkActionsBar()
-        => Border(
-                HStack(spacing: MyTheme.LayoutSpacing,
+    {
+        var theme = BootstrapTheme.Current;
+        return Border(
+                HStack(spacing: 16,
                     Label(string.Format($"{_localize["Selected"]}", State.SelectedWordIds.Count))
-                        .ThemeKey(MyTheme.Body2)
+                        .FontSize(14)
                         .VCenter()
                         .HFill(),
                     Button($"{_localize["Delete"]}")
-                        .ThemeKey(MyTheme.Danger)
+                        .Background(new SolidColorBrush(theme.Danger))
+                        .TextColor(Colors.White)
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
                     Button($"{_localize["Associate"]}")
-                        .ThemeKey(MyTheme.PrimaryButton)
+                        .Background(new SolidColorBrush(theme.Primary))
+                        .TextColor(Colors.White)
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 )
             )
-            .ThemeKey(MyTheme.Surface1)
-            .Padding(MyTheme.CardPadding, MyTheme.ComponentSpacing)
-            .Margin(new Thickness(MyTheme.CardMargin, MyTheme.MicroSpacing, MyTheme.CardMargin, MyTheme.ComponentSpacing))
+            .BackgroundColor(theme.GetSurface())
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Padding(16, 8)
+            .Margin(new Thickness(8, 4, 8, 8))
             .GridRow(1);
+    }
 
 
     VisualNode RenderVocabularyList()
     {
         if (!State.FilteredVocabularyItems.Any())
         {
+            var theme = BootstrapTheme.Current;
             return VStack(
                 Label(State.AllVocabularyItems.Any() ?
                     $"{_localize["NoMatchFilter"]}" :
                     $"{_localize["NoVocabularyWords"]}")
-                    .ThemeKey(MyTheme.Body1)
+                    .FontSize(14)
                     .Center(),
 
                 !State.AllVocabularyItems.Any() ?
                     Button($"{_localize["GetStarted"]}")
-                        .ThemeKey(MyTheme.PrimaryButton)
+                        .Background(new SolidColorBrush(theme.Primary))
+                        .TextColor(Colors.White)
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :
@@ -364,38 +376,40 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     : RenderVocabularyCard)
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
-                    ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = MyTheme.LayoutSpacing }
+                    ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
                     : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
-            .Margin(MyTheme.LayoutPadding)
+            .Margin(16)
             .GridRow(0);
     }
 
     VisualNode RenderVocabularyCardMobile(VocabularyCardViewModel item)
     {
+        var theme = BootstrapTheme.Current;
         return Border(
-            HStack(spacing: MyTheme.LayoutSpacing,
+            HStack(spacing: 16,
                 State.IsMultiSelectMode
                     ? CheckBox()
                             .IsChecked(item.IsSelected)
                             .OnCheckedChanged(isChecked => ToggleItemSelection(item.Word.Id, isChecked))
                     : null,
 
-                VStack(spacing: MyTheme.MicroSpacing,
+                VStack(spacing: 4,
                     Label(item.Word.TargetLanguageTerm ?? "")
-                        .ThemeKey(MyTheme.Body2Strong),
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold),
                     Label($"{item.Word.NativeLanguageTerm ?? ""} · {item.StatusText}")
-                        .ThemeKey(MyTheme.Caption1)
+                        .Small()
                         .TextColor(item.StatusColor)
                 )
-            ).Padding(MyTheme.MicroSpacing)
+            ).Padding(4)
         )
-        .Padding(MyTheme.ComponentSpacing, MyTheme.MicroSpacing)
+        .Padding(8, 4)
         .StrokeShape(new Rectangle())
         .StrokeThickness(1)
         .Stroke(item.StatusColor)
-        .Background(Theme.IsLightTheme ? Colors.White : MyTheme.DarkSecondaryBackground)
+        .BackgroundColor(theme.GetSurface())
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
             () => NavigateToEditPage(item.Word.Id));
@@ -411,7 +425,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                             .IsChecked(item.IsSelected)
                             .OnCheckedChanged(isChecked => ToggleItemSelection(item.Word.Id, isChecked)),
                         Label($"{_localize["Select"]}")
-                            .ThemeKey(MyTheme.Caption2)
+                            .Small()
                             .VCenter()
                     ).HStart(),
                     RenderVocabularyCardViewMode(item)
@@ -426,6 +440,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     // [US3-T044] Render encoding strength badge for vocabulary card
     VisualNode RenderEncodingBadge(VocabularyWord word)
     {
+        var theme = BootstrapTheme.Current;
         // Calculate encoding strength
         var exampleCount = word.ExampleSentences?.Count ?? 0;
         var score = _encodingCalculator.Calculate(word, exampleCount);
@@ -434,10 +449,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Determine badge color based on strength
         var badgeColor = label switch
         {
-            "Basic" => MyTheme.Warning,
-            "Good" => MyTheme.Gray400,
-            "Strong" => MyTheme.Success,
-            _ => MyTheme.Gray300
+            "Basic" => theme.Warning,
+            "Good" => theme.GetOutline(),
+            "Strong" => theme.Success,
+            _ => theme.GetOutline()
         };
 
         var localizedLabel = label switch
@@ -463,12 +478,13 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item) =>
         VStack(
             Label(item.Word.TargetLanguageTerm ?? "")
-                .ThemeKey(MyTheme.Body1Strong),
+                .FontSize(14)
+                .FontAttributes(FontAttributes.Bold),
             Label(item.Word.NativeLanguageTerm ?? "")
-                .ThemeKey(MyTheme.Body2),
+                .FontSize(14),
             Label($"{item.StatusText} · {(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))}")
-                .ThemeKey(MyTheme.Caption1)
-                .TextColor(item.IsOrphaned ? MyTheme.Warning : item.StatusColor)
+                .Small()
+                .TextColor(item.IsOrphaned ? BootstrapTheme.Current.Warning : item.StatusColor)
         );
 
     // Helper method to load data with initial delay for smooth page transitions

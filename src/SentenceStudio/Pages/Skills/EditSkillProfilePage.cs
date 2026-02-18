@@ -1,3 +1,5 @@
+using MauiReactor.Shapes;
+
 namespace SentenceStudio.Pages.Skills;
 
 class EditSkillProfilePageState
@@ -19,40 +21,86 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage("Edit Skill Profile",
             ToolbarItem("Save").OnClicked(Save),
             ToolbarItem("Delete").OnClicked(Delete),
             VScrollView(
-                VStack(
-                    VStack(
-                        Label("Title").HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Title)
-                                .OnTextChanged(text => SetState(s => s.Title = text))
-                        )
-                        .ThemeKey(MyTheme.InputWrapper)
-                    )
-                    .Spacing(MyTheme.Size120),
+                VStack(spacing: 16,
+                    Border(
+                        VStack(spacing: 16,
+                            VStack(spacing: 4,
+                                Label("Title")
+                                    .FontSize(14)
+                                    .Muted(),
+                                Border(
+                                    Entry()
+                                        .Text(State.Title)
+                                        .OnTextChanged(text => SetState(s => s.Title = text))
+                                )
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                                .Padding(4, 0)
+                            ),
 
-                    VStack(
-                        Label("Skills Description").HStart(),
-                        Border(
-							Editor()
-								.Text(State.Description)
-								.MinimumHeightRequest(300)
-                                .AutoSize(EditorAutoSizeOption.TextChanges)
-                                .OnTextChanged(text => SetState(s => s.Description = text))
+                            VStack(spacing: 4,
+                                Label("Skills Description")
+                                    .FontSize(14)
+                                    .Muted(),
+                                Border(
+                                    Editor()
+                                        .Text(State.Description)
+                                        .MinimumHeightRequest(300)
+                                        .AutoSize(EditorAutoSizeOption.TextChanges)
+                                        .OnTextChanged(text => SetState(s => s.Description = text))
+                                )
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                                .Padding(4, 0)
+                            )
                         )
-                        .ThemeKey(MyTheme.InputWrapper)
                     )
-                    .Spacing(MyTheme.Size120),
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16),
 
-                    Label($"Created: {State.Profile.CreatedAt:MM/dd/yyyy}"),
-                    Label($"Updated: {State.Profile.UpdatedAt:MM/dd/yyyy}")
+                    Border(
+                        VStack(spacing: 8,
+                            Label("Details")
+                                .H5()
+                                .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
+                            Grid(rows: "Auto,Auto", columns: "Auto,*",
+                                Label("Created")
+                                    .FontSize(14)
+                                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                                    .GridRow(0).GridColumn(0)
+                                    .Margin(0, 0, 16, 0),
+                                Label($"{State.Profile.CreatedAt:g}")
+                                    .FontSize(14)
+                                    .GridRow(0).GridColumn(1),
+                                Label("Updated")
+                                    .FontSize(14)
+                                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                                    .GridRow(1).GridColumn(0)
+                                    .Margin(0, 0, 16, 0),
+                                Label($"{State.Profile.UpdatedAt:g}")
+                                    .FontSize(14)
+                                    .GridRow(1).GridColumn(1)
+                            )
+                        )
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Padding(16)
                 )
-                .Spacing(MyTheme.Size160)
-                .Padding(MyTheme.Size160)
+                .Padding(16)
             )
         ).OnAppearing(LoadProfile);
     }

@@ -20,31 +20,32 @@ public partial class VocabProgressCard : Component
     {
         if (!_isVisible) return ContentView();
 
+        var theme = BootstrapTheme.Current;
         var total = _summary.New + _summary.Learning + _summary.Review + _summary.Known;
         if (total == 0) return ContentView(); // No data to display
 
         // Create data for donut chart
         var chartData = new List<VocabChartData>
         {
-            new VocabChartData("Known", _summary.Known, MyTheme.ChartKnown),
-            new VocabChartData("Review", _summary.Review, MyTheme.ChartReview),
-            new VocabChartData("Learning", _summary.Learning, MyTheme.ChartLearning),
-            new VocabChartData("New", _summary.New, MyTheme.ChartNew)
+            new VocabChartData("Known", _summary.Known, theme.Success),
+            new VocabChartData("Review", _summary.Review, theme.Warning),
+            new VocabChartData("Learning", _summary.Learning, theme.Info),
+            new VocabChartData("New", _summary.New, theme.GetOutline())
         }.Where(x => x.Value > 0).ToList(); // Only show segments with data
 
         _chartData = chartData; // keep for selection mapping
 
         return
             VStack(
-                Label("Vocabulary Progress").FontSize(16).FontAttributes(FontAttributes.Bold),
+                Label("Vocabulary Progress").H5(),
 
                 BuildDonutChart(chartData, total),
 
                 Label($"7d accuracy: {Math.Round(_summary.SuccessRate7d * 100)}%")
-                    .TextColor(MyTheme.SecondaryText)
+                    .Muted()
                     .FontSize(12)
                     .HCenter()
-            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.CardPadding);
+            ).Spacing(8).Padding(16);
     }
 
     private VisualNode BuildDonutChart(List<VocabChartData> chartData, int total)
@@ -87,7 +88,7 @@ public partial class VocabProgressCard : Component
                         {
                             Text = "total words",
                             FontSize = 12,
-                            TextColor = MyTheme.SecondaryText,
+                            TextColor = BootstrapTheme.Current.Muted,
                             HorizontalOptions = Microsoft.Maui.Controls.LayoutOptions.Center
                         }
                     }

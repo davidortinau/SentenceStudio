@@ -117,55 +117,58 @@ public partial class AppShell : Component
         }
 
         _logger.LogDebug("Showing Main Shell");
+        var theme = BootstrapTheme.Current;
+        var iconColor = theme.GetOnBackground();
+
         return Shell(
             FlyoutItem("Dashboard",
                 ShellContent()
                     .Title("Dashboard")
                     .RenderContent(() => new DashboardPage())
                     .Route("dashboard")
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.HouseDoor, iconColor, 20)),
             FlyoutItem("Learning Resources",
                 ShellContent()
                     .Title("Learning Resources")
                     .RenderContent(() => new ListLearningResourcesPage())
                     .Route(nameof(ListLearningResourcesPage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.Book, iconColor, 20)),
             FlyoutItem("Vocabulary",
                 ShellContent()
                     .Title("Vocabulary")
                     .RenderContent(() => new VocabularyManagementPage())
                     .Route(nameof(VocabularyManagementPage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.CardText, iconColor, 20)),
             FlyoutItem("Minimal Pairs",
                 ShellContent()
                     .Title("Minimal Pairs")
                     .RenderContent(() => new Pages.MinimalPairs.MinimalPairsPage())
                     .Route(nameof(Pages.MinimalPairs.MinimalPairsPage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.Soundwave, iconColor, 20)),
             FlyoutItem("Skills",
                 ShellContent()
                     .Title("Skills")
                     .RenderContent(() => new ListSkillProfilesPage())
                     .Route(nameof(ListSkillProfilesPage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.Bullseye, iconColor, 20)),
             FlyoutItem("Import",
                 ShellContent()
                     .Title("Import")
                     .RenderContent(() => new YouTubeImportPage())
                     .Route(nameof(YouTubeImportPage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.BoxArrowInDown, iconColor, 20)),
             FlyoutItem("Profile",
                 ShellContent()
                     .Title("Profile")
                     .RenderContent(() => new UserProfilePage())
                     .Route(nameof(UserProfilePage))
-            ),
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.Person, iconColor, 20)),
             FlyoutItem("Settings",
                 ShellContent()
                     .Title("Settings")
                     .RenderContent(() => new Pages.AppSettings.SettingsPage())
                     .Route(nameof(Pages.AppSettings.SettingsPage))
-            )
+            ).Icon(BootstrapIcons.Create(BootstrapIcons.Gear, iconColor, 20))
         );
     }
     // .FlyoutFooter(

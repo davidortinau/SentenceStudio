@@ -40,15 +40,14 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         return ContentPage($"{_localize["LearningResources"]}",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
-                // .IconImageSource(MyTheme.IconAdd)
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
-                // .IconImageSource(MyTheme.IconChart)
                 .OnClicked(ViewVocabularyProgress),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Generate Starter")
-                // .IconImageSource(MyTheme.IconGenerate)
                 .OnClicked(CreateStarterResource),
 
                 State.IsLoading ?
@@ -57,7 +56,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     ).VCenter().HCenter() :
                     Grid(rows: "*,Auto", columns: "*",
                             CollectionView()
-                                .Margin(MyTheme.LayoutPadding)
+                                .Margin(16)
                                 .GridRow(0)
                                 .SelectionMode(SelectionMode.None)
                                 .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
@@ -69,10 +68,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 .EmptyView(
                                     VStack(
                                         Label($"{_localize["NoResourcesFound"]}")
+                                            .Muted()
                                             .VCenter().HCenter(),
 
                                         VStack(
                                             Button("Add Your First Resource")
+                                                .Primary()
                                                 .OnClicked(AddResource)
                                                 .HCenter()
                                                 .WidthRequest(200),
@@ -81,11 +82,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .OnClicked(CreateStarterResource)
                                                 .HCenter()
                                                 .WidthRequest(200)
-                                                .Background(MyTheme.HighlightDarkest)
+                                                .Background(new SolidColorBrush(theme.Primary))
+                                                .TextColor(Colors.White)
                                         )
-                                        .Spacing(MyTheme.ComponentSpacing)
+                                        .Spacing(8)
                                     )
-                                    .Spacing(MyTheme.LayoutSpacing)
+                                    .Spacing(16)
                                     .VCenter()
                                 ),// emptyview, end of CollectionView
                             RenderBottomBar(),
@@ -99,13 +101,13 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                             .WidthRequest(30),
                                         Label("Creating starter vocabulary...")
                                             .HCenter()
-                                            .ThemeKey(MyTheme.Body2)
-                                            .TextColor(MyTheme.LightOnDarkBackground)
+                                            .FontSize(14)
+                                            .TextColor(Colors.White)
                                     )
-                                    .Spacing(MyTheme.ComponentSpacing)
+                                    .Spacing(8)
                                     .Center()
                                 )
-                                .BackgroundColor(MyTheme.Gray950.WithAlpha(0.6f))
+                                .BackgroundColor(Colors.Black.WithAlpha(0.6f))
                                 .GridRow(0).GridRowSpan(2)
                                 : null
                         ) // Grid
@@ -114,12 +116,15 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         .OnAppearing(LoadResources);
     }
 
-    VisualNode RenderResourceItem(LearningResource resource) =>
-        Border(
+    VisualNode RenderResourceItem(LearningResource resource)
+    {
+        var theme = BootstrapTheme.Current;
+
+        return Border(
             Grid(rows: "Auto, Auto", columns: "Auto, *, Auto",
                 // Icon based on media type
                 Image()
-                .Source(MyTheme.GetIconForMediaType(resource.MediaType))
+                    .Source(GetBootstrapIconForMediaType(resource.MediaType, theme))
                     .VCenter()
                     .HCenter()
                     .GridColumn(0)
@@ -127,69 +132,88 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                 // Title and info
                 Label(resource.Title)
-                    .ThemeKey(MyTheme.Title3)
+                    .H5()
                     .GridColumn(1)
                     .GridRow(0)
                     .LineBreakMode(LineBreakMode.TailTruncation),
 
                 // Metadata line
                 Label($"{(resource.IsSmartResource ? "⚡ " : "")}{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.SecondaryText)
+                    .Small()
+                    .Muted()
                     .GridColumn(1)
                     .GridRow(1),
 
                 // Date
                 Label(resource.CreatedAt.ToString("d"))
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.SecondaryText)
+                    .Small()
+                    .Muted()
                     .HEnd()
                     .GridColumn(2)
                     .GridRowSpan(2)
                     .VCenter()
             )
-            .Padding(MyTheme.ComponentSpacing)
-            .ColumnSpacing(MyTheme.SectionSpacing).RowSpacing(MyTheme.MicroSpacing)
+            .Padding(8)
+            .ColumnSpacing(24).RowSpacing(4)
             .OnTapped(() => ViewResource(resource.Id))
         )
-        .Stroke(MyTheme.ItemBorder)
+        .Stroke(theme.GetOutline())
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Margin(new Thickness(MyTheme.ComponentSpacing, MyTheme.MicroSpacing));
+        .Margin(new Thickness(8, 4));
+    }
 
-    VisualNode RenderBottomBar() =>
-        Grid(rows: "Auto", columns: "*,Auto,Auto",
-            new SfTextInputLayout(
-                Entry()
-                    .Placeholder($"{_localize["Search"]}...")
-                    .Text(State.SearchText)
-                    .OnTextChanged(text =>
-                    {
-                        SetState(s => s.SearchText = text);
-                        SearchResources();
-                    })
-                    .ThemeKey(MyTheme.Caption1)
-                    .VCenter()
+    static ImageSource GetBootstrapIconForMediaType(string mediaType, BootstrapTheme theme)
+    {
+        return mediaType switch
+        {
+            "Video" => BootstrapIcons.Create(BootstrapIcons.CameraVideo, theme.GetOnBackground(), 24),
+            "Podcast" => BootstrapIcons.Create(BootstrapIcons.Soundwave, theme.GetOnBackground(), 24),
+            "Image" => BootstrapIcons.Create(BootstrapIcons.Image, theme.GetOnBackground(), 24),
+            "Vocabulary List" => BootstrapIcons.Create(BootstrapIcons.ListUl, theme.GetOnBackground(), 24),
+            "Article" => BootstrapIcons.Create(BootstrapIcons.FileText, theme.GetOnBackground(), 24),
+            _ => BootstrapIcons.Create(BootstrapIcons.FileText, theme.GetOnBackground(), 24)
+        };
+    }
+
+    VisualNode RenderBottomBar()
+    {
+        var theme = BootstrapTheme.Current;
+
+        return Grid(rows: "Auto", columns: "*,Auto,Auto",
+            Border(
+                HStack(
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
+                        .HeightRequest(16)
+                        .WidthRequest(16),
+                    Entry()
+                        .Placeholder($"{_localize["Search"]}...")
+                        .Text(State.SearchText)
+                        .OnTextChanged(text =>
+                        {
+                            SetState(s => s.SearchText = text);
+                            SearchResources();
+                        })
+                        .Small()
+                        .VCenter()
+                        .HFill()
+                )
+                .Spacing(8)
+                .Padding(new Thickness(12, 0))
             )
-            .ContainerType(Syncfusion.Maui.Toolkit.TextInputLayout.ContainerType.Outlined)
-            .OutlineCornerRadius(27)
-            .ShowHint(false)
-            .LeadingView(
-                Image()
-                    .Source(MyTheme.IconSearch)
-                    .HeightRequest(MyTheme.IconSize)
-                    .WidthRequest(MyTheme.IconSize)
-            )
-            .HeightRequest(54)
-            .FocusedStrokeThickness(0)
-            .UnfocusedStrokeThickness(0)
+            .BackgroundColor(theme.GetSurface())
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(27))
+            .HeightRequest(44)
             .GridColumn(0)
             .VStart(),
 
             // Type filter icon
             ImageButton()
-                .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconDictionary)
-                .Background(MyTheme.LightSecondaryBackground)
+                .Source(BootstrapIcons.Create(BootstrapIcons.Funnel, theme.GetOnBackground(), 18))
+                .Background(new SolidColorBrush(theme.GetSurface()))
                 .HeightRequest(36)
                 .WidthRequest(36)
                 .CornerRadius(18)
@@ -200,8 +224,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
             // Language filter icon
             ImageButton()
-                .Set(Microsoft.Maui.Controls.ImageButton.SourceProperty, MyTheme.IconGlobe)
-                .Background(MyTheme.LightSecondaryBackground)
+                .Source(BootstrapIcons.Create(BootstrapIcons.Globe, theme.GetOnBackground(), 18))
+                .Background(new SolidColorBrush(theme.GetSurface()))
                 .HeightRequest(36)
                 .WidthRequest(36)
                 .CornerRadius(18)
@@ -210,9 +234,10 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .GridColumn(2)
                 .VStart()
         )
-        .ColumnSpacing(MyTheme.ComponentSpacing)
-        .Padding(new Thickness(MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, MyTheme.LayoutSpacing, 0))
+        .ColumnSpacing(8)
+        .Padding(new Thickness(16, 16, 16, 0))
         .GridRow(1);
+    }
 
     async Task LoadResources()
     {
@@ -346,9 +371,9 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                     var label = new MauiControls.Label
                     {
-                        TextColor = MyTheme.LightOnDarkBackground,
-                        FontSize = MyTheme.Size160,
-                        Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                        TextColor = Colors.White,
+                        FontSize = 16,
+                        Padding = new Thickness(8, 12)
                     };
                     label.SetBinding(MauiControls.Label.TextProperty, ".");
                     label.GestureRecognizers.Add(tapGesture);

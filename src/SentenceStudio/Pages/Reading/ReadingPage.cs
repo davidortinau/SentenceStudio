@@ -1,11 +1,11 @@
 using Plugin.Maui.Audio;
+using MauiReactor.Shapes;
 using SentenceStudio.Pages.Dashboard;
 using System.Text.RegularExpressions;
 using SentenceStudio.Services;
 using SentenceStudio.Models;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
-using Syncfusion.Maui.Toolkit.BottomSheet;
 
 namespace SentenceStudio.Pages.Reading;
 
@@ -144,7 +144,6 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .HCenter(),
                     Label($"{_localize["LoadingContent"]}")
                         .HCenter()
-                        .ThemeKey(MyTheme.Body1)
                 )
                 .VCenter()
                 .HCenter()
@@ -159,15 +158,14 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontSize(48)
                         .HCenter(),
                     Label(State.ErrorMessage)
-                        .HCenter()
-                        .ThemeKey(MyTheme.Body1),
+                        .HCenter(),
                     Button($"{_localize["GoBack"]}")
                         .OnClicked(GoBack)
                         .HCenter()
                 )
                 .VCenter()
                 .HCenter()
-                .Spacing(MyTheme.Size160)
+                .Spacing(16)
             );
         }
 
@@ -216,28 +214,30 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
     }
 
-    VisualNode RenderAudioLoadingBanner() =>
-        Border(
+    VisualNode RenderAudioLoadingBanner()
+    {
+        var theme = BootstrapTheme.Current;
+        return Border(
             HStack(
                 ActivityIndicator()
                     .IsRunning(State.IsGeneratingAudio)
-                    .Color(MyTheme.HighlightDarkest),
+                    .Color(theme.Primary),
                 Label(State.AudioGenerationStatus)
-                    .ThemeKey(MyTheme.Body1)
                     .VCenter(),
                 ProgressBar()
                     .Progress(State.AudioGenerationProgress)
-                    .ProgressColor(MyTheme.HighlightDarkest)
+                    .ProgressColor(theme.Primary)
                     .HFill()
                     .IsVisible(State.AudioGenerationProgress > 0)
             )
-            .Spacing(MyTheme.Size120)
-            .Padding(MyTheme.Size160)
+            .Spacing(12)
+            .Padding(16)
         )
-        .Background(MyTheme.HighlightDarkest.WithAlpha(0.2f))
-        .Stroke(MyTheme.HighlightDarkest.WithAlpha(0.3f))
+        .Background(theme.Primary.WithAlpha(0.2f))
+        .Stroke(theme.Primary.WithAlpha(0.3f))
         .GridRow(0)
         .IsVisible(State.IsGeneratingAudio);
+    }
 
     VisualNode RenderReadingContent() =>
         ScrollView(
@@ -273,8 +273,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     })
             // .HFill()
             )
-            .Spacing(MyTheme.Size160)
-            .Padding(MyTheme.Size240)
+            .Spacing(16)
+            .Padding(24)
         )
         .OnScrolled(OnScrollViewScrolled)
         .GridRow(2);
@@ -437,6 +437,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     VisualNode BuildSingleParagraph(List<(string, int)> paragraphSentences, int paragraphIndex)
     {
+        var theme = BootstrapTheme.Current;
         return PerformanceLogger.Time($"BuildSingleParagraph[{paragraphIndex}]", () =>
         {
             var spans = PerformanceLogger.Time("CreateSpans", () =>
@@ -457,7 +458,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             // Vocabulary word with interaction
                             spanList.Add(
                                 Span(segment.Text,
-                                    MyTheme.HighlightDarkest,
+                                    theme.Primary,
                                     FontAttributes.None,
                                     TapGestureRecognizer().OnTapped(() => ShowVocabularyBottomSheet(segment.VocabularyWord)))
                                     .TextDecorations(TextDecorations.Underline)
@@ -500,7 +501,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         .FontSize(State.FontSize)
                         .LineHeight(1.5)
                 )
-                .Padding(MyTheme.Size120)
+                .Padding(12)
                 .OnTapped(() => StartPlaybackFromSentence(paragraphSentences.First().Item2), 2);
             }, 5.0);
 
@@ -611,141 +612,142 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     Color GetTextColorForSentence(int sentenceIndex)
     {
+        var theme = BootstrapTheme.Current;
         if (sentenceIndex == State.CurrentSentenceIndex && State.IsAudioPlaying)
-            return MyTheme.Dark.Primary; // Use secondary color for sentence highlighting (different from vocabulary Primary)
+            return theme.Primary;
         else
-            return MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground;
+            return theme.GetOnBackground();
     }
 
-    VisualNode RenderAudioControls() =>
-        Grid("*", "Auto,*,Auto",
+    VisualNode RenderAudioControls()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("*", "Auto,*,Auto",
             HStack(
                 ImageButton()
-                    .Source(MyTheme.IconPreviousSm)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 20))
                     .OnClicked(PreviousSentence),
                 ImageButton()
-                    .Source(State.IsAudioPlaying ? MyTheme.IconPause : MyTheme.IconPlay)
+                    .Source(State.IsAudioPlaying ? BootstrapIcons.Create(BootstrapIcons.PauseFill, theme.GetOnBackground(), 24) : BootstrapIcons.Create(BootstrapIcons.PlayFill, theme.GetOnBackground(), 24))
                     .OnClicked(TogglePlayback),
                 ImageButton()
-                    .Source(MyTheme.IconNextSm)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 20))
                     .OnClicked(NextSentence)
             )
             .GridColumn(0),
             VStack(
                 Label(string.Format($"{_localize["SentenceProgress"]}", State.CurrentSentenceIndex + 1, State.Sentences.Count))
                     .HCenter()
-                    .ThemeKey(MyTheme.Caption1),
+                    .Small(),
                 Label(FormatPlaybackTime(State.CurrentPlaybackTime))
                     .HCenter()
-                    .ThemeKey(MyTheme.Caption1)
+                    .Small()
                     .FontSize(12)
                     .IsVisible(State.IsTimestampedAudioLoaded)
             )
             .GridColumn(1)
             .VCenter()
-            .Spacing(MyTheme.MicroSpacing),
+            .Spacing(4),
             HStack(
                 ImageButton()
-                    .Source(MyTheme.IconFontDecrease)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.DashLg, theme.GetOnBackground(), 20))
                     .OnClicked(DecreaseFontSize),
                 ImageButton()
-                    .Source(MyTheme.IconFontIncrease)
+                    .Source(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                     .OnClicked(IncreaseFontSize)
             )
             .GridColumn(2)
         )
-        .Padding(MyTheme.Size160)
+        .Padding(16)
         .GridRow(3)
         .IsVisible(State.Sentences.Any() && State.IsNavigationVisible);
+    }
 
     /// <summary>
     /// Unified bottom sheet for displaying word details - handles both known vocabulary words
     /// and dictionary lookups for unknown words.
     /// </summary>
-    VisualNode RenderWordDetailsBottomSheet() =>
-        new Controls.SfBottomSheet(
-            Grid("Auto,*,Auto", "*",
-                // Row 0: Word title
-                Label(State.SelectedWord)
-                    .FontSize(24)
-                    .FontAttributes(FontAttributes.Bold)
-                    .ThemeKey(MyTheme.Title1)
-                    .HCenter()
-                    .GridRow(0),
+    VisualNode RenderWordDetailsBottomSheet()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
+            // Modal backdrop
+            BoxView()
+                .Color(Color.FromArgb("#80000000"))
+                .OnTapped(CloseWordDetailsBottomSheet),
+            // Bottom sheet content
+            Border(
+                Grid("Auto,*,Auto", "*",
+                    // Row 0: Word title
+                    Label(State.SelectedWord)
+                        .FontSize(24)
+                        .FontAttributes(FontAttributes.Bold)
+                        .H3()
+                        .HCenter()
+                        .GridRow(0),
 
-                // Row 1: Definition content (loading, definition, or remember button)
-                State.IsLookingUpWord
-                    ? VStack(
-                        ActivityIndicator()
-                            .IsRunning(true)
-                            .Color(MyTheme.HighlightDarkest)
-                            .HCenter(),
-                        Label($"{_localize["LookingUpDefinition"]}")
-                            .FontSize(16)
-                            .ThemeKey(MyTheme.Body1)
-                            .HCenter()
-                    )
-                    .Spacing(MyTheme.Size120)
-                    .GridRow(1)
-                    .VCenter()
-                    : VStack(
-                        Label(State.SelectedDefinition)
-                            .FontSize(18)
-                            .ThemeKey(MyTheme.Body1)
-                            .HCenter(),
-
-                        // Remember vocabulary word button (only for new words)
-                        State.CanRememberWord
-                            ? State.IsSavingWord
-                                ? HStack(
-                                    ActivityIndicator()
-                                        .IsRunning(true)
-                                        .Color(MyTheme.HighlightDarkest),
-                                    Label($"{_localize["SavingWord"]}")
-                                        .ThemeKey(MyTheme.Body1)
-                                )
+                    // Row 1: Definition content (loading, definition, or remember button)
+                    State.IsLookingUpWord
+                        ? VStack(
+                            ActivityIndicator()
+                                .IsRunning(true)
+                                .Color(theme.Primary)
+                                .HCenter(),
+                            Label($"{_localize["LookingUpDefinition"]}")
+                                .FontSize(16)
                                 .HCenter()
-                                .Spacing(MyTheme.Size80)
-                                : Button($"{_localize["RememberThisWord"]}")
-                                    .OnClicked(() => RememberVocabularyWord())
-                                    .Background(MyTheme.HighlightMedium)
-                                    .TextColor(MyTheme.HighlightDarkest)
-                                    .HCenter()
-                            : null
-                    )
-                    .Spacing(MyTheme.Size120)
-                    .GridRow(1)
-                    .VStart(),
+                        )
+                        .Spacing(12)
+                        .GridRow(1)
+                        .VCenter()
+                        : VStack(
+                            Label(State.SelectedDefinition)
+                                .FontSize(18)
+                                .HCenter(),
 
-                // Row 2: Close button - with explicit sizing for better touch target
-                Button($"{_localize["Close"]}")
-                    .OnClicked(CloseWordDetailsBottomSheet)
-                    .HCenter()
-                    .MinimumHeightRequest(44)
-                    .MinimumWidthRequest(100)
-                    .GridRow(2)
+                            // Remember vocabulary word button (only for new words)
+                            State.CanRememberWord
+                                ? State.IsSavingWord
+                                    ? HStack(
+                                        ActivityIndicator()
+                                            .IsRunning(true)
+                                            .Color(theme.Primary),
+                                        Label($"{_localize["SavingWord"]}")
+                                    )
+                                    .HCenter()
+                                    .Spacing(8)
+                                    : Button($"{_localize["RememberThisWord"]}")
+                                        .OnClicked(() => RememberVocabularyWord())
+                                        .Background(new SolidColorBrush(theme.Info))
+                                        .TextColor(theme.Primary)
+                                        .HCenter()
+                                : null
+                        )
+                        .Spacing(12)
+                        .GridRow(1)
+                        .VStart(),
+
+                    // Row 2: Close button - with explicit sizing for better touch target
+                    Button($"{_localize["Close"]}")
+                        .OnClicked(CloseWordDetailsBottomSheet)
+                        .HCenter()
+                        .MinimumHeightRequest(44)
+                        .MinimumWidthRequest(100)
+                        .GridRow(2)
+                )
+                .RowSpacing(16)
+                .Padding(24)
             )
-            .RowSpacing(MyTheme.Size160)
-            .Padding(MyTheme.Size240)
+            .BackgroundColor(theme.GetSurface())
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(16))
+            .VEnd()
+            .HeightRequest(300)
         )
-        .AllowedState(BottomSheetAllowedState.HalfExpanded)
-        .HalfExpandedRatio(0.35)
-        .ShowGrabber(false)
-        .EnableSwiping(false)
-        .IsModal(true)
-        .ContentPadding(new Thickness(MyTheme.Size160, MyTheme.Size160, MyTheme.Size160, MyTheme.Size240))
         .GridRowSpan(4)
-        .IsOpen(State.IsWordDetailsVisible)
-        .OnStateChanged((sender, args) =>
-        {
-            // Sync native control state back to component state when sheet is dismissed
-            // This handles tap-outside-to-dismiss and other native dismiss actions
-            if (args.NewState == Syncfusion.Maui.Toolkit.BottomSheet.BottomSheetState.Hidden &&
-                State.IsWordDetailsVisible)
-            {
-                CloseWordDetailsBottomSheet();
-            }
-        });
+        .IsVisible(State.IsWordDetailsVisible);
+    }
 
     // Audio Management
     async Task StartPlaybackFromSentence(int startIndex)

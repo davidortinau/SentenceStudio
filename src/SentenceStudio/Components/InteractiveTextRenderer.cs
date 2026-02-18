@@ -221,7 +221,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Text paint created: Size={TextSize}, Color={Color}", _textPaint.TextSize, _textPaint.Color);
 
             // Highlighted text paint for current sentence - use primary color for sentence highlighting
-            var highlightColor = MyTheme.HighlightDarkest.ToSKColor();
+            var highlightColor = BootstrapTheme.Current.Primary.ToSKColor();
             _highlightedTextPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -233,7 +233,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Highlighted text paint created: Size={TextSize}, Color={Color}", _highlightedTextPaint.TextSize, _highlightedTextPaint.Color);
 
             // Vocabulary paint for vocabulary words - use secondary color for vocabulary highlighting
-            var vocabColor = MyTheme.Tertiary.ToSKColor();
+            var vocabColor = BootstrapTheme.Current.Info.ToSKColor();
             _vocabularyPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -247,7 +247,7 @@ public class InteractiveTextRenderer : SKCanvasView
             _logger.LogTrace("Vocabulary paint created: Size={TextSize}, Color={Color}", _vocabularyPaint.TextSize, _vocabularyPaint.Color);
 
             // Highlighted vocabulary paint for vocabulary words in current sentence - use primary + secondary mix
-            var highlightedVocabColor = MyTheme.Dark.Primary.ToSKColor();
+            var highlightedVocabColor = BootstrapTheme.Current.Primary.ToSKColor();
             _highlightedVocabularyPaint = new SKPaint
             {
                 IsAntialias = true,
@@ -346,19 +346,15 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         try
         {
-            // Use ApplicationTheme to get the correct background color
-            var backgroundColor = MyTheme.IsLightTheme
-                ? MyTheme.LightBackground
-                : MyTheme.DarkBackground;
-
-            _logger.LogTrace("Theme background color: IsLight={IsLight}, Color={Color}", MyTheme.IsLightTheme, backgroundColor);
+            var theme = BootstrapTheme.Current;
+            var backgroundColor = theme.GetSurface();
+            _logger.LogTrace("Theme background color: {Color}", backgroundColor);
             return backgroundColor.ToSKColor();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error getting theme background color, using fallback");
-            // Fallback to basic colors
-            return MyTheme.IsLightTheme ? SKColors.White : SKColors.Black;
+            return SKColors.White;
         }
     }
 
@@ -369,19 +365,15 @@ public class InteractiveTextRenderer : SKCanvasView
     {
         try
         {
-            // Use ApplicationTheme to get the correct text color
-            var textColor = MyTheme.IsLightTheme
-                ? MyTheme.DarkOnLightBackground
-                : MyTheme.LightOnDarkBackground;
-
-            _logger.LogTrace("Theme text color: IsLight={IsLight}, Color={Color}", MyTheme.IsLightTheme, textColor);
+            var theme = BootstrapTheme.Current;
+            var textColor = theme.GetOnBackground();
+            _logger.LogTrace("Theme text color: {Color}", textColor);
             return textColor.ToSKColor();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error getting theme text color, using fallback");
-            // Fallback to basic colors
-            return MyTheme.IsLightTheme ? SKColors.Black : SKColors.White;
+            return SKColors.Black;
         }
     }
 

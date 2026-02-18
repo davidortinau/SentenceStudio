@@ -94,147 +94,184 @@ partial class SettingsPage : Component<SettingsPageState>
     {
         return ContentPage($"{_localize["Settings"]}",
             ScrollView(
-                VStack(spacing: MyTheme.LayoutSpacing,
+                VStack(spacing: 24,
                     RenderVoiceAndQuizSection(),
                     RenderDataManagementSection(),
                     RenderMigrationSection(),
                     RenderAboutSection()
                 )
-                .Padding(MyTheme.CardPadding)
+                .Padding(16)
             )
         );
     }
 
     private VisualNode RenderVoiceAndQuizSection()
     {
-        return VStack(spacing: MyTheme.MicroSpacing,
-            Label($"{_localize["VoiceAndQuizSettings"]}")
-                .ThemeKey(MyTheme.Title2),
+        var theme = BootstrapTheme.Current;
 
-            // Language selection for voice
-            VStack(spacing: MyTheme.MicroSpacing,
-                Label($"{_localize["VoiceLanguage"]}")
-                    .ThemeKey(MyTheme.Body1Strong),
-                Label($"{_localize["VoiceLanguageDescription"]}")
-                    .ThemeKey(MyTheme.Caption1),
-                Button(State.SelectedLanguage)
-                    .ThemeKey(MyTheme.Secondary)
-                    .OnClicked(ShowLanguageSelectionPopup)
-            ),
+        return Border(
+            VStack(spacing: 16,
+                Label($"{_localize["VoiceAndQuizSettings"]}")
+                    .H4()
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
 
-            // Voice selection for selected language
-            VStack(spacing: MyTheme.MicroSpacing,
-                Label($"{_localize["PreferredVoice"]}")
-                    .ThemeKey(MyTheme.Body1Strong),
-                Label($"{_localize["PreferredVoiceDescription"]}")
-                    .ThemeKey(MyTheme.Caption1),
-                State.IsLoadingVoices
-                    ? Label($"{_localize["Loading"]}...")
-                        .ThemeKey(MyTheme.Caption1)
-                    : Button(GetSelectedVoiceDisplayName())
-                        .HStart()
-                        .ThemeKey(MyTheme.Secondary)
-                        .IsEnabled(State.AvailableVoices.Count > 0)
-                        .OnClicked(ShowVoiceSelectionPopup)
-            ),
+                // Language selection for voice
+                VStack(spacing: 4,
+                    Label($"{_localize["VoiceLanguage"]}")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                        .TextColor(theme.GetOnBackground()),
+                    Label($"{_localize["VoiceLanguageDescription"]}")
+                        .Small()
+                        .Muted(),
+                    Button(State.SelectedLanguage)
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .TextColor(theme.GetOnBackground())
+                        .BorderColor(theme.GetOutline())
+                        .BorderWidth(1)
+                        .CornerRadius(6)
+                        .HeightRequest(44)
+                        .OnClicked(ShowLanguageSelectionPopup)
+                ),
 
-            //Quiz direction
-            HStack(spacing: MyTheme.MicroSpacing,
-                VStack(spacing: 2,
-                    Label($"{_localize["QuizDirection"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Label($"{_localize["QuizDirectionDescription"]}")
-                        .ThemeKey(MyTheme.Caption1)
-                )
-                .HFill(),
-                Switch()
-                    .IsToggled(State.QuizDirection)
-                    .OnToggled((s, args) =>
+                // Voice selection for selected language
+                VStack(spacing: 4,
+                    Label($"{_localize["PreferredVoice"]}")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                        .TextColor(theme.GetOnBackground()),
+                    Label($"{_localize["PreferredVoiceDescription"]}")
+                        .Small()
+                        .Muted(),
+                    State.IsLoadingVoices
+                        ? Label($"{_localize["Loading"]}...")
+                            .Small()
+                            .Muted()
+                        : Button(GetSelectedVoiceDisplayName())
+                            .HStart()
+                            .Background(new SolidColorBrush(Colors.Transparent))
+                            .TextColor(theme.GetOnBackground())
+                            .BorderColor(theme.GetOutline())
+                            .BorderWidth(1)
+                            .CornerRadius(6)
+                            .HeightRequest(44)
+                            .IsEnabled(State.AvailableVoices.Count > 0)
+                            .OnClicked(ShowVoiceSelectionPopup)
+                ),
+
+                // Quiz direction
+                HStack(spacing: 8,
+                    VStack(spacing: 2,
+                        Label($"{_localize["QuizDirection"]}")
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                            .TextColor(theme.GetOnBackground()),
+                        Label($"{_localize["QuizDirectionDescription"]}")
+                            .Small()
+                            .Muted()
+                    )
+                    .HFill(),
+                    Switch()
+                        .IsToggled(State.QuizDirection)
+                        .OnToggled((s, args) =>
+                        {
+                            var toggled = args.Value;
+                            _quizPreferences.DisplayDirection = toggled ? "TargetToNative" : "NativeToTarget";
+                            SetState(s => s.QuizDirection = toggled);
+                        })
+                        .VCenter()
+                ),
+
+                // Autoplay
+                HStack(spacing: 8,
+                    VStack(spacing: 2,
+                        Label($"{_localize["Autoplay"]}")
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                            .TextColor(theme.GetOnBackground()),
+                        Label($"{_localize["AutoplayDescription"]}")
+                            .Small()
+                            .Muted()
+                    )
+                    .HFill(),
+                    Switch()
+                        .IsToggled(State.QuizAutoplay)
+                        .OnToggled((s, args) =>
+                        {
+                            _quizPreferences.AutoPlayVocabAudio = args.Value;
+                            SetState(s => s.QuizAutoplay = args.Value);
+                        })
+                        .VCenter()
+                ),
+
+                // Show mnemonic
+                HStack(spacing: 8,
+                    VStack(spacing: 2,
+                        Label($"{_localize["ShowMnemonic"]}")
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                            .TextColor(theme.GetOnBackground()),
+                        Label($"{_localize["ShowMnemonicDescription"]}")
+                            .Small()
+                            .Muted()
+                    )
+                    .HFill(),
+                    Switch()
+                        .IsToggled(State.QuizShowMnemonic)
+                        .OnToggled((s, args) =>
+                        {
+                            _quizPreferences.ShowMnemonicImage = args.Value;
+                            SetState(s => s.QuizShowMnemonic = args.Value);
+                        })
+                        .VCenter()
+                ),
+
+                // Auto-advance duration
+                VStack(spacing: 4,
+                    Label($"{_localize["AutoAdvanceDuration"]}: {State.QuizAutoAdvanceDuration:F1}s")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                        .TextColor(theme.GetOnBackground()),
+                    Label($"{_localize["AutoAdvanceDurationDescription"]}")
+                        .Small()
+                        .Muted(),
+                    Slider()
+                        .Minimum(0.5)
+                        .Maximum(5.0)
+                        .Value(State.QuizAutoAdvanceDuration)
+                        .OnValueChanged((s, args) =>
+                        {
+                            var rounded = Math.Round(args.NewValue, 1);
+                            _quizPreferences.AutoAdvanceDuration = (int)(rounded * 1000);
+                            SetState(s => s.QuizAutoAdvanceDuration = rounded);
+                        })
+                ),
+
+                // Reset button
+                Button($"{_localize["ResetToDefaults"]}")
+                    .Background(new SolidColorBrush(Colors.Transparent))
+                    .TextColor(theme.GetOnBackground())
+                    .BorderColor(theme.GetOutline())
+                    .BorderWidth(1)
+                    .CornerRadius(6)
+                    .HeightRequest(44)
+                    .OnClicked(() =>
                     {
-                        var toggled = args.Value;
-                        _quizPreferences.DisplayDirection = toggled ? "TargetToNative" : "NativeToTarget";
-                        SetState(s => s.QuizDirection = toggled);
+                        _quizPreferences.ResetToDefaults();
+                        _speechVoicePreferences.ResetToDefault();
+                        SetState(s =>
+                        {
+                            s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(s.SelectedLanguage);
+                            s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
+                            s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
+                            s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
+                            s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
+                        });
+                        _ = LoadVoicesForLanguageAsync(State.SelectedLanguage);
                     })
-                    .VCenter()
-            ),
-
-            // Autoplay
-            HStack(spacing: MyTheme.MicroSpacing,
-                VStack(spacing: 2,
-                    Label($"{_localize["Autoplay"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Label($"{_localize["AutoplayDescription"]}")
-                        .ThemeKey(MyTheme.Caption1)
-                )
-                .HFill(),
-                Switch()
-                    .IsToggled(State.QuizAutoplay)
-                    .OnToggled((s, args) =>
-                    {
-                        _quizPreferences.AutoPlayVocabAudio = args.Value;
-                        SetState(s => s.QuizAutoplay = args.Value);
-                    })
-                    .VCenter()
-            ),
-
-            // Show mnemonic
-            HStack(spacing: MyTheme.MicroSpacing,
-                VStack(spacing: 2,
-                    Label($"{_localize["ShowMnemonic"]}")
-                        .ThemeKey(MyTheme.Body1Strong),
-                    Label($"{_localize["ShowMnemonicDescription"]}")
-                        .ThemeKey(MyTheme.Caption1)
-                )
-                .HFill(),
-                Switch()
-                    .IsToggled(State.QuizShowMnemonic)
-                    .OnToggled((s, args) =>
-                    {
-                        _quizPreferences.ShowMnemonicImage = args.Value;
-                        SetState(s => s.QuizShowMnemonic = args.Value);
-                    })
-                    .VCenter()
-            ),
-
-            // Auto-advance duration
-            VStack(spacing: MyTheme.MicroSpacing,
-                Label($"{_localize["AutoAdvanceDuration"]}: {State.QuizAutoAdvanceDuration:F1}s")
-                    .ThemeKey(MyTheme.Body1Strong),
-                Label($"{_localize["AutoAdvanceDurationDescription"]}")
-                    .ThemeKey(MyTheme.Caption1),
-                Slider()
-                    .Minimum(0.5)
-                    .Maximum(5.0)
-                    .Value(State.QuizAutoAdvanceDuration)
-                    .OnValueChanged((s, args) =>
-                    {
-                        var rounded = Math.Round(args.NewValue, 1);
-                        _quizPreferences.AutoAdvanceDuration = (int)(rounded * 1000);
-                        SetState(s => s.QuizAutoAdvanceDuration = rounded);
-                    })
-            ),
-
-            // Reset button
-            Button($"{_localize["ResetToDefaults"]}")
-                .ThemeKey(MyTheme.Secondary)
-                .OnClicked(() =>
-                {
-                    _quizPreferences.ResetToDefaults();
-                    _speechVoicePreferences.ResetToDefault();
-                    SetState(s =>
-                    {
-                        s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(s.SelectedLanguage);
-                        s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
-                        s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
-                        s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
-                        s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
-                    });
-                    _ = LoadVoicesForLanguageAsync(State.SelectedLanguage);
-                })
-                .Margin(0, MyTheme.MicroSpacing, 0, 0)
+                    .Margin(0, 4, 0, 0)
+            )
+            .Padding(16)
         )
-        .Padding(MyTheme.CardPadding)
-        .Background(MyTheme.CardBackground);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
     }
 
     private string GetSelectedVoiceDisplayName()
@@ -245,6 +282,7 @@ partial class SettingsPage : Component<SettingsPageState>
 
     private async void ShowLanguageSelectionPopup()
     {
+        var theme = BootstrapTheme.Current;
         var supportedLanguages = _voiceDiscoveryService?.SupportedLanguages?.ToList()
             ?? new List<string> { "English", "French", "German", "Korean", "Spanish" };
 
@@ -268,9 +306,9 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 var label = new MauiControls.Label
                 {
-                    TextColor = MyTheme.TextPrimary,
-                    FontSize = MyTheme.Size160,
-                    Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
+                    TextColor = theme.GetOnBackground(),
+                    FontSize = 16,
+                    Padding = new Thickness(8, 12)
                 };
                 label.SetBinding(MauiControls.Label.TextProperty, ".");
                 label.GestureRecognizers.Add(tapGesture);
@@ -299,89 +337,131 @@ partial class SettingsPage : Component<SettingsPageState>
 
     private VisualNode RenderDataManagementSection()
     {
-        return VStack(spacing: MyTheme.MicroSpacing,
-            Label($"{_localize["DataManagement"]}")
-                .ThemeKey(MyTheme.Title2),
+        var theme = BootstrapTheme.Current;
 
-            Label($"{_localize["DataManagementDescription"]}")
-                .ThemeKey(MyTheme.Body2),
+        return Border(
+            VStack(spacing: 16,
+                Label($"{_localize["DataManagement"]}")
+                    .H4()
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
 
-            Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"📤 {_localize["ExportData"]}")
-                .ThemeKey(MyTheme.Secondary)
-                .IsEnabled(!State.IsExporting)
-                .OnClicked(async () => await ExportDataInternalAsync())
-                .Margin(0, MyTheme.MicroSpacing, 0, 0)
+                Label($"{_localize["DataManagementDescription"]}")
+                    .FontSize(14)
+                    .TextColor(theme.GetOnBackground()),
+
+                Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"📤 {_localize["ExportData"]}")
+                    .Background(new SolidColorBrush(Colors.Transparent))
+                    .TextColor(theme.GetOnBackground())
+                    .BorderColor(theme.GetOutline())
+                    .BorderWidth(1)
+                    .CornerRadius(6)
+                    .HeightRequest(44)
+                    .IsEnabled(!State.IsExporting)
+                    .OnClicked(async () => await ExportDataInternalAsync())
+                    .Margin(0, 4, 0, 0)
+            )
+            .Padding(16)
         )
-        .Padding(MyTheme.CardPadding)
-        .Background(MyTheme.CardBackground);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
     }
 
     private VisualNode RenderMigrationSection()
     {
-        return VStack(spacing: MyTheme.MicroSpacing,
-            Label($"{_localize["DatabaseMigrations"]}")
-                .ThemeKey(MyTheme.Title2),
+        var theme = BootstrapTheme.Current;
 
-            // Streak-based scoring migration
-            Border(
-                VStack(spacing: MyTheme.MicroSpacing,
-                    HStack(spacing: MyTheme.MicroSpacing,
-                        Label("🔄")
-                            .FontSize(24)
-                            .VCenter(),
-                        VStack(spacing: 2,
-                            Label($"{_localize["StreakMigrationTitle"]}")
-                                .ThemeKey(MyTheme.Body1Strong),
-                            Label($"{_localize["StreakMigrationDescription"]}")
-                                .ThemeKey(MyTheme.Caption1)
-                        )
-                        .HFill()
-                    ),
+        return Border(
+            VStack(spacing: 16,
+                Label($"{_localize["DatabaseMigrations"]}")
+                    .H4()
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
 
-                    State.StreakMigrationComplete ?
-                        HStack(spacing: MyTheme.MicroSpacing,
-                            Label("✅")
-                                .FontSize(16),
-                            Label($"{_localize["MigrationComplete"]}")
-                                .ThemeKey(MyTheme.Caption1)
-                        )
-                        :
-                        Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
-                            .ThemeKey(MyTheme.PrimaryButton)
-                            .IsEnabled(!State.IsMigrating)
-                            .OnClicked(async () => await RunStreakMigrationInternalAsync())
+                // Streak-based scoring migration
+                Border(
+                    VStack(spacing: 8,
+                        HStack(spacing: 8,
+                            Label("🔄")
+                                .FontSize(24)
+                                .VCenter(),
+                            VStack(spacing: 2,
+                                Label($"{_localize["StreakMigrationTitle"]}")
+                                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                                    .TextColor(theme.GetOnBackground()),
+                                Label($"{_localize["StreakMigrationDescription"]}")
+                                    .Small()
+                                    .Muted()
+                            )
+                            .HFill()
+                        ),
+
+                        State.StreakMigrationComplete ?
+                            HStack(spacing: 8,
+                                Label("✅")
+                                    .FontSize(16),
+                                Label($"{_localize["MigrationComplete"]}")
+                                    .Small()
+                                    .Muted()
+                            )
+                            :
+                            Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
+                                .Primary()
+                                .HeightRequest(44)
+                                .IsEnabled(!State.IsMigrating)
+                                .OnClicked(async () => await RunStreakMigrationInternalAsync())
+                    )
+                    .Padding(16)
                 )
-                .Padding(MyTheme.CardPadding)
-            )
-            .Stroke(MyTheme.CardBorder)
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
-            .Margin(0, MyTheme.MicroSpacing, 0, 0),
+                .BackgroundColor(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Margin(0, 4, 0, 0),
 
-            // Status message
-            !string.IsNullOrEmpty(State.StatusMessage) ?
-                Label(State.StatusMessage)
-                    .ThemeKey(MyTheme.Caption1)
-                    .Margin(0, MyTheme.MicroSpacing, 0, 0)
-                : null
+                // Status message
+                !string.IsNullOrEmpty(State.StatusMessage) ?
+                    Label(State.StatusMessage)
+                        .Small()
+                        .Muted()
+                        .Margin(0, 4, 0, 0)
+                    : null
+            )
+            .Padding(16)
         )
-        .Padding(MyTheme.CardPadding)
-        .Background(MyTheme.CardBackground);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
     }
 
     private VisualNode RenderAboutSection()
     {
-        return VStack(spacing: MyTheme.MicroSpacing,
-            Label($"{_localize["About"]}")
-                .ThemeKey(MyTheme.Title2),
+        var theme = BootstrapTheme.Current;
 
-            Label($"SentenceStudio v{AppInfo.VersionString} ({AppInfo.BuildString})")
-                .ThemeKey(MyTheme.Body2),
+        return Border(
+            VStack(spacing: 8,
+                Label($"{_localize["About"]}")
+                    .H4()
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
 
-            Label($"{_localize["TargetFramework"]}: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}")
-                .ThemeKey(MyTheme.Caption1)
+                Label($"SentenceStudio v{AppInfo.VersionString} ({AppInfo.BuildString})")
+                    .FontSize(14)
+                    .TextColor(theme.GetOnBackground()),
+
+                Label($"{_localize["TargetFramework"]}: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}")
+                    .Small()
+                    .Muted()
+            )
+            .Padding(16)
         )
-        .Padding(MyTheme.CardPadding)
-        .Background(MyTheme.CardBackground);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
     }
 
     private async Task RunStreakMigrationInternalAsync()

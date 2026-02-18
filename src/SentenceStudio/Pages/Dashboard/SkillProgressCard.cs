@@ -15,9 +15,11 @@ public partial class SkillProgressCard : Component
     {
         if (!_isVisible || _skill == null) return ContentView();
 
+        var theme = BootstrapTheme.Current;
+
         return Border(
             VStack(
-                Label("Current Skill Progress").FontSize(16).FontAttributes(FontAttributes.Bold),
+                Label("Current Skill Progress").H5(),
                 VStack(
                     Label(_skill.Title)
                         .FontSize(18)
@@ -35,38 +37,39 @@ public partial class SkillProgressCard : Component
                             .Progress(_skill.Proficiency)
                             .ProgressColor(GetProficiencyColor(_skill.Proficiency))
                             .ScaleY(3)
-                            .Margin(MyTheme.SectionSpacing, 0)
-                    ).Spacing(MyTheme.ComponentSpacing),
+                            .Margin(24, 0)
+                    ).Spacing(8),
 
                     // Delta indicator
                     HStack(
                         Label("7d change:")
                             .FontSize(12)
-                            .TextColor(MyTheme.SecondaryText),
+                            .Muted(),
                         Label($"{(_skill.Delta7d >= 0 ? "+" : "")}{Math.Round(_skill.Delta7d * 100, 1)}%")
                             .FontSize(12)
                             .FontAttributes(FontAttributes.Bold)
-                            .TextColor(_skill.Delta7d >= 0 ? MyTheme.Success : MyTheme.Error)
-                    ).Spacing(MyTheme.MicroSpacing).HCenter(),
+                            .TextColor(_skill.Delta7d >= 0 ? theme.Success : theme.Danger)
+                    ).Spacing(4).HCenter(),
 
                     Label($"Last activity: {_skill.LastActivityUtc.ToString("MMM dd")}")
-                        .FontSize(10)
-                        .TextColor(MyTheme.SecondaryText)
+                        .Small()
+                        .Muted()
                         .HCenter()
-                        .Margin(0, MyTheme.ComponentSpacing, 0, 0)
-                ).Spacing(MyTheme.CardMargin)
-            ).Spacing(MyTheme.ComponentSpacing).Padding(MyTheme.LayoutSpacing)
-        ).StrokeThickness(1).Stroke(MyTheme.ItemBorder);
+                        .Margin(0, 8, 0, 0)
+                ).Spacing(8)
+            ).Spacing(8).Padding(16)
+        ).StrokeThickness(1).Stroke(theme.GetOutline());
     }
 
     private Color GetProficiencyColor(double proficiency)
     {
+        var theme = BootstrapTheme.Current;
         return proficiency switch
         {
-            >= 0.8 => MyTheme.ProficiencyHigh,
-            >= 0.6 => MyTheme.ProficiencyMedium,
-            >= 0.4 => MyTheme.ProficiencyLow,
-            _ => MyTheme.ProficiencyVeryLow
+            >= 0.8 => theme.Success,
+            >= 0.6 => theme.Warning,
+            >= 0.4 => Color.FromArgb("#FF8C00"),
+            _ => theme.Danger
         };
     }
 }

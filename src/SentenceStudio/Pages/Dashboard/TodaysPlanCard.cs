@@ -34,8 +34,10 @@ partial class TodaysPlanCard : MauiReactor.Component
             return ContentView().HeightRequest(0);
         }
 
+        var theme = BootstrapTheme.Current;
+
         return Border(
-            VStack(spacing: MyTheme.LayoutSpacing,
+            VStack(spacing: 16,
                 // Header with title and streak
                 RenderHeader(),
 
@@ -51,26 +53,29 @@ partial class TodaysPlanCard : MauiReactor.Component
                 // Plan items list
                 RenderPlanItems()
             )
-            .Padding(MyTheme.Size160)
+            .Padding(16)
         )
-        .Background(MyTheme.CardBackground)
-        .Stroke(MyTheme.CardBorder)
+        .Background(theme.GetSurface())
+        .Stroke(theme.GetOutline())
         .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size120));
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
     }
 
     VisualNode RenderHeader()
     {
-        return HStack(spacing: MyTheme.ComponentSpacing,
+        var theme = BootstrapTheme.Current;
+
+        return HStack(spacing: 8,
             // Title
             Label($"{_localize["PlanCardTitle"]}")
-                .ThemeKey(MyTheme.Title2),
+                .H4(),
 
             // Streak badge (if exists)
             _streakInfo != null && _streakInfo.CurrentStreak > 0
                 ? Label($"🔥 {_streakInfo.CurrentStreak}")
-                    .ThemeKey(MyTheme.Caption1Strong)
-                    .TextColor(MyTheme.BadgeText)
+                    .Small()
+                    .FontAttributes(MauiControls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground())
                 : null
         );
     }
@@ -85,17 +90,18 @@ partial class TodaysPlanCard : MauiReactor.Component
             // Resource(s)
             !string.IsNullOrEmpty(_plan.ResourceTitles)
                 ? Label($"📚 {_plan.ResourceTitles}")
-                    .ThemeKey(MyTheme.Body1Strong)
+                    .FontSize(14)
+                    .FontAttributes(MauiControls.FontAttributes.Bold)
                 : null,
 
             // Skill
             !string.IsNullOrEmpty(_plan.SkillTitle)
                 ? Label($"🎯 {_plan.SkillTitle}")
-                    .ThemeKey(MyTheme.Body2)
-                    .TextColor(MyTheme.SecondaryText)
+                    .FontSize(14)
+                    .Muted()
                 : null
         )
-        .Spacing(MyTheme.MicroSpacing);
+        .Spacing(4);
     }
 
     VisualNode RenderRationale()
@@ -106,11 +112,12 @@ partial class TodaysPlanCard : MauiReactor.Component
 
         return Label($"💡 {_plan.Rationale}")
             .LineBreakMode(LineBreakMode.WordWrap)
-            .ThemeKey(MyTheme.Body2);
+            .FontSize(14);
     }
 
     VisualNode RenderProgressSummary()
     {
+        var theme = BootstrapTheme.Current;
         var completedCount = _plan.Items.Count(i => i.IsCompleted);
         var totalCount = _plan.Items.Count;
         var completionPercentage = (int)_plan.CompletionPercentage;
@@ -131,13 +138,13 @@ partial class TodaysPlanCard : MauiReactor.Component
         _logger.LogDebug("🎯 Button text logic: hasAnyProgress={HasProgress}, nextItem={NextItem}, allComplete={AllComplete}",
             hasAnyProgress, nextItem?.TitleKey ?? "null", allComplete);
 
-        return VStack(spacing: MyTheme.MicroSpacing,
+        return VStack(spacing: 4,
             ProgressBar().Progress(completionPercentage / 100.0)
                 .HeightRequest(20)
-                .ProgressColor(MyTheme.ProgressBarFill),
+                .ProgressColor(theme.Success),
 
             // Stats row with Start/Resume button
-            HStack(spacing: MyTheme.ComponentSpacing,
+            HStack(spacing: 8,
                 Label($"{completionPercentage}% {_localize["PlanCompleteLabel"]} {totalMinutesSpent} / {totalEstimatedMinutes} {_localize["PlanMinutesLabel"]}")
                     .HStart()
                     .VCenter(),
@@ -145,7 +152,8 @@ partial class TodaysPlanCard : MauiReactor.Component
                 // Start/Resume button for next activity
                 !allComplete
                     ? Button(buttonText)
-                        .ThemeKey(MyTheme.PrimaryButton)
+                        .Background(new SolidColorBrush(theme.Primary))
+                        .TextColor(Colors.White)
                         .HEnd()
                         .VCenter()
                         .OnClicked(() =>
@@ -163,8 +171,9 @@ partial class TodaysPlanCard : MauiReactor.Component
                             }
                         })
                     : Label("✅ Complete!")
-                        .ThemeKey(MyTheme.Caption1Strong)
-                        .TextColor(MyTheme.ProgressBarFill)
+                        .Small()
+                        .FontAttributes(MauiControls.FontAttributes.Bold)
+                        .TextColor(theme.Success)
                         .HEnd()
                         .VCenter()
             )
@@ -183,11 +192,12 @@ partial class TodaysPlanCard : MauiReactor.Component
             items.Add(RenderPlanItem(item, i + 1, isAvailable));
         }
 
-        return VStack(spacing: MyTheme.Size120, items.ToArray());
+        return VStack(spacing: 12, items.ToArray());
     }
 
     VisualNode RenderPlanItem(DailyPlanItem item, int sequenceNumber, bool isAvailable)
     {
+        var theme = BootstrapTheme.Current;
         var isCompleted = IsItemComplete(item);
 
         var isEnabled = isCompleted || isAvailable;
@@ -198,7 +208,9 @@ partial class TodaysPlanCard : MauiReactor.Component
         return Grid("*", "Auto,*",
             // Icon column - checkmark for completed, circle for todo
             Image()
-                .Source(isCompleted ? MyTheme.IconCheckmarkCircleFilled : MyTheme.IconCircle)
+                .Source(isCompleted
+                    ? BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, theme.Success, 28)
+                    : BootstrapIcons.Create(BootstrapIcons.Circle, theme.GetOutline(), 28))
                 .WidthRequest(28)
                 .HeightRequest(28)
                 .VStart()
@@ -206,29 +218,30 @@ partial class TodaysPlanCard : MauiReactor.Component
                 .Margin(0, 2, 0, 0),
 
             // Content column
-            VStack(spacing: MyTheme.MicroSpacing,
+            VStack(spacing: 4,
                 // Title
                 Label(GetActivityTitle(item))
-                    .ThemeKey(MyTheme.Body1Strong)
+                    .FontSize(14)
+                    .FontAttributes(MauiControls.FontAttributes.Bold)
                     .HStart(),
                 Label(GetActivityDescription(item))
-                    .ThemeKey(MyTheme.Body2)
+                    .FontSize(14)
                     ,
 
                 // Metadata row (time, vocab count if applicable)
-                HStack(spacing: MyTheme.ComponentSpacing,
+                HStack(spacing: 8,
                     // Time estimate with actual progress
                     item.MinutesSpent > 0
                         ? Label($"⏱ {item.MinutesSpent}/{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
-                            .ThemeKey(MyTheme.Caption1)
+                            .Small()
                             .FontAttributes(MauiControls.FontAttributes.Bold)
                         : Label($"⏱ {item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
-                            .ThemeKey(MyTheme.Caption1),
+                            .Small(),
 
                     // Vocabulary count
                     item.ActivityType == PlanActivityType.VocabularyReview && item.VocabDueCount.HasValue && item.VocabDueCount.Value > 0
                         ? Label($"📝 {item.VocabDueCount.Value} {_localize["PlanWordsLabel"]}")
-                            .ThemeKey(MyTheme.Caption1)
+                            .Small()
                         : null
                 )
             )
@@ -236,8 +249,8 @@ partial class TodaysPlanCard : MauiReactor.Component
             .GridColumn(1)
             .VCenter()
         )
-        .ColumnSpacing(MyTheme.ComponentSpacing)
-        .Padding(MyTheme.Size80, MyTheme.Size120)
+        .ColumnSpacing(8)
+        .Padding(8, 12)
         .OnTapped(() => _onItemTapped?.Invoke(item));
     }
 

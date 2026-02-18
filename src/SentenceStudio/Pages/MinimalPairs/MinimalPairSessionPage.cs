@@ -1,4 +1,5 @@
 using Plugin.Maui.Audio;
+using MauiReactor.Shapes;
 using SentenceStudio.Repositories;
 
 namespace SentenceStudio.Pages.MinimalPairs;
@@ -372,39 +373,37 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
 
     private VisualNode RenderHeader()
     {
-        return VStack(spacing: MyTheme.Size80,
+        var theme = BootstrapTheme.Current;
+
+        return VStack(spacing: 8,
             // Progress
-            HStack(spacing: MyTheme.Size80,
+            HStack(spacing: 8,
                 Label($"{_localize["Trial"]} {State.CurrentTrialIndex + 1} / {State.TotalTrials}")
-                    .ThemeKey(MyTheme.Caption1)
+                    .Small()
+                    .Muted()
             )
             .HCenter(),
 
             // Counters
-            HStack(spacing: MyTheme.Size160,
-                HStack(spacing: MyTheme.Size40,
-                    Label("✓")
-                        .ThemeKey(MyTheme.Title2),
-                    Label($"{State.CorrectCount}")
-                        .ThemeKey(MyTheme.Title2)
-                ),
+            HStack(spacing: 16,
+                Label($"✓ {State.CorrectCount}")
+                    .H4()
+                    .TextColor(theme.Success),
 
-                HStack(spacing: MyTheme.Size40,
-                    Label("✗")
-                        .ThemeKey(MyTheme.Title2),
-                    Label($"{State.IncorrectCount}")
-                        .ThemeKey(MyTheme.Title2)
-                )
+                Label($"✗ {State.IncorrectCount}")
+                    .H4()
+                    .TextColor(theme.Danger)
             )
             .HCenter(),
 
             string.IsNullOrEmpty(State.ErrorMessage)
                 ? null
                 : Label(State.ErrorMessage)
-                    .ThemeKey(MyTheme.Caption1)
+                    .Small()
+                    .TextColor(theme.Warning)
                     .HCenter()
         )
-        .Padding(MyTheme.Size160);
+        .Padding(16);
     }
 
     private VisualNode RenderChoices()
@@ -414,98 +413,89 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             return Grid();
         }
 
+        var theme = BootstrapTheme.Current;
+
         // Use stored positions (no re-randomization)
-        return VStack(spacing: MyTheme.Size160,
-            HStack(spacing: MyTheme.Size160,
+        return VStack(spacing: 16,
+            HStack(spacing: 16,
                 RenderAnswerTile(State.LeftWord),
                 RenderAnswerTile(State.RightWord)
             )
             .HCenter(),
 
             Button($"{_localize["CheckAnswer"]}")
+                .Background(new SolidColorBrush(theme.Primary))
+                .TextColor(Colors.White)
+                .BorderColor(theme.Primary)
+                .BorderWidth(1)
+                .CornerRadius(6)
                 .OnClicked(async () => await OnCheckAnswerAsync())
                 .IsEnabled(State.SelectedWordId.HasValue && !State.IsDebouncing && !State.HasCheckedAnswer)
                 .HCenter()
         )
         .HCenter()
         .VCenter()
-        .Padding(MyTheme.Size160);
+        .Padding(16);
     }
 
     private VisualNode RenderAnswerTile(VocabularyWord word)
     {
+        var theme = BootstrapTheme.Current;
         var isSelected = State.SelectedWordId == word.Id;
         var isCorrectAnswer = word.Id == State.PromptWord?.Id;
 
         // Determine border color based on state
         Color borderColor;
-        Color backgroundColor;
 
         if (!State.HasCheckedAnswer && isSelected)
         {
-            // Selected but not checked yet - green
-            borderColor = MyTheme.Light.Selected; // Green for selection
-            backgroundColor = Colors.Transparent;
+            borderColor = theme.Primary;
         }
         else if (State.HasCheckedAnswer)
         {
-            // After checking answer
             if (isSelected)
             {
-                // User selected this one
-                if (State.AnswerWasCorrect == true)
-                {
-                    borderColor = MyTheme.Light.Correct; // Blue for correct answer
-                    // backgroundColor = Color.FromArgb("#E3F2FD"); // Light blue background
-                }
-                else
-                {
-                    borderColor = MyTheme.Light.Incorrect; // Red for incorrect
-                    // backgroundColor = Color.FromArgb("#FFEBEE"); // Light red background
-                }
+                borderColor = State.AnswerWasCorrect == true ? theme.Success : theme.Danger;
             }
             else if (isCorrectAnswer && State.AnswerWasCorrect == false)
             {
-                // Show the correct answer if user got it wrong
-                borderColor = MyTheme.Light.Correct; // Blue for correct answer indication
-                // backgroundColor = Color.FromArgb("#E3F2FD"); // Light blue background
+                borderColor = theme.Success;
             }
             else
             {
-                borderColor = MyTheme.Gray300;
-                backgroundColor = Colors.Transparent;
+                borderColor = theme.GetOutline();
             }
         }
         else
         {
-            // No selection yet
-            borderColor = MyTheme.Gray300;
-            backgroundColor = Colors.Transparent;
+            borderColor = theme.GetOutline();
         }
 
         return Border(
             Grid(
                 Label(word.TargetLanguageTerm)
-                    .ThemeKey(MyTheme.Title2)
+                    .H4()
                     .Center(),
 
                 // Show checkmark on correct answer when showing feedback
                 (State.HasCheckedAnswer && isCorrectAnswer)
                     ? Image()
-                        .Source(MyTheme.IconCheckmarkCircleFilledCorrect)
+                        .Source(BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, theme.Success, 24))
                         .WidthRequest(24)
                         .HeightRequest(24)
                         .HEnd()
                         .VStart()
-                        .Margin(MyTheme.Size40)
+                        .Margin(4)
                     : null
             )
             .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 120 : 150)
             .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 120 : 150)
         )
-        .ThemeKey(MyTheme.CardStyle)
+        .BackgroundColor(theme.GetSurface())
         .Stroke(borderColor)
         .StrokeThickness(3)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Padding(16)
         .OnTapped(() => OnWordSelected(word))
         .OnTapped(() =>
         {
@@ -517,46 +507,63 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
 
     private VisualNode RenderReplayButton()
     {
+        var theme = BootstrapTheme.Current;
+
         return ImageButton()
-            .Source(MyTheme.IconPlay)
+            .Source(BootstrapIcons.Create(BootstrapIcons.PlayFill, theme.GetOnBackground(), 24))
             .Background(Colors.Transparent)
             .WidthRequest(48)
             .HeightRequest(48)
             .OnClicked(() => OnReplayAudio())
             .IsEnabled(!State.IsPlayingAudio && !State.AnswerWasCorrect.HasValue)
             .HCenter()
-            .Margin(0, MyTheme.Size240, 0, MyTheme.Size240); // Centered halfway between answer boxes and bottom
+            .Margin(0, 24, 0, 24);
     }
 
     private VisualNode RenderSummary()
     {
+        var theme = BootstrapTheme.Current;
         var total = State.CorrectCount + State.IncorrectCount;
         var accuracy = total > 0 ? (double)State.CorrectCount / total * 100 : 0;
         var duration = State.SessionStartedAt.HasValue
             ? (DateTime.UtcNow - State.SessionStartedAt.Value).TotalMinutes
             : 0;
 
-        return VStack(spacing: MyTheme.Size200,
+        return VStack(spacing: 24,
             Label($"{_localize["MinimalPairsSessionSummary"]}")
-                .ThemeKey(MyTheme.LargeTitle)
+                .H3()
                 .HCenter(),
 
-            VStack(spacing: MyTheme.Size120,
-                Label($"{_localize["Correct"]}: {State.CorrectCount}")
-                    .ThemeKey(MyTheme.Title2),
-                Label($"{_localize["Incorrect"]}: {State.IncorrectCount}")
-                    .ThemeKey(MyTheme.Title2),
-                Label($"{_localize["Accuracy"]}: {accuracy:F1}%")
-                    .ThemeKey(MyTheme.Title2),
-                Label($"{_localize["Duration"]}: {duration:F1} {_localize["Minutes"]}")
-                    .ThemeKey(MyTheme.Title2)
+            Border(
+                VStack(spacing: 12,
+                    Label($"{_localize["Correct"]}: {State.CorrectCount}")
+                        .H4()
+                        .TextColor(theme.Success),
+                    Label($"{_localize["Incorrect"]}: {State.IncorrectCount}")
+                        .H4()
+                        .TextColor(theme.Danger),
+                    Label($"{_localize["Accuracy"]}: {accuracy:F1}%")
+                        .H4(),
+                    Label($"{_localize["Duration"]}: {duration:F1} {_localize["Minutes"]}")
+                        .H4()
+                )
+                .Padding(16)
             )
+            .BackgroundColor(theme.GetSurface())
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
             .HCenter(),
 
             Button($"{_localize["Done"]}")
+                .Background(new SolidColorBrush(theme.Primary))
+                .TextColor(Colors.White)
+                .BorderColor(theme.Primary)
+                .BorderWidth(1)
+                .CornerRadius(6)
                 .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
         )
         .VCenter()
-        .Padding(MyTheme.Size240);
+        .Padding(24);
     }
 }

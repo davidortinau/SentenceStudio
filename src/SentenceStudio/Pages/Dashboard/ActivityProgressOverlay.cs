@@ -34,14 +34,15 @@ partial class ActivityProgressOverlay : MauiReactor.Component
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
         var progress = CalculateProgress();
         var isComplete = progress >= 100;
 
         return Border(
-            VStack(spacing: MyTheme.MicroSpacing,
+            VStack(spacing: 4,
                 // Activity title
                 Label(_activityTitle ?? _localize["ActivityProgressTitle"])
-                    .TextColor(MyTheme.PrimaryText)
+                    .TextColor(theme.GetOnBackground())
                     .FontSize(14)
                     .FontAttributes(MauiControls.FontAttributes.Bold),
 
@@ -49,14 +50,14 @@ partial class ActivityProgressOverlay : MauiReactor.Component
                 Grid(
                     // Background
                     Border()
-                        .Background(MyTheme.ItemBackground)
+                        .Background(theme.GetOutline())
                         .HeightRequest(6)
                         .StrokeThickness(0)
                         .StrokeShape(new RoundRectangle().CornerRadius(3)),
 
                     // Progress fill
                     Border()
-                        .Background(isComplete ? MyTheme.Success : MyTheme.ProgressBarFill)
+                        .Background(isComplete ? theme.Success : theme.Success)
                         .HeightRequest(6)
                         .StrokeThickness(0)
                         .StrokeShape(new RoundRectangle().CornerRadius(3))
@@ -65,25 +66,25 @@ partial class ActivityProgressOverlay : MauiReactor.Component
                 ),
 
                 // Stats
-                HStack(spacing: MyTheme.ComponentSpacing,
+                HStack(spacing: 8,
                     // Time or rounds
                     _targetRounds.HasValue && _roundsCompleted.HasValue
                         ? Label($"{_roundsCompleted}/{_targetRounds} {_localize["RoundsLabel"]}")
-                            .TextColor(MyTheme.SecondaryText)
+                            .Muted()
                             .FontSize(12)
                         : Label($"{_elapsedMinutes}/{_targetMinutes} {_localize["PlanMinutesLabel"]}")
-                            .TextColor(MyTheme.SecondaryText)
+                            .Muted()
                             .FontSize(12),
 
                     // Completion indicator
                     isComplete
-                        ? HStack(spacing: MyTheme.MicroSpacing,
+                        ? HStack(spacing: 4,
                             Label("✓")
-                                .TextColor(MyTheme.Success)
+                                .TextColor(theme.Success)
                                 .FontSize(14)
                                 .FontAttributes(MauiControls.FontAttributes.Bold),
                             Label(_localize["ActivityCompleteLabel"])
-                                .TextColor(MyTheme.Success)
+                                .TextColor(theme.Success)
                                 .FontSize(12)
                                 .FontAttributes(MauiControls.FontAttributes.Bold)
                         )
@@ -91,13 +92,13 @@ partial class ActivityProgressOverlay : MauiReactor.Component
                         : null
                 )
             )
-            .Padding(MyTheme.Size120)
+            .Padding(12)
         )
-        .Background(MyTheme.CardBackground)
-        .Stroke(MyTheme.CardBorder)
+        .Background(theme.GetSurface())
+        .Stroke(theme.GetOutline())
         .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-        .Margin(MyTheme.Size160)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .Margin(16)
         .OnTapped(() =>
         {
             if (isComplete)

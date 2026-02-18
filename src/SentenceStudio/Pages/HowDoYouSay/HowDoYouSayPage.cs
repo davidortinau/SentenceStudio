@@ -147,7 +147,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	}
 
 	VisualNode RenderInput() =>
-		VStack(spacing: MyTheme.Size240,
+		VStack(spacing: 24,
 			ActivityIndicator()
 				.IsVisible(State.IsBusy)
 				.IsRunning(State.IsBusy),
@@ -162,33 +162,40 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.OnTextChanged((s, e) => SetState(s => s.Phrase = e.NewTextValue))
 			)
 			.StrokeShape(new RoundRectangle().CornerRadius(8))
-			.Stroke(MyTheme.Gray300),
+			.Stroke(BootstrapTheme.Current.GetOutline())
+			.StrokeThickness(1),
 			HStack(
 				Button("Submit")
+					.Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
+					.TextColor(Colors.White)
 					.HFill()
 					.OnClicked(Submit),
 				Button(State.SelectedVoiceDisplayName)
-					.ThemeKey(MyTheme.Secondary)
+					.Background(new SolidColorBrush(Colors.Transparent))
+					.TextColor(BootstrapTheme.Current.GetOnBackground())
+					.BorderColor(BootstrapTheme.Current.GetOutline())
+					.BorderWidth(1)
 					.HEnd()
 					.OnClicked(ShowVoiceSelectionPopup)
-			).Spacing(MyTheme.Size240).HEnd()
+			).Spacing(24).HEnd()
 		)
-		.Padding(MyTheme.Size240);
+		.Padding(24);
 
 
 	VisualNode RenderHistory() =>
 
 		CollectionView()
 			.Header(Label("History")
-				.FontSize(24)
-				.FontAttributes(FontAttributes.Bold)
-				.Padding(MyTheme.Size240))
+				.H4()
+				.Padding(24))
 			.ItemsSource(State.StreamHistory, RenderHistoryItem)
-			.Margin(MyTheme.Size240)
+			.Margin(24)
 			.GridRow(2);
 
-	VisualNode RenderHistoryItem(StreamHistory item) =>
-		Grid(rows: "*", columns: "Auto,*,Auto,Auto",
+	VisualNode RenderHistoryItem(StreamHistory item)
+	{
+		var theme = BootstrapTheme.Current;
+		return Grid(rows: "*", columns: "Auto,*,Auto,Auto",
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() =>
@@ -205,7 +212,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					}
 				})
 				.ImageSource(GetPlayButtonIcon(item))
-				.TextColor(MyTheme.DarkOnLightBackground)
+				.TextColor(theme.GetOnBackground())
 				.GridColumn(0)
 				.VStart(),
 			Label(item.Phrase)
@@ -215,17 +222,18 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => SaveAudioAsMp3(item))
-				.ImageSource(MyTheme.IconSave)
-				.TextColor(MyTheme.DarkOnLightBackground)
+				.ImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 20))
+				.TextColor(theme.GetOnBackground())
 				.GridColumn(2)
 				.HEnd(),
 			Button()
 				.Background(Colors.Transparent)
 				.OnClicked(() => DeleteHistoryItem(item))
-				.ImageSource(MyTheme.IconDelete)
+				.ImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20))
 				.GridColumn(3)
 				.HEnd()
 		);
+	}
 
 	async Task Submit()
 	{
@@ -772,15 +780,16 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	/// </summary>
 	private ImageSource GetPlayButtonIcon(StreamHistory item)
 	{
+		var theme = BootstrapTheme.Current;
 		// If this is the current playing item and audio is playing, show pause
 		if (State.CurrentPlayingItem == item && _audioPlayer != null && _audioPlayer.IsPlaying)
 		{
-			return MyTheme.IconPause;
+			return BootstrapIcons.Create(BootstrapIcons.PauseFill, theme.GetOnBackground(), 20);
 		}
 		// Otherwise show play
 		else
 		{
-			return MyTheme.IconPlay;
+			return BootstrapIcons.Create(BootstrapIcons.PlayCircleFill, theme.GetOnBackground(), 20);
 		}
 	}
 }
