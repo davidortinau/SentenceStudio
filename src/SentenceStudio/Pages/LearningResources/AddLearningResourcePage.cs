@@ -2,6 +2,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Services;
 using LukeMauiFilePicker;
+using MauiReactor.Shapes;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
 
@@ -48,347 +49,229 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                     ActivityIndicator().IsRunning(true).VCenter().HCenter() :
                     ScrollView(
                         VStack(
-                            // Title
-                            VStack(
-                                Label(_localize["Title"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Entry()
-                                        .Text(State.Resource.Title)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Title = text))
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            )
-                            .Spacing(4),
-
-                            // Description
-                            VStack(
-                                Label(_localize["Description"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Editor()
-                                        .Text(State.Resource.Description)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Description = text))
-                                        .HeightRequest(100)
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            )
-                            .Spacing(4),
-
-                            // Media Type
-                            VStack(
-                                Label(_localize["MediaType"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Picker()
-                                        .ItemsSource(Constants.MediaTypes)
-                                        .SelectedIndex(State.MediaTypeIndex)
-                                        .OnSelectedIndexChanged(index => SetState(s =>
-                                        {
-                                            s.MediaTypeIndex = index;
-                                            s.Resource.MediaType = Constants.MediaTypes[index];
-                                        }))
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            )
-                            .Spacing(4),
-
-                            // Language
-                            VStack(
-                                Label(_localize["Language"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Picker()
-                                        .ItemsSource(Constants.Languages)
-                                        .SelectedIndex(State.LanguageIndex)
-                                        .OnSelectedIndexChanged(index => SetState(s =>
-                                        {
-                                            s.LanguageIndex = index;
-                                            s.Resource.Language = Constants.Languages[index];
-                                        }))
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            )
-                            .Spacing(4),
-
-                            // Media URL - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
+                            // Basic Information card
+                            Border(
                                 VStack(
-                                    Label(_localize["MediaURL"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Entry()
-                                            .Text(State.Resource.MediaUrl)
-                                            .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
-                                            .Keyboard(Keyboard.Url)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
+                                    Label($"{_localize["BasicInformation"]}")
+                                        .H5().FontAttributes(FontAttributes.Bold).HStart(),
+
+                                    // Title
+                                    VStack(
+                                        Label($"{_localize["Title"]} *")
+                                            .FontSize(14).Muted().HStart(),
+                                        Border(
+                                            Entry()
+                                                .Text(State.Resource.Title)
+                                                .Placeholder($"{_localize["ResourceTitle"]}")
+                                                .OnTextChanged(text => SetState(s => s.Resource.Title = text))
+                                        )
+                                        .BackgroundColor(theme.GetSurface())
+                                        .Stroke(theme.GetOutline())
+                                        .StrokeThickness(1)
+                                        .Padding(8)
+                                    ).Spacing(4),
+
+                                    // Description
+                                    VStack(
+                                        Label($"{_localize["Description"]}")
+                                            .FontSize(14).Muted().HStart(),
+                                        Border(
+                                            Editor()
+                                                .Text(State.Resource.Description)
+                                                .Placeholder($"{_localize["BriefDescription"]}")
+                                                .OnTextChanged(text => SetState(s => s.Resource.Description = text))
+                                                .HeightRequest(100)
+                                        )
+                                        .BackgroundColor(theme.GetSurface())
+                                        .Stroke(theme.GetOutline())
+                                        .StrokeThickness(1)
+                                        .Padding(8)
+                                    ).Spacing(4),
+
+                                    // Media Type & Language side by side
+                                    Grid("Auto", "*, *",
+                                        VStack(
+                                            Label($"{_localize["MediaType"]}")
+                                                .FontSize(14).Muted().HStart(),
+                                            Border(
+                                                Picker()
+                                                    .ItemsSource(Constants.MediaTypes)
+                                                    .SelectedIndex(State.MediaTypeIndex)
+                                                    .OnSelectedIndexChanged(index => SetState(s =>
+                                                    {
+                                                        s.MediaTypeIndex = index;
+                                                        s.Resource.MediaType = Constants.MediaTypes[index];
+                                                    }))
+                                            )
+                                            .BackgroundColor(theme.GetSurface())
+                                            .Stroke(theme.GetOutline())
+                                            .StrokeThickness(1)
+                                            .Padding(8)
+                                        ).Spacing(4).GridColumn(0),
+
+                                        VStack(
+                                            Label($"{_localize["Language"]}")
+                                                .FontSize(14).Muted().HStart(),
+                                            Border(
+                                                Picker()
+                                                    .ItemsSource(Constants.Languages)
+                                                    .SelectedIndex(State.LanguageIndex)
+                                                    .OnSelectedIndexChanged(index => SetState(s =>
+                                                    {
+                                                        s.LanguageIndex = index;
+                                                        s.Resource.Language = Constants.Languages[index];
+                                                    }))
+                                            )
+                                            .BackgroundColor(theme.GetSurface())
+                                            .Stroke(theme.GetOutline())
+                                            .StrokeThickness(1)
+                                            .Padding(8)
+                                        ).Spacing(4).GridColumn(1)
+                                    ).ColumnSpacing(12),
+
+                                    // Tags
+                                    VStack(
+                                        Label($"{_localize["Tags"]}")
+                                            .FontSize(14).Muted().HStart(),
+                                        Border(
+                                            Entry()
+                                                .Text(State.Resource.Tags)
+                                                .Placeholder("tag1, tag2, tag3")
+                                                .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
+                                        )
+                                        .BackgroundColor(theme.GetSurface())
+                                        .Stroke(theme.GetOutline())
+                                        .StrokeThickness(1)
+                                        .Padding(8)
+                                    ).Spacing(4)
+                                ).Spacing(12)
+                            )
+                            .BackgroundColor(theme.GetSurface())
+                            .Stroke(theme.GetOutline())
+                            .StrokeThickness(1)
+                            .StrokeShape(new RoundRectangle().CornerRadius(12))
+                            .Padding(16),
+
+                            // Media Content card - show for all types except Vocabulary List
+                            State.Resource.MediaType != "Vocabulary List" ?
+                                Border(
+                                    VStack(
+                                        Label($"{_localize["MediaContent"]}")
+                                            .H5().FontAttributes(FontAttributes.Bold).HStart(),
+
+                                        VStack(
+                                            Label($"{_localize["MediaURL"]}")
+                                                .FontSize(14).Muted().HStart(),
+                                            Border(
+                                                Entry()
+                                                    .Text(State.Resource.MediaUrl)
+                                                    .Placeholder("https://...")
+                                                    .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
+                                                    .Keyboard(Keyboard.Url)
+                                            )
+                                            .BackgroundColor(theme.GetSurface())
+                                            .Stroke(theme.GetOutline())
+                                            .StrokeThickness(1)
+                                            .Padding(8)
+                                        ).Spacing(4),
+
+                                        VStack(
+                                            Label($"{_localize["Transcript"]}")
+                                                .FontSize(14).Muted().HStart(),
+                                            Border(
+                                                Editor()
+                                                    .Text(State.Resource.Transcript)
+                                                    .Placeholder($"{_localize["PasteTranscript"]}")
+                                                    .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
+                                                    .HeightRequest(150)
+                                            )
+                                            .BackgroundColor(theme.GetSurface())
+                                            .Stroke(theme.GetOutline())
+                                            .StrokeThickness(1)
+                                            .Padding(8)
+                                        ).Spacing(4),
+
+                                        VStack(
+                                            Label($"{_localize["Translation"]}")
+                                                .FontSize(14).Muted().HStart(),
+                                            Border(
+                                                Editor()
+                                                    .Text(State.Resource.Translation)
+                                                    .Placeholder($"{_localize["PasteTranslation"]}")
+                                                    .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
+                                                    .HeightRequest(150)
+                                            )
+                                            .BackgroundColor(theme.GetSurface())
+                                            .Stroke(theme.GetOutline())
+                                            .StrokeThickness(1)
+                                            .Padding(8)
+                                        ).Spacing(4)
+                                    ).Spacing(12)
                                 )
-                                .Spacing(4) :
+                                .BackgroundColor(theme.GetSurface())
+                                .Stroke(theme.GetOutline())
+                                .StrokeThickness(1)
+                                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                                .Padding(16) :
                                 null,
 
-                            // Transcript - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
+                            // Vocabulary card
+                            Border(
                                 VStack(
-                                    Label(_localize["Transcript"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Editor()
-                                            .Text(State.Resource.Transcript)
-                                            .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
-                                            .HeightRequest(150)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
-                                )
-                                .Spacing(4) :
-                                null,
+                                    Label($"{_localize["Vocabulary"]}")
+                                        .H5().FontAttributes(FontAttributes.Bold).HStart(),
 
-                            // Translation - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
-                                VStack(
-                                    Label(_localize["Translation"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Editor()
-                                            .Text(State.Resource.Translation)
-                                            .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
-                                            .HeightRequest(150)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
-                                )
-                                .Spacing(4) :
-                                null,
+                                    VStack(
+                                        Label($"{_localize["PasteVocabulary"]}")
+                                            .FontSize(14).Muted().HStart(),
+                                        Border(
+                                            Editor()
+                                                .Text(State.VocabList)
+                                                .OnTextChanged(text => SetState(s => s.VocabList = text))
+                                                .MinimumHeightRequest(150)
+                                                .MaximumHeightRequest(400)
+                                        )
+                                        .BackgroundColor(theme.GetSurface())
+                                        .Stroke(theme.GetOutline())
+                                        .StrokeThickness(1)
+                                        .Padding(8)
+                                    ).Spacing(4),
 
-                            // Tags
-                            VStack(
-                                Label(_localize["Tags"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Entry()
-                                        .Text(State.Resource.Tags)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
+                                    HStack(
+                                        RadioButton()
+                                            .Content($"{_localize["CommaDelimiter"]}").Value("comma")
+                                            .IsChecked(State.Delimiter == "comma")
+                                            .OnCheckedChanged(e =>
+                                                { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
+                                        RadioButton()
+                                            .Content($"{_localize["TabDelimiter"]}").Value("tab")
+                                            .IsChecked(State.Delimiter == "tab")
+                                            .OnCheckedChanged(e =>
+                                                { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
+                                        Button($"{_localize["ImportVocabulary"]}")
+                                            .Secondary()
+                                            .OnClicked(ImportVocabulary)
+                                            .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
+                                            .HEnd(),
+                                        Button()
+                                            .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
+                                            .Background(Colors.Transparent)
+                                            .OnClicked(ChooseFile)
+                                    ).Spacing(8),
+
+                                    State.Resource.Vocabulary?.Count > 0 ?
+                                        Label($"{State.Resource.Vocabulary.Count} {_localize["VocabularyWordsAdded"]}")
+                                            .FontSize(14).Muted().HStart() :
+                                        null
+                                ).Spacing(12)
                             )
-                            .Spacing(4),
+                            .BackgroundColor(theme.GetSurface())
+                            .Stroke(theme.GetOutline())
+                            .StrokeThickness(1)
+                            .StrokeShape(new RoundRectangle().CornerRadius(12))
+                            .Padding(16),
 
-                            // Vocabulary section - show for ALL media types
-                            VStack(
-                                Label($"{_localize["Vocabulary"]}")
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Editor()
-                                        .Text(State.VocabList)
-                                        .OnTextChanged(text => SetState(s => s.VocabList = text))
-                                        .MinimumHeightRequest(200)
-                                        .MaximumHeightRequest(400)
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8),
-
-                                Button()
-                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
-                                    .Background(Colors.Transparent)
-                                    .HEnd()
-                                    .OnClicked(ChooseFile),
-
-                                HStack(
-                                    RadioButton()
-                                        .Content($"{_localize["CommaDelimiter"]}").Value("comma")
-                                        .IsChecked(State.Delimiter == "comma")
-                                        .OnCheckedChanged(e =>
-                                            { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
-                                    RadioButton()
-                                        .Content($"{_localize["TabDelimiter"]}").Value("tab")
-                                        .IsChecked(State.Delimiter == "tab")
-                                        .OnCheckedChanged(e =>
-                                            { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
-                                    Button($"{_localize["ImportVocabulary"]}")
-                                        .Background(new SolidColorBrush(Colors.Transparent))
-                                        .TextColor(theme.GetOnBackground())
-                                        .BorderColor(theme.GetOutline())
-                                        .BorderWidth(1)
-                                        .OnClicked(ImportVocabulary)
-                                        .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
-                                )
-                                .Spacing(32),
-
-                                // Show current vocabulary count if any exists
-                                State.Resource.Vocabulary?.Count > 0 ?
-                                    Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
-                                        .FontSize(14)
-                                        .Muted()
-                                        .HStart() :
-                                    null
-                            )
-                            .Spacing(4),
-
-                            // Media URL - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
-                                VStack(
-                                    Label(_localize["MediaURL"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Entry()
-                                            .Text(State.Resource.MediaUrl)
-                                            .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
-                                            .Keyboard(Keyboard.Url)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
-                                )
-                                .Spacing(4) :
-                                null,
-
-                            // Transcript - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
-                                VStack(
-                                    Label(_localize["Transcript"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Editor()
-                                            .Text(State.Resource.Transcript)
-                                            .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
-                                            .HeightRequest(150)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
-                                )
-                                .Spacing(4) :
-                                null,
-
-                            // Translation - show for all types except Vocabulary List
-                            State.Resource.MediaType != "Vocabulary List" ?
-                                VStack(
-                                    Label(_localize["Translation"])
-                                        .FontAttributes(FontAttributes.Bold)
-                                        .HStart(),
-                                    Border(
-                                        Editor()
-                                            .Text(State.Resource.Translation)
-                                            .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
-                                            .HeightRequest(150)
-                                    )
-                                    .BackgroundColor(theme.GetSurface())
-                                    .Stroke(theme.GetOutline())
-                                    .StrokeThickness(1)
-                                    .Padding(8)
-                                )
-                                .Spacing(4) :
-                                null,
-
-                            // Tags
-                            VStack(
-                                Label($"{_localize["Tags"]} (comma separated)")
-                                    .FontAttributes(FontAttributes.Bold),
-                                Border(
-                                    Entry()
-                                        .Text(State.Resource.Tags)
-                                        .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8)
-                            )
-                            .Spacing(4),
-
-                            // Vocabulary section - show for ALL media types
-                            VStack(
-                                Label(_localize["VocabularyWords"])
-                                    .FontAttributes(FontAttributes.Bold)
-                                    .HStart(),
-                                Border(
-                                    Editor()
-                                        .Text(State.VocabList)
-                                        .OnTextChanged(text => SetState(s => s.VocabList = text))
-                                        .MinimumHeightRequest(200)
-                                        .MaximumHeightRequest(400)
-                                )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .Padding(8),
-
-                                Button()
-                                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
-                                    .Background(Colors.Transparent)
-                                    .HEnd()
-                                    .OnClicked(ChooseFile),
-
-                                HStack(
-                                    RadioButton()
-                                        .Content($"{_localize["CommaDelimiter"]}").Value("comma")
-                                        .IsChecked(State.Delimiter == "comma")
-                                        .OnCheckedChanged(e =>
-                                            { if (e.Value) SetState(s => s.Delimiter = "comma"); }),
-                                    RadioButton()
-                                        .Content($"{_localize["TabDelimiter"]}").Value("tab")
-                                        .IsChecked(State.Delimiter == "tab")
-                                        .OnCheckedChanged(e =>
-                                            { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
-                                    Button($"{_localize["ImportVocabulary"]}")
-                                        .Background(new SolidColorBrush(Colors.Transparent))
-                                        .TextColor(theme.GetOnBackground())
-                                        .BorderColor(theme.GetOutline())
-                                        .BorderWidth(1)
-                                        .OnClicked(ImportVocabulary)
-                                        .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
-                                )
-                                .Spacing(32),
-
-                                // Show current vocabulary count if any exists
-                                State.Resource.Vocabulary?.Count > 0 ?
-                                    Label($"{_localize["VocabularyWords"]}: {State.Resource.Vocabulary.Count}")
-                                        .FontSize(14)
-                                        .Muted()
-                                        .HStart() :
-                                    null
-                            )
-                            .Spacing(4),
-
-                            Button($"{_localize["Save"]}")
+                            Button($"{_localize["SaveResource"]}")
                                 .Primary()
                                 .OnClicked(SaveResource)
                                 .HFill()

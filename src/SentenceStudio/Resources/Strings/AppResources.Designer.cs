@@ -454,6 +454,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Basic Information.
+        /// </summary>
+        internal static string BasicInformation {
+            get {
+                return ResourceManager.GetString("BasicInformation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Brief description.
+        /// </summary>
+        internal static string BriefDescription {
+            get {
+                return ResourceManager.GetString("BriefDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Bulk Add Vocabulary.
         /// </summary>
         internal static string BulkAddVocabulary {
@@ -940,7 +958,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to DisplayLanguage.
+        ///   Looks up a localized string similar to Display Language.
         /// </summary>
         internal static string DisplayLanguage {
             get {
@@ -1390,6 +1408,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Generate.
+        /// </summary>
+        internal static string Generate {
+            get {
+                return ResourceManager.GetString("Generate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Generate with AI.
         /// </summary>
         internal static string GenerateWithAI {
@@ -1557,6 +1584,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ImportVocabulary {
             get {
                 return ResourceManager.GetString("ImportVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import Vocabulary from File or Paste Text.
+        /// </summary>
+        internal static string ImportVocabularyFromFile {
+            get {
+                return ResourceManager.GetString("ImportVocabularyFromFile", resourceCulture);
             }
         }
         
@@ -1764,6 +1800,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string MatchPairs {
             get {
                 return ResourceManager.GetString("MatchPairs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Media Content.
+        /// </summary>
+        internal static string MediaContent {
+            get {
+                return ResourceManager.GetString("MediaContent", resourceCulture);
             }
         }
         
@@ -2389,6 +2434,33 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Paste transcript here.
+        /// </summary>
+        internal static string PasteTranscript {
+            get {
+                return ResourceManager.GetString("PasteTranscript", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste translation here.
+        /// </summary>
+        internal static string PasteTranslation {
+            get {
+                return ResourceManager.GetString("PasteTranslation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste vocabulary (one pair per line).
+        /// </summary>
+        internal static string PasteVocabulary {
+            get {
+                return ResourceManager.GetString("PasteVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Application Phase.
         /// </summary>
         internal static string PhaseApplication {
@@ -3001,6 +3073,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Resource title.
+        /// </summary>
+        internal static string ResourceTitle {
+            get {
+                return ResourceManager.GetString("ResourceTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Review Needed.
         /// </summary>
         internal static string ReviewNeeded {
@@ -3132,6 +3213,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SavePreferences {
             get {
                 return ResourceManager.GetString("SavePreferences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save Resource.
+        /// </summary>
+        internal static string SaveResource {
+            get {
+                return ResourceManager.GetString("SaveResource", resourceCulture);
             }
         }
         
@@ -4165,6 +4255,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabularyWords {
             get {
                 return ResourceManager.GetString("VocabularyWords", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to vocabulary words added.
+        /// </summary>
+        internal static string VocabularyWordsAdded {
+            get {
+                return ResourceManager.GetString("VocabularyWordsAdded", resourceCulture);
             }
         }
         

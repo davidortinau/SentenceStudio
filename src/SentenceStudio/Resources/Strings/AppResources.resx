@@ -230,7 +230,7 @@
     <comment/>
   </data>
   <data name="DisplayLanguage" xml:space="preserve">
-    <value>DisplayLanguage</value>
+    <value>Display Language</value>
     <comment/>
   </data>
   <data name="Save" xml:space="preserve">
@@ -2116,5 +2116,44 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="Comprehension" xml:space="preserve">
     <value>Comprehension</value>
     <comment>Label shown with comprehension score in conversation bubbles</comment>
+  </data>
+  <data name="BasicInformation" xml:space="preserve">
+    <value>Basic Information</value>
+  </data>
+  <data name="MediaContent" xml:space="preserve">
+    <value>Media Content</value>
+  </data>
+  <data name="PasteVocabulary" xml:space="preserve">
+    <value>Paste vocabulary (one pair per line)</value>
+  </data>
+  <data name="PasteTranscript" xml:space="preserve">
+    <value>Paste transcript here</value>
+  </data>
+  <data name="PasteTranslation" xml:space="preserve">
+    <value>Paste translation here</value>
+  </data>
+  <data name="ResourceTitle" xml:space="preserve">
+    <value>Resource title</value>
+  </data>
+  <data name="BriefDescription" xml:space="preserve">
+    <value>Brief description</value>
+  </data>
+  <data name="VocabularyWordsAdded" xml:space="preserve">
+    <value>vocabulary words added</value>
+  </data>
+  <data name="SaveResource" xml:space="preserve">
+    <value>Save Resource</value>
+  </data>
+  <data name="ImportVocabularyFromFile" xml:space="preserve">
+    <value>Import Vocabulary from File or Paste Text</value>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Updated" xml:space="preserve">
+    <value>Updated</value>
+  </data>
+  <data name="Generate" xml:space="preserve">
+    <value>Generate</value>
   </data>
 </root>
