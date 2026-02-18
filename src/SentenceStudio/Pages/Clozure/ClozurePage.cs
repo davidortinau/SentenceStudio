@@ -196,7 +196,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			ScrollView(
 				VStack(spacing: 16,
 					// Header
-					Label("📚 Session Complete!")
+					Label("Session Complete!")
 						.H3()
 						.TextColor(theme.Primary)
 						.Center(),
@@ -208,7 +208,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					// Session stats
 					Border(
 						VStack(spacing: 8,
-							Label("📊 Session Results")
+							Label("Session Results")
 								.H5()
 								.Center()
 								.TextColor(theme.Primary),
@@ -1141,25 +1141,25 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			// Show streak-based feedback (NEW)
 			if (progress.IsKnown)
 			{
-				ShowFeedback($"🎉 Word mastered! 🔥 Streak: {currentStreak}", "success");
+				ShowFeedback($"Word mastered! Streak: {currentStreak}", "success");
 			}
 			else if (masteryScore >= 0.6f)
 			{
-				ShowFeedback($"🎯 Excellent! 🔥 Streak: {currentStreak} | {(int)(masteryScore * 100)}% mastery", "success");
+				ShowFeedback($"Excellent! Streak: {currentStreak} | {(int)(masteryScore * 100)}% mastery", "success");
 			}
 			else
 			{
-				ShowFeedback($"✅ Correct! 🔥 Streak: {currentStreak} | Building mastery - {(int)(masteryScore * 100)}%", "success");
+				ShowFeedback($"Correct! Streak: {currentStreak} | Building mastery - {(int)(masteryScore * 100)}%", "success");
 			}
 
 			// Show context-specific achievements
 			if (attempt.ContextType == "Conjugated")
 			{
-				ShowFeedback("💪 Great job with the conjugated form!", "achievement");
+				ShowFeedback("Great job with the conjugated form!", "achievement");
 			}
 			else if (attempt.DifficultyWeight > 1.5f)
 			{
-				ShowFeedback("🔥 Impressive! That was a challenging usage!", "achievement");
+				ShowFeedback("Impressive! That was a challenging usage!", "achievement");
 			}
 		}
 		else
@@ -1169,11 +1169,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			// Show encouraging feedback with context (streak reset)
 			if (attempt.ContextType == "Conjugated")
 			{
-				ShowFeedback($"📚 Conjugated forms are tricky! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
+				ShowFeedback($"Conjugated forms are tricky! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
 			}
 			else
 			{
-				ShowFeedback($"🔍 Keep practicing! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
+				ShowFeedback($"Keep practicing! Streak reset - Current mastery: {(int)(masteryScore * 100)}%", "info");
 			}
 
 			// Show helpful hints based on the error type
@@ -1201,11 +1201,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	{
 		if (attempt.ContextType == "Conjugated")
 		{
-			ShowFeedback("💡 Hint: Check if the word needs to be conjugated for this context", "hint");
+			ShowFeedback("Hint: Check if the word needs to be conjugated for this context", "hint");
 		}
 		else if (attempt.InputMode == "TextEntry")
 		{
-			ShowFeedback("💡 Hint: Pay attention to the exact spelling and form", "hint");
+			ShowFeedback("Hint: Pay attention to the exact spelling and form", "hint");
 		}
 	}
 

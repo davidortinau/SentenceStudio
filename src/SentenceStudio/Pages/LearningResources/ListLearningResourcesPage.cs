@@ -138,7 +138,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .LineBreakMode(LineBreakMode.TailTruncation),
 
                 // Metadata line
-                Label($"{(resource.IsSmartResource ? "⚡ " : "")}{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
+                Label($"{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
                     .Small()
                     .Muted()
                     .GridColumn(1)

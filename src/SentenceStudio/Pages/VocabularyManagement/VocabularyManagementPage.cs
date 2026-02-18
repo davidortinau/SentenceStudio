@@ -912,7 +912,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             "status" => new List<(string, string)>
             {
                 ("known", $"✓ {_localize["StatusKnown"]}"),
-                ("learning", $"⏳ {_localize["StatusLearning"]}"),
+                ("learning", $"~ {_localize["StatusLearning"]}"),
                 ("unknown", $"? {_localize["StatusUnknown"]}")
             },
 
@@ -1175,7 +1175,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         {
             await _resourceRepo.BulkDeleteVocabularyWordsAsync(State.SelectedWordIds.ToList());
 
-            await AppShell.DisplayToastAsync($"🗑️ {State.SelectedWordIds.Count} vocabulary word(s) deleted!");
+            await AppShell.DisplayToastAsync($"{State.SelectedWordIds.Count} vocabulary word(s) deleted!");
             ExitMultiSelectMode();
             await LoadVocabularyData();
         }
@@ -1203,7 +1203,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         {
             await _resourceRepo.BulkAssociateWordsWithResourceAsync(selectedResource.Id, State.SelectedWordIds.ToList());
 
-            await AppShell.DisplayToastAsync($"✅ {State.SelectedWordIds.Count} vocabulary word(s) associated with '{selectedResource.Title}'!");
+            await AppShell.DisplayToastAsync($"{State.SelectedWordIds.Count} vocabulary word(s) associated with '{selectedResource.Title}'!");
             ExitMultiSelectMode();
             await LoadVocabularyData();
         }
@@ -1374,7 +1374,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 swappedCount++;
             }
 
-            await AppShell.DisplayToastAsync($"🔄 Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)!");
+            await AppShell.DisplayToastAsync($"Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)!");
             await LoadVocabularyData();
         }
         catch (Exception ex)
@@ -1428,12 +1428,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 var orphanIds = orphanedWords.Select(w => w.Id).ToList();
                 await _resourceRepo.BulkAssociateWordsWithResourceAsync(generalResource.Id, orphanIds);
 
-                await AppShell.DisplayToastAsync($"📦 Assigned {orphanedWords.Count} orphaned word(s) to 'General Vocabulary'!");
+                await AppShell.DisplayToastAsync($"Assigned {orphanedWords.Count} orphaned word(s) to 'General Vocabulary'!");
                 await LoadVocabularyData();
             }
             else
             {
-                await AppShell.DisplayToastAsync("✨ No orphaned words found!");
+                await AppShell.DisplayToastAsync("No orphaned words found!");
             }
         }
         catch (Exception ex)

@@ -39,7 +39,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
         {
             return ContentPage("Video Watching",
                 VStack(
-                    Label("⚠️")
+                    Label("Warning")
                         .FontSize(48)
                         .HCenter(),
                     Label(State.ErrorMessage)

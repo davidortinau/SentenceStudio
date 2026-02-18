@@ -154,7 +154,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         {
             return ContentPage($"{_localize["Reading"]}",
                 VStack(
-                    Label("⚠️")
+                    Label("Warning")
                         .FontSize(48)
                         .HCenter(),
                     Label(State.ErrorMessage)
@@ -263,7 +263,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         {
                             _ = Task.Run(async () =>
                             {
-                                await AppShell.DisplayToastAsync("🏴‍☠️ Jumping to that sentence, Captain!");
+                                await AppShell.DisplayToastAsync("Jumping to that sentence, Captain!");
                                 SetState(s => s.HasShownJumpHint = true);
                                 Preferences.Set("ReadingActivity_HasShownJumpHint", true);
                             });
@@ -754,7 +754,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     {
         if (_audioManager == null || !State.IsTimestampedAudioLoaded)
         {
-            await AppShell.DisplayToastAsync("🏴‍☠️ Audio not ready yet, Captain!");
+            await AppShell.DisplayToastAsync("Audio not ready yet, Captain!");
             return;
         }
 
@@ -776,7 +776,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         }
         catch (Exception ex)
         {
-            await AppShell.DisplayToastAsync($"🏴‍☠️ Playback error: {ex.Message}");
+            await AppShell.DisplayToastAsync($"Playback error: {ex.Message}");
         }
     }
 
@@ -826,13 +826,13 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         // Check if audio is still loading
         if (State.IsGeneratingAudio)
         {
-            await AppShell.DisplayToastAsync("🏴‍☠️ Hold yer horses! Audio is still loading, Captain!");
+            await AppShell.DisplayToastAsync("Hold yer horses! Audio is still loading, Captain!");
             return;
         }
 
         if (!State.IsTimestampedAudioLoaded)
         {
-            await AppShell.DisplayToastAsync("🏴‍☠️ No audio loaded yet, Captain! Try again in a moment.");
+            await AppShell.DisplayToastAsync("No audio loaded yet, Captain! Try again in a moment.");
             return;
         }
 
@@ -981,7 +981,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             // Reset performance measurements
             PerformanceLogger.Reset();
 
-            await AppShell.DisplayToastAsync("🏴‍☠️ Audio cache cleared! Fresh voices ahead, Captain!");
+            await AppShell.DisplayToastAsync("Audio cache cleared! Fresh voices ahead, Captain!");
         }
         catch (Exception ex)
         {
@@ -1269,19 +1269,19 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                         UpdatedAt = DateTime.UtcNow
                     });
 
-                    await AppShell.DisplayToastAsync($"🏴‍☠️ Word '{State.SelectedWord}' added to vocabulary, Captain!");
+                    await AppShell.DisplayToastAsync($"Word '{State.SelectedWord}' added to vocabulary, Captain!");
                 }
                 else
                 {
                     SetState(s => s.IsSavingWord = false);
-                    await AppShell.DisplayToastAsync("❌ Failed to save vocabulary word");
+                    await AppShell.DisplayToastAsync("Failed to save vocabulary word");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving vocabulary word: {Word}", State.SelectedWord);
                 SetState(s => s.IsSavingWord = false);
-                await AppShell.DisplayToastAsync("❌ Error saving vocabulary word");
+                await AppShell.DisplayToastAsync("Error saving vocabulary word");
             }
         });
     }
@@ -1383,7 +1383,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         SetState(s =>
         {
             s.IsGeneratingAudio = true;
-            s.AudioGenerationStatus = "🏴‍☠️ Initializing audio system...";
+            s.AudioGenerationStatus = "Initializing audio system...";
             s.AudioGenerationProgress = 0.1;
         });
 
@@ -1402,7 +1402,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             // Update progress
             SetState(s =>
             {
-                s.AudioGenerationStatus = "🏴‍☠️ Generating timestamped audio...";
+                s.AudioGenerationStatus = "Generating timestamped audio...";
                 s.AudioGenerationProgress = 0.3;
             });
 
@@ -1417,7 +1417,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Update progress
                 SetState(s =>
                 {
-                    s.AudioGenerationStatus = "🏴‍☠️ Processing character timestamps...";
+                    s.AudioGenerationStatus = "Processing character timestamps...";
                     s.AudioGenerationProgress = 0.7;
                 });
 
@@ -1433,7 +1433,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 // Update progress
                 SetState(s =>
                 {
-                    s.AudioGenerationStatus = "🏴‍☠️ Loading audio into player...";
+                    s.AudioGenerationStatus = "Loading audio into player...";
                     s.AudioGenerationProgress = 0.9;
                 });
 
@@ -1461,7 +1461,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                     s.IsTimestampedAudioLoaded = true;
                     s.TimestampedAudio = timestampedAudio;
                     s.IsGeneratingAudio = false;
-                    s.AudioGenerationStatus = "🏴‍☠️ Audio ready for playback!";
+                    s.AudioGenerationStatus = "Audio ready for playback!";
                     s.AudioGenerationProgress = 1.0;
                 });
 
@@ -1473,7 +1473,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 SetState(s =>
                 {
                     s.IsGeneratingAudio = false;
-                    s.AudioGenerationStatus = "⚠️ Failed to generate audio";
+                    s.AudioGenerationStatus = "Failed to generate audio";
                     s.AudioGenerationProgress = 0.0;
                 });
             }
@@ -1484,7 +1484,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             SetState(s =>
             {
                 s.IsGeneratingAudio = false;
-                s.AudioGenerationStatus = $"⚠️ Audio error: {ex.Message}";
+                s.AudioGenerationStatus = $"Audio error: {ex.Message}";
                 s.AudioGenerationProgress = 0.0;
             });
         }

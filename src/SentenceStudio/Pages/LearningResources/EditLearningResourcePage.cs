@@ -99,7 +99,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                         .IsRunning(true)
                                         .Color(Colors.White),
 
-                                    Label(State.IsPolishingTranscript ? "✨ Polishing transcript with AI..." : "🧹 Cleaning up transcript...")
+                                    Label(State.IsPolishingTranscript ? "Polishing transcript with AI..." : "Cleaning up transcript...")
                                         .TextColor(Colors.White)
                                         .FontSize(16)
                                         .HorizontalTextAlignment(TextAlignment.Center),
@@ -140,7 +140,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
             // Smart Resource Badge (for auto-generated resources)
             State.Resource.IsSmartResource ?
                 HStack(
-                    Label("🤖")
+                    Label("AI")
                         .FontSize(16),
                     Label($"{_localize["SmartResource"]}")
                         .FontSize(14)
@@ -290,8 +290,8 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 // Vocabulary button with count - opens bottom sheet
                 Button()
                     .Text(vocabCount > 0
-                        ? $"📚 Vocabulary ({vocabCount} terms)"
-                        : "📚 Vocabulary (0 terms)")
+                        ? $"Vocabulary ({vocabCount} terms)"
+                        : "Vocabulary (0 terms)")
                     .FontAttributes(FontAttributes.Bold)
                     .FontSize(16)
                     .Background(new SolidColorBrush(Colors.Transparent))
@@ -815,7 +815,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 await _resourceRepo.SaveResourceAsync(State.Resource);
             }
 
-            await AppShell.DisplayToastAsync("✅ Vocabulary word saved successfully!");
+            await AppShell.DisplayToastAsync("Vocabulary word saved successfully!");
         }
         catch (Exception ex)
         {
@@ -874,7 +874,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 s.IsLoading = false;
             });
 
-            await AppShell.DisplayToastAsync("🗑️ Vocabulary word removed successfully!");
+            await AppShell.DisplayToastAsync("Vocabulary word removed successfully!");
         }
         catch (Exception ex)
         {
@@ -1136,15 +1136,15 @@ Transcript:
 
                 // Build success message with statistics
                 var message = $"AI extracted {vocabulary.Count} vocabulary words\n\n";
-                message += $"✨ Created {newWordsCreated} new word{(newWordsCreated != 1 ? "s" : "")}\n";
-                message += $"🔗 Linked {existingWordsLinked} existing word{(existingWordsLinked != 1 ? "s" : "")}";
+                message += $"Created {newWordsCreated} new word{(newWordsCreated != 1 ? "s" : "")}\n";
+                message += $"Linked {existingWordsLinked} existing word{(existingWordsLinked != 1 ? "s" : "")}";
 
                 if (localDuplicatesSkipped > 0)
                 {
-                    message += $"\n⏭️ Skipped {localDuplicatesSkipped} already in this resource";
+                    message += $"\nSkipped {localDuplicatesSkipped} already in this resource";
                 }
 
-                message += $"\n\n📚 Total vocabulary for this resource: {State.Resource.Vocabulary.Count}";
+                message += $"\n\nTotal vocabulary for this resource: {State.Resource.Vocabulary.Count}";
 
                 _logger.LogInformation("🏴‍☠️ Final stats: {NewWords} new, {ExistingWords} existing, {SkippedWords} skipped", newWordsCreated, existingWordsLinked, localDuplicatesSkipped);
 
@@ -1335,7 +1335,7 @@ Transcript:
             // Auto-save after cleaning
             await _resourceRepo.SaveResourceAsync(State.Resource);
 
-            await AppShell.DisplayToastAsync("✨ Transcript cleaned up and saved!");
+            await AppShell.DisplayToastAsync("Transcript cleaned up and saved!");
         }
         catch (Exception ex)
         {
@@ -1383,7 +1383,7 @@ Transcript:
             if (polishedTranscript.Trim() == originalTranscript.Trim())
             {
                 SetState(s => s.IsPolishingTranscript = false);
-                await AppShell.DisplayToastAsync("ℹ️ Transcript already well-formatted (no changes needed)");
+                await AppShell.DisplayToastAsync("Transcript already well-formatted (no changes needed)");
                 return;
             }
 
@@ -1396,7 +1396,7 @@ Transcript:
             // Auto-save after polishing
             await _resourceRepo.SaveResourceAsync(State.Resource);
 
-            await AppShell.DisplayToastAsync("✨ Transcript polished with AI and saved!");
+            await AppShell.DisplayToastAsync("Transcript polished with AI and saved!");
         }
         catch (Exception ex)
         {

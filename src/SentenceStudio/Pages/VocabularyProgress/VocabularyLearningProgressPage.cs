@@ -82,13 +82,13 @@ public class VocabularyProgressItem
             var reviewDate = NextReviewDate.Value.Date;
 
             if (reviewDate <= now)
-                return $"📅 {localize["DueNow"]}";
+                return $"{localize["DueNow"]}";
             else if (reviewDate == now.AddDays(1))
-                return $"📅 {localize["Tomorrow"]}";
+                return $"{localize["Tomorrow"]}";
             else if (reviewDate <= now.AddDays(7))
-                return $"📅 {(reviewDate - now).Days} {localize["DaysAway"]}";
+                return $"{(reviewDate - now).Days} {localize["DaysAway"]}";
             else
-                return $"📅 {reviewDate:MMM d}";
+                return $"{reviewDate:MMM d}";
         }
     }
 
@@ -99,7 +99,7 @@ public class VocabularyProgressItem
             var localize = LocalizationManager.Instance;
 
             if (IsKnown)
-                return $"✅ {localize["Known"]}";
+                return $"{localize["Known"]}";
 
             if (IsUnknown)
                 return $"{localize["StartPracticing"]}";
@@ -108,16 +108,16 @@ public class VocabularyProgressItem
             var parts = new List<string>();
 
             // Current streak
-            parts.Add($"🔥 {localize["Streak"]}: {CurrentStreak}");
+            parts.Add($"{localize["Streak"]}: {CurrentStreak}");
 
             // Production progress toward Known
             if (ProductionNeededForKnown > 0)
-                parts.Add($"✍️ {ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN} {localize["Production"]}");
+                parts.Add($"{ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN} {localize["Production"]}");
             else
-                parts.Add($"✍️ ✓ {localize["Production"]}");
+                parts.Add($"✓ {localize["Production"]}");
 
             // Mastery percentage
-            parts.Add($"📊 {(int)(MasteryScore * 100)}%");
+            parts.Add($"{(int)(MasteryScore * 100)}%");
 
             return string.Join(" | ", parts);
         }

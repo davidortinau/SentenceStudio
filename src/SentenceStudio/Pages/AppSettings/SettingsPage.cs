@@ -350,7 +350,7 @@ partial class SettingsPage : Component<SettingsPageState>
                     .FontSize(14)
                     .TextColor(theme.GetOnBackground()),
 
-                Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"📤 {_localize["ExportData"]}")
+                Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"{_localize["ExportData"]}")
                     .Background(new SolidColorBrush(Colors.Transparent))
                     .TextColor(theme.GetOnBackground())
                     .BorderColor(theme.GetOutline())
@@ -384,7 +384,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 Border(
                     VStack(spacing: 8,
                         HStack(spacing: 8,
-                            Label("🔄")
+                            Label("Sync")
                                 .FontSize(24)
                                 .VCenter(),
                             VStack(spacing: 2,
@@ -400,7 +400,7 @@ partial class SettingsPage : Component<SettingsPageState>
 
                         State.StreakMigrationComplete ?
                             HStack(spacing: 8,
-                                Label("✅")
+                                Label("Done")
                                     .FontSize(16),
                                 Label($"{_localize["MigrationComplete"]}")
                                     .Small()

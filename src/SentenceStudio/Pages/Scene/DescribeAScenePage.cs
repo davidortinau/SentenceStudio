@@ -864,19 +864,19 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             // Determine feedback based on accuracy and fluency
             if (grade.Accuracy >= 0.8 && grade.Fluency >= 0.8)
             {
-                message = "🌟 Excellent description! Your Korean is very natural!";
+                message = "Excellent description! Your Korean is very natural!";
             }
             else if (grade.Accuracy >= 0.7)
             {
-                message = $"✅ Good work! Accuracy: {(int)(grade.Accuracy * 100)}%";
+                message = $"Good work! Accuracy: {(int)(grade.Accuracy * 100)}%";
             }
             else if (grade.Accuracy >= 0.5)
             {
-                message = $"📝 Keep practicing! {(int)(grade.Accuracy * 100)}% accuracy";
+                message = $"Keep practicing! {(int)(grade.Accuracy * 100)}% accuracy";
             }
             else
             {
-                message = "🔍 Try focusing on simpler sentences first";
+                message = "Try focusing on simpler sentences first";
             }
 
             await AppShell.DisplayToastAsync(message);

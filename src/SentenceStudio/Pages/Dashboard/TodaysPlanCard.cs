@@ -72,7 +72,7 @@ partial class TodaysPlanCard : MauiReactor.Component
 
             // Streak badge (if exists)
             _streakInfo != null && _streakInfo.CurrentStreak > 0
-                ? Label($"🔥 {_streakInfo.CurrentStreak}")
+                ? Label($"{_streakInfo.CurrentStreak}")
                     .Small()
                     .FontAttributes(MauiControls.FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground())
@@ -89,14 +89,14 @@ partial class TodaysPlanCard : MauiReactor.Component
         return VStack(
             // Resource(s)
             !string.IsNullOrEmpty(_plan.ResourceTitles)
-                ? Label($"📚 {_plan.ResourceTitles}")
+                ? Label($"{_plan.ResourceTitles}")
                     .FontSize(14)
                     .FontAttributes(MauiControls.FontAttributes.Bold)
                 : null,
 
             // Skill
             !string.IsNullOrEmpty(_plan.SkillTitle)
-                ? Label($"🎯 {_plan.SkillTitle}")
+                ? Label($"{_plan.SkillTitle}")
                     .FontSize(14)
                     .Muted()
                 : null
@@ -110,7 +110,7 @@ partial class TodaysPlanCard : MauiReactor.Component
         if (string.IsNullOrEmpty(_plan.Rationale))
             return null;
 
-        return Label($"💡 {_plan.Rationale}")
+        return Label($"{_plan.Rationale}")
             .LineBreakMode(LineBreakMode.WordWrap)
             .FontSize(14);
     }
@@ -170,7 +170,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                                 _logger.LogWarning("❌ Resume button: nextItem is NULL!");
                             }
                         })
-                    : Label("✅ Complete!")
+                    : Label("Complete!")
                         .Small()
                         .FontAttributes(MauiControls.FontAttributes.Bold)
                         .TextColor(theme.Success)
@@ -232,15 +232,15 @@ partial class TodaysPlanCard : MauiReactor.Component
                 HStack(spacing: 8,
                     // Time estimate with actual progress
                     item.MinutesSpent > 0
-                        ? Label($"⏱ {item.MinutesSpent}/{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
+                        ? Label($"{item.MinutesSpent}/{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
                             .Small()
                             .FontAttributes(MauiControls.FontAttributes.Bold)
-                        : Label($"⏱ {item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
+                        : Label($"{item.EstimatedMinutes}{_localize["PlanMinAbbrev"]}")
                             .Small(),
 
                     // Vocabulary count
                     item.ActivityType == PlanActivityType.VocabularyReview && item.VocabDueCount.HasValue && item.VocabDueCount.Value > 0
-                        ? Label($"📝 {item.VocabDueCount.Value} {_localize["PlanWordsLabel"]}")
+                        ? Label($"{item.VocabDueCount.Value} {_localize["PlanWordsLabel"]}")
                             .Small()
                         : null
                 )
@@ -316,12 +316,12 @@ partial class TodaysPlanCard : MauiReactor.Component
         {
             var difficultyEmoji = item.DifficultyLevel.ToLowerInvariant() switch
             {
-                "beginner" => "🌱",
-                "intermediate" => "🌿",
-                "advanced" => "🌲",
-                _ => "📊"
+                "beginner" => "Beginner",
+                "intermediate" => "Intermediate",
+                "advanced" => "Advanced",
+                _ => ""
             };
-            parts.Add($"{difficultyEmoji} {item.DifficultyLevel} level");
+            parts.Add($"{difficultyEmoji} level");
         }
 
         return string.Join(" ", parts);

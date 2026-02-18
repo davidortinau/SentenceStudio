@@ -324,7 +324,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
                 HStack(spacing: 8,
                     sentence.IsCore ?
-                        Label("⭐ Core")
+                        Label("Core")
                             .FontSize(12)
                             .TextColor(theme.Warning) :
                         null,
@@ -382,7 +382,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         string progressDetails;
         if (isKnown)
         {
-            progressDetails = $"✅ {_localize["Known"]}";
+            progressDetails = $"{_localize["Known"]}";
         }
         else if (isUnknown)
         {
@@ -416,13 +416,13 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             var reviewDate = progress.NextReviewDate.Value.Date;
 
             if (reviewDate <= now)
-                reviewDateText = $"📅 {_localize["DueNow"]}";
+                reviewDateText = $"{_localize["DueNow"]}";
             else if (reviewDate == now.AddDays(1))
-                reviewDateText = $"📅 {_localize["Tomorrow"]}";
+                reviewDateText = $"{_localize["Tomorrow"]}";
             else if (reviewDate <= now.AddDays(7))
-                reviewDateText = $"📅 {(reviewDate - now).Days} {_localize["DaysAway"]}";
+                reviewDateText = $"{(reviewDate - now).Days} {_localize["DaysAway"]}";
             else
-                reviewDateText = $"📅 {reviewDate:MMM d}";
+                reviewDateText = $"{reviewDate:MMM d}";
         }
 
         var isDueForReview = progress?.IsDueForReview ?? false;
@@ -754,8 +754,8 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         {
             SetState(s => s.IsSaving = false);
             await AppShell.DisplayToastAsync(Props.VocabularyWordId == 0 ?
-                "✅ Vocabulary word added successfully!" :
-                "✅ Vocabulary word updated successfully!");
+                "Vocabulary word added successfully!" :
+                "Vocabulary word updated successfully!");
             await NavigateBack();
         }
     }
@@ -807,7 +807,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         finally
         {
             SetState(s => s.IsSaving = false);
-            await AppShell.DisplayToastAsync("🗑️ Vocabulary word deleted successfully!");
+            await AppShell.DisplayToastAsync("Vocabulary word deleted successfully!");
             await NavigateBack();
         }
     }
@@ -1088,7 +1088,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Reload sentences
             await ReloadExampleSentencesAsync();
 
-            await AppShell.DisplayToastAsync($"✅ {generatedSentences.Count} example sentences generated!");
+            await AppShell.DisplayToastAsync($"{generatedSentences.Count} example sentences generated!");
             _logger.LogInformation("✅ Successfully saved {Count} generated sentences", generatedSentences.Count);
         }
         catch (Exception ex)
@@ -1154,7 +1154,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Reload sentences
             await ReloadExampleSentencesAsync();
 
-            await AppShell.DisplayToastAsync("✅ Example sentence added!");
+            await AppShell.DisplayToastAsync("Example sentence added!");
         }
         catch (Exception ex)
         {
@@ -1181,7 +1181,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Reload sentences
             await ReloadExampleSentencesAsync();
 
-            await AppShell.DisplayToastAsync(sentence.IsCore ? "⭐ Marked as core sentence!" : "Removed core status");
+            await AppShell.DisplayToastAsync(sentence.IsCore ? "Marked as core sentence!" : "Removed core status");
         }
         catch (Exception ex)
         {
@@ -1229,7 +1229,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Reload sentences
             await ReloadExampleSentencesAsync();
 
-            await AppShell.DisplayToastAsync("🗑️ Example sentence deleted");
+            await AppShell.DisplayToastAsync("Example sentence deleted");
         }
         catch (Exception ex)
         {

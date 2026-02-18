@@ -512,7 +512,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     // Create starter content option
                     Border(
                         VStack(
-                            Label("🎯 Create Starter Content")
+                            Label("Create Starter Content")
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .HCenter(),
@@ -533,7 +533,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     // Skip option
                     Border(
                         VStack(
-                            Label("⚡ Skip Setup")
+                            Label("Skip Setup")
                                 .FontSize(18)
                                 .FontAttributes(FontAttributes.Bold)
                                 .HCenter()

@@ -234,7 +234,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             ScrollView(
                 VStack(spacing: 16,
                     // Header - show round summary or session summary
-                    Label($"📚 {(State.CurrentRound > 0 && State.SessionSummaryItems.Count <= VocabularyQuizPageState.TurnsPerRound ? $"Round {State.CurrentRound} Summary" : $"Session Summary")}")
+                    Label($"{(State.CurrentRound > 0 && State.SessionSummaryItems.Count <= VocabularyQuizPageState.TurnsPerRound ? $"Round {State.CurrentRound} Summary" : $"Session Summary")}")
                         .H3()
                         .TextColor(theme.Primary)
                         .Center(),
@@ -388,19 +388,19 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var totalAttempts = item.Progress?.TotalAttempts ?? 0;
         var isCompleted = item.Progress?.IsCompleted ?? false;
 
-        string srsStatus = isCompleted ? "🏆 Mastered" :
-                          daysUntilNext > 30 ? $"📅 Next: {daysUntilNext}d" :
-                          daysUntilNext > 0 ? $"📅 Next: {daysUntilNext}d" :
-                          daysUntilNext == 0 ? "📌 Due today" :
-                          "📌 Overdue";
+        string srsStatus = isCompleted ? "Mastered" :
+                          daysUntilNext > 30 ? $"Next: {daysUntilNext}d" :
+                          daysUntilNext > 0 ? $"Next: {daysUntilNext}d" :
+                          daysUntilNext == 0 ? "Due today" :
+                          "Overdue";
 
         Color statusColor = accuracy >= 0.8f ? theme.Success :
                            accuracy >= 0.5f ? theme.Warning :
                            theme.Danger;
 
-        string statusIcon = accuracy >= 0.8f ? "✅" :
-                           accuracy >= 0.5f ? "🔄" :
-                           "❌";
+        string statusIcon = accuracy >= 0.8f ? "✓" :
+                           accuracy >= 0.5f ? "~" :
+                           "✗";
 
         return Border(
             HStack(spacing: 12,
@@ -1636,7 +1636,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     {
                         s.IsCorrect = true;
                         s.ShowAnswer = true;
-                        s.FeedbackMessage = $"🎯 {_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())} Ready to type!";
+                        s.FeedbackMessage = $"{_localize["CorrectWithStreak"].ToString().Replace("{0}", currentStreak.ToString())} Ready to type!";
                         s.CorrectAnswersInRound++;
                     });
                 }
@@ -1663,7 +1663,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         // Show fuzzy match feedback if applicable
                         if (matchResult.MatchType == "Fuzzy")
                         {
-                            s.FeedbackMessage = $"{_localize["FuzzyMatchCorrect"].ToString().Replace("{0}", matchResult.CompleteForm ?? "")} 🎉 {_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
+                            s.FeedbackMessage = $"{_localize["FuzzyMatchCorrect"].ToString().Replace("{0}", matchResult.CompleteForm ?? "")} {_localize["MasteredWithStreak"].ToString().Replace("{0}", currentStreak.ToString())}";
                         }
                         else
                         {
@@ -1716,7 +1716,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                     s.ShowCorrectAnswer = true;
                     s.RequireCorrectTyping = true;
                     s.CorrectAnswerToType = State.CurrentTargetLanguageTerm;
-                    s.FeedbackMessage = $"❌ {_localize["IncorrectStreakReset"]} Type the correct answer:";
+                    s.FeedbackMessage = $"{_localize["IncorrectStreakReset"]} Type the correct answer:";
                     s.UserInput = ""; // Clear input for retyping
                 });
             }
@@ -1727,7 +1727,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 {
                     s.IsCorrect = false;
                     s.ShowAnswer = true;
-                    s.FeedbackMessage = $"❌ {_localize["IncorrectStreakReset"]}";
+                    s.FeedbackMessage = $"{_localize["IncorrectStreakReset"]}";
                 });
             }
         }

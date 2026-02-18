@@ -328,7 +328,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 var overwriteTcs = new TaskCompletionSource<bool>();
                 var overwritePopup = new SimpleActionPopup
                 {
-                    Title = "⚠️ Duplicate Found",
+                    Title = "Duplicate Found",
                     Text = $"A resource with this YouTube URL already exists:\n\n\"{duplicateByUrl.Title}\"\n\nDo you want to view the existing resource instead of creating a duplicate?",
                     ActionButtonText = "View Existing",
                     SecondaryActionButtonText = "Create Anyway",
@@ -363,7 +363,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 var proceedTcs = new TaskCompletionSource<bool>();
                 var proceedPopup = new SimpleActionPopup
                 {
-                    Title = "⚠️ Similar Title Found",
+                    Title = "Similar Title Found",
                     Text = $"A resource with a similar title already exists:\n\n\"{duplicateByTitle.Title}\"\n\nAre you sure you want to create a new resource?",
                     ActionButtonText = "Create New",
                     SecondaryActionButtonText = "Cancel",
@@ -501,7 +501,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             {
                 s.TranscriptText = polished;
                 s.IsPolishingTranscript = false;
-                s.TranscriptMessage = "✨ Transcript polished with AI!";
+                s.TranscriptMessage = "Transcript polished with AI!";
             });
         }
         catch (Exception ex)

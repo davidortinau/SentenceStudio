@@ -413,15 +413,15 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         var corrections = s.GrammarCorrections;
         if (corrections?.Any() == true)
         {
-            sb.AppendLine("📝 Grammar Corrections:");
+            sb.AppendLine("Grammar Corrections:");
             sb.AppendLine();
             foreach (var correction in corrections)
             {
-                sb.AppendLine($"❌ {correction.Original}");
-                sb.AppendLine($"✅ {correction.Corrected}");
+                sb.AppendLine($"✗ {correction.Original}");
+                sb.AppendLine($"✓ {correction.Corrected}");
                 if (!string.IsNullOrEmpty(correction.Explanation))
                 {
-                    sb.AppendLine($"💡 {correction.Explanation}");
+                    sb.AppendLine($"Note: {correction.Explanation}");
                 }
                 sb.AppendLine();
             }

@@ -566,13 +566,13 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         var message = new StringBuilder();
 
         if (feedback.Accuracy >= 90)
-            message.AppendLine("🎉 Excellent translation!");
+            message.AppendLine("Excellent translation!");
         else if (feedback.Accuracy >= 80)
-            message.AppendLine("✅ Great work!");
+            message.AppendLine("Great work!");
         else if (feedback.Accuracy >= 70)
-            message.AppendLine("👍 Good effort!");
+            message.AppendLine("Good effort!");
         else
-            message.AppendLine("💪 Keep practicing!");
+            message.AppendLine("Keep practicing!");
 
         message.AppendLine($"\nAccuracy: {feedback.Accuracy}/100");
         if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
@@ -602,25 +602,25 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             // Vocabulary blocks mode feedback
             if (feedback.Accuracy >= 85)
-                message.AppendLine("🎉 Perfect! Great use of vocabulary blocks!");
+                message.AppendLine("Perfect! Great use of vocabulary blocks!");
             else if (feedback.Accuracy >= 75)
-                message.AppendLine("✅ Excellent! Vocabulary blocks helped you succeed!");
+                message.AppendLine("Excellent! Vocabulary blocks helped you succeed!");
             else if (feedback.Accuracy >= 65)
-                message.AppendLine("👍 Good effort with vocabulary blocks!");
+                message.AppendLine("Good effort with vocabulary blocks!");
             else
-                message.AppendLine("💪 Try different combinations with the vocabulary blocks!");
+                message.AppendLine("Try different combinations with the vocabulary blocks!");
         }
         else
         {
             // Free text entry feedback
             if (feedback.Accuracy >= 90)
-                message.AppendLine("🎉 Outstanding free translation!");
+                message.AppendLine("Outstanding free translation!");
             else if (feedback.Accuracy >= 80)
-                message.AppendLine("✅ Excellent translation skills!");
+                message.AppendLine("Excellent translation skills!");
             else if (feedback.Accuracy >= 70)
-                message.AppendLine("👍 Strong translation attempt!");
+                message.AppendLine("Strong translation attempt!");
             else
-                message.AppendLine("💪 Keep developing your translation skills!");
+                message.AppendLine("Keep developing your translation skills!");
         }
 
         // Add vocabulary achievement feedback
@@ -631,17 +631,17 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
             if (usedWords.Count == allSentenceWords.Count && allSentenceWords.Count > 0)
             {
-                message.AppendLine("🌟 Amazing! You used ALL the vocabulary words!");
+                message.AppendLine("Amazing! You used ALL the vocabulary words!");
             }
             else if (usedWords.Count > 0)
             {
-                message.AppendLine($"📚 Great! You used {usedWords.Count} vocabulary word{(usedWords.Count > 1 ? "s" : "")}!");
+                message.AppendLine($"Great! You used {usedWords.Count} vocabulary word{(usedWords.Count > 1 ? "s" : "")}!");
             }
 
             // Check for conjugated forms
             if (feedback.VocabularyAnalysis?.Any(va => !string.Equals(va.DictionaryForm, va.UsedForm, StringComparison.OrdinalIgnoreCase)) == true)
             {
-                message.AppendLine("💪 Excellent work with word conjugations!");
+                message.AppendLine("Excellent work with word conjugations!");
             }
         }
         catch (Exception ex)
