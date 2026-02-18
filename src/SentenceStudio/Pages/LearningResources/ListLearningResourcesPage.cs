@@ -43,7 +43,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         var theme = BootstrapTheme.Current;
 
         return ContentPage($"{_localize["LearningResources"]}",
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Add")
+            ToolbarItem().Order(ToolbarItemOrder.Primary).Text($"{_localize["Add"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, Colors.White, 20))
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
                 .OnClicked(ViewVocabularyProgress),
@@ -54,10 +55,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     VStack(
                         ActivityIndicator().IsRunning(true).Center()
                     ).VCenter().HCenter() :
-                    Grid(rows: "*,Auto", columns: "*",
+                    Grid(rows: "Auto,*", columns: "*",
+                            RenderSearchFilterBar(),
                             CollectionView()
                                 .Margin(16)
-                                .GridRow(0)
+                                .GridRow(1)
                                 .SelectionMode(SelectionMode.None)
                                 .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                                     GridLayoutHelper.CalculateResponsiveLayout(
@@ -90,7 +92,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     .Spacing(16)
                                     .VCenter()
                                 ),// emptyview, end of CollectionView
-                            RenderBottomBar(),
                             State.IsCreatingStarter
                                 ? Grid(
                                     VStack(
@@ -176,7 +177,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         };
     }
 
-    VisualNode RenderBottomBar()
+    VisualNode RenderSearchFilterBar()
     {
         var theme = BootstrapTheme.Current;
 
@@ -235,8 +236,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .VStart()
         )
         .ColumnSpacing(8)
-        .Padding(new Thickness(16, 16, 16, 0))
-        .GridRow(1);
+        .Padding(new Thickness(16, 8, 16, 8))
+        .GridRow(0);
     }
 
     async Task LoadResources()

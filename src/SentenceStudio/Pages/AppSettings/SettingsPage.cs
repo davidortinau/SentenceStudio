@@ -27,10 +27,15 @@ class SettingsPageState
     public bool IsLoadingVoices { get; set; }
 
     // Quiz preferences
-    public bool QuizDirection { get; set; }
+    public string QuizDirection { get; set; } = "TargetToNative";
     public bool QuizAutoplay { get; set; }
     public bool QuizShowMnemonic { get; set; }
     public double QuizAutoAdvanceDuration { get; set; }
+
+    // Appearance preferences
+    public string SelectedTheme { get; set; } = "seoul-pop";
+    public bool IsDarkMode { get; set; }
+    public double FontScale { get; set; } = 1.0;
 }
 
 partial class SettingsPage : Component<SettingsPageState>
@@ -41,6 +46,7 @@ partial class SettingsPage : Component<SettingsPageState>
     [Inject] SpeechVoicePreferences _speechVoicePreferences;
     [Inject] VocabularyQuizPreferences _quizPreferences;
     [Inject] IVoiceDiscoveryService _voiceDiscoveryService;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -55,10 +61,13 @@ partial class SettingsPage : Component<SettingsPageState>
             s.StreakMigrationComplete = migrationComplete;
             s.SelectedLanguage = "Korean"; // Default to Korean
             s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage("Korean");
-            s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
+            s.QuizDirection = _quizPreferences.DisplayDirection;
             s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
             s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
             s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;
+            s.SelectedTheme = _themeService.CurrentTheme;
+            s.IsDarkMode = _themeService.IsDarkMode;
+            s.FontScale = _themeService.FontScale;
         });
 
         // Load voices for default language
@@ -95,6 +104,7 @@ partial class SettingsPage : Component<SettingsPageState>
         return ContentPage($"{_localize["Settings"]}",
             ScrollView(
                 VStack(spacing: 24,
+                    RenderAppearanceSection(),
                     RenderVoiceAndQuizSection(),
                     RenderDataManagementSection(),
                     RenderMigrationSection(),
@@ -103,6 +113,136 @@ partial class SettingsPage : Component<SettingsPageState>
                 .Padding(16)
             )
         );
+    }
+
+    private VisualNode RenderAppearanceSection()
+    {
+        var theme = BootstrapTheme.Current;
+        var availableThemes = _themeService.AvailableThemes;
+
+        return Border(
+            VStack(spacing: 16,
+                // Section heading
+                Label($"{_localize["Appearance"]}")
+                    .H4()
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
+
+                // Theme swatches
+                Label($"{_localize["ChooseTheme"]}")
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
+
+                FlexLayout(
+                    availableThemes.Select(themeId => RenderThemeSwatch(themeId, theme)).ToArray()
+                )
+                .Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap)
+                .JustifyContent(Microsoft.Maui.Layouts.FlexJustify.Start)
+                .AlignItems(Microsoft.Maui.Layouts.FlexAlignItems.Start),
+
+                // Light/Dark mode toggle
+                Label($"{_localize["DisplayMode"]}")
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    .TextColor(theme.GetOnBackground()),
+
+                HStack(spacing: 0,
+                    RenderModeButton($"{_localize["Light"]}", BootstrapIcons.SunFill, !State.IsDarkMode, theme, () =>
+                    {
+                        _themeService.SetMode("light");
+                        SetState(s => s.IsDarkMode = false);
+                    }),
+                    RenderModeButton($"{_localize["Dark"]}", BootstrapIcons.MoonFill, State.IsDarkMode, theme, () =>
+                    {
+                        _themeService.SetMode("dark");
+                        SetState(s => s.IsDarkMode = true);
+                    })
+                ),
+
+                // Text Size slider
+                VStack(spacing: 4,
+                    Label($"{_localize["TextSize"]}: {(int)(State.FontScale * 100)}%")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                        .TextColor(theme.GetOnBackground()),
+                    Slider()
+                        .Minimum(0.85)
+                        .Maximum(1.5)
+                        .Value(State.FontScale)
+                        .OnValueChanged((s, args) =>
+                        {
+                            var rounded = Math.Round(args.NewValue / 0.05) * 0.05;
+                            _themeService.SetFontScale(rounded);
+                            SetState(s => s.FontScale = rounded);
+                        })
+                )
+            )
+            .Padding(16)
+        )
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
+    }
+
+    private VisualNode RenderThemeSwatch(string themeId, BootstrapTheme theme)
+    {
+        var isSelected = State.SelectedTheme == themeId;
+        var (primary, accent) = NativeThemeService.GetThemeSwatchColors(themeId, State.IsDarkMode);
+        var displayName = NativeThemeService.GetThemeDisplayName(themeId);
+
+        return VStack(spacing: 4,
+            Border(
+                HStack(spacing: 0,
+                    BoxView()
+                        .Color(primary)
+                        .WidthRequest(28)
+                        .HeightRequest(40),
+                    BoxView()
+                        .Color(accent)
+                        .WidthRequest(28)
+                        .HeightRequest(40)
+                )
+            )
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .StrokeThickness(isSelected ? 2.5 : 1)
+            .Stroke(isSelected ? theme.Primary : theme.GetOutline())
+            .Padding(0),
+
+            Label(displayName)
+                .Small()
+                .HCenter()
+                .TextColor(isSelected ? theme.Primary : theme.GetOnBackground())
+        )
+        .Margin(0, 0, 12, 8)
+        .OnTapped(() =>
+        {
+            _themeService.SetTheme(themeId);
+            SetState(s => s.SelectedTheme = themeId);
+        });
+    }
+
+    private VisualNode RenderModeButton(string text, string iconGlyph, bool isActive, BootstrapTheme theme, Action onClicked)
+    {
+        var iconColor = isActive ? Colors.White : theme.GetOnBackground();
+        var btn = Button(text)
+            .ImageSource(BootstrapIcons.Create(iconGlyph, iconColor, 16))
+            .HeightRequest(40)
+            .OnClicked(onClicked);
+
+        return isActive ? btn.Primary() : btn.Secondary().Outlined();
+    }
+
+    private VisualNode RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
+    {
+        var isActive = State.QuizDirection == directionValue;
+        var btn = Button(text)
+            .HeightRequest(40)
+            .OnClicked(() =>
+            {
+                _quizPreferences.DisplayDirection = directionValue;
+                SetState(s => s.QuizDirection = directionValue);
+            });
+
+        return isActive ? btn.Primary() : btn.Secondary().Outlined();
     }
 
     private VisualNode RenderVoiceAndQuizSection()
@@ -158,26 +298,19 @@ partial class SettingsPage : Component<SettingsPageState>
                             .OnClicked(ShowVoiceSelectionPopup)
                 ),
 
-                // Quiz direction
-                HStack(spacing: 8,
-                    VStack(spacing: 2,
-                        Label($"{_localize["QuizDirection"]}")
-                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                            .TextColor(theme.GetOnBackground()),
-                        Label($"{_localize["QuizDirectionDescription"]}")
-                            .Small()
-                            .Muted()
+                // Quiz direction — 3-way segmented control
+                VStack(spacing: 4,
+                    Label($"{_localize["QuizDirection"]}")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                        .TextColor(theme.GetOnBackground()),
+                    Label($"{_localize["QuizDirectionDescription"]}")
+                        .Small()
+                        .Muted(),
+                    HStack(spacing: 0,
+                        RenderDirectionButton($"{_localize["QuizDirectionForward"]}", "TargetToNative", theme),
+                        RenderDirectionButton($"{_localize["QuizDirectionReverse"]}", "NativeToTarget", theme),
+                        RenderDirectionButton($"{_localize["QuizDirectionMixed"]}", "Mixed", theme)
                     )
-                    .HFill(),
-                    Switch()
-                        .IsToggled(State.QuizDirection)
-                        .OnToggled((s, args) =>
-                        {
-                            var toggled = args.Value;
-                            _quizPreferences.DisplayDirection = toggled ? "TargetToNative" : "NativeToTarget";
-                            SetState(s => s.QuizDirection = toggled);
-                        })
-                        .VCenter()
                 ),
 
                 // Autoplay
@@ -231,16 +364,22 @@ partial class SettingsPage : Component<SettingsPageState>
                         .Small()
                         .Muted(),
                     Slider()
-                        .Minimum(0.5)
-                        .Maximum(5.0)
+                        .Minimum(1.0)
+                        .Maximum(10.0)
                         .Value(State.QuizAutoAdvanceDuration)
                         .OnValueChanged((s, args) =>
                         {
-                            var rounded = Math.Round(args.NewValue, 1);
+                            var rounded = Math.Round(args.NewValue * 2) / 2.0; // step 0.5
                             _quizPreferences.AutoAdvanceDuration = (int)(rounded * 1000);
                             SetState(s => s.QuizAutoAdvanceDuration = rounded);
                         })
                 ),
+
+                // Save Preferences button
+                Button($"{_localize["SavePreferences"]}")
+                    .Primary()
+                    .HeightRequest(44)
+                    .OnClicked(async () => await AppShell.DisplayToastAsync($"{_localize["PreferencesSaved"]}")),
 
                 // Reset button
                 Button($"{_localize["ResetToDefaults"]}")
@@ -257,7 +396,7 @@ partial class SettingsPage : Component<SettingsPageState>
                         SetState(s =>
                         {
                             s.SelectedVoiceId = _speechVoicePreferences.GetVoiceForLanguage(s.SelectedLanguage);
-                            s.QuizDirection = _quizPreferences.DisplayDirection == "TargetToNative";
+                            s.QuizDirection = _quizPreferences.DisplayDirection;
                             s.QuizAutoplay = _quizPreferences.AutoPlayVocabAudio;
                             s.QuizShowMnemonic = _quizPreferences.ShowMnemonicImage;
                             s.QuizAutoAdvanceDuration = _quizPreferences.AutoAdvanceDuration / 1000.0;

@@ -36,15 +36,16 @@ public class VocabularyQuizPreferences
 
     /// <summary>
     /// Gets or sets the display direction for vocabulary quiz questions.
-    /// "TargetToNative" = show Korean word, answer in English
-    /// "NativeToTarget" = show English word, answer in Korean
+    /// "TargetToNative" (Forward) = show Korean word, answer in English
+    /// "NativeToTarget" (Reverse) = show English word, answer in Korean
+    /// "Mixed" = randomly alternate between Forward and Reverse
     /// </summary>
     public string DisplayDirection
     {
         get => Preferences.Get(KEY_DISPLAY_DIRECTION, DEFAULT_DISPLAY_DIRECTION);
         set
         {
-            if (value != "TargetToNative" && value != "NativeToTarget")
+            if (value != "TargetToNative" && value != "NativeToTarget" && value != "Mixed")
             {
                 _logger.LogWarning("⚠️ Invalid DisplayDirection: {Direction}. Defaulting to TargetToNative.", value);
                 value = "TargetToNative";
@@ -110,8 +111,8 @@ public class VocabularyQuizPreferences
         get => Preferences.Get(KEY_AUTO_ADVANCE_DURATION, DEFAULT_AUTO_ADVANCE_DURATION);
         set
         {
-            // Clamp value between 1000ms and 5000ms
-            var clampedValue = Math.Max(1000, Math.Min(5000, value));
+            // Clamp value between 1000ms and 10000ms
+            var clampedValue = Math.Max(1000, Math.Min(10000, value));
             if (value != clampedValue)
             {
                 _logger.LogWarning("⚠️ Auto-advance duration {Value}ms out of range. Clamping to {Clamped}ms.", value, clampedValue);

@@ -90,6 +90,47 @@ public class NativeThemeService
     {
         ThemeChanged?.Invoke(this, new ThemeChangedEventArgs(_currentTheme, _currentMode, _fontScale));
     }
+
+    /// <summary>
+    /// Returns a human-readable display name for a theme identifier.
+    /// </summary>
+    public static string GetThemeDisplayName(string themeId) => themeId switch
+    {
+        "seoul-pop" => "Seoul Pop",
+        "ocean" => "Ocean",
+        "forest" => "Forest",
+        "sunset" => "Sunset",
+        "monochrome" => "Monochrome",
+        "default" => "Default",
+        "darkly" => "Darkly",
+        "flatly" => "Flatly",
+        "sketchy" => "Sketchy",
+        "slate" => "Slate",
+        "vapor" => "Vapor",
+        "brite" => "Brite",
+        _ => themeId
+    };
+
+    /// <summary>
+    /// Returns the primary and accent swatch colors for a theme.
+    /// Colors differ based on whether dark mode is active.
+    /// </summary>
+    public static (Color Primary, Color Accent) GetThemeSwatchColors(string themeId, bool isDark) => themeId switch
+    {
+        "seoul-pop" => isDark ? (Color.FromArgb("#6B8CFF"), Color.FromArgb("#FF7A4D")) : (Color.FromArgb("#1E4DFF"), Color.FromArgb("#FF6A3D")),
+        "ocean" => isDark ? (Color.FromArgb("#22D3EE"), Color.FromArgb("#5EEAD4")) : (Color.FromArgb("#0891B2"), Color.FromArgb("#14B8A6")),
+        "forest" => isDark ? (Color.FromArgb("#34D399"), Color.FromArgb("#FDE047")) : (Color.FromArgb("#059669"), Color.FromArgb("#FBBF24")),
+        "sunset" => isDark ? (Color.FromArgb("#FB923C"), Color.FromArgb("#FBA7D8")) : (Color.FromArgb("#EA580C"), Color.FromArgb("#F472B6")),
+        "monochrome" => isDark ? (Color.FromArgb("#D1D5DB"), Color.FromArgb("#F3F4F6")) : (Color.FromArgb("#374151"), Color.FromArgb("#1F2937")),
+        "default" => (Color.FromArgb("#0d6efd"), Color.FromArgb("#6c757d")),
+        "darkly" => (Color.FromArgb("#375a7f"), Color.FromArgb("#00bc8c")),
+        "flatly" => (Color.FromArgb("#2c3e50"), Color.FromArgb("#18bc9c")),
+        "sketchy" => (Color.FromArgb("#333333"), Color.FromArgb("#868e96")),
+        "slate" => (Color.FromArgb("#3a3f44"), Color.FromArgb("#7a8288")),
+        "vapor" => (Color.FromArgb("#6610f2"), Color.FromArgb("#e83e8c")),
+        "brite" => (Color.FromArgb("#0d6efd"), Color.FromArgb("#e83e8c")),
+        _ => (Color.FromArgb("#0d6efd"), Color.FromArgb("#6c757d"))
+    };
 }
 
 public class ThemeChangedEventArgs : EventArgs
