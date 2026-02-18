@@ -153,8 +153,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     public override VisualNode Render()
     {
         return ContentPage($"{_localize["VocabularyManagement"]}",
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
-                // .IconImageSource(MyTheme.IconAdd)
+            ToolbarItem().Order(ToolbarItemOrder.Primary).Text($"{_localize["Add"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(async () => await ToggleQuickAdd()),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Select"]}")
                 // .IconImageSource(

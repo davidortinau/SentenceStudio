@@ -85,7 +85,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         return ContentPage($"{_localize["Conversation"]}",
             ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
-            ToolbarItem($"{_localize["ChangeLanguage"]}").OnClicked(ShowLanguageSelection),
+            ToolbarItem(State.TargetLanguage).OnClicked(ShowLanguageSelection),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),

@@ -241,7 +241,11 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     VisualNode RenderVocabularyCard(VocabularyProgressItem item)
     {
         var theme = BootstrapTheme.Current;
-        return Border(
+        return HStack(spacing: 0,
+            BoxView()
+                .WidthRequest(3)
+                .BackgroundColor(item.StatusColor)
+                .VFill(),
             VStack(spacing: 4,
                 // Word and translation
                 Label(item.Word.TargetLanguageTerm ?? "")
@@ -267,9 +271,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
             )
             .Padding(8)
         )
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .StrokeThickness(1)
-        .Stroke(item.StatusColor);
+        .BackgroundColor(Colors.Transparent);
     }
 
     async Task LoadData()
