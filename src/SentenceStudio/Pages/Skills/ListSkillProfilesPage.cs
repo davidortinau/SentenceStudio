@@ -1,5 +1,6 @@
 using ReactorCustomLayouts;
 using MauiReactor.Shapes;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Skills;
 
@@ -12,7 +13,24 @@ class ListSkillProfilesPageState
 partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
 {
     [Inject] SkillProfileRepository _skillsRepository;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -70,7 +88,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                     .Padding(16)
                     .Spacing(24)
                 )
-        ).OnAppearing(LoadProfiles);
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground()).OnAppearing(LoadProfiles);
     }
 
     async Task LoadProfiles()

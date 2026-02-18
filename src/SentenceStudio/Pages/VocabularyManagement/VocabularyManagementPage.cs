@@ -147,6 +147,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     [Inject] ISearchQueryParser _searchParser;  // [T012] GitHub-style search parser
     [Inject] VocabularyEncodingRepository _encodingRepo;
     [Inject] EncodingStrengthCalculator _encodingCalculator;
+    [Inject] NativeThemeService _themeService;
     private System.Threading.Timer? _searchTimer;
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -175,6 +176,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(() =>
         {
             // PERF: Defer data loading to allow page transition to complete first
@@ -189,6 +191,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
         // Cache device idiom check for performance optimization
         SetState(s =>
@@ -213,6 +216,15 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         }
     }
 
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
+
     // Top section: stats bar, search input, and filter selector
     VisualNode RenderTopSection()
     {
@@ -225,35 +237,23 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 RenderStatsBadge($"{_localize["Orphaned"]}: {State.Stats.OrphanedWords}", theme.Warning)
             ),
 
-            // Gap 2: Search input
-            Border(
-                HStack(spacing: 8,
-                    Image()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
-                        .HeightRequest(16)
-                        .WidthRequest(16)
-                        .VCenter(),
-                    Entry()
-                        .Placeholder($"{_localize["SearchVocabulary"]}")
-                        .Text(State.RawSearchQuery)
-                        .OnTextChanged(OnSearchTextUpdated)
-                        .OnCompleted(OnSearchSubmitted)
-                        .VCenter()
-                        .HFill(),
-                    !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
-                        ImageButton()
-                            .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 14))
-                            .HeightRequest(20)
-                            .WidthRequest(20)
-                            .OnClicked(ClearAllFilters)
-                            .Background(Colors.Transparent) :
-                        null
-                ).Padding(8, 4)
-            )
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
-            .HeightRequest(44),
+            // Gap 2: Search + filters
+            Grid(rows: "Auto", columns: "*,Auto",
+                Entry()
+                    .Placeholder($"{_localize["SearchVocabulary"]}")
+                    .Text(State.RawSearchQuery)
+                    .OnTextChanged(OnSearchTextUpdated)
+                    .OnCompleted(OnSearchSubmitted)
+                    .Class("form-control")
+                    .HeightRequest(44)
+                    .HFill()
+                    .GridColumn(0),
+                RenderFilterButtons(
+                        !string.IsNullOrWhiteSpace(State.RawSearchQuery) ||
+                        State.SelectedFilter != VocabularyFilter.All ||
+                        State.ParsedQuery != null)
+                    .GridColumn(1)
+            ).ColumnSpacing(8),
 
             // Gap 3: Filter selector (3-way toggle)
             HStack(spacing: 4,
@@ -295,51 +295,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
     VisualNode RenderBottomBar()
-        => State.IsMultiSelectMode ? RenderBulkActionsBar() : RenderCompactSearchBar();
+        => State.IsMultiSelectMode ? RenderBulkActionsBar() : ContentView().HeightRequest(0);
 
-    VisualNode RenderCompactSearchBar()
-    {
-        var theme = BootstrapTheme.Current;
-        return Grid(rows: "Auto", columns: "*,Auto",
-                    Border(
-                        HStack(spacing: 8,
-                            Image()
-                                .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
-                                .HeightRequest(16)
-                                .WidthRequest(16)
-                                .VCenter(),
-                            Entry()
-                                .Placeholder($"{_localize["SearchVocabulary"]}")
-                                .Text(State.RawSearchQuery)
-                                .OnTextChanged(OnSearchTextUpdated)
-                                .OnCompleted(OnSearchSubmitted)
-                                .Small()
-                                .VCenter()
-                                .HFill(),
-                            !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
-                                ImageButton()
-                                    .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 16))
-                                    .HeightRequest(20)
-                                    .WidthRequest(20)
-                                    .OnClicked(ClearAllFilters)
-                                    .Background(Colors.Transparent) :
-                                null
-                        ).Padding(8, 4)
-                    )
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(27))
-                    .HeightRequest(54)
-                    .GridColumn(0)
-                    .VStart(),
-
-                    RenderFilterButtons()
-
-            ).ColumnSpacing(8)
-            .Padding(new Thickness(16, 16, 16, 0));
-    }
-
-    VisualNode RenderFilterButtons()
+    VisualNode RenderFilterButtons(bool includeClearButton)
     {
         var theme = BootstrapTheme.Current;
         var bgColor = theme.GetSurface();
@@ -388,8 +346,19 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .WidthRequest(36)
                 .CornerRadius(18)
                 .Padding(6)
-                .OnClicked(() => OpenFilterSheet("status"))
-        ).GridColumn(1).VStart();
+                .OnClicked(() => OpenFilterSheet("status")),
+
+            includeClearButton ?
+                ImageButton()
+                    .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 16))
+                    .Background(new SolidColorBrush(bgColor))
+                    .HeightRequest(36)
+                    .WidthRequest(36)
+                    .CornerRadius(18)
+                    .Padding(6)
+                    .OnClicked(ClearAllFilters) :
+                null
+        ).VStart();
     }
 
     VisualNode RenderBulkActionsBar()
@@ -455,7 +424,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 4))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16);
@@ -571,7 +540,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         if (string.IsNullOrWhiteSpace(word.Tags))
             return null;
 
-        var theme = BootstrapTheme.Current;
         var tags = word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tags.Length == 0) return null;
 
@@ -579,14 +547,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             tags.Select(tag =>
                 Border(
                     Label(tag)
-                        .FontSize(10)
-                        .TextColor(theme.GetOnBackground())
+                        .Class("on-primary")
+                        .Small()
                         .Padding(6, 2)
                 )
-                .Background(theme.GetSurface())
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .Class("badge")
+                .Class("bg-primary")
             ).ToArray()
         ).Margin(0, 4, 0, 0);
     }

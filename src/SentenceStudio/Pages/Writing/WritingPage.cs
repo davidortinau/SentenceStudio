@@ -30,6 +30,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     [Inject] VocabularyProgressService _vocabularyProgressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<WritingPage> _logger;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -47,7 +48,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 .VCenter()
                 .HCenter()
                 .Spacing(16)
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
         return ContentPage($"{_localize["Writing"]}",
@@ -60,6 +61,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadVocabulary);
     }
 
@@ -434,8 +436,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         }
     }
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -445,4 +455,6 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             _timerService.Pause();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 }

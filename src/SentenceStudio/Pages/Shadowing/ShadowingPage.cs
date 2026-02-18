@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Services.Speech;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Shadowing;
 
@@ -85,6 +86,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     [Inject] IVoiceDiscoveryService _voiceDiscoveryService;
     [Inject] SpeechVoicePreferences _speechVoicePreferences;
     [Inject] ILogger<ShadowingPage> _logger;
+    [Inject] NativeThemeService _themeService;
 
     private IAudioPlayer _audioPlayer;
     private LocalizationManager _localize => LocalizationManager.Instance;
@@ -117,6 +119,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         )
         .Title($"{_localize["Shadowing"]}")
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(OnPageAppearing)
         .OnSizeChanged((size) =>
         {
@@ -1463,6 +1466,13 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
     /// <summary>
     /// Performs cleanup when the component is unmounted.
     /// </summary>
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
     protected override void OnWillUnmount()
     {
         // Pause timer when leaving activity
@@ -1485,6 +1495,9 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         }
         _audioCache.Clear();
 
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 }

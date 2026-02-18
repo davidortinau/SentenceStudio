@@ -3,6 +3,7 @@ using MauiReactor.Shapes;
 using Microsoft.Extensions.Logging;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.YouTube;
 
@@ -29,7 +30,24 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] TranscriptFormattingService _formattingService;
     [Inject] ILogger<YouTubeImportPage> _logger;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -167,7 +185,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 )
                 : null
             )
-        );
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     async Task FetchTranscriptsAsync()

@@ -1,4 +1,5 @@
 using Plugin.Maui.Audio;
+using SentenceStudio.Services;
 using MauiReactor.Shapes;
 using SentenceStudio.Repositories;
 
@@ -67,6 +68,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
     [Inject] ElevenLabsSpeechService _speechService;
     [Inject] IAudioManager _audioManager;
     [Inject] Services.SpeechVoicePreferences _voicePrefs;
+    [Inject] NativeThemeService _themeService;
 
     IAudioPlayer? _audioPlayer;
     readonly Random _random = new();
@@ -75,16 +77,20 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         _ = InitializeSessionAsync();
     }
 
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         // T019: Dispose audio player
         _audioPlayer?.Stop();
         _audioPlayer?.Dispose();
         _audioPlayer = null;
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     private async Task InitializeSessionAsync()
     {
@@ -354,7 +360,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             State.ShowSummary
                 ? RenderSummary()
                 : RenderSession()
-        );
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     private VisualNode RenderSession()

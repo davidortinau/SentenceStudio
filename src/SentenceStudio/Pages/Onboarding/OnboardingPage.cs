@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using SentenceStudio.Services;
 using MauiReactor.Parameters;
 using Microsoft.Maui.Graphics;
 using MauiReactor.Shapes;
@@ -47,6 +48,7 @@ public partial class OnboardingPage : Component<OnboardingState>
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] SkillProfileRepository _skillProfileRepository;
     [Inject] ILogger<OnboardingPage> _logger;
+    [Inject] NativeThemeService _themeService;
     [Param] IParameter<AppState> _appState;
 
     LocalizationManager _localize => LocalizationManager.Instance;
@@ -85,6 +87,7 @@ public partial class OnboardingPage : Component<OnboardingState>
         SetState(s => s.NeedsApiKey = string.IsNullOrEmpty(settings?.OpenAIKey));
 
         // Don't load names here - wait until user selects target language
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
     }
 
@@ -93,8 +96,11 @@ public partial class OnboardingPage : Component<OnboardingState>
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
         _cancellationTokenSource = null;
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     async Task LoadSuggestedNames(string targetLanguage)
     {
@@ -223,7 +229,7 @@ public partial class OnboardingPage : Component<OnboardingState>
                     null
                 )
                 .Padding(16)
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     VisualNode RenderStepIndicator(int totalSteps)

@@ -3,6 +3,7 @@ using MauiReactor.Shapes;
 using Plugin.Maui.Audio;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyManagement;
 
@@ -64,10 +65,27 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
     [Inject] VocabularyEncodingRepository _encodingRepo;
     [Inject] VocabularyExampleGenerationService _exampleGenerationService;
     [Inject] SpeechVoicePreferences _speechVoicePreferences;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
     private IAudioPlayer _audioPlayer;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -90,6 +108,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                 ).Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
         .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadData);
     }
 
@@ -98,27 +117,22 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         var theme = BootstrapTheme.Current;
         return VStack(spacing: 16,
             Label($"{_localize["VocabularyTerms"]}")
-                .H5()
+                .H4()
                 .FontAttributes(FontAttributes.Bold),
 
             // Target Language
             VStack(spacing: 8,
                 Label($"{_localize["TargetLanguageTerm"]}")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
                 HStack(spacing: 8,
-                    Border(
-                        Entry()
-                            .Text(State.TargetLanguageTerm)
-                            .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
-                            .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
-                            .FontSize(16)
-                    )
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(8))
-                    .Padding(16)
-                    .HFill(),
+                    Entry()
+                        .Text(State.TargetLanguageTerm)
+                        .OnTextChanged(text => SetState(s => s.TargetLanguageTerm = text))
+                        .Placeholder($"{_localize["EnterTargetLanguageTerm"]}")
+                        .FontSize(16)
+                        .Class("form-control")
+                        .HFill(),
 
                     // Inline audio play button - only show for saved words with text
                     State.Word.Id > 0 && !string.IsNullOrWhiteSpace(State.TargetLanguageTerm) ?
@@ -140,19 +154,14 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Native Language  
             VStack(spacing: 8,
                 Label($"{_localize["NativeLanguageTerm"]}")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Entry()
-                        .Text(State.NativeLanguageTerm)
-                        .OnTextChanged(text => SetState(s => s.NativeLanguageTerm = text))
-                        .Placeholder($"{_localize["EnterNativeLanguageTerm"]}")
-                        .FontSize(16)
-                )
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Padding(16)
+                Entry()
+                    .Text(State.NativeLanguageTerm)
+                    .OnTextChanged(text => SetState(s => s.NativeLanguageTerm = text))
+                    .Placeholder($"{_localize["EnterNativeLanguageTerm"]}")
+                    .FontSize(16)
+                    .Class("form-control")
             ),
 
             // Error message
@@ -170,7 +179,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         var theme = BootstrapTheme.Current;
         return VStack(spacing: 16,
             Label("Encoding & Memory Aids")
-                .H5()
+                .H4()
                 .FontAttributes(FontAttributes.Bold),
 
             Label($"Encoding Strength: {State.EncodingStrengthLabel}")
@@ -185,74 +194,54 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             // Lemma
             VStack(spacing: 8,
                 Label("Lemma (Dictionary Form)")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Entry()
-                        .Text(State.Lemma)
-                        .OnTextChanged(text => SetState(s => s.Lemma = text))
-                        .Placeholder("e.g., 가다 for 갔다, 가요, etc.")
-                        .FontSize(16)
-                )
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Padding(16)
+                Entry()
+                    .Text(State.Lemma)
+                    .OnTextChanged(text => SetState(s => s.Lemma = text))
+                    .Placeholder("e.g., 가다 for 갔다, 가요, etc.")
+                    .FontSize(16)
+                    .Class("form-control")
             ),
 
             // Tags
             VStack(spacing: 8,
                 Label("Tags (comma-separated)")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Entry()
-                        .Text(State.Tags)
-                        .OnTextChanged(text => SetState(s => s.Tags = text))
-                        .Placeholder("e.g., nature, season, visual")
-                        .FontSize(16)
-                )
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Padding(16)
+                Entry()
+                    .Text(State.Tags)
+                    .OnTextChanged(text => SetState(s => s.Tags = text))
+                    .Placeholder("e.g., nature, season, visual")
+                    .FontSize(16)
+                    .Class("form-control")
             ),
 
             // Mnemonic Text
             VStack(spacing: 8,
                 Label("Mnemonic Story")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Editor()
-                        .Text(State.MnemonicText)
-                        .OnTextChanged(text => SetState(s => s.MnemonicText = text))
-                        .Placeholder("A silly story or memory hook to help recall this word...")
-                        .FontSize(16)
-                        .HeightRequest(80)
-                )
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Padding(16)
+                Editor()
+                    .Text(State.MnemonicText)
+                    .OnTextChanged(text => SetState(s => s.MnemonicText = text))
+                    .Placeholder("A silly story or memory hook to help recall this word...")
+                    .FontSize(16)
+                    .HeightRequest(80)
+                    .Class("form-control")
             ),
 
             // Mnemonic Image URI
             VStack(spacing: 8,
                 Label("Mnemonic Image URL")
-                    .FontSize(14)
+                    .Class("form-label")
                     .FontAttributes(FontAttributes.Bold),
-                Border(
-                    Entry()
-                        .Text(State.MnemonicImageUri)
-                        .OnTextChanged(text => SetState(s => s.MnemonicImageUri = text))
-                        .Placeholder("https://example.com/image.jpg")
-                        .FontSize(16)
-                )
-                .Stroke(theme.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .Padding(16),
+                Entry()
+                    .Text(State.MnemonicImageUri)
+                    .OnTextChanged(text => SetState(s => s.MnemonicImageUri = text))
+                    .Placeholder("https://example.com/image.jpg")
+                    .FontSize(16)
+                    .Class("form-control"),
 
                 !string.IsNullOrWhiteSpace(State.MnemonicImageUri) ?
                     Image()
@@ -270,7 +259,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         return VStack(spacing: 16,
             HStack(spacing: 10,
                 Label($"{_localize["ExampleSentences"]}")
-                    .H5()
+                    .H4()
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),
@@ -429,7 +418,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
 
         return VStack(
             Label($"{_localize["LearningProgress"]}")
-                .H5()
+                .H4()
                 .FontAttributes(FontAttributes.Bold),
 
             Border(
@@ -456,7 +445,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
         return VStack(spacing: 16,
             HStack(spacing: 10,
                 Label($"{_localize["ResourceAssociations"]}")
-                    .H5()
+                    .H4()
                     .FontAttributes(FontAttributes.Bold)
                     .VCenter()
                     .HFill(),

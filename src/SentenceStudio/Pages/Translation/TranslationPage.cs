@@ -1,4 +1,5 @@
 using MauiReactor.Shapes;
+using SentenceStudio.Services;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Pages.Clozure;
 using System.Text;
@@ -77,6 +78,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     [Inject] UserProfileRepository _userProfileRepository;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<TranslationPage> _logger;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -104,6 +106,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadSentences);
 
     VisualNode RenderLoadingOverlay()
@@ -1310,6 +1313,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
 
         // Start activity timer if launched from Today's Plan
@@ -1323,6 +1327,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -1331,6 +1336,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             _timerService.Pause();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 }
 
 partial class FeedbackPanel : Component

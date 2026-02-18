@@ -44,20 +44,20 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<DescribeAScenePage> _logger;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
     {
-        var theme = BootstrapTheme.Current;
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
-                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.InfoCircle, theme.GetOnBackground(), 20))
+                .IconImageSource(MyTheme.IconInfo)
                 .OnClicked(ViewDescription),
 
             // Removed direct toolbar Add/Image button — image add is now inside the gallery bottom sheet
 
             ToolbarItem()
-                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Images, theme.GetOnBackground(), 20))
+                .IconImageSource(MyTheme.IconSwitch)
                 .OnClicked(ManageImages),
 
             // Main grid - only 2 content rows: main content (*) and input (Auto)
@@ -70,6 +70,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadScene);
     }
 
@@ -80,7 +81,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .Aspect(Aspect.AspectFit)
                     .HFill()
                     .VStart()
-                    .Margin(16)
+                    .Margin(MyTheme.Size160)
                     .AutomationId("SceneImage") // Appium: main scene image
             ).GridColumn(0),
 
@@ -91,7 +92,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                     .Header(
                         ContentView(
                             Label($"{_localize["ISee"]}")
-                                .Padding(16)
+                                .Padding(MyTheme.Size160)
                         )
                     )
             )
@@ -102,119 +103,52 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     VisualNode RenderSentence(Sentence sentence) => VStack(spacing: 2,
             Label(sentence.Answer)
                 .FontSize(18),
-            sentence.IsGrading 
-                ? Label("Grading...").FontSize(12).Muted()
-                : Label($"Accuracy: {sentence.Accuracy}").FontSize(12),
-            !sentence.IsGrading && sentence.GrammarCorrections?.Count > 0
-                ? RenderGrammarCorrections(sentence.GrammarCorrections)
-                : null
+            sentence.IsGrading
+                ? Label("Grading...").FontSize(12).TextColor(MyTheme.Gray500)
+                : Label($"Accuracy: {sentence.Accuracy}").FontSize(12)
         )
-        .Padding(16)
+        .Padding(MyTheme.Size160)
         .OnTapped(() => { if (!sentence.IsGrading) ShowExplanation(sentence); });
 
-    VisualNode RenderGrammarCorrections(List<GrammarCorrectionDto> corrections)
-    {
-        var theme = BootstrapTheme.Current;
-        return VStack(
-            BoxView()
-                .HeightRequest(1)
-                .BackgroundColor(theme.OnSurface.WithAlpha(0.2f))
-                .Margin(new Thickness(0, 8, 0, 4)),
-            corrections.Select(c =>
-                (VisualNode)VStack(
-                    HStack(
-                        Label(c.Original)
-                            .FontSize(12)
-                            .TextColor(theme.Danger)
-                            .TextDecorations(TextDecorations.Strikethrough),
-                        Label(" -> ")
-                            .FontSize(12)
-                            .TextColor(theme.OnSurface.WithAlpha(0.6f)),
-                        Label(c.Corrected)
-                            .FontSize(12)
-                            .TextColor(theme.Success)
-                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                    )
-                    .Spacing(2),
-                    !string.IsNullOrEmpty(c.Explanation) ?
-                        Label(c.Explanation)
-                            .FontSize(11)
-                            .TextColor(theme.OnSurface.WithAlpha(0.5f))
-                            .Margin(new Thickness(0, 2, 0, 0))
-                        : null
-                )
-                .Spacing(0)
-            ).ToArray()
+    VisualNode RenderInput() => new SfTextInputLayout(
+            Entry()
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                .ReturnType(ReturnType.Next)
+                .OnCompleted(GradeMyDescription)
+                .GridColumn(0)
+                .FontSize(18)
+                .AutomationId("DescriptionEntry") // Appium: text input field
         )
-        .Spacing(4);
-    }
-
-    List<GrammarCorrectionDto> BuildGrammarCorrections(GradeResponse grade)
-    {
-        var corrections = new List<GrammarCorrectionDto>();
-        if (grade.GrammarNotes != null &&
-            !string.IsNullOrEmpty(grade.GrammarNotes.OriginalSentence) &&
-            !string.IsNullOrEmpty(grade.GrammarNotes.RecommendedTranslation))
-        {
-            corrections.Add(new GrammarCorrectionDto
-            {
-                Original = grade.GrammarNotes.OriginalSentence,
-                Corrected = grade.GrammarNotes.RecommendedTranslation,
-                Explanation = grade.GrammarNotes.Explanation ?? string.Empty
-            });
-        }
-        return corrections;
-    }
-
-    VisualNode RenderInput()
-    {
-        var theme = BootstrapTheme.Current;
-        return Grid("Auto", "*,Auto",
-            Border(
-                Entry()
-                    .Text(State.UserInput)
-                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                    .ReturnType(ReturnType.Next)
-                    .OnCompleted(GradeMyDescription)
-                    .FontSize(18)
-                    .Placeholder($"{_localize["WhatDoYouSee"]}")
-                    .AutomationId("DescriptionEntry") // Appium: text input field
-            )
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .Padding(4)
-            .GridColumn(0),
+        .Hint($"{_localize["WhatDoYouSee"]}")
+        .TrailingView(
             HStack(
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Send, theme.GetOnBackground(), 20))
+                    .ImageSource(MyTheme.IconSend)
                     .OnClicked(GradeMyDescription)
                     .AutomationId("SubmitButton"),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Translate, theme.GetOnBackground(), 20))
+                    .ImageSource(MyTheme.IconTranslate)
                     .OnClicked(TranslateInput),
 
                 Button()
                     .Background(Colors.Transparent)
-                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Eraser, theme.GetOnBackground(), 20))
+                    .ImageSource(MyTheme.IconErase)
                     .OnClicked(ClearInput)
-            ).Spacing(4).HStart().GridColumn(1)
+            ).Spacing(MyTheme.Size40).HStart()
         )
         .GridRow(1)  // Changed from GridRow(2) to GridRow(1)
-        .Margin(16);
-    }
+        .Margin(MyTheme.Size160);
 
     /// <summary>
     /// Renders a mobile/desktop SfBottomSheet that contains the full gallery management UI.
     /// Top-aligned actions (Add, MultiSelect, Delete, Close) and a boxy card style.
     /// </summary>
-    VisualNode RenderGalleryBottomSheet()
-    {
-        var theme = BootstrapTheme.Current;
-        return new SfBottomSheet(
+    VisualNode RenderGalleryBottomSheet() =>
+        new SfBottomSheet(
 
                 Grid("Auto,Auto,*,Auto", "*",
 
@@ -223,14 +157,14 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                         .FontAttributes(FontAttributes.Bold),
 
                     HStack(
-                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Images, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(LoadImage),
+                        Button().ImageSource(MyTheme.IconImageExport).Background(Colors.Transparent).OnClicked(LoadImage),
 
-                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Check2Square, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(ToggleSelection),
+                        Button().ImageSource(MyTheme.IconMultiSelect).Background(Colors.Transparent).OnClicked(ToggleSelection),
 
-                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.Danger, 20)).Background(Colors.Transparent).OnClicked(DeleteImages).IsVisible(State.IsDeleteVisible),
+                        Button().ImageSource(MyTheme.IconDelete).Background(Colors.Transparent).OnClicked(DeleteImages).IsVisible(State.IsDeleteVisible),
 
-                        Button().ImageSource(BootstrapIcons.Create(BootstrapIcons.XCircle, theme.GetOnBackground(), 20)).Background(Colors.Transparent).OnClicked(() => SetState(s => s.IsGalleryBottomSheetOpen = false))
-                    ).Spacing(4).HEnd().GridRow(1),
+                        Button().ImageSource(MyTheme.IconClose).Background(Colors.Transparent).OnClicked(() => SetState(s => s.IsGalleryBottomSheetOpen = false))
+                    ).Spacing(MyTheme.Size40).HEnd().GridRow(1),
 
 
                     // Gallery content row
@@ -238,13 +172,12 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
                     // Small status row under the gallery (keeps hierarchy but is unobtrusive)
                     Label(State.IsSelecting ? $"Selected: {State.SelectedImages.Count}" : "Tap an image to select it")
-                        .Padding(16).GridRow(3)
+                        .Padding(MyTheme.Size160).GridRow(3)
                 )//grid
 
         )
         .GridRowSpan(2)  // Changed from 3 to 2 rows
         .IsOpen(State.IsGalleryBottomSheetOpen);
-    }
 
     VisualNode RenderGallery() => CollectionView()
             .ItemsSource(State.Images, RenderGalleryItem)
@@ -253,8 +186,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .ItemsLayout(
                 // Bug fix: Use VerticalGridItemsLayout for 4 columns with vertical scroll
                 new VerticalGridItemsLayout(4)
-                    .VerticalItemSpacing(8)
-                    .HorizontalItemSpacing(8)
+                    .VerticalItemSpacing(MyTheme.Size80)
+                    .HorizontalItemSpacing(MyTheme.Size80)
             ).GridRow(2);
 
 
@@ -269,7 +202,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
             // Checkbox background to avoid overlapping text/artifacts
             Border(
-                Image().Source(BootstrapIcons.Create(BootstrapIcons.Square, BootstrapTheme.Current.GetOnBackground(), 24)).WidthRequest(24).HeightRequest(24)
+                Image().Source(MyTheme.IconCheckbox).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
             .Background(Color.FromArgb("#CCFFFFFF"))
@@ -281,7 +214,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .Margin(4),
 
             Border(
-                Image().Source(BootstrapIcons.Create(BootstrapIcons.CheckSquareFill, BootstrapTheme.Current.Primary, 24)).WidthRequest(24).HeightRequest(24)
+                Image().Source(MyTheme.IconCheckboxSelected).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
             .Background(Color.FromArgb("#CCFFFFFF"))
@@ -320,7 +253,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             _timerService.StartSession("SceneDescription", Props.PlanItemId);
         }
 
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsBusy = true;
             s.LoadingMessage = "Loading scene...";
         });
@@ -357,8 +291,16 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         }
     }
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -368,6 +310,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             _timerService.Pause();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     async Task ManageImages()
     {
@@ -437,16 +381,17 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
         // Capture input before clearing - grading happens asynchronously
         var userInput = State.UserInput;
         var description = State.Description;
-        
+
         // Create pending sentence and add to list immediately
         var pendingSentence = new Sentence
         {
             Answer = userInput,
             IsGrading = true
         };
-        
+
         // Clear input and add sentence immediately so user sees it and can keep typing
-        SetState(s => {
+        SetState(s =>
+        {
             s.UserInput = string.Empty;
             s.Sentences = s.Sentences.Insert(0, pendingSentence);
         });
@@ -462,9 +407,9 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             stopwatch.Stop();
 
             _logger.LogDebug("DescribeAScenePage: Grading completed! Accuracy: {Accuracy:F2}, Fluency: {Fluency:F2}, ResponseTime: {ElapsedMs}ms", grade.Accuracy, grade.Fluency, stopwatch.ElapsedMilliseconds);
-            _logger.LogDebug("DescribeAScenePage: AccuracyExpl: {AccuracyExpl}, FluencyExpl: {FluencyExpl}, Recommended: {Recommended}", 
-                grade.AccuracyExplanation ?? "(null)", 
-                grade.FluencyExplanation ?? "(null)", 
+            _logger.LogDebug("DescribeAScenePage: AccuracyExpl: {AccuracyExpl}, FluencyExpl: {FluencyExpl}, Recommended: {Recommended}",
+                grade.AccuracyExplanation ?? "(null)",
+                grade.FluencyExplanation ?? "(null)",
                 grade.GrammarNotes?.RecommendedTranslation ?? "(null)");
 
             var sentence = new Sentence
@@ -476,8 +421,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 AccuracyExplanation = grade.AccuracyExplanation,
                 // RecommendedTranslation is inside GrammarNotes from the AI response
                 RecommendedSentence = grade.GrammarNotes?.RecommendedTranslation ?? grade.RecommendedTranslation,
-                GrammarNotes = grade.GrammarNotes?.Explanation,
-                GrammarCorrections = BuildGrammarCorrections(grade)
+                GrammarNotes = grade.GrammarNotes?.Explanation
             };
 
             // Track user activity (legacy)
@@ -501,7 +445,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             await ShowEnhancedFeedback(grade, userInput);
 
             // Update the pending sentence with grading results
-            SetState(s => {
+            SetState(s =>
+            {
                 var index = s.Sentences.IndexOf(pendingSentence);
                 if (index >= 0)
                 {
@@ -546,7 +491,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     async Task GetDescription()
     {
-        SetState(s => {
+        SetState(s =>
+        {
             s.IsBusy = true;
             s.LoadingMessage = "Analyzing the image...";
         });
@@ -922,19 +868,19 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             // Determine feedback based on accuracy and fluency
             if (grade.Accuracy >= 0.8 && grade.Fluency >= 0.8)
             {
-                message = "Excellent description! Your Korean is very natural!";
+                message = "🌟 Excellent description! Your Korean is very natural!";
             }
             else if (grade.Accuracy >= 0.7)
             {
-                message = $"Good work! Accuracy: {(int)(grade.Accuracy * 100)}%";
+                message = $"✅ Good work! Accuracy: {(int)(grade.Accuracy * 100)}%";
             }
             else if (grade.Accuracy >= 0.5)
             {
-                message = $"Keep practicing! {(int)(grade.Accuracy * 100)}% accuracy";
+                message = $"📝 Keep practicing! {(int)(grade.Accuracy * 100)}% accuracy";
             }
             else
             {
-                message = "Try focusing on simpler sentences first";
+                message = "🔍 Try focusing on simpler sentences first";
             }
 
             await AppShell.DisplayToastAsync(message);

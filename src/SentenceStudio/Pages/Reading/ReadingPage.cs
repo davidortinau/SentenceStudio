@@ -123,6 +123,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     [Inject] ILogger<ReadingPage> _logger;
     [Inject] ILogger<SentenceTimingCalculator> _timingCalculatorLogger;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     private TimestampedAudioManager _audioManager;
@@ -147,7 +148,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 )
                 .VCenter()
                 .HCenter()
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
         if (!string.IsNullOrEmpty(State.ErrorMessage))
@@ -166,7 +167,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                 .VCenter()
                 .HCenter()
                 .Spacing(16)
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
         return ContentPage(pageRef => _pageRef = pageRef,
@@ -193,6 +194,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         )
         .Title($"{_localize["Reading"]}")
         .Set(MauiControls.Shell.NavBarIsVisibleProperty, State.IsNavigationVisible)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadContentAsync);
     }
 
@@ -1373,6 +1375,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
     // Lifecycle
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
 
         if (Props?.Resource == null)
@@ -1548,6 +1551,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
 
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -1568,6 +1572,8 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             _audioManager.Dispose();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     async Task LoadContentAsync()
     {

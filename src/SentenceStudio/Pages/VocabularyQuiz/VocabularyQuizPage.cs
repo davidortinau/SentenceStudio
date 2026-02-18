@@ -10,6 +10,7 @@ using System.IO;
 using SentenceStudio.Shared.Services;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyQuiz;
 
@@ -148,6 +149,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     [Inject] Plugin.Maui.Audio.IAudioManager _audioManager;
     [Inject] Services.ElevenLabsSpeechService _speechService;
     [Inject] StreamHistoryRepository _historyRepo;
+    [Inject] NativeThemeService _themeService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -177,6 +179,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         )
         .TitleView(RenderTitleView())
         .Title($"{_localize["VocabularyQuiz"]}")
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadVocabulary);
     }
 
@@ -2339,6 +2342,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     protected override void OnMounted()
     {
         _logger.LogDebug("🚀 VocabularyQuizPage.OnMounted() START");
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
 
         _logger.LogDebug("🏴‍☠️ Props.FromTodaysPlan = {FromTodaysPlan}", Props?.FromTodaysPlan);
@@ -2364,6 +2368,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
     protected override void OnWillUnmount()
     {
         _logger.LogDebug("🛑 VocabularyQuizPage.OnWillUnmount() START");
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Stop all audio playback
@@ -2377,6 +2382,8 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("✅ Timer paused - IsRunning={IsRunning}", _timerService.IsRunning);
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     // ============================================================================
     // VOCABULARY QUIZ PREFERENCES METHODS

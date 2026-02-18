@@ -1,4 +1,5 @@
 using MauiReactor.Shapes;
+using SentenceStudio.Services;
 using LukeMauiFilePicker;
 using SentenceStudio.Pages.VocabularyProgress;
 using SentenceStudio.Pages.VocabularyManagement;
@@ -12,7 +13,6 @@ class EditLearningResourceState
 {
     public LearningResource Resource { get; set; } = new();
     public bool IsLoading { get; set; } = true;
-    public bool IsEditing { get; set; } = false;
     public bool IsVocabularySheetVisible { get; set; } = false;
     public VocabularyWord CurrentVocabularyWord { get; set; } = new();
     public bool IsAddingNewWord { get; set; } = false;
@@ -33,6 +33,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
     [Inject] TranscriptFormattingService _formattingService;
     [Inject] UserProfileRepository _userProfileRepo;
     [Inject] ILogger<EditLearningResourcePage> _logger;
+    [Inject] NativeThemeService _themeService;
 
     // Track whether we need to save resource relationship (only for new words)
     private bool _shouldSaveResourceRelationship = false;
@@ -52,17 +53,29 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         { DevicePlatform.WinUI, new[] { ".txt", ".json" } }
     };
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
+
     public override VisualNode Render()
     {
         var theme = BootstrapTheme.Current;
 
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
-            // Only show Edit button for non-smart resources when not already editing
-            (State.IsEditing || !IsEditable) ? null : ToolbarItem("Edit").OnClicked(() => SetState(s => s.IsEditing = true)),
-            State.IsEditing ? ToolbarItem("Cancel").OnClicked(() => SetState(s => s.IsEditing = false)) : null,
-            State.IsEditing ? ToolbarItem("Save").OnClicked(SaveResource) : null,
-            // Only show Delete button for non-smart resources when editing
-            (State.IsEditing && IsEditable) ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
+            ToolbarItem("Save").OnClicked(SaveResource),
+            IsEditable ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
             ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
 
             Grid(
@@ -75,11 +88,9 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Grid(
                         ScrollView(
                             VStack(
-                                State.IsEditing ?
-                                    RenderEditMode() :
-                                    RenderViewMode()
+                                RenderEditMode()
                             )
-                            .Padding(new Thickness(15))
+                            .Padding(16)
                             .Spacing(16)
                         ),
 
@@ -116,7 +127,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             : null
                     )
             )
-        ).OnAppearing(LoadResource);
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground()).OnAppearing(LoadResource);
     }
 
     private VisualNode RenderVocabularyWordEditor()
@@ -352,100 +363,76 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                     VStack(
                         Label($"{_localize["Title"]}")
-                            .FontSize(14).Muted().HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Resource.Title)
-                                .OnTextChanged(text => SetState(s => s.Resource.Title = text))
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                            .Class("form-label")
+                            .HStart(),
+                        Entry()
+                            .Text(State.Resource.Title)
+                            .OnTextChanged(text => SetState(s => s.Resource.Title = text))
+                            .Class("form-control")
                     ).Spacing(4),
 
                     VStack(
                         Label($"{_localize["Description"]}")
-                            .FontSize(14).Muted().HStart(),
-                        Border(
-                            Editor()
-                                .Text(State.Resource.Description)
-                                .OnTextChanged(text => SetState(s => s.Resource.Description = text))
-                                .HeightRequest(100)
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                            .Class("form-label")
+                            .HStart(),
+                        Editor()
+                            .Text(State.Resource.Description)
+                            .OnTextChanged(text => SetState(s => s.Resource.Description = text))
+                            .HeightRequest(100)
+                            .Class("form-control")
                     ).Spacing(4),
 
                     Grid("Auto", "*, *",
                         VStack(
                             Label($"{_localize["MediaType"]}")
-                                .FontSize(14).Muted().HStart(),
-                            Border(
-                                Picker()
-                                    .ItemsSource(Constants.MediaTypes)
-                                    .SelectedIndex(State.MediaTypeIndex)
-                                    .OnSelectedIndexChanged(index => SetState(s =>
-                                    {
-                                        s.MediaTypeIndex = index;
-                                        s.Resource.MediaType = Constants.MediaTypes[index];
-                                    }))
-                            )
-                            .BackgroundColor(theme.GetSurface())
-                            .Stroke(theme.GetOutline())
-                            .StrokeThickness(1)
-                            .Padding(8)
+                                .Class("form-label")
+                                .HStart(),
+                            Picker()
+                                .ItemsSource(Constants.MediaTypes)
+                                .SelectedIndex(State.MediaTypeIndex)
+                                .OnSelectedIndexChanged(index => SetState(s =>
+                                {
+                                    s.MediaTypeIndex = index;
+                                    s.Resource.MediaType = Constants.MediaTypes[index];
+                                }))
+                                .Class("form-select")
                         ).Spacing(4).GridColumn(0),
 
                         VStack(
                             Label($"{_localize["Language"]}")
-                                .FontSize(14).Muted().HStart(),
-                            Border(
-                                Picker()
-                                    .ItemsSource(Constants.Languages)
-                                    .SelectedIndex(State.LanguageIndex)
-                                    .OnSelectedIndexChanged(index => SetState(s =>
-                                    {
-                                        s.LanguageIndex = index;
-                                        s.Resource.Language = Constants.Languages[index];
-                                    }))
-                            )
-                            .BackgroundColor(theme.GetSurface())
-                            .Stroke(theme.GetOutline())
-                            .StrokeThickness(1)
-                            .Padding(8)
+                                .Class("form-label")
+                                .HStart(),
+                            Picker()
+                                .ItemsSource(Constants.Languages)
+                                .SelectedIndex(State.LanguageIndex)
+                                .OnSelectedIndexChanged(index => SetState(s =>
+                                {
+                                    s.LanguageIndex = index;
+                                    s.Resource.Language = Constants.Languages[index];
+                                }))
+                                .Class("form-select")
                         ).Spacing(4).GridColumn(1)
                     ).ColumnSpacing(12),
 
                     VStack(
                         Label($"{_localize["MediaURL"]}")
-                            .FontSize(14).Muted().HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Resource.MediaUrl)
-                                .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
-                                .Keyboard(Keyboard.Url)
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                            .Class("form-label")
+                            .HStart(),
+                        Entry()
+                            .Text(State.Resource.MediaUrl)
+                            .OnTextChanged(text => SetState(s => s.Resource.MediaUrl = text))
+                            .Keyboard(Keyboard.Url)
+                            .Class("form-control")
                     ).Spacing(4),
 
                     VStack(
                         Label($"{_localize["Tags"]}")
-                            .FontSize(14).Muted().HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Resource.Tags)
-                                .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                            .Class("form-label")
+                            .HStart(),
+                        Entry()
+                            .Text(State.Resource.Tags)
+                            .OnTextChanged(text => SetState(s => s.Resource.Tags = text))
+                            .Class("form-control")
                     ).Spacing(4),
 
                     // Created/Updated metadata
@@ -468,16 +455,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 VStack(
                     Label($"{_localize["Transcript"]}")
                         .H5().FontAttributes(FontAttributes.Bold).HStart(),
-                    Border(
-                        Editor()
-                            .Text(State.Resource.Transcript)
-                            .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
-                            .HeightRequest(150)
-                    )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .Padding(8)
+                    Editor()
+                        .Text(State.Resource.Transcript)
+                        .OnTextChanged(text => SetState(s => s.Resource.Transcript = text))
+                        .HeightRequest(150)
+                        .Class("form-control")
                 ).Spacing(12)
             )
             .BackgroundColor(theme.GetSurface())
@@ -491,16 +473,11 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 VStack(
                     Label($"{_localize["Translation"]}")
                         .H5().FontAttributes(FontAttributes.Bold).HStart(),
-                    Border(
-                        Editor()
-                            .Text(State.Resource.Translation)
-                            .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
-                            .HeightRequest(150)
-                    )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .Padding(8)
+                    Editor()
+                        .Text(State.Resource.Translation)
+                        .OnTextChanged(text => SetState(s => s.Resource.Translation = text))
+                        .HeightRequest(150)
+                        .Class("form-control")
                 ).Spacing(12)
             )
             .BackgroundColor(theme.GetSurface())
@@ -540,17 +517,12 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Label($"{_localize["ImportVocabularyFromFile"]}")
                         .FontSize(14).Muted().HStart(),
                     Grid(
-                        Border(
-                            Editor()
-                                .Text(State.VocabList)
-                                .OnTextChanged(text => SetState(s => s.VocabList = text))
-                                .MinimumHeightRequest(150)
-                                .MaximumHeightRequest(250)
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8),
+                        Editor()
+                            .Text(State.VocabList)
+                            .OnTextChanged(text => SetState(s => s.VocabList = text))
+                            .MinimumHeightRequest(150)
+                            .MaximumHeightRequest(250)
+                            .Class("form-control"),
                         Button()
                             .ImageSource(BootstrapIcons.Create(BootstrapIcons.Folder2Open, theme.GetOnBackground(), 20))
                             .Background(Colors.Transparent)
@@ -637,7 +609,6 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     UpdatedAt = DateTime.UtcNow
                 };
                 s.IsLoading = false;
-                s.IsEditing = true;
             });
             return;
         }
@@ -693,7 +664,6 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         SetState(s =>
         {
             s.IsLoading = false;
-            s.IsEditing = false;
         });
 
         // If this is a new resource, navigate back to the list

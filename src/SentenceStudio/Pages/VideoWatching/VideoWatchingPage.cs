@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Components;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VideoWatching;
 
@@ -14,6 +15,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
     [Inject] LearningResourceRepository _resourceRepository;
     [Inject] ILogger<VideoWatchingPage> _logger;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
 
     public override VisualNode Render()
@@ -32,7 +34,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                 )
                 .VCenter()
                 .HCenter()
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
         if (!string.IsNullOrEmpty(State.ErrorMessage))
@@ -52,7 +54,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
                 .VCenter()
                 .HCenter()
                 .Spacing(16)
-            );
+            ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
         return ContentPage(State.Resource?.Title ?? "Video Watching",
@@ -63,6 +65,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadContentAsync);
     }
 
@@ -115,6 +118,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
 
         _logger.LogInformation("VideoWatchingPage mounted");
@@ -135,6 +139,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
 
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         _logger.LogInformation("VideoWatchingPage unmounting");
@@ -146,6 +151,8 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
             _timerService.Pause();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     async Task LoadContentAsync()
     {

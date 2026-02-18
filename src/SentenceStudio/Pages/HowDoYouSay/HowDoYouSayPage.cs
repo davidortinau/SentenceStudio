@@ -8,6 +8,7 @@ using SentenceStudio.Services.Speech;
 using SentenceStudio.Pages.Controls;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.HowDoYouSay;
 
@@ -55,6 +56,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	[Inject] IVoiceDiscoveryService _voiceDiscoveryService;
 	[Inject] UserProfileRepository _userProfileRepository;
 	[Inject] ILogger<HowDoYouSayPage> _logger;
+	[Inject] NativeThemeService _themeService;
 	LocalizationManager _localize => LocalizationManager.Instance;
 
 	private IAudioPlayer _audioPlayer;
@@ -67,7 +69,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				RenderInput(),
 				RenderHistory()
 			)
-		).OnAppearing(OnPageAppearing);
+		).BackgroundColor(BootstrapTheme.Current.GetBackground()).OnAppearing(OnPageAppearing);
 	}
 
 	private async Task OnPageAppearing()
@@ -480,11 +482,21 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 	}
 
 	// Clean up resources when component is removed
+
+	protected override void OnMounted()
+	{
+        _themeService.ThemeChanged += OnThemeChanged;
+	    base.OnMounted();
+	}
+
 	protected override void OnWillUnmount()
 	{
 		StopPlayback();
+        _themeService.ThemeChanged -= OnThemeChanged;
 		base.OnWillUnmount();
 	}
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
 	/// <summary>
 	/// Shows the voice selection popup using UXDivers OptionSheetPopup.

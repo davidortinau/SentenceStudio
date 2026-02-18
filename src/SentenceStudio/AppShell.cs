@@ -33,24 +33,7 @@ public partial class AppShell : Component
     private readonly IParameter<AppState> state;
 
     [Inject] ILogger<AppShell> _logger;
-
-    // public AppShell()
-    // {
-    //     MauiExceptions.UnhandledException += (sender, args) =>
-    //     {
-    //         Debug.WriteLine(args.ExceptionObject);
-    //         throw (Exception)args.ExceptionObject;
-    //     };
-    // }
-
-    // ~AppShell()
-    // {
-    //     MauiExceptions.UnhandledException -= (sender, args) =>
-    //     {
-    //         Debug.WriteLine(args.ExceptionObject);
-    //         throw (Exception)args.ExceptionObject;
-    //     };
-    // }
+    [Inject] NativeThemeService _themeService;
 
     private bool _initialized = false;
     private bool _isLoadingProfile = false;
@@ -64,8 +47,21 @@ public partial class AppShell : Component
         if (!_initialized && !_isLoadingProfile)
         {
             _initialized = true;
+            _themeService.Initialize();
+            _themeService.ThemeChanged += OnThemeChanged;
             LoadUserProfileAsync();
         }
+    }
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object sender, ThemeChangedEventArgs e)
+    {
+        Invalidate();
     }
 
     private async void LoadUserProfileAsync()

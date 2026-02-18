@@ -1,6 +1,7 @@
 using MauiReactor.Shapes;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Skills;
 
@@ -13,7 +14,24 @@ class AddSkillProfilePageState
 partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
 {
     [Inject] SkillProfileRepository _skillsRepository;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -27,36 +45,24 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                         VStack(spacing: 16,
                             VStack(spacing: 4,
                                 Label("Title *")
-                                    .FontSize(14)
-                                    .Muted(),
-                                Border(
-                                    Entry()
-                                        .Text(State.Title)
-                                        .OnTextChanged(text => SetState(s => s.Title = text))
-                                        .Placeholder("Skill profile title")
-                                )
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                                .Padding(4, 0)
+                                    .Class("form-label"),
+                                Entry()
+                                    .Text(State.Title)
+                                    .OnTextChanged(text => SetState(s => s.Title = text))
+                                    .Placeholder("Skill profile title")
+                                    .Class("form-control")
                             ),
 
                             VStack(spacing: 4,
                                 Label("Skills Description")
-                                    .FontSize(14)
-                                    .Muted(),
-                                Border(
-                                    Editor()
-                                        .Text(State.Description)
-                                        .OnTextChanged(text => SetState(s => s.Description = text))
-                                        .AutoSize(EditorAutoSizeOption.TextChanges)
-                                        .MinimumHeightRequest(150)
-                                        .Placeholder("Describe the skills for this profile")
-                                )
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                                .Padding(4, 0)
+                                    .Class("form-label"),
+                                Editor()
+                                    .Text(State.Description)
+                                    .OnTextChanged(text => SetState(s => s.Description = text))
+                                    .AutoSize(EditorAutoSizeOption.TextChanges)
+                                    .MinimumHeightRequest(150)
+                                    .Placeholder("Describe the skills for this profile")
+                                    .Class("form-control")
                             )
                         )
                     )
@@ -74,7 +80,8 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                 )
                 .Margin(16)
             )
-        );
+        )
+        .BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     async Task SaveProfile()

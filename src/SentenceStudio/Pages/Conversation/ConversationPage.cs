@@ -10,6 +10,7 @@ using SentenceStudio.Services.Agents;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
 using ConversationModel = SentenceStudio.Shared.Models.Conversation;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Conversation;
 
@@ -50,6 +51,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     [Inject] IScenarioService _scenarioService;
     [Inject] ILogger<ConversationPage> _logger;
     [Inject] UserProfileRepository _userProfileRepository;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
     ConversationModel _conversation;
 
@@ -93,6 +95,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(ResumeConversation);
     }
 
@@ -1056,8 +1059,16 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         });
     }
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -1070,6 +1081,8 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         // Clean up audio player and event handler
         CleanupAudioPlayer();
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     private void CleanupAudioPlayer()
     {

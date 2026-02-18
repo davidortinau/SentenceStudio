@@ -3,6 +3,7 @@ using MauiReactor.Shapes;
 using SentenceStudio.Repositories;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -33,13 +34,24 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 {
     [Inject] ILogger<MinimalPairsPage> _logger;
     [Inject] MinimalPairRepository _pairRepo;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         _ = LoadUserPairsAsync();
     }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     private async Task LoadUserPairsAsync()
     {
@@ -130,6 +142,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
             )
         )
         .Set(MauiControls.Shell.TabBarIsVisibleProperty, true)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(() => _ = LoadUserPairsAsync());
     }
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using SentenceStudio.Services;
 using MauiReactor.Shapes;
 using CommunityToolkit.Maui.Storage;
 using MauiReactor.Parameters;
@@ -39,8 +40,25 @@ partial class UserProfilePage : Component<UserProfilePageState>
     [Inject] LearningResourceRepository _learningResourceRepository;
     [Inject] DataExportService _dataExportService;
     [Inject] IFileSaver _fileSaver;
+    [Inject] NativeThemeService _themeService;
     [Param] IParameter<AppState> _appState;
     LocalizationManager _localize => LocalizationManager.Instance;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -274,7 +292,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                 )
                 .Padding(24)
             )
-        ).OnAppearing(LoadProfile);
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground()).OnAppearing(LoadProfile);
     }
 
     readonly string[] DisplayLanguages = new[] { "English", "Korean" };

@@ -1,5 +1,6 @@
 using SentenceStudio.Repositories;
 using MauiReactor.Shapes;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.MinimalPairs;
 
@@ -29,13 +30,24 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
     [Inject] ILogger<CreateMinimalPairPage> _logger;
     [Inject] LearningResourceRepository _vocabRepo;
     [Inject] MinimalPairRepository _pairRepo;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
     protected override void OnMounted()
     {
+        _themeService.ThemeChanged += OnThemeChanged;
         _ = LoadVocabularyAsync();
     }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     private async Task LoadVocabularyAsync()
     {
@@ -127,7 +139,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                       )
                     : RenderForm()
             )
-        );
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     private List<VocabularyWord> FilterWords(string query)

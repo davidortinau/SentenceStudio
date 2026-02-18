@@ -6,6 +6,7 @@ using System.Diagnostics;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Components;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyMatching;
 
@@ -84,6 +85,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     [Inject] VocabularyProgressService _progressService;
     [Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
     [Inject] ILogger<VocabularyMatchingPage> _logger;
+    [Inject] NativeThemeService _themeService;
 
     // Enhanced tracking: Response timer for measuring user response time
     private Stopwatch _responseTimer = new Stopwatch();
@@ -116,6 +118,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             ).RowSpacing(12)
         )
         .Title($"{_localize["VocabularyMatchingTitle"]}")
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(OnPageAppearing);
     }
 
@@ -876,8 +879,16 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         }
     }
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
     protected override void OnWillUnmount()
     {
+        _themeService.ThemeChanged -= OnThemeChanged;
         base.OnWillUnmount();
 
         // Pause timer when leaving activity
@@ -886,4 +897,6 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
             _timerService.Pause();
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 }

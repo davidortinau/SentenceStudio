@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.Clozure;
 
@@ -80,6 +81,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	[Inject] VocabularyProgressService _progressService;
 	[Inject] SentenceStudio.Services.Timer.IActivityTimerService _timerService;
 	[Inject] ILogger<ClozurePage> _logger;
+	[Inject] NativeThemeService _themeService;
 
 	System.Timers.Timer autoNextTimer;
 	LocalizationManager _localize => LocalizationManager.Instance;
@@ -125,11 +127,13 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		)
 		.Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
+		.BackgroundColor(BootstrapTheme.Current.GetBackground())
 		.OnAppearing(LoadSentences);
 	}
 
 	protected override void OnMounted()
 	{
+        _themeService.ThemeChanged += OnThemeChanged;
 		base.OnMounted();
 		_logger.LogDebug("ClozurePage: OnMounted - Resource: {ResourceTitle}, Skill: {SkillTitle}", Props.Resource?.Title ?? "null", Props.Skill?.Title ?? "null");
 
@@ -157,8 +161,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			_timerService.Pause();
 		}
 
+        _themeService.ThemeChanged -= OnThemeChanged;
 		base.OnWillUnmount();
 	}
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
 	#endregion
 

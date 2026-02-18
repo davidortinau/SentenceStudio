@@ -6,6 +6,7 @@ using SentenceStudio.Services.Speech;
 using SentenceStudio.Pages.Controls;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using Button = MauiReactor.Button;
 
 namespace SentenceStudio.Pages.AppSettings;
 
@@ -73,8 +74,18 @@ partial class SettingsPage : Component<SettingsPageState>
         // Load voices for default language
         _ = LoadVoicesForLanguageAsync("Korean");
 
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
     }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     private async Task LoadVoicesForLanguageAsync(string language)
     {
@@ -112,7 +123,8 @@ partial class SettingsPage : Component<SettingsPageState>
                 )
                 .Padding(16)
             )
-        );
+        )
+        .BackgroundColor(BootstrapTheme.Current.GetBackground());
     }
 
     private VisualNode RenderAppearanceSection()
@@ -125,13 +137,12 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Section heading
                 Label($"{_localize["Appearance"]}")
                     .H4()
-                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                    .TextColor(theme.GetOnBackground()),
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                 // Theme swatches
                 Label($"{_localize["ChooseTheme"]}")
-                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                    .TextColor(theme.GetOnBackground()),
+                    .Class("form-label")
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                 FlexLayout(
                     availableThemes.Select(themeId => RenderThemeSwatch(themeId, theme)).ToArray()
@@ -142,31 +153,32 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 // Light/Dark mode toggle
                 Label($"{_localize["DisplayMode"]}")
-                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                    .TextColor(theme.GetOnBackground()),
+                    .Class("form-label")
+                    .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                HStack(spacing: 0,
-                    RenderModeButton($"{_localize["Light"]}", BootstrapIcons.SunFill, !State.IsDarkMode, theme, () =>
+                new SegmentedButtonGroup()
+                    .Left(RenderModeButton($"{_localize["Light"]}", BootstrapIcons.SunFill, !State.IsDarkMode, theme, () =>
                     {
                         _themeService.SetMode("light");
                         SetState(s => s.IsDarkMode = false);
-                    }),
-                    RenderModeButton($"{_localize["Dark"]}", BootstrapIcons.MoonFill, State.IsDarkMode, theme, () =>
+                    }))
+                    .Right(RenderModeButton($"{_localize["Dark"]}", BootstrapIcons.MoonFill, State.IsDarkMode, theme, () =>
                     {
                         _themeService.SetMode("dark");
                         SetState(s => s.IsDarkMode = true);
-                    })
-                ),
+                    }))
+                    .CornerRadius(6),
 
                 // Text Size slider
                 VStack(spacing: 4,
                     Label($"{_localize["TextSize"]}: {(int)(State.FontScale * 100)}%")
-                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                        .TextColor(theme.GetOnBackground()),
+                        .Class("form-label")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Slider()
                         .Minimum(0.85)
                         .Maximum(1.5)
                         .Value(State.FontScale)
+                        .Class("form-range")
                         .OnValueChanged((s, args) =>
                         {
                             var rounded = Math.Round(args.NewValue / 0.05) * 0.05;
@@ -220,17 +232,16 @@ partial class SettingsPage : Component<SettingsPageState>
         });
     }
 
-    private VisualNode RenderModeButton(string text, string iconGlyph, bool isActive, BootstrapTheme theme, Action onClicked)
+    private Button RenderModeButton(string text, string iconGlyph, bool isActive, BootstrapTheme theme, Action onClicked)
     {
-        var iconColor = isActive ? Colors.White : theme.GetOnBackground();
+        var iconColor = isActive ? Colors.White : theme.Secondary;
         var btn = Button(text)
             .ImageSource(BootstrapIcons.Create(iconGlyph, iconColor, 16))
             .HeightRequest(40)
             .OnClicked(onClicked);
 
-        return isActive
-            ? btn.Primary()
-            : btn.Secondary().Outlined();
+        btn = isActive ? btn.Primary() : btn.Secondary().Outlined();
+        return btn.BorderWidth(0).CornerRadius(0);
     }
 
     private VisualNode RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
@@ -261,26 +272,23 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Language selection for voice
                 VStack(spacing: 4,
                     Label($"{_localize["VoiceLanguage"]}")
-                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                        .TextColor(theme.GetOnBackground()),
+                        .Class("form-label")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["VoiceLanguageDescription"]}")
                         .Small()
                         .Muted(),
                     Button(State.SelectedLanguage)
-                        .Background(new SolidColorBrush(Colors.Transparent))
-                        .TextColor(theme.GetOnBackground())
-                        .BorderColor(theme.GetOutline())
-                        .BorderWidth(1)
-                        .CornerRadius(6)
                         .HeightRequest(44)
+                        .Secondary()
+                        .Outlined()
                         .OnClicked(ShowLanguageSelectionPopup)
                 ),
 
                 // Voice selection for selected language
                 VStack(spacing: 4,
                     Label($"{_localize["PreferredVoice"]}")
-                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                        .TextColor(theme.GetOnBackground()),
+                        .Class("form-label")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["PreferredVoiceDescription"]}")
                         .Small()
                         .Muted(),
@@ -290,12 +298,9 @@ partial class SettingsPage : Component<SettingsPageState>
                             .Muted()
                         : Button(GetSelectedVoiceDisplayName())
                             .HStart()
-                            .Background(new SolidColorBrush(Colors.Transparent))
-                            .TextColor(theme.GetOnBackground())
-                            .BorderColor(theme.GetOutline())
-                            .BorderWidth(1)
-                            .CornerRadius(6)
                             .HeightRequest(44)
+                            .Secondary()
+                            .Outlined()
                             .IsEnabled(State.AvailableVoices.Count > 0)
                             .OnClicked(ShowVoiceSelectionPopup)
                 ),
@@ -303,8 +308,8 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Quiz direction — 3-way segmented control
                 VStack(spacing: 4,
                     Label($"{_localize["QuizDirection"]}")
-                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                        .TextColor(theme.GetOnBackground()),
+                        .Class("form-label")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["QuizDirectionDescription"]}")
                         .Small()
                         .Muted(),
@@ -319,8 +324,8 @@ partial class SettingsPage : Component<SettingsPageState>
                 HStack(spacing: 8,
                     VStack(spacing: 2,
                         Label($"{_localize["Autoplay"]}")
-                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                            .TextColor(theme.GetOnBackground()),
+                            .Class("form-label")
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                         Label($"{_localize["AutoplayDescription"]}")
                             .Small()
                             .Muted()
@@ -328,6 +333,7 @@ partial class SettingsPage : Component<SettingsPageState>
                     .HFill(),
                     Switch()
                         .IsToggled(State.QuizAutoplay)
+                        .Class("form-switch")
                         .OnToggled((s, args) =>
                         {
                             _quizPreferences.AutoPlayVocabAudio = args.Value;
@@ -340,8 +346,8 @@ partial class SettingsPage : Component<SettingsPageState>
                 HStack(spacing: 8,
                     VStack(spacing: 2,
                         Label($"{_localize["ShowMnemonic"]}")
-                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                            .TextColor(theme.GetOnBackground()),
+                            .Class("form-label")
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                         Label($"{_localize["ShowMnemonicDescription"]}")
                             .Small()
                             .Muted()
@@ -349,6 +355,7 @@ partial class SettingsPage : Component<SettingsPageState>
                     .HFill(),
                     Switch()
                         .IsToggled(State.QuizShowMnemonic)
+                        .Class("form-switch")
                         .OnToggled((s, args) =>
                         {
                             _quizPreferences.ShowMnemonicImage = args.Value;
@@ -360,8 +367,8 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Auto-advance duration
                 VStack(spacing: 4,
                     Label($"{_localize["AutoAdvanceDuration"]}: {State.QuizAutoAdvanceDuration:F1}s")
-                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
-                        .TextColor(theme.GetOnBackground()),
+                        .Class("form-label")
+                        .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["AutoAdvanceDurationDescription"]}")
                         .Small()
                         .Muted(),
@@ -369,6 +376,7 @@ partial class SettingsPage : Component<SettingsPageState>
                         .Minimum(1.0)
                         .Maximum(10.0)
                         .Value(State.QuizAutoAdvanceDuration)
+                        .Class("form-range")
                         .OnValueChanged((s, args) =>
                         {
                             var rounded = Math.Round(args.NewValue * 2) / 2.0; // step 0.5
@@ -385,12 +393,9 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 // Reset button
                 Button($"{_localize["ResetToDefaults"]}")
-                    .Background(new SolidColorBrush(Colors.Transparent))
-                    .TextColor(theme.GetOnBackground())
-                    .BorderColor(theme.GetOutline())
-                    .BorderWidth(1)
-                    .CornerRadius(6)
                     .HeightRequest(44)
+                    .Secondary()
+                    .Outlined()
                     .OnClicked(() =>
                     {
                         _quizPreferences.ResetToDefaults();
@@ -492,12 +497,9 @@ partial class SettingsPage : Component<SettingsPageState>
                     .TextColor(theme.GetOnBackground()),
 
                 Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"{_localize["ExportData"]}")
-                    .Background(new SolidColorBrush(Colors.Transparent))
-                    .TextColor(theme.GetOnBackground())
-                    .BorderColor(theme.GetOutline())
-                    .BorderWidth(1)
-                    .CornerRadius(6)
                     .HeightRequest(44)
+                    .Secondary()
+                    .Outlined()
                     .IsEnabled(!State.IsExporting)
                     .OnClicked(async () => await ExportDataInternalAsync())
                     .Margin(0, 4, 0, 0)

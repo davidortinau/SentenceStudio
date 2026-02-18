@@ -3,6 +3,7 @@ using ReactorCustomLayouts;
 using MauiReactor.Shapes;
 using Microsoft.Maui.Layouts;
 using SentenceStudio.Pages.Clozure;
+using Button = MauiReactor.Button;
 using SentenceStudio.Pages.MinimalPairs;
 using SentenceStudio.Pages.Scene;
 using SentenceStudio.Pages.Translation;
@@ -64,6 +65,7 @@ partial class DashboardPage : Component<DashboardPageState>
     [Inject] IProgressService _progressService;
     [Inject] ILogger<DashboardPage> _logger;
     [Inject] MinimalPairRepository _minimalPairRepo;
+    [Inject] NativeThemeService _themeService;
 
     [Param] IParameter<DashboardParameters> _parameters;
 
@@ -90,12 +92,14 @@ partial class DashboardPage : Component<DashboardPageState>
             s.IsTodaysPlanMode = savedMode == "TodaysPlan";
         });
         DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+        _themeService.ThemeChanged += OnThemeChanged;
         base.OnMounted();
     }
 
     protected override void OnWillUnmount()
     {
         DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
+        _themeService.ThemeChanged -= OnThemeChanged;
 
         // PHASE 2 OPTIMIZATION: Clean up debounce timer and cancel any in-flight operations
         _preferenceSaveTimer?.Stop();
@@ -121,8 +125,12 @@ partial class DashboardPage : Component<DashboardPageState>
         });
     }
 
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
+
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
+
         SafeAreaEdges safeEdges = DeviceDisplay.Current.MainDisplayInfo.Rotation switch
         {
             DisplayRotation.Rotation0 => new(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None),
@@ -148,6 +156,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         )
         .Set(Layout.SafeAreaEdgesProperty, safeEdges)
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadOrRefreshDataAsync);
     }
 
@@ -168,62 +177,46 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderModeToggle()
     {
-        // Bootstrap btn-group: active = btn-ss-primary, inactive = btn-outline-secondary
-        return Grid("Auto", "*,*",
-            RenderToggleButton(
+        var theme = BootstrapTheme.Current;
+        return new SegmentedButtonGroup()
+            .Left(RenderToggleButton(
                 $"{_localize["ModeTodaysPlan"]}",
                 BootstrapIcons.CalendarCheck,
                 State.IsTodaysPlanMode,
+                theme,
                 () =>
                 {
                     SetState(st => st.IsTodaysPlanMode = true);
                     Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
                     _ = LoadTodaysPlanAsync();
-                })
-                .GridColumn(0),
-            RenderToggleButton(
+                }))
+            .Right(RenderToggleButton(
                 $"{_localize["ModeChooseOwn"]}",
                 BootstrapIcons.Sliders,
                 !State.IsTodaysPlanMode,
+                theme,
                 () =>
                 {
                     SetState(st => st.IsTodaysPlanMode = false);
                     Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
-                })
-                .GridColumn(1)
-        )
-        .ColumnSpacing(0)
-        .Margin(new Thickness(0, 0, 0, 16));
+                }))
+            .CornerRadius(6)
+            .Margin(new Thickness(0, 0, 0, 16));
     }
 
-    VisualNode RenderToggleButton(string text, string icon, bool isActive, Action onClicked)
+    Button RenderToggleButton(string text, string icon, bool isActive, BootstrapTheme theme, Action onClicked)
     {
-        var theme = BootstrapTheme.Current;
-        if (isActive)
-        {
-            return Button()
-                .Text(text)
-                .ImageSource(BootstrapIcons.Create(icon, Colors.White, 16))
-                .Background(new SolidColorBrush(theme.Primary))
-                .TextColor(Colors.White)
-                .BorderColor(theme.Primary)
-                .BorderWidth(1)
-                .CornerRadius(6)
-                .HeightRequest(44)
-                .HFill()
-                .OnClicked(onClicked);
-        }
-        return Button()
+        var iconColor = isActive ? Colors.White : theme.Secondary;
+        var btn = Button()
             .Text(text)
-            .ImageSource(BootstrapIcons.Create(icon, theme.GetOnBackground(), 16))
-            .Background(new SolidColorBrush(Colors.Transparent))
-            .TextColor(theme.GetOnBackground())
-            .BorderColor(theme.GetOutline())
-            .BorderWidth(1)
-            .CornerRadius(6)
+            .ImageSource(BootstrapIcons.Create(icon, iconColor, 16))
             .HeightRequest(44)
             .HFill()
             .OnClicked(onClicked);
+
+        btn = isActive ? btn.Primary() : btn.Secondary().Outlined();
+
+        return btn.BorderWidth(0).CornerRadius(0);
     }
 
     VisualNode RenderTodaysPlanMode()

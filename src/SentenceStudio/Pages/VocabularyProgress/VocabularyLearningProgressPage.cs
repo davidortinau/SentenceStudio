@@ -4,6 +4,7 @@ using SentenceStudio.Helpers;
 using System.Collections.ObjectModel;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.VocabularyProgress;
 
@@ -157,7 +158,24 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     [Inject] VocabularyProgressService _progressService;
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] VocabularyLearningContextRepository _contextRepo;
+    [Inject] NativeThemeService _themeService;
     LocalizationManager _localize => LocalizationManager.Instance;
+
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
     public override VisualNode Render()
     {
@@ -171,6 +189,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     RenderVocabularyCollectionView()
                 ).Padding(16)
         )
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadData)
         .OnSizeChanged(() => OnPageSizeChanged());
     }

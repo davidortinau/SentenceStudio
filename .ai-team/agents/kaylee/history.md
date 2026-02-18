@@ -183,3 +183,10 @@
 
 **Build status:** ✅ Builds successfully (0 errors, 84 warnings — all pre-existing)
 
+
+### 2026-02-18: Segmented toggles + Bootstrap form styling
+
+**Patterns established:**
+- `src/SentenceStudio/Pages/Controls/SegmentedButtonGroup.cs` — reusable two-button segmented control with outer rounded border and inner divider; use `.Left(...)`, `.Right(...)`, `.CornerRadius(...)`, and `.Margin(...)` props.
+- Forms in resource, vocabulary, and skill detail pages use `Entry`/`Editor` with `.Class("form-control")` and `Picker` with `.Class("form-select")` directly (no wrapping `Border`).
+- Vocabulary management tag pills now use Bootstrap badge styling (`Border().Class("badge").Class("bg-primary")` with `Label().Class("on-primary").Small()`).

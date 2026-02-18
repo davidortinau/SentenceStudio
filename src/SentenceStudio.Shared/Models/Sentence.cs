@@ -14,7 +14,7 @@ public partial class Sentence : ObservableObject
 
     [ObservableProperty]
     private double _accuracy;
-    
+
     [ObservableProperty]
     private string? _accuracyExplanation;
 
@@ -23,21 +23,20 @@ public partial class Sentence : ObservableObject
 
     [ObservableProperty]
     private string? _fluencyExplanation;
-    
+
     [ObservableProperty]
     private string? _recommendedSentence;
 
     [ObservableProperty]
     private bool _isGrading;
-    
+
     // Other properties
     public string? GrammarNotes { get; set; }
-    public List<GrammarCorrectionDto>? GrammarCorrections { get; set; }
     public List<string>? Vocabulary { get; set; }
 
     // Constructors
     public Sentence() { }
-    
+
     public Sentence(string problem)
     {
         Problem = problem;

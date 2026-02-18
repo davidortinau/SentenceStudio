@@ -4,6 +4,7 @@ using SentenceStudio.Helpers;
 using UXDivers.Popups;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Pages.LearningResources;
 
@@ -29,6 +30,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     [Inject] LearningResourceRepository _resourceRepo;
     [Inject] UserProfileRepository _userProfileRepo;
     [Inject] ILogger<ListLearningResourcesPage> _logger;
+    [Inject] NativeThemeService _themeService;
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
@@ -38,13 +40,29 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
 
 
+
+    protected override void OnMounted()
+    {
+        _themeService.ThemeChanged += OnThemeChanged;
+        base.OnMounted();
+    }
+
+
+    protected override void OnWillUnmount()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        base.OnWillUnmount();
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
+
     public override VisualNode Render()
     {
         var theme = BootstrapTheme.Current;
 
         return ContentPage($"{_localize["LearningResources"]}",
             ToolbarItem().Order(ToolbarItemOrder.Primary).Text($"{_localize["Add"]}")
-                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, Colors.White, 20))
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
                 .OnClicked(ViewVocabularyProgress),
@@ -61,11 +79,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 .Margin(16)
                                 .GridRow(1)
                                 .SelectionMode(SelectionMode.None)
+                                .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
                                 .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                                     GridLayoutHelper.CalculateResponsiveLayout(
-                                        desiredItemWidth: 350,
+                                        desiredItemWidth: 300,
                                         orientation: ItemsLayoutOrientation.Vertical,
-                                        maxColumns: 3))
+                                        maxColumns: 4))
                                 .ItemsSource(State.Resources, RenderResourceItem)
                                 .EmptyView(
                                     VStack(
@@ -114,6 +133,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                         ) // Grid
                         .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )// contentpage
+        .BackgroundColor(BootstrapTheme.Current.GetBackground())
         .OnAppearing(LoadResources);
     }
 
@@ -122,46 +142,30 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         var theme = BootstrapTheme.Current;
 
         return Border(
-            Grid(rows: "Auto, Auto", columns: "Auto, *, Auto",
+            HStack(spacing: 12,
                 // Icon based on media type
                 Image()
                     .Source(GetBootstrapIconForMediaType(resource.MediaType, theme))
-                    .VCenter()
-                    .HCenter()
-                    .GridColumn(0)
-                    .GridRowSpan(2),
+                    .VStart(),
 
-                // Title and info
-                Label(resource.Title)
-                    .H5()
-                    .GridColumn(1)
-                    .GridRow(0)
-                    .LineBreakMode(LineBreakMode.TailTruncation),
-
-                // Metadata line
-                Label($"{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
-                    .Small()
-                    .Muted()
-                    .GridColumn(1)
-                    .GridRow(1),
-
-                // Date
-                Label(resource.CreatedAt.ToString("d"))
-                    .Small()
-                    .Muted()
-                    .HEnd()
-                    .GridColumn(2)
-                    .GridRowSpan(2)
-                    .VCenter()
+                // Title + metadata stacked
+                VStack(spacing: 4,
+                    Label(resource.Title)
+                        .H6()
+                        .LineBreakMode(LineBreakMode.TailTruncation)
+                        .MaxLines(1),
+                    Label($"{resource.MediaType} • {resource.Language} • {resource.CreatedAt:d}{(resource.IsSmartResource ? " • Auto" : "")}")
+                        .Small()
+                        .Muted()
+                        .LineBreakMode(LineBreakMode.TailTruncation)
+                        .MaxLines(1)
+                ).HFill()
             )
-            .Padding(8)
-            .ColumnSpacing(24).RowSpacing(4)
+            .Padding(12)
             .OnTapped(() => ViewResource(resource.Id))
         )
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Margin(new Thickness(8, 4));
+        .Class("card")
+        .Margin(0);
     }
 
     static ImageSource GetBootstrapIconForMediaType(string mediaType, BootstrapTheme theme)
@@ -182,34 +186,19 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         var theme = BootstrapTheme.Current;
 
         return Grid(rows: "Auto", columns: "*,Auto,Auto",
-            Border(
-                HStack(
-                    Image()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
-                        .HeightRequest(16)
-                        .WidthRequest(16),
-                    Entry()
-                        .Placeholder($"{_localize["Search"]}...")
-                        .Text(State.SearchText)
-                        .OnTextChanged(text =>
-                        {
-                            SetState(s => s.SearchText = text);
-                            SearchResources();
-                        })
-                        .Small()
-                        .VCenter()
-                        .HFill()
-                )
-                .Spacing(8)
-                .Padding(new Thickness(12, 0))
-            )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(27))
-            .HeightRequest(44)
-            .GridColumn(0)
-            .VStart(),
+            Entry()
+                .Placeholder($"{_localize["Search"]}...")
+                .Text(State.SearchText)
+                .OnTextChanged(text =>
+                {
+                    SetState(s => s.SearchText = text);
+                    SearchResources();
+                })
+                .Class("form-control")
+                .HeightRequest(44)
+                .HFill()
+                .GridColumn(0)
+                .VStart(),
 
             // Type filter icon
             ImageButton()
