@@ -189,10 +189,18 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
     private VisualNode RenderEmptyState()
     {
-        return Label($"{_localize["MinimalPairsEmptyState"]}")
-            .FontSize(14)
-            .Center()
-            .GridRow(1);
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
+            Label($"{_localize["MinimalPairsEmptyState"]}")
+                .FontSize(14)
+                .HCenter(),
+            Button($"{_localize["CreateYourFirstPair"]}")
+                .OnClicked(() => OnCreatePair())
+                .Primary()
+                .HCenter()
+        )
+        .Center()
+        .GridRow(1);
     }
 
     private VisualNode RenderPairList()

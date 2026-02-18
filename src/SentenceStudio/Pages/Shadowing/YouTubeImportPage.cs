@@ -48,6 +48,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                             .Text(State.VideoUrl)
                             .Placeholder($"{_localize["YouTubeURL"]}")
                             .OnTextChanged((url) => SetState(s => s.VideoUrl = url))
+                            .OnCompleted(FetchTranscriptsAsync)
                     )
                         .BackgroundColor(BootstrapTheme.Current.GetSurface())
                         .Stroke(BootstrapTheme.Current.GetOutline())

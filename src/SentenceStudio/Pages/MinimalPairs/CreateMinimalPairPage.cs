@@ -101,7 +101,8 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                 State.SelectedWordA.TargetLanguageTerm,
                 State.SelectedWordB.TargetLanguageTerm);
 
-            // Navigate back with success
+            // Show success toast and navigate back
+            await AppShell.DisplayToastAsync($"{_localize["MinimalPairCreatedSuccess"]}");
             await MauiControls.Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)

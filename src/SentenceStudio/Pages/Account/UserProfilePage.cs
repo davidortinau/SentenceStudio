@@ -25,6 +25,8 @@ class UserProfilePageState
     public int DisplayLanguageIndex { get; internal set; }
     public int ProfileID { get; internal set; }
 
+    public bool IsLoading { get; set; } = true;
+
     // Export-related properties
     public bool IsExporting { get; set; } = false;
     public string ExportProgressMessage { get; set; } = string.Empty;
@@ -46,7 +48,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
         return ContentPage($"{_localize["UserProfile"]}",
             ToolbarItem($"{_localize["Reset"]}").OnClicked(Reset),
-            VScrollView(
+            State.IsLoading
+            ? Grid(
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Center()
+              )
+            : VScrollView(
                 VStack(spacing: 12,
 
                     // Personal Information Card
@@ -273,6 +281,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
     async Task LoadProfile()
     {
+        SetState(s => s.IsLoading = true);
         var profile = await _userProfileRepository.GetOrCreateDefaultAsync();
 
         // Map minutes to index
@@ -302,6 +311,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
             s.NativeLanguageIndex = Array.IndexOf(Constants.Languages, profile.NativeLanguage);
             s.TargetLanguageIndex = Array.IndexOf(Constants.Languages, profile.TargetLanguage);
             s.DisplayLanguageIndex = Array.IndexOf(DisplayLanguages, profile.DisplayLanguage);
+            s.IsLoading = false;
         });
     }
     async Task Save()

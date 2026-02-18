@@ -18,6 +18,7 @@ class WritingPageState
     public string UserMeaning { get; set; }
     public List<Sentence> Sentences { get; set; } = [];
     public List<VocabularyWord> VocabBlocks { get; set; } = [];
+    public string EmptyMessage { get; set; } = string.Empty;
 }
 
 partial class WritingPage : Component<WritingPageState, ActivityProps>
@@ -33,6 +34,22 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 
     public override VisualNode Render()
     {
+        if (!string.IsNullOrEmpty(State.EmptyMessage))
+        {
+            return ContentPage($"{_localize["Writing"]}",
+                VStack(
+                    Label(State.EmptyMessage)
+                        .HCenter(),
+                    Button($"{_localize["GoBack"]}")
+                        .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
+                        .HCenter()
+                )
+                .VCenter()
+                .HCenter()
+                .Spacing(16)
+            );
+        }
+
         return ContentPage($"{_localize["Writing"]}",
             ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadVocabulary),
             Grid("Auto,*,Auto", "",
@@ -82,7 +99,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     VisualNode InputUI()
     {
         var theme = BootstrapTheme.Current;
-        return Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
+        return Grid(rows: "Auto,Auto,Auto", columns: "*,Auto,Auto",
             ScrollView(
                 VStack(spacing: 40,
                     Label(_localize["ChooseAVocabularyWord"])
@@ -99,7 +116,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                         )
                     )
                 )
-            ).GridColumnSpan(2),
+            ).GridColumnSpan(3),
 
             Border(
                 Entry()
@@ -125,7 +142,13 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 .WidthRequest(44)
                 .HeightRequest(44)
                 .GridRow(1)
-                .GridColumn(1)
+                .GridColumn(1),
+
+            Button("Grade")
+                .ThemeKey(MyTheme.PrimaryButton)
+                .OnClicked(GradeMe)
+                .GridRow(1)
+                .GridColumn(2)
 
         ).GridRow(2)
         .Padding(16)
@@ -181,17 +204,21 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 else
                 {
                     // Fallback to empty list if no vocabulary available
-                    SetState(s => s.VocabBlocks = new List<VocabularyWord>());
-
-                    // Show message to user
-                    await AppShell.DisplayToastAsync("No vocabulary available in the selected resource");
+                    SetState(s =>
+                    {
+                        s.VocabBlocks = new List<VocabularyWord>();
+                        s.EmptyMessage = $"{_localize["NoVocabularyInResource"]}";
+                    });
                 }
             }
             else
             {
                 // No resource selected or invalid ID
-                SetState(s => s.VocabBlocks = new List<VocabularyWord>());
-                await AppShell.DisplayToastAsync("Please select a valid learning resource");
+                SetState(s =>
+                {
+                    s.VocabBlocks = new List<VocabularyWord>();
+                    s.EmptyMessage = $"{_localize["SelectValidLearningResource"]}";
+                });
             }
         }
         finally
@@ -279,8 +306,10 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         var theme = BootstrapTheme.Current;
         return Grid("", columns: "*,*,*,*",
             Label(sentence.Answer).GridColumn(0),
-            Label(sentence.Accuracy.ToString()).Center().GridColumn(1),
-            Label(sentence.Fluency.ToString()).Center().GridColumn(2),
+            Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
+                .TextColor(ScoreColor(sentence.Accuracy, theme)),
+            Label(sentence.Fluency.ToString()).Center().GridColumn(2)
+                .TextColor(ScoreColor(sentence.Fluency, theme)),
             HStack(spacing: 4,
                 Button()
                     .Background(Colors.Transparent)
@@ -317,10 +346,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             Grid("", columns: "*,*",
                 Label(sentence.Answer).VCenter().GridColumn(0),
                 Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
+                    .TextColor(ScoreColor(sentence.Accuracy, theme))
             )
             .Background(new SolidColorBrush(theme.GetSurface()))
         );
     }
+
+    static Color ScoreColor(double score, BootstrapTheme theme) =>
+        score >= 80 ? theme.Success :
+        score >= 50 ? theme.Warning :
+        theme.Danger;
 
     async Task ShowExplanation(Sentence sentence)
     {

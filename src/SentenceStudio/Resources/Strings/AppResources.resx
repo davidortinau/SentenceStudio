@@ -161,6 +161,10 @@
     <value>Conversation</value>
     <comment/>
   </data>
+  <data name="StartingConversation" xml:space="preserve">
+    <value>Starting conversation...</value>
+    <comment/>
+  </data>
   <data name="Translate" xml:space="preserve">
     <value>Translation</value>
     <comment/>
@@ -2194,5 +2198,32 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   </data>
   <data name="GrammarNotes" xml:space="preserve">
     <value>Grammar Notes</value>
+  </data>
+  <data name="NotFound" xml:space="preserve">
+    <value>Not Found</value>
+  </data>
+  <data name="SkillProfileNotFound" xml:space="preserve">
+    <value>Skill profile not found.</value>
+  </data>
+  <data name="DeleteSkillProfile" xml:space="preserve">
+    <value>Delete Skill Profile</value>
+  </data>
+  <data name="DeleteSkillProfileConfirm" xml:space="preserve">
+    <value>Are you sure you want to delete this skill profile?</value>
+  </data>
+  <data name="MinimalPairCreatedSuccess" xml:space="preserve">
+    <value>Minimal pair created successfully!</value>
+  </data>
+  <data name="CreateYourFirstPair" xml:space="preserve">
+    <value>Create Your First Pair</value>
+  </data>
+  <data name="NoVocabularyInResource" xml:space="preserve">
+    <value>No vocabulary available in the selected resource. Go back and choose a resource with vocabulary.</value>
+  </data>
+  <data name="SelectValidLearningResource" xml:space="preserve">
+    <value>Please select a valid learning resource to practice writing.</value>
+  </data>
+  <data name="InYourVocabulary" xml:space="preserve">
+    <value>In your vocabulary</value>
   </data>
 </root>

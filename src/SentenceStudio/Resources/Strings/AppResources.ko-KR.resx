@@ -161,6 +161,10 @@
     <value>대화</value>
     <comment/>
   </data>
+  <data name="StartingConversation" xml:space="preserve">
+    <value>대화 시작 중...</value>
+    <comment/>
+  </data>
   <data name="Translate" xml:space="preserve">
     <value>번역하기</value>
     <comment/>
@@ -1950,5 +1954,32 @@
   </data>
   <data name="GrammarNotes" xml:space="preserve">
     <value>문법 노트</value>
+  </data>
+  <data name="NotFound" xml:space="preserve">
+    <value>찾을 수 없음</value>
+  </data>
+  <data name="SkillProfileNotFound" xml:space="preserve">
+    <value>스킬 프로필을 찾을 수 없습니다.</value>
+  </data>
+  <data name="DeleteSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 삭제</value>
+  </data>
+  <data name="DeleteSkillProfileConfirm" xml:space="preserve">
+    <value>이 스킬 프로필을 삭제하시겠습니까?</value>
+  </data>
+  <data name="MinimalPairCreatedSuccess" xml:space="preserve">
+    <value>최소쌍이 성공적으로 생성되었습니다!</value>
+  </data>
+  <data name="CreateYourFirstPair" xml:space="preserve">
+    <value>첫 번째 쌍 만들기</value>
+  </data>
+  <data name="NoVocabularyInResource" xml:space="preserve">
+    <value>선택한 학습 자료에 어휘가 없습니다. 뒤로 돌아가서 어휘가 있는 자료를 선택하세요.</value>
+  </data>
+  <data name="SelectValidLearningResource" xml:space="preserve">
+    <value>작문 연습을 위해 유효한 학습 자료를 선택하세요.</value>
+  </data>
+  <data name="InYourVocabulary" xml:space="preserve">
+    <value>내 단어장에 있음</value>
   </data>
 </root>
