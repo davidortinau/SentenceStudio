@@ -190,9 +190,12 @@ public partial class OnboardingPage : Component<OnboardingState>
         var maxScreens = screens.Length - 1;
         return ContentPage($"{_localize["MyProfile"]}",
 
-                Grid(rows: "*, Auto", "",
+                Grid(rows: "*, Auto, Auto", "",
                     // Render the current screen directly
                     screens[State.CurrentPosition],
+
+                    // Step indicator dots
+                    RenderStepIndicator(screens.Length).GridRow(1),
 
                     // Only show navigation buttons if NOT on final step with starter content options
                     !(State.CurrentPosition == maxScreens && State.ShowCreateStarterOption) ?
@@ -215,12 +218,31 @@ public partial class OnboardingPage : Component<OnboardingState>
                                 .OnClicked(End)
                         )
                         .ColumnSpacing(8)
-                        .GridRow(1)
+                        .GridRow(2)
                         .RowSpacing(24) :
                     null
                 )
                 .Padding(16)
             );
+    }
+
+    VisualNode RenderStepIndicator(int totalSteps)
+    {
+        var theme = BootstrapTheme.Current;
+        return HStack(spacing: 8,
+            Enumerable.Range(0, totalSteps).Select(index =>
+                (VisualNode)Border(
+                    ContentView()
+                )
+                .WidthRequest(index == State.CurrentPosition ? 24 : 8)
+                .HeightRequest(8)
+                .BackgroundColor(index <= State.CurrentPosition ? theme.Primary : theme.GetOutline())
+                .StrokeThickness(0)
+                .StrokeShape(new RoundRectangle().CornerRadius(4))
+            ).ToArray()
+        )
+        .HCenter()
+        .Margin(0, 8);
     }
 
     VisualNode RenderWelcomeStep() =>

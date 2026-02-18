@@ -94,6 +94,7 @@ class VocabularyQuizPageState
     public int TotalSets { get; set; } = 1;
     public bool ShowCorrectAnswer { get; set; }
     public bool IsAutoAdvancing { get; set; } // Show auto-advance progress
+    public bool IsCardTransitioning { get; set; } // Card flip animation state
 
     // ========================================================================
     // ROUND-BASED SESSION MANAGEMENT
@@ -529,14 +530,9 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .Center()
                 .TextColor(theme.Warning)
                 .IsVisible(State.RequireCorrectTyping)
-
-        // Auto-advance countdown for multiple choice
-        // Label($"Next question in {State.AutoAdvanceCountdown}...")
-        //     .FontSize(14)
-        //     .Center()
-        //     .TextColor(theme.Info)
-        //     .IsVisible(State.IsAutoAdvancing)
         )
+        .WithAnimation(Easing.CubicInOut, 200)
+        .Opacity(State.IsCardTransitioning ? 0 : 1)
         .Margin(24)
         .GridRow(0)
         // Allow manual advance by tapping during countdown
@@ -718,6 +714,10 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             _logger.LogDebug("📝 Generated {OptionCount} options for {NativeTerm}", newOptions.Length, item.Word.NativeLanguageTerm);
         }
 
+        // Card flip animation: fade out before swapping content
+        SetState(s => s.IsCardTransitioning = true);
+        await Task.Delay(200);
+
         // Reset state for new item - now includes options in same state update
         SetState(s =>
         {
@@ -734,6 +734,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             s.UserMode = GetUserModeForItem(item); // Enhanced mode determination
             s.IsAutoAdvancing = false; // Reset auto-advance state
             s.ChoiceOptions = newOptions; // CRITICAL: Set options atomically with term
+            s.IsCardTransitioning = false; // Fade back in with new content
         });
 
         // Enhanced tracking: Start response timer

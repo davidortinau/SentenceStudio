@@ -1133,6 +1133,18 @@
     <value>Session Results</value>
     <comment>Session results title</comment>
   </data>
+  <data name="Graded" xml:space="preserve">
+    <value>Graded</value>
+    <comment>Number of items graded in session</comment>
+  </data>
+  <data name="AvgAccuracy" xml:space="preserve">
+    <value>Avg Accuracy</value>
+    <comment>Average accuracy percentage label</comment>
+  </data>
+  <data name="AvgFluency" xml:space="preserve">
+    <value>Avg Fluency</value>
+    <comment>Average fluency percentage label</comment>
+  </data>
   <data name="Correct" xml:space="preserve">
     <value>Correct</value>
     <comment>Correct label</comment>

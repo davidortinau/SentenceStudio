@@ -104,10 +104,67 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 .FontSize(18),
             sentence.IsGrading 
                 ? Label("Grading...").FontSize(12).Muted()
-                : Label($"Accuracy: {sentence.Accuracy}").FontSize(12)
+                : Label($"Accuracy: {sentence.Accuracy}").FontSize(12),
+            !sentence.IsGrading && sentence.GrammarCorrections?.Count > 0
+                ? RenderGrammarCorrections(sentence.GrammarCorrections)
+                : null
         )
         .Padding(16)
         .OnTapped(() => { if (!sentence.IsGrading) ShowExplanation(sentence); });
+
+    VisualNode RenderGrammarCorrections(List<GrammarCorrectionDto> corrections)
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(
+            BoxView()
+                .HeightRequest(1)
+                .BackgroundColor(theme.OnSurface.WithAlpha(0.2f))
+                .Margin(new Thickness(0, 8, 0, 4)),
+            corrections.Select(c =>
+                (VisualNode)VStack(
+                    HStack(
+                        Label(c.Original)
+                            .FontSize(12)
+                            .TextColor(theme.Danger)
+                            .TextDecorations(TextDecorations.Strikethrough),
+                        Label(" -> ")
+                            .FontSize(12)
+                            .TextColor(theme.OnSurface.WithAlpha(0.6f)),
+                        Label(c.Corrected)
+                            .FontSize(12)
+                            .TextColor(theme.Success)
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    )
+                    .Spacing(2),
+                    !string.IsNullOrEmpty(c.Explanation) ?
+                        Label(c.Explanation)
+                            .FontSize(11)
+                            .TextColor(theme.OnSurface.WithAlpha(0.5f))
+                            .Margin(new Thickness(0, 2, 0, 0))
+                        : null
+                )
+                .Spacing(0)
+            ).ToArray()
+        )
+        .Spacing(4);
+    }
+
+    List<GrammarCorrectionDto> BuildGrammarCorrections(GradeResponse grade)
+    {
+        var corrections = new List<GrammarCorrectionDto>();
+        if (grade.GrammarNotes != null &&
+            !string.IsNullOrEmpty(grade.GrammarNotes.OriginalSentence) &&
+            !string.IsNullOrEmpty(grade.GrammarNotes.RecommendedTranslation))
+        {
+            corrections.Add(new GrammarCorrectionDto
+            {
+                Original = grade.GrammarNotes.OriginalSentence,
+                Corrected = grade.GrammarNotes.RecommendedTranslation,
+                Explanation = grade.GrammarNotes.Explanation ?? string.Empty
+            });
+        }
+        return corrections;
+    }
 
     VisualNode RenderInput()
     {
@@ -419,7 +476,8 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 AccuracyExplanation = grade.AccuracyExplanation,
                 // RecommendedTranslation is inside GrammarNotes from the AI response
                 RecommendedSentence = grade.GrammarNotes?.RecommendedTranslation ?? grade.RecommendedTranslation,
-                GrammarNotes = grade.GrammarNotes?.Explanation
+                GrammarNotes = grade.GrammarNotes?.Explanation,
+                GrammarCorrections = BuildGrammarCorrections(grade)
             };
 
             // Track user activity (legacy)

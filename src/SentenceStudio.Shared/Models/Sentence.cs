@@ -32,6 +32,7 @@ public partial class Sentence : ObservableObject
     
     // Other properties
     public string? GrammarNotes { get; set; }
+    public List<GrammarCorrectionDto>? GrammarCorrections { get; set; }
     public List<string>? Vocabulary { get; set; }
 
     // Constructors

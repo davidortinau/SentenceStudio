@@ -289,12 +289,14 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .VCenter()
                 .TextColor(GetTileTextColor(tile))
         )
+        .WithAnimation(Easing.CubicInOut, 300)
         .Background(GetTileBackgroundColor(tile))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
         .StrokeThickness(1)
         .Stroke(GetTileBorderColor(tile))
         .OnTapped(() => OnTileTapped(tile))
-        .Opacity(tile.IsMatched ? 0.3 : 1.0)
+        .Opacity(tile.IsMatched ? 0.0 : 1.0)
+        .Scale(tile.IsMatched ? 0.8 : 1.0)
         .GridRow(row)
         .GridColumn(col);
     }
@@ -305,7 +307,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         var theme = BootstrapTheme.Current;
         if (tile.IsMatched)
-            return theme.GetOutline();
+            return theme.Success.WithAlpha(0.3f);
         if (tile.IsSelected)
             return theme.Primary;
         if (tile.Language == "native")
@@ -331,7 +333,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
         if (tile.IsSelected)
             return theme.Primary;
         if (tile.IsMatched)
-            return theme.GetOutline();
+            return theme.Success;
         return theme.GetOutline();
     }
 

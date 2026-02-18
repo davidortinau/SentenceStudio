@@ -59,6 +59,12 @@ class TranslationPageState
     public string FeedbackType { get; set; } // "success", "info", "hint", "achievement"
     public bool ShowFeedback { get; set; }
     public string TargetLanguage { get; set; } = "Korean"; // Default, will be set from resource or user profile
+
+    // Session summary tracking
+    public bool ShowSessionSummary { get; set; }
+    public int SessionGradedCount { get; set; }
+    public double SessionAccuracySum { get; set; }
+    public double SessionFluencySum { get; set; }
 }
 
 partial class TranslationPage : Component<TranslationPageState, ActivityProps>
@@ -92,7 +98,9 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
                 RenderBottomNavigation(),
 
-                RenderLoadingOverlay()
+                RenderLoadingOverlay(),
+
+                RenderSessionSummary()
             )
         )
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
@@ -110,6 +118,100 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             .Background(Color.FromArgb("#80000000"))
             .GridRowSpan(2)
             .IsVisible(State.IsBusy);
+    }
+
+    VisualNode RenderSessionSummary()
+    {
+        var theme = BootstrapTheme.Current;
+        var avgAccuracy = State.SessionGradedCount > 0
+            ? (int)(State.SessionAccuracySum / State.SessionGradedCount) : 0;
+        var avgFluency = State.SessionGradedCount > 0
+            ? (int)(State.SessionFluencySum / State.SessionGradedCount) : 0;
+
+        return Grid(
+            ScrollView(
+                VStack(spacing: 16,
+                    // Check icon
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, theme.Success, 48))
+                        .HCenter(),
+
+                    // Header
+                    Label($"{_localize["SessionComplete"]}")
+                        .H3()
+                        .TextColor(theme.Primary)
+                        .Center(),
+
+                    // Stats card
+                    Border(
+                        VStack(spacing: 8,
+                            Label($"{_localize["SessionResults"]}")
+                                .H5()
+                                .Center()
+                                .TextColor(theme.Primary),
+
+                            HStack(spacing: 24,
+                                VStack(spacing: 4,
+                                    Label($"{State.SessionGradedCount}")
+                                        .H4()
+                                        .TextColor(theme.GetOnBackground())
+                                        .Center(),
+                                    Label($"{_localize["Graded"]}")
+                                        .FontSize(14)
+                                        .Center()
+                                        .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
+                                ),
+                                VStack(spacing: 4,
+                                    Label($"{avgAccuracy}%")
+                                        .H4()
+                                        .TextColor(theme.Success)
+                                        .Center(),
+                                    Label($"{_localize["AvgAccuracy"]}")
+                                        .FontSize(14)
+                                        .Center()
+                                        .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
+                                ),
+                                VStack(spacing: 4,
+                                    Label($"{avgFluency}%")
+                                        .H4()
+                                        .TextColor(theme.Primary)
+                                        .Center(),
+                                    Label($"{_localize["AvgFluency"]}")
+                                        .FontSize(14)
+                                        .Center()
+                                        .TextColor(theme.GetOnBackground().WithAlpha(0.6f))
+                                )
+                            ).Center()
+                        )
+                        .Padding(16)
+                    )
+                    .BackgroundColor(theme.GetSurface())
+                    .Stroke(theme.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Margin(0, 16),
+
+                    // Action buttons
+                    Button($"{_localize["ContinuePractice"]}")
+                        .OnClicked(ContinuePractice)
+                        .Background(new SolidColorBrush(theme.Primary))
+                        .TextColor(Colors.White)
+                        .CornerRadius(8)
+                        .Padding(24, 16),
+
+                    Button($"{_localize["Done"]}")
+                        .OnClicked(DoneWithSession)
+                        .Background(new SolidColorBrush(theme.GetSurface()))
+                        .TextColor(theme.GetOnSurface())
+                        .CornerRadius(8)
+                        .Padding(24, 16)
+                )
+                .Padding(new Thickness(16))
+            )
+        )
+        .Background(theme.GetBackground())
+        .GridRowSpan(2)
+        .IsVisible(State.ShowSessionSummary);
     }
 
     VisualNode RenderSentenceContent()
@@ -497,6 +599,9 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 s.FeedbackType = feedbackType;
                 s.ShowFeedback = true;
                 s.IsBusy = false;
+                s.SessionGradedCount++;
+                s.SessionAccuracySum += feedback.Accuracy;
+                s.SessionFluencySum += feedback.Fluency;
             });
         }
         catch (Exception ex)
@@ -544,6 +649,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         {
             _currentSentenceIndex++;
             SetCurrentSentence();
+        }
+        else
+        {
+            // All sentences completed - show session summary
+            SetState(s => s.ShowSessionSummary = true);
         }
     }
 
@@ -1167,6 +1277,25 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
         _logger.LogDebug("TranslationPage: Word '{TargetTerm}' marked incorrect (accuracy: {Accuracy}%, mode: {UserMode})", word.TargetLanguageTerm, grade?.Accuracy, State.UserMode);
         return false;
+    }
+
+    async void ContinuePractice()
+    {
+        SetState(s =>
+        {
+            s.ShowSessionSummary = false;
+            s.SessionGradedCount = 0;
+            s.SessionAccuracySum = 0;
+            s.SessionFluencySum = 0;
+            s.Sentences.Clear();
+        });
+        _currentSentenceIndex = 0;
+        await LoadSentences();
+    }
+
+    async void DoneWithSession()
+    {
+        await MauiControls.Shell.Current.GoToAsync("..");
     }
 
     protected override void OnMounted()

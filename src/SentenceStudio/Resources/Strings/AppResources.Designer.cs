@@ -427,6 +427,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Avg Accuracy.
+        /// </summary>
+        internal static string AvgAccuracy {
+            get {
+                return ResourceManager.GetString("AvgAccuracy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Avg Fluency.
+        /// </summary>
+        internal static string AvgFluency {
+            get {
+                return ResourceManager.GetString("AvgFluency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Back.
         /// </summary>
         internal static string Back {
@@ -1413,6 +1431,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string GoodNowContinue {
             get {
                 return ResourceManager.GetString("GoodNowContinue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Graded.
+        /// </summary>
+        internal static string Graded {
+            get {
+                return ResourceManager.GetString("Graded", resourceCulture);
             }
         }
         

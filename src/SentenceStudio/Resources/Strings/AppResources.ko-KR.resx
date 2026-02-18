@@ -1022,8 +1022,20 @@
     <comment>Session complete message</comment>
   </data>
   <data name="SessionResults" xml:space="preserve">
-    <value>📊 세션 결과</value>
+    <value>세션 결과</value>
     <comment>Session results title</comment>
+  </data>
+  <data name="Graded" xml:space="preserve">
+    <value>채점 완료</value>
+    <comment>Number of items graded in session</comment>
+  </data>
+  <data name="AvgAccuracy" xml:space="preserve">
+    <value>평균 정확도</value>
+    <comment>Average accuracy percentage label</comment>
+  </data>
+  <data name="AvgFluency" xml:space="preserve">
+    <value>평균 유창성</value>
+    <comment>Average fluency percentage label</comment>
   </data>
   <data name="Correct" xml:space="preserve">
     <value>정답</value>
