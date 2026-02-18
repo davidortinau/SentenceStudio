@@ -1,4 +1,4 @@
-﻿global using System;
+global using System;
 
 global using Microsoft.Maui;
 global using Microsoft.Maui.Controls;
@@ -31,4 +31,5 @@ global using System.IO;
 global using System.Linq;
 global using Fonts;
 global using MauiBootstrapTheme.Reactor;
+global using MauiBootstrapTheme.Theming;
 global using IconFont.Maui.BootstrapIcons;

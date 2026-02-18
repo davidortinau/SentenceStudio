@@ -143,7 +143,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     RenderModeToggle(),
                     State.IsTodaysPlanMode ? RenderTodaysPlanMode() : RenderChooseOwnMode()
                 )
-                .Padding(12)
+                .Padding(16)
             )
             .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         )
@@ -168,33 +168,62 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderModeToggle()
     {
-        // Bootstrap button group - two buttons side by side
-        return HStack(spacing: 0,
-            Button()
-                .Text($"{BootstrapIcons.CalendarCheck} {_localize["ModeTodaysPlan"]}")
-                .Primary()
-                .When(!State.IsTodaysPlanMode, b => b.Outlined())
-                .HeightRequest(44)
-                .HFill()
-                .OnClicked(() =>
+        // Bootstrap btn-group: active = btn-ss-primary, inactive = btn-outline-secondary
+        return Grid("Auto", "*,*",
+            RenderToggleButton(
+                $"{_localize["ModeTodaysPlan"]}",
+                BootstrapIcons.CalendarCheck,
+                State.IsTodaysPlanMode,
+                () =>
                 {
                     SetState(st => st.IsTodaysPlanMode = true);
                     Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
                     _ = LoadTodaysPlanAsync();
-                }),
-            Button()
-                .Text($"{BootstrapIcons.Sliders} {_localize["ModeChooseOwn"]}")
-                .Primary()
-                .When(State.IsTodaysPlanMode, b => b.Outlined())
-                .HeightRequest(44)
-                .HFill()
-                .OnClicked(() =>
+                })
+                .GridColumn(0),
+            RenderToggleButton(
+                $"{_localize["ModeChooseOwn"]}",
+                BootstrapIcons.Sliders,
+                !State.IsTodaysPlanMode,
+                () =>
                 {
                     SetState(st => st.IsTodaysPlanMode = false);
                     Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
                 })
+                .GridColumn(1)
         )
+        .ColumnSpacing(0)
         .Margin(new Thickness(0, 0, 0, 16));
+    }
+
+    VisualNode RenderToggleButton(string text, string icon, bool isActive, Action onClicked)
+    {
+        var theme = BootstrapTheme.Current;
+        if (isActive)
+        {
+            return Button()
+                .Text(text)
+                .ImageSource(BootstrapIcons.Create(icon, Colors.White, 16))
+                .Background(new SolidColorBrush(theme.Primary))
+                .TextColor(Colors.White)
+                .BorderColor(theme.Primary)
+                .BorderWidth(1)
+                .CornerRadius(6)
+                .HeightRequest(44)
+                .HFill()
+                .OnClicked(onClicked);
+        }
+        return Button()
+            .Text(text)
+            .ImageSource(BootstrapIcons.Create(icon, theme.GetOnBackground(), 16))
+            .Background(new SolidColorBrush(Colors.Transparent))
+            .TextColor(theme.GetOnBackground())
+            .BorderColor(theme.GetOutline())
+            .BorderWidth(1)
+            .CornerRadius(6)
+            .HeightRequest(44)
+            .HFill()
+            .OnClicked(onClicked);
     }
 
     VisualNode RenderTodaysPlanMode()
@@ -239,10 +268,10 @@ partial class DashboardPage : Component<DashboardPageState>
                 .PaddingLevel(4)
                 .HCenter()
             )
-            .Background(BootstrapVariant.Light)
-            .ShadowSm()
-            .StrokeThickness(0)
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .BackgroundColor(BootstrapTheme.Current.GetSurface())
+            .Stroke(BootstrapTheme.Current.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Margin(new Thickness(0, 0, 0, 16));
         }
 
@@ -283,11 +312,12 @@ partial class DashboardPage : Component<DashboardPageState>
             VStack(spacing: 8,
                 Grid("Auto", "*,Auto",
                     Label("Today's Progress")
-                        .H6()
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold)
                         .GridColumn(0),
                     Label($"{plan.CompletedCount} / {plan.TotalCount}")
                         .Muted()
-                        .FontSize(14)
+                        .Small()
                         .GridColumn(1)
                 ),
                 ProgressBar()
@@ -303,10 +333,10 @@ partial class DashboardPage : Component<DashboardPageState>
             )
             .PaddingLevel(3)
         )
-        .Background(BootstrapVariant.Light)
-        .ShadowSm()
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .BackgroundColor(BootstrapTheme.Current.GetSurface())
+        .Stroke(BootstrapTheme.Current.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
         .Margin(new Thickness(0, 0, 0, 8));
     }
 
@@ -340,31 +370,32 @@ partial class DashboardPage : Component<DashboardPageState>
                     .VCenter(),
                 VStack(spacing: 4,
                     Label(GetActivityLabel(item.ActivityType))
-                        .H6()
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold)
                         .When(item.IsCompleted, l => l.TextDecorations(TextDecorations.Strikethrough)),
                     HStack(spacing: 4,
                         !string.IsNullOrEmpty(item.ResourceTitle)
                             ? Label(item.ResourceTitle)
                                 .Muted()
-                                .FontSize(14)
+                                .Small()
                             : null,
                         !string.IsNullOrEmpty(item.ResourceTitle)
                             ? Label("·")
                                 .Muted()
-                                .FontSize(14)
+                                .Small()
                             : null,
                         Label($"~{item.EstimatedMinutes} min")
                             .Muted()
-                            .FontSize(14),
+                            .Small(),
                         item.VocabDueCount.HasValue && item.VocabDueCount > 0
                             ? Label("·")
                                 .Muted()
-                                .FontSize(14)
+                                .Small()
                             : null,
                         item.VocabDueCount.HasValue && item.VocabDueCount > 0
                             ? Label($"{item.VocabDueCount} words")
                                 .Muted()
-                                .FontSize(14)
+                                .Small()
                             : null
                     )
                 )
@@ -378,10 +409,10 @@ partial class DashboardPage : Component<DashboardPageState>
             )
             .PaddingLevel(3)
         )
-        .Background(BootstrapVariant.Light)
-        .ShadowSm()
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .BackgroundColor(BootstrapTheme.Current.GetSurface())
+        .Stroke(BootstrapTheme.Current.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
         .When(item.IsCompleted, b => b.Opacity(0.75))
         .OnTapped(() => _ = OnPlanItemTapped(item));
     }
@@ -425,7 +456,8 @@ partial class DashboardPage : Component<DashboardPageState>
         return VStack(spacing: 16,
             RenderSelectors(),
             Label($"{_localize["Activities"]}")
-                .H4()
+                .H5()
+                .FontAttributes(FontAttributes.Bold)
                 .Margin(new Thickness(0, 8, 0, 8)),
             RenderActivityCards(),
             RenderVocabularyStats()
@@ -434,7 +466,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderSelectors()
     {
-        bool isDesktop = DeviceInfo.Idiom != DeviceIdiom.Phone && (State.Width / State.Density) >= 600;
+        var theme = BootstrapTheme.Current;
 
         var resourcePicker = Picker()
             .Title("Select resource")
@@ -452,52 +484,27 @@ partial class DashboardPage : Component<DashboardPageState>
             .HFill()
             .HeightRequest(44);
 
-        if (isDesktop)
-        {
-            return Border(
-                HStack(spacing: 16,
-                    VStack(spacing: 8,
-                        Label($"{_localize["LearningResources"]}")
-                            .H6(),
-                        resourcePicker
-                    )
-                    .HFill(),
-                    VStack(spacing: 8,
-                        Label($"{_localize["SkillProfile"]}")
-                            .H6(),
-                        skillPicker
-                    )
-                    .HFill()
-                )
-                .PaddingLevel(3)
-            )
-            .Background(BootstrapVariant.Light)
-            .ShadowSm()
-            .StrokeThickness(0)
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
-            .Margin(new Thickness(0, 0, 0, 16));
-        }
-
-        // Mobile - vertical stack
         return Border(
-            VStack(spacing: 12,
-                VStack(spacing: 8,
+            VStack(spacing: 16,
+                VStack(spacing: 4,
                     Label($"{_localize["LearningResources"]}")
-                        .H6(),
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold),
                     resourcePicker
                 ),
-                VStack(spacing: 8,
-                    Label($"{_localize["SkillProfile"]}")
-                        .H6(),
+                VStack(spacing: 4,
+                    Label($"{_localize["SkillProfiles"]}")
+                        .FontSize(14)
+                        .FontAttributes(FontAttributes.Bold),
                     skillPicker
                 )
             )
             .PaddingLevel(3)
         )
-        .Background(BootstrapVariant.Light)
-        .ShadowSm()
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
         .Margin(new Thickness(0, 0, 0, 16));
     }
 
@@ -520,8 +527,11 @@ partial class DashboardPage : Component<DashboardPageState>
 
         double screenWidth = State.Width / State.Density;
         int columns = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 3 : 2);
+        int rows = (int)Math.Ceiling((double)activities.Length / columns);
+        string rowDefs = string.Join(",", Enumerable.Repeat("Auto", rows));
+        string colDefs = string.Join(",", Enumerable.Repeat("*", columns));
 
-        return Grid($"Auto,Auto,Auto,Auto,Auto,Auto", Enumerable.Repeat("*", columns).Aggregate((a, b) => $"{a},{b}"),
+        return Grid(rowDefs, colDefs,
             activities.Select((activity, index) => 
                 RenderActivityCard(activity.Label, activity.Icon, activity.Route, activity.IsSpecial)
                     .GridRow(index / columns)
@@ -534,14 +544,17 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderActivityCard(string label, string icon, string route, bool isSpecial)
     {
+        var theme = BootstrapTheme.Current;
         return Border(
             VStack(spacing: 8,
                 Image()
-                    .Source(BootstrapIcons.Create(icon, BootstrapTheme.Current.Primary, 32))
-                    .HeightRequest(32)
+                    .Source(BootstrapIcons.Create(icon, theme.GetOnSurface(), 28))
+                    .HeightRequest(28)
                     .HCenter(),
                 Label(label)
-                    .H6()
+                    .FontSize(14)
+                    .FontAttributes(FontAttributes.Bold)
+                    .TextColor(theme.GetOnSurface())
                     .HCenter()
                     .HorizontalTextAlignment(TextAlignment.Center)
             )
@@ -549,10 +562,10 @@ partial class DashboardPage : Component<DashboardPageState>
             .HCenter()
             .VCenter()
         )
-        .Background(BootstrapVariant.Light)
-        .ShadowSm()
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
         .HeightRequest(120)
         .OnTapped(async () =>
         {
@@ -655,7 +668,8 @@ partial class DashboardPage : Component<DashboardPageState>
     {
         return VStack(spacing: 12,
             Label($"{_localize["VocabProgress"]}")
-                .H4()
+                .H5()
+                .FontAttributes(FontAttributes.Bold)
                 .Margin(new Thickness(0, 16, 0, 4)),
             State.IsLoadingProgress && !State.HasLoadedProgressOnce
                 ? VStack(spacing: 8,
@@ -677,10 +691,10 @@ partial class DashboardPage : Component<DashboardPageState>
                             .HCenter()
                             .PaddingLevel(4)
                     )
-                    .Background(BootstrapVariant.Light)
-                    .ShadowSm()
-                    .StrokeThickness(0)
-                    .StrokeShape(new RoundRectangle().CornerRadius(8))
+                    .BackgroundColor(BootstrapTheme.Current.GetSurface())
+                    .Stroke(BootstrapTheme.Current.GetOutline())
+                    .StrokeThickness(1)
+                    .StrokeShape(new RoundRectangle().CornerRadius(12))
                 )
         );
     }
@@ -694,7 +708,7 @@ partial class DashboardPage : Component<DashboardPageState>
         var total = summary.New + summary.Learning + summary.Review + summary.Known;
 
         double screenWidth = State.Width / State.Density;
-        int columns = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 4 : 2);
+        int columns = screenWidth >= 600 ? 4 : 2;
 
         return VStack(spacing: 12,
             Grid("Auto,Auto", Enumerable.Repeat("*", columns).Aggregate((a, b) => $"{a},{b}"),
@@ -705,10 +719,8 @@ partial class DashboardPage : Component<DashboardPageState>
                     .GridRow(0)
                     .GridColumn(1),
                 RenderVocabStatCard("Review", summary.Review, BootstrapVariant.Warning)
-                    .GridRow(0)
-                    .GridColumn(columns >= 4 ? 2 : 0)
-                    .GridRowSpan(columns >= 4 ? 1 : 1)
-                    .When(columns < 4, c => c.GridRow(1)),
+                    .GridRow(columns >= 4 ? 0 : 1)
+                    .GridColumn(columns >= 4 ? 2 : 0),
                 RenderVocabStatCard("Known", summary.Known, BootstrapVariant.Success)
                     .GridRow(columns >= 4 ? 0 : 1)
                     .GridColumn(columns >= 4 ? 3 : 1)
@@ -719,43 +731,48 @@ partial class DashboardPage : Component<DashboardPageState>
                 ? Border(
                     Grid("Auto", "*,Auto",
                         Label($"Total words: {total}")
-                            .H6()
+                            .FontSize(14)
+                            .FontAttributes(FontAttributes.Bold)
                             .GridColumn(0),
                         Label($"7-day accuracy: {Math.Round(summary.SuccessRate7d * 100)}%")
                             .Muted()
+                            .Small()
                             .GridColumn(1)
                     )
                     .PaddingLevel(3)
                 )
-                .Background(BootstrapVariant.Light)
-                .ShadowSm()
-                .StrokeThickness(0)
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .BackgroundColor(BootstrapTheme.Current.GetSurface())
+                .Stroke(BootstrapTheme.Current.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(12))
                 : null
         );
     }
 
     VisualNode RenderVocabStatCard(string label, int count, BootstrapVariant variant)
     {
+        var theme = BootstrapTheme.Current;
+        var numberColor = theme.GetVariantColor(variant);
         return Border(
             VStack(spacing: 4,
                 Label(count.ToString())
-                    .H3()
-                    .TextColor(variant)
+                    .FontSize(28)
+                    .FontAttributes(FontAttributes.Bold)
+                    .TextColor(numberColor)
                     .HCenter(),
                 Label(label)
                     .Muted()
-                    .FontSize(14)
+                    .Small()
                     .HCenter()
             )
             .PaddingLevel(3)
             .HCenter()
             .VCenter()
         )
-        .Background(BootstrapVariant.Light)
-        .ShadowSm()
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
         .OnTapped(() =>
         {
             var filterType = label switch
