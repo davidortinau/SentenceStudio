@@ -1982,4 +1982,10 @@
   <data name="InYourVocabulary" xml:space="preserve">
     <value>내 단어장에 있음</value>
   </data>
+  <data name="Send" xml:space="preserve">
+    <value>보내기</value>
+  </data>
+  <data name="LoadingSentences" xml:space="preserve">
+    <value>문장 불러오는 중...</value>
+  </data>
 </root>

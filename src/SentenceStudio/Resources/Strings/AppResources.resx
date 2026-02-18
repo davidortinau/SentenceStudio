@@ -2226,4 +2226,10 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="InYourVocabulary" xml:space="preserve">
     <value>In your vocabulary</value>
   </data>
+  <data name="Send" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="LoadingSentences" xml:space="preserve">
+    <value>Loading sentences...</value>
+  </data>
 </root>

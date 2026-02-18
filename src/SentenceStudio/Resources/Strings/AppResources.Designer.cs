@@ -1822,6 +1822,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Loading sentences....
+        /// </summary>
+        internal static string LoadingSentences {
+            get {
+                return ResourceManager.GetString("LoadingSentences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Loading vocabulary....
         /// </summary>
         internal static string LoadingVocabulary {
@@ -3598,6 +3607,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SelectVoice {
             get {
                 return ResourceManager.GetString("SelectVoice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Send.
+        /// </summary>
+        internal static string Send {
+            get {
+                return ResourceManager.GetString("Send", resourceCulture);
             }
         }
         

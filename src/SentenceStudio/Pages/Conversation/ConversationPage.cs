@@ -620,7 +620,8 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
     VisualNode RenderInput()
     {
         var theme = BootstrapTheme.Current;
-        return Grid("", "* Auto Auto Auto",
+        var isWaiting = State.IsBusy;
+        return Grid("", "* Auto Auto Auto Auto",
             Border(
                 Entry()
                     .Placeholder(GetInputPlaceholder())
@@ -632,7 +633,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     {
                         await SendMessage();
                     })
-            // .Bind(Entry.ReturnCommandProperty, nameof(ConversationPageModel.SendMessageCommand))
+                    .IsEnabled(!isWaiting)
             )
                 .Background(Colors.Transparent)
                 .Stroke(theme.GetOutline())
@@ -640,20 +641,29 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                 .Padding(new Thickness(16, 0))
                 .StrokeThickness(1)
                 .VEnd(),
-            ImageButton()
-                .Source(BootstrapIcons.Create(BootstrapIcons.DashLg, theme.GetOnBackground(), 20))
-                .OnClicked(DecreaseFontSize)
+            Button($"{_localize["Send"]}")
+                .Primary()
+                .IsEnabled(!isWaiting && !string.IsNullOrWhiteSpace(State.UserInput))
+                .OnClicked(async () => await SendMessage())
                 .VCenter()
                 .GridColumn(1),
             ImageButton()
-                .Source(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
-                .OnClicked(IncreaseFontSize)
+                .Source(BootstrapIcons.Create(BootstrapIcons.DashLg, theme.GetOnBackground(), 20))
+                .OnClicked(DecreaseFontSize)
+                .IsEnabled(!isWaiting)
                 .VCenter()
                 .GridColumn(2),
             ImageButton()
+                .Source(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
+                .OnClicked(IncreaseFontSize)
+                .IsEnabled(!isWaiting)
+                .VCenter()
+                .GridColumn(3),
+            ImageButton()
                 .Source(BootstrapIcons.Create(BootstrapIcons.ChatLeftDots, theme.GetOnBackground(), 20))
                 .VCenter()
-                .GridColumn(3)
+                .GridColumn(4)
+                .IsEnabled(!isWaiting)
                 .OnClicked(ShowPhrasesPopup)
         )
         .GridRow(1)

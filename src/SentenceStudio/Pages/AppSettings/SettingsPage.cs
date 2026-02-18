@@ -228,7 +228,9 @@ partial class SettingsPage : Component<SettingsPageState>
             .HeightRequest(40)
             .OnClicked(onClicked);
 
-        return isActive ? btn.Primary() : btn.Light();
+        return isActive
+            ? btn.Primary()
+            : btn.Secondary().Outlined();
     }
 
     private VisualNode RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)

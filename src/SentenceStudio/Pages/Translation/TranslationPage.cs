@@ -110,10 +110,17 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     {
         var theme = BootstrapTheme.Current;
         return Grid(
-            Label("Thinking.....")
-                .FontSize(64)
-                .TextColor(Colors.White)
-                .Center()
+            VStack(spacing: 12,
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Color(theme.Primary)
+                    .HCenter(),
+                Label($"{_localize["LoadingSentences"]}")
+                    .TextColor(Colors.White)
+                    .FontSize(16)
+                    .HCenter()
+            )
+            .VCenter()
         )
             .Background(Color.FromArgb("#80000000"))
             .GridRowSpan(2)
@@ -336,6 +343,8 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .Aspect(Aspect.Center)
                 .Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 24))
                 .GridRow(1).GridColumn(0)
+                .IsEnabled(_currentSentenceIndex > 0)
+                .Opacity(_currentSentenceIndex > 0 ? 1.0 : 0.3)
                 .OnClicked(PreviousSentence),
 
             ImageButton()
