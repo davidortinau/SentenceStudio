@@ -6,6 +6,7 @@ namespace SentenceStudio.Pages.Skills;
 class ListSkillProfilesPageState
 {
     public List<SkillProfile> Profiles { get; set; } = [];
+    public bool IsLoading { get; set; } = true;
 }
 
 partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
@@ -20,7 +21,9 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
         return ContentPage("Skill Profiles",
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
                 .OnClicked(async () => await AddProfile()),
-            State.Profiles.Count == 0
+            State.IsLoading
+                ? (VisualNode)ActivityIndicator().IsRunning(true).Center()
+                : State.Profiles.Count == 0
                 ? (VisualNode)VStack(spacing: 16,
                     Label("No skill profiles yet")
                         .Muted()
@@ -72,8 +75,13 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
 
     async Task LoadProfiles()
     {
+        SetState(s => s.IsLoading = true);
         var profiles = await _skillsRepository.ListAsync();
-        SetState(s => s.Profiles = profiles.ToList());
+        SetState(s =>
+        {
+            s.Profiles = profiles.ToList();
+            s.IsLoading = false;
+        });
     }
 
     Task AddProfile()

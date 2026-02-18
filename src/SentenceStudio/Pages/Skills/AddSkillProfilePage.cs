@@ -1,4 +1,6 @@
 using MauiReactor.Shapes;
+using UXDivers.Popups.Maui.Controls;
+using UXDivers.Popups.Services;
 
 namespace SentenceStudio.Pages.Skills;
 
@@ -77,6 +79,18 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
 
     async Task SaveProfile()
     {
+        if (string.IsNullOrWhiteSpace(State.Title))
+        {
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = $"{_localize["ValidationError"]}",
+                Text = $"{_localize["TitleRequired"]}",
+                ActionButtonText = $"{_localize["OK"]}",
+                ShowSecondaryActionButton = false
+            });
+            return;
+        }
+
         var profile = new SkillProfile
         {
             Title = State.Title,

@@ -320,9 +320,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
     {
         var theme = BootstrapTheme.Current;
         return Grid("1,*", "60,1,*,1,60,1,60",
-            Button("GO")
+            Button(State.IsBusy ? $"{_localize["Grading"]}" : "GO")
                 .Background(Colors.Transparent)
                 .GridRow(1).GridColumn(4)
+                .IsEnabled(!State.IsBusy)
                 .OnClicked(GradeMe),
 
             new ModeSelector()

@@ -823,6 +823,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Create Your First Pair.
+        /// </summary>
+        internal static string CreateYourFirstPair {
+            get {
+                return ResourceManager.GetString("CreateYourFirstPair", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Dark.
         /// </summary>
         internal static string Dark {
@@ -927,6 +936,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string DeleteScenarioConfirm {
             get {
                 return ResourceManager.GetString("DeleteScenarioConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete Skill Profile.
+        /// </summary>
+        internal static string DeleteSkillProfile {
+            get {
+                return ResourceManager.GetString("DeleteSkillProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Are you sure you want to delete this skill profile?.
+        /// </summary>
+        internal static string DeleteSkillProfileConfirm {
+            get {
+                return ResourceManager.GetString("DeleteSkillProfileConfirm", resourceCulture);
             }
         }
         
@@ -1651,6 +1678,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to In your vocabulary.
+        /// </summary>
+        internal static string InYourVocabulary {
+            get {
+                return ResourceManager.GetString("InYourVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to I see....
         /// </summary>
         internal static string ISee {
@@ -1926,6 +1962,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string MigrationSuccessCount {
             get {
                 return ResourceManager.GetString("MigrationSuccessCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Minimal pair created successfully!.
+        /// </summary>
+        internal static string MinimalPairCreatedSuccess {
+            get {
+                return ResourceManager.GetString("MinimalPairCreatedSuccess", resourceCulture);
             }
         }
         
@@ -2353,6 +2398,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Not Found.
+        /// </summary>
+        internal static string NotFound {
+            get {
+                return ResourceManager.GetString("NotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Not scheduled.
         /// </summary>
         internal static string NotScheduled {
@@ -2394,6 +2448,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NoVocabularyAvailable {
             get {
                 return ResourceManager.GetString("NoVocabularyAvailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary available in the selected resource. Go back and choose a resource with vocabulary..
+        /// </summary>
+        internal static string NoVocabularyInResource {
+            get {
+                return ResourceManager.GetString("NoVocabularyInResource", resourceCulture);
             }
         }
         
@@ -3521,6 +3584,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Please select a valid learning resource to practice writing..
+        /// </summary>
+        internal static string SelectValidLearningResource {
+            get {
+                return ResourceManager.GetString("SelectValidLearningResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Select voice for audio playback.
         /// </summary>
         internal static string SelectVoice {
@@ -3683,6 +3755,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Skill profile not found..
+        /// </summary>
+        internal static string SkillProfileNotFound {
+            get {
+                return ResourceManager.GetString("SkillProfileNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Skill Profiles.
         /// </summary>
         internal static string SkillProfiles {
@@ -3715,6 +3796,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string SortByEncoding {
             get {
                 return ResourceManager.GetString("SortByEncoding", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Starting conversation....
+        /// </summary>
+        internal static string StartingConversation {
+            get {
+                return ResourceManager.GetString("StartingConversation", resourceCulture);
             }
         }
         

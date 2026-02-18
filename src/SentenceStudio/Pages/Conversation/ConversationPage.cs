@@ -116,9 +116,48 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             System.Diagnostics.Debug.WriteLine($"📝 Chunk: Author='{c.Author}', Text='{c.Text?.Substring(0, Math.Min(30, c.Text?.Length ?? 0))}...'");
         }
 
+        // Loading state: no messages yet and busy (initial conversation load)
+        if (State.IsBusy && (State.Chunks == null || State.Chunks.Count == 0))
+        {
+            return VStack(
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Color(theme.Primary),
+                Label($"{_localize["StartingConversation"]}")
+                    .TextColor(theme.GetOnBackground())
+                    .FontSize(16)
+                    .HCenter()
+            )
+            .Spacing(12)
+            .Center()
+            .GridRow(0)
+            .VFill();
+        }
+
+        // Build message list with optional typing indicator
+        var items = State.Chunks.Select(c => RenderChunk(c)).ToList();
+
+        // Typing indicator: busy and last message is from user (waiting for AI reply)
+        if (State.IsBusy && State.Chunks.Count > 0
+            && State.Chunks.Last().Role == ConversationRole.User)
+        {
+            items.Add(
+                Border(
+                    Label("...")
+                        .FontSize(24)
+                        .TextColor(Colors.White)
+                )
+                .Background(theme.Primary)
+                .Padding(12, 8)
+                .StrokeShape(new RoundRectangle().CornerRadius(12, 12, 12, 0))
+                .HStart()
+                .Margin(16, 4)
+            );
+        }
+
         return ScrollView(
             VStack(
-                State.Chunks.Select(c => RenderChunk(c)).ToArray()
+                items.ToArray()
             )
             .Padding(0, 16, 0, 0)
             .Spacing(16)

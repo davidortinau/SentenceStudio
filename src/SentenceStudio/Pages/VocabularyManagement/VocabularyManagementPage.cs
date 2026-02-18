@@ -478,7 +478,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .FontAttributes(FontAttributes.Bold),
                     Label($"{item.Word.NativeLanguageTerm ?? ""} · {item.StatusText}")
                         .Small()
-                        .TextColor(item.StatusColor)
+                        .TextColor(item.StatusColor),
+                    RenderTagBadges(item.Word)
                 )
             ).Padding(4)
         )
@@ -561,8 +562,34 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .FontSize(14),
             Label($"{item.StatusText} · {(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))}")
                 .Small()
-                .TextColor(item.IsOrphaned ? BootstrapTheme.Current.Warning : item.StatusColor)
+                .TextColor(item.IsOrphaned ? BootstrapTheme.Current.Warning : item.StatusColor),
+            RenderTagBadges(item.Word)
         );
+
+    VisualNode RenderTagBadges(VocabularyWord word)
+    {
+        if (string.IsNullOrWhiteSpace(word.Tags))
+            return null;
+
+        var theme = BootstrapTheme.Current;
+        var tags = word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tags.Length == 0) return null;
+
+        return HStack(spacing: 4,
+            tags.Select(tag =>
+                Border(
+                    Label(tag)
+                        .FontSize(10)
+                        .TextColor(theme.GetOnBackground())
+                        .Padding(6, 2)
+                )
+                .Background(theme.GetSurface())
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+            ).ToArray()
+        ).Margin(0, 4, 0, 0);
+    }
 
     // Helper method to load data with initial delay for smooth page transitions
     private async Task LoadDataWithDelayAsync()

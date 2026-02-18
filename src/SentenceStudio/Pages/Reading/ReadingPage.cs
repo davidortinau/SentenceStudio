@@ -649,6 +649,12 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
             .VCenter()
             .Spacing(4),
             HStack(
+                Button($"{State.PlaybackSpeed:0.0#}x")
+                    .FontSize(12)
+                    .Background(Colors.Transparent)
+                    .TextColor(theme.GetOnBackground())
+                    .Padding(4, 0)
+                    .OnClicked(CyclePlaybackSpeed),
                 ImageButton()
                     .Source(BootstrapIcons.Create(BootstrapIcons.DashLg, theme.GetOnBackground(), 20))
                     .OnClicked(DecreaseFontSize),
@@ -704,6 +710,20 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                             Label(State.SelectedDefinition)
                                 .FontSize(18)
                                 .HCenter(),
+
+                            // "In your vocabulary" badge for known words
+                            State.SelectedVocabulary != null && !State.CanRememberWord
+                                ? Border(
+                                    Label($"{_localize["InYourVocabulary"]}")
+                                        .FontSize(12)
+                                        .TextColor(Colors.White)
+                                        .Padding(8, 4)
+                                )
+                                .Background(theme.Success)
+                                .StrokeThickness(0)
+                                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                                .HCenter()
+                                : null,
 
                             // Remember vocabulary word button (only for new words)
                             State.CanRememberWord
