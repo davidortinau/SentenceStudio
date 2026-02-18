@@ -2,7 +2,7 @@ using SentenceStudio.Pages.Dashboard;
 using SentenceStudio.Services;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using Fonts;
+using MauiReactor.Shapes;
 using UXDivers.Popups.Maui.Controls;
 using UXDivers.Popups.Services;
 
@@ -46,24 +46,27 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         .OnAppearing(LoadVocabulary);
     }
 
-    VisualNode SentencesHeader() =>
-        Grid("", columns: "*,*,*,*",
+    VisualNode SentencesHeader()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("", columns: "*,*,*,*",
             Label(_localize["Sentence"])
-                .ThemeKey(MyTheme.Title3)
+                .H5()
                 .GridColumn(0),
             Label(_localize["Accuracy"])
-                .ThemeKey(MyTheme.Title3)
+                .H5()
                 .Center()
                 .GridColumn(1),
             Label(_localize["Fluency"])
-                .ThemeKey(MyTheme.Title3)
+                .H5()
                 .Center()
                 .GridColumn(2),
             Label(_localize["Actions"])
-                .ThemeKey(MyTheme.Title3)
+                .H5()
                 .Center()
                 .GridColumn(3)
-        ).Margin(MyTheme.Size160);
+        ).Margin(16);
+    }
 
     VisualNode SentencesScrollView() =>
         ScrollView(
@@ -73,22 +76,24 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                         RenderDesktopSentence(sentence) :
                         RenderMobileSentence(sentence)
                 )
-            ).Margin(MyTheme.LayoutSpacing, 0)
+            ).Margin(16, 0)
         ).GridRow(1);
 
-    VisualNode InputUI() =>
-        Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
+    VisualNode InputUI()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(rows: "Auto,Auto,Auto", columns: "*,Auto",
             ScrollView(
-                VStack(spacing: MyTheme.Size40,
+                VStack(spacing: 40,
                     Label(_localize["ChooseAVocabularyWord"])
-                        .ThemeKey(MyTheme.Title3),
-                    HStack(spacing: MyTheme.Size40,
+                        .H5(),
+                    HStack(spacing: 40,
                         State.VocabBlocks.Select(word =>
                             Button(word.TargetLanguageTerm)
-                                .Background(MyTheme.Gray200)
-                                .TextColor(MyTheme.Gray900)
+                                .Background(new SolidColorBrush(theme.GetSurface()))
+                                .TextColor(theme.GetOnBackground())
                                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                                .Padding(MyTheme.Size40)
+                                .Padding(40)
                                 .VStart()
                                 .OnClicked(() => UseVocab(word.TargetLanguageTerm))
                         )
@@ -96,42 +101,41 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 )
             ).GridColumnSpan(2),
 
-            new SfTextInputLayout{
+            Border(
                 Entry()
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
                     .Text(State.UserInput)
                     .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                     .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
                     .OnCompleted(GradeMe)
-            }
-            .TrailingView(
-                Button()
-                    .Background(Colors.Transparent)
-                    .HEnd()
-                    .GridColumn(1)
-                    .ImageSource(MyTheme.IconDictionary)
-                    .OnClicked(TranslateInput)
+                    .Placeholder($"{_localize["WhatDoYouWantToSay"]}")
             )
-            .Hint($"{_localize["WhatDoYouWantToSay"]}")
+            .Stroke(theme.GetOutline())
+            .StrokeShape(new RoundRectangle().CornerRadius(6))
+            .StrokeThickness(1)
+            .Padding(8, 0)
+            .Background(Colors.Transparent)
             .GridRow(1)
             .GridColumn(0)
 
         ).GridRow(2)
-        .Padding(MyTheme.Size160)
-        .RowSpacing(MyTheme.Size40);
+        .Padding(16)
+        .RowSpacing(40);
+    }
 
-    VisualNode LoadingOverlay() =>
-        Grid(
+    VisualNode LoadingOverlay()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             Label("Thinking...")
                 .FontSize(64)
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.LightOnDarkBackground :
-                    MyTheme.DarkOnLightBackground)
+                .TextColor(Colors.White)
                 .Center()
         )
         .Background(Color.FromArgb("#80000000"))
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
+    }
 
     async Task LoadVocabulary()
     {
@@ -261,49 +265,53 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         await AppShell.DisplayToastAsync(translation);
     }
 
-    VisualNode RenderDesktopSentence(Sentence sentence) =>
-        Grid("", columns: "*,*,*,*",
+    VisualNode RenderDesktopSentence(Sentence sentence)
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("", columns: "*,*,*,*",
             Label(sentence.Answer).GridColumn(0),
             Label(sentence.Accuracy.ToString()).Center().GridColumn(1),
             Label(sentence.Fluency.ToString()).Center().GridColumn(2),
             HStack(spacing: 4,
                 Button()
                     .Background(Colors.Transparent)
-                    .TextColor(Theme.IsLightTheme ?
-                        MyTheme.LightOnDarkBackground :
-                        MyTheme.DarkOnLightBackground)
-                    .ImageSource(MyTheme.IconCopy)
+                    .TextColor(theme.GetOnBackground())
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.Clipboard, theme.GetOnBackground(), 20))
                     .OnClicked(() => UseVocab(sentence.Answer)),
                 Button()
                     .Background(Colors.Transparent)
-                    .TextColor(Theme.IsLightTheme ?
-                        MyTheme.LightOnDarkBackground :
-                        MyTheme.DarkOnLightBackground)
-                    .ImageSource(MyTheme.IconInfo)
+                    .TextColor(theme.GetOnBackground())
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.InfoCircle, theme.GetOnBackground(), 20))
                     .OnClicked(() => ShowExplanation(sentence))
             ).Center().GridColumn(3)
         );
+    }
 
-    VisualNode RenderMobileSentence(Sentence sentence) =>
-        SwipeView(
+    VisualNode RenderMobileSentence(Sentence sentence)
+    {
+        var theme = BootstrapTheme.Current;
+        return SwipeView(
             SwipeItemView(
                 Grid(
-                    Label().Text(FluentUI.copy_24_regular).FontSize(24).Center()
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Clipboard, Colors.White, 24))
+                        .Center()
                 ).Background(Colors.Red).WidthRequest(60)
             ).OnInvoked(() => UseVocab(sentence.Answer)).HStart(),
             SwipeItemView(
                 Grid(
-                    Label().Text(FluentUI.info_24_regular).FontSize(24).Center()
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.InfoCircle, Colors.White, 24))
+                        .Center()
                 ).Background(Colors.Orange).WidthRequest(60)
             ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
             Grid("", columns: "*,*",
                 Label(sentence.Answer).VCenter().GridColumn(0),
                 Label(sentence.Accuracy.ToString()).Center().GridColumn(1)
             )
-            .Background(Theme.IsLightTheme ?
-                MyTheme.LightCardBackgroundBrush :
-                MyTheme.DarkCardBackgroundBrush)
-        ); async Task ShowExplanation(Sentence sentence)
+            .Background(new SolidColorBrush(theme.GetSurface()))
+        );
+    }async Task ShowExplanation(Sentence sentence)
     {
         string explanation = $"Original: {sentence.Answer}\n\n" +
             $"Recommended: {sentence.RecommendedSentence}\n\n" +

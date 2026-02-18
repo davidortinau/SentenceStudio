@@ -98,27 +98,28 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         .Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new ActivityTimerBar() : null)
         .OnAppearing(LoadSentences);
 
-    VisualNode RenderLoadingOverlay() =>
-        Grid(
+    VisualNode RenderLoadingOverlay()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             Label("Thinking.....")
                 .FontSize(64)
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .TextColor(Colors.White)
                 .Center()
         )
             .Background(Color.FromArgb("#80000000"))
             .GridRowSpan(2)
             .IsVisible(State.IsBusy);
+    }
 
-    VisualNode RenderSentenceContent() =>
-        VStack(spacing: 16,
+    VisualNode RenderSentenceContent()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 16,
             Label()
                 .Text(State.CurrentSentence)
                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 32 : 64)
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .TextColor(theme.GetOnBackground())
                 .HStart(),
 
             // Add vocabulary progress scoreboard
@@ -128,17 +129,18 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 Border(
                     Label(State.FeedbackMessage)
                         .FontSize(16)
-                        .Padding(MyTheme.CardPadding)
+                        .Padding(16)
                         .Center()
                 )
                 .Background(GetFeedbackBackgroundColor(State.FeedbackType))
                 .StrokeShape(new RoundRectangle().CornerRadius(8))
                 .StrokeThickness(0)
-                .Margin(0, MyTheme.ComponentSpacing)
+                .Margin(0, 8)
                 : null
         )
         .GridRow(1)
-        .Margin(MyTheme.SectionSpacing);
+        .Margin(24);
+    }
 
     VisualNode RenderInputUI() =>
         Grid("*,*", "*,auto,auto,auto",
@@ -146,64 +148,76 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 RenderVocabBlocks() : null,
                 RenderUserInput()
         )
-        .RowSpacing(MyTheme.Size40)
-        .Padding(MyTheme.SectionSpacing)
-        .ColumnSpacing(MyTheme.LayoutSpacing)
+        .RowSpacing(40)
+        .Padding(24)
+        .ColumnSpacing(16)
         .GridRow(2);
 
-    VisualNode RenderUserInput() =>
-        new SfTextInputLayout(
+    VisualNode RenderUserInput()
+    {
+        var theme = BootstrapTheme.Current;
+        return Border(
             Entry()
                 .FontSize(32)
                 .ReturnType(ReturnType.Go)
                 .Text(State.UserInput)
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                 .OnCompleted(GradeMe)
+                .Placeholder(GetInputPlaceholder())
         )
-        .Hint(GetInputPlaceholder())
+        .Stroke(theme.GetOutline())
+        .StrokeShape(new RoundRectangle().CornerRadius(6))
+        .StrokeThickness(1)
+        .Padding(8, 0)
+        .Background(Colors.Transparent)
         .GridRow(1)
         .GridColumnSpan(4);
+    }
 
-    VisualNode RenderVocabBlocks() =>
-        HStack(
+    VisualNode RenderVocabBlocks()
+    {
+        var theme = BootstrapTheme.Current;
+        return HStack(
             State.VocabBlocks.Select(word =>
                 Button()
                     .Text(word)
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                    .Padding(MyTheme.Size40)
-                    .Background(MyTheme.Gray200)
-                    .TextColor(MyTheme.Gray900)
+                    .Padding(40)
+                    .Background(new SolidColorBrush(theme.GetSurface()))
+                    .TextColor(theme.GetOnBackground())
                     .OnClicked(() => UseVocab(word))
             )
         )
-        .Spacing(MyTheme.MicroSpacing)
+        .Spacing(4)
         .GridRow(0)
         .GridColumnSpan(4);
+    }
 
-    VisualNode RenderProgress() =>
-        HStack(
+    VisualNode RenderProgress()
+    {
+        var theme = BootstrapTheme.Current;
+        return HStack(
             ActivityIndicator()
                 .IsRunning(State.IsBuffering)
                 .IsVisible(State.IsBuffering)
-                .Color(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .Color(theme.GetOnBackground())
                 .VCenter(),
             Label()
                 .Text(State.Progress)
                 .VCenter()
-                .TextColor(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .TextColor(theme.GetOnBackground())
         )
         .Spacing(8)
-        .Padding(MyTheme.SectionSpacing)
+        .Padding(24)
         .HEnd()
         .VStart()
         .GridRowSpan(2);
+    }
 
-    VisualNode RenderBottomNavigation() =>
-        Grid("1,*", "60,1,*,1,60,1,60",
+    VisualNode RenderBottomNavigation()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("1,*", "60,1,*,1,60,1,60",
             Button("GO")
                 .Background(Colors.Transparent)
                 .GridRow(1).GridColumn(4)
@@ -217,45 +231,38 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(MyTheme.IconPrevious)
+                .Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 24))
                 .GridRow(1).GridColumn(0)
                 .OnClicked(PreviousSentence),
 
             ImageButton()
                 .Background(Colors.Transparent)
                 .Aspect(Aspect.Center)
-                .Source(MyTheme.IconNext)
+                .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 24))
                 .GridRow(1).GridColumn(6)
                 .OnClicked(NextSentence),
 
             BoxView()
-                .Color(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .Color(theme.GetOutline())
                 .HeightRequest(1)
                 .GridColumnSpan(7),
 
             BoxView()
-                .Color(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .Color(theme.GetOutline())
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(1),
 
             BoxView()
-                .Color(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .Color(theme.GetOutline())
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(3),
 
             BoxView()
-                .Color(Theme.IsLightTheme ?
-                    MyTheme.DarkOnLightBackground :
-                    MyTheme.LightOnDarkBackground)
+                .Color(theme.GetOutline())
                 .WidthRequest(1)
                 .GridRow(1).GridColumn(5)
         ).GridRow(1);
+    }
 
     VisualNode RenderVocabularyScoreboard() =>
         _currentSentenceIndex >= 0 && _currentSentenceIndex < State.Sentences.Count ?
@@ -264,25 +271,26 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .Select(word => RenderVocabularyWordStatusSync(word))
                     .ToArray() ?? Array.Empty<VisualNode>()
             )
-            .Spacing(MyTheme.ComponentSpacing)
-            .Margin(0, MyTheme.ComponentSpacing)
+            .Spacing(8)
+            .Margin(0, 8)
             .HCenter()
             : null;
 
     VisualNode RenderVocabularyWordStatusSync(VocabularyWord word)
     {
+        var theme = BootstrapTheme.Current;
         try
         {
             // Use a simple visual indicator for now - can be enhanced with real-time progress later
             return Border(
                     Label("◦")
                         .FontSize(16)
-                        .TextColor(MyTheme.HighlightDarkest)
+                        .TextColor(theme.Primary)
                         .Center()
                 )
                 .StrokeShape(new RoundRectangle().CornerRadius(12))
                 .StrokeThickness(1)
-                .Stroke(MyTheme.HighlightDarkest)
+                .Stroke(theme.Primary)
                 .HeightRequest(24)
                 .WidthRequest(24)
                 .Background(Colors.Transparent);
@@ -293,27 +301,26 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             return Border()
                 .StrokeShape(new RoundRectangle().CornerRadius(12))
                 .StrokeThickness(1)
-                .Stroke(MyTheme.Gray400)
+                .Stroke(theme.GetOutline())
                 .HeightRequest(24)
                 .WidthRequest(24)
                 .Background(Colors.Transparent);
         }
     }
-    VisualNode RenderPopOverLabel() =>
-        Label()
-            .Padding(MyTheme.ComponentSpacing)
+    VisualNode RenderPopOverLabel()
+    {
+        var theme = BootstrapTheme.Current;
+        return Label()
+            .Padding(8)
             .LineHeight(1)
             .IsVisible(false)
             .ZIndex(10)
             .FontSize(64)
             .HStart()
             .VStart()
-            .Background(Theme.IsLightTheme ?
-                MyTheme.LightBackground :
-                MyTheme.DarkBackground)
-            .TextColor(Theme.IsLightTheme ?
-                MyTheme.DarkOnLightBackground :
-                MyTheme.LightOnDarkBackground);
+            .Background(new SolidColorBrush(theme.GetSurface()))
+            .TextColor(theme.GetOnBackground());
+    }
 
     Color GetFeedbackBackgroundColor(string feedbackType) =>
         feedbackType switch
@@ -1194,23 +1201,20 @@ partial class FeedbackPanel : Component
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
         return Border(
             VScrollView(
                 VStack(
                     Label()
                         .Text(Feedback)
-                        .TextColor(Theme.IsLightTheme ?
-                            MyTheme.DarkOnLightBackground :
-                            MyTheme.LightOnDarkBackground)
+                        .TextColor(theme.GetOnBackground())
                         .FontSize(24)
                 )
             )
         )
-        .Background(Theme.IsLightTheme ?
-            MyTheme.LightBackground :
-            MyTheme.DarkBackground)
+        .Background(new SolidColorBrush(theme.GetSurface()))
         .StrokeShape(new RoundRectangle().CornerRadius(8))
-        .Padding(MyTheme.SectionSpacing)
+        .Padding(24)
         .IsVisible(IsVisible);
     }
 }

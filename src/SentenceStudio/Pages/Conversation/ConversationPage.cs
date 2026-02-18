@@ -106,6 +106,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
     VisualNode RenderMessageScroll()
     {
+        var theme = BootstrapTheme.Current;
         System.Diagnostics.Debug.WriteLine($"🔍 RenderMessageScroll: IsBusy={State.IsBusy}, ChunksCount={State.Chunks?.Count ?? -1}");
 
         // Log each chunk being rendered
@@ -118,8 +119,8 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             VStack(
                 State.Chunks.Select(c => RenderChunk(c)).ToArray()
             )
-            .Padding(0, MyTheme.LayoutPadding.Top, 0, 0)
-            .Spacing(MyTheme.LayoutSpacing)
+            .Padding(0, 16, 0, 0)
+            .Spacing(16)
         )
         .GridRow(0)
         .VFill();
@@ -261,7 +262,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     // Active checkmark icon
                     var checkIcon = new Microsoft.Maui.Controls.Image
                     {
-                        Source = MyTheme.IconCheckmarkCircleFilledCorrect,
+                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, Colors.Green, 16),
                         WidthRequest = 16,
                         HeightRequest = 16,
                         VerticalOptions = LayoutOptions.Center,
@@ -279,7 +280,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     var personaLayout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 4 };
                     var personaIcon = new Microsoft.Maui.Controls.Image
                     {
-                        Source = MyTheme.IconPerson,
+                        Source = BootstrapIcons.Create(BootstrapIcons.Person, Colors.Gray, 12),
                         WidthRequest = 12,
                         HeightRequest = 12,
                         VerticalOptions = LayoutOptions.Center
@@ -334,6 +335,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
     VisualNode RenderChunk(ConversationChunk chunk)
     {
+        var theme = BootstrapTheme.Current;
         // Use the Role property to determine message type - this is the authoritative source
         var isUserMessage = chunk.Role == ConversationRole.User;
         System.Diagnostics.Debug.WriteLine($"RenderChunk: Author='{chunk.Author}', Role={chunk.Role}, IsUser={isUserMessage}");
@@ -351,10 +353,10 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     )
 
             )
-            .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
-            .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
-            .Background(MyTheme.HighlightDarkest)
-            .Stroke(MyTheme.HighlightDarkest)
+            .Margin(new Thickness(16, 4))
+            .Padding(new Thickness(16, 4, 16, 8))
+            .Background(theme.Primary)
+            .Stroke(theme.Primary)
             .StrokeShape(new RoundRectangle().CornerRadius(10, 10, 2, 10))
             .HStart();
         }
@@ -372,16 +374,16 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                         .Text(chunk.Text)
                         .FontSize(State.FontSize)
                 )
-                .Padding(new Thickness(MyTheme.CardPadding, MyTheme.MicroSpacing, MyTheme.CardPadding, MyTheme.ComponentSpacing))
-                .Background(MyTheme.HighlightMedium)
-                .Stroke(MyTheme.HighlightMedium)
+                .Padding(new Thickness(16, 4, 16, 8))
+                .Background(theme.Info)
+                .Stroke(theme.Info)
                 .StrokeShape(new RoundRectangle().CornerRadius(10, 0, 10, 2))
                 .GridColumn(0),
 
                 // Grammar/feedback indicator icon - only show if there's feedback
                 hasFeedback ?
                     ImageButton()
-                        .Source(hasCorrections ? MyTheme.IconGrammarCheck : MyTheme.IconMeta)
+                        .Source(BootstrapIcons.Create(hasCorrections ? BootstrapIcons.Spellcheck : BootstrapIcons.InfoCircle, theme.GetOnBackground(), 20))
                         .BackgroundColor(Colors.Transparent)
                         .Padding(4)
                         .GridColumn(1)
@@ -389,7 +391,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                         .OnClicked(() => ShowExplanation(chunk))
                     : null
             )
-            .Margin(new Thickness(MyTheme.LayoutSpacing, MyTheme.MicroSpacing))
+            .Margin(new Thickness(16, 4))
             .HEnd()
             .OnTapped(() => ShowExplanation(chunk));
         }
@@ -436,12 +438,14 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         }
     }
 
-    VisualNode RenderInput() =>
-        Grid("", "* Auto Auto Auto",
+    VisualNode RenderInput()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid("", "* Auto Auto Auto",
             Border(
                 Entry()
                     .Placeholder(GetInputPlaceholder())
-                    .FontSize(MyTheme.Size200)
+                    .FontSize(20)
                     .ReturnType(ReturnType.Send)
                     .Text(State.UserInput)
                     .OnTextChanged((s, e) => State.UserInput = e.NewTextValue)
@@ -452,31 +456,32 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
             // .Bind(Entry.ReturnCommandProperty, nameof(ConversationPageModel.SendMessageCommand))
             )
                 .Background(Colors.Transparent)
-                .Stroke(MyTheme.Gray300)
+                .Stroke(theme.GetOutline())
                 .StrokeShape(new RoundRectangle().CornerRadius(6))
-                .Padding(new Thickness(MyTheme.LayoutSpacing, 0))
+                .Padding(new Thickness(16, 0))
                 .StrokeThickness(1)
                 .VEnd(),
             ImageButton()
-                .Source(MyTheme.IconFontDecrease)
+                .Source(BootstrapIcons.Create(BootstrapIcons.DashLg, theme.GetOnBackground(), 20))
                 .OnClicked(DecreaseFontSize)
                 .VCenter()
                 .GridColumn(1),
             ImageButton()
-                .Source(MyTheme.IconFontIncrease)
+                .Source(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(IncreaseFontSize)
                 .VCenter()
                 .GridColumn(2),
             ImageButton()
-                .Source(MyTheme.IconAdd)
+                .Source(BootstrapIcons.Create(BootstrapIcons.ChatLeftDots, theme.GetOnBackground(), 20))
                 .VCenter()
                 .GridColumn(3)
                 .OnClicked(ShowPhrasesPopup)
         )
         .GridRow(1)
-        .Margin(MyTheme.LayoutPadding)
-        .ColumnSpacing(MyTheme.LayoutSpacing)
+        .Margin(16)
+        .ColumnSpacing(16)
         .VEnd();
+    }
 
     void IncreaseFontSize()
     {
@@ -1213,9 +1218,11 @@ class ConversationTypeToIconConverter : IValueConverter
     {
         if (value is ConversationType type)
         {
-            return type == ConversationType.Finite ? MyTheme.IconRepeatSmall : MyTheme.IconChatSmall;
+            return type == ConversationType.Finite
+                ? BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, Colors.Gray, 16)
+                : BootstrapIcons.Create(BootstrapIcons.ChatDots, Colors.Gray, 16);
         }
-        return MyTheme.IconChatSmall;
+        return BootstrapIcons.Create(BootstrapIcons.ChatDots, Colors.Gray, 16);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
