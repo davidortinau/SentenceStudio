@@ -104,22 +104,14 @@ public class VocabularyProgressItem
             if (IsUnknown)
                 return $"{localize["StartPracticing"]}";
 
-            // Learning status - show streak-based progress
-            var parts = new List<string>();
+            // Learning status - compact streak-based progress
+            var streak = CurrentStreak;
+            var prod = ProductionNeededForKnown > 0
+                ? $"{ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN}"
+                : $"{localize["Done"]}";
+            var mastery = $"{(int)(MasteryScore * 100)}%";
 
-            // Current streak
-            parts.Add($"{localize["Streak"]}: {CurrentStreak}");
-
-            // Production progress toward Known
-            if (ProductionNeededForKnown > 0)
-                parts.Add($"{ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN} {localize["Production"]}");
-            else
-                parts.Add($"{localize["Production"]}: {localize["Done"]}");
-
-            // Mastery percentage
-            parts.Add($"{(int)(MasteryScore * 100)}%");
-
-            return string.Join(" | ", parts);
+            return $"{streak}x | {prod} | {mastery}";
         }
     }
 
