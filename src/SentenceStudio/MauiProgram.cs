@@ -183,7 +183,7 @@ public static class MauiProgram
 			.AddDebug()
 			.AddConsole()
 			.SetMinimumLevel(LogLevel.Debug);
-		builder.AddMauiDevFlowAgent(options => { options.Port = 9223; });
+		builder.AddMauiDevFlowAgent(options => { options.Port = 9347; });
 		// builder.UseDebugRibbon();
 #endif
 

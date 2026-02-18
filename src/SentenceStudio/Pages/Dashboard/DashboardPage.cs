@@ -133,17 +133,17 @@ partial class DashboardPage : Component<DashboardPageState>
         };
 
         return ContentPage($"{_localize["DashboardTitle"]}",
-            ToolbarItem($"{_localize["PlanRegenerateButton"] ?? "Regenerate"}")
+            State.IsTodaysPlanMode ? ToolbarItem($"{_localize["PlanRegenerateButton"] ?? "Regenerate"}")
                 .Order(ToolbarItemOrder.Secondary)
-                .OnClicked(() => _ = RegeneratePlanAsync()),
+                .OnClicked(() => _ = RegeneratePlanAsync()) : null,
 
             VScrollView(
-                VStack(
+                VStack(spacing: 16,
+                    RenderWelcomeMessage(),
                     RenderModeToggle(),
                     State.IsTodaysPlanMode ? RenderTodaysPlanMode() : RenderChooseOwnMode()
                 )
-                .Padding(MyTheme.LayoutPadding)
-                .Spacing(MyTheme.LayoutSpacing)
+                .Padding(12)
             )
             .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         )
@@ -151,343 +151,624 @@ partial class DashboardPage : Component<DashboardPageState>
         .OnAppearing(LoadOrRefreshDataAsync);
     }
 
+    VisualNode RenderWelcomeMessage()
+    {
+        // Desktop only - show welcome message on wider screens
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone || (State.Width / State.Density) < 600)
+            return ContentView().HeightRequest(0);
+
+        var userName = Preferences.Default.Get("UserProfile_Name", string.Empty);
+        if (string.IsNullOrEmpty(userName))
+            return ContentView().HeightRequest(0);
+
+        return Label($"Welcome, {userName}!")
+            .H1()
+            .Margin(new Thickness(0, 0, 0, 8));
+    }
+
     VisualNode RenderModeToggle()
     {
-        return new SfSegmentedControl(
-                new SfSegmentItem()
-                    .Text($"{_localize["ModeTodaysPlan"]}")
-                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground),
-                new SfSegmentItem()
-                    .Text($"{_localize["ModeChooseOwn"]}")
-                    .SelectedSegmentTextColor(MyTheme.LightOnDarkBackground)
-            )
-            .TextStyle(new Syncfusion.Maui.Toolkit.SegmentedControl.SegmentTextStyle()
-            {
-                TextColor = MyTheme.Gray600
-            })
-            .SelectionIndicatorSettings(new Syncfusion.Maui.Toolkit.SegmentedControl.SelectionIndicatorSettings()
-            {
-                Background = MyTheme.PrimaryButtonBackground,
-                TextColor = Colors.White
-            })
-            .SelectedIndex(State.IsTodaysPlanMode ? 0 : 1)
-            .SegmentWidth(180)
-            .Background(MyTheme.SecondaryButtonBackground)
-            .CornerRadius((float)MyTheme.Size80)
-            .HeightRequest(44)
-            .OnSelectionChanged((s, e) =>
-            {
-                var selectedIndex = e.NewIndex;
-                SetState(st => st.IsTodaysPlanMode = selectedIndex == 0);
-                Preferences.Default.Set(PREF_DASHBOARD_MODE, selectedIndex == 0 ? "TodaysPlan" : "ChooseOwn");
-
-                if (selectedIndex == 0)
+        // Bootstrap button group - two buttons side by side
+        return HStack(spacing: 0,
+            Button()
+                .Text($"{BootstrapIcons.CalendarCheck} {_localize["ModeTodaysPlan"]}")
+                .Primary()
+                .When(!State.IsTodaysPlanMode, b => b.Outlined())
+                .HeightRequest(44)
+                .HFill()
+                .OnClicked(() =>
                 {
+                    SetState(st => st.IsTodaysPlanMode = true);
+                    Preferences.Default.Set(PREF_DASHBOARD_MODE, "TodaysPlan");
                     _ = LoadTodaysPlanAsync();
-                }
-            }).HCenter();
-
-
+                }),
+            Button()
+                .Text($"{BootstrapIcons.Sliders} {_localize["ModeChooseOwn"]}")
+                .Primary()
+                .When(State.IsTodaysPlanMode, b => b.Outlined())
+                .HeightRequest(44)
+                .HFill()
+                .OnClicked(() =>
+                {
+                    SetState(st => st.IsTodaysPlanMode = false);
+                    Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
+                })
+        )
+        .Margin(new Thickness(0, 0, 0, 16));
     }
 
     VisualNode RenderTodaysPlanMode()
     {
-        return VStack(spacing: MyTheme.LayoutSpacing,
-            // Today's Plan Card
-            State.IsLoadingTodaysPlan
-                ? VStack(
-                    ActivityIndicator()
-                        .IsRunning(true)
-                        .Color(MyTheme.HighlightDarkest)
-                        .HeightRequest(50),
-                    Label("Loading today's plan...")
-                        .TextColor(MyTheme.SecondaryText)
-                        .FontSize(14)
-                        .HCenter()
-                ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
-                : (State.TodaysPlan != null
-                    ? new TodaysPlanCard()
-                        .Plan(State.TodaysPlan)
-                        .StreakInfo(State.StreakInfo)
-                        .OnItemTapped(item => _ = OnPlanItemTapped(item))
-                    :
-                    VStack(spacing: MyTheme.ComponentSpacing,
-                        Label("Ready to start learning?")
-                            .TextColor(MyTheme.PrimaryText)
-                            .FontSize(18)
-                            .FontAttributes(MauiControls.FontAttributes.Bold)
-                            .HCenter(),
-                        Label("Select a resource and skill to generate your personalized learning plan.")
-                            .TextColor(MyTheme.SecondaryText)
-                            .FontSize(14)
-                            .HCenter()
-                            .HorizontalTextAlignment(TextAlignment.Center),
-                        Border(
-                            Label("Generate Today's Plan")
-                                .TextColor(MyTheme.PrimaryButtonText)
-                                .FontSize(16)
-                                .FontAttributes(MauiControls.FontAttributes.Bold)
-                                .HCenter()
-                                .VCenter()
-                                .Padding(MyTheme.Size160, MyTheme.Size120)
-                        )
-                        .Background(MyTheme.PrimaryButtonBackground)
-                        .StrokeShape(new RoundRectangle().CornerRadius(MyTheme.Size80))
-                        .StrokeThickness(0)
-                        .HCenter()
-                        .Margin(0, MyTheme.Size160, 0, 0)
-                        .OnTapped(LoadTodaysPlanAsync)
-                    )
-                    .Padding(MyTheme.SectionSpacing)
-                ),
+        if (State.IsLoadingTodaysPlan)
+        {
+            return VStack(spacing: 8,
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Primary()
+                    .HeightRequest(50)
+                    .HCenter(),
+                Label("Loading today's plan...")
+                    .Muted()
+                    .HCenter()
+            )
+            .PaddingLevel(4)
+            .Margin(new Thickness(0, 0, 0, 16));
+        }
 
-            // Progress section - same as before
-            RenderProgressSection()
+        if (State.TodaysPlan == null)
+        {
+            return Border(
+                VStack(spacing: 16,
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.CalendarPlus, Colors.Gray, 48))
+                        .HeightRequest(48)
+                        .HCenter(),
+                    Label("No plan for today yet.")
+                        .H5()
+                        .HCenter(),
+                    Label("Generate your personalized learning plan to get started.")
+                        .Muted()
+                        .HCenter()
+                        .HorizontalTextAlignment(TextAlignment.Center),
+                    Button("Generate Plan")
+                        .Primary()
+                        .HeightRequest(44)
+                        .HCenter()
+                        .OnClicked(LoadTodaysPlanAsync)
+                )
+                .PaddingLevel(4)
+                .HCenter()
+            )
+            .Background(BootstrapVariant.Light)
+            .ShadowSm()
+            .StrokeThickness(0)
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .Margin(new Thickness(0, 0, 0, 16));
+        }
+
+        return VStack(spacing: 16,
+            RenderStreakBadge(),
+            RenderProgressCard(),
+            RenderPlanItems(),
+            RenderVocabularyStats()
         );
+    }
+
+    VisualNode RenderStreakBadge()
+    {
+        var streak = State.TodaysPlan?.Streak;
+        if (streak == null || streak.CurrentStreak <= 0)
+            return ContentView().HeightRequest(0);
+
+        return HStack(spacing: 8,
+            Label($"{BootstrapIcons.Fire} {streak.CurrentStreak} day streak")
+                .Badge(BootstrapVariant.Warning)
+                .FontSize(16),
+            streak.LongestStreak > streak.CurrentStreak 
+                ? Label($"Best: {streak.LongestStreak} days")
+                    .Muted()
+                    .FontSize(14)
+                : null
+        )
+        .Margin(new Thickness(0, 0, 0, 8));
+    }
+
+    VisualNode RenderProgressCard()
+    {
+        var plan = State.TodaysPlan;
+        if (plan == null)
+            return ContentView().HeightRequest(0);
+
+        return Border(
+            VStack(spacing: 8,
+                Grid("Auto", "*,Auto",
+                    Label("Today's Progress")
+                        .H6()
+                        .GridColumn(0),
+                    Label($"{plan.CompletedCount} / {plan.TotalCount}")
+                        .Muted()
+                        .FontSize(14)
+                        .GridColumn(1)
+                ),
+                ProgressBar()
+                    .Progress(plan.CompletionPercentage / 100.0)
+                    .BootstrapHeight()
+                    .HeightRequest(8)
+                    .Success(),
+                !string.IsNullOrEmpty(plan.Rationale)
+                    ? Label(plan.Rationale)
+                        .Muted()
+                        .FontSize(14)
+                    : null
+            )
+            .PaddingLevel(3)
+        )
+        .Background(BootstrapVariant.Light)
+        .ShadowSm()
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .Margin(new Thickness(0, 0, 0, 8));
+    }
+
+    VisualNode RenderPlanItems()
+    {
+        var plan = State.TodaysPlan;
+        if (plan?.Items == null || !plan.Items.Any())
+            return ContentView().HeightRequest(0);
+
+        return VStack(spacing: 8,
+            plan.Items.Select(item => RenderPlanItem(item)).ToArray()
+        );
+    }
+
+    VisualNode RenderPlanItem(DailyPlanItem item)
+    {
+        var icon = item.IsCompleted
+            ? BootstrapIcons.CheckCircleFill
+            : GetActivityIcon(item.ActivityType);
+
+        var iconColor = item.IsCompleted
+            ? BootstrapTheme.Current.Success
+            : BootstrapTheme.Current.Primary;
+
+        return Border(
+            HStack(spacing: 12,
+                Image()
+                    .Source(BootstrapIcons.Create(icon, iconColor, 24))
+                    .HeightRequest(24)
+                    .WidthRequest(24)
+                    .VCenter(),
+                VStack(spacing: 4,
+                    Label(GetActivityLabel(item.ActivityType))
+                        .H6()
+                        .When(item.IsCompleted, l => l.TextDecorations(TextDecorations.Strikethrough)),
+                    HStack(spacing: 4,
+                        !string.IsNullOrEmpty(item.ResourceTitle)
+                            ? Label(item.ResourceTitle)
+                                .Muted()
+                                .FontSize(14)
+                            : null,
+                        !string.IsNullOrEmpty(item.ResourceTitle)
+                            ? Label("·")
+                                .Muted()
+                                .FontSize(14)
+                            : null,
+                        Label($"~{item.EstimatedMinutes} min")
+                            .Muted()
+                            .FontSize(14),
+                        item.VocabDueCount.HasValue && item.VocabDueCount > 0
+                            ? Label("·")
+                                .Muted()
+                                .FontSize(14)
+                            : null,
+                        item.VocabDueCount.HasValue && item.VocabDueCount > 0
+                            ? Label($"{item.VocabDueCount} words")
+                                .Muted()
+                                .FontSize(14)
+                            : null
+                    )
+                )
+                .VCenter()
+                .HFill(),
+                Image()
+                    .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, Colors.Gray, 20))
+                    .HeightRequest(20)
+                    .WidthRequest(20)
+                    .VCenter()
+            )
+            .PaddingLevel(3)
+        )
+        .Background(BootstrapVariant.Light)
+        .ShadowSm()
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .When(item.IsCompleted, b => b.Opacity(0.75))
+        .OnTapped(() => _ = OnPlanItemTapped(item));
+    }
+
+    string GetActivityIcon(PlanActivityType activityType)
+    {
+        return activityType switch
+        {
+            PlanActivityType.VocabularyReview => BootstrapIcons.CardChecklist,
+            PlanActivityType.Reading => BootstrapIcons.Book,
+            PlanActivityType.Listening => BootstrapIcons.Soundwave,
+            PlanActivityType.VideoWatching => BootstrapIcons.PlayCircle,
+            PlanActivityType.Shadowing => BootstrapIcons.Soundwave,
+            PlanActivityType.Cloze => BootstrapIcons.Puzzle,
+            PlanActivityType.Translation => BootstrapIcons.Translate,
+            PlanActivityType.Conversation => BootstrapIcons.ChatDots,
+            PlanActivityType.VocabularyGame => BootstrapIcons.Grid3X3Gap,
+            _ => BootstrapIcons.Circle
+        };
+    }
+
+    string GetActivityLabel(PlanActivityType activityType)
+    {
+        return activityType switch
+        {
+            PlanActivityType.VocabularyReview => $"{_localize["VocabularyQuiz"]}",
+            PlanActivityType.Reading => $"{_localize["Reading"]}",
+            PlanActivityType.Listening => $"{_localize["Listening"]}",
+            PlanActivityType.VideoWatching => "Watch Video",
+            PlanActivityType.Shadowing => $"{_localize["Shadowing"]}",
+            PlanActivityType.Cloze => $"{_localize["Clozures"]}",
+            PlanActivityType.Translation => $"{_localize["Translate"]}",
+            PlanActivityType.Conversation => $"{_localize["Conversation"]}",
+            PlanActivityType.VocabularyGame => $"{_localize["VocabularyMatchingTitle"]}",
+            _ => "Activity"
+        };
     }
 
     VisualNode RenderChooseOwnMode()
     {
-        return VStack(spacing: MyTheme.LayoutSpacing,
-                        DeviceInfo.Idiom == DeviceIdiom.Phone || (DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density) < 600 ?
-                            VStack(spacing: MyTheme.LayoutSpacing,
-                                Border(
-                                    VStack(
-                                        Label("Resource"),
-                                        new SfComboBox()
-                                            .MinimumHeightRequest(44)
-                                            .Background(Colors.Transparent)
-                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
-                                            .TokenItemStyle(MyTheme.ChipStyle)
-                                            .ItemPadding(MyTheme.LayoutPadding)
-                                            .PlaceholderText("Select resource(s)")
-                                            .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.Resources)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                            .OnSelectionChanged(OnResourcesSelectionChanged)
-                                    ).Spacing(MyTheme.LayoutSpacing)
-
-                                ).Padding(MyTheme.Size160, MyTheme.Size80),
-                                Border(
-                                    VStack(
-                                        Label("Skills"),
-                                        new SfComboBox()
-                                            .HeightRequest(44)
-                                            .Background(Colors.Transparent)
-                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
-                                            .ItemPadding(MyTheme.LayoutPadding)
-                                            .PlaceholderText("Select skill(s)")
-                                            .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.SkillProfiles)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                            .OnSelectionChanged(OnSkillSelectionChanged)
-                                    ).Spacing(MyTheme.LayoutSpacing)
-                                ).Padding(MyTheme.Size160, MyTheme.Size80)
-                            ) : // Desktop
-                            Grid(
-                                Border(
-                                    VStack(
-                                        Label("Resource"),
-                                        new SfComboBox()
-                                            // .HeightRequest(60)
-                                            .Background(Colors.Transparent)
-                                            .ShowBorder(false)
-                                            .IsEditable(true).AllowFiltering(true)
-                                            // .MultiSelectionDisplayMode(Syncfusion.Maui.Inputs.ComboBoxMultiSelectionDisplayMode.Token)
-                                            .TextColor(MyTheme.IsLightTheme ? MyTheme.DarkOnLightBackground : MyTheme.LightOnDarkBackground)
-                                            .TokenItemStyle(MyTheme.ChipStyle)
-                                            .TokensWrapMode(Syncfusion.Maui.Inputs.ComboBoxTokensWrapMode.Wrap)
-                                            .EnableAutoSize(true)
-                                            // .ItemPadding(MyTheme.LayoutPadding)
-                                            .PlaceholderText("Select resource(s)")
-                                            // .DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.Resources)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedItems(State.SelectedResources?.Cast<object>().ToList() ?? new List<object>())
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Multiple)
-                                            .OnSelectionChanged(OnResourcesSelectionChanged)
-                                    ).Spacing(MyTheme.LayoutSpacing)
-                                ).Padding(MyTheme.Size160, MyTheme.Size80),
-                                Border(
-                                    VStack(
-                                        Label("Skills"),
-                                        new SfComboBox()
-                                            .Background(Colors.Transparent)
-                                            .ShowBorder(false)
-                                            .PlaceholderText("Select skill(s)")
-                                            //.DropDownBackground(MyTheme.IsLightTheme ? MyTheme.LightSecondaryBackground : MyTheme.DarkSecondaryBackground)
-                                            .ItemsSource(State.SkillProfiles)
-                                            .DisplayMemberPath("Title")
-                                            .SelectedIndex(State.SkillProfiles?.Count > 0 && State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < State.SkillProfiles.Count ? State.SelectedSkillProfileIndex : -1)
-                                            .SelectionMode(Syncfusion.Maui.Inputs.ComboBoxSelectionMode.Single)
-                                            .OnSelectionChanged(OnSkillSelectionChanged)
-                                    ).Spacing(MyTheme.LayoutSpacing)
-                                ).Padding(MyTheme.Size160, MyTheme.Size80).GridColumn(1)
-                            ).Columns("*,*").ColumnSpacing(MyTheme.LayoutSpacing),
-
-            // Progress section
-            RenderProgressSection(),
-
-                        // Activities
-                        Label().ThemeKey(MyTheme.Title1).HStart().Text($"{_localize["Activities"]}"),
-                        new HWrap(){
-                            new ConversationActivityBorder(),
-                            new ActivityBorder().LabelText($"{_localize["DescribeAScene"]}").Route(nameof(DescribeAScenePage)),
-                            new ActivityBorder().LabelText($"{_localize["Translate"]}").Route(nameof(TranslationPage)),
-                            new ActivityBorder().LabelText($"{_localize["Write"]}").Route(nameof(WritingPage)),
-                            new ActivityBorder().LabelText($"{_localize["Clozures"]}").Route(nameof(ClozurePage)),
-                            new ActivityBorder().LabelText($"{_localize["Reading"]}").Route("reading"),
-                            // Watch activity hidden - not fully implemented
-                            // new ActivityBorder().LabelText("Watch").Route(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage)),
-                            new ActivityBorder().LabelText($"{_localize["VocabularyQuiz"]}").Route(nameof(VocabularyQuizPage)),
-                            new ActivityBorder().LabelText($"{_localize["VocabularyMatchingTitle"]}").Route(nameof(VocabularyMatchingPage)),
-                            new ActivityBorder().LabelText($"{_localize["Shadowing"]}").Route("shadowing"),
-                            new ActivityBorder().LabelText($"{_localize["HowDoYouSay"]}").Route("howdoyousay"),
-                            new ActivityBorder().LabelText($"{_localize["MinimalPairsTitle"]}").Route("minimalpairs")
-                        }.Spacing(MyTheme.LayoutSpacing)
+        return VStack(spacing: 16,
+            RenderSelectors(),
+            Label($"{_localize["Activities"]}")
+                .H4()
+                .Margin(new Thickness(0, 8, 0, 8)),
+            RenderActivityCards(),
+            RenderVocabularyStats()
         );
     }
 
-    VisualNode RenderProgressSection()
+    VisualNode RenderSelectors()
     {
-        return VStack(spacing: MyTheme.LayoutSpacing,
-                        // Progress Section
-                        Label($"{_localize["VocabProgress"]}")
-                            .ThemeKey(MyTheme.Title1).HStart().Margin(0, MyTheme.SectionSpacing, 0, MyTheme.ComponentSpacing),
-                        (State.IsLoadingProgress && !State.HasLoadedProgressOnce
-                            ? VStack(
-                                ActivityIndicator()
-                                    .IsRunning(true)
-                                    .Color(MyTheme.HighlightDarkest)
-                                    .HeightRequest(50),
-                                Label("Loading progress data...")
-                                    .TextColor(MyTheme.SecondaryText)
-                                    .FontSize(14)
-                                    .HCenter()
-                            ).Padding(MyTheme.SectionSpacing).Spacing(MyTheme.ComponentSpacing)
-                            : (State.HasLoadedProgressOnce
-                                ? FlexLayout(
-                                    // Vocab Progress Card - always render if we have data
-                                    (State.VocabSummary != null
-                                        ? Border(
-                                            new VocabProgressCard()
-                                                .Summary(State.VocabSummary)
-                                                .IsVisible(true)
-                                                .OnSegmentTapped(NavigateToVocabularyProgress)
-                                        )
-                                        .StrokeThickness(0)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                        .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                        : Label("No vocabulary progress data available yet. Start practicing!")
-                                            .TextColor(MyTheme.SecondaryText)
-                                            .FontSize(14)
-                                            .Padding(MyTheme.SectionSpacing)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                    ),
-                                    // Practice Heat Card - always render if we have data
-                                    (State.PracticeHeat?.Any() == true
-                                        ? Border(
-                                            new PracticeStreakCard()
-                                                .HeatData(State.PracticeHeat)
-                                                .IsVisible(true)
-                                        )
-                                        .StrokeThickness(0)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                        .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-                                        .Set(View.MinimumWidthRequestProperty, 340d)
-                                        .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                        : Label("No practice activity data yet. Start practicing!")
-                                            .TextColor(MyTheme.SecondaryText)
-                                            .FontSize(14)
-                                            .Padding(MyTheme.SectionSpacing)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-                                            .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, new FlexBasis(0, true))
-                                            .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-                                    )
-                                )
-                                // Always row + wrap; wrapping handles narrow widths. If you prefer vertical stacking earlier than wrap, change threshold below.
-                                .Direction((State.Width / State.Density) > 600 ? FlexDirection.Row : FlexDirection.Column)
-                                .Wrap(FlexWrap.Wrap)
-                                .AlignItems(FlexAlignItems.Stretch)
-                                .JustifyContent(FlexJustify.Start)
-                                .Padding(0)
-                                : ContentView().HeightRequest(0) // While loading for the first time, don't show cards
-                            )
-                        )
+        bool isDesktop = DeviceInfo.Idiom != DeviceIdiom.Phone && (State.Width / State.Density) >= 600;
+
+        var resourcePicker = Picker()
+            .Title("Select resource")
+            .ItemsSource(State.Resources?.Select(r => r.Title ?? $"Resource {r.Id}").ToList() ?? new List<string>())
+            .SelectedIndex(State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < (State.Resources?.Count ?? 0) ? State.SelectedResourceIndex : -1)
+            .OnSelectedIndexChanged(OnResourcePickerChanged)
+            .HFill()
+            .HeightRequest(44);
+
+        var skillPicker = Picker()
+            .Title("Select skill")
+            .ItemsSource(State.SkillProfiles?.Select(s => s.Title ?? $"Skill {s.Id}").ToList() ?? new List<string>())
+            .SelectedIndex(State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < (State.SkillProfiles?.Count ?? 0) ? State.SelectedSkillProfileIndex : -1)
+            .OnSelectedIndexChanged(OnSkillPickerChanged)
+            .HFill()
+            .HeightRequest(44);
+
+        if (isDesktop)
+        {
+            return Border(
+                HStack(spacing: 16,
+                    VStack(spacing: 8,
+                        Label($"{_localize["LearningResources"]}")
+                            .H6(),
+                        resourcePicker
+                    )
+                    .HFill(),
+                    VStack(spacing: 8,
+                        Label($"{_localize["SkillProfile"]}")
+                            .H6(),
+                        skillPicker
+                    )
+                    .HFill()
+                )
+                .PaddingLevel(3)
+            )
+            .Background(BootstrapVariant.Light)
+            .ShadowSm()
+            .StrokeThickness(0)
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .Margin(new Thickness(0, 0, 0, 16));
+        }
+
+        // Mobile - vertical stack
+        return Border(
+            VStack(spacing: 12,
+                VStack(spacing: 8,
+                    Label($"{_localize["LearningResources"]}")
+                        .H6(),
+                    resourcePicker
+                ),
+                VStack(spacing: 8,
+                    Label($"{_localize["SkillProfile"]}")
+                        .H6(),
+                    skillPicker
+                )
+            )
+            .PaddingLevel(3)
+        )
+        .Background(BootstrapVariant.Light)
+        .ShadowSm()
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .Margin(new Thickness(0, 0, 0, 16));
+    }
+
+    VisualNode RenderActivityCards()
+    {
+        var activities = new[]
+        {
+            (Label: $"{_localize["Conversation"]}", Icon: BootstrapIcons.ChatDots, Route: "conversation", IsSpecial: true),
+            (Label: $"{_localize["DescribeAScene"]}", Icon: BootstrapIcons.Image, Route: nameof(DescribeAScenePage), IsSpecial: false),
+            (Label: $"{_localize["Translate"]}", Icon: BootstrapIcons.Translate, Route: nameof(TranslationPage), IsSpecial: false),
+            (Label: $"{_localize["Write"]}", Icon: BootstrapIcons.PencilSquare, Route: nameof(WritingPage), IsSpecial: false),
+            (Label: $"{_localize["Clozures"]}", Icon: BootstrapIcons.Puzzle, Route: nameof(ClozurePage), IsSpecial: false),
+            (Label: $"{_localize["Reading"]}", Icon: BootstrapIcons.Book, Route: "reading", IsSpecial: false),
+            (Label: $"{_localize["VocabularyQuiz"]}", Icon: BootstrapIcons.CardChecklist, Route: nameof(VocabularyQuizPage), IsSpecial: false),
+            (Label: $"{_localize["VocabularyMatchingTitle"]}", Icon: BootstrapIcons.Grid3X3Gap, Route: nameof(VocabularyMatchingPage), IsSpecial: false),
+            (Label: $"{_localize["Shadowing"]}", Icon: BootstrapIcons.Soundwave, Route: "shadowing", IsSpecial: false),
+            (Label: $"{_localize["HowDoYouSay"]}", Icon: BootstrapIcons.ChatLeftDots, Route: "howdoyousay", IsSpecial: true),
+            (Label: $"{_localize["MinimalPairsTitle"]}", Icon: BootstrapIcons.Ear, Route: "minimalpairs", IsSpecial: true)
+        };
+
+        double screenWidth = State.Width / State.Density;
+        int columns = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 3 : 2);
+
+        return Grid($"Auto,Auto,Auto,Auto,Auto,Auto", Enumerable.Repeat("*", columns).Aggregate((a, b) => $"{a},{b}"),
+            activities.Select((activity, index) => 
+                RenderActivityCard(activity.Label, activity.Icon, activity.Route, activity.IsSpecial)
+                    .GridRow(index / columns)
+                    .GridColumn(index % columns)
+            ).ToArray()
+        )
+        .ColumnSpacing(12)
+        .RowSpacing(12);
+    }
+
+    VisualNode RenderActivityCard(string label, string icon, string route, bool isSpecial)
+    {
+        return Border(
+            VStack(spacing: 8,
+                Image()
+                    .Source(BootstrapIcons.Create(icon, BootstrapTheme.Current.Primary, 32))
+                    .HeightRequest(32)
+                    .HCenter(),
+                Label(label)
+                    .H6()
+                    .HCenter()
+                    .HorizontalTextAlignment(TextAlignment.Center)
+            )
+            .PaddingLevel(3)
+            .HCenter()
+            .VCenter()
+        )
+        .Background(BootstrapVariant.Light)
+        .ShadowSm()
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .HeightRequest(120)
+        .OnTapped(async () =>
+        {
+            if (isSpecial)
+            {
+                await HandleSpecialActivity(route);
+            }
+            else
+            {
+                await HandleStandardActivity(route);
+            }
+        });
+    }
+
+    async Task HandleSpecialActivity(string route)
+    {
+        // HowDoYouSay doesn't require resources/skills
+        if (route == "howdoyousay")
+        {
+            await MauiControls.Shell.Current.GoToAsync(route);
+            return;
+        }
+
+        // Minimal Pairs launches session directly
+        if (route == "minimalpairs")
+        {
+            try
+            {
+                var pairs = await _minimalPairRepo.GetUserPairsAsync(1);
+                if (pairs.Count == 0)
+                {
+                    await IPopupService.Current.PushAsync(new SimpleActionPopup
+                    {
+                        Title = $"{_localize["MinimalPairsTitle"]}",
+                        Text = $"{_localize["MinimalPairsEmptyState"]}",
+                        ActionButtonText = $"{_localize["OK"]}",
+                        ShowSecondaryActionButton = false
+                    });
+                    return;
+                }
+
+                await MauiControls.Shell.Current.GoToAsync<MinimalPairSessionPageProps>(
+                    nameof(MinimalPairSessionPage),
+                    props =>
+                    {
+                        props.PairIds = pairs.Select(p => p.Id).ToArray();
+                        props.Mode = "Mixed";
+                        props.PlannedTrialCount = 20;
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to launch minimal pairs session");
+            }
+            return;
+        }
+
+        // Conversation just navigates
+        await MauiControls.Shell.Current.GoToAsync(route);
+    }
+
+    async Task HandleStandardActivity(string route)
+    {
+        if (_parameters.Value.SelectedResources?.Any() != true)
+        {
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Ahoy!",
+                Text = "Ye need to select at least one learning resource first, matey!",
+                ActionButtonText = "Aye!",
+                ShowSecondaryActionButton = false
+            });
+            return;
+        }
+
+        if (_parameters.Value.SelectedSkillProfile == null)
+        {
+            await IPopupService.Current.PushAsync(new SimpleActionPopup
+            {
+                Title = "Avast!",
+                Text = "Choose yer skill profile first, ye scallywag!",
+                ActionButtonText = "Aye!",
+                ShowSecondaryActionButton = false
+            });
+            return;
+        }
+
+        await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
+            route,
+            props =>
+            {
+                props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
+                props.Skill = _parameters.Value.SelectedSkillProfile;
+            }
         );
     }
 
-    // VisualNode RenderProgressCards()
-    // {
-    //     var vocabCard = State.VocabSummary != null
-    //         ? (VisualNode)Border(
-    //             new VocabProgressCard()
-    //                 .Summary(State.VocabSummary)
-    //                 .IsVisible(true)
-    //                 .OnSegmentTapped(NavigateToVocabularyProgress)
-    //         )
-    //         .StrokeThickness(0)
-    //         .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-    //         : (VisualNode)Label("No vocabulary progress data available yet. Start practicing!")
-    //             .TextColor(MyTheme.SecondaryText)
-    //             .FontSize(14)
-    //             .Padding(MyTheme.SectionSpacing)
-    //             .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin);
+    VisualNode RenderVocabularyStats()
+    {
+        return VStack(spacing: 12,
+            Label($"{_localize["VocabProgress"]}")
+                .H4()
+                .Margin(new Thickness(0, 16, 0, 4)),
+            State.IsLoadingProgress && !State.HasLoadedProgressOnce
+                ? VStack(spacing: 8,
+                    ActivityIndicator()
+                        .IsRunning(true)
+                        .Primary()
+                        .HeightRequest(50)
+                        .HCenter(),
+                    Label("Loading progress data...")
+                        .Muted()
+                        .HCenter()
+                )
+                .PaddingLevel(4)
+                : (State.VocabSummary != null
+                    ? RenderVocabCards()
+                    : Border(
+                        Label("No vocabulary data yet. Start practicing!")
+                            .Muted()
+                            .HCenter()
+                            .PaddingLevel(4)
+                    )
+                    .Background(BootstrapVariant.Light)
+                    .ShadowSm()
+                    .StrokeThickness(0)
+                    .StrokeShape(new RoundRectangle().CornerRadius(8))
+                )
+        );
+    }
 
-    //     var practiceCard = State.PracticeHeat?.Any() == true
-    //         ? (VisualNode)Border(
-    //             new PracticeStreakCard()
-    //                 .HeatData(State.PracticeHeat)
-    //                 .IsVisible(true)
-    //         )
-    //         .StrokeThickness(0)
-    //         .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin)
-    //         : (VisualNode)Label("No practice activity data yet. Start practicing!")
-    //             .TextColor(MyTheme.SecondaryText)
-    //             .FontSize(14)
-    //             .Padding(MyTheme.SectionSpacing)
-    //             .Margin(0, 0, MyTheme.CardMargin, MyTheme.CardMargin);
+    VisualNode RenderVocabCards()
+    {
+        var summary = State.VocabSummary;
+        if (summary == null)
+            return ContentView().HeightRequest(0);
 
-    //     bool isWide = DeviceInfo.Idiom != DeviceIdiom.Phone && (State.Width / State.Density) > 600;
+        var total = summary.New + summary.Learning + summary.Review + summary.Known;
 
-    //     if (isWide)
-    //     {
-    //         // FlexLayout Row works correctly for wide screens
-    //         return FlexLayout(
-    //             vocabCard
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, FlexBasis.Auto)
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-    //                 .Set(View.MinimumWidthRequestProperty, 340d),
-    //             practiceCard
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.GrowProperty, 1f)
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.BasisProperty, FlexBasis.Auto)
-    //                 .Set(Microsoft.Maui.Controls.FlexLayout.AlignSelfProperty, FlexAlignSelf.Stretch)
-    //                 .Set(View.MinimumWidthRequestProperty, 340d)
-    //         )
-    //         .Direction(FlexDirection.Row)
-    //         .Wrap(FlexWrap.Wrap)
-    //         .AlignItems(FlexAlignItems.Stretch)
-    //         .JustifyContent(FlexJustify.Start)
-    //         .Padding(0);
-    //     }
+        double screenWidth = State.Width / State.Density;
+        int columns = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 4 : 2);
 
-    //     // VStack for narrow screens — FlexLayout Column has a measurement bug (DesiredSize.Height=0)
-    //     return VStack(spacing: MyTheme.CardMargin,
-    //         vocabCard,
-    //         practiceCard
-    //     );
-    // }
+        return VStack(spacing: 12,
+            Grid("Auto,Auto", Enumerable.Repeat("*", columns).Aggregate((a, b) => $"{a},{b}"),
+                RenderVocabStatCard("New", summary.New, BootstrapVariant.Primary)
+                    .GridRow(0)
+                    .GridColumn(0),
+                RenderVocabStatCard("Learning", summary.Learning, BootstrapVariant.Warning)
+                    .GridRow(0)
+                    .GridColumn(1),
+                RenderVocabStatCard("Review", summary.Review, BootstrapVariant.Warning)
+                    .GridRow(0)
+                    .GridColumn(columns >= 4 ? 2 : 0)
+                    .GridRowSpan(columns >= 4 ? 1 : 1)
+                    .When(columns < 4, c => c.GridRow(1)),
+                RenderVocabStatCard("Known", summary.Known, BootstrapVariant.Success)
+                    .GridRow(columns >= 4 ? 0 : 1)
+                    .GridColumn(columns >= 4 ? 3 : 1)
+            )
+            .ColumnSpacing(12)
+            .RowSpacing(12),
+            total > 0
+                ? Border(
+                    Grid("Auto", "*,Auto",
+                        Label($"Total words: {total}")
+                            .H6()
+                            .GridColumn(0),
+                        Label($"7-day accuracy: {Math.Round(summary.SuccessRate7d * 100)}%")
+                            .Muted()
+                            .GridColumn(1)
+                    )
+                    .PaddingLevel(3)
+                )
+                .Background(BootstrapVariant.Light)
+                .ShadowSm()
+                .StrokeThickness(0)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                : null
+        );
+    }
+
+    VisualNode RenderVocabStatCard(string label, int count, BootstrapVariant variant)
+    {
+        return Border(
+            VStack(spacing: 4,
+                Label(count.ToString())
+                    .H3()
+                    .TextColor(variant)
+                    .HCenter(),
+                Label(label)
+                    .Muted()
+                    .FontSize(14)
+                    .HCenter()
+            )
+            .PaddingLevel(3)
+            .HCenter()
+            .VCenter()
+        )
+        .Background(BootstrapVariant.Light)
+        .ShadowSm()
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(8))
+        .OnTapped(() =>
+        {
+            var filterType = label switch
+            {
+                "New" => VocabularyFilterType.Unknown,
+                "Learning" => VocabularyFilterType.Learning,
+                "Review" => VocabularyFilterType.Learning,
+                "Known" => VocabularyFilterType.Known,
+                _ => VocabularyFilterType.All
+            };
+            NavigateToVocabularyProgress(filterType);
+        });
+    }
 
     async Task LoadOrRefreshDataAsync()
     {
@@ -926,21 +1207,25 @@ partial class DashboardPage : Component<DashboardPageState>
         return Task.FromResult(nameof(SentenceStudio.Pages.VideoWatching.VideoWatchingPage));
     }
 
-    // Selection handlers that are resilient to chip removals (e.AddedItems can be null)
-    private void OnResourcesSelectionChanged(object sender, Syncfusion.Maui.Inputs.SelectionChangedEventArgs e)
+    private void OnResourcePickerChanged(int selectedIndex)
     {
         try
         {
-            var combo = sender as Syncfusion.Maui.Inputs.SfComboBox;
-            var selected = combo?.SelectedItems?.OfType<LearningResource>().ToList() ?? new List<LearningResource>();
-
             SetState(s =>
             {
-                s.SelectedResources = selected;
-                s.SelectedResourceIndex = selected.Any() ? State.Resources.IndexOf(selected.First()) : -1;
+                s.SelectedResourceIndex = selectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < s.Resources.Count)
+                {
+                    s.SelectedResources = new List<LearningResource> { s.Resources[selectedIndex] };
+                }
+                else
+                {
+                    s.SelectedResources = new List<LearningResource>();
+                }
             });
 
-            // CRITICAL FIX: Reload selected resources WITH vocabulary for activities
+            // Reload selected resources WITH vocabulary for activities
+            var selected = State.SelectedResources;
             Task.Run(async () =>
             {
                 if (selected?.Any() == true)
@@ -957,7 +1242,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         _parameters.Set(p => p.SelectedResources = fullResources);
-                        _logger.LogDebug("🏴‍☠️ Reloaded {Count} resources WITH vocabulary after selection change", fullResources.Count);
+                        _logger.LogDebug("Reloaded {Count} resources WITH vocabulary after selection change", fullResources.Count);
                     });
                 }
                 else
@@ -973,26 +1258,25 @@ partial class DashboardPage : Component<DashboardPageState>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "OnResourcesSelectionChanged error");
+            _logger.LogError(ex, "OnResourcePickerChanged error");
         }
     }
 
-    private void OnSkillSelectionChanged(object sender, Syncfusion.Maui.Inputs.SelectionChangedEventArgs e)
+    private void OnSkillPickerChanged(int selectedIndex)
     {
         try
         {
-            var combo = sender as Syncfusion.Maui.Inputs.SfComboBox;
-            // Single selection mode: use SelectedItem
-            var selectedProfile = combo?.SelectedItem as SkillProfile;
-            var index = selectedProfile != null ? State.SkillProfiles.IndexOf(selectedProfile) : -1;
+            SetState(s => s.SelectedSkillProfileIndex = selectedIndex);
 
-            SetState(s => s.SelectedSkillProfileIndex = index);
+            var selectedProfile = selectedIndex >= 0 && selectedIndex < State.SkillProfiles.Count
+                ? State.SkillProfiles[selectedIndex]
+                : null;
             _parameters.Set(p => p.SelectedSkillProfile = selectedProfile);
             DebouncedSaveUserSelectionsToPreferences();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "OnSkillSelectionChanged error");
+            _logger.LogError(ex, "OnSkillPickerChanged error");
         }
     }
 
@@ -1134,134 +1418,6 @@ partial class DashboardPage : Component<DashboardPageState>
     }
 }
 
-public partial class ActivityBorder : MauiReactor.Component
-{
-    [Inject]
-    ILogger<ActivityBorder> _logger;
-
-    [Inject]
-    MinimalPairRepository _minimalPairRepo;
-
-    [Prop]
-    string _labelText;
-
-    [Prop]
-    string _route;
-
-    [Param] IParameter<DashboardParameters> _parameters;
-
-    LocalizationManager _localize => LocalizationManager.Instance;
-
-    public override VisualNode Render() =>
-        Border(
-            Grid(
-                Label()
-                    .VCenter()
-                    .HCenter()
-                    .Text($"{_labelText}")
-            )
-            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
-            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 80)
-        )
-        .StrokeShape(Rectangle())
-        .StrokeThickness(1)
-        .HStart()
-        .OnTapped(async () =>
-        {
-            // Minimal Pairs activity launches directly into practice session
-            if (_route == "minimalpairs")
-            {
-                _logger.LogDebug("🏴‍☠️ ActivityBorder: Loading minimal pairs for practice session");
-
-                try
-                {
-                    // Load user's pairs (userId = 1 for single-user app)
-                    var pairs = await _minimalPairRepo.GetUserPairsAsync(1);
-
-                    if (pairs.Count == 0)
-                    {
-                        await IPopupService.Current.PushAsync(new SimpleActionPopup
-                        {
-                            Title = $"{_localize["MinimalPairsTitle"]}",
-                            Text = $"{_localize["MinimalPairsEmptyState"]}",
-                            ActionButtonText = $"{_localize["OK"]}",
-                            ShowSecondaryActionButton = false
-                        });
-                        return;
-                    }
-
-                    // Navigate to session with all pairs in Mixed mode (default practice)
-                    await MauiControls.Shell.Current.GoToAsync<MinimalPairSessionPageProps>(
-                        nameof(MinimalPairSessionPage),
-                        props =>
-                        {
-                            props.PairIds = pairs.Select(p => p.Id).ToArray();
-                            props.Mode = "Mixed";
-                            props.PlannedTrialCount = 20;
-                        }
-                    );
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to launch minimal pairs session");
-                    await IPopupService.Current.PushAsync(new SimpleActionPopup
-                    {
-                        Title = $"{_localize["Error"]}",
-                        Text = "Could not start practice session",
-                        ActionButtonText = $"{_localize["OK"]}",
-                        ShowSecondaryActionButton = false
-                    });
-                }
-
-                return;
-            }
-
-            // HowDoYouSay doesn't require resources or skill - navigate directly
-            if (_route == "howdoyousay")
-            {
-                _logger.LogDebug("🏴‍☠️ ActivityBorder: Navigating to HowDoYouSay");
-                await MauiControls.Shell.Current.GoToAsync(_route);
-                return;
-            }
-
-            // 🏴‍☠️ Validate that we have the required selections before navigating
-            if (_parameters.Value.SelectedResources?.Any() != true)
-            {
-                await IPopupService.Current.PushAsync(new SimpleActionPopup
-                {
-                    Title = "Ahoy!",
-                    Text = "Ye need to select at least one learning resource before startin' this activity, matey!",
-                    ActionButtonText = "Aye, Captain!",
-                    ShowSecondaryActionButton = false
-                });
-                return;
-            }
-
-            if (_parameters.Value.SelectedSkillProfile == null)
-            {
-                await IPopupService.Current.PushAsync(new SimpleActionPopup
-                {
-                    Title = "Avast!",
-                    Text = "Choose yer skill profile first, ye scallywag!",
-                    ActionButtonText = "Aye, Captain!",
-                    ShowSecondaryActionButton = false
-                });
-                return;
-            }
-
-            _logger.LogDebug("🏴‍☠️ ActivityBorder: Navigating to {Route} with {ResourceCount} resources and skill {SkillTitle}", _route, _parameters.Value.SelectedResources.Count, _parameters.Value.SelectedSkillProfile.Title);
-
-            await MauiControls.Shell.Current.GoToAsync<ActivityProps>(
-                _route,
-                props =>
-                {
-                    props.Resources = _parameters.Value.SelectedResources?.ToList() ?? new List<LearningResource>();
-                    props.Skill = _parameters.Value.SelectedSkillProfile;
-                }
-            );
-        });
-}
-
 class ActivityProps
 {
     public List<LearningResource> Resources { get; set; } = new();
@@ -1287,92 +1443,4 @@ class ActivityProps
 
     // Backward compatibility - returns first resource or null
     public LearningResource Resource => Resources?.FirstOrDefault();
-}
-
-class ConversationActivityBorderState
-{
-    public string Language { get; set; } = "Korean";
-}
-
-partial class ConversationActivityBorder : Component<ConversationActivityBorderState>
-{
-    const string PrefKey = "ConversationActivity_Language";
-
-    LocalizationManager _localize => LocalizationManager.Instance;
-
-    protected override void OnMounted()
-    {
-        base.OnMounted();
-        var lang = Preferences.Default.Get(PrefKey, "Korean");
-        SetState(s => s.Language = lang);
-    }
-
-    public override VisualNode Render() =>
-        Border(
-            Grid(rows: "*, Auto", columns: "*",
-                Label($"{_localize["Conversation"]}")
-                    .VCenter()
-                    .HCenter()
-                    .GridRow(0),
-                Label($"{State.Language} \u25BE")
-                    .ThemeKey(MyTheme.Caption1)
-                    .TextColor(MyTheme.AccentText)
-                    .HCenter()
-                    .GridRow(1)
-                    .OnTapped(ShowLanguagePopup)
-            )
-            .WidthRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 140 : 200)
-            .HeightRequest(DeviceInfo.Idiom == DeviceIdiom.Phone ? 60 : 80)
-        )
-        .StrokeShape(Rectangle())
-        .StrokeThickness(1)
-        .HStart()
-        .OnTapped(NavigateToConversation);
-
-    async void NavigateToConversation()
-    {
-        await MauiControls.Shell.Current.GoToAsync("conversation");
-    }
-
-    async void ShowLanguagePopup()
-    {
-        string selectedLanguage = null;
-
-        var popup = new ListActionPopup
-        {
-            Title = $"{_localize["SelectLanguage"]}",
-            ShowActionButton = false,
-            ItemsSource = Constants.Languages,
-            ItemDataTemplate = new MauiControls.DataTemplate(() =>
-            {
-                var tapGesture = new MauiControls.TapGestureRecognizer();
-                tapGesture.Tapped += async (s, e) =>
-                {
-                    if (s is MauiControls.Label label && label.BindingContext is string lang)
-                    {
-                        selectedLanguage = lang;
-                        await IPopupService.Current.PopAsync();
-                    }
-                };
-
-                var label = new MauiControls.Label
-                {
-                    TextColor = MyTheme.LightOnDarkBackground,
-                    FontSize = MyTheme.Size160,
-                    Padding = new Thickness(MyTheme.Size80, MyTheme.Size120)
-                };
-                label.SetBinding(MauiControls.Label.TextProperty, ".");
-                label.GestureRecognizers.Add(tapGesture);
-                return label;
-            })
-        };
-
-        await IPopupService.Current.PushAsync(popup);
-
-        if (!string.IsNullOrEmpty(selectedLanguage))
-        {
-            Preferences.Default.Set(PrefKey, selectedLanguage);
-            SetState(s => s.Language = selectedLanguage);
-        }
-    }
 }
