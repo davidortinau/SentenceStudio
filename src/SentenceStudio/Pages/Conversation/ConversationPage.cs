@@ -85,6 +85,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
         return ContentPage($"{_localize["Conversation"]}",
             ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
+            ToolbarItem($"{_localize["ChangeLanguage"]}").OnClicked(ShowLanguageSelection),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),
@@ -319,6 +320,80 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         }
     }
 
+    async void ShowLanguageSelection()
+    {
+        try
+        {
+            var languages = SentenceStudio.Common.Constants.Languages;
+
+            var popup = new ListActionPopup
+            {
+                Title = $"{_localize["SelectLanguage"]}",
+                ShowActionButton = false,
+                ItemsSource = languages,
+                ItemDataTemplate = new Microsoft.Maui.Controls.DataTemplate(() =>
+                {
+                    var tapGesture = new Microsoft.Maui.Controls.TapGestureRecognizer();
+                    tapGesture.SetBinding(Microsoft.Maui.Controls.TapGestureRecognizer.CommandParameterProperty, ".");
+                    tapGesture.Tapped += async (s, e) =>
+                    {
+                        if (e is Microsoft.Maui.Controls.TappedEventArgs args && args.Parameter is string lang)
+                        {
+                            await IPopupService.Current.PopAsync();
+                            ChangeLanguage(lang);
+                        }
+                    };
+
+                    var layout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 8, Padding = new Thickness(0, 8) };
+                    layout.GestureRecognizers.Add(tapGesture);
+
+                    var label = new Microsoft.Maui.Controls.Label
+                    {
+                        FontSize = 16,
+                        TextColor = Colors.White,
+                        VerticalOptions = LayoutOptions.Center
+                    };
+                    label.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, ".");
+
+                    var checkIcon = new Microsoft.Maui.Controls.Image
+                    {
+                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, Colors.Green, 16),
+                        WidthRequest = 16,
+                        HeightRequest = 16,
+                        VerticalOptions = LayoutOptions.Center,
+                        HorizontalOptions = LayoutOptions.EndAndExpand
+                    };
+                    checkIcon.SetBinding(Microsoft.Maui.Controls.Image.IsVisibleProperty,
+                        new Microsoft.Maui.Controls.Binding(".",
+                            converter: new IsActiveLanguageConverter(State.TargetLanguage)));
+
+                    layout.Children.Add(label);
+                    layout.Children.Add(checkIcon);
+
+                    return layout;
+                })
+            };
+            await IPopupService.Current.PushAsync(popup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing language selection");
+        }
+    }
+
+    async void ChangeLanguage(string language)
+    {
+        if (language == State.TargetLanguage) return;
+
+        _logger.LogInformation("Changing language to: {Language}", language);
+
+        Preferences.Default.Set("ConversationActivity_Language", language);
+        SetState(s => s.TargetLanguage = language);
+
+        // Restart the conversation with the new language
+        await StartConversationWithScenario(State.ActiveScenario);
+    }
+
     async void SelectScenario(ConversationScenario scenario)
     {
         _logger.LogInformation("Selected scenario: {Name}", scenario.Name);
@@ -370,9 +445,25 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
             return Grid("Auto", "*, Auto",
                 Border(
-                    new SelectableLabel()
-                        .Text(chunk.Text)
-                        .FontSize(State.FontSize)
+                    VStack(
+                        new SelectableLabel()
+                            .Text(chunk.Text)
+                            .FontSize(State.FontSize),
+
+                        // Inline grammar corrections display
+                        hasCorrections ?
+                            RenderGrammarCorrections(chunk.GrammarCorrections!)
+                            : null,
+
+                        // Comprehension score
+                        hasComprehension ?
+                            Label($"{_localize["Comprehension"]}: {(int)(chunk.Comprehension * 100)}%")
+                                .FontSize(12)
+                                .TextColor(theme.OnSurface.WithAlpha(0.6f))
+                                .Margin(new Thickness(0, 4, 0, 0))
+                            : null
+                    )
+                    .Spacing(0)
                 )
                 .Padding(new Thickness(16, 4, 16, 8))
                 .Background(theme.Info)
@@ -436,6 +527,48 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         {
             _logger.LogError(e, "ConversationPage: Error showing explanation");
         }
+    }
+
+    VisualNode RenderGrammarCorrections(List<GrammarCorrectionDto> corrections)
+    {
+        var theme = BootstrapTheme.Current;
+
+        return VStack(
+            // Separator line
+            BoxView()
+                .HeightRequest(1)
+                .BackgroundColor(theme.OnSurface.WithAlpha(0.2f))
+                .Margin(new Thickness(0, 8, 0, 4)),
+
+            // Each correction: Original (strikethrough) -> Corrected (bold)
+            corrections.Select(c =>
+                (VisualNode)VStack(
+                    HStack(
+                        Label(c.Original)
+                            .FontSize(12)
+                            .TextColor(theme.Danger)
+                            .TextDecorations(TextDecorations.Strikethrough),
+                        Label(" → ")
+                            .FontSize(12)
+                            .TextColor(theme.OnSurface.WithAlpha(0.6f)),
+                        Label(c.Corrected)
+                            .FontSize(12)
+                            .TextColor(theme.Success)
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
+                    )
+                    .Spacing(2),
+
+                    !string.IsNullOrEmpty(c.Explanation) ?
+                        Label(c.Explanation)
+                            .FontSize(11)
+                            .TextColor(theme.OnSurface.WithAlpha(0.5f))
+                            .Margin(new Thickness(0, 2, 0, 0))
+                        : null
+                )
+                .Spacing(0)
+            ).ToArray()
+        )
+        .Spacing(4);
     }
 
     VisualNode RenderInput()
@@ -1246,6 +1379,31 @@ class IsActiveScenarioConverter : IValueConverter
         if (value is int id && _activeScenarioId.HasValue)
         {
             return id == _activeScenarioId.Value;
+        }
+        return false;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Converter to check if a language string matches the active language
+/// </summary>
+class IsActiveLanguageConverter : IValueConverter
+{
+    private readonly string _activeLanguage;
+
+    public IsActiveLanguageConverter(string activeLanguage)
+    {
+        _activeLanguage = activeLanguage;
+    }
+
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is string lang)
+        {
+            return string.Equals(lang, _activeLanguage, StringComparison.OrdinalIgnoreCase);
         }
         return false;
     }

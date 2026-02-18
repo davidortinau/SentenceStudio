@@ -1857,4 +1857,8 @@
     <value>글자 크기</value>
     <comment>Label for text size slider</comment>
   </data>
+  <data name="Comprehension" xml:space="preserve">
+    <value>이해도</value>
+    <comment>Label shown with comprehension score in conversation bubbles</comment>
+  </data>
 </root>
