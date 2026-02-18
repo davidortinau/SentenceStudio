@@ -153,7 +153,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                 !allComplete
                     ? Button(buttonText)
                         .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                         .HEnd()
                         .VCenter()
                         .OnClicked(() =>

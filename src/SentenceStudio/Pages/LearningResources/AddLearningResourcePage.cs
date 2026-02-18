@@ -143,10 +143,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                     ).Spacing(4)
                                 ).Spacing(12)
                             )
-                            .BackgroundColor(theme.GetSurface())
-                            .Stroke(theme.GetOutline())
-                            .StrokeThickness(1)
-                            .StrokeShape(new RoundRectangle().CornerRadius(12))
+                            .Class("card")
                             .Padding(16),
 
                             // Media Content card - show for all types except Vocabulary List
@@ -193,10 +190,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         ).Spacing(4)
                                     ).Spacing(12)
                                 )
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                                .Class("card")
                                 .Padding(16) :
                                 null,
 
@@ -246,10 +240,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                         null
                                 ).Spacing(12)
                             )
-                            .BackgroundColor(theme.GetSurface())
-                            .Stroke(theme.GetOutline())
-                            .StrokeThickness(1)
-                            .StrokeShape(new RoundRectangle().CornerRadius(12))
+                            .Class("card")
                             .Padding(16),
 
                             Button($"{_localize["SaveResource"]}")

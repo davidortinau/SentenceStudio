@@ -237,8 +237,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 RenderStatsBadge($"{_localize["Orphaned"]}: {State.Stats.OrphanedWords}", theme.Warning)
             ),
 
-            // Gap 2: Search + filters
-            Grid(rows: "Auto", columns: "*,Auto",
+            // Gap 2: Search + filter (Blazor layout: input + select + clear btn in a row)
+            Grid(rows: "Auto", columns: "*,Auto,Auto",
                 Entry()
                     .Placeholder($"{_localize["SearchVocabulary"]}")
                     .Text(State.RawSearchQuery)
@@ -248,19 +248,37 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .HeightRequest(44)
                     .HFill()
                     .GridColumn(0),
+
+                Picker()
+                    .Title($"{_localize["All"]}")
+                    .ItemsSource(new List<string> { $"{_localize["All"]}", $"{_localize["Associated"]}", $"{_localize["Orphaned"]}" })
+                    .SelectedIndex(State.SelectedFilter switch {
+                        VocabularyFilter.All => 0,
+                        VocabularyFilter.Associated => 1,
+                        VocabularyFilter.Orphaned => 2,
+                        _ => 0
+                    })
+                    .OnSelectedIndexChanged(idx =>
+                    {
+                        var filter = idx switch {
+                            1 => VocabularyFilter.Associated,
+                            2 => VocabularyFilter.Orphaned,
+                            _ => VocabularyFilter.All
+                        };
+                        SetState(s => s.SelectedFilter = filter);
+                        ApplyFilters();
+                    })
+                    .Class("form-select")
+                    .HeightRequest(44)
+                    .WidthRequest(160)
+                    .GridColumn(1),
+
                 RenderFilterButtons(
                         !string.IsNullOrWhiteSpace(State.RawSearchQuery) ||
                         State.SelectedFilter != VocabularyFilter.All ||
                         State.ParsedQuery != null)
-                    .GridColumn(1)
-            ).ColumnSpacing(8),
-
-            // Gap 3: Filter selector (3-way toggle)
-            HStack(spacing: 4,
-                RenderFilterToggle($"{_localize["All"]}", VocabularyFilter.All),
-                RenderFilterToggle($"{_localize["Associated"]}", VocabularyFilter.Associated),
-                RenderFilterToggle($"{_localize["Orphaned"]}", VocabularyFilter.Orphaned)
-            )
+                    .GridColumn(2)
+            ).ColumnSpacing(8)
         ).Padding(16, 8);
     }
 
@@ -268,29 +286,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         return Border(
             Label(text)
-                .FontSize(12)
-                .TextColor(Colors.White)
+                .Class("small")
+                .TextColor(BootstrapTheme.Current.OnPrimary)
                 .Padding(8, 4)
         )
-        .Background(bgColor)
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
-    }
-
-    VisualNode RenderFilterToggle(string label, VocabularyFilter filter)
-    {
-        var theme = BootstrapTheme.Current;
-        var isSelected = State.SelectedFilter == filter;
-        var btn = Button(label)
-            .FontSize(13)
-            .Padding(12, 6)
-            .OnClicked(() =>
-            {
-                SetState(s => s.SelectedFilter = filter);
-                ApplyFilters();
-            });
-
-        return isSelected ? btn.Primary() : btn.Secondary().Outlined();
+        .Class("badge")
+        .Background(bgColor);
     }
 
     // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
@@ -372,20 +373,17 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .HFill(),
                     Button($"{_localize["Delete"]}")
                         .Background(new SolidColorBrush(theme.Danger))
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
                     Button($"{_localize["Associate"]}")
                         .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 )
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Padding(16, 8)
             .Margin(new Thickness(8, 4, 8, 8));
     }
@@ -406,7 +404,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 !State.AllVocabularyItems.Any() ?
                     Button($"{_localize["GetStarted"]}")
                         .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :
@@ -424,7 +422,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 4))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16);
@@ -464,6 +462,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     VisualNode RenderVocabularyCard(VocabularyCardViewModel item)
     {
+        var theme = BootstrapTheme.Current;
         return Border(
             State.IsMultiSelectMode ?
                 VStack(
@@ -479,6 +478,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 ) :
                 RenderVocabularyCardViewMode(item)
         )
+        .Class("card")
+        .PaddingLevel(3)
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
             () => NavigateToEditPage(item.Word.Id));
@@ -497,9 +498,9 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var badgeColor = label switch
         {
             "Basic" => theme.Warning,
-            "Good" => theme.GetOutline(),
+            "Good" => theme.Secondary,
             "Strong" => theme.Success,
-            _ => theme.GetOutline()
+            _ => theme.Secondary
         };
 
         var localizedLabel = label switch
@@ -512,28 +513,58 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
         return Border(
             Label(localizedLabel)
-                .FontSize(10)
-                .TextColor(Colors.White)
+                .Class("small")
+                .TextColor(BootstrapTheme.Current.OnPrimary)
                 .Padding(4, 2)
         )
         .VStart()
-        .Background(badgeColor)
-        .StrokeThickness(0)
-        .StrokeShape(new RoundRectangle().CornerRadius(4));
+        .Class("badge")
+        .Background(badgeColor);
     }
 
-    VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item) =>
-        VStack(
-            Label(item.Word.TargetLanguageTerm ?? "")
-                .FontSize(14)
-                .FontAttributes(FontAttributes.Bold),
-            Label(item.Word.NativeLanguageTerm ?? "")
-                .FontSize(14),
-            Label($"{item.StatusText} · {(item.IsOrphaned ? $"{_localize["Orphaned"]}" : string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count))}")
-                .Small()
-                .TextColor(item.IsOrphaned ? BootstrapTheme.Current.Warning : item.StatusColor),
-            RenderTagBadges(item.Word)
+    VisualNode RenderVocabularyCardViewMode(VocabularyCardViewModel item)
+    {
+        var theme = BootstrapTheme.Current;
+
+        // Status badge color/class matching Blazor GetStatusBadgeClass
+        var statusBgColor = item.IsKnown ? theme.Success :
+                            item.IsLearning ? theme.Warning :
+                            theme.Secondary;
+
+        return VStack(spacing: 4,
+            // Top row: term + status badge right-aligned
+            Grid(rows: "Auto", columns: "*,Auto",
+                VStack(spacing: 2,
+                    Label(item.Word.TargetLanguageTerm ?? "")
+                        .H6(),
+                    Label(item.Word.NativeLanguageTerm ?? "")
+                        .Small()
+                        .Muted()
+                ).GridColumn(0),
+                Border(
+                    Label(item.StatusText)
+                        .Class("small")
+                        .TextColor(item.IsLearning ? theme.Dark : theme.OnPrimary)
+                        .Padding(6, 2)
+                )
+                .Class("badge")
+                .Background(statusBgColor)
+                .VStart()
+                .GridColumn(1)
+            ),
+            // Bottom row: orphaned/resource info + tags
+            HStack(spacing: 8,
+                item.IsOrphaned
+                    ? Label($"⚠ {_localize["Orphaned"]}")
+                        .Small()
+                        .TextColor(theme.Warning)
+                    : Label($"📚 {string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count)}")
+                        .Small()
+                        .Muted(),
+                RenderTagBadges(item.Word)
+            ).Margin(0, 4, 0, 0)
         );
+    }
 
     VisualNode RenderTagBadges(VocabularyWord word)
     {
@@ -543,18 +574,20 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var tags = word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tags.Length == 0) return null;
 
+        var theme = BootstrapTheme.Current;
+        var displayTags = tags.Take(3);
         return HStack(spacing: 4,
-            tags.Select(tag =>
+            displayTags.Select(tag =>
                 Border(
                     Label(tag)
-                        .Class("on-primary")
-                        .Small()
-                        .Padding(6, 2)
+                        .Class("small")
+                        .TextColor(theme.GetOnBackground())
                 )
                 .Class("badge")
-                .Class("bg-primary")
+                .BackgroundColor(theme.Secondary.WithAlpha(0.5f))
+                .Padding(6, 2)
             ).ToArray()
-        ).Margin(0, 4, 0, 0);
+        );
     }
 
     // Helper method to load data with initial delay for smooth page transitions

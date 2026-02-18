@@ -292,10 +292,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .Padding(12)
             )
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .Margin(4);
     }
 

@@ -345,10 +345,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card");
     }
 
     VisualNode RenderProgressSection()

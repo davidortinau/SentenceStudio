@@ -66,10 +66,7 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                             )
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     Button("Save Skill Profile")

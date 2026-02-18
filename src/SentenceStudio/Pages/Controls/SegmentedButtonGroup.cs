@@ -19,22 +19,26 @@ partial class SegmentedButtonGroup : Component
     public override VisualNode Render()
     {
         var theme = BootstrapTheme.Current;
-        return Border(
-            Grid(rows: "Auto", columns: "*,Auto,*",
-                _left.GridColumn(0),
-                BoxView()
-                    .WidthRequest(1)
-                    .BackgroundColor(theme.GetOutline())
-                    .GridColumn(1)
-                    .VFill(),
-                _right.GridColumn(2)
-            )
-            .ColumnSpacing(0)
+        var cr = _cornerRadius;
+
+        return Grid(rows: "Auto", columns: "*,*",
+            // Left button with rounded left corners, flat right corners
+            Border(_left)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(cr, 0, cr, 0))
+                .Padding(0)
+                .GridColumn(0),
+            // Right button with flat left corners, rounded right corners
+            Border(_right)
+                .Stroke(theme.GetOutline())
+                .StrokeThickness(1)
+                .StrokeShape(new RoundRectangle().CornerRadius(0, cr, 0, cr))
+                .Padding(0)
+                .Margin(-1, 0, 0, 0) // overlap left border for seamless join
+                .GridColumn(1)
         )
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(_cornerRadius))
-        .Padding(0)
+        .ColumnSpacing(0)
         .Margin(_margin);
     }
 }

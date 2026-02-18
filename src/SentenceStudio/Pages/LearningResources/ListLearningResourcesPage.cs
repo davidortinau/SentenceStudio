@@ -65,6 +65,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(AddResource),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Progress")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.GraphUp, theme.GetOnBackground(), 20))
                 .OnClicked(ViewVocabularyProgress),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text("Generate Starter")
                 .OnClicked(CreateStarterResource),
@@ -84,7 +85,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     GridLayoutHelper.CalculateResponsiveLayout(
                                         desiredItemWidth: 300,
                                         orientation: ItemsLayoutOrientation.Vertical,
-                                        maxColumns: 4))
+                                        maxColumns: 3))
                                 .ItemsSource(State.Resources, RenderResourceItem)
                                 .EmptyView(
                                     VStack(
@@ -104,7 +105,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .HCenter()
                                                 .WidthRequest(200)
                                                 .Background(new SolidColorBrush(theme.Primary))
-                                                .TextColor(Colors.White)
+                                                .TextColor(theme.OnPrimary)
                                         )
                                         .Spacing(8)
                                     )
@@ -122,12 +123,12 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                         Label("Creating starter vocabulary...")
                                             .HCenter()
                                             .FontSize(14)
-                                            .TextColor(Colors.White)
+                                            .TextColor(theme.GetOnSurface())
                                     )
                                     .Spacing(8)
                                     .Center()
                                 )
-                                .BackgroundColor(Colors.Black.WithAlpha(0.6f))
+                                .BackgroundColor(theme.GetOnBackground().WithAlpha(0.6f))
                                 .GridRow(0).GridRowSpan(2)
                                 : null
                         ) // Grid
@@ -142,24 +143,35 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         var theme = BootstrapTheme.Current;
 
         return Border(
-            HStack(spacing: 12,
-                // Icon based on media type
+            Grid(rows: "Auto,Auto", columns: "Auto,*,Auto",
+                // Icon
                 Image()
                     .Source(GetBootstrapIconForMediaType(resource.MediaType, theme))
-                    .VStart(),
+                    .VStart()
+                    .GridColumn(0).GridRow(0).GridRowSpan(2)
+                    .Margin(0, 0, 12, 0),
 
-                // Title + metadata stacked
-                VStack(spacing: 4,
-                    Label(resource.Title)
-                        .H6()
-                        .LineBreakMode(LineBreakMode.TailTruncation)
-                        .MaxLines(1),
-                    Label($"{resource.MediaType} • {resource.Language} • {resource.CreatedAt:d}{(resource.IsSmartResource ? " • Auto" : "")}")
-                        .Small()
-                        .Muted()
-                        .LineBreakMode(LineBreakMode.TailTruncation)
-                        .MaxLines(1)
-                ).HFill()
+                // Title
+                Label(resource.Title)
+                    .H6()
+                    .LineBreakMode(LineBreakMode.TailTruncation)
+                    .MaxLines(1)
+                    .GridColumn(1).GridRow(0),
+
+                // Date right-aligned
+                Label(resource.CreatedAt.ToString("d"))
+                    .Small()
+                    .Muted()
+                    .GridColumn(2).GridRow(0)
+                    .Margin(8, 0, 0, 0),
+
+                // Metadata line
+                Label($"{(resource.IsSmartResource ? "⚡ " : "")}{resource.MediaType} • {resource.Language}{(resource.IsSmartResource ? " • Auto-updated" : "")}")
+                    .Small()
+                    .Muted()
+                    .LineBreakMode(LineBreakMode.TailTruncation)
+                    .MaxLines(1)
+                    .GridColumn(1).GridColumnSpan(2).GridRow(1)
             )
             .Padding(12)
             .OnTapped(() => ViewResource(resource.Id))
@@ -200,27 +212,45 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                 .GridColumn(0)
                 .VStart(),
 
-            // Type filter icon
-            ImageButton()
-                .Source(BootstrapIcons.Create(BootstrapIcons.Funnel, theme.GetOnBackground(), 18))
-                .Background(new SolidColorBrush(theme.GetSurface()))
-                .HeightRequest(36)
-                .WidthRequest(36)
-                .CornerRadius(18)
-                .Padding(6)
-                .OnClicked(ShowTypeFilterDialog)
+            // Type filter dropdown
+            Picker()
+                .Title("All Types")
+                .ItemsSource(_mediaTypes)
+                .SelectedIndex(State.FilterTypeIndex)
+                .OnSelectedIndexChanged(idx =>
+                {
+                    if (idx < 0 || idx >= _mediaTypes.Count) return;
+                    SetState(s =>
+                    {
+                        s.FilterTypeIndex = idx;
+                        s.FilterType = _mediaTypes[idx];
+                    });
+                    _ = FilterResources();
+                })
+                .Class("form-select")
+                .HeightRequest(44)
+                .WidthRequest(160)
                 .GridColumn(1)
                 .VStart(),
 
-            // Language filter icon
-            ImageButton()
-                .Source(BootstrapIcons.Create(BootstrapIcons.Globe, theme.GetOnBackground(), 18))
-                .Background(new SolidColorBrush(theme.GetSurface()))
-                .HeightRequest(36)
-                .WidthRequest(36)
-                .CornerRadius(18)
-                .Padding(6)
-                .OnClicked(ShowLanguageFilterDialog)
+            // Language filter dropdown
+            Picker()
+                .Title("All Languages")
+                .ItemsSource(_languages)
+                .SelectedIndex(0)
+                .OnSelectedIndexChanged(idx =>
+                {
+                    if (idx < 0 || idx >= _languages.Count) return;
+                    var lang = _languages[idx];
+                    SetState(s =>
+                    {
+                        s.FilterLanguages = lang == "All" ? new List<string>() : new List<string> { lang };
+                    });
+                    _ = FilterResources();
+                })
+                .Class("form-select")
+                .HeightRequest(44)
+                .WidthRequest(160)
                 .GridColumn(2)
                 .VStart()
         )
@@ -361,7 +391,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                     var label = new MauiControls.Label
                     {
-                        TextColor = Colors.White,
+                        TextColor = BootstrapTheme.Current.GetOnSurface(),
                         FontSize = 16,
                         Padding = new Thickness(8, 12)
                     };
@@ -405,105 +435,4 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         }
     }
 
-    async Task ShowTypeFilterDialog()
-    {
-        var typeTcs = new TaskCompletionSource<string>();
-        var typeOptionItems = new List<OptionSheetItem>();
-        foreach (var mediaType in _mediaTypes)
-        {
-            var capturedType = mediaType;
-            var isSelected = capturedType == State.FilterType;
-            typeOptionItems.Add(new OptionSheetItem
-            {
-                Text = isSelected ? $"\u2713  {capturedType}" : $"    {capturedType}",
-                Command = new Command(async () =>
-                {
-                    typeTcs.TrySetResult(capturedType);
-                    await IPopupService.Current.PopAsync();
-                })
-            });
-        }
-        var typePopup = new OptionSheetPopup
-        {
-            Title = "Filter by Type",
-            Items = typeOptionItems,
-            CloseWhenBackgroundIsClicked = true
-        };
-        IPopupService.Current.PopupPopped += typeHandler;
-        void typeHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == typePopup)
-            {
-                typeTcs.TrySetResult(null);
-                IPopupService.Current.PopupPopped -= typeHandler;
-            }
-        }
-        ;
-        await IPopupService.Current.PushAsync(typePopup);
-        var selection = await typeTcs.Task;
-        if (string.IsNullOrEmpty(selection))
-            return;
-
-        var index = _mediaTypes.IndexOf(selection);
-        if (index >= 0)
-        {
-            SetState(s =>
-            {
-                s.FilterTypeIndex = index;
-                s.FilterType = _mediaTypes[index];
-            });
-            FilterResources();
-        }
-    }
-
-    async Task ShowLanguageFilterDialog()
-    {
-        var selected = new HashSet<string>(State.FilterLanguages);
-        var tcs = new TaskCompletionSource();
-
-        var popup = new OptionSheetPopup
-        {
-            Title = "Filter by Language",
-            CloseWhenBackgroundIsClicked = true
-        };
-
-        void BuildItems()
-        {
-            var items = new List<OptionSheetItem>();
-            foreach (var lang in Constants.Languages)
-            {
-                var capturedLang = lang;
-                var isSelected = selected.Contains(capturedLang);
-                items.Add(new OptionSheetItem
-                {
-                    Text = isSelected ? $"\u2713  {capturedLang}" : $"    {capturedLang}",
-                    Command = new Command(() =>
-                    {
-                        if (!selected.Remove(capturedLang))
-                            selected.Add(capturedLang);
-                        BuildItems();
-                    })
-                });
-            }
-            popup.Items = items;
-        }
-
-        BuildItems();
-
-        IPopupService.Current.PopupPopped += langHandler;
-        void langHandler(object s, PopupEventArgs e)
-        {
-            if (e.PopupPage == popup)
-            {
-                tcs.TrySetResult();
-                IPopupService.Current.PopupPopped -= langHandler;
-            }
-        }
-        ;
-        await IPopupService.Current.PushAsync(popup);
-        await tcs.Task;
-
-        SetState(s => s.FilterLanguages = selected.ToList());
-        await FilterResources();
-    }
 }

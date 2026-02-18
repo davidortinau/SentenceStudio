@@ -92,10 +92,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 .OnTextChanged(text => SetState(s => s.Email = text))
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     // Language Settings Card
@@ -143,10 +140,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 })
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     // Learning Preferences Card
@@ -156,42 +150,48 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                             Label("Preferred Session Length").Muted(),
-                            Picker()
-                                .ItemsSource(new[] { "5 minutes", "10 minutes", "15 minutes", "20 minutes", "25 minutes", "30 minutes", "45 minutes" })
-                                .SelectedIndex(State.PreferredSessionMinutesIndex)
-                                .OnSelectedIndexChanged(index =>
+                            FlexLayout(
+                                new[] { 5, 10, 15, 20, 25, 30, 45 }.Select(min =>
                                 {
-                                    var minutes = new[] { 5, 10, 15, 20, 25, 30, 45 }[index];
-                                    SetState(s =>
-                                    {
-                                        s.PreferredSessionMinutes = minutes;
-                                        s.PreferredSessionMinutesIndex = index;
-                                    });
-                                }),
+                                    var isActive = State.PreferredSessionMinutes == min;
+                                    var btn = Button($"{min} min")
+                                        .OnClicked(() => SetState(s =>
+                                        {
+                                            s.PreferredSessionMinutes = min;
+                                            s.PreferredSessionMinutesIndex = Array.IndexOf(new[] { 5, 10, 15, 20, 25, 30, 45 }, min);
+                                        }))
+                                        .HeightRequest(36)
+                                        .FontSize(13)
+                                        .Margin(0, 0, 4, 4);
+                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary().Outlined());
+                                }).ToArray()
+                            ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("How long you'd like to practice each day. Plans adapt to your choice.")
                                 .Small().Muted(),
 
                             Label("Target CEFR Level (Optional)").Muted(),
-                            Picker()
-                                .ItemsSource(new[] { "Not Set", "A1 - Beginner", "A2 - Elementary", "B1 - Intermediate", "B2 - Upper Intermediate", "C1 - Advanced", "C2 - Mastery" })
-                                .SelectedIndex(State.TargetCEFRLevelIndex)
-                                .OnSelectedIndexChanged(index =>
+                            FlexLayout(
+                                new[] { ("Not Set", (string?)null), ("A1", "A1"), ("A2", "A2"), ("B1", "B1"), ("B2", "B2"), ("C1", "C1"), ("C2", "C2") }
+                                .Select((item, index) =>
                                 {
-                                    var levels = new string?[] { null, "A1", "A2", "B1", "B2", "C1", "C2" };
-                                    SetState(s =>
-                                    {
-                                        s.TargetCEFRLevel = levels[index];
-                                        s.TargetCEFRLevelIndex = index;
-                                    });
-                                }),
+                                    var isActive = State.TargetCEFRLevel == item.Item2;
+                                    var btn = Button(item.Item1)
+                                        .OnClicked(() => SetState(s =>
+                                        {
+                                            s.TargetCEFRLevel = item.Item2;
+                                            s.TargetCEFRLevelIndex = index;
+                                        }))
+                                        .HeightRequest(36)
+                                        .FontSize(13)
+                                        .Margin(0, 0, 4, 4);
+                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary().Outlined());
+                                }).ToArray()
+                            ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("Your language proficiency goal. Helps AI choose appropriate resources.")
                                 .Small().Muted()
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     // API Configuration Card
@@ -203,6 +203,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label($"{_localize["OpenAI_APIKey"]}").Muted(),
                             Entry()
                                 .IsPassword(true)
+                                .Placeholder("sk-...")
                                 .Text(State.OpenAI_APIKey)
                                 .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text)),
 
@@ -212,10 +213,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 .OnTapped(GoToOpenAI)
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     // Save Button
@@ -265,10 +263,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 .Small().Muted() : null
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Padding(16),
 
                     // Danger Zone Card

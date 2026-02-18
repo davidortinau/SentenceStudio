@@ -489,18 +489,18 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .OnClicked(NextSentence),
 
                 BoxView()
-                    .Color(Colors.Black)
+                    .Color(BootstrapTheme.Current.GetOutline())
                     .HeightRequest(1)
                     .GridColumnSpan(9)
                     .VStart(),
 
                 BoxView()
-                    .Color(Colors.Black)
+                    .Color(BootstrapTheme.Current.GetOutline())
                     .WidthRequest(1)
                     .GridRow(0).GridColumn(1),
 
                 BoxView()
-                    .Color(Colors.Black)
+                    .Color(BootstrapTheme.Current.GetOutline())
                     .WidthRequest(1)
                     .GridRow(0).GridColumn(3),
 
@@ -540,7 +540,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     HStack(spacing: 0,
                         Button("0.6x")
                             .Background(new SolidColorBrush(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                            .TextColor(State.SelectedSpeedIndex == 0 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .TextColor(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                             .BorderColor(BootstrapTheme.Current.GetOutline())
                             .BorderWidth(1)
                             .HeightRequest(35)
@@ -551,7 +551,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             }),
                         Button("0.8x")
                             .Background(new SolidColorBrush(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                            .TextColor(State.SelectedSpeedIndex == 1 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .TextColor(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                             .BorderColor(BootstrapTheme.Current.GetOutline())
                             .BorderWidth(1)
                             .HeightRequest(35)
@@ -562,7 +562,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                             }),
                         Button("1x")
                             .Background(new SolidColorBrush(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                            .TextColor(State.SelectedSpeedIndex == 2 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                            .TextColor(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                             .BorderColor(BootstrapTheme.Current.GetOutline())
                             .BorderWidth(1)
                             .HeightRequest(35)
@@ -649,7 +649,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         HStack(spacing: 0,
                             Button("0.6x")
                                 .Background(new SolidColorBrush(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                                .TextColor(State.SelectedSpeedIndex == 0 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .TextColor(State.SelectedSpeedIndex == 0 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                                 .BorderColor(BootstrapTheme.Current.GetOutline())
                                 .BorderWidth(1)
                                 .HeightRequest(44)
@@ -660,7 +660,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                                 }),
                             Button("0.8x")
                                 .Background(new SolidColorBrush(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                                .TextColor(State.SelectedSpeedIndex == 1 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .TextColor(State.SelectedSpeedIndex == 1 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                                 .BorderColor(BootstrapTheme.Current.GetOutline())
                                 .BorderWidth(1)
                                 .HeightRequest(44)
@@ -671,7 +671,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                                 }),
                             Button("1x")
                                 .Background(new SolidColorBrush(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.Primary : Colors.Transparent))
-                                .TextColor(State.SelectedSpeedIndex == 2 ? Colors.White : BootstrapTheme.Current.GetOnBackground())
+                                .TextColor(State.SelectedSpeedIndex == 2 ? BootstrapTheme.Current.OnPrimary : BootstrapTheme.Current.GetOnBackground())
                                 .BorderColor(BootstrapTheme.Current.GetOutline())
                                 .BorderWidth(1)
                                 .HeightRequest(44)
@@ -728,10 +728,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 )
                 .Padding(24)
             )
-            .BackgroundColor(BootstrapTheme.Current.GetSurface())
-            .Stroke(BootstrapTheme.Current.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .VEnd()
             .Margin(16)
         )
@@ -787,7 +784,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     VStack(
                         Button("Save as MP3")
                             .Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
-                            .TextColor(Colors.White)
+                            .TextColor(BootstrapTheme.Current.OnPrimary)
                             .OnClicked(SaveAudioAsMp3)
                             .Margin(0, 0, 0, 8),
 
@@ -807,10 +804,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .Padding(24)
                 .HCenter()
             )
-            .BackgroundColor(BootstrapTheme.Current.GetSurface())
-            .Stroke(BootstrapTheme.Current.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .VEnd()
             .Margin(16)
         )

@@ -444,10 +444,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     ).ColumnSpacing(12).RowSpacing(4)
                 ).Spacing(12)
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Padding(16),
 
             // Transcript card
@@ -462,10 +459,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Class("form-control")
                 ).Spacing(12)
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Padding(16),
 
             // Translation card
@@ -480,10 +474,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         .Class("form-control")
                 ).Spacing(12)
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Padding(16),
 
             // Vocabulary card
@@ -587,10 +578,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     ).Spacing(4)
                 ).Spacing(12)
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Padding(16)
         )
         .Spacing(16);

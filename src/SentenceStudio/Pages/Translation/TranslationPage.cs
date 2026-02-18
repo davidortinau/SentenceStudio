@@ -119,7 +119,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .Color(theme.Primary)
                     .HCenter(),
                 Label($"{_localize["LoadingSentences"]}")
-                    .TextColor(Colors.White)
+                    .TextColor(BootstrapTheme.Current.OnPrimary)
                     .FontSize(16)
                     .HCenter()
             )
@@ -195,17 +195,14 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                         )
                         .Padding(16)
                     )
-                    .BackgroundColor(theme.GetSurface())
-                    .Stroke(theme.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                     .Margin(0, 16),
 
                     // Action buttons
                     Button($"{_localize["ContinuePractice"]}")
                         .OnClicked(ContinuePractice)
                         .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(Colors.White)
+                        .TextColor(BootstrapTheme.Current.OnPrimary)
                         .CornerRadius(8)
                         .Padding(24, 16),
 

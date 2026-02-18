@@ -206,7 +206,7 @@ partial class DashboardPage : Component<DashboardPageState>
 
     Button RenderToggleButton(string text, string icon, bool isActive, BootstrapTheme theme, Action onClicked)
     {
-        var iconColor = isActive ? Colors.White : theme.Secondary;
+        var iconColor = isActive ? theme.OnPrimary : theme.GetOnBackground();
         var btn = Button()
             .Text(text)
             .ImageSource(BootstrapIcons.Create(icon, iconColor, 16))
@@ -214,9 +214,12 @@ partial class DashboardPage : Component<DashboardPageState>
             .HFill()
             .OnClicked(onClicked);
 
-        btn = isActive ? btn.Primary() : btn.Secondary().Outlined();
+        btn = isActive
+            ? btn.Primary()
+            : btn.Background(new SolidColorBrush(Colors.Transparent))
+                 .TextColor(theme.GetOnBackground());
 
-        return btn.BorderWidth(0).CornerRadius(0);
+        return btn.CornerRadius(0).BorderWidth(0);
     }
 
     VisualNode RenderTodaysPlanMode()
@@ -242,7 +245,7 @@ partial class DashboardPage : Component<DashboardPageState>
             return Border(
                 VStack(spacing: 16,
                     Image()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.CalendarPlus, Colors.Gray, 48))
+                        .Source(BootstrapIcons.Create(BootstrapIcons.CalendarPlus, BootstrapTheme.Current.GetMuted(), 48))
                         .HeightRequest(48)
                         .HCenter(),
                     Label("No plan for today yet.")
@@ -261,10 +264,7 @@ partial class DashboardPage : Component<DashboardPageState>
                 .PaddingLevel(4)
                 .HCenter()
             )
-            .BackgroundColor(BootstrapTheme.Current.GetSurface())
-            .Stroke(BootstrapTheme.Current.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .Margin(new Thickness(0, 0, 0, 16));
         }
 
@@ -326,10 +326,7 @@ partial class DashboardPage : Component<DashboardPageState>
             )
             .PaddingLevel(3)
         )
-        .BackgroundColor(BootstrapTheme.Current.GetSurface())
-        .Stroke(BootstrapTheme.Current.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .Margin(new Thickness(0, 0, 0, 8));
     }
 
@@ -395,17 +392,14 @@ partial class DashboardPage : Component<DashboardPageState>
                 .VCenter()
                 .HFill(),
                 Image()
-                    .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, Colors.Gray, 20))
+                    .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, BootstrapTheme.Current.GetMuted(), 20))
                     .HeightRequest(20)
                     .WidthRequest(20)
                     .VCenter()
             )
             .PaddingLevel(3)
         )
-        .BackgroundColor(BootstrapTheme.Current.GetSurface())
-        .Stroke(BootstrapTheme.Current.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .When(item.IsCompleted, b => b.Opacity(0.75))
         .OnTapped(() => _ = OnPlanItemTapped(item));
     }
@@ -494,10 +488,7 @@ partial class DashboardPage : Component<DashboardPageState>
             )
             .PaddingLevel(3)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .Margin(new Thickness(0, 0, 0, 16));
     }
 
@@ -541,24 +532,21 @@ partial class DashboardPage : Component<DashboardPageState>
         return Border(
             VStack(spacing: 8,
                 Image()
-                    .Source(BootstrapIcons.Create(icon, theme.GetOnSurface(), 28))
+                    .Source(BootstrapIcons.Create(icon, theme.GetOnBackground(), 28))
                     .HeightRequest(28)
                     .HCenter(),
                 Label(label)
                     .FontSize(14)
                     .FontAttributes(FontAttributes.Bold)
-                    .TextColor(theme.GetOnSurface())
+                    .TextColor(theme.GetOnBackground())
                     .HCenter()
                     .HorizontalTextAlignment(TextAlignment.Center)
             )
-            .PaddingLevel(3)
+            .Padding(16)
             .HCenter()
             .VCenter()
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .HeightRequest(120)
         .OnTapped(async () =>
         {
@@ -684,10 +672,7 @@ partial class DashboardPage : Component<DashboardPageState>
                             .HCenter()
                             .PaddingLevel(4)
                     )
-                    .BackgroundColor(BootstrapTheme.Current.GetSurface())
-                    .Stroke(BootstrapTheme.Current.GetOutline())
-                    .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
+                    .Class("card")
                 )
         );
     }
@@ -734,10 +719,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     )
                     .PaddingLevel(3)
                 )
-                .BackgroundColor(BootstrapTheme.Current.GetSurface())
-                .Stroke(BootstrapTheme.Current.GetOutline())
-                .StrokeThickness(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                .Class("card")
                 : null
         );
     }
@@ -762,10 +744,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .HCenter()
             .VCenter()
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Class("card")
         .OnTapped(() =>
         {
             var filterType = label switch

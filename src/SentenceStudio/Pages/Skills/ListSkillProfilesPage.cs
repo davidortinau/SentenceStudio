@@ -76,10 +76,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                                 )
                                 .WidthRequest(300)
                                 .MinimumHeightRequest(120)
-                                .BackgroundColor(theme.GetSurface())
-                                .Stroke(theme.GetOutline())
-                                .StrokeThickness(1)
-                                .StrokeShape(new RoundRectangle().CornerRadius(12))
+                                .Class("card")
                                 .OnTapped(() => EditProfile(profile))
                             )
                         }

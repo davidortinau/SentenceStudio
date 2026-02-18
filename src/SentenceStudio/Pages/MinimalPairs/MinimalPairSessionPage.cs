@@ -555,10 +555,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
                 )
                 .Padding(16)
             )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(12))
+            .Class("card")
             .HCenter(),
 
             Button($"{_localize["Done"]}")

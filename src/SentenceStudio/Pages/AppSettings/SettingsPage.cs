@@ -51,6 +51,8 @@ partial class SettingsPage : Component<SettingsPageState>
 
     LocalizationManager _localize => LocalizationManager.Instance;
 
+    static readonly List<string> _supportedLanguages = new() { "Korean", "English", "French", "German", "Spanish" };
+
     protected override void OnMounted()
     {
         // Check if streak migration has already been done
@@ -184,15 +186,17 @@ partial class SettingsPage : Component<SettingsPageState>
                             var rounded = Math.Round(args.NewValue / 0.05) * 0.05;
                             _themeService.SetFontScale(rounded);
                             SetState(s => s.FontScale = rounded);
-                        })
+                        }),
+                    Grid("Auto", "*,*",
+                        Label("85%").Small().Muted().HStart().GridColumn(0),
+                        Label("150%").Small().Muted().HEnd().GridColumn(1)
+                    )
                 )
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card")
+        .Padding(16);
     }
 
     private VisualNode RenderThemeSwatch(string themeId, BootstrapTheme theme)
@@ -234,14 +238,17 @@ partial class SettingsPage : Component<SettingsPageState>
 
     private Button RenderModeButton(string text, string iconGlyph, bool isActive, BootstrapTheme theme, Action onClicked)
     {
-        var iconColor = isActive ? Colors.White : theme.Secondary;
+        var iconColor = isActive ? theme.OnPrimary : theme.GetOnBackground();
         var btn = Button(text)
             .ImageSource(BootstrapIcons.Create(iconGlyph, iconColor, 16))
             .HeightRequest(40)
             .OnClicked(onClicked);
 
-        btn = isActive ? btn.Primary() : btn.Secondary().Outlined();
-        return btn.BorderWidth(0).CornerRadius(0);
+        btn = isActive
+            ? btn.Primary()
+            : btn.Background(new SolidColorBrush(Colors.Transparent))
+                 .TextColor(theme.GetOnBackground());
+        return btn.CornerRadius(0).BorderWidth(0);
     }
 
     private VisualNode RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
@@ -277,11 +284,14 @@ partial class SettingsPage : Component<SettingsPageState>
                     Label($"{_localize["VoiceLanguageDescription"]}")
                         .Small()
                         .Muted(),
-                    Button(State.SelectedLanguage)
+                    Picker()
+                        .Title($"{_localize["VoiceLanguage"]}")
+                        .ItemsSource(_supportedLanguages)
+                        .SelectedIndex(_supportedLanguages.IndexOf(State.SelectedLanguage))
+                        .OnSelectedIndexChanged(OnLanguagePickerChanged)
+                        .Class("form-select")
                         .HeightRequest(44)
-                        .Secondary()
-                        .Outlined()
-                        .OnClicked(ShowLanguageSelectionPopup)
+                        .HFill()
                 ),
 
                 // Voice selection for selected language
@@ -293,16 +303,24 @@ partial class SettingsPage : Component<SettingsPageState>
                         .Small()
                         .Muted(),
                     State.IsLoadingVoices
-                        ? Label($"{_localize["Loading"]}...")
-                            .Small()
-                            .Muted()
-                        : Button(GetSelectedVoiceDisplayName())
-                            .HStart()
+                        ? (VisualNode)HStack(spacing: 8,
+                            ActivityIndicator()
+                                .IsRunning(true)
+                                .HeightRequest(16)
+                                .WidthRequest(16),
+                            Label($"{_localize["Loading"]}...")
+                                .Small()
+                                .Muted()
+                                .VCenter()
+                        )
+                        : Picker()
+                            .Title($"{_localize["PreferredVoice"]}")
+                            .ItemsSource(State.AvailableVoices.Select(v => v.Name).ToList())
+                            .SelectedIndex(GetSelectedVoiceIndex())
+                            .OnSelectedIndexChanged(OnVoicePickerChanged)
+                            .Class("form-select")
                             .HeightRequest(44)
-                            .Secondary()
-                            .Outlined()
-                            .IsEnabled(State.AvailableVoices.Count > 0)
-                            .OnClicked(ShowVoiceSelectionPopup)
+                            .HFill()
                 ),
 
                 // Quiz direction — 3-way segmented control
@@ -414,10 +432,8 @@ partial class SettingsPage : Component<SettingsPageState>
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card")
+        .Padding(16);
     }
 
     private string GetSelectedVoiceDisplayName()
@@ -426,59 +442,27 @@ partial class SettingsPage : Component<SettingsPageState>
         return selectedVoice?.DisplayName ?? $"{_localize["SelectVoice"]}";
     }
 
-    private async void ShowLanguageSelectionPopup()
+    private int GetSelectedVoiceIndex()
     {
-        var theme = BootstrapTheme.Current;
-        var supportedLanguages = _voiceDiscoveryService?.SupportedLanguages?.ToList()
-            ?? new List<string> { "English", "French", "German", "Korean", "Spanish" };
-
-        var popup = new ListActionPopup
-        {
-            Title = $"{_localize["VoiceLanguage"]}",
-            ShowActionButton = false,
-            ItemsSource = supportedLanguages,
-            ItemDataTemplate = new MauiControls.DataTemplate(() =>
-            {
-                var tapGesture = new MauiControls.TapGestureRecognizer();
-                tapGesture.Tapped += async (s, e) =>
-                {
-                    if (s is MauiControls.Label label && label.BindingContext is string lang)
-                    {
-                        await IPopupService.Current.PopAsync();
-                        SetState(st => st.SelectedLanguage = lang);
-                        await LoadVoicesForLanguageAsync(lang);
-                    }
-                };
-
-                var label = new MauiControls.Label
-                {
-                    TextColor = theme.GetOnBackground(),
-                    FontSize = 16,
-                    Padding = new Thickness(8, 12)
-                };
-                label.SetBinding(MauiControls.Label.TextProperty, ".");
-                label.GestureRecognizers.Add(tapGesture);
-                return label;
-            })
-        };
-
-        await IPopupService.Current.PushAsync(popup);
+        if (string.IsNullOrEmpty(State.SelectedVoiceId) || State.AvailableVoices.Count == 0)
+            return -1;
+        return State.AvailableVoices.FindIndex(v => v.VoiceId == State.SelectedVoiceId);
     }
 
-    private async void ShowVoiceSelectionPopup()
+    private void OnLanguagePickerChanged(int index)
     {
-        if (State.AvailableVoices.Count == 0) return;
+        if (index < 0 || index >= _supportedLanguages.Count) return;
+        var lang = _supportedLanguages[index];
+        SetState(st => st.SelectedLanguage = lang);
+        _ = LoadVoicesForLanguageAsync(lang);
+    }
 
-        await VoiceSelectionPopup.ShowAsync(
-            $"{State.SelectedLanguage} Voices",
-            State.AvailableVoices,
-            State.SelectedVoiceId,
-            voiceId =>
-            {
-                _speechVoicePreferences.SetVoiceForLanguage(State.SelectedLanguage, voiceId);
-                SetState(s => s.SelectedVoiceId = voiceId);
-            }
-        );
+    private void OnVoicePickerChanged(int index)
+    {
+        if (index < 0 || index >= State.AvailableVoices.Count) return;
+        var voice = State.AvailableVoices[index];
+        _speechVoicePreferences.SetVoiceForLanguage(State.SelectedLanguage, voice.VoiceId);
+        SetState(s => s.SelectedVoiceId = voice.VoiceId);
     }
 
     private VisualNode RenderDataManagementSection()
@@ -506,10 +490,8 @@ partial class SettingsPage : Component<SettingsPageState>
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card")
+        .Padding(16);
     }
 
     private VisualNode RenderMigrationSection()
@@ -574,10 +556,8 @@ partial class SettingsPage : Component<SettingsPageState>
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card")
+        .Padding(16);
     }
 
     private VisualNode RenderAboutSection()
@@ -601,10 +581,8 @@ partial class SettingsPage : Component<SettingsPageState>
             )
             .Padding(16)
         )
-        .BackgroundColor(theme.GetSurface())
-        .Stroke(theme.GetOutline())
-        .StrokeThickness(1)
-        .StrokeShape(new RoundRectangle().CornerRadius(12));
+        .Class("card")
+        .Padding(16);
     }
 
     private async Task RunStreakMigrationInternalAsync()

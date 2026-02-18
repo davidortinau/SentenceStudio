@@ -718,7 +718,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
                                 ? Border(
                                     Label($"{_localize["InYourVocabulary"]}")
                                         .FontSize(12)
-                                        .TextColor(Colors.White)
+                                        .TextColor(BootstrapTheme.Current.OnPrimary)
                                         .Padding(8, 4)
                                 )
                                 .Background(theme.Success)
