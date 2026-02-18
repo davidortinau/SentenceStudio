@@ -114,7 +114,7 @@ public class VocabularyProgressItem
             if (ProductionNeededForKnown > 0)
                 parts.Add($"{ProductionInStreak}/{MIN_PRODUCTION_FOR_KNOWN} {localize["Production"]}");
             else
-                parts.Add($"✓ {localize["Production"]}");
+                parts.Add($"{localize["Production"]}: {localize["Done"]}");
 
             // Mastery percentage
             parts.Add($"{(int)(MasteryScore * 100)}%");
@@ -241,37 +241,51 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
     VisualNode RenderVocabularyCard(VocabularyProgressItem item)
     {
         var theme = BootstrapTheme.Current;
-        return HStack(spacing: 0,
-            BoxView()
-                .WidthRequest(3)
-                .BackgroundColor(item.StatusColor)
-                .VFill(),
-            VStack(spacing: 4,
-                // Word and translation
-                Label(item.Word.TargetLanguageTerm ?? "")
-                    .H5(),
-                Label(item.Word.NativeLanguageTerm ?? "")
-                    .FontSize(14)
-                    .Muted(),
+        return Border(
+            HStack(spacing: 0,
+                BoxView()
+                    .WidthRequest(3)
+                    .BackgroundColor(item.StatusColor)
+                    .VFill(),
+                VStack(spacing: 4,
+                    Label(item.Word.TargetLanguageTerm ?? "")
+                        .H5(),
+                    Label(item.Word.NativeLanguageTerm ?? "")
+                        .FontSize(14)
+                        .Muted(),
 
-                // Status badge
-                Label(item.StatusText)
-                    .Small()
-                    .TextColor(item.StatusColor),
+                    // Status badge
+                    Border(
+                        Label(item.StatusText)
+                            .Small()
+                            .TextColor(item.IsKnown ? Colors.White :
+                                       item.IsLearning ? Color.FromArgb("#212529") :
+                                       Colors.White)
+                            .Padding(6, 2)
+                    )
+                    .BackgroundColor(item.StatusColor)
+                    .StrokeThickness(0)
+                    .StrokeShape(new RoundRectangle().CornerRadius(4))
+                    .HStart(),
 
-                // Progress breakdown (streak-based)
-                Label(item.ProgressRequirementsText)
-                    .Small()
-                    .Muted(),
+                    // Progress breakdown (streak-based)
+                    Label(item.ProgressRequirementsText)
+                        .Small()
+                        .Muted(),
 
-                // SRS Review date
-                Label(item.ReviewDateText)
-                    .Small()
-                    .TextColor(item.IsDueForReview ? theme.Warning : theme.GetOutline())
+                    // SRS Review date
+                    Label(item.ReviewDateText)
+                        .Small()
+                        .TextColor(item.IsDueForReview ? theme.Warning : theme.GetOutline())
+                )
+                .Padding(12)
             )
-            .Padding(8)
         )
-        .BackgroundColor(Colors.Transparent);
+        .BackgroundColor(theme.GetSurface())
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .Margin(4);
     }
 
     async Task LoadData()
