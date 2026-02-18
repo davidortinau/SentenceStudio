@@ -168,8 +168,21 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                         // Clear selection when switching to Mixed mode
                         s.SelectedPairId = null;
                     }))
-            )
-            .HFill()
+            ),
+
+            // Start Session button
+            State.UserPairs.Count > 0
+                ? Button(State.SelectedMode == PracticeMode.Focus
+                        ? $"{_localize["MinimalPairsStartSession"]}"
+                        : $"{_localize["MinimalPairsStartSession"]} ({State.UserPairs.Count} pairs)")
+                    .Background(new SolidColorBrush(theme.Primary))
+                    .TextColor(Colors.White)
+                    .BorderColor(theme.Primary)
+                    .BorderWidth(1)
+                    .CornerRadius(6)
+                    .IsEnabled(State.SelectedMode == PracticeMode.Mixed || State.SelectedPairId != null)
+                    .OnClicked(async () => await StartSessionAsync())
+                : null
         )
         .Padding(16);
     }

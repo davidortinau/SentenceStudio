@@ -1912,4 +1912,43 @@
   <data name="Generate" xml:space="preserve">
     <value>생성</value>
   </data>
+  <data name="MinimalPairsStartSession" xml:space="preserve">
+    <value>세션 시작</value>
+  </data>
+  <data name="ShowTranslation" xml:space="preserve">
+    <value>번역 보기</value>
+  </data>
+  <data name="HideTranslation" xml:space="preserve">
+    <value>번역 숨기기</value>
+  </data>
+  <data name="TranslateInput" xml:space="preserve">
+    <value>번역</value>
+  </data>
+  <data name="Listen" xml:space="preserve">
+    <value>듣기</value>
+  </data>
+  <data name="VocabStatsTitle" xml:space="preserve">
+    <value>어휘 통계</value>
+  </data>
+  <data name="TotalWords" xml:space="preserve">
+    <value>전체 단어</value>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>완료</value>
+  </data>
+  <data name="StillLearning" xml:space="preserve">
+    <value>학습 중</value>
+  </data>
+  <data name="RecommendedSentence" xml:space="preserve">
+    <value>추천 문장</value>
+  </data>
+  <data name="AccuracyExplanation" xml:space="preserve">
+    <value>정확성</value>
+  </data>
+  <data name="FluencyExplanation" xml:space="preserve">
+    <value>유창성</value>
+  </data>
+  <data name="GrammarNotes" xml:space="preserve">
+    <value>문법 노트</value>
+  </data>
 </root>

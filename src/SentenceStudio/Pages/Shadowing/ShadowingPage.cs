@@ -250,6 +250,14 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     .HCenter()
                     .Margin(16),
 
+                // Show translation if toggled on
+                State.ShowTranslation && !string.IsNullOrEmpty(State.CurrentSentenceTranslation)
+                    ? Label(State.CurrentSentenceTranslation)
+                        .FontSize(16)
+                        .HCenter()
+                        .Muted()
+                    : null,
+
                 // Show pronunciation notes if available (from AI-generated sentences)
                 !string.IsNullOrWhiteSpace(State.CurrentSentencePronunciationNotes)
                     ? Label(State.CurrentSentencePronunciationNotes)
@@ -257,7 +265,17 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                         .HCenter()
                         .Muted()
                         .Margin(16)
-                    : null
+                    : null,
+
+                // Show/Hide translation toggle
+                Button(State.ShowTranslation
+                        ? $"{_localize["HideTranslation"]}"
+                        : $"{_localize["ShowTranslation"]}")
+                    .Background(Colors.Transparent)
+                    .TextColor(BootstrapTheme.Current.GetOnBackground())
+                    .FontSize(14)
+                    .HCenter()
+                    .OnClicked(() => SetState(s => s.ShowTranslation = !s.ShowTranslation))
             )
             .Padding(16)
         ).GridRow(0);

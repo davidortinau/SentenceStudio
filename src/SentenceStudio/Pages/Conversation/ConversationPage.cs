@@ -419,13 +419,20 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         {
             // Bot/System message (left-aligned, dark background)
             return Border(
-                new SelectableLabel()
-                    .Text(chunk.Text)
-                    .TextColor(Colors.White)
-                    .FontSize(State.FontSize),
-                     MenuFlyout(
-                        MenuFlyoutItem("Play Audio").OnClicked(() => PlayAudio(chunk.Text))
-                    )
+                VStack(spacing: 4,
+                    new SelectableLabel()
+                        .Text(chunk.Text)
+                        .TextColor(Colors.White)
+                        .FontSize(State.FontSize),
+
+                    ImageButton()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.VolumeUp, Colors.White, 16))
+                        .Background(Colors.Transparent)
+                        .OnClicked(() => PlayAudio(chunk.Text))
+                        .WidthRequest(32)
+                        .HeightRequest(32)
+                        .HStart()
+                )
 
             )
             .Margin(new Thickness(16, 4))

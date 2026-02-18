@@ -101,6 +101,11 @@ class ShadowingPageState
     /// </summary>
     public bool ShowWaveform { get; set; } = true;
 
+    /// <summary>
+    /// Gets or sets whether the translation is shown below the sentence.
+    /// </summary>
+    public bool ShowTranslation { get; set; } = false;
+
     public int? SelectedSpeedIndex { get; set; } = 2;
 
     public float PlaybackSpeed { get; set; } = 1.0f;

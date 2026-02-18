@@ -116,7 +116,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             .Padding(8, 0)
             .Background(Colors.Transparent)
             .GridRow(1)
-            .GridColumn(0)
+            .GridColumn(0),
+
+            ImageButton()
+                .Source(BootstrapIcons.Create(BootstrapIcons.Translate, theme.GetOnBackground(), 20))
+                .Background(Colors.Transparent)
+                .OnClicked(async () => await TranslateInput())
+                .WidthRequest(44)
+                .HeightRequest(44)
+                .GridRow(1)
+                .GridColumn(1)
 
         ).GridRow(2)
         .Padding(16)
@@ -311,13 +320,27 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             )
             .Background(new SolidColorBrush(theme.GetSurface()))
         );
-    }async Task ShowExplanation(Sentence sentence)
+    }
+
+    async Task ShowExplanation(Sentence sentence)
     {
-        string explanation = $"Original: {sentence.Answer}\n\n" +
-            $"Recommended: {sentence.RecommendedSentence}\n\n" +
-            $"Accuracy: {sentence.AccuracyExplanation}\n\n" +
-            $"Fluency: {sentence.FluencyExplanation}\n\n" +
-            $"Additional Notes: {sentence.GrammarNotes}";
+        var sections = new List<string>();
+
+        sections.Add($"Your Sentence:\n{sentence.Answer}");
+
+        if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
+            sections.Add($"{_localize["RecommendedSentence"]}:\n{sentence.RecommendedSentence}");
+
+        if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
+            sections.Add($"{_localize["AccuracyExplanation"]} ({(int)sentence.Accuracy}%):\n{sentence.AccuracyExplanation}");
+
+        if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
+            sections.Add($"{_localize["FluencyExplanation"]} ({(int)sentence.Fluency}%):\n{sentence.FluencyExplanation}");
+
+        if (!string.IsNullOrEmpty(sentence.GrammarNotes))
+            sections.Add($"{_localize["GrammarNotes"]}:\n{sentence.GrammarNotes}");
+
+        string explanation = string.Join("\n\n", sections);
 
         await IPopupService.Current.PushAsync(new SimpleActionPopup
         {

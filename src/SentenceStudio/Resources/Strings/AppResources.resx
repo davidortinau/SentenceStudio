@@ -2156,4 +2156,43 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="Generate" xml:space="preserve">
     <value>Generate</value>
   </data>
+  <data name="MinimalPairsStartSession" xml:space="preserve">
+    <value>Start Session</value>
+  </data>
+  <data name="ShowTranslation" xml:space="preserve">
+    <value>Show Translation</value>
+  </data>
+  <data name="HideTranslation" xml:space="preserve">
+    <value>Hide Translation</value>
+  </data>
+  <data name="TranslateInput" xml:space="preserve">
+    <value>Translate</value>
+  </data>
+  <data name="Listen" xml:space="preserve">
+    <value>Listen</value>
+  </data>
+  <data name="VocabStatsTitle" xml:space="preserve">
+    <value>Vocabulary Stats</value>
+  </data>
+  <data name="TotalWords" xml:space="preserve">
+    <value>Total Words</value>
+  </data>
+  <data name="Mastered" xml:space="preserve">
+    <value>Mastered</value>
+  </data>
+  <data name="StillLearning" xml:space="preserve">
+    <value>Still Learning</value>
+  </data>
+  <data name="RecommendedSentence" xml:space="preserve">
+    <value>Recommended Sentence</value>
+  </data>
+  <data name="AccuracyExplanation" xml:space="preserve">
+    <value>Accuracy</value>
+  </data>
+  <data name="FluencyExplanation" xml:space="preserve">
+    <value>Fluency</value>
+  </data>
+  <data name="GrammarNotes" xml:space="preserve">
+    <value>Grammar Notes</value>
+  </data>
 </root>
