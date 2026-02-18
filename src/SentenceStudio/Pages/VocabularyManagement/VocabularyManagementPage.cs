@@ -168,9 +168,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 VStack(
                     ActivityIndicator().IsRunning(true).Center()
                 ).VCenter().HCenter() :
-                Grid(rows: "*,Auto", columns: "*",
-                    RenderVocabularyList(),
-                    RenderBottomBar()
+                Grid(rows: "Auto,*,Auto", columns: "*",
+                    RenderTopSection().GridRow(0),
+                    RenderVocabularyList().GridRow(1),
+                    RenderBottomBar().GridRow(2)
                 )
                 .Set(Layout.SafeAreaEdgesProperty, new SafeAreaEdges(SafeAreaRegions.None))
         )
@@ -210,6 +211,86 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         {
             ParseSearchQuery(State.RawSearchQuery);
         }
+    }
+
+    // Top section: stats bar, search input, and filter selector
+    VisualNode RenderTopSection()
+    {
+        var theme = BootstrapTheme.Current;
+        return VStack(spacing: 8,
+            // Gap 1: Stats badges
+            HStack(spacing: 8,
+                RenderStatsBadge($"{_localize["Total"]}: {State.Stats.TotalWords}", theme.Primary),
+                RenderStatsBadge($"{_localize["Associated"]}: {State.Stats.AssociatedWords}", theme.Success),
+                RenderStatsBadge($"{_localize["Orphaned"]}: {State.Stats.OrphanedWords}", theme.Warning)
+            ),
+
+            // Gap 2: Search input
+            Border(
+                HStack(spacing: 8,
+                    Image()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Search, theme.GetOnBackground(), 16))
+                        .HeightRequest(16)
+                        .WidthRequest(16)
+                        .VCenter(),
+                    Entry()
+                        .Placeholder($"{_localize["SearchVocabulary"]}")
+                        .Text(State.RawSearchQuery)
+                        .OnTextChanged(OnSearchTextUpdated)
+                        .OnCompleted(OnSearchSubmitted)
+                        .VCenter()
+                        .HFill(),
+                    !string.IsNullOrWhiteSpace(State.RawSearchQuery) ?
+                        ImageButton()
+                            .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 14))
+                            .HeightRequest(20)
+                            .WidthRequest(20)
+                            .OnClicked(ClearAllFilters)
+                            .Background(Colors.Transparent) :
+                        null
+                ).Padding(8, 4)
+            )
+            .Stroke(theme.GetOutline())
+            .StrokeThickness(1)
+            .StrokeShape(new RoundRectangle().CornerRadius(8))
+            .HeightRequest(44),
+
+            // Gap 3: Filter selector (3-way toggle)
+            HStack(spacing: 4,
+                RenderFilterToggle($"{_localize["All"]}", VocabularyFilter.All),
+                RenderFilterToggle($"{_localize["Associated"]}", VocabularyFilter.Associated),
+                RenderFilterToggle($"{_localize["Orphaned"]}", VocabularyFilter.Orphaned)
+            )
+        ).Padding(16, 8);
+    }
+
+    VisualNode RenderStatsBadge(string text, Color bgColor)
+    {
+        return Border(
+            Label(text)
+                .FontSize(12)
+                .TextColor(Colors.White)
+                .Padding(8, 4)
+        )
+        .Background(bgColor)
+        .StrokeThickness(0)
+        .StrokeShape(new RoundRectangle().CornerRadius(12));
+    }
+
+    VisualNode RenderFilterToggle(string label, VocabularyFilter filter)
+    {
+        var theme = BootstrapTheme.Current;
+        var isSelected = State.SelectedFilter == filter;
+        var btn = Button(label)
+            .FontSize(13)
+            .Padding(12, 6)
+            .OnClicked(() =>
+            {
+                SetState(s => s.SelectedFilter = filter);
+                ApplyFilters();
+            });
+
+        return isSelected ? btn.Primary() : btn.Secondary().Outlined();
     }
 
     // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
@@ -255,8 +336,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     RenderFilterButtons()
 
             ).ColumnSpacing(8)
-            .Padding(new Thickness(16, 16, 16, 0))
-            .GridRow(1);
+            .Padding(new Thickness(16, 16, 16, 0));
     }
 
     VisualNode RenderFilterButtons()
@@ -338,8 +418,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .StrokeThickness(1)
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Padding(16, 8)
-            .Margin(new Thickness(8, 4, 8, 8))
-            .GridRow(1);
+            .Margin(new Thickness(8, 4, 8, 8));
     }
 
 
@@ -365,8 +444,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     null
             )
             .VCenter()
-            .HCenter()
-            .GridRow(0);
+            .HCenter();
         }
 
         return CollectionView()
@@ -380,8 +458,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
-            .Margin(16)
-            .GridRow(0);
+            .Margin(16);
     }
 
     VisualNode RenderVocabularyCardMobile(VocabularyCardViewModel item)
@@ -652,33 +729,29 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         var filtered = State.AllVocabularyItems.AsEnumerable();
 
+        // Always apply top-level Associated/Orphaned filter
+        filtered = State.SelectedFilter switch
+        {
+            VocabularyFilter.Associated => filtered.Where(v => !v.IsOrphaned),
+            VocabularyFilter.Orphaned => filtered.Where(v => v.IsOrphaned),
+            VocabularyFilter.SpecificResource => State.SelectedResource != null ?
+                filtered.Where(v => v.AssociatedResources.Any(r => r.Id == State.SelectedResource.Id)) :
+                filtered,
+            _ => filtered
+        };
+
         // [T018/T019] Apply GitHub-style parsed query filters
         if (State.ParsedQuery?.HasContent == true)
         {
             filtered = ApplyParsedQueryFilters(filtered, State.ParsedQuery);
         }
-        else
+        else if (!string.IsNullOrWhiteSpace(State.SearchText))
         {
-            // Fallback to legacy filter behavior if no parsed query
-            // Apply vocabulary filter
-            filtered = State.SelectedFilter switch
-            {
-                VocabularyFilter.Associated => filtered.Where(v => !v.IsOrphaned),
-                VocabularyFilter.Orphaned => filtered.Where(v => v.IsOrphaned),
-                VocabularyFilter.SpecificResource => State.SelectedResource != null ?
-                    filtered.Where(v => v.AssociatedResources.Any(r => r.Id == State.SelectedResource.Id)) :
-                    filtered,
-                _ => filtered
-            };
-
             // Apply legacy search filter
-            if (!string.IsNullOrWhiteSpace(State.SearchText))
-            {
-                var searchLower = State.SearchText.ToLower();
-                filtered = filtered.Where(v =>
-                    (v.Word.TargetLanguageTerm?.ToLower().Contains(searchLower) == true) ||
-                    (v.Word.NativeLanguageTerm?.ToLower().Contains(searchLower) == true));
-            }
+            var searchLower = State.SearchText.ToLower();
+            filtered = filtered.Where(v =>
+                (v.Word.TargetLanguageTerm?.ToLower().Contains(searchLower) == true) ||
+                (v.Word.NativeLanguageTerm?.ToLower().Contains(searchLower) == true));
         }
 
         SetState(s => s.FilteredVocabularyItems = new ObservableCollection<VocabularyCardViewModel>(filtered.ToList()));

@@ -1061,6 +1061,10 @@
     <value>Orphaned</value>
     <comment>Orphaned word label</comment>
   </data>
+  <data name="Associated" xml:space="preserve">
+    <value>Associated</value>
+    <comment>Associated word label - words linked to at least one resource</comment>
+  </data>
   <data name="ResourceCount" xml:space="preserve">
     <value>{0} resource(s)</value>
     <comment>Resource count label with count parameter</comment>
@@ -1833,6 +1837,22 @@
     <value>Save Preferences</value>
     <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
   </data>
+  <data name="PreferencesSaved" xml:space="preserve">
+    <value>Preferences saved</value>
+    <comment>[001-vocab-quiz-preferences] Toast confirmation when preferences are saved</comment>
+  </data>
+  <data name="QuizDirectionForward" xml:space="preserve">
+    <value>Forward</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: target to native</comment>
+  </data>
+  <data name="QuizDirectionReverse" xml:space="preserve">
+    <value>Reverse</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: native to target</comment>
+  </data>
+  <data name="QuizDirectionMixed" xml:space="preserve">
+    <value>Mixed</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: random mix of both</comment>
+  </data>
   <data name="AutoAdvanceDuration" xml:space="preserve">
     <value>Auto-advance delay</value>
     <comment>[001-vocab-quiz-preferences] Label for auto-advance duration slider</comment>
@@ -2056,5 +2076,29 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="TranslationInputPlaceholder" xml:space="preserve">
     <value>How do you say this in {0}?</value>
     <comment>Placeholder text for translation input, {0} is the target language</comment>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>Appearance</value>
+    <comment>Section header for appearance settings</comment>
+  </data>
+  <data name="ChooseTheme" xml:space="preserve">
+    <value>Theme</value>
+    <comment>Label for theme selection</comment>
+  </data>
+  <data name="DisplayMode" xml:space="preserve">
+    <value>Mode</value>
+    <comment>Label for light/dark mode toggle</comment>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Light</value>
+    <comment>Light mode button label</comment>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>Dark</value>
+    <comment>Dark mode button label</comment>
+  </data>
+  <data name="TextSize" xml:space="preserve">
+    <value>Text Size</value>
+    <comment>Label for text size slider</comment>
   </data>
 </root>

@@ -953,6 +953,10 @@
     <value>⚠️ 고아 단어</value>
     <comment>Orphaned word label</comment>
   </data>
+  <data name="Associated" xml:space="preserve">
+    <value>연결됨</value>
+    <comment>Associated word label - words linked to at least one resource</comment>
+  </data>
   <data name="ResourceCount" xml:space="preserve">
     <value>📚 {0}개 자료</value>
     <comment>Resource count label with count parameter</comment>
@@ -1569,6 +1573,22 @@
     <value>설정 저장</value>
     <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
   </data>
+  <data name="PreferencesSaved" xml:space="preserve">
+    <value>설정이 저장되었습니다</value>
+    <comment>[001-vocab-quiz-preferences] Toast confirmation when preferences are saved</comment>
+  </data>
+  <data name="QuizDirectionForward" xml:space="preserve">
+    <value>정방향</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: target to native</comment>
+  </data>
+  <data name="QuizDirectionReverse" xml:space="preserve">
+    <value>역방향</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: native to target</comment>
+  </data>
+  <data name="QuizDirectionMixed" xml:space="preserve">
+    <value>혼합</value>
+    <comment>[001-vocab-quiz-preferences] Quiz direction option: random mix of both</comment>
+  </data>
   <data name="AutoAdvanceDuration" xml:space="preserve">
     <value>자동 진행 지연 시간</value>
     <comment>[001-vocab-quiz-preferences] Label for auto-advance duration slider</comment>
@@ -1812,5 +1832,29 @@
   <data name="TranslationInputPlaceholder" xml:space="preserve">
     <value>그건 {0}(으)로 어떻게 말해요?</value>
     <comment>Placeholder text for translation input, {0} is the target language</comment>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>외관</value>
+    <comment>Section header for appearance settings</comment>
+  </data>
+  <data name="ChooseTheme" xml:space="preserve">
+    <value>테마</value>
+    <comment>Label for theme selection</comment>
+  </data>
+  <data name="DisplayMode" xml:space="preserve">
+    <value>모드</value>
+    <comment>Label for light/dark mode toggle</comment>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>라이트</value>
+    <comment>Light mode button label</comment>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>다크</value>
+    <comment>Dark mode button label</comment>
+  </data>
+  <data name="TextSize" xml:space="preserve">
+    <value>글자 크기</value>
+    <comment>Label for text size slider</comment>
   </data>
 </root>
