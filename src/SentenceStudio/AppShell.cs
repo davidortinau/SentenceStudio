@@ -193,8 +193,8 @@ public partial class AppShell : Component
         .FlyoutBackgroundColor(theme.GetSurface())
         .FlyoutHeader(RenderFlyoutHeader(theme, collapsed))
         .FlyoutFooter(isDesktop ? RenderFlyoutToggle(theme, collapsed) : null)
-        .ItemTemplate(item => RenderFlyoutItemTemplate(theme, item, collapsed))
-        .MenuItemTemplate(menuItem => RenderMenuSeparator(theme, collapsed))
+        .ItemTemplate(item => RenderFlyoutItemTemplate(theme, item))
+        .MenuItemTemplate(menuItem => RenderMenuSeparator(theme))
         .OnNavigated(OnShellNavigated);
     }
 
@@ -239,8 +239,12 @@ public partial class AppShell : Component
         ).Padding(16, 12);
     }
 
-    private VisualNode RenderFlyoutItemTemplate(BootstrapTheme theme, MauiControls.BaseShellItem item, bool collapsed)
+    private VisualNode RenderFlyoutItemTemplate(BootstrapTheme theme, MauiControls.BaseShellItem item)
     {
+        // Read collapsed state directly from field to avoid stale closure
+        var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
+        var collapsed = isDesktop && _flyoutCollapsed;
+
         // Handle separator MenuItem
         if (item.Title == "___separator___")
         {
@@ -277,9 +281,10 @@ public partial class AppShell : Component
         ).Padding(14, 10);
     }
 
-    private VisualNode RenderMenuSeparator(BootstrapTheme theme, bool collapsed)
+    private VisualNode RenderMenuSeparator(BootstrapTheme theme)
     {
-        // Separator is handled in ItemTemplate; this is a fallback
+        var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
+        var collapsed = isDesktop && _flyoutCollapsed;
         return BoxView()
             .HeightRequest(1)
             .BackgroundColor(theme.GetOutline())
@@ -289,22 +294,39 @@ public partial class AppShell : Component
     private VisualNode RenderFlyoutToggle(BootstrapTheme theme, bool collapsed)
     {
         var chevron = collapsed ? BootstrapIcons.ChevronRight : BootstrapIcons.ChevronLeft;
-        var chevronColor = theme.GetOnBackground().WithAlpha(0.6f);
+        var chevronColor = theme.GetOnBackground();
+        var iconSource = BootstrapIcons.Create(chevron, chevronColor, 16);
 
-        return Border(
-            Label(chevron)
-                .FontFamily(BootstrapIcons.FontFamily)
-                .FontSize(14)
-                .TextColor(chevronColor)
-                .Center()
+        if (collapsed)
+        {
+            return Grid(
+                Image().Source(iconSource)
+                    .WidthRequest(16).HeightRequest(16)
+                    .Center()
+            )
+            .HeightRequest(40)
+            .Margin(4, 8)
+            .OnTapped(() =>
+            {
+                _flyoutCollapsed = !_flyoutCollapsed;
+                Preferences.Default.Set("flyout_collapsed", _flyoutCollapsed);
+                Invalidate();
+            });
+        }
+
+        return Grid(
+            HStack(spacing: 8,
+                Image().Source(iconSource)
+                    .WidthRequest(16).HeightRequest(16)
+                    .VCenter(),
+                Label("Collapse")
+                    .FontSize(12)
+                    .TextColor(chevronColor.WithAlpha(0.7f))
+                    .VCenter()
+            ).Padding(14, 0).VCenter()
         )
-        .HeightRequest(32)
-        .WidthRequest(32)
-        .StrokeThickness(0)
-        .BackgroundColor(Colors.Transparent)
-        .StrokeShape(new RoundRectangle().CornerRadius(6))
-        .Margin(collapsed ? new Thickness(16, 8) : new Thickness(0, 8, 12, 8))
-        .HEnd()
+        .HeightRequest(40)
+        .Margin(0, 8)
         .OnTapped(() =>
         {
             _flyoutCollapsed = !_flyoutCollapsed;
