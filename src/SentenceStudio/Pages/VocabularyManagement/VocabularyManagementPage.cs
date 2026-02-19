@@ -421,7 +421,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 400, maxColumns: 4))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 500, maxColumns: 3))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16);
@@ -530,24 +530,38 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                           item.IsLearning ? theme.Warning :
                           theme.Secondary;
 
-        // Build bottom status line matching Blazor: "Known · 1 resource(s)" as colored text
+        var statusLabel = item.IsOrphaned ? $"{_localize["Orphaned"]}" : item.StatusText;
         var resourceCount = item.AssociatedResources?.Count ?? 0;
-        var statusLine = item.IsOrphaned
-            ? $"⚠ {_localize["Orphaned"]}"
-            : $"{item.StatusText} · {string.Format($"{_localize["ResourceCount"]}", resourceCount)}";
 
         return VStack(spacing: 4,
-            Label(item.Word.TargetLanguageTerm ?? "")
-                .H6(),
+            // Top row: Korean term + status badge (matches Blazor layout)
+            Grid("Auto", "*,Auto",
+                Label(item.Word.TargetLanguageTerm ?? "")
+                    .H6()
+                    .GridColumn(0),
+                Border(
+                    Label(statusLabel)
+                        .Class("small")
+                        .TextColor(theme.OnPrimary)
+                        .Padding(6, 2)
+                )
+                .Class("badge")
+                .Background(item.IsOrphaned ? theme.Warning : statusColor)
+                .VStart()
+                .HEnd()
+                .GridColumn(1)
+            ),
             Label(item.Word.NativeLanguageTerm ?? "")
                 .Class("small")
                 .Muted(),
-            // Combined status + resource count as colored text (matches Blazor layout)
-            Label(statusLine)
-                .Class("small")
-                .TextColor(item.IsOrphaned ? theme.Warning : statusColor)
-                .Margin(0, 4, 0, 0),
-            RenderTagBadges(item.Word)
+            // Resource count + tags row (matches Blazor)
+            HStack(spacing: 6,
+                Label($"📚 {string.Format($"{_localize["ResourceCount"]}", resourceCount)}")
+                    .Class("small")
+                    .Muted()
+                    .VCenter(),
+                RenderTagBadges(item.Word)
+            ).Margin(0, 4, 0, 0)
         );
     }
 
@@ -561,17 +575,23 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
         var theme = BootstrapTheme.Current;
         var displayTags = tags.Take(3);
+
+        // Color palette for tags (matches Blazor's distinct pill colors)
+        var tagColors = new[] { theme.Primary, theme.Success, theme.Info, theme.Warning, theme.Danger, theme.Secondary };
+
         return HStack(spacing: 4,
             displayTags.Select(tag =>
-                Border(
+            {
+                var colorIndex = Math.Abs(tag.GetHashCode()) % tagColors.Length;
+                return (VisualNode)Border(
                     Label(tag)
                         .Class("small")
-                        .TextColor(theme.GetOnBackground())
+                        .TextColor(theme.OnPrimary)
                 )
                 .Class("badge")
-                .BackgroundColor(theme.Secondary.WithAlpha(0.5f))
-                .Padding(6, 2)
-            ).ToArray()
+                .BackgroundColor(tagColors[colorIndex])
+                .Padding(6, 2);
+            }).ToArray()
         );
     }
 

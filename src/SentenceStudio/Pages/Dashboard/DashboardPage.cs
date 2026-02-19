@@ -512,7 +512,7 @@ partial class DashboardPage : Component<DashboardPageState>
         };
 
         double screenWidth = State.Width / State.Density;
-        int columns = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 3 : 2);
+        int columns = screenWidth >= 900 ? 3 : (screenWidth >= 600 ? 2 : 1);
         int rows = (int)Math.Ceiling((double)activities.Length / columns);
         string rowDefs = string.Join(",", Enumerable.Repeat("Auto", rows));
         string colDefs = string.Join(",", Enumerable.Repeat("*", columns));
