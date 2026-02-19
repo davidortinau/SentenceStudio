@@ -2232,4 +2232,20 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="LoadingSentences" xml:space="preserve">
     <value>Loading sentences...</value>
   </data>
+  <data name="SearchResources" xml:space="preserve">
+    <value>Search resources</value>
+    <comment>Search resources placeholder</comment>
+  </data>
+  <data name="AllTypes" xml:space="preserve">
+    <value>All Types</value>
+    <comment>Filter label for all media types</comment>
+  </data>
+  <data name="AllLanguages" xml:space="preserve">
+    <value>All Languages</value>
+    <comment>Filter label for all languages</comment>
+  </data>
+  <data name="NoResourcesFound" xml:space="preserve">
+    <value>No resources found</value>
+    <comment>Empty state message for resources list</comment>
+  </data>
 </root>

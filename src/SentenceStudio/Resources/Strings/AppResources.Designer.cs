@@ -202,6 +202,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to All Languages.
+        /// </summary>
+        internal static string AllLanguages {
+            get {
+                return ResourceManager.GetString("AllLanguages", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to You matched all vocabulary pairs!.
         /// </summary>
         internal static string AllPairsMatched {
@@ -225,6 +234,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string AllTags {
             get {
                 return ResourceManager.GetString("AllTags", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All Types.
+        /// </summary>
+        internal static string AllTypes {
+            get {
+                return ResourceManager.GetString("AllTypes", resourceCulture);
             }
         }
         
@@ -2398,6 +2416,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No resources found.
+        /// </summary>
+        internal static string NoResourcesFound {
+            get {
+                return ResourceManager.GetString("NoResourcesFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Not a match. Try again!.
         /// </summary>
         internal static string NotAMatch {
@@ -3472,6 +3499,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Search {
             get {
                 return ResourceManager.GetString("Search", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Search resources.
+        /// </summary>
+        internal static string SearchResources {
+            get {
+                return ResourceManager.GetString("SearchResources", resourceCulture);
             }
         }
         

@@ -83,7 +83,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
                                 .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                                     GridLayoutHelper.CalculateResponsiveLayout(
-                                        desiredItemWidth: 400,
+                                        desiredItemWidth: 280,
                                         orientation: ItemsLayoutOrientation.Vertical,
                                         maxColumns: 3))
                                 .ItemsSource(State.Resources, RenderResourceItem)
@@ -176,7 +176,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             .OnTapped(() => ViewResource(resource.Id))
         )
         .Class("card")
-        .PaddingLevel(3)
         .Margin(0);
     }
 
@@ -199,7 +198,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
         return Grid(rows: "Auto", columns: "*,Auto,Auto",
             Entry()
-                .Placeholder($"{_localize["Search"]}...")
+                .Placeholder($"{_localize["SearchResources"]}...")
                 .Text(State.SearchText)
                 .OnTextChanged(text =>
                 {
@@ -214,7 +213,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
             // Type filter dropdown
             Picker()
-                .Title("All Types")
+                .Title($"{_localize["AllTypes"]}")
                 .ItemsSource(_mediaTypes)
                 .SelectedIndex(State.FilterTypeIndex)
                 .OnSelectedIndexChanged(idx =>
@@ -223,7 +222,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     SetState(s =>
                     {
                         s.FilterTypeIndex = idx;
-                        s.FilterType = _mediaTypes[idx];
+                        s.FilterType = idx == 0 ? "All" : _mediaTypes[idx];
                     });
                     _ = FilterResources();
                 })
@@ -235,7 +234,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
             // Language filter dropdown
             Picker()
-                .Title("All Languages")
+                .Title($"{_localize["AllLanguages"]}")
                 .ItemsSource(_languages)
                 .SelectedIndex(0)
                 .OnSelectedIndexChanged(idx =>
@@ -244,7 +243,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     var lang = _languages[idx];
                     SetState(s =>
                     {
-                        s.FilterLanguages = lang == "All" ? new List<string>() : new List<string> { lang };
+                        s.FilterLanguages = idx == 0 ? new List<string>() : new List<string> { lang };
                     });
                     _ = FilterResources();
                 })
@@ -264,10 +263,10 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         var sw = System.Diagnostics.Stopwatch.StartNew();
         SetState(s => s.IsLoading = true);
 
-        _mediaTypes = new List<string> { "All" };
+        _mediaTypes = new List<string> { $"{_localize["AllTypes"]}" };
         _mediaTypes.AddRange(Constants.MediaTypes);
 
-        _languages = new List<string> { "All" };
+        _languages = new List<string> { $"{_localize["AllLanguages"]}" };
         _languages.AddRange(Constants.Languages);
 
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync(
@@ -320,8 +319,8 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
     // Helper method to filter a list of resources
     private List<LearningResource> FilterResourcesList(List<LearningResource> resources)
     {
-        // Apply type filter
-        if (State.FilterType != "All")
+        // Apply type filter (index 0 = "All Types")
+        if (State.FilterTypeIndex > 0 && !string.IsNullOrEmpty(State.FilterType))
         {
             resources = resources.Where(r => r.MediaType == State.FilterType).ToList();
         }

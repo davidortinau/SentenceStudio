@@ -1989,4 +1989,16 @@
   <data name="LoadingSentences" xml:space="preserve">
     <value>문장 불러오는 중...</value>
   </data>
+  <data name="SearchResources" xml:space="preserve">
+    <value>리소스 검색</value>
+  </data>
+  <data name="AllTypes" xml:space="preserve">
+    <value>모든 유형</value>
+  </data>
+  <data name="AllLanguages" xml:space="preserve">
+    <value>모든 언어</value>
+  </data>
+  <data name="NoResourcesFound" xml:space="preserve">
+    <value>리소스를 찾을 수 없습니다</value>
+  </data>
 </root>

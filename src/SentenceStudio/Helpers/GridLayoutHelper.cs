@@ -1,3 +1,5 @@
+using Microsoft.Maui.Controls;
+
 namespace SentenceStudio.Helpers;
 
 /// <summary>
@@ -49,8 +51,18 @@ public static class GridLayoutHelper
         double? customSpacing = null,
         double? customPadding = null)
     {
-        // Get screen width in device-independent pixels
-        var screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+        // Get window width in device-independent pixels (preferred for Mac Catalyst windowed apps)
+        // Fall back to screen width if window width is not available
+        double screenWidth;
+        var window = Application.Current?.Windows?.FirstOrDefault();
+        if (window != null && window.Width > 0)
+        {
+            screenWidth = window.Width;
+        }
+        else
+        {
+            screenWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+        }
 
         // Use provided values or defaults
         var spacing = customSpacing ?? 16;
