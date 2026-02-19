@@ -86,8 +86,13 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         _logger.LogDebug("🔄 ConversationPage.Render() called at {Time}, ActiveScenario={Scenario}", DateTime.Now.ToString("HH:mm:ss.fff"), State.ActiveScenario?.Name ?? "none");
 
         return ContentPage($"{_localize["Conversation"]}",
-            ToolbarItem($"{_localize["ChooseScenario"]}").OnClicked(ShowScenarioSelection),
-            ToolbarItem(State.TargetLanguage).OnClicked(ShowLanguageSelection),
+            ToolbarItem($"{_localize["ChooseScenario"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.ChatDots, BootstrapTheme.Current.GetOnBackground(), 20))
+                .OnClicked(ShowScenarioSelection),
+            ToolbarItem(State.TargetLanguage)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Translate, BootstrapTheme.Current.GetOnBackground(), 20))
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(ShowLanguageSelection),
             Grid(rows: "*, Auto", "*",
                 RenderMessageScroll(),
                 RenderInput(),

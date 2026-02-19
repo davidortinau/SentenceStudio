@@ -51,13 +51,13 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
     {
         return ContentPage($"{_localize["DescribeAScene"]}",
             ToolbarItem()
-                .IconImageSource(MyTheme.IconInfo)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.InfoCircle, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(ViewDescription),
 
             // Removed direct toolbar Add/Image button — image add is now inside the gallery bottom sheet
 
             ToolbarItem()
-                .IconImageSource(MyTheme.IconSwitch)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Images, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(ManageImages),
 
             // Main grid - only 2 content rows: main content (*) and input (Auto)

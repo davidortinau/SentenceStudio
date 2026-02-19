@@ -157,6 +157,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add Skill Profile.
+        /// </summary>
+        internal static string AddSkillProfile {
+            get {
+                return ResourceManager.GetString("AddSkillProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Add a Vocabulary List.
         /// </summary>
         internal static string AddVocabularyList {
@@ -1098,6 +1107,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string EditScenarioPrompt {
             get {
                 return ResourceManager.GetString("EditScenarioPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit Skill Profile.
+        /// </summary>
+        internal static string EditSkillProfile {
+            get {
+                return ResourceManager.GetString("EditSkillProfile", resourceCulture);
             }
         }
         
@@ -2565,6 +2583,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string OpenEndedConversation {
             get {
                 return ResourceManager.GetString("OpenEndedConversation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open in YouTube.
+        /// </summary>
+        internal static string OpenInYouTube {
+            get {
+                return ResourceManager.GetString("OpenInYouTube", resourceCulture);
             }
         }
         
@@ -4381,6 +4408,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ValidationError {
             get {
                 return ResourceManager.GetString("ValidationError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Video Watching.
+        /// </summary>
+        internal static string VideoWatching {
+            get {
+                return ResourceManager.GetString("VideoWatching", resourceCulture);
             }
         }
         

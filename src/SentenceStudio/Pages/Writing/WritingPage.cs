@@ -53,7 +53,9 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
         }
 
         return ContentPage($"{_localize["Writing"]}",
-            ToolbarItem($"{_localize["Refresh"]}").OnClicked(LoadVocabulary),
+            ToolbarItem($"{_localize["Refresh"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, BootstrapTheme.Current.GetOnBackground(), 20))
+                .OnClicked(LoadVocabulary),
             Grid("Auto,*,Auto", "",
                 SentencesHeader(),
                 SentencesScrollView(),

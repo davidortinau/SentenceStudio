@@ -99,8 +99,10 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         return ContentPage(pageRef => _pageRef = pageRef,
             ToolbarItem($"{_localize["NewGame"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(RestartGame),
             ToolbarItem(State.HideNativeWordsMode ? $"{_localize["ShowAllWords"]}" : $"{_localize["HideNativeWords"]}")
+                .Order(ToolbarItemOrder.Secondary)
                 .OnClicked(ToggleHideNativeWordsMode),
             Grid(rows: "Auto, Auto, *", columns: "*",
                 Props?.FromTodaysPlan == true ? RenderTitleView().GridRow(0) : null,

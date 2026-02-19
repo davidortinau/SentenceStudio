@@ -74,9 +74,17 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
         var theme = BootstrapTheme.Current;
 
         return ContentPage(State.Resource.Title ?? $"{_localize["Resource"]}",
-            ToolbarItem("Save").OnClicked(SaveResource),
-            IsEditable ? ToolbarItem("Delete").OnClicked(DeleteResource) : null,
-            ToolbarItem("Progress").OnClicked(ViewVocabularyProgress),
+            ToolbarItem($"{_localize["Save"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 20))
+                .OnClicked(SaveResource),
+            IsEditable ? ToolbarItem($"{_localize["Delete"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.GetOnBackground(), 20))
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(DeleteResource) : null,
+            ToolbarItem($"{_localize["VocabularyProgress"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.GraphUp, theme.GetOnBackground(), 20))
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(ViewVocabularyProgress),
 
             Grid(
                 State.IsLoading ?

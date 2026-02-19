@@ -37,7 +37,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
     {
         var theme = BootstrapTheme.Current;
 
-        return ContentPage("Skill Profiles",
+        return ContentPage($"{_localize["SkillProfiles"]}",
             ToolbarItem().Text($"{_localize["Add"]}")
                 .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(async () => await AddProfile()),

@@ -37,8 +37,10 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
     {
         var theme = BootstrapTheme.Current;
 
-        return ContentPage("Add Skill Profile",
-            ToolbarItem("Save").OnClicked(SaveProfile),
+        return ContentPage($"{_localize["AddSkillProfile"]}",
+            ToolbarItem($"{_localize["Save"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 20))
+                .OnClicked(SaveProfile),
             VScrollView(
                 VStack(spacing: 16,
                     Border(

@@ -58,8 +58,12 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
         var theme = BootstrapTheme.Current;
 
         return ContentPage($"{_localize["AddResource"]}",
-            ToolbarItem($"{_localize["Save"]}").OnClicked(SaveResource),
-            ToolbarItem($"{_localize["Cancel"]}").OnClicked(() => MauiControls.Shell.Current.GoToAsync("..")),
+            ToolbarItem($"{_localize["Save"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 20))
+                .OnClicked(SaveResource),
+            ToolbarItem($"{_localize["Cancel"]}")
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(() => MauiControls.Shell.Current.GoToAsync("..")),
 
             Grid(
                 State.IsLoading ?

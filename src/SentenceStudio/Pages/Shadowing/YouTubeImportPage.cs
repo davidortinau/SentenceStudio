@@ -54,6 +54,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
         var theme = BootstrapTheme.Current;
         return ContentPage($"{_localize["ImportFromYouTube"]}",
             ToolbarItem($"{_localize["Clear"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.XCircleFill, theme.GetOnBackground(), 20))
                 .OnClicked(ClearPage),
 
             Grid(

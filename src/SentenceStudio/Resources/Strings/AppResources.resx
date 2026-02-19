@@ -2248,4 +2248,20 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>No resources found</value>
     <comment>Empty state message for resources list</comment>
   </data>
+  <data name="AddSkillProfile" xml:space="preserve">
+    <value>Add Skill Profile</value>
+    <comment>Page title for adding a skill profile</comment>
+  </data>
+  <data name="EditSkillProfile" xml:space="preserve">
+    <value>Edit Skill Profile</value>
+    <comment>Page title for editing a skill profile</comment>
+  </data>
+  <data name="VideoWatching" xml:space="preserve">
+    <value>Video Watching</value>
+    <comment>Page title for video watching activity</comment>
+  </data>
+  <data name="OpenInYouTube" xml:space="preserve">
+    <value>Open in YouTube</value>
+    <comment>Toolbar action to open video in YouTube</comment>
+  </data>
 </root>

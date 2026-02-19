@@ -44,9 +44,14 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
     {
         var theme = BootstrapTheme.Current;
 
-        return ContentPage("Edit Skill Profile",
-            ToolbarItem("Save").OnClicked(Save),
-            ToolbarItem("Delete").OnClicked(Delete),
+        return ContentPage($"{_localize["EditSkillProfile"]}",
+            ToolbarItem($"{_localize["Save"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 20))
+                .OnClicked(Save),
+            ToolbarItem($"{_localize["Delete"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Trash, theme.GetOnBackground(), 20))
+                .Order(ToolbarItemOrder.Secondary)
+                .OnClicked(Delete),
             State.IsLoading ?
                 (VisualNode)ActivityIndicator().IsRunning(true).Center() :
             VScrollView(

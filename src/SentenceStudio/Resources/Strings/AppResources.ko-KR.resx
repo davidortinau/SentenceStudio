@@ -2001,4 +2001,16 @@
   <data name="NoResourcesFound" xml:space="preserve">
     <value>리소스를 찾을 수 없습니다</value>
   </data>
+  <data name="AddSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 추가</value>
+  </data>
+  <data name="EditSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 수정</value>
+  </data>
+  <data name="VideoWatching" xml:space="preserve">
+    <value>동영상 시청</value>
+  </data>
+  <data name="OpenInYouTube" xml:space="preserve">
+    <value>YouTube에서 열기</value>
+  </data>
 </root>

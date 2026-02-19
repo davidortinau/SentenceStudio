@@ -158,12 +158,10 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(async () => await ToggleQuickAdd()),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Select"]}")
-                // .IconImageSource(
-                //     State.IsMultiSelectMode ? MyTheme.IconDismiss : MyTheme.IconSelectAll
-                // )
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Check2Square, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(State.IsMultiSelectMode ? ExitMultiSelectMode : EnterMultiSelectMode),
             ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Cleanup"]}")
-                // .IconImageSource(MyTheme.IconCleanup)
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.Funnel, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(async () => await ShowCleanupOptions()),
             State.IsLoading ?
                 VStack(

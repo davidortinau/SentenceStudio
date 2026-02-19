@@ -65,7 +65,9 @@ partial class UserProfilePage : Component<UserProfilePageState>
         var theme = BootstrapTheme.Current;
 
         return ContentPage($"{_localize["UserProfile"]}",
-            ToolbarItem($"{_localize["Reset"]}").OnClicked(Reset),
+            ToolbarItem($"{_localize["Reset"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, theme.GetOnBackground(), 20))
+                .OnClicked(Reset),
             State.IsLoading
             ? Grid(
                 ActivityIndicator()

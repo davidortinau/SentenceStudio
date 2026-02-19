@@ -22,7 +22,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
     {
         if (State.IsBusy)
         {
-            return ContentPage("Video Watching",
+            return ContentPage($"{_localize["VideoWatching"]}",
                 VStack(
                     ActivityIndicator()
                         .IsRunning(true)
@@ -39,7 +39,7 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
 
         if (!string.IsNullOrEmpty(State.ErrorMessage))
         {
-            return ContentPage("Video Watching",
+            return ContentPage($"{_localize["VideoWatching"]}",
                 VStack(
                     Label("Warning")
                         .FontSize(48)
@@ -57,8 +57,9 @@ partial class VideoWatchingPage : Component<VideoWatchingPageState, ActivityProp
             ).BackgroundColor(BootstrapTheme.Current.GetBackground());
         }
 
-        return ContentPage(State.Resource?.Title ?? "Video Watching",
-            ToolbarItem("Open in YouTube")
+        return ContentPage(State.Resource?.Title ?? $"{_localize["VideoWatching"]}",
+            ToolbarItem($"{_localize["OpenInYouTube"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlayCircle, BootstrapTheme.Current.GetOnBackground(), 20))
                 .OnClicked(OpenInYouTube),
             Grid(rows: "*", columns: "*",
                 RenderVideoPlayer()
