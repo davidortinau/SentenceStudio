@@ -102,18 +102,16 @@ public static class MauiProgram
 			.UseUXDiversPopups()
 			.UseBootstrapTheme(options =>
 			{
-				options.AddTheme<Themes.DefaultTheme>("default");
-				options.AddTheme<Themes.DarklyTheme>("darkly");
-				options.AddTheme<Themes.FlatlyTheme>("flatly");
-				options.AddTheme<Themes.SketchyTheme>("sketchy");
-				options.AddTheme<Themes.SlateTheme>("slate");
-				options.AddTheme<Themes.VaporTheme>("vapor");
-				options.AddTheme<Themes.BriteTheme>("brite");
 				options.AddTheme<Themes.SeoulPopTheme>("seoul-pop");
 				options.AddTheme<Themes.OceanTheme>("ocean");
 				options.AddTheme<Themes.ForestTheme>("forest");
 				options.AddTheme<Themes.SunsetTheme>("sunset");
 				options.AddTheme<Themes.MonochromeTheme>("monochrome");
+				options.AddTheme<Themes.FlatlyTheme>("flatly");
+				options.AddTheme<Themes.SketchyTheme>("sketchy");
+				options.AddTheme<Themes.SlateTheme>("slate");
+				options.AddTheme<Themes.VaporTheme>("vapor");
+				options.AddTheme<Themes.BriteTheme>("brite");
 			})
 			.UseIconFont()
 

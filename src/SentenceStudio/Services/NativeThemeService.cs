@@ -77,6 +77,14 @@ public class NativeThemeService
 
     private void ApplyTheme(string themeName)
     {
+        // Fallback to default if saved theme is no longer registered
+        if (!BootstrapTheme.RegisteredThemes.Contains(themeName))
+        {
+            _logger.LogWarning("Theme '{Theme}' not registered, falling back to '{Default}'", themeName, DEFAULT_THEME);
+            themeName = DEFAULT_THEME;
+            _currentTheme = themeName;
+            Preferences.Default.Set(PREF_THEME, themeName);
+        }
         BootstrapTheme.Apply(themeName);
         _logger.LogInformation("Applied theme: {Theme}", themeName);
     }
@@ -115,8 +123,6 @@ public class NativeThemeService
         "forest" => "Forest",
         "sunset" => "Sunset",
         "monochrome" => "Monochrome",
-        "default" => "Default",
-        "darkly" => "Darkly",
         "flatly" => "Flatly",
         "sketchy" => "Sketchy",
         "slate" => "Slate",
@@ -136,13 +142,11 @@ public class NativeThemeService
         "forest" => isDark ? (Color.FromArgb("#34D399"), Color.FromArgb("#FDE047")) : (Color.FromArgb("#059669"), Color.FromArgb("#FBBF24")),
         "sunset" => isDark ? (Color.FromArgb("#FB923C"), Color.FromArgb("#FBA7D8")) : (Color.FromArgb("#EA580C"), Color.FromArgb("#F472B6")),
         "monochrome" => isDark ? (Color.FromArgb("#D1D5DB"), Color.FromArgb("#F3F4F6")) : (Color.FromArgb("#374151"), Color.FromArgb("#1F2937")),
-        "default" => (Color.FromArgb("#0d6efd"), Color.FromArgb("#6c757d")),
-        "darkly" => (Color.FromArgb("#375a7f"), Color.FromArgb("#00bc8c")),
-        "flatly" => (Color.FromArgb("#2c3e50"), Color.FromArgb("#18bc9c")),
-        "sketchy" => (Color.FromArgb("#333333"), Color.FromArgb("#868e96")),
-        "slate" => (Color.FromArgb("#3a3f44"), Color.FromArgb("#7a8288")),
-        "vapor" => (Color.FromArgb("#6610f2"), Color.FromArgb("#e83e8c")),
-        "brite" => (Color.FromArgb("#0d6efd"), Color.FromArgb("#e83e8c")),
+        "flatly" => isDark ? (Color.FromArgb("#2c3e50"), Color.FromArgb("#18bc9c")) : (Color.FromArgb("#2c3e50"), Color.FromArgb("#18bc9c")),
+        "sketchy" => isDark ? (Color.FromArgb("#333333"), Color.FromArgb("#868e96")) : (Color.FromArgb("#333333"), Color.FromArgb("#868e96")),
+        "slate" => isDark ? (Color.FromArgb("#3a3f44"), Color.FromArgb("#7a8288")) : (Color.FromArgb("#3a3f44"), Color.FromArgb("#7a8288")),
+        "vapor" => isDark ? (Color.FromArgb("#6610f2"), Color.FromArgb("#e83e8c")) : (Color.FromArgb("#6610f2"), Color.FromArgb("#e83e8c")),
+        "brite" => isDark ? (Color.FromArgb("#0d6efd"), Color.FromArgb("#e83e8c")) : (Color.FromArgb("#0d6efd"), Color.FromArgb("#e83e8c")),
         _ => (Color.FromArgb("#0d6efd"), Color.FromArgb("#6c757d"))
     };
 }
