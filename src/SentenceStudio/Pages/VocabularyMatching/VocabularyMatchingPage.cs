@@ -186,8 +186,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .HCenter(),
 
             Button($"{_localize["PlayAgain"]}")
-                .Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
-                .TextColor(Colors.White)
+                .Primary()
                 .OnClicked(RestartGame)
                 .HCenter()
         )

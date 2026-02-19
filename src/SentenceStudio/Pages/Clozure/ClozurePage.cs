@@ -266,9 +266,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					// Continue button
 					Button("Continue Practice")
 						.OnClicked(ContinueAfterSummary)
-						.Background(new SolidColorBrush(theme.Primary))
-						.TextColor(Colors.White)
-						.CornerRadius(8)
+						.Primary()
 						.Padding(24, 8)
 						.Margin(0, 16)
 				)

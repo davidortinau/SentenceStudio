@@ -430,11 +430,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["CheckAnswer"]}")
-                .Background(new SolidColorBrush(theme.Primary))
-                .TextColor(Colors.White)
-                .BorderColor(theme.Primary)
-                .BorderWidth(1)
-                .CornerRadius(6)
+                .Primary()
                 .OnClicked(async () => await OnCheckAnswerAsync())
                 .IsEnabled(State.SelectedWordId.HasValue && !State.IsDebouncing && !State.HasCheckedAnswer)
                 .HCenter()
@@ -559,11 +555,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["Done"]}")
-                .Background(new SolidColorBrush(theme.Primary))
-                .TextColor(Colors.White)
-                .BorderColor(theme.Primary)
-                .BorderWidth(1)
-                .CornerRadius(6)
+                .Primary()
                 .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
         )
         .VCenter()

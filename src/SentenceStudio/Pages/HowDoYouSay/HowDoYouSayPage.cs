@@ -164,20 +164,15 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 					.Text(State.Phrase)
 					.OnTextChanged((s, e) => SetState(s => s.Phrase = e.NewTextValue))
 			)
-			.StrokeShape(new RoundRectangle().CornerRadius(8))
-			.Stroke(BootstrapTheme.Current.GetOutline())
-			.StrokeThickness(1),
+			.Class("card")
+			.Padding(8),
 			HStack(
 				Button("Submit")
-					.Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
-					.TextColor(Colors.White)
+					.Primary()
 					.HFill()
 					.OnClicked(Submit),
 				Button(State.SelectedVoiceDisplayName)
-					.Background(new SolidColorBrush(Colors.Transparent))
-					.TextColor(BootstrapTheme.Current.GetOnBackground())
-					.BorderColor(BootstrapTheme.Current.GetOutline())
-					.BorderWidth(1)
+					.Outlined()
 					.HEnd()
 					.OnClicked(ShowVoiceSelectionPopup)
 			).Spacing(24).HEnd()

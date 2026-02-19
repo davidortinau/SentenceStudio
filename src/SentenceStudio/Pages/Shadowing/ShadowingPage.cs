@@ -783,8 +783,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     ) :
                     VStack(
                         Button("Save as MP3")
-                            .Background(new SolidColorBrush(BootstrapTheme.Current.Primary))
-                            .TextColor(BootstrapTheme.Current.OnPrimary)
+                            .Primary()
                             .OnClicked(SaveAudioAsMp3)
                             .Margin(0, 0, 0, 8),
 

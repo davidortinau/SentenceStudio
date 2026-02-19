@@ -158,29 +158,29 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
             // Bootstrap btn-group: active = primary, inactive = outline
             HStack(spacing: 0,
-                Button($"{_localize["MinimalPairsModeFocus"]}")
-                    .Background(new SolidColorBrush(State.SelectedMode == PracticeMode.Focus ? theme.Primary : Colors.Transparent))
-                    .TextColor(State.SelectedMode == PracticeMode.Focus ? Colors.White : theme.GetOnBackground())
-                    .BorderColor(theme.GetOutline())
-                    .BorderWidth(1)
-                    .CornerRadius(6)
-                    .OnClicked(() => SetState(s =>
-                    {
-                        s.SelectedMode = PracticeMode.Focus;
-                    })),
+                State.SelectedMode == PracticeMode.Focus
+                    ? Button($"{_localize["MinimalPairsModeFocus"]}")
+                        .Primary()
+                        .OnClicked(() => SetState(s => s.SelectedMode = PracticeMode.Focus))
+                    : Button($"{_localize["MinimalPairsModeFocus"]}")
+                        .Outlined()
+                        .OnClicked(() => SetState(s => s.SelectedMode = PracticeMode.Focus)),
 
-                Button($"{_localize["MinimalPairsModeMixed"]}")
-                    .Background(new SolidColorBrush(State.SelectedMode == PracticeMode.Mixed ? theme.Primary : Colors.Transparent))
-                    .TextColor(State.SelectedMode == PracticeMode.Mixed ? Colors.White : theme.GetOnBackground())
-                    .BorderColor(theme.GetOutline())
-                    .BorderWidth(1)
-                    .CornerRadius(6)
-                    .OnClicked(() => SetState(s =>
-                    {
-                        s.SelectedMode = PracticeMode.Mixed;
-                        // Clear selection when switching to Mixed mode
-                        s.SelectedPairId = null;
-                    }))
+                State.SelectedMode == PracticeMode.Mixed
+                    ? Button($"{_localize["MinimalPairsModeMixed"]}")
+                        .Primary()
+                        .OnClicked(() => SetState(s =>
+                        {
+                            s.SelectedMode = PracticeMode.Mixed;
+                            s.SelectedPairId = null;
+                        }))
+                    : Button($"{_localize["MinimalPairsModeMixed"]}")
+                        .Outlined()
+                        .OnClicked(() => SetState(s =>
+                        {
+                            s.SelectedMode = PracticeMode.Mixed;
+                            s.SelectedPairId = null;
+                        }))
             ),
 
             // Start Session button
@@ -188,11 +188,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                 ? Button(State.SelectedMode == PracticeMode.Focus
                         ? $"{_localize["MinimalPairsStartSession"]}"
                         : $"{_localize["MinimalPairsStartSession"]} ({State.UserPairs.Count} pairs)")
-                    .Background(new SolidColorBrush(theme.Primary))
-                    .TextColor(Colors.White)
-                    .BorderColor(theme.Primary)
-                    .BorderWidth(1)
-                    .CornerRadius(6)
+                    .Primary()
                     .IsEnabled(State.SelectedMode == PracticeMode.Mixed || State.SelectedPairId != null)
                     .OnClicked(async () => await StartSessionAsync())
                 : null

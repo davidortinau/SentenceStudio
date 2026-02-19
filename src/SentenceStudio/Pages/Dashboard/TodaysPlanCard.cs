@@ -152,8 +152,7 @@ partial class TodaysPlanCard : MauiReactor.Component
                 // Start/Resume button for next activity
                 !allComplete
                     ? Button(buttonText)
-                        .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(theme.OnPrimary)
+                        .Primary()
                         .HEnd()
                         .VCenter()
                         .OnClicked(() =>

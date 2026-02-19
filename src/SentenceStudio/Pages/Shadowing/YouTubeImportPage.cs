@@ -61,21 +61,15 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                         Label($"{_localize["ImportAudioClipFromYouTube"]}")
                         .H4(),
 
-                    Border(
-                        Entry()
-                            .Text(State.VideoUrl)
-                            .Placeholder($"{_localize["YouTubeURL"]}")
-                            .OnTextChanged((url) => SetState(s => s.VideoUrl = url))
-                            .OnCompleted(FetchTranscriptsAsync)
-                            .Class("form-control")
-                    )
-                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
-                        .Stroke(BootstrapTheme.Current.GetOutline())
-                        .StrokeThickness(1)
-                        .StrokeShape(new RoundRectangle().CornerRadius(8))
-                        .Padding(4),
+                    Entry()
+                        .Text(State.VideoUrl)
+                        .Placeholder($"{_localize["YouTubeURL"]}")
+                        .OnTextChanged((url) => SetState(s => s.VideoUrl = url))
+                        .OnCompleted(FetchTranscriptsAsync)
+                        .Class("form-control"),
 
                     Button($"{_localize["FetchTranscripts"]}")
+                        .Primary()
                         .OnClicked(FetchTranscriptsAsync)
                         .IsEnabled(!State.IsLoadingTranscripts && !string.IsNullOrEmpty(State.VideoUrl))
                         .HStart(),
@@ -91,26 +85,19 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     Label($"{_localize["SelectTranscriptLanguage"]}")
                         .Muted()
                         .Small(),
-                    Border(
-                        Picker()
-                            .ItemsSource(State.AvailableTranscripts.Select(t => t.LanguageName).ToList())
-                            .SelectedIndex(State.AvailableTranscripts.IndexOf(State.SelectedTranscript))
-                            .OnSelectedIndexChanged(async (index) =>
+                    Picker()
+                        .ItemsSource(State.AvailableTranscripts.Select(t => t.LanguageName).ToList())
+                        .SelectedIndex(State.AvailableTranscripts.IndexOf(State.SelectedTranscript))
+                        .OnSelectedIndexChanged(async (index) =>
+                        {
+                            if (index >= 0 && index < State.AvailableTranscripts.Count)
                             {
-                                if (index >= 0 && index < State.AvailableTranscripts.Count)
-                                {
-                                    var selected = State.AvailableTranscripts[index];
-                                    SetState(s => s.SelectedTranscript = selected);
-                                    await LoadTranscriptAsync(selected);
-                                }
-                            })
-                            .FormSelect()
-                    )
-                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
-                        .Stroke(BootstrapTheme.Current.GetOutline())
-                        .StrokeThickness(1)
-                        .StrokeShape(new RoundRectangle().CornerRadius(8))
-                        .Padding(4)
+                                var selected = State.AvailableTranscripts[index];
+                                SetState(s => s.SelectedTranscript = selected);
+                                await LoadTranscriptAsync(selected);
+                            }
+                        })
+                        .FormSelect()
                 )
                     .IsVisible(State.ShowTranscriptPicker),
 
@@ -129,24 +116,18 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                     Label($"{_localize["Transcript"]}")
                         .Muted()
                         .Small(),
-                    Border(
-                        Editor()
-                            .Text(State.TranscriptText)
-                            .OnTextChanged(text => SetState(s => s.TranscriptText = text))
-                            .MinimumHeightRequest(200)
-                            .AutoSize(EditorAutoSizeOption.TextChanges)
-                            .Class("form-control")
-                    )
-                        .BackgroundColor(BootstrapTheme.Current.GetSurface())
-                        .Stroke(BootstrapTheme.Current.GetOutline())
-                        .StrokeThickness(1)
-                        .StrokeShape(new RoundRectangle().CornerRadius(8))
-                        .Padding(4)
+                    Editor()
+                        .Text(State.TranscriptText)
+                        .OnTextChanged(text => SetState(s => s.TranscriptText = text))
+                        .MinimumHeightRequest(200)
+                        .AutoSize(EditorAutoSizeOption.TextChanges)
+                        .Class("form-control")
                 )
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText)),
 
                 // Polish with AI button
                 Button($"{_localize["PolishWithAI"]}")
+                    .Secondary()
                     .OnClicked(PolishTranscriptWithAi)
                     .IsEnabled(!State.IsPolishingTranscript && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText))
@@ -154,6 +135,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
                 // Save transcript button
                 Button($"{_localize["SaveAsLearningResource"]}")
+                    .Primary()
                     .OnClicked(SaveTranscriptAsResource)
                     .IsEnabled(!State.IsSavingResource && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText) && State.SavedResourceId == null)

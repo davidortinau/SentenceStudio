@@ -242,11 +242,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
 
                 // Create button
                 Button($"{_localize["Create"]}")
-                    .Background(new SolidColorBrush(theme.Primary))
-                    .TextColor(Colors.White)
-                    .BorderColor(theme.Primary)
-                    .BorderWidth(1)
-                    .CornerRadius(6)
+                    .Primary()
                     .OnClicked(async () => await OnCreatePairAsync())
                     .IsEnabled(!State.IsSaving && State.SelectedWordA != null && State.SelectedWordB != null)
             )

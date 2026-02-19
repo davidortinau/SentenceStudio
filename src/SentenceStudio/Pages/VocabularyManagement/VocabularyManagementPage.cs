@@ -378,13 +378,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .VCenter()
                         .HFill(),
                     Button($"{_localize["Delete"]}")
-                        .Background(new SolidColorBrush(theme.Danger))
-                        .TextColor(theme.OnPrimary)
+                        .Danger()
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
                     Button($"{_localize["Associate"]}")
-                        .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(theme.OnPrimary)
+                        .Primary()
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 )
@@ -409,8 +407,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
                 !State.AllVocabularyItems.Any() ?
                     Button($"{_localize["GetStarted"]}")
-                        .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(theme.OnPrimary)
+                        .Primary()
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :
