@@ -12,6 +12,8 @@ using SentenceStudio.Pages.MinimalPairs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Storage;
 using MauiReactor.Shapes;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace SentenceStudio;
 
@@ -171,10 +173,6 @@ public partial class AppShell : Component
                     .RenderContent(() => new YouTubeImportPage())
                     .Route(nameof(YouTubeImportPage))
             ).Icon(BootstrapIcons.Create(BootstrapIcons.BoxArrowInDown, iconColor, 20)),
-
-            // Separator between top and bottom nav groups
-            MenuItem().Text("___separator___"),
-
             FlyoutItem("Profile",
                 ShellContent()
                     .Title("Profile")
@@ -192,9 +190,8 @@ public partial class AppShell : Component
         .FlyoutWidth(collapsed ? 64 : 240)
         .FlyoutBackgroundColor(theme.GetSurface())
         .FlyoutHeader(RenderFlyoutHeader(theme, collapsed))
+        .FlyoutContent(RenderFlyoutNav(theme, collapsed))
         .FlyoutFooter(isDesktop ? RenderFlyoutToggle(theme, collapsed) : null)
-        .ItemTemplate(item => RenderFlyoutItemTemplate(theme, item))
-        .MenuItemTemplate(menuItem => RenderMenuSeparator(theme))
         .OnNavigated(OnShellNavigated);
     }
 
@@ -239,27 +236,29 @@ public partial class AppShell : Component
         ).Padding(16, 12);
     }
 
-    private VisualNode RenderFlyoutItemTemplate(BootstrapTheme theme, MauiControls.BaseShellItem item)
+    private VisualNode RenderFlyoutNav(BootstrapTheme theme, bool collapsed)
     {
-        // Read collapsed state directly from field to avoid stale closure
-        var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
-        var collapsed = isDesktop && _flyoutCollapsed;
+        var items = new List<VisualNode>();
 
-        // Handle separator MenuItem
-        if (item.Title == "___separator___")
-        {
-            return BoxView()
-                .HeightRequest(1)
-                .BackgroundColor(theme.GetOutline())
-                .Margin(collapsed ? new Thickness(8, 6) : new Thickness(14, 6));
-        }
+        foreach (var navItem in _topNavItems)
+            items.Add(RenderNavItem(theme, navItem, collapsed));
 
-        var allItems = _topNavItems.Concat(_bottomNavItems);
-        var navItem = allItems.FirstOrDefault(n => n.Title == item.Title);
+        // Separator between top and bottom nav groups
+        items.Add(BoxView()
+            .HeightRequest(1)
+            .BackgroundColor(theme.GetOutline())
+            .Margin(collapsed ? new Thickness(8, 6) : new Thickness(14, 6)));
 
-        if (navItem == null)
-            return Label(item.Title ?? "?").FontSize(14).TextColor(theme.GetOnBackground()).Padding(14, 10);
+        foreach (var navItem in _bottomNavItems)
+            items.Add(RenderNavItem(theme, navItem, collapsed));
 
+        return ScrollView(
+            VStack(items.ToArray()).Spacing(0)
+        );
+    }
+
+    private VisualNode RenderNavItem(BootstrapTheme theme, NavItem navItem, bool collapsed)
+    {
         var isSelected = _currentRoute == navItem.Route;
         var itemColor = isSelected ? theme.Primary : theme.GetOnBackground();
         var icon = BootstrapIcons.Create(navItem.Icon, itemColor, 20);
@@ -267,45 +266,56 @@ public partial class AppShell : Component
         if (collapsed)
         {
             return Grid(
-                Image().Source(icon).Center()
-            ).HeightRequest(44);
+                Image().Source(icon)
+                    .WidthRequest(20).HeightRequest(20)
+                    .Center()
+            )
+            .HeightRequest(44)
+            .BackgroundColor(Colors.Transparent)
+            .OnTapped(async () => await NavigateToRoute(navItem.Route));
         }
 
-        return HStack(spacing: 10,
-            Image().Source(icon)
-                .WidthRequest(20).HeightRequest(20).VCenter(),
-            Label(item.Title)
-                .TextColor(itemColor)
-                .FontSize(14)
-                .VCenter()
-        ).Padding(14, 10);
+        return Grid(
+            HStack(spacing: 10,
+                Image().Source(icon)
+                    .WidthRequest(20).HeightRequest(20).VCenter(),
+                Label(navItem.Title)
+                    .TextColor(itemColor)
+                    .FontSize(14)
+                    .VCenter()
+            ).Padding(14, 10)
+        )
+        .BackgroundColor(Colors.Transparent)
+        .OnTapped(async () => await NavigateToRoute(navItem.Route));
     }
 
-    private VisualNode RenderMenuSeparator(BootstrapTheme theme)
+    private async Task NavigateToRoute(string route)
     {
+        _currentRoute = route;
         var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
-        var collapsed = isDesktop && _flyoutCollapsed;
-        return BoxView()
-            .HeightRequest(1)
-            .BackgroundColor(theme.GetOutline())
-            .Margin(collapsed ? new Thickness(8, 6) : new Thickness(14, 6));
+        if (!isDesktop)
+            MauiControls.Shell.Current.FlyoutIsPresented = false;
+        await MauiControls.Shell.Current.GoToAsync($"//{route}");
+        Invalidate();
     }
 
     private VisualNode RenderFlyoutToggle(BootstrapTheme theme, bool collapsed)
     {
         var chevron = collapsed ? BootstrapIcons.ChevronRight : BootstrapIcons.ChevronLeft;
         var chevronColor = theme.GetOnBackground();
-        var iconSource = BootstrapIcons.Create(chevron, chevronColor, 16);
+        var iconSource = BootstrapIcons.Create(chevron, chevronColor, 20);
 
         if (collapsed)
         {
             return Grid(
                 Image().Source(iconSource)
-                    .WidthRequest(16).HeightRequest(16)
+                    .WidthRequest(20).HeightRequest(20)
                     .Center()
             )
-            .HeightRequest(40)
-            .Margin(4, 8)
+            .AutomationId("FlyoutToggle")
+            .HeightRequest(44)
+            .Margin(0, 8)
+            .BackgroundColor(Colors.Transparent)
             .OnTapped(() =>
             {
                 _flyoutCollapsed = !_flyoutCollapsed;
@@ -317,16 +327,18 @@ public partial class AppShell : Component
         return Grid(
             HStack(spacing: 8,
                 Image().Source(iconSource)
-                    .WidthRequest(16).HeightRequest(16)
+                    .WidthRequest(20).HeightRequest(20)
                     .VCenter(),
                 Label("Collapse")
-                    .FontSize(12)
+                    .FontSize(13)
                     .TextColor(chevronColor.WithAlpha(0.7f))
                     .VCenter()
-            ).Padding(14, 0).VCenter()
+            ).Padding(14, 10).VCenter()
         )
-        .HeightRequest(40)
+        .AutomationId("FlyoutToggle")
+        .HeightRequest(44)
         .Margin(0, 8)
+        .BackgroundColor(Colors.Transparent)
         .OnTapped(() =>
         {
             _flyoutCollapsed = !_flyoutCollapsed;
