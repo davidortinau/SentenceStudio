@@ -115,6 +115,7 @@ public partial class AppShell : Component
         _logger.LogDebug("Showing Main Shell");
         var theme = BootstrapTheme.Current;
         var iconColor = theme.GetOnBackground();
+        var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
 
         return Shell(
             FlyoutItem("Dashboard",
@@ -165,6 +166,22 @@ public partial class AppShell : Component
                     .RenderContent(() => new Pages.AppSettings.SettingsPage())
                     .Route(nameof(Pages.AppSettings.SettingsPage))
             ).Icon(BootstrapIcons.Create(BootstrapIcons.Gear, iconColor, 20))
+        )
+        .FlyoutBehavior(isDesktop ? FlyoutBehavior.Locked : FlyoutBehavior.Flyout)
+        .FlyoutWidth(240)
+        .FlyoutBackgroundColor(theme.GetSurface())
+        .FlyoutHeader(
+            HStack(spacing: 8,
+                Image("appicon")
+                    .WidthRequest(32)
+                    .HeightRequest(32),
+                Label("Sentence Studio")
+                    .FontAttributes(FontAttributes.Bold)
+                    .FontSize(16)
+                    .TextColor(theme.GetOnBackground())
+                    .VCenter()
+            )
+            .Padding(16, 12)
         );
     }
     // .FlyoutFooter(
