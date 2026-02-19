@@ -285,18 +285,18 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         ).Padding(16, 8);
     }
 
-    // Stats badge helper
+    // Stats badge helper — compact rounded pills matching Blazor
     VisualNode RenderStatsBadge(string text, Color bgColor)
     {
         return Border(
             Label(text)
                 .FontSize(12)
                 .TextColor(BootstrapTheme.Current.OnPrimary)
-                .Padding(8, 2)
         )
-        .Class("badge")
-        .Background(bgColor)
-        .StrokeShape(new RoundRectangle().CornerRadius(10));
+        .Background(new SolidColorBrush(bgColor))
+        .Padding(10, 4)
+        .StrokeShape(new RoundRectangle().CornerRadius(12))
+        .StrokeThickness(0);
     }
 
     // Bottom bar with filter icons (matching Blazor) or bulk actions in multi-select mode
@@ -514,10 +514,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                           item.IsLearning ? theme.Warning :
                           theme.Secondary;
 
+        var statusTextColor = item.IsLearning ? Colors.Black : theme.OnPrimary;
         var statusLabel = item.IsOrphaned ? $"{_localize["Orphaned"]}" : item.StatusText;
         var resourceCount = item.AssociatedResources?.Count ?? 0;
 
-        return VStack(spacing: 2,
+        return VStack(spacing: 0,
             // Top row: Korean term + status badge (matches Blazor layout)
             Grid("Auto", "*,Auto",
                 Label(item.Word.TargetLanguageTerm ?? "")
@@ -526,11 +527,12 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 Border(
                     Label(statusLabel)
                         .FontSize(11)
-                        .TextColor(theme.OnPrimary)
-                        .Padding(6, 2)
+                        .TextColor(statusTextColor)
                 )
-                .Class("badge")
-                .Background(item.IsOrphaned ? theme.Warning : statusColor)
+                .Background(new SolidColorBrush(item.IsOrphaned ? theme.Warning : statusColor))
+                .Padding(8, 3)
+                .StrokeShape(new RoundRectangle().CornerRadius(10))
+                .StrokeThickness(0)
                 .VStart()
                 .HEnd()
                 .GridColumn(1)
@@ -538,7 +540,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             // English translation
             Label(item.Word.NativeLanguageTerm ?? "")
                 .FontSize(13)
-                .Muted(),
+                .Muted()
+                .Margin(0, 2, 0, 0),
             // Resource count + tags row (matches Blazor)
             HStack(spacing: 6,
                 Image()
@@ -551,7 +554,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .Muted()
                     .VCenter(),
                 RenderTagBadges(item.Word)
-            ).Margin(0, 4, 0, 0)
+            ).Margin(0, 6, 0, 0)
         );
     }
 
@@ -566,22 +569,21 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var theme = BootstrapTheme.Current;
         var displayTags = tags.Take(3);
 
-        // Color palette for tags (matches Blazor's distinct pill colors)
-        var tagColors = new[] { theme.Primary, theme.Success, theme.Info, theme.Warning, theme.Danger, theme.Secondary };
+        // Blazor uses bg-secondary bg-opacity-50 fw-normal — uniform muted dark pills
+        var badgeBg = theme.Secondary.WithAlpha(0.5f);
 
         return HStack(spacing: 4,
             displayTags.Select(tag =>
             {
-                var colorIndex = Math.Abs(tag.GetHashCode()) % tagColors.Length;
                 return (VisualNode)Border(
                     Label(tag)
                         .FontSize(11)
-                        .TextColor(theme.OnPrimary)
+                        .TextColor(theme.GetOnSurface())
                 )
-                .Class("badge")
-                .BackgroundColor(tagColors[colorIndex])
-                .Padding(6, 1)
-                .StrokeShape(new RoundRectangle().CornerRadius(8));
+                .Background(new SolidColorBrush(badgeBg))
+                .Padding(6, 2)
+                .StrokeShape(new RoundRectangle().CornerRadius(8))
+                .StrokeThickness(0);
             }).ToArray()
         ).VCenter();
     }
