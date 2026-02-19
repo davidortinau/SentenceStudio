@@ -345,26 +345,20 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .H3()
                     .HCenter(),
 
-                Border(
-                    Picker()
-                        .FormSelect()
-                        .ItemsSource(Constants.Languages)
-                        .SelectedIndex(Array.IndexOf(Constants.Languages, getter(State)))
-                        .Title("Select language")
-                        .OnSelectedIndexChanged((index) =>
+                Picker()
+                    .FormSelect()
+                    .ItemsSource(Constants.Languages)
+                    .SelectedIndex(Array.IndexOf(Constants.Languages, getter(State)))
+                    .Title("Select language")
+                    .OnSelectedIndexChanged((index) =>
+                    {
+                        if (index >= 0 && index < Constants.Languages.Length)
                         {
-                            if (index >= 0 && index < Constants.Languages.Length)
-                            {
-                                var selectedLanguage = Constants.Languages[index];
-                                setter(selectedLanguage);
-                            }
-                        })
-                )
-                .GridRow(1)
-                .StrokeShape(new RoundRectangle().CornerRadius(6))
-                .Stroke(BootstrapTheme.Current.GetOutline())
-                .StrokeThickness(1)
-                .Padding(4)
+                            var selectedLanguage = Constants.Languages[index];
+                            setter(selectedLanguage);
+                        }
+                    })
+                    .GridRow(1)
             )
             .RowSpacing(16)
             .Margin(16)
@@ -377,18 +371,12 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .H3()
                     .HCenter(),
 
-                Border(
-                    Entry()
-                        .Class("form-control")
-                        .IsPassword(true)
-                        .Text(State.OpenAI_APIKey)
-                        .Placeholder("Enter your OpenAI API key")
-                        .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
-                )
-                .StrokeShape(new RoundRectangle().CornerRadius(6))
-                .Stroke(BootstrapTheme.Current.GetOutline())
-                .StrokeThickness(1)
-                .Padding(4),
+                Entry()
+                    .Class("form-control")
+                    .IsPassword(true)
+                    .Text(State.OpenAI_APIKey)
+                    .Placeholder("Enter your OpenAI API key")
+                    .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text)),
 
                 Label("Get an API key from OpenAI.com")
                     .TextDecorations(TextDecorations.Underline)
