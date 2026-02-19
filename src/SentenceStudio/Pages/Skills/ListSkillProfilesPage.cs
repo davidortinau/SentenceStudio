@@ -1,4 +1,3 @@
-using ReactorCustomLayouts;
 using MauiReactor.Shapes;
 using SentenceStudio.Services;
 
@@ -8,6 +7,8 @@ class ListSkillProfilesPageState
 {
     public List<SkillProfile> Profiles { get; set; } = [];
     public bool IsLoading { get; set; } = true;
+    public double Width { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Width;
+    public double Density { get; set; } = DeviceDisplay.Current.MainDisplayInfo.Density;
 }
 
 partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
@@ -37,7 +38,8 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
         var theme = BootstrapTheme.Current;
 
         return ContentPage("Skill Profiles",
-            ToolbarItem().Order(ToolbarItemOrder.Secondary).Text($"{_localize["Add"]}")
+            ToolbarItem().Text($"{_localize["Add"]}")
+                .IconImageSource(BootstrapIcons.Create(BootstrapIcons.PlusLg, theme.GetOnBackground(), 20))
                 .OnClicked(async () => await AddProfile()),
             State.IsLoading
                 ? (VisualNode)ActivityIndicator().IsRunning(true).Center()
@@ -54,39 +56,47 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                   .Padding(40)
                   .VCenter()
                 : VScrollView(
-                    VStack(
-                        new HWrap()
-                        {
-                            State.Profiles.Select(profile =>
-                                Border(
-                                    VStack(spacing: 4,
-                                        Label(profile.Title)
-                                            .H6()
-                                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
-                                        string.IsNullOrEmpty(profile.Description)
-                                            ? null
-                                            : Label(profile.Description)
-                                                .Small()
-                                                .Muted()
-                                                .LineBreakMode(LineBreakMode.TailTruncation)
-                                                .MaxLines(2)
-                                    )
-                                    .VCenter()
-                                    .Padding(16)
-                                )
-                                .WidthRequest(300)
-                                .MinimumHeightRequest(120)
-                                .Class("card")
-                                .PaddingLevel(3)
-                                .OnTapped(() => EditProfile(profile))
-                            )
-                        }
-                        .Spacing(12)
-                    )
-                    .Padding(16)
-                    .Spacing(24)
+                    RenderProfileGrid(theme)
                 )
-        ).BackgroundColor(BootstrapTheme.Current.GetBackground()).OnAppearing(LoadProfiles);
+        ).BackgroundColor(BootstrapTheme.Current.GetBackground())
+         .OnAppearing(LoadProfiles);
+    }
+
+    VisualNode RenderProfileGrid(BootstrapTheme theme)
+    {
+        double screenWidth = State.Width > 0 ? State.Width : DeviceDisplay.Current.MainDisplayInfo.Width / State.Density;
+        int columns = screenWidth >= 900 ? 3 : (screenWidth >= 500 ? 2 : 1);
+        int rows = (int)Math.Ceiling((double)State.Profiles.Count / columns);
+        string rowDefs = string.Join(",", Enumerable.Repeat("Auto", rows));
+        string colDefs = string.Join(",", Enumerable.Repeat("*", columns));
+
+        return Grid(rowDefs, colDefs,
+            State.Profiles.Select((profile, index) =>
+                Border(
+                    VStack(spacing: 4,
+                        Label(profile.Title)
+                            .H6()
+                            .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
+                        string.IsNullOrEmpty(profile.Description)
+                            ? null
+                            : Label(profile.Description)
+                                .Small()
+                                .Muted()
+                                .LineBreakMode(LineBreakMode.TailTruncation)
+                                .MaxLines(2)
+                    )
+                    .VCenter()
+                )
+                .Class("card")
+                .MinimumHeightRequest(100)
+                .OnTapped(() => EditProfile(profile))
+                .GridRow(index / columns)
+                .GridColumn(index % columns)
+            ).ToArray()
+        )
+        .ColumnSpacing(12)
+        .RowSpacing(12)
+        .Padding(16);
     }
 
     async Task LoadProfiles()
