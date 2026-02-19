@@ -274,17 +274,11 @@ public partial class OnboardingPage : Component<OnboardingState>
                     .H3()
                     .HCenter(),
 
-                Border(
-                    Entry()
-                        .Class("form-control")
-                        .Text(State.Name)
-                        .Placeholder("Enter your name or tap a suggestion below")
-                        .OnTextChanged(text => SetState(s => s.Name = text))
-                )
-                .StrokeShape(new RoundRectangle().CornerRadius(6))
-                .Stroke(BootstrapTheme.Current.GetOutline())
-                .StrokeThickness(1)
-                .Padding(4),
+                Entry()
+                    .Class("form-control")
+                    .Text(State.Name)
+                    .Placeholder("Enter your name or tap a suggestion below")
+                    .OnTextChanged(text => SetState(s => s.Name = text)),
 
                 // Show loading indicator when generating names
                 State.IsLoadingNames ?

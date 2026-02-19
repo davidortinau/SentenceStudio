@@ -166,11 +166,11 @@
     <comment/>
   </data>
   <data name="Translate" xml:space="preserve">
-    <value>Translation</value>
+    <value>Translate</value>
     <comment/>
   </data>
   <data name="Write" xml:space="preserve">
-    <value>Write</value>
+    <value>Writing</value>
     <comment/>
   </data>
   <data name="WhatDoYouWantToSay" xml:space="preserve">
@@ -314,7 +314,7 @@
     <comment/>
   </data>
   <data name="Clozures" xml:space="preserve">
-    <value>Clozures</value>
+    <value>Cloze</value>
     <comment/>
   </data>
   <data name="HowDoYouSay" xml:space="preserve">

@@ -120,23 +120,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 )
             ).GridColumnSpan(3),
 
-            Border(
-                Entry()
-                    .Class("form-control")
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
-                    .Text(State.UserInput)
-                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                    .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
-                    .OnCompleted(GradeMe)
-                    .Placeholder($"{_localize["WhatDoYouWantToSay"]}")
-            )
-            .Stroke(theme.GetOutline())
-            .StrokeShape(new RoundRectangle().CornerRadius(6))
-            .StrokeThickness(1)
-            .Padding(8, 0)
-            .Background(Colors.Transparent)
-            .GridRow(1)
-            .GridColumn(0),
+            Entry()
+                .Class("form-control")
+                .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                .ReturnType(State.ShowMore ? ReturnType.Next : ReturnType.Go)
+                .OnCompleted(GradeMe)
+                .Placeholder($"{_localize["WhatDoYouWantToSay"]}")
+                .GridRow(1)
+                .GridColumn(0),
 
             ImageButton()
                 .Source(BootstrapIcons.Create(BootstrapIcons.Translate, theme.GetOnBackground(), 20))
