@@ -146,12 +146,7 @@ partial class SettingsPage : Component<SettingsPageState>
                     .Class("form-label").Muted()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                FlexLayout(
-                    availableThemes.Select(themeId => RenderThemeSwatch(themeId, theme)).ToArray()
-                )
-                .Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap)
-                .JustifyContent(Microsoft.Maui.Layouts.FlexJustify.Start)
-                .AlignItems(Microsoft.Maui.Layouts.FlexAlignItems.Start),
+                RenderThemeSwatchGrid(availableThemes, theme),
 
                 // Light/Dark mode toggle
                 Label($"{_localize["DisplayMode"]}")
@@ -199,6 +194,27 @@ partial class SettingsPage : Component<SettingsPageState>
         .PaddingLevel(4);
     }
 
+    private VisualNode RenderThemeSwatchGrid(IReadOnlyCollection<string> themesCollection, BootstrapTheme theme)
+    {
+        var themes = themesCollection.ToList();
+        // 2-column grid matching Blazor layout
+        var rowCount = (int)Math.Ceiling(themes.Count / 2.0);
+        var rows = string.Join(",", Enumerable.Repeat("Auto", rowCount));
+
+        var children = new List<VisualNode>();
+        for (int i = 0; i < themes.Count; i++)
+        {
+            var swatch = RenderThemeSwatch(themes[i], theme)
+                .GridRow(i / 2)
+                .GridColumn(i % 2);
+            children.Add(swatch);
+        }
+
+        return Grid(rows, "*,*", children.ToArray())
+            .ColumnSpacing(12)
+            .RowSpacing(12);
+    }
+
     private VisualNode RenderThemeSwatch(string themeId, BootstrapTheme theme)
     {
         var isSelected = State.SelectedTheme == themeId;
@@ -207,28 +223,27 @@ partial class SettingsPage : Component<SettingsPageState>
 
         return VStack(spacing: 4,
             Border(
-                HStack(spacing: 0,
+                Grid("*", "*,*",
                     BoxView()
                         .Color(primary)
-                        .WidthRequest(28)
-                        .HeightRequest(40),
+                        .GridColumn(0),
                     BoxView()
                         .Color(accent)
-                        .WidthRequest(28)
-                        .HeightRequest(40)
+                        .GridColumn(1)
                 )
             )
             .StrokeShape(new RoundRectangle().CornerRadius(8))
             .StrokeThickness(isSelected ? 2.5 : 1)
             .Stroke(isSelected ? theme.Primary : theme.GetOutline())
-            .Padding(0),
+            .Padding(0)
+            .HeightRequest(48)
+            .HFill(),
 
             Label(displayName)
                 .Small()
                 .HCenter()
                 .TextColor(isSelected ? theme.Primary : theme.GetOnBackground())
         )
-        .Margin(0, 0, 12, 8)
         .OnTapped(() =>
         {
             _themeService.SetTheme(themeId);
