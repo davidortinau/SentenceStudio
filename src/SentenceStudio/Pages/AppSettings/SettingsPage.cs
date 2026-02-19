@@ -116,14 +116,14 @@ partial class SettingsPage : Component<SettingsPageState>
     {
         return ContentPage($"{_localize["Settings"]}",
             ScrollView(
-                VStack(spacing: 24,
+                VStack(spacing: 16,
                     RenderAppearanceSection(),
                     RenderVoiceAndQuizSection(),
                     RenderDataManagementSection(),
                     RenderMigrationSection(),
                     RenderAboutSection()
                 )
-                .Padding(16)
+                .Padding(16, 12)
             )
         )
         .BackgroundColor(BootstrapTheme.Current.GetBackground());

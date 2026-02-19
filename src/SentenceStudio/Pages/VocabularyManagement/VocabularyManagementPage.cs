@@ -275,28 +275,35 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         var isActive = State.SelectedFilter == filter;
         var theme = BootstrapTheme.Current;
 
-        // Segmented button: active = btn-primary, inactive = btn-outline-secondary
+        // Segmented button group pattern — per-corner radius for seamless join
         var topLeft = isFirst ? 6 : 0;
         var topRight = isLast ? 6 : 0;
         var bottomLeft = isFirst ? 6 : 0;
         var bottomRight = isLast ? 6 : 0;
 
+        var btn = Button(label)
+            .HeightRequest(36)
+            .FontSize(13)
+            .CornerRadius(0)
+            .BorderWidth(0)
+            .OnClicked(() =>
+            {
+                SetState(s => s.SelectedFilter = filter);
+                ApplyFilters();
+            });
+
+        // Wrap in Border for per-corner radius (Button CornerRadius is uniform)
         return Border(
-            Label(label)
-                .Class("small")
-                .TextColor(isActive ? theme.OnPrimary : theme.GetOnBackground())
-                .HCenter().VCenter()
+            isActive
+                ? btn.Primary()
+                : btn.Background(new SolidColorBrush(Colors.Transparent))
+                     .TextColor(theme.GetOnBackground())
         )
-        .BackgroundColor(isActive ? theme.Primary : Colors.Transparent)
         .Stroke(theme.GetOutline())
         .StrokeThickness(1)
         .StrokeShape(new RoundRectangle().CornerRadius(topLeft, topRight, bottomLeft, bottomRight))
-        .Padding(12, 6)
-        .OnTapped(() =>
-        {
-            SetState(s => s.SelectedFilter = filter);
-            ApplyFilters();
-        });
+        .Padding(0)
+        .Margin(isFirst ? 0 : -1, 0, 0, 0);
     }
 
     VisualNode RenderStatsBadge(string text, Color bgColor)
@@ -421,7 +428,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 500, maxColumns: 3))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 400, maxColumns: 4))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16);

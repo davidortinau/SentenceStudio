@@ -83,9 +83,9 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                 .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
                                 .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                                     GridLayoutHelper.CalculateResponsiveLayout(
-                                        desiredItemWidth: 500,
+                                        desiredItemWidth: 400,
                                         orientation: ItemsLayoutOrientation.Vertical,
-                                        maxColumns: 3))
+                                        maxColumns: 4))
                                 .ItemsSource(State.Resources, RenderResourceItem)
                                 .EmptyView(
                                     VStack(

@@ -146,12 +146,12 @@ partial class DashboardPage : Component<DashboardPageState>
                 .OnClicked(() => _ = RegeneratePlanAsync()) : null,
 
             VScrollView(
-                VStack(spacing: 16,
+                VStack(spacing: 12,
                     RenderWelcomeMessage(),
                     RenderModeToggle(),
                     State.IsTodaysPlanMode ? RenderTodaysPlanMode() : RenderChooseOwnMode()
                 )
-                .Padding(16)
+                .Padding(16, 12)
             )
             .Set(Layout.SafeAreaEdgesProperty, safeEdges)
         )
@@ -201,7 +201,7 @@ partial class DashboardPage : Component<DashboardPageState>
                     Preferences.Default.Set(PREF_DASHBOARD_MODE, "ChooseOwn");
                 }))
             .CornerRadius(6)
-            .Margin(new Thickness(0, 0, 0, 16));
+            .Margin(new Thickness(0, 0, 0, 8));
     }
 
     Button RenderToggleButton(string text, string icon, bool isActive, BootstrapTheme theme, Action onClicked)
@@ -268,7 +268,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .Margin(new Thickness(0, 0, 0, 16));
         }
 
-        return VStack(spacing: 16,
+        return VStack(spacing: 12,
             RenderStreakBadge(),
             RenderProgressCard(),
             RenderPlanItems(),
@@ -440,12 +440,12 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderChooseOwnMode()
     {
-        return VStack(spacing: 16,
+        return VStack(spacing: 12,
             RenderSelectors(),
             Label($"{_localize["Activities"]}")
                 .H5()
                 .FontAttributes(FontAttributes.Bold)
-                .Margin(new Thickness(0, 8, 0, 8)),
+                .Margin(new Thickness(0, 4, 0, 4)),
             RenderActivityCards(),
             RenderVocabularyStats()
         );
@@ -474,7 +474,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .HeightRequest(44);
 
         return Border(
-            VStack(spacing: 16,
+            VStack(spacing: 12,
                 VStack(spacing: 4,
                     Label($"{_localize["LearningResources"]}")
                         .Class("form-label")
@@ -491,7 +491,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .PaddingLevel(3)
         )
         .Class("card")
-        .Margin(new Thickness(0, 0, 0, 16));
+        .Margin(new Thickness(0, 0, 0, 8));
     }
 
     VisualNode RenderActivityCards()
@@ -512,7 +512,7 @@ partial class DashboardPage : Component<DashboardPageState>
         };
 
         double screenWidth = State.Width / State.Density;
-        int columns = screenWidth >= 900 ? 3 : (screenWidth >= 600 ? 2 : 1);
+        int columns = screenWidth >= 1200 ? 4 : (screenWidth >= 900 ? 3 : (screenWidth >= 600 ? 2 : 1));
         int rows = (int)Math.Ceiling((double)activities.Length / columns);
         string rowDefs = string.Join(",", Enumerable.Repeat("Auto", rows));
         string colDefs = string.Join(",", Enumerable.Repeat("*", columns));
@@ -524,32 +524,32 @@ partial class DashboardPage : Component<DashboardPageState>
                     .GridColumn(index % columns)
             ).ToArray()
         )
-        .ColumnSpacing(12)
-        .RowSpacing(12);
+        .ColumnSpacing(8)
+        .RowSpacing(8);
     }
 
     VisualNode RenderActivityCard(string label, string icon, string route, bool isSpecial)
     {
         var theme = BootstrapTheme.Current;
         return Border(
-            VStack(spacing: 8,
+            VStack(spacing: 6,
                 Image()
-                    .Source(BootstrapIcons.Create(icon, theme.GetOnBackground(), 28))
-                    .HeightRequest(28)
+                    .Source(BootstrapIcons.Create(icon, theme.GetOnBackground(), 24))
+                    .HeightRequest(24)
                     .HCenter(),
                 Label(label)
-                    .FontSize(14)
+                    .FontSize(13)
                     .FontAttributes(FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground())
                     .HCenter()
                     .HorizontalTextAlignment(TextAlignment.Center)
             )
-            .Padding(16)
+            .Padding(12)
             .HCenter()
             .VCenter()
         )
         .Class("card")
-        .HeightRequest(120)
+        .HeightRequest(100)
         .OnTapped(async () =>
         {
             if (isSpecial)
@@ -649,11 +649,11 @@ partial class DashboardPage : Component<DashboardPageState>
 
     VisualNode RenderVocabularyStats()
     {
-        return VStack(spacing: 12,
+        return VStack(spacing: 8,
             Label($"{_localize["VocabProgress"]}")
                 .H5()
                 .FontAttributes(FontAttributes.Bold)
-                .Margin(new Thickness(0, 16, 0, 4)),
+                .Margin(new Thickness(0, 8, 0, 4)),
             State.IsLoadingProgress && !State.HasLoadedProgressOnce
                 ? VStack(spacing: 8,
                     ActivityIndicator()
@@ -690,7 +690,7 @@ partial class DashboardPage : Component<DashboardPageState>
         double screenWidth = State.Width / State.Density;
         int columns = screenWidth >= 600 ? 4 : 2;
 
-        return VStack(spacing: 12,
+        return VStack(spacing: 8,
             Grid("Auto,Auto", Enumerable.Repeat("*", columns).Aggregate((a, b) => $"{a},{b}"),
                 RenderVocabStatCard("New", summary.New, BootstrapVariant.Primary)
                     .GridRow(0)
@@ -705,8 +705,8 @@ partial class DashboardPage : Component<DashboardPageState>
                     .GridRow(columns >= 4 ? 0 : 1)
                     .GridColumn(columns >= 4 ? 3 : 1)
             )
-            .ColumnSpacing(12)
-            .RowSpacing(12),
+            .ColumnSpacing(8)
+            .RowSpacing(8),
             total > 0
                 ? Border(
                     Grid("Auto", "*,Auto",
