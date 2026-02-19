@@ -11,6 +11,7 @@ using SentenceStudio.Pages.VocabularyManagement;
 using SentenceStudio.Pages.MinimalPairs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Storage;
+using MauiReactor.Shapes;
 
 namespace SentenceStudio;
 
@@ -37,8 +38,28 @@ public partial class AppShell : Component
 
     private bool _initialized = false;
     private bool _isLoadingProfile = false;
+    private bool _flyoutCollapsed = Preferences.Default.Get("flyout_collapsed", false);
+    private string _currentRoute = "dashboard";
 
     [Inject] UserProfileRepository _userProfileRepository;
+
+    private record NavItem(string Title, string Icon, string Route, bool SeparatorBefore = false);
+
+    private static readonly NavItem[] _topNavItems =
+    [
+        new("Dashboard", BootstrapIcons.HouseDoor, "dashboard"),
+        new("Learning Resources", BootstrapIcons.Book, "ListLearningResourcesPage"),
+        new("Vocabulary", BootstrapIcons.CardText, "VocabularyManagementPage"),
+        new("Minimal Pairs", BootstrapIcons.Soundwave, "MinimalPairsPage"),
+        new("Skills", BootstrapIcons.Bullseye, "ListSkillProfilesPage"),
+        new("Import", BootstrapIcons.BoxArrowInDown, "YouTubeImportPage"),
+    ];
+
+    private static readonly NavItem[] _bottomNavItems =
+    [
+        new("Profile", BootstrapIcons.Person, "UserProfilePage"),
+        new("Settings", BootstrapIcons.Gear, "SettingsPage"),
+    ];
 
     protected override void OnMounted()
     {
@@ -92,20 +113,15 @@ public partial class AppShell : Component
 
     public override VisualNode Render()
     {
-        // Check if user needs onboarding - either no profile exists or onboarding was never completed
         var isOnboarded = Preferences.Default.Get("is_onboarded", false);
         var hasProfile = state.Value.CurrentUserProfile != null;
 
-        // Debug information
         _logger.LogDebug("AppShell Render - isOnboarded: {IsOnboarded}, hasProfile: {HasProfile}", isOnboarded, hasProfile);
         if (hasProfile)
         {
             _logger.LogDebug("Profile exists - Name: '{ProfileName}', Id: {ProfileId}", state.Value.CurrentUserProfile.Name, state.Value.CurrentUserProfile.Id);
         }
 
-        // Show onboarding if either condition is true:
-        // 1. User hasn't completed onboarding flow yet
-        // 2. No user profile exists in database
         if (!isOnboarded || !hasProfile)
         {
             _logger.LogDebug("Showing OnboardingPage");
@@ -116,6 +132,7 @@ public partial class AppShell : Component
         var theme = BootstrapTheme.Current;
         var iconColor = theme.GetOnBackground();
         var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop || DeviceInfo.Idiom == DeviceIdiom.Tablet;
+        var collapsed = isDesktop && _flyoutCollapsed;
 
         return Shell(
             FlyoutItem("Dashboard",
@@ -154,6 +171,10 @@ public partial class AppShell : Component
                     .RenderContent(() => new YouTubeImportPage())
                     .Route(nameof(YouTubeImportPage))
             ).Icon(BootstrapIcons.Create(BootstrapIcons.BoxArrowInDown, iconColor, 20)),
+
+            // Separator between top and bottom nav groups
+            MenuItem().Text("___separator___"),
+
             FlyoutItem("Profile",
                 ShellContent()
                     .Title("Profile")
@@ -168,40 +189,129 @@ public partial class AppShell : Component
             ).Icon(BootstrapIcons.Create(BootstrapIcons.Gear, iconColor, 20))
         )
         .FlyoutBehavior(isDesktop ? FlyoutBehavior.Locked : FlyoutBehavior.Flyout)
-        .FlyoutWidth(240)
+        .FlyoutWidth(collapsed ? 64 : 240)
         .FlyoutBackgroundColor(theme.GetSurface())
-        .FlyoutHeader(
-            HStack(spacing: 8,
-                Image("appicon")
-                    .WidthRequest(32)
-                    .HeightRequest(32),
-                Label("Sentence Studio")
-                    .FontAttributes(FontAttributes.Bold)
-                    .FontSize(16)
-                    .TextColor(theme.GetOnBackground())
-                    .VCenter()
-            )
-            .Padding(16, 12)
-        );
+        .FlyoutHeader(RenderFlyoutHeader(theme, collapsed))
+        .FlyoutFooter(isDesktop ? RenderFlyoutToggle(theme, collapsed) : null)
+        .ItemTemplate(item => RenderFlyoutItemTemplate(theme, item, collapsed))
+        .MenuItemTemplate(menuItem => RenderMenuSeparator(theme, collapsed))
+        .OnNavigated(OnShellNavigated);
     }
-    // .FlyoutFooter(
-    //     Grid(            
-    //         new SfSegmentedControl{
-    //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconLight")),
-    //             new SfSegmentItem().ImageSource(ResourceHelper.GetResource<FontImageSource>("IconDark"))
-    //         }
-    //         .Background(Microsoft.Maui.Graphics.Colors.Transparent)
-    //         .ShowSeparator(true)
-    //         .SegmentCornerRadius(0)
-    //         .Stroke(Theme.IsLightTheme ? MyTheme.Black : MyTheme.White)
-    //         .StrokeThickness(1)
-    //         .SelectedIndex(Theme.CurrentAppTheme == AppTheme.Light ? 0 : 1)
-    //         .OnSelectionChanged((s, e) => Theme.UserTheme = e.NewIndex == 0 ? AppTheme.Light : AppTheme.Dark)
-    //         .SegmentWidth(40)
-    //         .SegmentHeight(40)
 
-    //     )
-    //     .Padding(15)
+    private void OnShellNavigated(object sender, ShellNavigatedEventArgs e)
+    {
+        var location = e.Current?.Location?.ToString() ?? "";
+        var route = location.TrimStart('/');
+
+        var allItems = _topNavItems.Concat(_bottomNavItems);
+        var matchedItem = allItems.FirstOrDefault(n =>
+            route.Equals(n.Route, StringComparison.OrdinalIgnoreCase) ||
+            route.Contains(n.Route, StringComparison.OrdinalIgnoreCase));
+
+        if (matchedItem != null && _currentRoute != matchedItem.Route)
+        {
+            _currentRoute = matchedItem.Route;
+            Invalidate();
+        }
+    }
+
+    private VisualNode RenderFlyoutHeader(BootstrapTheme theme, bool collapsed)
+    {
+        if (collapsed)
+        {
+            return Grid(
+                Image("appicon")
+                    .WidthRequest(28)
+                    .HeightRequest(28)
+                    .Center()
+            ).Padding(0, 12);
+        }
+
+        return HStack(spacing: 8,
+            Image("appicon")
+                .WidthRequest(28)
+                .HeightRequest(28),
+            Label("Sentence Studio")
+                .FontAttributes(FontAttributes.Bold)
+                .FontSize(14)
+                .TextColor(theme.GetOnBackground())
+                .VCenter()
+        ).Padding(16, 12);
+    }
+
+    private VisualNode RenderFlyoutItemTemplate(BootstrapTheme theme, MauiControls.BaseShellItem item, bool collapsed)
+    {
+        // Handle separator MenuItem
+        if (item.Title == "___separator___")
+        {
+            return BoxView()
+                .HeightRequest(1)
+                .BackgroundColor(theme.GetOutline())
+                .Margin(collapsed ? new Thickness(8, 6) : new Thickness(14, 6));
+        }
+
+        var allItems = _topNavItems.Concat(_bottomNavItems);
+        var navItem = allItems.FirstOrDefault(n => n.Title == item.Title);
+
+        if (navItem == null)
+            return Label(item.Title ?? "?").FontSize(14).TextColor(theme.GetOnBackground()).Padding(14, 10);
+
+        var isSelected = _currentRoute == navItem.Route;
+        var itemColor = isSelected ? theme.Primary : theme.GetOnBackground();
+        var icon = BootstrapIcons.Create(navItem.Icon, itemColor, 20);
+
+        if (collapsed)
+        {
+            return Grid(
+                Image().Source(icon).Center()
+            ).HeightRequest(44);
+        }
+
+        return HStack(spacing: 10,
+            Image().Source(icon)
+                .WidthRequest(20).HeightRequest(20).VCenter(),
+            Label(item.Title)
+                .TextColor(itemColor)
+                .FontSize(14)
+                .VCenter()
+        ).Padding(14, 10);
+    }
+
+    private VisualNode RenderMenuSeparator(BootstrapTheme theme, bool collapsed)
+    {
+        // Separator is handled in ItemTemplate; this is a fallback
+        return BoxView()
+            .HeightRequest(1)
+            .BackgroundColor(theme.GetOutline())
+            .Margin(collapsed ? new Thickness(8, 6) : new Thickness(14, 6));
+    }
+
+    private VisualNode RenderFlyoutToggle(BootstrapTheme theme, bool collapsed)
+    {
+        var chevron = collapsed ? BootstrapIcons.ChevronRight : BootstrapIcons.ChevronLeft;
+        var chevronColor = theme.GetOnBackground().WithAlpha(0.6f);
+
+        return Border(
+            Label(chevron)
+                .FontFamily(BootstrapIcons.FontFamily)
+                .FontSize(14)
+                .TextColor(chevronColor)
+                .Center()
+        )
+        .HeightRequest(32)
+        .WidthRequest(32)
+        .StrokeThickness(0)
+        .BackgroundColor(Colors.Transparent)
+        .StrokeShape(new RoundRectangle().CornerRadius(6))
+        .Margin(collapsed ? new Thickness(16, 8) : new Thickness(0, 8, 12, 8))
+        .HEnd()
+        .OnTapped(() =>
+        {
+            _flyoutCollapsed = !_flyoutCollapsed;
+            Preferences.Default.Set("flyout_collapsed", _flyoutCollapsed);
+            Invalidate();
+        });
+    }
 
     public static async Task DisplayToastAsync(string message)
     {
