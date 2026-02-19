@@ -37,7 +37,7 @@ public partial class VocabProgressCard : Component
 
         return
             VStack(
-                Label("Vocabulary Progress").H5(),
+                Label("Vocabulary").H5(),
 
                 BuildDonutChart(chartData, total),
 
