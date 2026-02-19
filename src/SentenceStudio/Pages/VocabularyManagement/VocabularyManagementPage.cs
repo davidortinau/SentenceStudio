@@ -421,7 +421,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 16 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 3))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 300, maxColumns: 6))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16);
@@ -546,7 +546,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             Label(statusLine)
                 .Class("small")
                 .TextColor(item.IsOrphaned ? theme.Warning : statusColor)
-                .Margin(0, 4, 0, 0)
+                .Margin(0, 4, 0, 0),
+            RenderTagBadges(item.Word)
         );
     }
 

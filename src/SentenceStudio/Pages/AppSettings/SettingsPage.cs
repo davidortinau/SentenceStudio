@@ -251,18 +251,23 @@ partial class SettingsPage : Component<SettingsPageState>
         return btn.CornerRadius(0).BorderWidth(0);
     }
 
-    private VisualNode RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
+    private Button RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
     {
         var isActive = State.QuizDirection == directionValue;
         var btn = Button(text)
             .HeightRequest(40)
+            .HFill()
             .OnClicked(() =>
             {
                 _quizPreferences.DisplayDirection = directionValue;
                 SetState(s => s.QuizDirection = directionValue);
             });
 
-        return isActive ? btn.Primary() : btn.Secondary().Outlined();
+        btn = isActive
+            ? btn.Primary()
+            : btn.Background(new SolidColorBrush(Colors.Transparent))
+                 .TextColor(theme.GetOnBackground());
+        return btn.CornerRadius(0).BorderWidth(0);
     }
 
     private VisualNode RenderVoiceAndQuizSection()
@@ -331,11 +336,20 @@ partial class SettingsPage : Component<SettingsPageState>
                     Label($"{_localize["QuizDirectionDescription"]}")
                         .Small()
                         .Muted(),
-                    HStack(spacing: 0,
-                        RenderDirectionButton($"{_localize["QuizDirectionForward"]}", "TargetToNative", theme),
-                        RenderDirectionButton($"{_localize["QuizDirectionReverse"]}", "NativeToTarget", theme),
-                        RenderDirectionButton($"{_localize["QuizDirectionMixed"]}", "Mixed", theme)
-                    )
+                    Grid(rows: "Auto", columns: "*,*,*",
+                        Border(RenderDirectionButton($"{_localize["QuizDirectionForward"]}", "TargetToNative", theme))
+                            .Stroke(theme.GetOutline()).StrokeThickness(1)
+                            .StrokeShape(new RoundRectangle().CornerRadius(6, 0, 6, 0))
+                            .Padding(0).GridColumn(0),
+                        Border(RenderDirectionButton($"{_localize["QuizDirectionReverse"]}", "NativeToTarget", theme))
+                            .Stroke(theme.GetOutline()).StrokeThickness(1)
+                            .StrokeShape(new RoundRectangle().CornerRadius(0))
+                            .Padding(0).Margin(-1, 0, 0, 0).GridColumn(1),
+                        Border(RenderDirectionButton($"{_localize["QuizDirectionMixed"]}", "Mixed", theme))
+                            .Stroke(theme.GetOutline()).StrokeThickness(1)
+                            .StrokeShape(new RoundRectangle().CornerRadius(0, 6, 0, 6))
+                            .Padding(0).Margin(-1, 0, 0, 0).GridColumn(2)
+                    ).ColumnSpacing(0)
                 ),
 
                 // Autoplay

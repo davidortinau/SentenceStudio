@@ -122,6 +122,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
 
             Border(
                 Entry()
+                    .Class("form-control")
                     .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 16 : 32)
                     .Text(State.UserInput)
                     .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))

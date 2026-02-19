@@ -627,6 +627,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         return Grid("", "* Auto Auto Auto Auto",
             Border(
                 Entry()
+                    .Class("form-control")
                     .Placeholder(GetInputPlaceholder())
                     .FontSize(20)
                     .ReturnType(ReturnType.Send)

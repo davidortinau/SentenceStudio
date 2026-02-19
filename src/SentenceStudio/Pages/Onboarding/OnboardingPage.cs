@@ -276,6 +276,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                 Border(
                     Entry()
+                        .Class("form-control")
                         .Text(State.Name)
                         .Placeholder("Enter your name or tap a suggestion below")
                         .OnTextChanged(text => SetState(s => s.Name = text))
@@ -352,6 +353,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                 Border(
                     Picker()
+                        .Class("form-select")
                         .ItemsSource(Constants.Languages)
                         .SelectedIndex(Array.IndexOf(Constants.Languages, getter(State)))
                         .Title("Select language")
@@ -383,6 +385,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                 Border(
                     Entry()
+                        .Class("form-control")
                         .IsPassword(true)
                         .Text(State.OpenAI_APIKey)
                         .Placeholder("Enter your OpenAI API key")

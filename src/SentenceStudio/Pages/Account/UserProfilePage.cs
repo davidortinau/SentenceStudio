@@ -81,15 +81,17 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label("Personal Information")
                                 .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                            Label($"{_localize["Name"]}").Muted(),
+                            Label($"{_localize["Name"]}").Muted().Class("form-label"),
                             Entry()
                                 .Text(State.Name)
-                                .OnTextChanged(text => SetState(s => s.Name = text)),
+                                .OnTextChanged(text => SetState(s => s.Name = text))
+                                .Class("form-control"),
 
-                            Label($"{_localize["Email"]}").Muted(),
+                            Label($"{_localize["Email"]}").Muted().Class("form-label"),
                             Entry()
                                 .Text(State.Email)
                                 .OnTextChanged(text => SetState(s => s.Email = text))
+                                .Class("form-control")
                         )
                     )
                     .Class("card")
@@ -101,7 +103,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label("Language Settings")
                                 .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                            Label($"{_localize["NativeLanguage"]}").Muted(),
+                            Label($"{_localize["NativeLanguage"]}").Muted().Class("form-label"),
                             Picker()
                                 .ItemsSource(Constants.Languages)
                                 .SelectedIndex(State.NativeLanguageIndex)
@@ -109,9 +111,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 {
                                     s.NativeLanguage = Constants.Languages[index];
                                     s.NativeLanguageIndex = index;
-                                })),
+                                }))
+                                .Class("form-select"),
 
-                            Label($"{_localize["TargetLanguage"]}").Muted(),
+                            Label($"{_localize["TargetLanguage"]}").Muted().Class("form-label"),
                             Picker()
                                 .ItemsSource(Constants.Languages)
                                 .SelectedIndex(State.TargetLanguageIndex)
@@ -119,9 +122,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 {
                                     s.TargetLanguage = Constants.Languages[index];
                                     s.TargetLanguageIndex = index;
-                                })),
+                                }))
+                                .Class("form-select"),
 
-                            Label($"{_localize["DisplayLanguage"]}").Muted(),
+                            Label($"{_localize["DisplayLanguage"]}").Muted().Class("form-label"),
                             Picker()
                                 .ItemsSource(DisplayLanguages)
                                 .SelectedIndex(State.DisplayLanguageIndex)
@@ -138,6 +142,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                     var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
                                     _localize.SetCulture(culture);
                                 })
+                                .Class("form-select")
                         )
                     )
                     .Class("card")
@@ -200,12 +205,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label("API Configuration")
                                 .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                            Label($"{_localize["OpenAI_APIKey"]}").Muted(),
+                            Label($"{_localize["OpenAI_APIKey"]}").Muted().Class("form-label"),
                             Entry()
                                 .IsPassword(true)
                                 .Placeholder("sk-...")
                                 .Text(State.OpenAI_APIKey)
-                                .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text)),
+                                .OnTextChanged(text => SetState(s => s.OpenAI_APIKey = text))
+                                .Class("form-control"),
 
                             Label("Get an API key from OpenAI to use the AI features in Sentence Studio.")
                                 .TextDecorations(TextDecorations.Underline)

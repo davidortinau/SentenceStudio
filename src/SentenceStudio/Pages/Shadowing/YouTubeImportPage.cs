@@ -67,6 +67,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                             .Placeholder($"{_localize["YouTubeURL"]}")
                             .OnTextChanged((url) => SetState(s => s.VideoUrl = url))
                             .OnCompleted(FetchTranscriptsAsync)
+                            .Class("form-control")
                     )
                         .BackgroundColor(BootstrapTheme.Current.GetSurface())
                         .Stroke(BootstrapTheme.Current.GetOutline())
@@ -103,6 +104,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                                     await LoadTranscriptAsync(selected);
                                 }
                             })
+                            .Class("form-select")
                     )
                         .BackgroundColor(BootstrapTheme.Current.GetSurface())
                         .Stroke(BootstrapTheme.Current.GetOutline())
@@ -133,6 +135,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                             .OnTextChanged(text => SetState(s => s.TranscriptText = text))
                             .MinimumHeightRequest(200)
                             .AutoSize(EditorAutoSizeOption.TextChanges)
+                            .Class("form-control")
                     )
                         .BackgroundColor(BootstrapTheme.Current.GetSurface())
                         .Stroke(BootstrapTheme.Current.GetOutline())

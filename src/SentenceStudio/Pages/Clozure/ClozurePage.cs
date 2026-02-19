@@ -400,6 +400,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 			Label("Answer").FontAttributes(FontAttributes.Bold),
 			Border(
 				Entry()
+					.Class("form-control")
 					.FontSize(32)
 					.Text(State.UserInput)
 					.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))

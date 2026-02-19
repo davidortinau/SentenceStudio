@@ -155,6 +155,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 				.IsRunning(State.IsBusy),
 			Border(
 				Editor()
+					.Class("form-control")
 					.Placeholder("Enter a word or phrase")
 					.FontSize(32)
 					.MinimumHeightRequest(200)

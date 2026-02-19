@@ -112,6 +112,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
 
     VisualNode RenderInput() => new SfTextInputLayout(
             Entry()
+                .Class("form-control")
                 .Text(State.UserInput)
                 .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
                 .ReturnType(ReturnType.Next)

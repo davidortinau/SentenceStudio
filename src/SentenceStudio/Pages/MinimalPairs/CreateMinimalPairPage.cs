@@ -164,11 +164,13 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                     .H5(),
 
                 SearchBar()
+                    .Class("form-control")
                     .Placeholder($"{_localize["Search"]}")
                     .Text(searchQuery)
                     .OnTextChanged(text => onSearchChanged(text)),
 
                 Picker()
+                    .Class("form-select")
                     .Title($"{_localize["Search"]}")
                     .ItemsSource(filtered.Select(w => $"{w.TargetLanguageTerm} — {w.NativeLanguageTerm}").ToList())
                     .SelectedIndex(selectedWord != null ? filtered.FindIndex(w => w.Id == selectedWord.Id) : -1)
@@ -222,6 +224,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                             .H5(),
 
                         Entry()
+                            .Class("form-control")
                             .Placeholder("e.g., ㅂ vs ㅃ")
                             .Text(State.ContrastLabel)
                             .OnTextChanged(text => SetState(s => s.ContrastLabel = text))

@@ -267,6 +267,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         var theme = BootstrapTheme.Current;
         return Border(
             Entry()
+                .Class("form-control")
                 .FontSize(32)
                 .ReturnType(ReturnType.Go)
                 .Text(State.UserInput)
