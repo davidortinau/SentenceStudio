@@ -112,7 +112,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                     s.NativeLanguage = Constants.Languages[index];
                                     s.NativeLanguageIndex = index;
                                 }))
-                                .Class("form-select"),
+                                .FormSelect(),
 
                             Label($"{_localize["TargetLanguage"]}").Muted().Class("form-label"),
                             Picker()
@@ -123,7 +123,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                     s.TargetLanguage = Constants.Languages[index];
                                     s.TargetLanguageIndex = index;
                                 }))
-                                .Class("form-select"),
+                                .FormSelect(),
 
                             Label($"{_localize["DisplayLanguage"]}").Muted().Class("form-label"),
                             Picker()
@@ -142,7 +142,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                     var culture = newDisplayLanguage == "English" ? new CultureInfo("en-US") : new CultureInfo("ko-KR");
                                     _localize.SetCulture(culture);
                                 })
-                                .Class("form-select")
+                                .FormSelect()
                         )
                     )
                     .Class("card")

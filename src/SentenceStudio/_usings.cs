@@ -33,3 +33,4 @@ global using Fonts;
 global using MauiBootstrapTheme.Reactor;
 global using MauiBootstrapTheme.Theming;
 global using IconFont.Maui.BootstrapIcons;
+global using SentenceStudio.Helpers;

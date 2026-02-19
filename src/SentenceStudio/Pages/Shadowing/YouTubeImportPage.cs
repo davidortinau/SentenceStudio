@@ -104,7 +104,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                                     await LoadTranscriptAsync(selected);
                                 }
                             })
-                            .Class("form-select")
+                            .FormSelect()
                     )
                         .BackgroundColor(BootstrapTheme.Current.GetSurface())
                         .Stroke(BootstrapTheme.Current.GetOutline())

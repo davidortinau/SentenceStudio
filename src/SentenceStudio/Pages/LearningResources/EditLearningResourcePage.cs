@@ -395,7 +395,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     s.MediaTypeIndex = index;
                                     s.Resource.MediaType = Constants.MediaTypes[index];
                                 }))
-                                .Class("form-select")
+                                .FormSelect()
                         ).Spacing(4).GridColumn(0),
 
                         VStack(
@@ -410,7 +410,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                                     s.LanguageIndex = index;
                                     s.Resource.Language = Constants.Languages[index];
                                 }))
-                                .Class("form-select")
+                                .FormSelect()
                         ).Spacing(4).GridColumn(1)
                     ).ColumnSpacing(12),
 

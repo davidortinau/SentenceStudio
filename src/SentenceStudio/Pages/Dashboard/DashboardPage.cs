@@ -460,7 +460,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .ItemsSource(State.Resources?.Select(r => r.Title ?? $"Resource {r.Id}").ToList() ?? new List<string>())
             .SelectedIndex(State.SelectedResourceIndex >= 0 && State.SelectedResourceIndex < (State.Resources?.Count ?? 0) ? State.SelectedResourceIndex : -1)
             .OnSelectedIndexChanged(OnResourcePickerChanged)
-            .Class("form-select")
+            .FormSelect()
             .HFill()
             .HeightRequest(44);
 
@@ -469,7 +469,7 @@ partial class DashboardPage : Component<DashboardPageState>
             .ItemsSource(State.SkillProfiles?.Select(s => s.Title ?? $"Skill {s.Id}").ToList() ?? new List<string>())
             .SelectedIndex(State.SelectedSkillProfileIndex >= 0 && State.SelectedSkillProfileIndex < (State.SkillProfiles?.Count ?? 0) ? State.SelectedSkillProfileIndex : -1)
             .OnSelectedIndexChanged(OnSkillPickerChanged)
-            .Class("form-select")
+            .FormSelect()
             .HFill()
             .HeightRequest(44);
 

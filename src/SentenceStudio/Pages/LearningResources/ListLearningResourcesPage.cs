@@ -227,7 +227,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     });
                     _ = FilterResources();
                 })
-                .Class("form-select")
+                .FormSelect()
                 .HeightRequest(44)
                 .WidthRequest(160)
                 .GridColumn(1)
@@ -248,7 +248,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     });
                     _ = FilterResources();
                 })
-                .Class("form-select")
+                .FormSelect()
                 .HeightRequest(44)
                 .WidthRequest(160)
                 .GridColumn(2)

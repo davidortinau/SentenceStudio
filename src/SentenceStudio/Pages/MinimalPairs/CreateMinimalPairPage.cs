@@ -170,7 +170,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
                     .OnTextChanged(text => onSearchChanged(text)),
 
                 Picker()
-                    .Class("form-select")
+                    .FormSelect()
                     .Title($"{_localize["Search"]}")
                     .ItemsSource(filtered.Select(w => $"{w.TargetLanguageTerm} — {w.NativeLanguageTerm}").ToList())
                     .SelectedIndex(selectedWord != null ? filtered.FindIndex(w => w.Id == selectedWord.Id) : -1)

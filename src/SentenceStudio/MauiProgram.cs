@@ -486,8 +486,6 @@ public static class MauiProgram
 
 	private static void ModifyPicker()
 	{
-
-
 		Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
 		{
 #if ANDROID

@@ -111,7 +111,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                                     s.MediaTypeIndex = index;
                                                     s.Resource.MediaType = Constants.MediaTypes[index];
                                                 }))
-                                                .Class("form-select")
+                                                .FormSelect()
                                         ).Spacing(4).GridColumn(0),
 
                                         VStack(
@@ -126,7 +126,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                                     s.LanguageIndex = index;
                                                     s.Resource.Language = Constants.Languages[index];
                                                 }))
-                                                .Class("form-select")
+                                                .FormSelect()
                                         ).Spacing(4).GridColumn(1)
                                     ).ColumnSpacing(12),
 

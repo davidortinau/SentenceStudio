@@ -353,7 +353,7 @@ public partial class OnboardingPage : Component<OnboardingState>
 
                 Border(
                     Picker()
-                        .Class("form-select")
+                        .FormSelect()
                         .ItemsSource(Constants.Languages)
                         .SelectedIndex(Array.IndexOf(Constants.Languages, getter(State)))
                         .Title("Select language")

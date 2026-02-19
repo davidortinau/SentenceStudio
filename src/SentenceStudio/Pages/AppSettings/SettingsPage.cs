@@ -294,7 +294,7 @@ partial class SettingsPage : Component<SettingsPageState>
                         .ItemsSource(_supportedLanguages)
                         .SelectedIndex(_supportedLanguages.IndexOf(State.SelectedLanguage))
                         .OnSelectedIndexChanged(OnLanguagePickerChanged)
-                        .Class("form-select")
+                        .FormSelect()
                         .HeightRequest(44)
                         .HFill()
                 ),
@@ -323,7 +323,7 @@ partial class SettingsPage : Component<SettingsPageState>
                             .ItemsSource(State.AvailableVoices.Select(v => v.Name).ToList())
                             .SelectedIndex(GetSelectedVoiceIndex())
                             .OnSelectedIndexChanged(OnVoicePickerChanged)
-                            .Class("form-select")
+                            .FormSelect()
                             .HeightRequest(44)
                             .HFill()
                 ),
