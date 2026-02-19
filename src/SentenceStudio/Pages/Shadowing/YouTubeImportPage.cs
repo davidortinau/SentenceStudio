@@ -51,6 +51,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
     public override VisualNode Render()
     {
+        var theme = BootstrapTheme.Current;
         return ContentPage($"{_localize["ImportFromYouTube"]}",
             ToolbarItem($"{_localize["Clear"]}")
                 .OnClicked(ClearPage),
@@ -147,20 +148,20 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
             State.IsPolishingTranscript ?
                 Grid(
                     BoxView()
-                        .Background(Colors.Black.WithAlpha(0.5f)),
+                        .Background(theme.GetBackground().WithAlpha(0.9f)),
 
                     VStack(spacing: 15,
                         ActivityIndicator()
                             .IsRunning(true)
-                            .Color(Colors.White),
+                            .Color(theme.Primary),
 
                         Label($"{_localize["PolishingTranscriptWithAI"]}")
-                            .TextColor(Colors.White)
+                            .TextColor(theme.GetOnBackground())
                             .FontSize(16)
                             .HorizontalTextAlignment(TextAlignment.Center),
 
                         Label("Please wait, this may take a moment")
-                            .TextColor(Colors.White.WithAlpha(0.8f))
+                            .TextColor(theme.GetOnBackground().WithAlpha(0.8f))
                             .FontSize(14)
                             .HorizontalTextAlignment(TextAlignment.Center)
                     )
@@ -170,7 +171,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                 )
                 : null
             )
-        ).BackgroundColor(BootstrapTheme.Current.GetBackground());
+        ).BackgroundColor(theme.GetBackground());
     }
 
     async Task FetchTranscriptsAsync()

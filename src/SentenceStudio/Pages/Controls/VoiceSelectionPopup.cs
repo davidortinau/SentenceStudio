@@ -29,7 +29,7 @@ public static class VoiceSelectionPopup
 
         var popup = new UXDivers.Popups.Maui.PopupPage
         {
-            BackgroundColor = Colors.Black.WithAlpha(0.5f),
+            BackgroundColor = theme.GetBackground().WithAlpha(0.5f),
             CloseWhenBackgroundIsClicked = true
         };
 

@@ -230,7 +230,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
         var isActive = State.SelectedFilter == filter;
         return Button(text)
             .Background(new SolidColorBrush(isActive ? activeColor : Colors.Transparent))
-            .TextColor(isActive ? Colors.White : theme.GetOnBackground())
+            .TextColor(isActive ? theme.OnPrimary : theme.GetOnBackground())
             .BorderColor(theme.GetOutline())
             .BorderWidth(isActive ? 0 : 1)
             .OnClicked(() => OnFilterChanged(filter));
@@ -270,9 +270,9 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                     Border(
                         Label(item.StatusText)
                             .Small()
-                            .TextColor(item.IsKnown ? Colors.White :
+                            .TextColor(item.IsKnown ? theme.OnSuccess :
                                        item.IsLearning ? Color.FromArgb("#212529") :
-                                       Colors.White)
+                                       theme.OnPrimary)
                             .Padding(6, 2)
                     )
                     .BackgroundColor(item.StatusColor)

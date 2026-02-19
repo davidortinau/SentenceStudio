@@ -514,7 +514,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                           item.IsLearning ? theme.Warning :
                           theme.Secondary;
 
-        var statusTextColor = item.IsLearning ? Colors.Black : theme.OnPrimary;
+        var statusTextColor = item.IsLearning ? Color.FromArgb("#212529") : theme.OnPrimary;
         var statusLabel = item.IsOrphaned ? $"{_localize["Orphaned"]}" : item.StatusText;
         var resourceCount = item.AssociatedResources?.Count ?? 0;
 

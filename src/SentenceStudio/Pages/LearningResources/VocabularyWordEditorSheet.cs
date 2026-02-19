@@ -37,7 +37,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
         return Grid(
             // Semi-transparent background
             BoxView()
-                .Background(Colors.Black.WithAlpha(0.5f))
+                .Background(theme.GetBackground().WithAlpha(0.7f))
                 .ZIndex(0)
                 .OnTapped(() => _onCancel?.Invoke()),
 

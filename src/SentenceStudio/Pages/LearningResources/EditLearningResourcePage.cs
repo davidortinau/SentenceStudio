@@ -103,20 +103,20 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         (State.IsPolishingTranscript || State.IsCleaningTranscript) ?
                             Grid(
                                 BoxView()
-                                    .Background(Colors.Black.WithAlpha(0.5f)),
+                                    .Background(theme.GetBackground().WithAlpha(0.9f)),
 
                                 VStack(spacing: 15,
                                     ActivityIndicator()
                                         .IsRunning(true)
-                                        .Color(Colors.White),
+                                        .Color(theme.Primary),
 
                                     Label(State.IsPolishingTranscript ? "Polishing transcript with AI..." : "Cleaning up transcript...")
-                                        .TextColor(Colors.White)
+                                        .TextColor(theme.GetOnBackground())
                                         .FontSize(16)
                                         .HorizontalTextAlignment(TextAlignment.Center),
 
                                     Label("Please wait, this may take a moment")
-                                        .TextColor(Colors.White.WithAlpha(0.8f))
+                                        .TextColor(theme.GetOnBackground().WithAlpha(0.8f))
                                         .FontSize(14)
                                         .HorizontalTextAlignment(TextAlignment.Center)
                                 )

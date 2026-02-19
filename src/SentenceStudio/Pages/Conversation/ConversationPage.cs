@@ -188,7 +188,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
                     var label = new Microsoft.Maui.Controls.Label
                     {
-                        TextColor = Colors.White,
+                        TextColor = BootstrapTheme.Current.GetOnBackground(),
                         FontSize = 16,
                         LineBreakMode = LineBreakMode.WordWrap
                     };
@@ -229,7 +229,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
 
                     var label = new Microsoft.Maui.Controls.Label
                     {
-                        TextColor = Colors.White,
+                        TextColor = BootstrapTheme.Current.GetOnBackground(),
                         FontSize = 16,
                         Padding = new Thickness(0, 8)
                     };
@@ -298,14 +298,14 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                         FontSize = 16,
                         FontAttributes = FontAttributes.Bold,
                         VerticalOptions = LayoutOptions.Center,
-                        TextColor = Colors.White
+                        TextColor = BootstrapTheme.Current.GetOnBackground()
                     };
                     nameLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "DisplayName");
 
                     // Active checkmark icon
                     var checkIcon = new Microsoft.Maui.Controls.Image
                     {
-                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, Colors.Green, 16),
+                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, BootstrapTheme.Current.Success, 16),
                         WidthRequest = 16,
                         HeightRequest = 16,
                         VerticalOptions = LayoutOptions.Center,
@@ -323,7 +323,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     var personaLayout = new Microsoft.Maui.Controls.HorizontalStackLayout { Spacing = 4 };
                     var personaIcon = new Microsoft.Maui.Controls.Image
                     {
-                        Source = BootstrapIcons.Create(BootstrapIcons.Person, Colors.Gray, 12),
+                        Source = BootstrapIcons.Create(BootstrapIcons.Person, BootstrapTheme.Current.GetOnBackground().WithAlpha(0.6f), 12),
                         WidthRequest = 12,
                         HeightRequest = 12,
                         VerticalOptions = LayoutOptions.Center
@@ -331,7 +331,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     var personaLabel = new Microsoft.Maui.Controls.Label
                     {
                         FontSize = 12,
-                        TextColor = Colors.Gray
+                        TextColor = BootstrapTheme.Current.GetOnBackground().WithAlpha(0.6f)
                     };
                     personaLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "PersonaName");
                     personaLayout.Children.Add(personaIcon);
@@ -341,7 +341,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     var descLabel = new Microsoft.Maui.Controls.Label
                     {
                         FontSize = 14,
-                        TextColor = Colors.LightGray,
+                        TextColor = BootstrapTheme.Current.GetOnBackground().WithAlpha(0.7f),
                         MaxLines = 2
                     };
                     descLabel.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, "SituationDescription");
@@ -392,14 +392,14 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                     var label = new Microsoft.Maui.Controls.Label
                     {
                         FontSize = 16,
-                        TextColor = Colors.White,
+                        TextColor = BootstrapTheme.Current.GetOnBackground(),
                         VerticalOptions = LayoutOptions.Center
                     };
                     label.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, ".");
 
                     var checkIcon = new Microsoft.Maui.Controls.Image
                     {
-                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, Colors.Green, 16),
+                        Source = BootstrapIcons.Create(BootstrapIcons.CheckCircleFill, BootstrapTheme.Current.Success, 16),
                         WidthRequest = 16,
                         HeightRequest = 16,
                         VerticalOptions = LayoutOptions.Center,
@@ -1414,10 +1414,10 @@ class ConversationTypeToIconConverter : IValueConverter
         if (value is ConversationType type)
         {
             return type == ConversationType.Finite
-                ? BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, Colors.Gray, 16)
-                : BootstrapIcons.Create(BootstrapIcons.ChatDots, Colors.Gray, 16);
+                ? BootstrapIcons.Create(BootstrapIcons.ArrowRepeat, BootstrapTheme.Current.GetOnBackground().WithAlpha(0.6f), 16)
+                : BootstrapIcons.Create(BootstrapIcons.ChatDots, BootstrapTheme.Current.GetOnBackground().WithAlpha(0.6f), 16);
         }
-        return BootstrapIcons.Create(BootstrapIcons.ChatDots, Colors.Gray, 16);
+        return BootstrapIcons.Create(BootstrapIcons.ChatDots, BootstrapTheme.Current.GetOnBackground().WithAlpha(0.6f), 16);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
