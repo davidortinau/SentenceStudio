@@ -628,7 +628,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Grid("*", "*",
             // Semi-transparent overlay
             BoxView()
-                .Background(Color.FromArgb("#80000000"))
+                .Background(BootstrapTheme.Current.GetBackground().WithAlpha(0.7f))
                 .OnTapped(() => SetState(s => s.IsNarrowScreenMenuVisible = false)),
             Border(
                 VStack(
@@ -746,7 +746,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                 .TextColor(BootstrapTheme.Current.GetOnBackground())
                 .Center()
         )
-        .Background(Color.FromArgb("#80000000"))
+        .Background(BootstrapTheme.Current.GetBackground().WithAlpha(0.9f))
         .GridRowSpan(3)
         .IsVisible(State.IsBusy);
 
@@ -758,7 +758,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
         Grid("*", "*",
             // Semi-transparent overlay
             BoxView()
-                .Background(Color.FromArgb("#80000000"))
+                .Background(BootstrapTheme.Current.GetBackground().WithAlpha(0.7f))
                 .OnTapped(() => SetState(s => s.IsExportMenuVisible = false)),
             Border(
                 VStack(

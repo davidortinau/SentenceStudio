@@ -226,7 +226,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 .TextColor(theme.GetOnBackground())
                 .Center()
         )
-        .Background(Color.FromArgb("#80000000"))
+        .Background(theme.GetBackground().WithAlpha(0.9f))
         .GridRowSpan(3)
         .IsVisible(State.IsBusy);
     }
@@ -448,7 +448,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 Label($"{State.CurrentTurnInRound + 1}")
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold)
-                    .TextColor(Colors.White)
+                    .TextColor(theme.OnSuccess)
                     .TranslationY(-4)
                     .Center()
             )
@@ -464,7 +464,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             ProgressBar()
                 .Progress((double)State.CurrentTurnInRound / VocabularyQuizPageState.TurnsPerRound)
                 .ProgressColor(theme.Success)
-                .Background(Colors.LightGray)
+                .Background(theme.GetOutline())
                 .HeightRequest(6)
                 .GridColumn(1)
                 .VCenter()
@@ -475,11 +475,11 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                 Label($"{VocabularyQuizPageState.TurnsPerRound}")
                     .FontSize(16)
                     .FontAttributes(FontAttributes.Bold)
-                    .TextColor(Colors.White)
+                    .TextColor(theme.GetOnBackground())
                     .TranslationY(-4)
                     .Center()
             )
-            .Background(Colors.Gray)
+            .Background(theme.GetOutline())
             .StrokeShape(new RoundRectangle().CornerRadius(15))
             .StrokeThickness(0)
             .HeightRequest(30)
@@ -558,26 +558,20 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
         var theme = BootstrapTheme.Current;
         return VStack(
             Label(State.RequireCorrectTyping ? $"{_localize["TypeCorrectAnswerHint"]}" : $"{_localize["TypeYourAnswerHint"]}").Small().Muted(),
-            Border(
-                Entry(entryRef => _textInputRef = entryRef)
-                    .FontSize(32)
-                    .Text(State.UserInput)
-                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                    .ReturnType(ReturnType.Go)
-                    .OnCompleted(() =>
-                    {
-                        if (State.RequireCorrectTyping)
-                            NextItem();
-                        else
-                            CheckAnswer();
-                    })
-                    .IsEnabled(!State.ShowAnswer || State.RequireCorrectTyping)
-            )
-            .BackgroundColor(theme.GetSurface())
-            .Stroke(theme.GetOutline())
-            .StrokeThickness(1)
-            .StrokeShape(new RoundRectangle().CornerRadius(8))
-            .Padding(4)
+            Entry(entryRef => _textInputRef = entryRef)
+                .Class("form-control")
+                .FontSize(32)
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                .ReturnType(ReturnType.Go)
+                .OnCompleted(() =>
+                {
+                    if (State.RequireCorrectTyping)
+                        NextItem();
+                    else
+                        CheckAnswer();
+                })
+                .IsEnabled(!State.ShowAnswer || State.RequireCorrectTyping)
         )
         .GridRow(1)
         .GridColumn(0)
@@ -608,13 +602,13 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
             {
                 backgroundColor = theme.Success;
                 borderColor = theme.Success;
-                textColor = Colors.White;
+                textColor = theme.OnSuccess;
             }
             else if (isSelected && !isCorrect)
             {
                 backgroundColor = theme.Danger;
                 borderColor = theme.Danger;
-                textColor = Colors.White;
+                textColor = theme.OnDanger;
             }
         }
         else if (isSelected)

@@ -89,12 +89,10 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
 
     public override VisualNode Render()
         => ContentPage(
-            Grid(rows: "*,80", columns: "*",
+            Grid(rows: "*,Auto", columns: "*",
                 ScrollView(
-                    Grid("30,*,auto", "*",
-                        RenderSentenceContent(),
-                        RenderInputUI(),
-                        RenderProgress()
+                    VStack(spacing: 16,
+                        RenderSentenceContent()
                     )
                 ),
 
@@ -119,13 +117,13 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     .Color(theme.Primary)
                     .HCenter(),
                 Label($"{_localize["LoadingSentences"]}")
-                    .TextColor(BootstrapTheme.Current.OnPrimary)
+                    .TextColor(theme.GetOnBackground())
                     .FontSize(16)
                     .HCenter()
             )
             .VCenter()
         )
-            .Background(Color.FromArgb("#80000000"))
+            .Background(theme.GetBackground().WithAlpha(0.9f))
             .GridRowSpan(2)
             .IsVisible(State.IsBusy);
     }
@@ -226,150 +224,128 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                 .TextColor(theme.GetOnBackground())
                 .HStart(),
 
-            // Add vocabulary progress scoreboard
             RenderVocabularyScoreboard(),
 
             State.ShowFeedback ?
                 Border(
                     Label(State.FeedbackMessage)
                         .FontSize(16)
+                        .TextColor(theme.GetOnBackground())
                         .Padding(16)
-                        .Center()
                 )
-                .Background(GetFeedbackBackgroundColor(State.FeedbackType))
-                .StrokeShape(new RoundRectangle().CornerRadius(8))
-                .StrokeThickness(0)
+                .Class("card")
+                .Stroke(GetFeedbackBorderColor(State.FeedbackType))
+                .StrokeThickness(2)
                 .Margin(0, 8)
                 : null
         )
-        .GridRow(1)
-        .Margin(24);
+        .Padding(24);
     }
 
-    VisualNode RenderInputUI() =>
-        Grid("*,*", "*,auto,auto,auto",
-            State.UserMode == InputMode.MultipleChoice.ToString() ?
-                RenderVocabBlocks() : null,
-                RenderUserInput()
-        )
-        .RowSpacing(40)
-        .Padding(24)
-        .ColumnSpacing(16)
-        .GridRow(2);
+    VisualNode RenderInputUI() => null; // Input now integrated in RenderBottomNavigation
 
     VisualNode RenderUserInput()
     {
-        var theme = BootstrapTheme.Current;
-        return Border(
-            Entry()
-                .Class("form-control")
-                .FontSize(32)
-                .ReturnType(ReturnType.Go)
-                .Text(State.UserInput)
-                .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-                .OnCompleted(GradeMe)
-                .Placeholder(GetInputPlaceholder())
-        )
-        .Stroke(theme.GetOutline())
-        .StrokeShape(new RoundRectangle().CornerRadius(6))
-        .StrokeThickness(1)
-        .Padding(8, 0)
-        .Background(Colors.Transparent)
-        .GridRow(1)
-        .GridColumnSpan(4);
+        return Entry()
+            .Class("form-control")
+            .FontSize(24)
+            .ReturnType(ReturnType.Go)
+            .Text(State.UserInput)
+            .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+            .OnCompleted(GradeMe)
+            .Placeholder(GetInputPlaceholder())
+            .GridRow(1)
+            .GridColumnSpan(4);
     }
 
     VisualNode RenderVocabBlocks()
     {
-        var theme = BootstrapTheme.Current;
         return HStack(
             State.VocabBlocks.Select(word =>
                 Button()
                     .Text(word)
-                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                    .Padding(40)
-                    .Background(new SolidColorBrush(theme.GetSurface()))
-                    .TextColor(theme.GetOnBackground())
+                    .Class("btn-outline-secondary")
+                    .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 14 : 18)
                     .OnClicked(() => UseVocab(word))
             )
         )
-        .Spacing(4)
+        .Spacing(8)
         .GridRow(0)
         .GridColumnSpan(4);
     }
 
-    VisualNode RenderProgress()
-    {
-        var theme = BootstrapTheme.Current;
-        return HStack(
-            ActivityIndicator()
-                .IsRunning(State.IsBuffering)
-                .IsVisible(State.IsBuffering)
-                .Color(theme.GetOnBackground())
-                .VCenter(),
-            Label()
-                .Text(State.Progress)
-                .VCenter()
-                .TextColor(theme.GetOnBackground())
-        )
-        .Spacing(8)
-        .Padding(24)
-        .HEnd()
-        .VStart()
-        .GridRowSpan(2);
-    }
+    VisualNode RenderProgress() => null; // Progress now shown in RenderBottomNavigation
 
     VisualNode RenderBottomNavigation()
     {
         var theme = BootstrapTheme.Current;
-        return Grid("1,*", "60,1,*,1,60,1,60",
-            Button(State.IsBusy ? $"{_localize["Grading"]}" : "GO")
-                .Class("btn-primary")
-                .GridRow(1).GridColumn(4)
-                .IsEnabled(!State.IsBusy)
-                .OnClicked(GradeMe),
+        return Grid("Auto,Auto,Auto", "*",
+            // Row 0: Vocab blocks (if in multiple choice mode)
+            State.UserMode == InputMode.MultipleChoice.ToString() && State.VocabBlocks.Any() ?
+                HStack(
+                    State.VocabBlocks.Select(word =>
+                        Button()
+                            .Text(word)
+                            .Class("btn-outline-secondary")
+                            .FontSize(14)
+                            .OnClicked(() => UseVocab(word))
+                    )
+                )
+                .Spacing(8)
+                .Padding(16, 8)
+                .GridRow(0)
+                : null,
 
-            new ModeSelector()
-                .SelectedMode(State.UserMode)
-                .OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
-                .GridRow(1).GridColumn(2),
+            // Row 1: Input + mode toggle + grade button
+            HStack(spacing: 8,
+                Entry()
+                    .Class("form-control")
+                    .FontSize(16)
+                    .ReturnType(ReturnType.Go)
+                    .Text(State.UserInput)
+                    .OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+                    .OnCompleted(GradeMe)
+                    .Placeholder(GetInputPlaceholder())
+                    .HFill(),
 
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 24))
-                .GridRow(1).GridColumn(0)
-                .IsEnabled(_currentSentenceIndex > 0)
-                .Opacity(_currentSentenceIndex > 0 ? 1.0 : 0.3)
-                .OnClicked(PreviousSentence),
+                new ModeSelector()
+                    .SelectedMode(State.UserMode)
+                    .OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode)),
 
-            ImageButton()
-                .Background(Colors.Transparent)
-                .Aspect(Aspect.Center)
-                .Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 24))
-                .GridRow(1).GridColumn(6)
-                .OnClicked(NextSentence),
+                Button(State.IsBusy ? $"{_localize["Grading"]}" : "GO")
+                    .Class("btn-primary")
+                    .IsEnabled(!State.IsBusy)
+                    .OnClicked(GradeMe)
+            )
+            .Padding(16, 8)
+            .GridRow(1),
 
-            BoxView()
-                .Color(theme.GetOutline())
-                .HeightRequest(1)
-                .GridColumnSpan(7),
+            // Row 2: Navigation arrows + progress counter
+            Grid("*", "Auto,*,Auto",
+                Button()
+                    .Class("btn-outline-secondary")
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 16))
+                    .IsEnabled(_currentSentenceIndex > 0)
+                    .Opacity(_currentSentenceIndex > 0 ? 1.0 : 0.3)
+                    .OnClicked(PreviousSentence)
+                    .GridColumn(0),
 
-            BoxView()
-                .Color(theme.GetOutline())
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(1),
+                Label(State.Progress)
+                    .Muted()
+                    .Center()
+                    .GridColumn(1),
 
-            BoxView()
-                .Color(theme.GetOutline())
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(3),
-
-            BoxView()
-                .Color(theme.GetOutline())
-                .WidthRequest(1)
-                .GridRow(1).GridColumn(5)
-        ).GridRow(1);
+                Button()
+                    .Class("btn-outline-secondary")
+                    .ImageSource(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 16))
+                    .OnClicked(NextSentence)
+                    .GridColumn(2)
+            )
+            .Padding(16, 8)
+            .GridRow(2)
+        )
+        .BackgroundColor(theme.GetSurface())
+        .GridRow(1);
     }
 
     VisualNode RenderVocabularyScoreboard() =>
@@ -430,14 +406,29 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
             .TextColor(theme.GetOnBackground());
     }
 
-    Color GetFeedbackBackgroundColor(string feedbackType) =>
-        feedbackType switch
+    Color GetFeedbackBackgroundColor(string feedbackType)
+    {
+        var theme = BootstrapTheme.Current;
+        return feedbackType switch
         {
-            "success" => Color.FromArgb("#E8F5E8"),
-            "achievement" => Color.FromArgb("#FFF3E0"),
-            "hint" => Color.FromArgb("#E3F2FD"),
-            _ => Color.FromArgb("#F5F5F5")
+            "success" => theme.Success.WithAlpha(0.15f),
+            "achievement" => theme.Warning.WithAlpha(0.15f),
+            "hint" => theme.Primary.WithAlpha(0.15f),
+            _ => theme.GetSurface()
         };
+    }
+
+    Color GetFeedbackBorderColor(string feedbackType)
+    {
+        var theme = BootstrapTheme.Current;
+        return feedbackType switch
+        {
+            "success" => theme.Success,
+            "achievement" => theme.Warning,
+            "hint" => theme.Primary,
+            _ => theme.GetOutline()
+        };
+    }
 
     // Event handlers and methods
     async Task LoadSentences()

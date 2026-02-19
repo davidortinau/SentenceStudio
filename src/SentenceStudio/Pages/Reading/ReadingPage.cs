@@ -681,7 +681,7 @@ partial class ReadingPage : Component<ReadingPageState, ActivityProps>
         return Grid(
             // Modal backdrop
             BoxView()
-                .Color(Color.FromArgb("#80000000"))
+                .Color(theme.GetBackground().WithAlpha(0.7f))
                 .OnTapped(CloseWordDetailsBottomSheet),
             // Bottom sheet content
             Border(

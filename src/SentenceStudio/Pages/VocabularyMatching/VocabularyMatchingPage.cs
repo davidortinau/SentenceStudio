@@ -321,7 +321,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
     {
         var theme = BootstrapTheme.Current;
         if (tile.IsSelected)
-            return Colors.White;
+            return theme.OnPrimary;
 
         if (tile.IsMatched)
             return theme.GetOutline();

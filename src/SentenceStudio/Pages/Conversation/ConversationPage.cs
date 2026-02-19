@@ -148,7 +148,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                 Border(
                     Label("...")
                         .FontSize(24)
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                 )
                 .Background(theme.Primary)
                 .Padding(12, 8)
@@ -464,11 +464,11 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                 VStack(spacing: 4,
                     new SelectableLabel()
                         .Text(chunk.Text)
-                        .TextColor(Colors.White)
+                        .TextColor(theme.OnPrimary)
                         .FontSize(State.FontSize),
 
                     ImageButton()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.VolumeUp, Colors.White, 16))
+                        .Source(BootstrapIcons.Create(BootstrapIcons.VolumeUp, theme.OnPrimary, 16))
                         .Background(Colors.Transparent)
                         .OnClicked(() => PlayAudio(chunk.Text))
                         .WidthRequest(32)
@@ -625,26 +625,18 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
         var theme = BootstrapTheme.Current;
         var isWaiting = State.IsBusy;
         return Grid("", "* Auto Auto Auto Auto",
-            Border(
-                Entry()
-                    .Class("form-control")
-                    .Placeholder(GetInputPlaceholder())
-                    .FontSize(20)
-                    .ReturnType(ReturnType.Send)
-                    .Text(State.UserInput)
-                    .OnTextChanged((s, e) => State.UserInput = e.NewTextValue)
-                    .OnCompleted(async () =>
-                    {
-                        await SendMessage();
-                    })
-                    .IsEnabled(!isWaiting)
-            )
-                .Background(Colors.Transparent)
-                .Stroke(theme.GetOutline())
-                .StrokeShape(new RoundRectangle().CornerRadius(6))
-                .Padding(new Thickness(16, 0))
-                .StrokeThickness(1)
-                .VEnd(),
+            Entry()
+                .Class("form-control")
+                .Placeholder(GetInputPlaceholder())
+                .FontSize(20)
+                .ReturnType(ReturnType.Send)
+                .Text(State.UserInput)
+                .OnTextChanged((s, e) => State.UserInput = e.NewTextValue)
+                .OnCompleted(async () =>
+                {
+                    await SendMessage();
+                })
+                .IsEnabled(!isWaiting),
             Button($"{_localize["Send"]}")
                 .Class("btn-primary")
                 .IsEnabled(!isWaiting && !string.IsNullOrWhiteSpace(State.UserInput))

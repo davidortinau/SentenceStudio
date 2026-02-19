@@ -42,6 +42,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     Label(State.EmptyMessage)
                         .HCenter(),
                     Button($"{_localize["GoBack"]}")
+                        .Class("btn-outline-secondary")
                         .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
                         .HCenter()
                 )
@@ -109,11 +110,8 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                     HStack(spacing: 40,
                         State.VocabBlocks.Select(word =>
                             Button(word.TargetLanguageTerm)
-                                .Background(new SolidColorBrush(theme.GetSurface()))
-                                .TextColor(theme.GetOnBackground())
+                                .Class("btn-outline-secondary")
                                 .FontSize(DeviceInfo.Idiom == DeviceIdiom.Phone ? 18 : 24)
-                                .Padding(40)
-                                .VStart()
                                 .OnClicked(() => UseVocab(word.TargetLanguageTerm))
                         )
                     )
@@ -141,7 +139,7 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
                 .GridColumn(1),
 
             Button("Grade")
-                .ThemeKey(MyTheme.PrimaryButton)
+                .Class("btn-primary")
                 .OnClicked(GradeMe)
                 .GridRow(1)
                 .GridColumn(2)
@@ -155,12 +153,18 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
     {
         var theme = BootstrapTheme.Current;
         return Grid(
-            Label("Thinking...")
-                .FontSize(64)
-                .TextColor(Colors.White)
-                .Center()
+            VStack(spacing: 12,
+                ActivityIndicator()
+                    .IsRunning(true)
+                    .Color(theme.Primary)
+                    .HCenter(),
+                Label($"{_localize["LoadingSentences"]}")
+                    .Muted()
+                    .HCenter()
+            )
+            .VCenter()
         )
-        .Background(Color.FromArgb("#80000000"))
+        .Background(theme.GetBackground().WithAlpha(0.9f))
         .GridRowSpan(2)
         .IsVisible(State.IsBusy);
     }
@@ -328,16 +332,16 @@ partial class WritingPage : Component<WritingPageState, ActivityProps>
             SwipeItemView(
                 Grid(
                     Image()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.Clipboard, Colors.White, 24))
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Clipboard, theme.OnDanger, 24))
                         .Center()
-                ).Background(Colors.Red).WidthRequest(60)
+                ).Background(theme.Danger).WidthRequest(60)
             ).OnInvoked(() => UseVocab(sentence.Answer)).HStart(),
             SwipeItemView(
                 Grid(
                     Image()
-                        .Source(BootstrapIcons.Create(BootstrapIcons.InfoCircle, Colors.White, 24))
+                        .Source(BootstrapIcons.Create(BootstrapIcons.InfoCircle, theme.OnWarning, 24))
                         .Center()
-                ).Background(Colors.Orange).WidthRequest(60)
+                ).Background(theme.Warning).WidthRequest(60)
             ).OnInvoked(() => ShowExplanation(sentence)).HEnd(),
             Grid("", columns: "*,*",
                 Label(sentence.Answer).VCenter().GridColumn(0),

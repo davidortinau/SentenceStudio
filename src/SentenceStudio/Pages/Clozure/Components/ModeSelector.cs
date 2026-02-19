@@ -14,7 +14,7 @@ partial class ModeSelector : Component
     {
         var theme = BootstrapTheme.Current;
         var isText = _selectedMode == "Text";
-        var selectedColor = Colors.White;
+        var selectedColor = theme.OnPrimary;
         var unselectedColor = theme.GetOnBackground();
 
         return Border(

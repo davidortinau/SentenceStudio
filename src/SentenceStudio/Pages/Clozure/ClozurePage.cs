@@ -111,19 +111,18 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	public override VisualNode Render()
 	{
 		return ContentPage($"{_localize["Clozures"]}",
-			Grid(rows: "*, 80", columns: "*",
+			Grid(rows: "*, Auto", columns: "*",
 				ScrollView(
-					Grid(rows: "60,*,Auto", columns: "*",
+					VStack(spacing: 8,
 						SentenceScoreboard(),
-						SentenceDisplay(),
-						UserInput()
-					).RowSpacing(8)
+						SentenceDisplay()
+					)
 				),
 				NavigationFooter(),
 				AutoTransitionBar(),
 				LoadingOverlay(),
 				SessionSummaryOverlay()
-			).RowSpacing(8)
+			)
 		)
 		.Set(MauiControls.Shell.TitleViewProperty, Props?.FromTodaysPlan == true ? new Components.ActivityTimerBar() : null)
 		.Set(MauiControls.PlatformConfiguration.iOSSpecific.Page.UseSafeAreaProperty, false)
@@ -186,12 +185,18 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	{
 		var theme = BootstrapTheme.Current;
 		return Grid(
-			Label("Thinking.....")
-				.FontSize(48).FontAttributes(FontAttributes.Bold)
-				.TextColor(theme.GetOnBackground())
-				.Center()
+			VStack(spacing: 12,
+				ActivityIndicator()
+					.IsRunning(true)
+					.Color(theme.Primary)
+					.HCenter(),
+				Label($"{_localize["LoadingSentences"]}")
+					.Muted()
+					.HCenter()
+			)
+			.VCenter()
 		)
-		.Background(Color.FromArgb("#80000000"))
+		.Background(theme.GetBackground().WithAlpha(0.9f))
 		.GridRowSpan(2)
 		.IsVisible(State.IsBusy);
 	}
@@ -252,8 +257,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 						)
 						.Padding(new Thickness(16))
 					)
-					.Background(theme.GetSurface())
-					.StrokeShape(new RoundRectangle().CornerRadius(8))
+					.Class("card")
 					.Margin(0, 16),
 
 					// Sentences review
@@ -281,52 +285,87 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 	VisualNode NavigationFooter()
 	{
 		var theme = BootstrapTheme.Current;
-		return Grid(rows: "1,*", columns: "60,1,*,1,60,1,60",
-			Button("GO")
-				.TextColor(theme.GetOnBackground())
-				.Background(Colors.Transparent)
-				.GridRow(1).GridColumn(4)
-				.OnClicked(GradeMe),
+		return Grid(rows: "Auto,Auto,Auto", columns: "*",
+			// Row 0: Multiple choice options (if in MC mode)
+			State.UserMode == InputMode.MultipleChoice.ToString() && State.GuessOptions?.Length > 0 ?
+				HStack(spacing: 8,
+					State.GuessOptions.Select((option, i) =>
+						Button(option)
+							.Class(GetOptionButtonClass(option))
+							.FontSize(14)
+							.OnClicked(() => OnOptionTapped(option))
+					)
+				)
+				.Padding(16, 8)
+				.GridRow(0)
+				: null,
 
-			new ModeSelector()
-				.SelectedMode(State.UserMode)
-				.OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode))
-				.GridRow(1).GridColumn(2),
+			// Row 1: Input + mode toggle + GO button
+			HStack(spacing: 8,
+				Entry()
+					.Class("form-control")
+					.FontSize(16)
+					.Text(State.UserInput)
+					.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+					.ReturnType(ReturnType.Go)
+					.OnCompleted(GradeMe)
+					.Placeholder($"{_localize["TypeMissingWord"]}")
+					.HFill(),
 
-			ImageButton()
-				.Background(Colors.Transparent)
-				.Aspect(Aspect.Center)
-				.Source(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 24))
-				.GridRow(1).GridColumn(0)
-				.OnClicked(PreviousSentence),
+				new ModeSelector()
+					.SelectedMode(State.UserMode)
+					.OnSelectedModeChanged(mode => SetState(s => s.UserMode = mode)),
 
-			ImageButton()
-				.Background(Colors.Transparent)
-				.Aspect(Aspect.Center)
-				.Source(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 24))
-				.GridRow(1).GridColumn(6)
-				.OnClicked(NextSentence),
+				Button("GO")
+					.Class("btn-primary")
+					.OnClicked(GradeMe)
+			)
+			.Padding(16, 8)
+			.GridRow(1),
 
-			BoxView()
-				.Color(Colors.Black)
-				.HeightRequest(1)
-				.GridColumnSpan(7),
+			// Row 2: Navigation arrows + progress counter
+			Grid("*", "Auto,*,Auto",
+				Button()
+					.Class("btn-outline-secondary")
+					.ImageSource(BootstrapIcons.Create(BootstrapIcons.ChevronLeft, theme.GetOnBackground(), 16))
+					.OnClicked(PreviousSentence)
+					.GridColumn(0),
 
-			BoxView()
-				.Color(Colors.Black)
-				.WidthRequest(1)
-				.GridRow(1).GridColumn(1),
+				Label($"{GetCurrentIndex() + 1} / {State.Sentences.Count}")
+					.Muted()
+					.Center()
+					.GridColumn(1),
 
-			BoxView()
-				.Color(Colors.Black)
-				.WidthRequest(1)
-				.GridRow(1).GridColumn(3),
+				Button()
+					.Class("btn-outline-secondary")
+					.ImageSource(BootstrapIcons.Create(BootstrapIcons.ChevronRight, theme.GetOnBackground(), 16))
+					.OnClicked(NextSentence)
+					.GridColumn(2)
+			)
+			.Padding(16, 8)
+			.GridRow(2)
+		)
+		.BackgroundColor(theme.GetSurface())
+		.GridRow(1);
+	}
 
-			BoxView()
-				.Color(Colors.Black)
-				.WidthRequest(1)
-				.GridRow(1).GridColumn(5)
-		).GridRow(1);
+	string GetOptionButtonClass(string option)
+	{
+		if (!State.HasBeenGraded)
+		{
+			return State.SelectedOption == option ? "btn-primary" : "btn-outline-secondary";
+		}
+		if (option == State.CorrectAnswer)
+			return "btn-success";
+		if (option == State.SelectedOption)
+			return "btn-danger";
+		return "btn-outline-secondary";
+	}
+
+	int GetCurrentIndex()
+	{
+		var current = State.Sentences.FirstOrDefault(s => s.IsCurrent);
+		return current != null ? State.Sentences.IndexOf(current) : 0;
 	}
 
 	VisualNode SentenceScoreboard()
@@ -358,24 +397,37 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					)
 				)
 			)
-			.Padding(DeviceInfo.Idiom == DeviceIdiom.Phone ?
-				new Thickness(16, 6) :
-				new Thickness(24))
+			.Padding(24, 6)
 		)
 		.Orientation(ScrollOrientation.Horizontal)
 		.HorizontalScrollBarVisibility(ScrollBarVisibility.Never)
-		.GridRow(0)
 		.VCenter();
 	}
 
-	VisualNode SentenceDisplay() =>
-		VStack(spacing: 16,
+	VisualNode SentenceDisplay()
+	{
+		var theme = BootstrapTheme.Current;
+		return VStack(spacing: 16,
 			Label(State.CurrentSentence)
-				.FontSize(State.IsDesktopPlatform ? SENTENCE_FONT_SIZE_DESKTOP : SENTENCE_FONT_SIZE_MOBILE),
+				.FontSize(State.IsDesktopPlatform ? SENTENCE_FONT_SIZE_DESKTOP : SENTENCE_FONT_SIZE_MOBILE)
+				.TextColor(theme.GetOnBackground()),
 			Label(State.RecommendedTranslation)
+				.Muted(),
+			State.ShowFeedback ?
+				Border(
+					Label(State.FeedbackMessage)
+						.FontSize(16)
+						.TextColor(theme.GetOnBackground())
+						.Padding(16)
+				)
+				.Class("card")
+				.Stroke(State.FeedbackType == "success" ? theme.Success : theme.Danger)
+				.StrokeThickness(2)
+				.Margin(0, 8)
+				: null
 		)
-		.Margin(24)
-		.GridRow(1);
+		.Padding(24);
+	}
 
 	#endregion
 
@@ -393,23 +445,18 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 
 	VisualNode RenderTextInput()
 	{
-		var theme = BootstrapTheme.Current;
-		return VStack(
-			Label("Answer").FontAttributes(FontAttributes.Bold),
-			Border(
-				Entry()
-					.Class("form-control")
-					.FontSize(32)
-					.Text(State.UserInput)
-					.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
-					.ReturnType(ReturnType.Go)
-					.OnCompleted(GradeMe)
-			).BackgroundColor(theme.GetSurface()).Stroke(theme.GetOutline()).StrokeThickness(1).StrokeShape(new RoundRectangle().CornerRadius(8)).Padding(4)
-		)
-		.GridRow(1)
-		.GridColumn(0)
-		.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
-		.Margin(0, 0, 0, 8);
+		return Entry()
+			.Class("form-control")
+			.FontSize(16)
+			.Text(State.UserInput)
+			.OnTextChanged((s, e) => SetState(s => s.UserInput = e.NewTextValue))
+			.ReturnType(ReturnType.Go)
+			.OnCompleted(GradeMe)
+			.Placeholder($"{_localize["TypeMissingWord"]}")
+			.GridRow(1)
+			.GridColumn(0)
+			.GridColumnSpan(DeviceInfo.Idiom == DeviceIdiom.Phone ? 4 : 1)
+			.Margin(0, 0, 0, 8);
 	}
 
 	VisualNode RenderMultipleChoice()
@@ -528,11 +575,11 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 		{
 			if (isCorrect)
 			{
-				textColor = Colors.White;
+				textColor = theme.OnSuccess;
 			}
 			else if (isSelected && !isCorrect)
 			{
-				textColor = Colors.White;
+				textColor = theme.OnDanger;
 			}
 		}
 

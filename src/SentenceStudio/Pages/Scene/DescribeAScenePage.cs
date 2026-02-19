@@ -206,7 +206,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 Image().Source(MyTheme.IconCheckbox).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
-            .Background(Color.FromArgb("#CCFFFFFF"))
+            .Background(BootstrapTheme.Current.GetSurface().WithAlpha(0.8f))
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Padding(4)
             .VEnd()
@@ -218,7 +218,7 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
                 Image().Source(MyTheme.IconCheckboxSelected).WidthRequest(24).HeightRequest(24)
             )
             .StrokeThickness(0)
-            .Background(Color.FromArgb("#CCFFFFFF"))
+            .Background(BootstrapTheme.Current.GetSurface().WithAlpha(0.8f))
             .StrokeShape(new RoundRectangle().CornerRadius(12))
             .Padding(4)
             .VEnd()
@@ -227,15 +227,19 @@ partial class DescribeAScenePage : Component<DescribeAScenePageState, ActivityPr
             .Margin(4)
         );
 
-    VisualNode RenderLoadingOverlay() => Grid(
+    VisualNode RenderLoadingOverlay()
+    {
+        var theme = BootstrapTheme.Current;
+        return Grid(
             Label(State.LoadingMessage)
                 .FontSize(32)
-                .TextColor(Colors.White)
+                .TextColor(theme.GetOnBackground())
                 .Center()
         )
-        .Background(Color.FromArgb("#80000000"))
+        .Background(theme.GetBackground().WithAlpha(0.9f))
         .IsVisible(State.IsBusy)
-        .GridRowSpan(2);  // Changed from 3 to 2 rows
+        .GridRowSpan(2);
+    }
 
     // Event handlers and other methods...
     async Task LoadScene()
