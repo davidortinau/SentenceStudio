@@ -69,7 +69,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
                         .Class("form-control"),
 
                     Button($"{_localize["FetchTranscripts"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .OnClicked(FetchTranscriptsAsync)
                         .IsEnabled(!State.IsLoadingTranscripts && !string.IsNullOrEmpty(State.VideoUrl))
                         .HStart(),
@@ -127,7 +127,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
                 // Polish with AI button
                 Button($"{_localize["PolishWithAI"]}")
-                    .Secondary()
+                    .Class("btn-secondary")
                     .OnClicked(PolishTranscriptWithAi)
                     .IsEnabled(!State.IsPolishingTranscript && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText))
@@ -135,7 +135,7 @@ partial class YouTubeImportPage : Component<YouTubeImportState>
 
                 // Save transcript button
                 Button($"{_localize["SaveAsLearningResource"]}")
-                    .Primary()
+                    .Class("btn-primary")
                     .OnClicked(SaveTranscriptAsResource)
                     .IsEnabled(!State.IsSavingResource && !string.IsNullOrEmpty(State.TranscriptText))
                     .IsVisible(!string.IsNullOrEmpty(State.TranscriptText) && State.SavedResourceId == null)

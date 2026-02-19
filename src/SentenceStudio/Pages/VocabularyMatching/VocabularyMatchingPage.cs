@@ -186,7 +186,7 @@ partial class VocabularyMatchingPage : Component<VocabularyMatchingPageState, Ac
                 .HCenter(),
 
             Button($"{_localize["PlayAgain"]}")
-                .Primary()
+                .Class("btn-primary")
                 .OnClicked(RestartGame)
                 .HCenter()
         )

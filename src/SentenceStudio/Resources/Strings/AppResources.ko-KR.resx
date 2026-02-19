@@ -287,6 +287,7 @@
   </data>
   <data name="SkillProfiles" xml:space="preserve">
     <value>기술 프로필</value>
+    <!-- singular to match Blazor UI -->
     <comment/>
   </data>
   <data name="Storyteller" xml:space="preserve">
@@ -630,7 +631,7 @@
     <comment>Dashboard page title</comment>
   </data>
   <data name="VocabProgress" xml:space="preserve">
-    <value>어휘 진행 상황</value>
+    <value>어휘</value>
     <comment>Vocabulary progress section title</comment>
   </data>
   <data name="LoadingContent" xml:space="preserve">

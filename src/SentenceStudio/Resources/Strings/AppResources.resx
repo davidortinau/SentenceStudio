@@ -286,8 +286,8 @@
     <comment/>
   </data>
   <data name="SkillProfiles" xml:space="preserve">
-    <value>Skill Profiles</value>
-    <comment/>
+    <value>Skill Profile</value>
+    <comment>Dashboard selector label (singular to match Blazor UI)</comment>
   </data>
   <data name="Storyteller" xml:space="preserve">
     <value>Story Teller</value>
@@ -734,8 +734,8 @@
     <comment>Dashboard page title</comment>
   </data>
   <data name="VocabProgress" xml:space="preserve">
-    <value>Vocabulary Progress</value>
-    <comment>Vocabulary progress section title</comment>
+    <value>Vocabulary</value>
+    <comment>Vocabulary section title on dashboard (matches Blazor UI)</comment>
   </data>
   <data name="Search" xml:space="preserve">
     <value>Search</value>

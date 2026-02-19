@@ -224,7 +224,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                                             .OnCheckedChanged(e =>
                                                 { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                                         Button($"{_localize["ImportVocabulary"]}")
-                                            .Secondary()
+                                            .Class("btn-secondary")
                                             .OnClicked(ImportVocabulary)
                                             .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                                             .HEnd(),
@@ -244,7 +244,7 @@ partial class AddLearningResourcePage : Component<AddLearningResourceState>
                             .Padding(16),
 
                             Button($"{_localize["SaveResource"]}")
-                                .Primary()
+                                .Class("btn-primary")
                                 .OnClicked(SaveResource)
                                 .HFill()
                         )

@@ -242,13 +242,13 @@ partial class SettingsPage : Component<SettingsPageState>
         var btn = Button(text)
             .ImageSource(BootstrapIcons.Create(iconGlyph, iconColor, 16))
             .HeightRequest(40)
-            .OnClicked(onClicked);
+            .OnClicked(onClicked)
+            .CornerRadius(0)
+            .BorderWidth(0);
 
-        btn = isActive
-            ? btn.Primary()
-            : btn.Background(new SolidColorBrush(Colors.Transparent))
-                 .TextColor(theme.GetOnBackground());
-        return btn.CornerRadius(0).BorderWidth(0);
+        return isActive
+            ? btn.Class("btn-primary")
+            : btn.Class("btn-outline-secondary");
     }
 
     private Button RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
@@ -261,13 +261,13 @@ partial class SettingsPage : Component<SettingsPageState>
             {
                 _quizPreferences.DisplayDirection = directionValue;
                 SetState(s => s.QuizDirection = directionValue);
-            });
+            })
+            .CornerRadius(0)
+            .BorderWidth(0);
 
-        btn = isActive
-            ? btn.Primary()
-            : btn.Background(new SolidColorBrush(Colors.Transparent))
-                 .TextColor(theme.GetOnBackground());
-        return btn.CornerRadius(0).BorderWidth(0);
+        return isActive
+            ? btn.Class("btn-primary")
+            : btn.Class("btn-outline-secondary");
     }
 
     private VisualNode RenderVoiceAndQuizSection()
@@ -419,14 +419,14 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 // Save Preferences button
                 Button($"{_localize["SavePreferences"]}")
-                    .Primary()
+                    .Class("btn-primary")
                     .HeightRequest(44)
                     .OnClicked(async () => await AppShell.DisplayToastAsync($"{_localize["PreferencesSaved"]}")),
 
                 // Reset button
                 Button($"{_localize["ResetToDefaults"]}")
                     .HeightRequest(44)
-                    .Secondary()
+                    .Class("btn-secondary")
                     .OnClicked(() =>
                     {
                         _quizPreferences.ResetToDefaults();
@@ -495,7 +495,7 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"{_localize["ExportData"]}")
                     .HeightRequest(44)
-                    .Secondary()
+                    .Class("btn-secondary")
                     .IsEnabled(!State.IsExporting)
                     .OnClicked(async () => await ExportDataInternalAsync())
                     .Margin(0, 4, 0, 0)
@@ -545,7 +545,7 @@ partial class SettingsPage : Component<SettingsPageState>
                             )
                             :
                             Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
-                                .Secondary()
+                                .Class("btn-secondary")
                                 .HeightRequest(44)
                                 .IsEnabled(!State.IsMigrating)
                                 .OnClicked(async () => await RunStreakMigrationInternalAsync())

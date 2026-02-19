@@ -47,7 +47,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                         .Muted()
                         .HCenter(),
                     Button($"{_localize["Add"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .HCenter()
                         .OnClicked(async () => await AddProfile())
                   )

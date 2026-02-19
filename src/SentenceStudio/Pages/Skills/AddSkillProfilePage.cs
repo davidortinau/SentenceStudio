@@ -70,7 +70,7 @@ partial class AddSkillProfilePage : Component<AddSkillProfilePageState>
                     .Padding(16),
 
                     Button("Save Skill Profile")
-                        .Primary()
+                        .Class("btn-primary")
                         .HeightRequest(44)
                         .HFill()
                         .OnClicked(SaveProfile)

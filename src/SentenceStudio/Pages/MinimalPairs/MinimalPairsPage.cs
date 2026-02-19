@@ -160,7 +160,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
             HStack(spacing: 0,
                 State.SelectedMode == PracticeMode.Focus
                     ? Button($"{_localize["MinimalPairsModeFocus"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .OnClicked(() => SetState(s => s.SelectedMode = PracticeMode.Focus))
                     : Button($"{_localize["MinimalPairsModeFocus"]}")
                         .Outlined()
@@ -168,7 +168,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
 
                 State.SelectedMode == PracticeMode.Mixed
                     ? Button($"{_localize["MinimalPairsModeMixed"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .OnClicked(() => SetState(s =>
                         {
                             s.SelectedMode = PracticeMode.Mixed;
@@ -188,7 +188,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                 ? Button(State.SelectedMode == PracticeMode.Focus
                         ? $"{_localize["MinimalPairsStartSession"]}"
                         : $"{_localize["MinimalPairsStartSession"]} ({State.UserPairs.Count} pairs)")
-                    .Primary()
+                    .Class("btn-primary")
                     .IsEnabled(State.SelectedMode == PracticeMode.Mixed || State.SelectedPairId != null)
                     .OnClicked(async () => await StartSessionAsync())
                 : null
@@ -205,7 +205,7 @@ partial class MinimalPairsPage : Component<MinimalPairsPageState>
                 .HCenter(),
             Button($"{_localize["CreateYourFirstPair"]}")
                 .OnClicked(() => OnCreatePair())
-                .Primary()
+                .Class("btn-primary")
                 .HCenter()
         )
         .Center()

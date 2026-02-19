@@ -487,7 +487,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                         !string.IsNullOrWhiteSpace(State.Resource.Transcript) ?
                             HStack(
                                 Button($"{_localize["Generate"]}")
-                                    .Secondary()
+                                    .Class("btn-secondary")
                                     .OnClicked(GenerateVocabulary)
                                     .IsEnabled(!State.IsGeneratingVocabulary)
                                     .Opacity(State.IsGeneratingVocabulary ? 0.5 : 1.0),
@@ -534,7 +534,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                             .OnCheckedChanged(e =>
                                 { if (e.Value) SetState(s => s.Delimiter = "tab"); }),
                         Button($"{_localize["ImportVocabulary"]}")
-                            .Secondary()
+                            .Class("btn-secondary")
                             .OnClicked(ImportVocabulary)
                             .IsEnabled(!string.IsNullOrWhiteSpace(State.VocabList))
                     ).Spacing(8),

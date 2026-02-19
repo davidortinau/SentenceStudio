@@ -295,9 +295,8 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         // Wrap in Border for per-corner radius (Button CornerRadius is uniform)
         return Border(
             isActive
-                ? btn.Primary()
-                : btn.Background(new SolidColorBrush(Colors.Transparent))
-                     .TextColor(theme.GetOnBackground())
+                ? btn.Class("btn-primary")
+                : btn.Class("btn-outline-secondary")
         )
         .Stroke(theme.GetOutline())
         .StrokeThickness(1)
@@ -378,11 +377,11 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                         .VCenter()
                         .HFill(),
                     Button($"{_localize["Delete"]}")
-                        .Danger()
+                        .Class("btn-danger")
                         .OnClicked(BulkDeleteSelected)
                         .IsEnabled(State.SelectedWordIds.Any()),
                     Button($"{_localize["Associate"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .OnClicked(BulkAssociateSelected)
                         .IsEnabled(State.SelectedWordIds.Any())
                 )
@@ -407,7 +406,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
                 !State.AllVocabularyItems.Any() ?
                     Button($"{_localize["GetStarted"]}")
-                        .Primary()
+                        .Class("btn-primary")
                         .OnClicked(async () => await ToggleQuickAdd())
                         .HCenter()
                         .Margin(0, 20, 0, 0) :

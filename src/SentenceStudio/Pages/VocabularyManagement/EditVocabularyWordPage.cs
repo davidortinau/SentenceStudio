@@ -268,7 +268,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                     ActivityIndicator().IsRunning(true).WidthRequest(24).HeightRequest(24) :
                     HStack(spacing: 8,
                         Button($"{_localize["GenerateWithAI"]}")
-                            .Primary()
+                            .Class("btn-primary")
                             .OnClicked(() => _ = GenerateExampleSentencesAsync()),
 
                         Button($"{_localize["AddManually"]}")
@@ -331,7 +331,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
                         .OnClicked(() => _ = ToggleSentenceCoreAsync(sentence.Id)),
 
                     Button("Delete")
-                        .Danger()
+                        .Class("btn-danger")
                         .OnClicked(() => _ = DeleteSentenceAsync(sentence.Id))
                 )
             )
@@ -503,7 +503,7 @@ partial class EditVocabularyWordPage : Component<EditVocabularyWordPageState, Vo
             columns: Props.VocabularyWordId > 0 ? "*,Auto" : "*",
             // Save/Add button on the left
             Button(Props.VocabularyWordId == 0 ? "Add Vocabulary Word" : "Save Changes")
-                .Primary()
+                .Class("btn-primary")
                 .OnClicked(SaveVocabularyWord)
                 .IsEnabled(!State.IsSaving &&
                           !string.IsNullOrWhiteSpace(State.TargetLanguageTerm.Trim()) &&

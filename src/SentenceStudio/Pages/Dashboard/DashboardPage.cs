@@ -212,14 +212,13 @@ partial class DashboardPage : Component<DashboardPageState>
             .ImageSource(BootstrapIcons.Create(icon, iconColor, 16))
             .HeightRequest(44)
             .HFill()
-            .OnClicked(onClicked);
+            .OnClicked(onClicked)
+            .CornerRadius(0)
+            .BorderWidth(0);
 
-        btn = isActive
-            ? btn.Primary()
-            : btn.Background(new SolidColorBrush(Colors.Transparent))
-                 .TextColor(theme.GetOnBackground());
-
-        return btn.CornerRadius(0).BorderWidth(0);
+        return isActive
+            ? btn.Class("btn-primary")
+            : btn.Class("btn-outline-secondary");
     }
 
     VisualNode RenderTodaysPlanMode()
@@ -256,7 +255,7 @@ partial class DashboardPage : Component<DashboardPageState>
                         .HCenter()
                         .HorizontalTextAlignment(TextAlignment.Center),
                     Button("Generate Plan")
-                        .Primary()
+                        .Class("btn-primary")
                         .HeightRequest(44)
                         .HCenter()
                         .OnClicked(LoadTodaysPlanAsync)

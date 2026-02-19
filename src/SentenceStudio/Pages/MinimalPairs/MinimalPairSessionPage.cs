@@ -430,7 +430,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["CheckAnswer"]}")
-                .Primary()
+                .Class("btn-primary")
                 .OnClicked(async () => await OnCheckAnswerAsync())
                 .IsEnabled(State.SelectedWordId.HasValue && !State.IsDebouncing && !State.HasCheckedAnswer)
                 .HCenter()
@@ -555,7 +555,7 @@ partial class MinimalPairSessionPage : Component<MinimalPairSessionPageState, Mi
             .HCenter(),
 
             Button($"{_localize["Done"]}")
-                .Primary()
+                .Class("btn-primary")
                 .OnClicked(async () => await MauiControls.Shell.Current.GoToAsync(".."))
         )
         .VCenter()

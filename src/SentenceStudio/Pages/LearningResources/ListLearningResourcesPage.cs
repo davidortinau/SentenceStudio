@@ -95,7 +95,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
 
                                         VStack(
                                             Button("Add Your First Resource")
-                                                .Primary()
+                                                .Class("btn-primary")
                                                 .OnClicked(AddResource)
                                                 .HCenter()
                                                 .WidthRequest(200),
@@ -104,7 +104,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .OnClicked(CreateStarterResource)
                                                 .HCenter()
                                                 .WidthRequest(200)
-                                                .Secondary()
+                                                .Class("btn-secondary")
                                         )
                                         .Spacing(8)
                                     )

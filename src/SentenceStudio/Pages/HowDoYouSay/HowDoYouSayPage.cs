@@ -168,7 +168,7 @@ partial class HowDoYouSayPage : Component<HowDoYouSayPageState>
 			.Padding(8),
 			HStack(
 				Button("Submit")
-					.Primary()
+					.Class("btn-primary")
 					.HFill()
 					.OnClicked(Submit),
 				Button(State.SelectedVoiceDisplayName)

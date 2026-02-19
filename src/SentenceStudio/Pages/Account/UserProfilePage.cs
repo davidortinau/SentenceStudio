@@ -168,7 +168,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                         .HeightRequest(36)
                                         .FontSize(13)
                                         .Margin(0, 0, 4, 4);
-                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary());
+                                    return (VisualNode)(isActive ? btn.Class("btn-primary") : btn.Class("btn-secondary"));
                                 }).ToArray()
                             ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("How long you'd like to practice each day. Plans adapt to your choice.")
@@ -189,7 +189,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                         .HeightRequest(36)
                                         .FontSize(13)
                                         .Margin(0, 0, 4, 4);
-                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary());
+                                    return (VisualNode)(isActive ? btn.Class("btn-primary") : btn.Class("btn-secondary"));
                                 }).ToArray()
                             ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("Your language proficiency goal. Helps AI choose appropriate resources.")
@@ -225,7 +225,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                     // Save Button
                     Button($"{_localize["Save"]}")
                         .OnClicked(Save)
-                        .Primary()
+                        .Class("btn-primary")
                         .HFill(),
 
                     // Data Export Card
@@ -254,13 +254,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 Button($"{_localize["SaveToDevice"]}")
                                     .OnClicked(ExportDataToFile)
                                     .ImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 16))
-                                    .Secondary()
+                                    .Class("btn-secondary")
                                     .HFill(),
 
                                 Button($"{_localize["Share"]}")
                                     .OnClicked(ExportAndShare)
                                     .ImageSource(BootstrapIcons.Create(BootstrapIcons.Share, theme.GetOnBackground(), 16))
-                                    .Secondary()
+                                    .Class("btn-secondary")
                                     .HFill()
                             ),
 
@@ -281,7 +281,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
 
                             Button($"{_localize["Reset"]}")
                                 .OnClicked(Reset)
-                                .Danger()
+                                .Class("btn-danger")
                                 .HFill()
                         )
                     )

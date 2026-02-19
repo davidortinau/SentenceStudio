@@ -266,7 +266,7 @@ partial class ClozurePage : Component<ClozurePageState, ActivityProps>
 					// Continue button
 					Button("Continue Practice")
 						.OnClicked(ContinueAfterSummary)
-						.Primary()
+						.Class("btn-primary")
 						.Padding(24, 8)
 						.Margin(0, 16)
 				)

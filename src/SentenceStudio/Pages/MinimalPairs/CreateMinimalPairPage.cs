@@ -242,7 +242,7 @@ partial class CreateMinimalPairPage : Component<CreateMinimalPairPageState>
 
                 // Create button
                 Button($"{_localize["Create"]}")
-                    .Primary()
+                    .Class("btn-primary")
                     .OnClicked(async () => await OnCreatePairAsync())
                     .IsEnabled(!State.IsSaving && State.SelectedWordA != null && State.SelectedWordB != null)
             )

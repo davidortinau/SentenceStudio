@@ -44,8 +44,9 @@ public class NativeThemeService
 
     public void Initialize()
     {
-        ApplyTheme(_currentTheme);
+        // Apply mode FIRST so the theme constructor picks up dark/light state
         ApplyMode(_currentMode);
+        ApplyTheme(_currentTheme);
     }
 
     public void SetTheme(string theme)
@@ -83,7 +84,20 @@ public class NativeThemeService
     private void ApplyMode(string mode)
     {
         if (Application.Current != null)
+        {
             Application.Current.UserAppTheme = mode == "dark" ? AppTheme.Dark : AppTheme.Light;
+            
+            // The ResourceDictionary's ApplyThemeMode updates DynamicResource values,
+            // but BootstrapTheme.Current properties need re-syncing for native handlers
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (Application.Current?.Resources != null)
+                {
+                    BootstrapTheme.SyncFromResources(Application.Current.Resources);
+                    BootstrapTheme.RefreshHandlers();
+                }
+            });
+        }
     }
 
     private void OnThemeChanged()

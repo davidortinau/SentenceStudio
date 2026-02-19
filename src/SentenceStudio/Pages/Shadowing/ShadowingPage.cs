@@ -783,7 +783,7 @@ partial class ShadowingPage : Component<ShadowingPageState, ActivityProps>
                     ) :
                     VStack(
                         Button("Save as MP3")
-                            .Primary()
+                            .Class("btn-primary")
                             .OnClicked(SaveAudioAsMp3)
                             .Margin(0, 0, 0, 8),
 

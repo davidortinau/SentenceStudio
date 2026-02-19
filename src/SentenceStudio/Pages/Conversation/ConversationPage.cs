@@ -646,7 +646,7 @@ partial class ConversationPage : Component<ConversationPageState, ActivityProps>
                 .StrokeThickness(1)
                 .VEnd(),
             Button($"{_localize["Send"]}")
-                .Primary()
+                .Class("btn-primary")
                 .IsEnabled(!isWaiting && !string.IsNullOrWhiteSpace(State.UserInput))
                 .OnClicked(async () => await SendMessage())
                 .VCenter()

@@ -3782,7 +3782,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Skill Profiles.
+        ///   Looks up a localized string similar to Skill Profile.
         /// </summary>
         internal static string SkillProfiles {
             get {
@@ -4349,7 +4349,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Vocabulary Progress.
+        ///   Looks up a localized string similar to Vocabulary.
         /// </summary>
         internal static string VocabProgress {
             get {

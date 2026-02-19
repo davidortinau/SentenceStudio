@@ -73,7 +73,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
 
                     HStack(
                         Button("Save")
-                            .Primary()
+                            .Class("btn-primary")
                             .OnClicked(SaveWord),
 
                         Button("Cancel")

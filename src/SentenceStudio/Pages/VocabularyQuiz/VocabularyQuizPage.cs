@@ -345,7 +345,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                             // Next Activity button (for plan mode)
                             Button($"{_localize["PlanNextActivityButton"]}")
                                 .OnClicked(async () => await NavigateToNextPlanActivity())
-                                .Primary()
+                                .Class("btn-primary")
                                 .Padding(24, 16)
                                 .IsEnabled(IsSessionGoalMet()),
 
@@ -357,7 +357,7 @@ partial class VocabularyQuizPage : Component<VocabularyQuizPageState, ActivityPr
                         )
                         : Button($"{_localize["ContinueToNextSession"]}")
                             .OnClicked(async () => await SetupNewRound())
-                            .Primary()
+                            .Class("btn-primary")
                             .Padding(24, 16)
                             .Margin(0, 16)
                 )
