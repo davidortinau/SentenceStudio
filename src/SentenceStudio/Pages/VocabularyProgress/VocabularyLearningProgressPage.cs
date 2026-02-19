@@ -221,6 +221,7 @@ partial class VocabularyLearningProgressPage : Component<VocabularyLearningProgr
                 .Placeholder($"{_localize["SearchVocabulary"]}")
                 .Text(State.SearchText)
                 .OnTextChanged(OnSearchTextChanged)
+                .Class("form-control")
         ).Padding(16, 8, 16, 8).GridRow(0);
     }
 

@@ -201,17 +201,11 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     // Action buttons
                     Button($"{_localize["ContinuePractice"]}")
                         .OnClicked(ContinuePractice)
-                        .Background(new SolidColorBrush(theme.Primary))
-                        .TextColor(BootstrapTheme.Current.OnPrimary)
-                        .CornerRadius(8)
-                        .Padding(24, 16),
+                        .Class("btn-primary"),
 
                     Button($"{_localize["Done"]}")
                         .OnClicked(DoneWithSession)
-                        .Background(new SolidColorBrush(theme.GetSurface()))
-                        .TextColor(theme.GetOnSurface())
-                        .CornerRadius(8)
-                        .Padding(24, 16)
+                        .Class("btn-outline-secondary")
                 )
                 .Padding(new Thickness(16))
             )
@@ -329,7 +323,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
         var theme = BootstrapTheme.Current;
         return Grid("1,*", "60,1,*,1,60,1,60",
             Button(State.IsBusy ? $"{_localize["Grading"]}" : "GO")
-                .Background(Colors.Transparent)
+                .Class("btn-primary")
                 .GridRow(1).GridColumn(4)
                 .IsEnabled(!State.IsBusy)
                 .OnClicked(GradeMe),

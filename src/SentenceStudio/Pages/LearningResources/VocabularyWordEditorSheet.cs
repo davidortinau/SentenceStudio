@@ -51,33 +51,23 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
 
                     VStack(
                         Label("Target Language Term")
-                            .FontAttributes(FontAttributes.Bold)
+                            .Class("form-label")
                             .HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Word.TargetLanguageTerm)
-                                .OnTextChanged(text => SetState(s => s.Word.TargetLanguageTerm = text))
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                        Entry()
+                            .Text(State.Word.TargetLanguageTerm)
+                            .OnTextChanged(text => SetState(s => s.Word.TargetLanguageTerm = text))
+                            .Class("form-control")
                     )
                     .Spacing(5),
 
                     VStack(
                         Label("Native Language Term")
-                            .FontAttributes(FontAttributes.Bold)
+                            .Class("form-label")
                             .HStart(),
-                        Border(
-                            Entry()
-                                .Text(State.Word.NativeLanguageTerm)
-                                .OnTextChanged(text => SetState(s => s.Word.NativeLanguageTerm = text))
-                        )
-                        .BackgroundColor(theme.GetSurface())
-                        .Stroke(theme.GetOutline())
-                        .StrokeThickness(1)
-                        .Padding(8)
+                        Entry()
+                            .Text(State.Word.NativeLanguageTerm)
+                            .OnTextChanged(text => SetState(s => s.Word.NativeLanguageTerm = text))
+                            .Class("form-control")
                     )
                     .Spacing(5),
 
@@ -87,10 +77,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
                             .OnClicked(SaveWord),
 
                         Button("Cancel")
-                            .Background(new SolidColorBrush(Colors.Transparent))
-                            .TextColor(theme.GetOnBackground())
-                            .BorderColor(theme.GetOutline())
-                            .BorderWidth(1)
+                            .Class("btn-outline-secondary")
                             .OnClicked(Cancel)
                     )
                     .Spacing(10)
