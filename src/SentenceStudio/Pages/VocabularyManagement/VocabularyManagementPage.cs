@@ -225,20 +225,24 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
 
     private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) => Invalidate();
 
-    // Top section: stats bar, search input, and filter selector
+    // Top section: stats bar, search input, and filter toggle buttons
     VisualNode RenderTopSection()
     {
         var theme = BootstrapTheme.Current;
+        var hasActiveFilters = !string.IsNullOrWhiteSpace(State.RawSearchQuery) ||
+                               State.SelectedFilter != VocabularyFilter.All ||
+                               State.ParsedQuery != null;
+
         return VStack(spacing: 8,
-            // Gap 1: Stats badges
+            // Stats badges
             HStack(spacing: 8,
-                RenderStatsBadge($"{_localize["Total"]}: {State.Stats.TotalWords}", theme.Primary),
+                RenderStatsBadge($"{_localize["Total"]}: {State.Stats.TotalWords}", theme.Secondary),
                 RenderStatsBadge($"{_localize["Associated"]}: {State.Stats.AssociatedWords}", theme.Success),
                 RenderStatsBadge($"{_localize["Orphaned"]}: {State.Stats.OrphanedWords}", theme.Warning)
             ),
 
-            // Gap 2: Search + filter (Blazor layout: input + select + clear btn in a row)
-            Grid(rows: "Auto", columns: "*,Auto,Auto",
+            // Search bar (full width, matching Blazor)
+            Grid(rows: "Auto", columns: "*,Auto",
                 Entry()
                     .Placeholder($"{_localize["SearchVocabulary"]}")
                     .Text(State.RawSearchQuery)
@@ -248,38 +252,51 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                     .HeightRequest(44)
                     .HFill()
                     .GridColumn(0),
+                hasActiveFilters
+                    ? Button("✕")
+                        .Class("btn-outline-secondary").Class("btn-sm")
+                        .OnClicked(ClearAllFilters)
+                        .HeightRequest(44)
+                        .GridColumn(1)
+                    : (VisualNode)ContentView().GridColumn(1)
+            ).ColumnSpacing(8),
 
-                Picker()
-                    .Title($"{_localize["All"]}")
-                    .ItemsSource(new List<string> { $"{_localize["All"]}", $"{_localize["Associated"]}", $"{_localize["Orphaned"]}" })
-                    .SelectedIndex(State.SelectedFilter switch {
-                        VocabularyFilter.All => 0,
-                        VocabularyFilter.Associated => 1,
-                        VocabularyFilter.Orphaned => 2,
-                        _ => 0
-                    })
-                    .OnSelectedIndexChanged(idx =>
-                    {
-                        var filter = idx switch {
-                            1 => VocabularyFilter.Associated,
-                            2 => VocabularyFilter.Orphaned,
-                            _ => VocabularyFilter.All
-                        };
-                        SetState(s => s.SelectedFilter = filter);
-                        ApplyFilters();
-                    })
-                    .Class("form-select")
-                    .HeightRequest(44)
-                    .WidthRequest(160)
-                    .GridColumn(1),
-
-                RenderFilterButtons(
-                        !string.IsNullOrWhiteSpace(State.RawSearchQuery) ||
-                        State.SelectedFilter != VocabularyFilter.All ||
-                        State.ParsedQuery != null)
-                    .GridColumn(2)
-            ).ColumnSpacing(8)
+            // Filter toggle buttons matching Blazor: All | Associated | Orphaned
+            HStack(spacing: 0,
+                RenderFilterToggle($"{_localize["All"]}", VocabularyFilter.All, isFirst: true, isLast: false),
+                RenderFilterToggle($"{_localize["Associated"]}", VocabularyFilter.Associated, isFirst: false, isLast: false),
+                RenderFilterToggle($"{_localize["Orphaned"]}", VocabularyFilter.Orphaned, isFirst: false, isLast: true)
+            )
         ).Padding(16, 8);
+    }
+
+    VisualNode RenderFilterToggle(string label, VocabularyFilter filter, bool isFirst, bool isLast)
+    {
+        var isActive = State.SelectedFilter == filter;
+        var theme = BootstrapTheme.Current;
+
+        // Segmented button: active = btn-primary, inactive = btn-outline-secondary
+        var topLeft = isFirst ? 6 : 0;
+        var topRight = isLast ? 6 : 0;
+        var bottomLeft = isFirst ? 6 : 0;
+        var bottomRight = isLast ? 6 : 0;
+
+        return Border(
+            Label(label)
+                .Class("small")
+                .TextColor(isActive ? theme.OnPrimary : theme.GetOnBackground())
+                .HCenter().VCenter()
+        )
+        .BackgroundColor(isActive ? theme.Primary : Colors.Transparent)
+        .Stroke(theme.GetOutline())
+        .StrokeThickness(1)
+        .StrokeShape(new RoundRectangle().CornerRadius(topLeft, topRight, bottomLeft, bottomRight))
+        .Padding(12, 6)
+        .OnTapped(() =>
+        {
+            SetState(s => s.SelectedFilter = filter);
+            ApplyFilters();
+        });
     }
 
     VisualNode RenderStatsBadge(string text, Color bgColor)
@@ -294,72 +311,54 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
         .Background(bgColor);
     }
 
-    // Bottom bar with compact search and icon filters (or bulk actions in multi-select mode)
+    // Bottom bar with filter icons (matching Blazor) or bulk actions in multi-select mode
     VisualNode RenderBottomBar()
-        => State.IsMultiSelectMode ? RenderBulkActionsBar() : ContentView().HeightRequest(0);
-
-    VisualNode RenderFilterButtons(bool includeClearButton)
     {
+        if (State.IsMultiSelectMode)
+            return RenderBulkActionsBar();
+
         var theme = BootstrapTheme.Current;
         var bgColor = theme.GetSurface();
-        return HStack(spacing: 8,
-            // Tag filter button
-            State.AvailableTags.Any() ?
+        return Border(
+            HStack(spacing: 12,
+                // Filter icon buttons matching Blazor's bottom bar
+                State.AvailableTags.Any() ?
+                    ImageButton()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Tag, theme.GetOnBackground(), 18))
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .OnClicked(() => OpenFilterSheet("tag")) :
+                    null,
+
+                State.AvailableResources.Any() ?
+                    ImageButton()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Book, theme.GetOnBackground(), 18))
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .OnClicked(() => OpenFilterSheet("resource")) :
+                    null,
+
+                State.AvailableLemmas.Any() ?
+                    ImageButton()
+                        .Source(BootstrapIcons.Create(BootstrapIcons.Braces, theme.GetOnBackground(), 18))
+                        .Background(new SolidColorBrush(Colors.Transparent))
+                        .HeightRequest(36)
+                        .WidthRequest(36)
+                        .OnClicked(() => OpenFilterSheet("lemma")) :
+                    null,
+
                 ImageButton()
-                    .Source(BootstrapIcons.Create(BootstrapIcons.Tag, theme.GetOnBackground(), 16))
-                    .Background(new SolidColorBrush(bgColor))
+                    .Source(BootstrapIcons.Create(BootstrapIcons.Funnel, theme.GetOnBackground(), 18))
+                    .Background(new SolidColorBrush(Colors.Transparent))
                     .HeightRequest(36)
                     .WidthRequest(36)
-                    .CornerRadius(18)
-                    .Padding(6)
-                    .OnClicked(() => OpenFilterSheet("tag")) :
-                null,
-
-            // Resource filter button
-            State.AvailableResources.Any() ?
-                ImageButton()
-                    .Source(BootstrapIcons.Create(BootstrapIcons.Book, theme.GetOnBackground(), 16))
-                    .Background(new SolidColorBrush(bgColor))
-                    .HeightRequest(36)
-                    .WidthRequest(36)
-                    .CornerRadius(18)
-                    .Padding(6)
-                    .OnClicked(() => OpenFilterSheet("resource")) :
-                null,
-
-            // Lemma filter button
-            State.AvailableLemmas.Any() ?
-                ImageButton()
-                    .Source(BootstrapIcons.Create(BootstrapIcons.Braces, theme.GetOnBackground(), 16))
-                    .Background(new SolidColorBrush(bgColor))
-                    .HeightRequest(36)
-                    .WidthRequest(36)
-                    .CornerRadius(18)
-                    .Padding(6)
-                    .OnClicked(() => OpenFilterSheet("lemma")) :
-                null,
-
-            // Status filter button
-            ImageButton()
-                .Source(BootstrapIcons.Create(BootstrapIcons.Funnel, theme.GetOnBackground(), 16))
-                .Background(new SolidColorBrush(bgColor))
-                .HeightRequest(36)
-                .WidthRequest(36)
-                .CornerRadius(18)
-                .Padding(6)
-                .OnClicked(() => OpenFilterSheet("status")),
-
-            includeClearButton ?
-                ImageButton()
-                    .Source(BootstrapIcons.Create(BootstrapIcons.XLg, theme.GetOnBackground(), 16))
-                    .Background(new SolidColorBrush(bgColor))
-                    .HeightRequest(36)
-                    .WidthRequest(36)
-                    .CornerRadius(18)
-                    .Padding(6)
-                    .OnClicked(ClearAllFilters) :
-                null
-        ).VStart();
+                    .OnClicked(() => OpenFilterSheet("status"))
+            ).HEnd().VCenter()
+        )
+        .BackgroundColor(bgColor)
+        .Padding(8, 4);
     }
 
     VisualNode RenderBulkActionsBar()
@@ -526,43 +525,28 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
     {
         var theme = BootstrapTheme.Current;
 
-        // Status badge color/class matching Blazor GetStatusBadgeClass
-        var statusBgColor = item.IsKnown ? theme.Success :
-                            item.IsLearning ? theme.Warning :
-                            theme.Secondary;
+        // Status color matching Blazor GetStatusBadgeClass
+        var statusColor = item.IsKnown ? theme.Success :
+                          item.IsLearning ? theme.Warning :
+                          theme.Secondary;
+
+        // Build bottom status line matching Blazor: "Known · 1 resource(s)" as colored text
+        var resourceCount = item.AssociatedResources?.Count ?? 0;
+        var statusLine = item.IsOrphaned
+            ? $"⚠ {_localize["Orphaned"]}"
+            : $"{item.StatusText} · {string.Format($"{_localize["ResourceCount"]}", resourceCount)}";
 
         return VStack(spacing: 4,
-            // Top row: term + status badge right-aligned
-            Grid(rows: "Auto", columns: "*,Auto",
-                VStack(spacing: 2,
-                    Label(item.Word.TargetLanguageTerm ?? "")
-                        .H6(),
-                    Label(item.Word.NativeLanguageTerm ?? "")
-                        .Small()
-                        .Muted()
-                ).GridColumn(0),
-                Border(
-                    Label(item.StatusText)
-                        .Class("small")
-                        .TextColor(item.IsLearning ? theme.Dark : theme.OnPrimary)
-                        .Padding(6, 2)
-                )
-                .Class("badge")
-                .Background(statusBgColor)
-                .VStart()
-                .GridColumn(1)
-            ),
-            // Bottom row: orphaned/resource info + tags
-            HStack(spacing: 8,
-                item.IsOrphaned
-                    ? Label($"⚠ {_localize["Orphaned"]}")
-                        .Small()
-                        .TextColor(theme.Warning)
-                    : Label($"📚 {string.Format($"{_localize["ResourceCount"]}", item.AssociatedResources.Count)}")
-                        .Small()
-                        .Muted(),
-                RenderTagBadges(item.Word)
-            ).Margin(0, 4, 0, 0)
+            Label(item.Word.TargetLanguageTerm ?? "")
+                .H6(),
+            Label(item.Word.NativeLanguageTerm ?? "")
+                .Class("small")
+                .Muted(),
+            // Combined status + resource count as colored text (matches Blazor layout)
+            Label(statusLine)
+                .Class("small")
+                .TextColor(item.IsOrphaned ? theme.Warning : statusColor)
+                .Margin(0, 4, 0, 0)
         );
     }
 
