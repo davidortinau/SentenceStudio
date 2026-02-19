@@ -85,7 +85,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                     GridLayoutHelper.CalculateResponsiveLayout(
                                         desiredItemWidth: 400,
                                         orientation: ItemsLayoutOrientation.Vertical,
-                                        maxColumns: 4))
+                                        maxColumns: 3))
                                 .ItemsSource(State.Resources, RenderResourceItem)
                                 .EmptyView(
                                     VStack(

@@ -56,8 +56,8 @@ public static class GridLayoutHelper
         var spacing = customSpacing ?? 16;
         var containerPadding = customPadding ?? 16;
 
-        // Calculate available width after accounting for container padding
-        var availableWidth = screenWidth - containerPadding;
+        // Calculate available width after accounting for container padding on both sides
+        var availableWidth = screenWidth - (containerPadding * 2);
 
         // Calculate how many items can fit including spacing
         var itemWidthWithSpacing = desiredItemWidth + spacing;
