@@ -248,7 +248,8 @@ partial class SettingsPage : Component<SettingsPageState>
 
         return isActive
             ? btn.Class("btn-primary")
-            : btn.Class("btn-outline-secondary");
+            : btn.Class("btn-outline-secondary")
+                  .Background(new SolidColorBrush(Colors.Transparent));
     }
 
     private Button RenderDirectionButton(string text, string directionValue, BootstrapTheme theme)
@@ -267,7 +268,8 @@ partial class SettingsPage : Component<SettingsPageState>
 
         return isActive
             ? btn.Class("btn-primary")
-            : btn.Class("btn-outline-secondary");
+            : btn.Class("btn-outline-secondary")
+                  .Background(new SolidColorBrush(Colors.Transparent));
     }
 
     private VisualNode RenderVoiceAndQuizSection()

@@ -206,6 +206,7 @@ partial class TranslationPage : Component<TranslationPageState, ActivityProps>
                     Button($"{_localize["Done"]}")
                         .OnClicked(DoneWithSession)
                         .Class("btn-outline-secondary")
+                        .Background(new SolidColorBrush(Colors.Transparent))
                 )
                 .Padding(new Thickness(16))
             )

@@ -218,7 +218,8 @@ partial class DashboardPage : Component<DashboardPageState>
 
         return isActive
             ? btn.Class("btn-primary")
-            : btn.Class("btn-outline-secondary");
+            : btn.Class("btn-outline-secondary")
+                  .Background(new SolidColorBrush(Colors.Transparent));
     }
 
     VisualNode RenderTodaysPlanMode()

@@ -78,6 +78,7 @@ partial class VocabularyWordEditorSheet : Component<VocabularyWordEditorSheetSta
 
                         Button("Cancel")
                             .Class("btn-outline-secondary")
+                            .Background(new SolidColorBrush(Colors.Transparent))
                             .OnClicked(Cancel)
                     )
                     .Spacing(10)

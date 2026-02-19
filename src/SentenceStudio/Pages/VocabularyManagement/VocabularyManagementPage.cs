@@ -255,6 +255,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 hasActiveFilters
                     ? Button("✕")
                         .Class("btn-outline-secondary").Class("btn-sm")
+                        .Background(new SolidColorBrush(Colors.Transparent))
                         .OnClicked(ClearAllFilters)
                         .HeightRequest(44)
                         .GridColumn(1)
@@ -297,6 +298,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             isActive
                 ? btn.Class("btn-primary")
                 : btn.Class("btn-outline-secondary")
+                      .Background(new SolidColorBrush(Colors.Transparent))
         )
         .Stroke(theme.GetOutline())
         .StrokeThickness(1)
