@@ -138,12 +138,12 @@ partial class SettingsPage : Component<SettingsPageState>
             VStack(spacing: 16,
                 // Section heading
                 Label($"{_localize["Appearance"]}")
-                    .H4()
+                    .H5()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                 // Theme swatches
                 Label($"{_localize["ChooseTheme"]}")
-                    .Class("form-label")
+                    .Class("form-label").Muted()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                 FlexLayout(
@@ -155,7 +155,7 @@ partial class SettingsPage : Component<SettingsPageState>
 
                 // Light/Dark mode toggle
                 Label($"{_localize["DisplayMode"]}")
-                    .Class("form-label")
+                    .Class("form-label").Muted()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
                 new SegmentedButtonGroup()
@@ -174,7 +174,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Text Size slider
                 VStack(spacing: 4,
                     Label($"{_localize["TextSize"]}: {(int)(State.FontScale * 100)}%")
-                        .Class("form-label")
+                        .Class("form-label").Muted()
                         .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Slider()
                         .Minimum(0.85)
@@ -196,7 +196,7 @@ partial class SettingsPage : Component<SettingsPageState>
             .Padding(16)
         )
         .Class("card")
-        .Padding(16);
+        .PaddingLevel(4);
     }
 
     private VisualNode RenderThemeSwatch(string themeId, BootstrapTheme theme)
@@ -277,14 +277,14 @@ partial class SettingsPage : Component<SettingsPageState>
         return Border(
             VStack(spacing: 16,
                 Label($"{_localize["VoiceAndQuizSettings"]}")
-                    .H4()
+                    .H5()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground()),
 
                 // Language selection for voice
                 VStack(spacing: 4,
                     Label($"{_localize["VoiceLanguage"]}")
-                        .Class("form-label")
+                        .Class("form-label").Muted()
                         .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["VoiceLanguageDescription"]}")
                         .Small()
@@ -302,7 +302,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Voice selection for selected language
                 VStack(spacing: 4,
                     Label($"{_localize["PreferredVoice"]}")
-                        .Class("form-label")
+                        .Class("form-label").Muted()
                         .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["PreferredVoiceDescription"]}")
                         .Small()
@@ -331,7 +331,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Quiz direction — 3-way segmented control
                 VStack(spacing: 4,
                     Label($"{_localize["QuizDirection"]}")
-                        .Class("form-label")
+                        .Class("form-label").Muted()
                         .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["QuizDirectionDescription"]}")
                         .Small()
@@ -356,7 +356,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 HStack(spacing: 8,
                     VStack(spacing: 2,
                         Label($"{_localize["Autoplay"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                         Label($"{_localize["AutoplayDescription"]}")
                             .Small()
@@ -378,7 +378,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 HStack(spacing: 8,
                     VStack(spacing: 2,
                         Label($"{_localize["ShowMnemonic"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                         Label($"{_localize["ShowMnemonicDescription"]}")
                             .Small()
@@ -399,7 +399,7 @@ partial class SettingsPage : Component<SettingsPageState>
                 // Auto-advance duration
                 VStack(spacing: 4,
                     Label($"{_localize["AutoAdvanceDuration"]}: {State.QuizAutoAdvanceDuration:F1}s")
-                        .Class("form-label")
+                        .Class("form-label").Muted()
                         .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
                     Label($"{_localize["AutoAdvanceDurationDescription"]}")
                         .Small()
@@ -427,7 +427,6 @@ partial class SettingsPage : Component<SettingsPageState>
                 Button($"{_localize["ResetToDefaults"]}")
                     .HeightRequest(44)
                     .Secondary()
-                    .Outlined()
                     .OnClicked(() =>
                     {
                         _quizPreferences.ResetToDefaults();
@@ -447,7 +446,7 @@ partial class SettingsPage : Component<SettingsPageState>
             .Padding(16)
         )
         .Class("card")
-        .Padding(16);
+        .PaddingLevel(4);
     }
 
     private string GetSelectedVoiceDisplayName()
@@ -486,7 +485,7 @@ partial class SettingsPage : Component<SettingsPageState>
         return Border(
             VStack(spacing: 16,
                 Label($"{_localize["DataManagement"]}")
-                    .H4()
+                    .H5()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground()),
 
@@ -497,7 +496,6 @@ partial class SettingsPage : Component<SettingsPageState>
                 Button(State.IsExporting ? $"{_localize["Exporting"]}..." : $"{_localize["ExportData"]}")
                     .HeightRequest(44)
                     .Secondary()
-                    .Outlined()
                     .IsEnabled(!State.IsExporting)
                     .OnClicked(async () => await ExportDataInternalAsync())
                     .Margin(0, 4, 0, 0)
@@ -505,7 +503,7 @@ partial class SettingsPage : Component<SettingsPageState>
             .Padding(16)
         )
         .Class("card")
-        .Padding(16);
+        .PaddingLevel(4);
     }
 
     private VisualNode RenderMigrationSection()
@@ -515,7 +513,7 @@ partial class SettingsPage : Component<SettingsPageState>
         return Border(
             VStack(spacing: 16,
                 Label($"{_localize["DatabaseMigrations"]}")
-                    .H4()
+                    .H5()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground()),
 
@@ -547,7 +545,7 @@ partial class SettingsPage : Component<SettingsPageState>
                             )
                             :
                             Button(State.IsMigrating ? $"{_localize["Migrating"]}..." : $"{_localize["RunMigration"]}")
-                                .Primary()
+                                .Secondary()
                                 .HeightRequest(44)
                                 .IsEnabled(!State.IsMigrating)
                                 .OnClicked(async () => await RunStreakMigrationInternalAsync())
@@ -571,7 +569,7 @@ partial class SettingsPage : Component<SettingsPageState>
             .Padding(16)
         )
         .Class("card")
-        .Padding(16);
+        .PaddingLevel(4);
     }
 
     private VisualNode RenderAboutSection()
@@ -581,13 +579,13 @@ partial class SettingsPage : Component<SettingsPageState>
         return Border(
             VStack(spacing: 8,
                 Label($"{_localize["About"]}")
-                    .H4()
+                    .H5()
                     .FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold)
                     .TextColor(theme.GetOnBackground()),
 
                 Label($"SentenceStudio v{AppInfo.VersionString} ({AppInfo.BuildString})")
-                    .FontSize(14)
-                    .TextColor(theme.GetOnBackground()),
+                    .Small()
+                    .Muted(),
 
                 Label($"{_localize["TargetFramework"]}: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}")
                     .Small()
@@ -596,7 +594,7 @@ partial class SettingsPage : Component<SettingsPageState>
             .Padding(16)
         )
         .Class("card")
-        .Padding(16);
+        .PaddingLevel(4);
     }
 
     private async Task RunStreakMigrationInternalAsync()

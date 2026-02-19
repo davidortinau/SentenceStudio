@@ -77,6 +77,7 @@ partial class ListSkillProfilesPage : Component<ListSkillProfilesPageState>
                                 .WidthRequest(300)
                                 .MinimumHeightRequest(120)
                                 .Class("card")
+                                .PaddingLevel(3)
                                 .OnTapped(() => EditProfile(profile))
                             )
                         }

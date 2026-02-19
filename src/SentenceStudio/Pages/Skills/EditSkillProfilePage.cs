@@ -55,7 +55,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                         VStack(spacing: 16,
                             VStack(spacing: 4,
                                 Label("Title")
-                                    .Class("form-label"),
+                                    .Class("form-label").Muted(),
                                 Entry()
                                     .Text(State.Title)
                                     .OnTextChanged(text => SetState(s => s.Title = text))
@@ -64,7 +64,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
 
                             VStack(spacing: 4,
                                 Label("Skills Description")
-                                    .Class("form-label"),
+                                    .Class("form-label").Muted(),
                                 Editor()
                                     .Text(State.Description)
                                     .MinimumHeightRequest(300)
@@ -75,7 +75,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     Border(
                         VStack(spacing: 8,
@@ -103,7 +103,7 @@ partial class EditSkillProfilePage : Component<EditSkillProfilePageState, EditSk
                         )
                     )
                     .Class("card")
-                    .Padding(16)
+                    .PaddingLevel(4)
                 )
                 .Padding(16)
             )

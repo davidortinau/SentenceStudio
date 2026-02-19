@@ -104,7 +104,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                                                 .OnClicked(CreateStarterResource)
                                                 .HCenter()
                                                 .WidthRequest(200)
-                                                .Primary()
+                                                .Secondary()
                                         )
                                         .Spacing(8)
                                     )
@@ -176,6 +176,7 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
             .OnTapped(() => ViewResource(resource.Id))
         )
         .Class("card")
+        .PaddingLevel(3)
         .Margin(0);
     }
 

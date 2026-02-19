@@ -363,7 +363,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                     VStack(
                         Label($"{_localize["Title"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .HStart(),
                         Entry()
                             .Text(State.Resource.Title)
@@ -373,7 +373,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                     VStack(
                         Label($"{_localize["Description"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .HStart(),
                         Editor()
                             .Text(State.Resource.Description)
@@ -385,7 +385,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                     Grid("Auto", "*, *",
                         VStack(
                             Label($"{_localize["MediaType"]}")
-                                .Class("form-label")
+                                .Class("form-label").Muted()
                                 .HStart(),
                             Picker()
                                 .ItemsSource(Constants.MediaTypes)
@@ -400,7 +400,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                         VStack(
                             Label($"{_localize["Language"]}")
-                                .Class("form-label")
+                                .Class("form-label").Muted()
                                 .HStart(),
                             Picker()
                                 .ItemsSource(Constants.Languages)
@@ -416,7 +416,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                     VStack(
                         Label($"{_localize["MediaURL"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .HStart(),
                         Entry()
                             .Text(State.Resource.MediaUrl)
@@ -427,7 +427,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
 
                     VStack(
                         Label($"{_localize["Tags"]}")
-                            .Class("form-label")
+                            .Class("form-label").Muted()
                             .HStart(),
                         Entry()
                             .Text(State.Resource.Tags)
@@ -445,7 +445,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 ).Spacing(12)
             )
             .Class("card")
-            .Padding(16),
+            .PaddingLevel(4),
 
             // Transcript card
             Border(
@@ -460,7 +460,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 ).Spacing(12)
             )
             .Class("card")
-            .Padding(16),
+            .PaddingLevel(4),
 
             // Translation card
             Border(
@@ -475,7 +475,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 ).Spacing(12)
             )
             .Class("card")
-            .Padding(16),
+            .PaddingLevel(4),
 
             // Vocabulary card
             Border(
@@ -579,7 +579,7 @@ partial class EditLearningResourcePage : Component<EditLearningResourceState, Re
                 ).Spacing(12)
             )
             .Class("card")
-            .Padding(16)
+            .PaddingLevel(4)
         )
         .Spacing(16);
     }

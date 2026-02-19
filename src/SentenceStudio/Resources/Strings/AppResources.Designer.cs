@@ -616,7 +616,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Clozures.
+        ///   Looks up a localized string similar to Cloze.
         /// </summary>
         internal static string Clozures {
             get {
@@ -4160,7 +4160,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Translation.
+        ///   Looks up a localized string similar to Translate.
         /// </summary>
         internal static string Translate {
             get {
@@ -4763,7 +4763,7 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Write.
+        ///   Looks up a localized string similar to Writing.
         /// </summary>
         internal static string Write {
             get {

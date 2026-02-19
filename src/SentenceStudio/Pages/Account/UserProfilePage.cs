@@ -95,7 +95,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     // Language Settings Card
                     Border(
@@ -146,7 +146,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     // Learning Preferences Card
                     Border(
@@ -154,7 +154,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                             Label("Learning Preferences")
                                 .H5().FontAttributes(Microsoft.Maui.Controls.FontAttributes.Bold),
 
-                            Label("Preferred Session Length").Muted(),
+                            Label("Preferred Session Length").Muted().Class("form-label"),
                             FlexLayout(
                                 new[] { 5, 10, 15, 20, 25, 30, 45 }.Select(min =>
                                 {
@@ -168,7 +168,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                         .HeightRequest(36)
                                         .FontSize(13)
                                         .Margin(0, 0, 4, 4);
-                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary().Outlined());
+                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary());
                                 }).ToArray()
                             ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("How long you'd like to practice each day. Plans adapt to your choice.")
@@ -189,7 +189,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                         .HeightRequest(36)
                                         .FontSize(13)
                                         .Margin(0, 0, 4, 4);
-                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary().Outlined());
+                                    return (VisualNode)(isActive ? btn.Primary() : btn.Secondary());
                                 }).ToArray()
                             ).Wrap(Microsoft.Maui.Layouts.FlexWrap.Wrap),
                             Label("Your language proficiency goal. Helps AI choose appropriate resources.")
@@ -197,7 +197,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     // API Configuration Card
                     Border(
@@ -220,7 +220,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     // Save Button
                     Button($"{_localize["Save"]}")
@@ -254,13 +254,13 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 Button($"{_localize["SaveToDevice"]}")
                                     .OnClicked(ExportDataToFile)
                                     .ImageSource(BootstrapIcons.Create(BootstrapIcons.Save, theme.GetOnBackground(), 16))
-                                    .Secondary().Outlined()
+                                    .Secondary()
                                     .HFill(),
 
                                 Button($"{_localize["Share"]}")
                                     .OnClicked(ExportAndShare)
                                     .ImageSource(BootstrapIcons.Create(BootstrapIcons.Share, theme.GetOnBackground(), 16))
-                                    .Secondary().Outlined()
+                                    .Secondary()
                                     .HFill()
                             ),
 
@@ -270,7 +270,7 @@ partial class UserProfilePage : Component<UserProfilePageState>
                         )
                     )
                     .Class("card")
-                    .Padding(16),
+                    .PaddingLevel(4),
 
                     // Danger Zone Card
                     Border(
@@ -285,11 +285,10 @@ partial class UserProfilePage : Component<UserProfilePageState>
                                 .HFill()
                         )
                     )
-                    .BackgroundColor(theme.GetSurface())
+                    .Class("card")
                     .Stroke(theme.Danger)
                     .StrokeThickness(1)
-                    .StrokeShape(new RoundRectangle().CornerRadius(12))
-                    .Padding(16)
+                    .PaddingLevel(4)
                 )
                 .Padding(24)
             )

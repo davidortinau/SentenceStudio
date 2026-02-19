@@ -443,7 +443,7 @@ partial class DashboardPage : Component<DashboardPageState>
         return VStack(spacing: 12,
             RenderSelectors(),
             Label($"{_localize["Activities"]}")
-                .H5()
+                .H2()
                 .FontAttributes(FontAttributes.Bold)
                 .Margin(new Thickness(0, 4, 0, 4)),
             RenderActivityCards(),
@@ -534,8 +534,8 @@ partial class DashboardPage : Component<DashboardPageState>
         return Border(
             VStack(spacing: 6,
                 Image()
-                    .Source(BootstrapIcons.Create(icon, theme.GetOnBackground(), 24))
-                    .HeightRequest(24)
+                    .Source(BootstrapIcons.Create(icon, theme.GetOnBackground(), 32))
+                    .HeightRequest(32)
                     .HCenter(),
                 Label(label)
                     .FontSize(13)
@@ -651,7 +651,7 @@ partial class DashboardPage : Component<DashboardPageState>
     {
         return VStack(spacing: 8,
             Label($"{_localize["VocabProgress"]}")
-                .H5()
+                .H2()
                 .FontAttributes(FontAttributes.Bold)
                 .Margin(new Thickness(0, 8, 0, 4)),
             State.IsLoadingProgress && !State.HasLoadedProgressOnce
