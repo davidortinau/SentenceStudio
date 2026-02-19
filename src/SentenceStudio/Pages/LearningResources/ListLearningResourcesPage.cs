@@ -172,7 +172,6 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
                     .MaxLines(1)
                     .GridColumn(1).GridColumnSpan(2).GridRow(1)
             )
-            .Padding(12)
             .OnTapped(() => ViewResource(resource.Id))
         )
         .Class("card")
@@ -184,11 +183,11 @@ partial class ListLearningResourcesPage : Component<ListLearningResourcesState>
         return mediaType switch
         {
             "Video" => BootstrapIcons.Create(BootstrapIcons.CameraVideo, theme.GetOnBackground(), 24),
-            "Podcast" => BootstrapIcons.Create(BootstrapIcons.Soundwave, theme.GetOnBackground(), 24),
+            "Podcast" => BootstrapIcons.Create(BootstrapIcons.Mic, theme.GetOnBackground(), 24),
             "Image" => BootstrapIcons.Create(BootstrapIcons.Image, theme.GetOnBackground(), 24),
-            "Vocabulary List" => BootstrapIcons.Create(BootstrapIcons.ListUl, theme.GetOnBackground(), 24),
+            "Vocabulary List" => BootstrapIcons.Create(BootstrapIcons.CardText, theme.GetOnBackground(), 24),
             "Article" => BootstrapIcons.Create(BootstrapIcons.FileText, theme.GetOnBackground(), 24),
-            _ => BootstrapIcons.Create(BootstrapIcons.FileText, theme.GetOnBackground(), 24)
+            _ => BootstrapIcons.Create(BootstrapIcons.Folder, theme.GetOnBackground(), 24)
         };
     }
 

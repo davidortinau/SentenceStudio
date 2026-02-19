@@ -463,7 +463,6 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
                 RenderVocabularyCardViewMode(item)
         )
         .Class("card")
-        .Padding(12)
         .OnTapped(State.IsMultiSelectMode ?
             () => ToggleItemSelection(item.Word.Id, !item.IsSelected) :
             () => NavigateToEditPage(item.Word.Id));
