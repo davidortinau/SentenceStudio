@@ -406,7 +406,7 @@ partial class VocabularyManagementPage : Component<VocabularyManagementPageState
             .Set(Microsoft.Maui.Controls.CollectionView.ItemsLayoutProperty,
                 State.IsPhoneIdiom
                     ? new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 }
-                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 280, maxColumns: 3))
+                    : GridLayoutHelper.CalculateResponsiveLayout(desiredItemWidth: 260, maxColumns: 4))
             .Background(Colors.Transparent)
             .ItemSizingStrategy(ItemSizingStrategy.MeasureFirstItem)
             .Margin(16, 0);
