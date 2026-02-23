@@ -5,20 +5,23 @@
 @implements IDisposable
 
 <div class="d-flex vh-100">
-    @* Sidebar navigation (desktop only) *@
-    <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
-         style="border-right: 1px solid var(--bs-border-color);">
-        <div class="flex-grow-1 overflow-auto">
-            <NavMenu />
-        </div>
-        <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;">
-            <button class="btn btn-sm btn-icon d-flex align-items-center @(sidebarCollapsed ? "justify-content-center w-100" : "ms-auto")"
-                    title="@(sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
-                    @onclick="ToggleSidebar">
-                <i class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
-            </button>
-        </div>
-    </nav>
+    @if (!isOnboarding)
+    {
+        @* Sidebar navigation (desktop only) *@
+        <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
+             style="border-right: 1px solid var(--bs-border-color);">
+            <div class="flex-grow-1 overflow-auto">
+                <NavMenu />
+            </div>
+            <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;">
+                <button class="btn btn-sm btn-icon d-flex align-items-center @(sidebarCollapsed ? "justify-content-center w-100" : "ms-auto")"
+                        title="@(sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
+                        @onclick="ToggleSidebar">
+                    <i class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+                </button>
+            </div>
+        </nav>
+    }
 
     <div class="d-flex flex-column flex-grow-1 overflow-hidden">
         @* Main content — PageHeader renders as sticky mobile navbar inside here *@
@@ -27,26 +30,42 @@
         </main>
     </div>
 
-    @* Mobile offcanvas navigation *@
-    <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav"
-         style="border-right: 1px solid var(--bs-border-color);">
-        <div class="offcanvas-header border-bottom"
-             style="border-color: var(--bs-border-color) !important; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);">
-            <h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    @if (!isOnboarding)
+    {
+        @* Mobile offcanvas navigation *@
+        <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav"
+             style="border-right: 1px solid var(--bs-border-color);">
+            <div class="offcanvas-header border-bottom"
+                 style="border-color: var(--bs-border-color) !important; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);">
+                <h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body p-0">
+                <NavMenu />
+            </div>
         </div>
-        <div class="offcanvas-body p-0">
-            <NavMenu />
-        </div>
-    </div>
+    }
 </div>
 
 @code {
     private IJSObjectReference? jsModule;
     private bool sidebarCollapsed;
+    private bool isOnboarding;
 
     protected override void OnInitialized()
     {
+        // Redirect to onboarding on first launch
+        if (!Preferences.Default.Get("is_onboarded", false))
+        {
+            isOnboarding = true;
+            var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+            if (!uri.AbsolutePath.Contains("onboarding", StringComparison.OrdinalIgnoreCase))
+            {
+                NavigationManager.NavigateTo("/onboarding");
+                return;
+            }
+        }
+
         sidebarCollapsed = Preferences.Default.Get("SidebarCollapsed", false);
         NavigationManager.LocationChanged += OnLocationChanged;
     }
