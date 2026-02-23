@@ -40,7 +40,7 @@ public static class MauiProgram
             .AddConsole()
             .SetMinimumLevel(LogLevel.Debug);
         builder.Services.AddBlazorWebViewDeveloperTools();
-        builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
+        builder.AddMauiDevFlowAgent(options => { options.Port = 9225; });
         builder.AddMauiBlazorDevFlowTools();
 #endif
 
@@ -63,7 +63,7 @@ public static class MauiProgram
         Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("GoodByePickerUnderline", (handler, view) =>
         {
 #if ANDROID
-            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+            handler.PlatformView.BackgroundTintList = global::Android.Content.Res.ColorStateList.ValueOf(global::Android.Graphics.Color.Transparent);
 #endif
         });
     }
@@ -73,7 +73,7 @@ public static class MauiProgram
         Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoMoreBorders", (handler, view) =>
         {
 #if ANDROID
-            handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+            handler.PlatformView.BackgroundTintList = global::Android.Content.Res.ColorStateList.ValueOf(global::Android.Graphics.Color.Transparent);
 #endif
         });
     }
