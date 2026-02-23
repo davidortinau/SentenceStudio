@@ -19,8 +19,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
-		<PackageReference Include="Platform.Maui.MacOS" Version="0.2.0-beta.6" />
-		<PackageReference Include="Platform.Maui.MacOS.BlazorWebView" Version="0.2.0-beta.6" />
+		<PackageReference Include="Platform.Maui.MacOS" Version="0.2.0-beta.7" />
+		<PackageReference Include="Platform.Maui.MacOS.BlazorWebView" Version="0.2.0-beta.7" />
 		<PackageReference Include="Platform.Maui.Essentials.MacOS" Version="0.2.0-beta.5" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
 		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(Configuration)'=='Debug'" />
