@@ -36,5 +36,13 @@
 		<!-- macOS-specific index.html with direct CSS paths (no _content/ prefix) -->
 		<BundleResource Include="wwwroot\index.html" Link="wwwroot\index.html" />
 		<BundleResource Include="..\SentenceStudio.UI\wwwroot\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" />
+
+		<!-- Raw assets from AppLib (scriban templates, appsettings, etc.) -->
+		<BundleResource Include="..\SentenceStudio.AppLib\Resources\Raw\**" Link="%(Filename)%(Extension)" />
+		<BundleResource Include="..\SentenceStudio.AppLib\appsettings.json" Link="appsettings.json" />
+		<BundleResource Include="..\SentenceStudio.AppLib\appsettings.Development.json" Link="appsettings.Development.json" />
+
+		<!-- Fonts from AppLib -->
+		<BundleResource Include="..\SentenceStudio.AppLib\Resources\Fonts\**" Link="%(Filename)%(Extension)" />
 	</ItemGroup>
 </Project>
