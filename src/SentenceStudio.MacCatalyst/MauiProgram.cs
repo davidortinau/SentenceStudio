@@ -17,13 +17,13 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
+        builder.Configuration.AddEmbeddedAppSettings();
+
         builder
             .UseMauiApp<BlazorApp>()
             .UseMauiCommunityToolkit()
             .UseShiny()
             .UseSentenceStudioApp();
-
-        builder.Configuration.AddEmbeddedAppSettings();
 
         builder.AddAudio(
             playbackOptions =>
