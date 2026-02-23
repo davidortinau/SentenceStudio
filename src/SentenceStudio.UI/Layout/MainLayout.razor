@@ -74,7 +74,7 @@
     {
         if (firstRender)
         {
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
             await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
             await jsModule.InvokeVoidAsync("setFontScale", ThemeService.FontScale);
             ThemeService.ThemeChanged += OnThemeChanged;

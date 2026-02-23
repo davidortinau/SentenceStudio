@@ -23,6 +23,7 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
 		<PackageReference Include="Shiny.Hosting.Maui" Version="3.3.4" />
 		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(Configuration)'=='Debug'" />
+		<PackageReference Include="Redth.MauiDevFlow.Blazor" Version="*" Condition="'$(Configuration)'=='Debug'" />
 	</ItemGroup>
 
 	<ItemGroup>

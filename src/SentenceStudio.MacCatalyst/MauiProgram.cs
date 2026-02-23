@@ -1,6 +1,7 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
 using MauiDevFlow.Agent;
+using MauiDevFlow.Blazor;
 using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using SentenceStudio;
@@ -59,6 +60,7 @@ public static class MauiProgram
             .SetMinimumLevel(LogLevel.Debug);
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
+        builder.AddMauiBlazorDevFlowTools();
 #endif
 
         var app = builder.Build();

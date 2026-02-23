@@ -24,6 +24,7 @@
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
 		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(Configuration)'=='Debug'" />
+		<PackageReference Include="Redth.MauiDevFlow.Blazor" Version="*" Condition="'$(Configuration)'=='Debug'" />
 	</ItemGroup>
 
 	<ItemGroup>

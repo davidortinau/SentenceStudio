@@ -199,7 +199,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
+        jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
         fontScale = ThemeService.FontScale;
         LoadPreferences();
         await LoadVoicesAsync();

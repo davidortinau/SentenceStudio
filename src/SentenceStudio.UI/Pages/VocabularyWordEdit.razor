@@ -205,7 +205,7 @@ else
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/app.js");
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
     }
 
     private async Task LoadData()
