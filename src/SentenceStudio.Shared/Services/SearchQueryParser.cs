@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Shared.Services;
+namespace SentenceStudio.Services;
 
 /// <summary>
 /// T007: Parses GitHub-style search syntax for vocabulary filtering.
