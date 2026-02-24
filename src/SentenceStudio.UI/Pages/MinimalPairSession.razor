@@ -1,0 +1,371 @@
+@page "/minimal-pairs/session/{Id:int}"
+@using Plugin.Maui.Audio
+@implements IDisposable
+
+<PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack" />
+
+@if (showSummary)
+{
+    @* Session summary *@
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4">Session Summary</h2>
+        <div class="card card-ss p-4" style="min-width: 300px;">
+            <div class="mb-3">
+                <span class="ss-body1">Correct:</span>
+                <span class="ss-title2 text-success ms-2">@correctCount</span>
+            </div>
+            <div class="mb-3">
+                <span class="ss-body1">Incorrect:</span>
+                <span class="ss-title2 text-danger ms-2">@incorrectCount</span>
+            </div>
+            <div class="mb-3">
+                <span class="ss-body1">Accuracy:</span>
+                <span class="ss-title2 ms-2">@($"{Accuracy:F1}")%</span>
+            </div>
+            <div class="mb-3">
+                <span class="ss-body1">Duration:</span>
+                <span class="ss-title2 ms-2">@($"{Duration:F1}") min</span>
+            </div>
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="GoBack">Done</button>
+    </div>
+}
+else if (isInitializing)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (promptWord != null && leftWord != null && rightWord != null)
+{
+    @* Session header *@
+    <div class="text-center mb-4">
+        <p class="ss-body2 text-secondary-ss mb-2">Trial @(currentTrialIndex + 1) / @totalTrials</p>
+        <div class="d-flex justify-content-center gap-4">
+            <span class="ss-title3 text-success"><i class="bi bi-check-lg"></i> @correctCount</span>
+            <span class="ss-title3 text-danger"><i class="bi bi-x-lg"></i> @incorrectCount</span>
+        </div>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <small class="text-warning">@errorMessage</small>
+        }
+    </div>
+
+    @* Answer tiles *@
+    <div class="d-flex justify-content-center gap-4 my-5">
+        @RenderAnswerTile(leftWord)
+        @RenderAnswerTile(rightWord)
+    </div>
+
+    @* Action buttons *@
+    <div class="d-flex justify-content-center gap-3">
+        <button class="btn btn-ss-secondary" @onclick="ReplayAudio"
+                disabled="@(isPlayingAudio || hasCheckedAnswer)">
+            <i class="bi bi-volume-up me-1"></i> Replay
+        </button>
+        <button class="btn btn-ss-primary" @onclick="CheckAnswer"
+                disabled="@(selectedWordId == null || isDebouncing || hasCheckedAnswer)">
+            Check Answer
+        </button>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No pairs available for this session.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pairIds")]
+    public string? PairIdsParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "mode")]
+    public string? ModeParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "trials")]
+    public int? TrialsParam { get; set; }
+
+    [Inject] private MinimalPairRepository PairRepo { get; set; } = default!;
+    [Inject] private MinimalPairSessionRepository SessionRepo { get; set; } = default!;
+    [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<MinimalPairSession> Logger { get; set; } = default!;
+
+    private List<MinimalPair> pairs = new();
+    private bool isInitializing = true;
+    private bool showSummary;
+    private bool isPlayingAudio;
+    private bool hasCheckedAnswer;
+    private bool isDebouncing;
+    private string errorMessage = "";
+
+    private int currentTrialIndex;
+    private int totalTrials = 20;
+    private int correctCount;
+    private int incorrectCount;
+    private int? sessionId;
+    private DateTime? sessionStartedAt;
+
+    private MinimalPair? currentPair;
+    private VocabularyWord? promptWord;
+    private VocabularyWord? otherWord;
+    private VocabularyWord? leftWord;
+    private VocabularyWord? rightWord;
+    private int? selectedWordId;
+    private bool? answerWasCorrect;
+
+    private IAudioPlayer? audioPlayer;
+    private readonly Random random = new();
+
+    private double Accuracy => (correctCount + incorrectCount) > 0
+        ? (double)correctCount / (correctCount + incorrectCount) * 100 : 0;
+    private double Duration => sessionStartedAt.HasValue
+        ? (DateTime.UtcNow - sessionStartedAt.Value).TotalMinutes : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeSession();
+    }
+
+    private async Task InitializeSession()
+    {
+        isInitializing = true;
+        try
+        {
+            var pairIds = ParsePairIds();
+            if (pairIds.Length == 0)
+            {
+                isInitializing = false;
+                return;
+            }
+
+            foreach (var id in pairIds)
+            {
+                var pair = await PairRepo.GetPairByIdAsync(id);
+                if (pair != null) pairs.Add(pair);
+            }
+
+            if (pairs.Count == 0) { isInitializing = false; return; }
+
+            var mode = ModeParam ?? "Focus";
+            totalTrials = TrialsParam ?? 20;
+
+            var session = await SessionRepo.StartSessionAsync(1, mode, totalTrials);
+            sessionId = session.Id;
+            sessionStartedAt = DateTime.UtcNow;
+            isInitializing = false;
+
+            NextTrial();
+            _ = Task.Delay(500).ContinueWith(_ => InvokeAsync(async () =>
+            {
+                await PlayPromptAudio();
+                StateHasChanged();
+            }));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize session");
+            isInitializing = false;
+        }
+    }
+
+    private int[] ParsePairIds()
+    {
+        if (string.IsNullOrEmpty(PairIdsParam)) return Array.Empty<int>();
+        return PairIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .ToArray();
+    }
+
+    private void NextTrial()
+    {
+        if (currentTrialIndex >= totalTrials)
+        {
+            _ = EndSession();
+            return;
+        }
+
+        var pair = pairs[random.Next(pairs.Count)];
+        var isAPrompt = random.Next(2) == 0;
+        var prompt = isAPrompt ? pair.VocabularyWordA : pair.VocabularyWordB;
+        var other = isAPrompt ? pair.VocabularyWordB : pair.VocabularyWordA;
+        var left = random.Next(2) == 0 ? prompt : other;
+        var right = left?.Id == prompt?.Id ? other : prompt;
+
+        currentPair = pair;
+        promptWord = prompt;
+        otherWord = other;
+        leftWord = left;
+        rightWord = right;
+        selectedWordId = null;
+        hasCheckedAnswer = false;
+        answerWasCorrect = null;
+        isDebouncing = false;
+        errorMessage = "";
+    }
+
+    private async Task PlayPromptAudio()
+    {
+        if (promptWord == null) return;
+        isPlayingAudio = true;
+
+        try
+        {
+            var text = promptWord.TargetLanguageTerm;
+            var voiceId = VoicePrefs.VoiceId;
+
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
+            Stream audioStream;
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.Current.NetworkAccess.HasFlag(NetworkAccess.Internet))
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f);
+
+                var cacheDir = Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = text, VoiceId = voiceId, AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                errorMessage = "Audio unavailable offline.";
+                isPlayingAudio = false;
+                return;
+            }
+
+            audioPlayer?.Stop();
+            audioPlayer?.Dispose();
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            audioPlayer.Play();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play audio");
+            errorMessage = "Audio playback error.";
+        }
+        finally
+        {
+            isPlayingAudio = false;
+        }
+    }
+
+    private void SelectWord(int wordId)
+    {
+        if (isDebouncing || hasCheckedAnswer) return;
+        selectedWordId = wordId;
+    }
+
+    private async Task CheckAnswer()
+    {
+        if (selectedWordId == null || hasCheckedAnswer) return;
+        isDebouncing = true;
+
+        var isCorrect = selectedWordId == promptWord?.Id;
+        hasCheckedAnswer = true;
+        answerWasCorrect = isCorrect;
+        if (isCorrect) correctCount++; else incorrectCount++;
+
+        if (sessionId.HasValue && currentPair != null && promptWord != null)
+        {
+            await SessionRepo.RecordAttemptAsync(1, sessionId.Value, currentPair.Id,
+                promptWord.Id, selectedWordId.Value, isCorrect);
+        }
+
+        currentTrialIndex++;
+        StateHasChanged();
+
+        await Task.Delay(1500);
+        NextTrial();
+        _ = PlayPromptAudio();
+        StateHasChanged();
+    }
+
+    private async Task ReplayAudio()
+    {
+        if (!isPlayingAudio && answerWasCorrect == null)
+            await PlayPromptAudio();
+    }
+
+    private async Task EndSession()
+    {
+        if (sessionId.HasValue)
+            await SessionRepo.EndSessionAsync(sessionId.Value);
+        showSummary = true;
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/minimal-pairs");
+
+    private RenderFragment RenderAnswerTile(VocabularyWord word) => __builder =>
+    {
+        var isSelected = selectedWordId == word.Id;
+        var isCorrectAnswer = word.Id == promptWord?.Id;
+
+        var borderClass = "";
+        var bgClass = "";
+        var iconHtml = "";
+
+        if (!hasCheckedAnswer && isSelected)
+        {
+            borderClass = "border-success";
+        }
+        else if (hasCheckedAnswer)
+        {
+            if (isSelected && answerWasCorrect == true)
+            {
+                borderClass = "border-info";
+                bgClass = "bg-info bg-opacity-10";
+            }
+            else if (isSelected && answerWasCorrect == false)
+            {
+                borderClass = "border-danger";
+                bgClass = "bg-danger bg-opacity-10";
+            }
+            else if (isCorrectAnswer && answerWasCorrect == false)
+            {
+                borderClass = "border-info";
+                bgClass = "bg-info bg-opacity-10";
+            }
+
+            if (isCorrectAnswer)
+                iconHtml = "<i class='bi bi-check-lg'></i>";
+        }
+
+        <div class="card card-ss clickable p-4 text-center @borderClass @bgClass"
+             style="width: 150px; height: 150px; border-width: 3px !important; display: flex; align-items: center; justify-content: center; position: relative;"
+             @onclick="() => SelectWord(word.Id)">
+            <span class="ss-title2">@word.TargetLanguageTerm</span>
+            @if (!string.IsNullOrEmpty(iconHtml))
+            {
+                <span class="position-absolute top-0 end-0 m-1 text-info fw-bold">@iconHtml</span>
+            }
+        </div>
+    };
+
+    public void Dispose()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+    }
+}

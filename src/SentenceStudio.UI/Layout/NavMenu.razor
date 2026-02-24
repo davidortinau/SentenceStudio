@@ -1,0 +1,78 @@
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager Nav
+@inject NavigationMemoryService NavMemory
+@inject IJSRuntime JS
+@implements IDisposable
+
+<nav class="nav flex-column p-2 gap-1">
+    @foreach (var item in _topItems)
+    {
+        var key = item.Key;
+        <a class="nav-link nav-link-ss rounded px-3 py-2 @(NavMemory.IsSectionActive(key) ? "active" : "")"
+           href="" @onclick="() => NavigateToSection(key)" @onclick:preventDefault title="@item.Label">
+            <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
+        </a>
+    }
+
+    <hr class="my-2" style="border-color: var(--bs-border-color);" />
+
+    @foreach (var item in _bottomItems)
+    {
+        var key = item.Key;
+        <a class="nav-link nav-link-ss rounded px-3 py-2 @(NavMemory.IsSectionActive(key) ? "active" : "")"
+           href="" @onclick="() => NavigateToSection(key)" @onclick:preventDefault title="@item.Label">
+            <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
+        </a>
+    }
+</nav>
+
+@code {
+    private record NavItem(string Key, string Icon, string Label);
+
+    private static readonly NavItem[] _topItems =
+    [
+        new("dashboard", "bi-house-door", "Dashboard"),
+        new("resources", "bi-book", "Learning Resources"),
+        new("vocabulary", "bi-card-text", "Vocabulary"),
+        new("minimal-pairs", "bi-soundwave", "Minimal Pairs"),
+        new("skills", "bi-bullseye", "Skills"),
+        new("import", "bi-box-arrow-in-down", "Import"),
+    ];
+
+    private static readonly NavItem[] _bottomItems =
+    [
+        new("profile", "bi-person", "Profile"),
+        new("settings", "bi-gear", "Settings"),
+    ];
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private async Task NavigateToSection(string sectionKey)
+    {
+        var route = NavMemory.GetSectionRoute(sectionKey);
+        Nav.NavigateTo(route);
+        await CloseOffcanvas();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseOffcanvas()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "bootstrap.Offcanvas.getInstance(document.getElementById('mobileNav'))?.hide()");
+        }
+        catch { /* ignore on desktop where offcanvas doesn't exist */ }
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

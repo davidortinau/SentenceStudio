@@ -1,0 +1,180 @@
+@page "/minimal-pairs/create"
+
+<PageHeader Title="Create Minimal Pair" ShowBack="true" OnBack="GoBack">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="CreatePair"
+                disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)">
+            @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Create
+        </button>
+    </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="CreatePair"
+                    disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)"><i class="bi bi-check-lg me-2"></i>Create</button></li>
+    </SecondaryActions>
+</PageHeader>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mb-3">@errorMessage</div>
+    }
+
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Select First Word</h5>
+        <input type="text" class="form-control form-control-ss mb-2"
+               placeholder="Search vocabulary..."
+               @bind="searchA" @bind:event="oninput" />
+        <select class="form-select form-control-ss" @bind="selectedWordAId" size="5">
+            @foreach (var word in FilteredWordsA)
+            {
+                <option value="@word.Id">@word.TargetLanguageTerm — @word.NativeLanguageTerm</option>
+            }
+        </select>
+        @if (selectedWordAId != null)
+        {
+            var wordA = availableWords.FirstOrDefault(w => w.Id == selectedWordAId);
+            if (wordA != null)
+            {
+                <div class="mt-2">
+                    <span class="badge bg-primary">@wordA.TargetLanguageTerm</span>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Select Second Word</h5>
+        <input type="text" class="form-control form-control-ss mb-2"
+               placeholder="Search vocabulary..."
+               @bind="searchB" @bind:event="oninput" />
+        <select class="form-select form-control-ss" @bind="selectedWordBId" size="5">
+            @foreach (var word in FilteredWordsB)
+            {
+                <option value="@word.Id">@word.TargetLanguageTerm — @word.NativeLanguageTerm</option>
+            }
+        </select>
+        @if (selectedWordBId != null)
+        {
+            var wordB = availableWords.FirstOrDefault(w => w.Id == selectedWordBId);
+            if (wordB != null)
+            {
+                <div class="mt-2">
+                    <span class="badge bg-primary">@wordB.TargetLanguageTerm</span>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Contrast Label (optional)</h5>
+        <input type="text" class="form-control form-control-ss"
+               placeholder="e.g., ㅂ vs ㅃ"
+               @bind="contrastLabel" />
+    </div>
+}
+
+@code {
+    [Inject] private LearningResourceRepository VocabRepo { get; set; } = default!;
+    [Inject] private MinimalPairRepository PairRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<MinimalPairCreate> Logger { get; set; } = default!;
+
+    private List<VocabularyWord> availableWords = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private string errorMessage = "";
+    private string searchA = "";
+    private string searchB = "";
+    private int? selectedWordAId;
+    private int? selectedWordBId;
+    private string contrastLabel = "";
+
+    private IEnumerable<VocabularyWord> FilteredWordsA =>
+        string.IsNullOrWhiteSpace(searchA)
+            ? availableWords
+            : availableWords.Where(w =>
+                (w.TargetLanguageTerm?.StartsWith(searchA, StringComparison.OrdinalIgnoreCase) == true) ||
+                (w.NativeLanguageTerm?.Contains(searchA, StringComparison.OrdinalIgnoreCase) == true));
+
+    private IEnumerable<VocabularyWord> FilteredWordsB =>
+        string.IsNullOrWhiteSpace(searchB)
+            ? availableWords
+            : availableWords.Where(w =>
+                (w.TargetLanguageTerm?.StartsWith(searchB, StringComparison.OrdinalIgnoreCase) == true) ||
+                (w.NativeLanguageTerm?.Contains(searchB, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            availableWords = await VocabRepo.GetAllVocabularyWordsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load vocabulary: {ex.Message}");
+            Logger.LogError(ex, "Failed to load vocabulary");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreatePair()
+    {
+        errorMessage = "";
+
+        if (selectedWordAId == null || selectedWordBId == null)
+        {
+            errorMessage = "Please select both words.";
+            return;
+        }
+
+        if (selectedWordAId == selectedWordBId)
+        {
+            errorMessage = "Please select two different words.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var pair = await PairRepo.CreatePairAsync(
+                userId: 1,
+                wordAId: selectedWordAId.Value,
+                wordBId: selectedWordBId.Value,
+                contrastLabel: string.IsNullOrWhiteSpace(contrastLabel) ? null : contrastLabel.Trim()
+            );
+
+            if (pair == null)
+            {
+                errorMessage = "Failed to create pair. It may already exist.";
+                return;
+            }
+
+            Toast.ShowSuccess("Minimal pair created!");
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to create pair: {ex.Message}";
+            Logger.LogError(ex, "Failed to create minimal pair");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/minimal-pairs");
+}

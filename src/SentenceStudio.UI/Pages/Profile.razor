@@ -1,0 +1,255 @@
+@page "/profile"
+
+<PageHeader Title="Profile" />
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    @* Personal Info *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Personal Information</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Name</label>
+            <input type="text" class="form-control form-control-ss" @bind="name" placeholder="Your name" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Email</label>
+            <input type="email" class="form-control form-control-ss" @bind="email" placeholder="Email address" />
+        </div>
+    </div>
+
+    @* Language Settings *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Language Settings</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Native Language</label>
+            <select class="form-select form-control-ss" @bind="nativeLanguage">
+                @foreach (var lang in languages)
+                {
+                    <option value="@lang">@lang</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Target Language</label>
+            <select class="form-select form-control-ss" @bind="targetLanguage">
+                @foreach (var lang in languages)
+                {
+                    <option value="@lang">@lang</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Display Language</label>
+            <select class="form-select form-control-ss" @bind="displayLanguage">
+                <option value="English">English</option>
+                <option value="Korean">Korean</option>
+            </select>
+        </div>
+    </div>
+
+    @* Learning Preferences *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Learning Preferences</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Session Duration (minutes)</label>
+            <div class="btn-group flex-wrap" role="group">
+                @foreach (var min in sessionOptions)
+                {
+                    <button class="btn @(preferredSessionMinutes == min ? "btn-ss-primary" : "btn-ss-secondary")"
+                            @onclick="() => preferredSessionMinutes = min">
+                        @min
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Target CEFR Level</label>
+            <div class="btn-group flex-wrap" role="group">
+                @foreach (var level in cefrLevels)
+                {
+                    <button class="btn @(targetCEFRLevel == level ? "btn-ss-primary" : "btn-ss-secondary")"
+                            @onclick="() => targetCEFRLevel = level">
+                        @level
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* API Key *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">API Configuration</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">OpenAI API Key</label>
+            <input type="password" class="form-control form-control-ss" @bind="openAiApiKey" placeholder="sk-..." />
+        </div>
+    </div>
+
+    @* Actions *@
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile">Save Profile</button>
+    </div>
+
+    @* Export *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Data Export</h5>
+        <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
+            @if (isExporting)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                <span>@exportProgressMessage</span>
+            }
+            else
+            {
+                <span>Export All Data</span>
+            }
+        </button>
+    </div>
+
+    @* Danger Zone *@
+    <div class="card card-ss p-4 border border-danger mb-5">
+        <h5 class="ss-title3 text-error-ss mb-3">Danger Zone</h5>
+        <button class="btn btn-ss-danger w-100" @onclick="ResetProfile">Reset Profile</button>
+    </div>
+}
+
+@code {
+    [Inject] private UserProfileRepository ProfileRepo { get; set; }
+    [Inject] private DataExportService ExportService { get; set; }
+    [Inject] private CommunityToolkit.Maui.Storage.IFileSaver FileSaver { get; set; }
+    [Inject] private ToastService Toast { get; set; }
+    [Inject] private IJSRuntime JS { get; set; }
+    [Inject] private IAppState AppState { get; set; }
+
+    private bool isLoading = true;
+    private string name = "";
+    private string email = "";
+    private string nativeLanguage = "English";
+    private string targetLanguage = "Korean";
+    private string displayLanguage = "English";
+    private string openAiApiKey = "";
+    private int preferredSessionMinutes = 15;
+    private string targetCEFRLevel = "A2";
+    private bool isExporting;
+    private string exportProgressMessage = "";
+    private IJSObjectReference? jsModule;
+
+    private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
+    private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
+    private readonly string[] cefrLevels = { "A1", "A2", "B1", "B2", "C1", "C2" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            var profile = await ProfileRepo.GetAsync();
+            if (profile != null)
+            {
+                name = profile.Name ?? "";
+                email = profile.Email ?? "";
+                nativeLanguage = profile.NativeLanguage ?? "English";
+                targetLanguage = profile.TargetLanguage ?? "Korean";
+                displayLanguage = profile.DisplayLanguage ?? "English";
+                openAiApiKey = profile.OpenAI_APIKey ?? "";
+                preferredSessionMinutes = profile.PreferredSessionMinutes > 0 ? profile.PreferredSessionMinutes : 15;
+                targetCEFRLevel = profile.TargetCEFRLevel ?? "A2";
+            }
+        }
+        catch { }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        try
+        {
+            var profile = await ProfileRepo.GetAsync() ?? new UserProfile();
+            profile.Name = name;
+            profile.Email = email;
+            profile.NativeLanguage = nativeLanguage;
+            profile.TargetLanguage = targetLanguage;
+            profile.DisplayLanguage = displayLanguage;
+            profile.OpenAI_APIKey = openAiApiKey;
+            profile.PreferredSessionMinutes = preferredSessionMinutes;
+            profile.TargetCEFRLevel = targetCEFRLevel;
+
+            await ProfileRepo.SaveAsync(profile);
+            AppState.CurrentUserProfile = profile;
+            Toast.ShowSuccess("Profile saved");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+    }
+
+    private async Task ExportData()
+    {
+        isExporting = true;
+        exportProgressMessage = "Exporting...";
+        try
+        {
+            await ExportService.ExportAllDataAsZipAsync();
+            Toast.ShowSuccess("Data exported successfully");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            exportProgressMessage = "";
+        }
+    }
+
+    private async Task ResetProfile()
+    {
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            "This will delete your profile and all preferences. This cannot be undone.");
+
+        if (confirmed)
+        {
+            try
+            {
+                await ProfileRepo.DeleteAsync();
+                Microsoft.Maui.Storage.Preferences.Default.Set("is_onboarded", false);
+                Toast.ShowInfo("Profile reset. Please restart the app.");
+            }
+            catch (Exception ex)
+            {
+                Toast.ShowError($"Reset failed: {ex.Message}");
+            }
+        }
+    }
+}

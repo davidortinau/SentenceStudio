@@ -1,0 +1,309 @@
+@page "/onboarding"
+
+<PageHeader Title="Welcome" />
+
+<div class="container" style="max-width: 600px;">
+    @switch (currentStep)
+    {
+        case 0:
+            @* Welcome *@
+            <div class="text-center py-5">
+                <h1 class="ss-display mb-3">Welcome</h1>
+                <p class="ss-body1 text-secondary-ss mb-4">Let's set up your language learning journey.</p>
+                <button class="btn btn-ss-primary btn-lg" @onclick="NextStep">Get Started</button>
+            </div>
+            break;
+
+        case 1:
+            @* Native Language *@
+            <div class="py-4">
+                <h2 class="ss-title1 mb-3">What's your native language?</h2>
+                <div class="d-grid gap-2">
+                    @foreach (var lang in languages)
+                    {
+                        <button class="btn @(nativeLanguage == lang ? "btn-ss-primary" : "btn-ss-secondary") btn-lg"
+                                @onclick="() => { nativeLanguage = lang; NextStep(); }">
+                            @lang
+                        </button>
+                    }
+                </div>
+            </div>
+            break;
+
+        case 2:
+            @* Target Language *@
+            <div class="py-4">
+                <h2 class="ss-title1 mb-3">What language are you learning?</h2>
+                <div class="d-grid gap-2">
+                    @foreach (var lang in targetLanguages)
+                    {
+                        <button class="btn @(targetLanguage == lang ? "btn-ss-primary" : "btn-ss-secondary") btn-lg"
+                                @onclick="() => { targetLanguage = lang; NextStep(); }">
+                            @lang
+                        </button>
+                    }
+                </div>
+            </div>
+            break;
+
+        case 3:
+            @* Name *@
+            <div class="py-4">
+                <h2 class="ss-title1 mb-3">What's your name?</h2>
+                <input type="text" class="form-control form-control-ss form-control-lg mb-3"
+                       @bind="name" placeholder="Enter your name" />
+
+                @if (isLoadingNames)
+                {
+                    <p class="ss-caption1 text-muted-ss">
+                        <span class="spinner-border spinner-border-sm me-1"></span> Generating name suggestions...
+                    </p>
+                }
+                else if (suggestedNames.Any())
+                {
+                    <p class="ss-caption1 text-muted-ss mb-2">Or choose a suggested name:</p>
+                    <div class="row g-2">
+                        @foreach (var sn in suggestedNames)
+                        {
+                            <div class="col-6">
+                                <button class="btn btn-ss-secondary w-100" @onclick="() => name = sn">@sn</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            break;
+
+        case 4:
+            @* API Key (conditional) *@
+            <div class="py-4">
+                <h2 class="ss-title1 mb-3">OpenAI API Key</h2>
+                <p class="ss-body2 text-secondary-ss mb-3">
+                    An API key is needed for AI-powered features. You can add this later in Settings.
+                </p>
+                <input type="password" class="form-control form-control-ss mb-3"
+                       @bind="openAiApiKey" placeholder="sk-..." />
+            </div>
+            break;
+
+        case 5:
+            @* Learning Preferences *@
+            <div class="py-4">
+                <h2 class="ss-title1 mb-3">Learning Preferences</h2>
+
+                <p class="ss-body2 text-secondary-ss mb-2">How long do you want to study each day?</p>
+                <div class="btn-group flex-wrap mb-4" role="group">
+                    @foreach (var min in sessionOptions)
+                    {
+                        <button class="btn @(preferredSessionMinutes == min ? "btn-ss-primary" : "btn-ss-secondary")"
+                                @onclick="() => preferredSessionMinutes = min">
+                            @min min
+                        </button>
+                    }
+                </div>
+
+                <p class="ss-body2 text-secondary-ss mb-2">What's your target level?</p>
+                <div class="btn-group flex-wrap" role="group">
+                    @foreach (var level in cefrLevels)
+                    {
+                        <button class="btn @(targetCEFRLevel == level ? "btn-ss-primary" : "btn-ss-secondary")"
+                                @onclick="() => targetCEFRLevel = level">
+                            @level
+                        </button>
+                    }
+                </div>
+            </div>
+            break;
+
+        case 6:
+            @* Finish *@
+            <div class="text-center py-5">
+                <h2 class="ss-title1 mb-3">You're all set!</h2>
+                <p class="ss-body1 text-secondary-ss mb-4">
+                    Would you like us to create starter learning content for you?
+                </p>
+
+                @if (isCreatingContent)
+                {
+                    <div class="mb-3">
+                        <div class="spinner-border text-primary mb-2"></div>
+                        <p class="ss-body2 text-muted-ss">@creationProgressMessage</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-ss-primary btn-lg" @onclick="CreateStarterContent">
+                            Create Starter Content
+                        </button>
+                        <button class="btn btn-ss-secondary btn-lg" @onclick="FinishOnboarding">
+                            Skip — I'll set up my own
+                        </button>
+                    </div>
+                }
+            </div>
+            break;
+    }
+
+    @* Navigation *@
+    @if (currentStep > 0 && currentStep < 6)
+    {
+        <div class="d-flex justify-content-between mt-4 pb-4">
+            <button class="btn btn-ss-secondary" @onclick="PrevStep">Back</button>
+            <button class="btn btn-ss-primary" @onclick="NextStep" disabled="@(!CanProceed())">Next</button>
+        </div>
+    }
+
+    @* Step indicator *@
+    <div class="d-flex justify-content-center gap-1 pb-3">
+        @for (int i = 0; i <= 6; i++)
+        {
+            var step = i;
+            <div class="rounded-circle @(step == currentStep ? "bg-primary" : "bg-secondary")"
+                 style="width: 8px; height: 8px; opacity: @(step == currentStep ? 1 : 0.3);"></div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] private UserProfileRepository ProfileRepo { get; set; }
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; }
+    [Inject] private SkillProfileRepository SkillRepo { get; set; }
+    [Inject] private NameGenerationService NameGen { get; set; }
+    [Inject] private AiService AiService { get; set; }
+    [Inject] private IAppState AppState { get; set; }
+    [Inject] private NavigationManager NavManager { get; set; }
+    [Inject] private ToastService Toast { get; set; }
+    [Inject] private ILogger<Onboarding> Logger { get; set; }
+
+    private int currentStep = 0;
+    private string name = "";
+    private string nativeLanguage = "English";
+    private string targetLanguage = "Korean";
+    private string openAiApiKey = "";
+    private int preferredSessionMinutes = 15;
+    private string targetCEFRLevel = "A2";
+    private string[] suggestedNames = Array.Empty<string>();
+    private bool isLoadingNames;
+    private bool isCreatingContent;
+    private string creationProgressMessage = "";
+
+    private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
+    private readonly string[] targetLanguages = { "Korean", "English", "French", "German", "Spanish", "Japanese", "Chinese" };
+    private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
+    private readonly string[] cefrLevels = { "A1", "A2", "B1", "B2", "C1", "C2" };
+
+    private bool CanProceed() => currentStep switch
+    {
+        1 => !string.IsNullOrWhiteSpace(nativeLanguage),
+        2 => !string.IsNullOrWhiteSpace(targetLanguage),
+        3 => !string.IsNullOrWhiteSpace(name),
+        _ => true
+    };
+
+    private async Task NextStep()
+    {
+        if (currentStep == 2)
+            _ = LoadSuggestedNames();
+
+        // Skip API key step if already configured
+        if (currentStep == 3 && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")))
+            currentStep = 5;
+        else
+            currentStep = Math.Min(currentStep + 1, 6);
+    }
+
+    private void PrevStep()
+    {
+        currentStep = Math.Max(currentStep - 1, 0);
+    }
+
+    private async Task LoadSuggestedNames()
+    {
+        isLoadingNames = true;
+        StateHasChanged();
+        try
+        {
+            var names = await NameGen.GenerateNamesAsync(targetLanguage);
+            suggestedNames = names?.ToArray() ?? Array.Empty<string>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to generate names");
+        }
+        finally
+        {
+            isLoadingNames = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CreateStarterContent()
+    {
+        isCreatingContent = true;
+        creationProgressMessage = "Creating learning resources...";
+        StateHasChanged();
+        try
+        {
+            await SaveProfile();
+            creationProgressMessage = "Generating vocabulary...";
+            StateHasChanged();
+
+            // Create starter resource and skill profile
+            var resource = new LearningResource
+            {
+                Title = $"Beginner {targetLanguage}",
+                Description = $"Starter vocabulary for {targetLanguage} learners",
+                Language = targetLanguage,
+            };
+            await ResourceRepo.SaveResourceAsync(resource);
+
+            creationProgressMessage = "Creating skill profile...";
+            StateHasChanged();
+
+            var skill = new SkillProfile
+            {
+                Title = $"Beginner {targetLanguage}",
+                Language = targetLanguage,
+            };
+            await SkillRepo.SaveAsync(skill);
+
+            await FinishOnboarding();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create starter content");
+            Toast.ShowError("Failed to create content. You can set it up later.");
+            await FinishOnboarding();
+        }
+        finally
+        {
+            isCreatingContent = false;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        var profile = new UserProfile
+        {
+            Name = name,
+            NativeLanguage = nativeLanguage,
+            TargetLanguage = targetLanguage,
+            DisplayLanguage = "English",
+            OpenAI_APIKey = openAiApiKey,
+            PreferredSessionMinutes = preferredSessionMinutes,
+            TargetCEFRLevel = targetCEFRLevel
+        };
+        await ProfileRepo.SaveAsync(profile);
+        AppState.CurrentUserProfile = profile;
+    }
+
+    private async Task FinishOnboarding()
+    {
+        if (AppState.CurrentUserProfile == null)
+            await SaveProfile();
+
+        Microsoft.Maui.Storage.Preferences.Default.Set("is_onboarded", true);
+        NavManager.NavigateTo("/", forceLoad: true);
+    }
+}

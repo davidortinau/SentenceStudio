@@ -1,0 +1,237 @@
+@page "/resources/add"
+
+<PageHeader Title="Add Resource" ShowBack="true" OnBack="Cancel">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
+            @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Save
+        </button>
+    </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+    </SecondaryActions>
+</PageHeader>
+
+@if (isSaving)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Basic Information</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Title *</label>
+            <input type="text" class="form-control form-control-ss" @bind="resource.Title" placeholder="Resource title" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Description</label>
+            <textarea class="form-control form-control-ss" @bind="resource.Description" rows="3" placeholder="Brief description"></textarea>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Media Type</label>
+                <select class="form-select form-control-ss" @bind="resource.MediaType">
+                    @foreach (var type in mediaTypes)
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Language</label>
+                <select class="form-select form-control-ss" @bind="resource.Language">
+                    @foreach (var lang in languages)
+                    {
+                        <option value="@lang">@lang</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Tags (comma separated)</label>
+            <input type="text" class="form-control form-control-ss" @bind="resource.Tags" placeholder="tag1, tag2, tag3" />
+        </div>
+    </div>
+
+    @if (resource.MediaType != "Vocabulary List")
+    {
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Media Content</h5>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Media URL</label>
+                <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" placeholder="https://..." />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Transcript</label>
+                <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="5" placeholder="Paste transcript here"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">Translation</label>
+                <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="5" placeholder="Paste translation here"></textarea>
+            </div>
+        </div>
+    }
+
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Vocabulary</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Paste vocabulary (one pair per line)</label>
+            <textarea class="form-control form-control-ss" @bind="vocabList" rows="6" placeholder="target, native&#10;한국어, Korean&#10;학교, school"></textarea>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="delimiter" id="delimComma"
+                       checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
+                <label class="form-check-label ss-body2" for="delimComma">Comma</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="delimiter" id="delimTab"
+                       checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
+                <label class="form-check-label ss-body2" for="delimTab">Tab</label>
+            </div>
+            <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
+                    disabled="@string.IsNullOrWhiteSpace(vocabList)">
+                Import Vocabulary
+            </button>
+        </div>
+
+        @if (resource.Vocabulary?.Count > 0)
+        {
+            <small class="text-secondary-ss">@resource.Vocabulary.Count vocabulary words added</small>
+        }
+    </div>
+
+    <div class="d-flex gap-2 mb-5">
+        <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveResource" disabled="@isSaving">
+            @if (isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            Save Resource
+        </button>
+    </div>
+}
+
+@code {
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private LearningResource resource = new()
+    {
+        MediaType = SentenceStudio.Common.Constants.MediaTypes[0],
+        Language = SentenceStudio.Common.Constants.Languages[0],
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    private bool isSaving;
+    private string vocabList = "";
+    private string delimiter = "comma";
+
+    private readonly string[] mediaTypes = SentenceStudio.Common.Constants.MediaTypes;
+    private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
+
+    private void SetDelimiterComma() => delimiter = "comma";
+    private void SetDelimiterTab() => delimiter = "tab";
+
+    private void Cancel() => NavManager.NavigateTo("/resources");
+
+    private async Task SaveResource()
+    {
+        if (string.IsNullOrWhiteSpace(resource.Title))
+        {
+            Toast.ShowError("Title is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(resource.MediaType))
+            resource.MediaType = "Other";
+        if (string.IsNullOrWhiteSpace(resource.Language))
+            resource.Language = "Other";
+
+        isSaving = true;
+        try
+        {
+            // Import any remaining vocabulary text
+            if (!string.IsNullOrWhiteSpace(vocabList))
+            {
+                AppendVocabularyFromText();
+            }
+
+            await ResourceRepo.SaveResourceAsync(resource);
+            Toast.ShowSuccess("Resource saved.");
+            NavManager.NavigateTo("/resources");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ImportVocabulary()
+    {
+        if (string.IsNullOrWhiteSpace(vocabList))
+        {
+            Toast.ShowError("No vocabulary to import.");
+            return;
+        }
+
+        try
+        {
+            int added = AppendVocabularyFromText();
+            if (added > 0)
+            {
+                vocabList = "";
+                Toast.ShowSuccess($"Imported {added} vocabulary words.");
+            }
+            else
+            {
+                Toast.ShowInfo("No new vocabulary words found (may be duplicates).");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Import failed: {ex.Message}");
+        }
+    }
+
+    private int AppendVocabularyFromText()
+    {
+        var newWords = VocabularyWord.ParseVocabularyWords(vocabList, delimiter);
+        resource.Vocabulary ??= new List<VocabularyWord>();
+
+        int added = 0;
+        foreach (var word in newWords)
+        {
+            bool isDuplicate = resource.Vocabulary.Any(existing =>
+                existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+
+            if (!isDuplicate)
+            {
+                word.CreatedAt = DateTime.UtcNow;
+                word.UpdatedAt = DateTime.UtcNow;
+                resource.Vocabulary.Add(word);
+                added++;
+            }
+        }
+
+        return added;
+    }
+}

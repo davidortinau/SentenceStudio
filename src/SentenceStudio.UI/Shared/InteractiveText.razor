@@ -1,0 +1,171 @@
+@using SentenceStudio.Shared.Models
+
+<div class="interactive-text" @onclick="HandleContainerClick">
+    @if (_sentenceSpans is not null)
+    {
+        @for (int si = 0; si < _sentenceSpans.Count; si++)
+        {
+            var sentenceIndex = si;
+            var sentence = _sentenceSpans[si];
+            <span class="sentence @(sentenceIndex == SelectedSentenceIndex ? "sentence--selected" : "")"
+                  data-sentence="@sentenceIndex"
+                  @ondblclick="() => OnSentenceDoubleClicked.InvokeAsync(sentenceIndex)"
+                  @ondblclick:stopPropagation="true">
+                @foreach (var word in sentence)
+                {
+                    if (word.IsVocabulary)
+                    {
+                        <span class="word word--vocab"
+                              @onclick="() => HandleWordClick(word)"
+                              @onclick:stopPropagation="true">@word.Text</span>
+                    }
+                    else if (word.IsWord)
+                    {
+                        <span class="word"
+                              @onclick="() => HandleWordClick(word)"
+                              @onclick:stopPropagation="true">@word.Text</span>
+                    }
+                    else
+                    {
+                        @word.Text
+                    }
+                }
+            </span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string Text { get; set; } = string.Empty;
+    [Parameter] public List<VocabularyWord>? VocabularyWords { get; set; }
+    [Parameter] public List<string>? Sentences { get; set; }
+    [Parameter] public int SelectedSentenceIndex { get; set; } = -1;
+
+    [Parameter] public EventCallback<string> OnWordClicked { get; set; }
+    [Parameter] public EventCallback<VocabularyWord> OnVocabularyWordClicked { get; set; }
+    [Parameter] public EventCallback<int> OnSentenceClicked { get; set; }
+    [Parameter] public EventCallback<int> OnSentenceDoubleClicked { get; set; }
+
+    private List<List<WordSpan>> _sentenceSpans = new();
+
+    private class WordSpan
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsWord { get; set; }
+        public bool IsVocabulary { get; set; }
+        public VocabularyWord? VocabularyWord { get; set; }
+        public int SentenceIndex { get; set; }
+    }
+
+    protected override void OnParametersSet()
+    {
+        BuildSpans();
+    }
+
+    private void BuildSpans()
+    {
+        _sentenceSpans = new();
+        var vocabLookup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var vocabDict = new Dictionary<string, VocabularyWord>(StringComparer.OrdinalIgnoreCase);
+
+        if (VocabularyWords is not null)
+        {
+            foreach (var vw in VocabularyWords)
+            {
+                if (!string.IsNullOrEmpty(vw.TargetLanguageTerm))
+                {
+                    vocabLookup.Add(vw.TargetLanguageTerm);
+                    vocabDict[vw.TargetLanguageTerm] = vw;
+                }
+            }
+        }
+
+        var sentences = Sentences ?? new List<string>();
+        if (sentences.Count == 0 && !string.IsNullOrEmpty(Text))
+        {
+            sentences = new List<string> { Text };
+        }
+
+        for (int si = 0; si < sentences.Count; si++)
+        {
+            var sentence = sentences[si];
+            if (sentence == "PARAGRAPH_BREAK")
+                continue;
+
+            var words = new List<WordSpan>();
+            var tokens = TokenizeSentence(sentence);
+
+            foreach (var token in tokens)
+            {
+                bool isWord = !string.IsNullOrWhiteSpace(token) && token.Any(char.IsLetterOrDigit);
+                bool isVocab = isWord && vocabLookup.Contains(token.Trim());
+
+                words.Add(new WordSpan
+                {
+                    Text = token,
+                    IsWord = isWord,
+                    IsVocabulary = isVocab,
+                    VocabularyWord = isVocab && vocabDict.TryGetValue(token.Trim(), out var vw) ? vw : null,
+                    SentenceIndex = si
+                });
+            }
+
+            _sentenceSpans.Add(words);
+        }
+    }
+
+    private static List<string> TokenizeSentence(string sentence)
+    {
+        var tokens = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inWord = false;
+
+        foreach (char c in sentence)
+        {
+            bool isWordChar = char.IsLetterOrDigit(c) || c == '\'' || c == '\u2019';
+            if (isWordChar)
+            {
+                if (!inWord && current.Length > 0)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                }
+                inWord = true;
+                current.Append(c);
+            }
+            else
+            {
+                if (inWord && current.Length > 0)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                }
+                inWord = false;
+                current.Append(c);
+            }
+        }
+
+        if (current.Length > 0)
+            tokens.Add(current.ToString());
+
+        return tokens;
+    }
+
+    private async Task HandleWordClick(WordSpan word)
+    {
+        if (word.IsVocabulary && word.VocabularyWord is not null)
+        {
+            await OnVocabularyWordClicked.InvokeAsync(word.VocabularyWord);
+        }
+        else if (word.IsWord)
+        {
+            await OnWordClicked.InvokeAsync(word.Text);
+        }
+    }
+
+    private async Task HandleContainerClick(MouseEventArgs e)
+    {
+        // Sentence click is handled via the data attribute on sentence spans
+        // This provides a fallback for clicking non-word areas within a sentence
+    }
+}

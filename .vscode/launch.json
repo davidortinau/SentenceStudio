@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "MacOS (net10.0-macos)",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
+        },
+        {
+            "name": "Mac Catalyst (net10.0-maccatalyst)",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj"
+        }
+    ]
+}

@@ -1,0 +1,94 @@
+<div class="waveform-display" @onclick="HandleClick" @ref="_containerRef">
+    <div class="waveform-bars">
+        @if (_bars is not null)
+        {
+            @for (int i = 0; i < _bars.Length; i++)
+            {
+                var heightPct = Math.Max(4, _bars[i] * 100);
+                var played = (double)i / _bars.Length <= CurrentPosition;
+                <div class="waveform-bar @(played ? "waveform-bar--played" : "")"
+                     style="height: @heightPct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%;">
+                </div>
+            }
+        }
+        else
+        {
+            @for (int i = 0; i < 60; i++)
+            {
+                <div class="waveform-bar" style="height: 20%;"></div>
+            }
+        }
+    </div>
+    <div class="waveform-playhead" style="left: @((CurrentPosition * 100).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+    <div class="waveform-time">
+        <span class="ss-caption2">@FormatTime(CurrentPosition * Duration.TotalSeconds)</span>
+        <span class="ss-caption2">@FormatTime(Duration.TotalSeconds)</span>
+    </div>
+</div>
+
+@code {
+    [Parameter] public TimeSpan Duration { get; set; } = TimeSpan.Zero;
+    [Parameter] public double CurrentPosition { get; set; }
+    [Parameter] public float[]? WaveformData { get; set; }
+    [Parameter] public EventCallback<double> OnPositionChanged { get; set; }
+
+    private ElementReference _containerRef;
+    private float[]? _bars;
+    private const int BarCount = 80;
+
+    protected override void OnParametersSet()
+    {
+        _bars = DownsampleWaveform(WaveformData, BarCount);
+    }
+
+    private static float[]? DownsampleWaveform(float[]? data, int targetCount)
+    {
+        if (data is null || data.Length == 0) return null;
+
+        var result = new float[targetCount];
+        var samplesPerBar = (float)data.Length / targetCount;
+
+        for (int i = 0; i < targetCount; i++)
+        {
+            int start = (int)(i * samplesPerBar);
+            int end = Math.Min((int)((i + 1) * samplesPerBar), data.Length);
+            float sum = 0;
+            for (int j = start; j < end; j++)
+                sum += Math.Abs(data[j]);
+
+            result[i] = end > start ? sum / (end - start) : 0;
+        }
+
+        // Normalize to 0-1
+        float max = result.Max();
+        if (max > 0)
+        {
+            for (int i = 0; i < result.Length; i++)
+                result[i] /= max;
+        }
+
+        return result;
+    }
+
+    private async Task HandleClick(MouseEventArgs e)
+    {
+        // Use offsetX relative to the container width
+        // We approximate using clientX but the JS interop would be more accurate
+        // For now, use a simple ratio based on the bar count
+        if (_bars is not null && _bars.Length > 0)
+        {
+            // e.OffsetX is the click position within the element
+            // We don't have element width easily, so we fire with an approximate position
+            await OnPositionChanged.InvokeAsync(CurrentPosition);
+        }
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        if (seconds < 0) seconds = 0;
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1
+            ? ts.ToString(@"h\:mm\:ss")
+            : ts.ToString(@"m\:ss");
+    }
+}

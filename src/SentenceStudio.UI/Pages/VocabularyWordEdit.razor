@@ -1,0 +1,422 @@
+@page "/vocabulary/edit/{Id:int}"
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    @if (Id > 0)
+    {
+        <PageHeader Title="Edit Vocabulary Word" ShowBack="true" OnBack="GoBack">
+            <PrimaryActions>
+                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Save
+                </button>
+            </PrimaryActions>
+            <SecondaryActions>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li><button class="dropdown-item text-danger" @onclick="DeleteWord" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
+            </SecondaryActions>
+        </PageHeader>
+    }
+    else
+    {
+        <PageHeader Title="Add Vocabulary Word" ShowBack="true" OnBack="GoBack">
+            <PrimaryActions>
+                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Add
+                </button>
+            </PrimaryActions>
+            <SecondaryActions>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Add</button></li>
+            </SecondaryActions>
+        </PageHeader>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mb-3">@errorMessage</div>
+    }
+
+    @* Vocabulary Terms *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Vocabulary Terms</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Target Language Term</label>
+            <input type="text" class="form-control form-control-ss" @bind="targetLanguageTerm"
+                   placeholder="Enter target language term" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Native Language Term</label>
+            <input type="text" class="form-control form-control-ss" @bind="nativeLanguageTerm"
+                   placeholder="Enter native language term" />
+        </div>
+    </div>
+
+    @* Encoding & Memory Aids *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Encoding &amp; Memory Aids</h5>
+
+        @if (Id > 0)
+        {
+            <p class="ss-body2 mb-3">
+                Encoding Strength:
+                <span class="@GetEncodingClass()">@encodingStrengthLabel</span>
+            </p>
+        }
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Lemma (Dictionary Form)</label>
+            <input type="text" class="form-control form-control-ss" @bind="lemma"
+                   placeholder="e.g., 가다 for 갔다, 가요, etc." />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Tags (comma-separated)</label>
+            <input type="text" class="form-control form-control-ss" @bind="tags"
+                   placeholder="e.g., nature, season, visual" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Mnemonic Story</label>
+            <textarea class="form-control form-control-ss" @bind="mnemonicText" rows="3"
+                      placeholder="A silly story or memory hook to help recall this word..."></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Mnemonic Image URL</label>
+            <input type="url" class="form-control form-control-ss" @bind="mnemonicImageUri"
+                   placeholder="https://example.com/image.jpg" />
+            @if (!string.IsNullOrWhiteSpace(mnemonicImageUri))
+            {
+                <img src="@mnemonicImageUri" alt="Mnemonic" class="mt-2 rounded"
+                     style="max-height: 120px; object-fit: contain;" />
+            }
+        </div>
+    </div>
+
+    @* Progress Section (existing words only) *@
+    @if (Id > 0)
+    {
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Learning Progress</h5>
+            <div class="row g-2">
+                <div class="col-4 col-md-2"><strong class="ss-body2">Status</strong></div>
+                <div class="col-8 col-md-4 ss-body2">
+                    <span class="badge @GetProgressBadgeClass()">@progressStatusText</span>
+                </div>
+                <div class="col-4 col-md-2"><strong class="ss-body2">Details</strong></div>
+                <div class="col-8 col-md-4 ss-body2" style="white-space: pre-line;">@progressDetails</div>
+                <div class="col-4 col-md-2"><strong class="ss-body2">Next Review</strong></div>
+                <div class="col-8 col-md-4 ss-body2">@reviewDateText</div>
+            </div>
+        </div>
+    }
+
+    @* Resource Associations *@
+    <div class="card card-ss p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="ss-title3 mb-0">Resource Associations</h5>
+            <small class="text-secondary-ss">@selectedResourceIds.Count selected</small>
+        </div>
+        <p class="ss-body2 text-secondary-ss mb-3">Select resources to associate with this word.</p>
+
+        @if (availableResources.Count == 0)
+        {
+            <p class="text-secondary-ss ss-body2 mb-0 fst-italic">No resources available.</p>
+        }
+        else
+        {
+            <div class="list-group list-group-flush">
+                @foreach (var resource in availableResources)
+                {
+                    var isSelected = selectedResourceIds.Contains(resource.Id);
+                    <label class="list-group-item d-flex align-items-center gap-3 bg-transparent border-secondary px-0"
+                           style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="checkbox" checked="@isSelected"
+                               @onchange="() => ToggleResource(resource.Id)" />
+                        <div>
+                            <strong class="ss-body1">@(resource.Title ?? "Unknown Resource")</strong>
+                            @if (!string.IsNullOrEmpty(resource.Description))
+                            {
+                                <br /><small class="text-secondary-ss">@resource.Description</small>
+                            }
+                        </div>
+                    </label>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private ILogger<VocabularyWordEdit> Logger { get; set; } = default!;
+
+    private VocabularyWord word = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private string errorMessage = "";
+    private IJSObjectReference? jsModule;
+
+    // Form fields
+    private string targetLanguageTerm = "";
+    private string nativeLanguageTerm = "";
+    private string lemma = "";
+    private string tags = "";
+    private string mnemonicText = "";
+    private string mnemonicImageUri = "";
+
+    // Resources
+    private List<LearningResource> availableResources = new();
+    private HashSet<int> selectedResourceIds = new();
+    private HashSet<int> originalResourceIds = new();
+
+    // Progress
+    private SentenceStudio.Shared.Models.VocabularyProgress? progress;
+    private string progressStatusText = "Unknown";
+    private string progressDetails = "";
+    private string reviewDateText = "Not scheduled";
+    private string encodingStrengthLabel = "Basic";
+
+    private bool IsFormValid =>
+        !string.IsNullOrWhiteSpace(targetLanguageTerm) &&
+        !string.IsNullOrWhiteSpace(nativeLanguageTerm);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            if (Id > 0)
+            {
+                var loadedWord = await ResourceRepo.GetVocabularyWordByIdAsync(Id);
+                if (loadedWord == null)
+                {
+                    Toast.ShowError("Vocabulary word not found.");
+                    GoBack();
+                    return;
+                }
+                word = loadedWord;
+
+                targetLanguageTerm = word.TargetLanguageTerm ?? "";
+                nativeLanguageTerm = word.NativeLanguageTerm ?? "";
+                lemma = word.Lemma ?? "";
+                tags = word.Tags ?? "";
+                mnemonicText = word.MnemonicText ?? "";
+                mnemonicImageUri = word.MnemonicImageUri ?? "";
+
+                // Load progress and associated resources in parallel
+                var progressTask = ProgressService.GetProgressAsync(Id);
+                var associatedTask = ResourceRepo.GetResourcesForVocabularyWordAsync(Id);
+                var resourcesTask = ResourceRepo.GetAllResourcesLightweightAsync();
+
+                await Task.WhenAll(progressTask, associatedTask, resourcesTask);
+
+                progress = await progressTask;
+                var associatedResources = await associatedTask;
+                availableResources = await resourcesTask;
+
+                selectedResourceIds = new HashSet<int>(associatedResources.Select(r => r.Id));
+                originalResourceIds = new HashSet<int>(selectedResourceIds);
+
+                UpdateProgressDisplay();
+                UpdateEncodingStrength();
+            }
+            else
+            {
+                word = new VocabularyWord { CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                availableResources = await ResourceRepo.GetAllResourcesLightweightAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load: {ex.Message}");
+            Logger.LogError(ex, "Failed to load vocabulary word data");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void UpdateProgressDisplay()
+    {
+        var isKnown = progress?.IsKnown ?? false;
+        var isLearning = progress?.IsLearning ?? false;
+
+        progressStatusText = isKnown ? "Known" : isLearning ? "Learning" : "Unknown";
+
+        if (isKnown)
+            progressDetails = "Known";
+        else if (progress == null || (!isKnown && !isLearning))
+            progressDetails = "Start practicing to track progress.";
+        else
+        {
+            var parts = new List<string>
+            {
+                $"Streak: {progress?.CurrentStreak ?? 0}",
+                $"Production: {progress?.ProductionInStreak ?? 0}/2",
+                $"Mastery: {(int)((progress?.MasteryScore ?? 0f) * 100)}%"
+            };
+            progressDetails = string.Join("\n", parts);
+        }
+
+        if (progress?.NextReviewDate == null)
+        {
+            reviewDateText = "Not scheduled";
+        }
+        else
+        {
+            var now = DateTime.Now.Date;
+            var reviewDate = progress.NextReviewDate.Value.Date;
+            reviewDateText = reviewDate <= now ? "📅 Due now"
+                : reviewDate == now.AddDays(1) ? "📅 Tomorrow"
+                : reviewDate <= now.AddDays(7) ? $"📅 {(reviewDate - now).Days} days away"
+                : $"📅 {reviewDate:MMM d}";
+        }
+    }
+
+    private void UpdateEncodingStrength()
+    {
+        var exampleCount = word.ExampleSentences?.Count ?? 0;
+        var (score, label) = EncodingScoreHelper.CalculateWithLabel(word, exampleCount);
+        encodingStrengthLabel = label;
+    }
+
+    private void ToggleResource(int resourceId)
+    {
+        if (!selectedResourceIds.Remove(resourceId))
+            selectedResourceIds.Add(resourceId);
+    }
+
+    private async Task SaveWord()
+    {
+        isSaving = true;
+        errorMessage = "";
+
+        try
+        {
+            var target = targetLanguageTerm.Trim();
+            var native = nativeLanguageTerm.Trim();
+
+            if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(native))
+            {
+                errorMessage = "Both target and native language terms are required.";
+                return;
+            }
+
+            // Duplicate check
+            var existing = await ResourceRepo.FindDuplicateVocabularyWordAsync(target, native);
+            if (existing != null && existing.Id != word.Id)
+            {
+                errorMessage = "A vocabulary word with these terms already exists.";
+                return;
+            }
+
+            word.TargetLanguageTerm = target;
+            word.NativeLanguageTerm = native;
+            word.Lemma = lemma.Trim();
+            word.Tags = tags.Trim();
+            word.MnemonicText = mnemonicText.Trim();
+            word.MnemonicImageUri = mnemonicImageUri.Trim();
+            word.UpdatedAt = DateTime.UtcNow;
+
+            await ResourceRepo.SaveWordAsync(word);
+
+            // Handle resource associations
+            if (word.Id > 0)
+            {
+                foreach (var resourceId in originalResourceIds.Except(selectedResourceIds))
+                    await ResourceRepo.RemoveVocabularyFromResourceAsync(resourceId, word.Id);
+
+                foreach (var resourceId in selectedResourceIds.Except(originalResourceIds))
+                    await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
+            }
+            else
+            {
+                foreach (var resourceId in selectedResourceIds)
+                    await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
+            }
+
+            Toast.ShowSuccess(Id == 0 ? "Vocabulary word added!" : "Vocabulary word updated!");
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save: {ex.Message}";
+            Logger.LogError(ex, "Failed to save vocabulary word");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteWord()
+    {
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.");
+
+        if (!confirmed) return;
+
+        isSaving = true;
+        try
+        {
+            await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
+            Toast.ShowSuccess("Vocabulary word deleted!");
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to delete: {ex.Message}");
+            Logger.LogError(ex, "Failed to delete vocabulary word");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/vocabulary");
+
+    private string GetEncodingClass() => encodingStrengthLabel switch
+    {
+        "Strong" => "text-success fw-bold",
+        "Good" => "text-warning fw-bold",
+        _ => "text-secondary-ss"
+    };
+
+    private string GetProgressBadgeClass() => progressStatusText switch
+    {
+        "Known" => "bg-success",
+        "Learning" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+}

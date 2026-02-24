@@ -1,0 +1,297 @@
+@page "/how-do-you-say"
+@using Plugin.Maui.Audio
+@using SentenceStudio.Services.Speech
+@implements IDisposable
+
+<PageHeader Title="How Do You Say...?" ShowBack="true" OnBack="GoBack" />
+
+@* Input area *@
+<div class="card card-ss p-3 mb-4">
+    <div class="mb-3">
+        <label class="form-label text-secondary-ss">Enter a phrase in @targetLanguage</label>
+        <input type="text" class="form-control form-control-ss form-control-lg"
+               @bind="phrase" @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="Type a phrase to hear..." />
+    </div>
+
+    @if (availableVoices.Any())
+    {
+        <div class="mb-3">
+            <label class="form-label text-secondary-ss">Voice</label>
+            <select class="form-select form-control-ss" @onchange="OnVoiceChanged">
+                @foreach (var voice in availableVoices)
+                {
+                    <option value="@voice.VoiceId" selected="@(voice.VoiceId == selectedVoiceId)">
+                        @voice.Name @(voice.Gender != null ? $"({voice.Gender})" : "")
+                    </option>
+                }
+            </select>
+        </div>
+    }
+
+    <button class="btn btn-ss-primary w-100" @onclick="SubmitPhrase"
+            disabled="@(isBusy || string.IsNullOrWhiteSpace(phrase))">
+        @if (isBusy)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+            <span>Generating...</span>
+        }
+        else
+        {
+            <span><i class="bi bi-volume-up me-1"></i> Speak</span>
+        }
+    </button>
+</div>
+
+@* History *@
+@if (isLoadingHistory)
+{
+    <div class="d-flex justify-content-center p-3">
+        <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+    </div>
+}
+else if (history.Any())
+{
+    <h3 class="ss-title3 mb-3">History</h3>
+    <div class="d-flex flex-column gap-2">
+        @foreach (var item in history)
+        {
+            var h = item;
+            var isPlaying = currentPlayingItem?.Id == h.Id && isAudioPlaying;
+
+            <div class="card card-ss p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="flex-grow-1">
+                        <p class="ss-body1 fw-bold mb-0">@h.Phrase</p>
+                        <small class="text-secondary-ss">@h.CreatedAt.ToString("g")</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm @(isPlaying ? "btn-ss-primary" : "btn-ss-secondary")"
+                                @onclick="() => PlayHistoryItem(h)">
+                            @if (isPlaying) { <i class="bi bi-pause-fill"></i> } else { <i class="bi bi-play-fill"></i> }
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DeleteHistoryItem(h)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private StreamHistoryRepository HistoryRepo { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; } = default!;
+    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<HowDoYouSay> Logger { get; set; } = default!;
+
+    private string phrase = "";
+    private string targetLanguage = "Korean";
+    private string selectedVoiceId = "";
+    private bool isBusy;
+    private bool isLoadingHistory = true;
+    private bool isAudioPlaying;
+
+    private List<VoiceInfo> availableVoices = new();
+    private List<StreamHistory> history = new();
+    private StreamHistory? currentPlayingItem;
+    private IAudioPlayer? audioPlayer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await ProfileRepo.GetAsync();
+        targetLanguage = profile?.TargetLanguage ?? "Korean";
+
+        await Task.WhenAll(
+            LoadVoices(),
+            LoadHistory()
+        );
+    }
+
+    private async Task LoadVoices()
+    {
+        try
+        {
+            var voices = await VoiceDiscovery.GetVoicesForLanguageAsync(targetLanguage);
+            availableVoices = voices?.ToList() ?? new();
+            selectedVoiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
+            if (string.IsNullOrEmpty(selectedVoiceId) && availableVoices.Any())
+                selectedVoiceId = availableVoices.First().VoiceId;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load voices");
+        }
+    }
+
+    private async Task LoadHistory()
+    {
+        isLoadingHistory = true;
+        try
+        {
+            var items = await HistoryRepo.GetAllStreamHistoryAsync();
+            history = items?.OrderByDescending(h => h.CreatedAt).ToList() ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load history");
+        }
+        finally
+        {
+            isLoadingHistory = false;
+        }
+    }
+
+    private async Task SubmitPhrase()
+    {
+        if (string.IsNullOrWhiteSpace(phrase) || isBusy) return;
+
+        isBusy = true;
+        try
+        {
+            var voiceId = selectedVoiceId;
+            if (string.IsNullOrEmpty(voiceId))
+            {
+                Toast.ShowWarning("Please select a voice first.");
+                return;
+            }
+
+            var audioStream = await SpeechService.TextToSpeechAsync(phrase, voiceId, 0.5f, 0.75f, 0.85f);
+
+            // Save to cache
+            var cacheDir = Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+            Directory.CreateDirectory(cacheDir);
+            var safeName = string.Join("_", phrase.Split(Path.GetInvalidFileNameChars())).Substring(0, Math.Min(50, phrase.Length));
+            var filePath = Path.Combine(cacheDir, $"{safeName}_{Guid.NewGuid():N}.mp3");
+            using (var fs = File.Create(filePath))
+            {
+                await audioStream.CopyToAsync(fs);
+            }
+
+            // Save to history
+            var entry = new StreamHistory
+            {
+                Phrase = phrase,
+                VoiceId = voiceId,
+                AudioFilePath = filePath,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await HistoryRepo.SaveStreamHistoryAsync(entry);
+
+            // Play it
+            StopAudio();
+            using var playStream = File.OpenRead(filePath);
+            audioPlayer = AudioManager.CreatePlayer(playStream);
+            audioPlayer.Play();
+            currentPlayingItem = entry;
+            isAudioPlaying = true;
+
+            // Add to top of history list
+            history.Insert(0, entry);
+
+            phrase = "";
+            Toast.ShowSuccess("Audio generated!");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to generate speech");
+            Toast.ShowError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void PlayHistoryItem(StreamHistory item)
+    {
+        if (currentPlayingItem?.Id == item.Id && isAudioPlaying)
+        {
+            StopAudio();
+            return;
+        }
+
+        StopAudio();
+
+        try
+        {
+            if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+            {
+                var stream = File.OpenRead(item.AudioFilePath);
+                audioPlayer = AudioManager.CreatePlayer(stream);
+                audioPlayer.Play();
+                currentPlayingItem = item;
+                isAudioPlaying = true;
+            }
+            else
+            {
+                Toast.ShowWarning("Audio file not found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play audio");
+            Toast.ShowError("Playback error.");
+        }
+    }
+
+    private async Task DeleteHistoryItem(StreamHistory item)
+    {
+        try
+        {
+            if (currentPlayingItem?.Id == item.Id) StopAudio();
+
+            await HistoryRepo.DeleteStreamHistoryAsync(item);
+            history.Remove(item);
+
+            if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+            {
+                try { File.Delete(item.AudioFilePath); } catch { }
+            }
+
+            Toast.ShowSuccess("Deleted.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete history item");
+            Toast.ShowError("Error deleting item.");
+        }
+    }
+
+    private void OnVoiceChanged(ChangeEventArgs e)
+    {
+        selectedVoiceId = e.Value?.ToString() ?? "";
+        if (!string.IsNullOrEmpty(selectedVoiceId))
+            VoicePrefs.SetVoiceForLanguage(targetLanguage, selectedVoiceId);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitPhrase();
+    }
+
+    private void StopAudio()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+        currentPlayingItem = null;
+        isAudioPlaying = false;
+    }
+
+    public void Dispose()
+    {
+        StopAudio();
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

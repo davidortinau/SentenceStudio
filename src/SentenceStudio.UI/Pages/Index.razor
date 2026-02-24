@@ -1,0 +1,567 @@
+@page "/"
+@using SentenceStudio.Services.Progress
+@using SentenceStudio.Data
+@implements IAsyncDisposable
+
+@if (isTodaysPlanMode)
+{
+    <PageHeader Title="Dashboard">
+        <SecondaryActions>
+            <button class="dropdown-item" @onclick="RegeneratePlanAsync">
+                <i class="bi bi-arrow-clockwise me-2"></i>Regenerate Plan
+            </button>
+        </SecondaryActions>
+    </PageHeader>
+}
+else
+{
+    <PageHeader Title="Dashboard" />
+}
+
+@if (AppState?.CurrentUserProfile?.Name is { Length: > 0 })
+{
+    <div class="mb-3 d-none d-md-block">
+        <h1 class="ss-title1 mb-1">@WelcomeMessage</h1>
+    </div>
+}
+
+@* ============ MODE SWITCHER ============ *@
+<div class="btn-group w-100 mb-4" role="group" aria-label="Dashboard mode">
+    <button type="button"
+            class="btn @(isTodaysPlanMode ? "btn-ss-primary" : "btn-outline-secondary")"
+            @onclick="() => SetMode(true)">
+        <i class="bi bi-calendar-check me-1"></i>Today's Plan
+    </button>
+    <button type="button"
+            class="btn @(!isTodaysPlanMode ? "btn-ss-primary" : "btn-outline-secondary")"
+            @onclick="() => SetMode(false)">
+        <i class="bi bi-sliders me-1"></i>Choose My Own
+    </button>
+</div>
+
+@if (isTodaysPlanMode)
+{
+    @* ============ TODAY'S PLAN MODE ============ *@
+    @if (isPlanLoading)
+    {
+        <div class="d-flex justify-content-center p-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (todaysPlan is not null)
+    {
+        @* Streak badge *@
+        @if (todaysPlan.Streak is { CurrentStreak: > 0 } streak)
+        {
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="badge bg-warning text-dark fs-6">
+                    <i class="bi bi-fire me-1"></i>@streak.CurrentStreak day streak
+                </span>
+                @if (streak.LongestStreak > streak.CurrentStreak)
+                {
+                    <span class="text-secondary-ss small">Best: @streak.LongestStreak days</span>
+                }
+            </div>
+        }
+
+        @* Progress bar *@
+        <div class="card card-ss p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="ss-body1 fw-semibold">Today's Progress</span>
+                <span class="text-secondary-ss small">@todaysPlan.CompletedCount / @todaysPlan.TotalCount</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-success" role="progressbar"
+                     style="width: @(todaysPlan.CompletionPercentage)%"
+                     aria-valuenow="@todaysPlan.CompletionPercentage"
+                     aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            @if (!string.IsNullOrEmpty(todaysPlan.Rationale))
+            {
+                <p class="text-secondary-ss small mt-2 mb-0">@todaysPlan.Rationale</p>
+            }
+        </div>
+
+        @* Plan items *@
+        <div class="d-flex flex-column gap-2 mb-4">
+            @foreach (var item in todaysPlan.Items)
+            {
+                <div class="card card-ss p-3 @(item.IsCompleted ? "opacity-75" : "")"
+                     role="button"
+                     @onclick="() => LaunchPlanItem(item)">
+                    <div class="d-flex align-items-center gap-3">
+                        <div>
+                            @if (item.IsCompleted)
+                            {
+                                <i class="bi bi-check-circle-fill text-success fs-4"></i>
+                            }
+                            else
+                            {
+                                <i class="bi @GetActivityIcon(item.ActivityType) fs-4" style="color: var(--bs-primary);"></i>
+                            }
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="ss-body1 fw-semibold @(item.IsCompleted ? "text-decoration-line-through" : "")">
+                                @GetActivityLabel(item.ActivityType)
+                            </div>
+                            <div class="text-secondary-ss small">
+                                @if (!string.IsNullOrEmpty(item.ResourceTitle))
+                                {
+                                    <span>@item.ResourceTitle</span>
+                                    <span class="mx-1">&middot;</span>
+                                }
+                                <span>~@(item.EstimatedMinutes) min</span>
+                                @if (item.VocabDueCount.HasValue && item.VocabDueCount > 0)
+                                {
+                                    <span class="mx-1">&middot;</span>
+                                    <span>@item.VocabDueCount words</span>
+                                }
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-secondary-ss"></i>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card card-ss p-4 mb-4 text-center">
+            <i class="bi bi-calendar-plus fs-1 text-secondary-ss mb-2"></i>
+            <p class="ss-body1 mb-3">No plan for today yet.</p>
+            <button class="btn btn-ss-primary mx-auto" style="max-width: 200px;" @onclick="GeneratePlanAsync">
+                <i class="bi bi-magic me-1"></i>Generate Plan
+            </button>
+        </div>
+    }
+}
+else
+{
+    @* ============ CHOOSE MY OWN MODE ============ *@
+    <div class="card card-ss p-3 mb-4">
+        <div class="mb-3">
+            <label class="ss-body2 fw-semibold mb-1">Learning Resources</label>
+            <select id="resourceSelect" multiple></select>
+        </div>
+        <div>
+            <label class="ss-body2 fw-semibold mb-1">Skill Profile</label>
+            <select id="skillSelect"></select>
+        </div>
+    </div>
+
+    @* Activity cards *@
+    <h2 class="ss-title2 mb-3">Activities</h2>
+    <div class="row g-3 mb-4">
+        @foreach (var activity in activities)
+        {
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card card-ss p-3 text-center h-100" role="button"
+                     @onclick="() => NavigateToActivity(activity.Route)">
+                    <div class="fs-2 mb-2"><i class="bi @activity.Icon"></i></div>
+                    <div class="ss-body1 fw-semibold">@activity.Label</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ============ VOCABULARY STATS ============ *@
+<h2 class="ss-title2 mb-3">Vocabulary</h2>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (vocabSummary is not null)
+{
+    var total = vocabSummary.New + vocabSummary.Learning + vocabSummary.Review + vocabSummary.Known;
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold" style="color: var(--bs-primary);">@vocabSummary.New</div>
+                <div class="text-secondary-ss small">New</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Learning</div>
+                <div class="text-secondary-ss small">Learning</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Review</div>
+                <div class="text-secondary-ss small">Review</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-ss p-3 text-center">
+                <div class="fs-3 fw-bold text-success-ss">@vocabSummary.Known</div>
+                <div class="text-secondary-ss small">Known</div>
+            </div>
+        </div>
+    </div>
+
+    @if (total > 0)
+    {
+        <div class="card card-ss p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="ss-body1">Total words: <strong>@total</strong></span>
+                <span class="text-secondary-ss">7-day accuracy: <strong>@(Math.Round(vocabSummary.SuccessRate7d * 100))%</strong></span>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="card card-ss p-4 mb-4 text-center">
+        <p class="text-secondary-ss mb-0">No vocabulary data yet. Start practicing!</p>
+    </div>
+}
+
+@code {
+    private const string PREF_DASHBOARD_MODE = "DashboardMode";
+    private const string PREF_SELECTED_RESOURCE_IDS = "SelectedResourceIds";
+    private const string PREF_SELECTED_SKILL_PROFILE_ID = "SelectedSkillProfileId";
+
+    [Inject] private IAppState AppState { get; set; } = default!;
+    [Inject] private IProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ILogger<Index> Logger { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private IJSObjectReference? jsModule;
+    private DotNetObjectReference<Index>? dotNetRef;
+
+    private bool isLoading;
+    private bool isPlanLoading;
+    private bool isTodaysPlanMode = true;
+    private VocabProgressSummary? vocabSummary;
+    private TodaysPlan? todaysPlan;
+
+    private List<LearningResource>? allResources;
+    private List<SkillProfile>? allSkills;
+    private List<string> selectedResourceIds = new();
+    private string? selectedSkillId;
+
+    private string WelcomeMessage =>
+        AppState?.CurrentUserProfile?.Name is { Length: > 0 } name
+            ? $"Welcome, {name}!"
+            : "Dashboard";
+
+    private readonly record struct ActivityInfo(string Label, string Icon, string Route);
+
+    private static readonly ActivityInfo[] activities =
+    [
+        new("Conversation", "bi-chat-dots", "conversation"),
+        new("Describe a Scene", "bi-image", "scene"),
+        new("Translate", "bi-translate", "translation"),
+        new("Cloze", "bi-puzzle", "cloze"),
+        new("Writing", "bi-pencil-square", "writing"),
+        new("Reading", "bi-book", "reading"),
+        new("Vocabulary Quiz", "bi-card-checklist", "vocab-quiz"),
+        new("Vocabulary Matching", "bi-grid-3x3-gap", "vocab-matching"),
+        new("Shadowing", "bi-soundwave", "shadowing"),
+        new("How Do You Say", "bi-chat-left-dots", "how-do-you-say"),
+        new("Minimal Pairs", "bi-ear", "minimal-pairs"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var savedMode = Preferences.Default.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
+        isTodaysPlanMode = savedMode == "TodaysPlan";
+
+        await LoadVocabStatsAsync();
+
+        if (isTodaysPlanMode)
+            await LoadPlanAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+            dotNetRef = DotNetObjectReference.Create(this);
+
+            if (!isTodaysPlanMode)
+                await InitChooseOwnSelectorsAsync();
+        }
+    }
+
+    private async void SetMode(bool todaysPlan)
+    {
+        if (isTodaysPlanMode == todaysPlan) return;
+        isTodaysPlanMode = todaysPlan;
+        Preferences.Default.Set(PREF_DASHBOARD_MODE, todaysPlan ? "TodaysPlan" : "ChooseOwn");
+        StateHasChanged();
+
+        if (todaysPlan)
+        {
+            await LoadPlanAsync();
+        }
+        else
+        {
+            // Wait for DOM to render the select elements, then init Tom Select
+            await Task.Yield();
+            StateHasChanged();
+            await Task.Delay(50);
+            await InitChooseOwnSelectorsAsync();
+        }
+    }
+
+    // ---- Today's Plan ----
+
+    private async Task LoadPlanAsync()
+    {
+        isPlanLoading = true;
+        StateHasChanged();
+        try
+        {
+            todaysPlan = await ProgressService.GetCachedPlanAsync(DateTime.Today);
+            todaysPlan ??= await ProgressService.GenerateTodaysPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load today's plan");
+        }
+        finally
+        {
+            isPlanLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GeneratePlanAsync()
+    {
+        isPlanLoading = true;
+        StateHasChanged();
+        try
+        {
+            todaysPlan = await ProgressService.GenerateTodaysPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to generate plan");
+        }
+        finally
+        {
+            isPlanLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RegeneratePlanAsync()
+    {
+        isPlanLoading = true;
+        StateHasChanged();
+        try
+        {
+            await ProgressService.ClearCachedPlanAsync(DateTime.Today);
+            todaysPlan = await ProgressService.GenerateTodaysPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to regenerate plan");
+        }
+        finally
+        {
+            isPlanLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void LaunchPlanItem(DailyPlanItem item)
+    {
+        if (item.IsCompleted) return;
+        var route = MapActivityRoute(item.ActivityType);
+        // Pass resource/skill via query params when available
+        var query = new List<string>();
+        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
+        if (item.ResourceId.HasValue)
+        {
+            if (multiResourceRoutes.Contains(route))
+                query.Add($"resourceIds={item.ResourceId}");
+            else
+                query.Add($"resourceId={item.ResourceId}");
+        }
+        if (item.SkillId.HasValue)
+            query.Add($"skillId={item.SkillId}");
+        query.Add($"planItemId={item.Id}");
+
+        var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        NavManager.NavigateTo(url);
+    }
+
+    // ---- Choose My Own ----
+
+    private async Task InitChooseOwnSelectorsAsync()
+    {
+        if (jsModule is null) return;
+
+        try
+        {
+            // Load data if needed
+            allResources ??= await ResourceRepo.GetAllResourcesLightweightAsync();
+            allSkills ??= await SkillRepo.ListAsync();
+
+            // Load saved selections
+            var savedResIds = Preferences.Default.Get(PREF_SELECTED_RESOURCE_IDS, "");
+            selectedResourceIds = string.IsNullOrEmpty(savedResIds)
+                ? new List<string>()
+                : savedResIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            selectedSkillId = Preferences.Default.Get(PREF_SELECTED_SKILL_PROFILE_ID, "");
+
+            // Init resource multi-select
+            var resOptions = allResources.Select(r => new { value = r.Id.ToString(), text = r.Title ?? $"Resource {r.Id}" }).ToArray();
+            await jsModule.InvokeVoidAsync("initTomSelect", "resourceSelect", resOptions, true, dotNetRef, "OnResourceSelectionChanged");
+
+            // Set initial values if saved
+            if (selectedResourceIds.Count > 0)
+            {
+                await jsModule.InvokeVoidAsync("setTomSelectValues", "resourceSelect", selectedResourceIds.ToArray());
+            }
+
+            // Init skill dropdown
+            var skillOptions = allSkills.Select(s => new { value = s.Id.ToString(), text = s.Title ?? $"Skill {s.Id}" }).ToArray();
+            await jsModule.InvokeVoidAsync("initTomSelect", "skillSelect", skillOptions, false, dotNetRef, "OnSkillSelectionChanged");
+
+            // Set initial value if saved
+            if (!string.IsNullOrEmpty(selectedSkillId))
+                await jsModule.InvokeVoidAsync("setTomSelectValues", "skillSelect", new[] { selectedSkillId });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize Choose My Own selectors");
+        }
+    }
+
+    [JSInvokable]
+    public void OnResourceSelectionChanged(string[] values)
+    {
+        selectedResourceIds = values.ToList();
+        var csv = string.Join(",", values);
+        if (!string.IsNullOrEmpty(csv))
+            Preferences.Default.Set(PREF_SELECTED_RESOURCE_IDS, csv);
+        else
+            Preferences.Default.Remove(PREF_SELECTED_RESOURCE_IDS);
+    }
+
+    [JSInvokable]
+    public void OnSkillSelectionChanged(string[] values)
+    {
+        selectedSkillId = values.FirstOrDefault();
+        if (!string.IsNullOrEmpty(selectedSkillId))
+            Preferences.Default.Set(PREF_SELECTED_SKILL_PROFILE_ID, selectedSkillId);
+        else
+            Preferences.Default.Remove(PREF_SELECTED_SKILL_PROFILE_ID);
+    }
+
+    // ---- Shared ----
+
+    private async Task LoadVocabStatsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var fromUtc = DateTime.UtcNow.AddDays(-30);
+            vocabSummary = await ProgressService.GetVocabSummaryAsync(fromUtc);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load vocabulary stats");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToActivity(string route)
+    {
+        var query = new List<string>();
+
+        // Activities that support multiple resources
+        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
+
+        if (selectedResourceIds.Count > 0)
+        {
+            if (multiResourceRoutes.Contains(route))
+                query.Add($"resourceIds={string.Join(",", selectedResourceIds)}");
+            else
+                query.Add($"resourceId={selectedResourceIds.First()}");
+        }
+        if (!string.IsNullOrEmpty(selectedSkillId))
+            query.Add($"skillId={selectedSkillId}");
+
+        var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        NavManager.NavigateTo(url);
+    }
+
+    private static string MapActivityRoute(PlanActivityType type) => type switch
+    {
+        PlanActivityType.VocabularyReview => "vocab-quiz",
+        PlanActivityType.Reading => "reading",
+        PlanActivityType.Listening => "reading",
+        PlanActivityType.Shadowing => "shadowing",
+        PlanActivityType.Cloze => "cloze",
+        PlanActivityType.Translation => "translation",
+        PlanActivityType.Writing => "writing",
+        PlanActivityType.SceneDescription => "scene",
+        PlanActivityType.Conversation => "conversation",
+        PlanActivityType.VocabularyGame => "vocab-matching",
+        PlanActivityType.VideoWatching => "video-watching",
+        _ => "vocab-quiz"
+    };
+
+    private static string GetActivityIcon(PlanActivityType type) => type switch
+    {
+        PlanActivityType.VocabularyReview => "bi-card-checklist",
+        PlanActivityType.Reading => "bi-book",
+        PlanActivityType.Listening => "bi-headphones",
+        PlanActivityType.Shadowing => "bi-soundwave",
+        PlanActivityType.Cloze => "bi-puzzle",
+        PlanActivityType.Translation => "bi-translate",
+        PlanActivityType.Writing => "bi-pencil-square",
+        PlanActivityType.SceneDescription => "bi-image",
+        PlanActivityType.Conversation => "bi-chat-dots",
+        PlanActivityType.VocabularyGame => "bi-grid-3x3-gap",
+        PlanActivityType.VideoWatching => "bi-play-circle",
+        _ => "bi-check-circle"
+    };
+
+    private static string GetActivityLabel(PlanActivityType type) => type switch
+    {
+        PlanActivityType.VocabularyReview => "Vocabulary Review",
+        PlanActivityType.Reading => "Reading",
+        PlanActivityType.Listening => "Listening",
+        PlanActivityType.Shadowing => "Shadowing",
+        PlanActivityType.Cloze => "Cloze Exercise",
+        PlanActivityType.Translation => "Translate",
+        PlanActivityType.Writing => "Writing",
+        PlanActivityType.SceneDescription => "Describe a Scene",
+        PlanActivityType.Conversation => "Conversation",
+        PlanActivityType.VocabularyGame => "Vocabulary Matching",
+        PlanActivityType.VideoWatching => "Video Watching",
+        _ => "Activity"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            try
+            {
+                await jsModule.InvokeVoidAsync("destroyTomSelect", "resourceSelect");
+                await jsModule.InvokeVoidAsync("destroyTomSelect", "skillSelect");
+                await jsModule.DisposeAsync();
+            }
+            catch { }
+        }
+        dotNetRef?.Dispose();
+    }
+}

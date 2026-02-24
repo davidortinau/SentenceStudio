@@ -1,0 +1,188 @@
+@page "/minimal-pairs"
+
+<PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack">
+    <PrimaryActions>
+        <button class="btn btn-ss-primary" @onclick="CreatePair">
+            <i class="bi bi-plus-lg me-1"></i>Create Pair
+        </button>
+    </PrimaryActions>
+    <SecondaryActions>
+        <li><button class="dropdown-item" @onclick="CreatePair"><i class="bi bi-plus-lg me-2"></i>Create Pair</button></li>
+    </SecondaryActions>
+</PageHeader>
+
+@* Mode selector *@
+<div class="d-flex align-items-center gap-3 mb-4">
+    <span class="ss-body1 fw-bold">Mode:</span>
+    <div class="btn-group" role="group">
+        <button class="btn @(selectedMode == "Focus" ? "btn-ss-primary" : "btn-ss-secondary")"
+                @onclick='() => SetMode("Focus")'>Focus</button>
+        <button class="btn @(selectedMode == "Mixed" ? "btn-ss-primary" : "btn-ss-secondary")"
+                @onclick='() => SetMode("Mixed")'>Mixed</button>
+    </div>
+    @if (selectedMode == "Focus" && pairs.Count > 0)
+    {
+        <button class="btn btn-ss-primary" @onclick="StartSession"
+                disabled="@(selectedPairId == null)">
+            Start Session
+        </button>
+    }
+    else if (selectedMode == "Mixed" && pairs.Count > 0)
+    {
+        <button class="btn btn-ss-primary" @onclick="StartSession">
+            Start Session (@pairs.Count pairs)
+        </button>
+    }
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (pairs.Count == 0)
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss mb-4">No minimal pairs yet. Create your first pair to start practicing!</p>
+        <button class="btn btn-ss-primary" @onclick="CreatePair">Create Your First Pair</button>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var pair in pairs)
+        {
+            var isSelected = selectedMode == "Mixed" || (selectedMode == "Focus" && selectedPairId == pair.Id);
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card card-ss p-3 @(isSelected ? "border-primary" : "")"
+                     role="button" style="cursor: pointer;"
+                     @onclick="() => SelectPair(pair.Id)">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="ss-title3">@(pair.VocabularyWordA?.TargetLanguageTerm ?? "")</span>
+                                <small class="text-secondary-ss">vs</small>
+                                <span class="ss-title3">@(pair.VocabularyWordB?.TargetLanguageTerm ?? "")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(pair.ContrastLabel))
+                            {
+                                <small class="text-secondary-ss">@pair.ContrastLabel</small>
+                            }
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DeletePair(pair)" @onclick:stopPropagation="true">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] private MinimalPairRepository PairRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private ILogger<MinimalPairs> Logger { get; set; } = default!;
+
+    private List<MinimalPair> pairs = new();
+    private bool isLoading = true;
+    private string selectedMode = "Focus";
+    private int? selectedPairId;
+    private IJSObjectReference? jsModule;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPairs();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+    }
+
+    private async Task LoadPairs()
+    {
+        isLoading = true;
+        try
+        {
+            pairs = await PairRepo.GetUserPairsAsync(1);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load minimal pairs: {ex.Message}");
+            Logger.LogError(ex, "Failed to load minimal pairs");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetMode(string mode)
+    {
+        selectedMode = mode;
+        if (mode == "Mixed")
+            selectedPairId = null;
+    }
+
+    private void SelectPair(int pairId)
+    {
+        if (selectedMode == "Focus")
+            selectedPairId = pairId;
+    }
+
+    private void StartSession()
+    {
+        if (selectedMode == "Focus" && selectedPairId == null)
+        {
+            Toast.ShowError("Please select a pair to practice in Focus mode.");
+            return;
+        }
+
+        if (pairs.Count == 0)
+        {
+            Toast.ShowError("No pairs available to start a session.");
+            return;
+        }
+
+        var pairIds = selectedMode == "Focus"
+            ? selectedPairId!.Value.ToString()
+            : string.Join(",", pairs.Select(p => p.Id));
+        var trialCount = selectedMode == "Focus" ? 10 : 20;
+
+        NavManager.NavigateTo($"/minimal-pairs/session/0?pairIds={pairIds}&mode={selectedMode}&trials={trialCount}");
+    }
+
+    private async Task DeletePair(MinimalPair pair)
+    {
+        if (jsModule == null) return;
+        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
+            $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?");
+
+        if (!confirmed) return;
+
+        try
+        {
+            var success = await PairRepo.DeletePairAsync(pair.Id);
+            if (success)
+            {
+                await LoadPairs();
+                Toast.ShowSuccess("Pair deleted.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to delete pair: {ex.Message}");
+            Logger.LogError(ex, "Failed to delete pair");
+        }
+    }
+
+    private void CreatePair() => NavManager.NavigateTo("/minimal-pairs/create");
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

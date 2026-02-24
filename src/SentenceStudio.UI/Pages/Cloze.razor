@@ -1,0 +1,360 @@
+@page "/cloze"
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title="Cloze" ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+@if (showSessionSummary)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Complete!</h2>
+        <div class="card card-ss p-4" style="min-width: 340px;">
+            <div class="d-flex justify-content-around mb-3">
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@sessionCorrectCount</div>
+                    <small class="text-secondary-ss">Correct</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2 text-danger">@(sessionTotalCount - sessionCorrectCount)</div>
+                    <small class="text-secondary-ss">Incorrect</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2" style="color: var(--bs-primary);">
+                        @(sessionTotalCount > 0 ? (int)((float)sessionCorrectCount / sessionTotalCount * 100) : 0)%
+                    </div>
+                    <small class="text-secondary-ss">Accuracy</small>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">Continue Practice</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+    </div>
+}
+else if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading sentences...</p>
+    </div>
+}
+else if (sentences.Any())
+{
+    @* Sentence display with blank *@
+    <div class="mb-4 px-3">
+        <p class="ss-display" style="line-height: 1.3;">@displaySentence</p>
+        @if (!string.IsNullOrEmpty(translationHint))
+        {
+            <p class="ss-body2 text-secondary-ss mt-2">@translationHint</p>
+        }
+    </div>
+
+    @* Feedback *@
+    @if (showFeedback)
+    {
+        <div class="alert @(lastWasCorrect ? "alert-success" : "alert-danger") py-2 mb-3">
+            @feedbackMessage
+        </div>
+    }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No cloze sentences available.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div>
+
+@if (sentences.Any() && !showSessionSummary && !isBusy)
+{
+<div class="activity-input-bar">
+    @* Multiple choice mode *@
+    @if (inputMode == "MultipleChoice" && guessOptions != null && guessOptions.Length > 0)
+    {
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            @foreach (var option in guessOptions)
+            {
+                var opt = option;
+                var bgClass = "";
+                var borderStyle = "";
+
+                if (hasBeenGraded)
+                {
+                    if (opt == correctWordAnswer)
+                    {
+                        bgClass = "bg-success text-white";
+                        borderStyle = "border-color: var(--bs-success) !important;";
+                    }
+                    else if (opt == selectedOption && opt != correctWordAnswer)
+                    {
+                        bgClass = "bg-danger text-white";
+                        borderStyle = "border-color: var(--bs-danger) !important;";
+                    }
+                }
+                else if (opt == selectedOption)
+                {
+                    borderStyle = "border-color: var(--bs-primary) !important;";
+                }
+
+                <button class="btn btn-outline-secondary ss-body1 @bgClass"
+                        style="@borderStyle"
+                        disabled="@hasBeenGraded"
+                        @onclick="() => OnOptionTapped(opt)">
+                    @opt
+                </button>
+            }
+        </div>
+    }
+
+    @* Input + actions row *@
+    <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
+        @if (inputMode == "Text")
+        {
+            <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
+                   @bind="userInput"
+                   placeholder="Type the missing word..." />
+        }
+        <button type="button" class="btn btn-ss-secondary" @onclick="ToggleMode">
+            @(inputMode == "Text" ? "Choices" : "Type")
+        </button>
+        <button type="submit" class="btn btn-ss-primary"
+                disabled="@hasBeenGraded">
+            GO
+        </button>
+    </form>
+
+    @* Nav row *@
+    <div class="d-flex justify-content-between align-items-center">
+        <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(GetCurrentIndex() <= 0)">
+            <i class="bi bi-chevron-left"></i>
+        </button>
+        <span class="ss-body2 text-secondary-ss">@(GetCurrentIndex() + 1) / @sentences.Count</span>
+        <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence">
+            <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+</div>
+}
+
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [Inject] private ClozureService ClozureSvc { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Cloze> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool showSessionSummary;
+    private bool showFeedback;
+    private bool lastWasCorrect;
+    private bool hasBeenGraded;
+    private string userInput = "";
+    private string displaySentence = "";
+    private string translationHint = "";
+    private string feedbackMessage = "";
+    private string inputMode = "Text";
+    private string? selectedOption;
+    private string? correctWordAnswer;
+    private string[]? guessOptions;
+
+    private int sessionCorrectCount;
+    private int sessionTotalCount;
+
+    private List<Challenge> sentences = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSentences();
+    }
+
+    private async Task LoadSentences()
+    {
+        isBusy = true;
+        try
+        {
+            var resourceId = ResourceIdParam ?? 0;
+            var skillId = SkillIdParam ?? 0;
+
+            var result = await ClozureSvc.GetSentences(resourceId, 8, skillId);
+            if (result?.Any() == true)
+            {
+                sentences = result;
+                if (sentences.Any())
+                {
+                    sentences[0].IsCurrent = true;
+                    SetCurrentChallenge(sentences[0]);
+                }
+            }
+            else
+            {
+                Toast.ShowWarning("No cloze sentences available.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading cloze sentences");
+            Toast.ShowError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void SetCurrentChallenge(Challenge challenge)
+    {
+        displaySentence = challenge.SentenceText?.Replace(challenge.VocabularyWordAsUsed ?? "", "______") ?? "";
+        translationHint = challenge.RecommendedTranslation ?? "";
+        correctWordAnswer = challenge.VocabularyWordAsUsed;
+        guessOptions = challenge.VocabularyWordGuesses?
+            .Split(",").Select(x => x.Trim())
+            .OrderBy(_ => Random.Shared.Next()).ToArray();
+        userInput = "";
+        selectedOption = null;
+        hasBeenGraded = false;
+        showFeedback = false;
+        feedbackMessage = "";
+    }
+
+    private async Task GradeAnswer()
+    {
+        var current = sentences.FirstOrDefault(s => s.IsCurrent);
+        if (current == null) return;
+
+        var answer = inputMode == "MultipleChoice" ? selectedOption : userInput;
+        if (string.IsNullOrWhiteSpace(answer)) return;
+
+        var isCorrect = string.Equals(answer.Trim(), current.VocabularyWordAsUsed?.Trim(), StringComparison.OrdinalIgnoreCase);
+        hasBeenGraded = true;
+        lastWasCorrect = isCorrect;
+        showFeedback = true;
+        feedbackMessage = isCorrect ? "Correct!" : $"The answer was: {current.VocabularyWordAsUsed}";
+
+        sessionTotalCount++;
+        if (isCorrect) sessionCorrectCount++;
+
+        // Show the complete sentence on correct answer
+        if (isCorrect)
+            displaySentence = current.SentenceText ?? "";
+
+        // Record user activity
+        try
+        {
+            var activity = new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Clozure.ToString(),
+                Input = answer,
+                Accuracy = isCorrect ? 100 : 0,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+            current.UserActivity = activity;
+            await ActivityRepo.SaveAsync(activity);
+
+            // Record vocabulary progress if we can find the word
+            if (current.Vocabulary?.Any() == true)
+            {
+                var vocabWord = current.Vocabulary.FirstOrDefault(v =>
+                    string.Equals(v.TargetLanguageTerm, current.VocabularyWord, StringComparison.OrdinalIgnoreCase))
+                    ?? current.Vocabulary.FirstOrDefault(v =>
+                        string.Equals(v.TargetLanguageTerm, current.VocabularyWordAsUsed, StringComparison.OrdinalIgnoreCase))
+                    ?? (current.Vocabulary.Count == 1 ? current.Vocabulary.First() : null);
+
+                if (vocabWord != null)
+                {
+                    await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                    {
+                        VocabularyWordId = vocabWord.Id,
+                        UserId = 1,
+                        Activity = "Clozure",
+                        InputMode = inputMode,
+                        WasCorrect = isCorrect,
+                        DifficultyWeight = 1.2f,
+                        ContextType = "Sentence",
+                        UserInput = answer,
+                        ExpectedAnswer = current.VocabularyWordAsUsed
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error recording cloze activity");
+        }
+
+        if (isCorrect)
+        {
+            StateHasChanged();
+            await Task.Delay(1200);
+            NextSentence();
+        }
+    }
+
+    private void OnOptionTapped(string option)
+    {
+        if (hasBeenGraded) return;
+        selectedOption = option;
+        _ = GradeAnswer();
+    }
+
+    private async Task SubmitInput()
+    {
+        await GradeAnswer();
+    }
+
+    private void JumpTo(int index)
+    {
+        if (index < 0 || index >= sentences.Count) return;
+        foreach (var s in sentences) s.IsCurrent = false;
+        sentences[index].IsCurrent = true;
+        SetCurrentChallenge(sentences[index]);
+    }
+
+    private void NextSentence()
+    {
+        var idx = GetCurrentIndex();
+        if (idx >= sentences.Count - 1)
+        {
+            showSessionSummary = true;
+            return;
+        }
+        JumpTo(idx + 1);
+    }
+
+    private void PreviousSentence()
+    {
+        var idx = GetCurrentIndex();
+        if (idx > 0) JumpTo(idx - 1);
+    }
+
+    private int GetCurrentIndex()
+    {
+        var current = sentences.FirstOrDefault(s => s.IsCurrent);
+        return current != null ? sentences.IndexOf(current) : -1;
+    }
+
+    private async Task ContinueAfterSummary()
+    {
+        showSessionSummary = false;
+        sessionCorrectCount = 0;
+        sessionTotalCount = 0;
+        await LoadSentences();
+    }
+
+    private void ToggleMode()
+    {
+        inputMode = inputMode == "Text" ? "MultipleChoice" : "Text";
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

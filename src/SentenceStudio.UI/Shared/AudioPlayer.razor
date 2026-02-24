@@ -1,0 +1,57 @@
+<div class="audio-player card-ss @(IsVisible ? "" : "d-none")">
+    <div class="audio-player__progress" @onclick="HandleSeek">
+        <div class="audio-player__progress-bar"
+             style="width: @((Position * 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;">
+        </div>
+    </div>
+    <div class="audio-player__controls">
+        <button class="btn btn-sm btn-link text-decoration-none audio-player__btn"
+                @onclick="HandlePlayPause"
+                disabled="@(AudioData is null || AudioData.Length == 0)">
+            @if (IsPlaying)
+            {
+                <span><i class="bi bi-pause-fill"></i></span>
+            }
+            else
+            {
+                <span><i class="bi bi-play-fill"></i></span>
+            }
+        </button>
+        <div class="audio-player__time ss-caption1">
+            <span>@FormatTime(Position * TotalSeconds)</span>
+            <span class="text-muted-ss">/</span>
+            <span>@FormatTime(TotalSeconds)</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public byte[]? AudioData { get; set; }
+    [Parameter] public bool IsPlaying { get; set; }
+    [Parameter] public bool IsVisible { get; set; } = true;
+    [Parameter] public double Position { get; set; }
+    [Parameter] public double TotalSeconds { get; set; }
+
+    [Parameter] public EventCallback OnPlayPause { get; set; }
+    [Parameter] public EventCallback<double> OnSeek { get; set; }
+
+    private async Task HandlePlayPause()
+    {
+        await OnPlayPause.InvokeAsync();
+    }
+
+    private async Task HandleSeek(MouseEventArgs e)
+    {
+        // Approximate seek - in a real scenario, JS interop would give exact position
+        await OnSeek.InvokeAsync(Position);
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        if (seconds < 0 || double.IsNaN(seconds)) seconds = 0;
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1
+            ? ts.ToString(@"h\:mm\:ss")
+            : ts.ToString(@"m\:ss");
+    }
+}

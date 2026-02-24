@@ -1,0 +1,442 @@
+@page "/vocab-quiz"
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+@if (showSessionSummary)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Summary</h2>
+        <div class="card card-ss p-4" style="min-width: 340px;">
+            <div class="d-flex justify-content-around mb-3">
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@correctCount</div>
+                    <small class="text-secondary-ss">Correct</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2">@totalTurns</div>
+                    <small class="text-secondary-ss">Total</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@wordsMastered</div>
+                    <small class="text-secondary-ss">Mastered</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2">@roundsCompleted</div>
+                    <small class="text-secondary-ss">Rounds</small>
+                </div>
+            </div>
+            @if (sessionItems.Any())
+            {
+                <hr class="border-secondary" />
+                @foreach (var item in sessionItems)
+                {
+                    var iconClass = item.ReadyToRotateOut ? "bi-check-circle text-success" : item.QuizRecognitionStreak > 0 ? "bi-arrow-repeat text-warning" : "bi-x-circle text-danger";
+                    <div class="d-flex align-items-center gap-2 py-1">
+                        <i class="bi @iconClass"></i>
+                        <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
+                        <span class="text-secondary-ss">→</span>
+                        <span class="ss-body1">@item.Word.NativeLanguageTerm</span>
+                    </div>
+                }
+            }
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="SetupNewRound">Continue</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+    </div>
+}
+else if (isBusy)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (currentItem != null)
+{
+    @* Term display — show the target language word *@
+    <div class="text-center my-4">
+        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
+
+        @if (showAnswer)
+        {
+            <p class="ss-title2">@correctAnswer</p>
+        }
+    </div>
+
+    @* Feedback *@
+    @if (!string.IsNullOrEmpty(feedbackMessage))
+    {
+        <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mb-3">
+            @feedbackMessage
+        </div>
+    }
+
+    @* Input section *@
+    @if (userMode == "MultipleChoice")
+    {
+        <div class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
+            @foreach (var option in choiceOptions)
+            {
+                var optCopy = option;
+                var bgClass = "";
+                var borderStyle = "";
+
+                if (showAnswer)
+                {
+                    if (optCopy == correctAnswer)
+                    {
+                        bgClass = "bg-success text-white";
+                        borderStyle = "border-color: var(--bs-success) !important;";
+                    }
+                    else if (optCopy == userGuess && optCopy != correctAnswer)
+                    {
+                        bgClass = "bg-danger text-white";
+                        borderStyle = "border-color: var(--bs-danger) !important;";
+                    }
+                }
+                else if (optCopy == userGuess)
+                {
+                    borderStyle = "border-color: var(--bs-primary) !important;";
+                    bgClass = "bg-opacity-10";
+                }
+
+                <button class="btn btn-outline-secondary py-3 ss-title3 @bgClass"
+                        style="@borderStyle"
+                        disabled="@showAnswer"
+                        @onclick="() => SelectMultipleChoice(optCopy)">
+                    @optCopy
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
+            <label class="form-label text-secondary-ss">Type the translation</label>
+            <input type="text" class="form-control form-control-ss form-control-lg"
+                   @bind="userInput"
+                   disabled="@(showAnswer && !requireCorrectTyping)"
+                   placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
+        </form>
+    }
+
+    @* Next button *@
+    @if (showAnswer && !requireCorrectTyping)
+    {
+        <div class="text-center mt-4">
+            <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+        </div>
+    }
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No vocabulary loaded.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div> @* end activity-content *@
+
+@if (currentItem != null && !showSessionSummary)
+{
+    <div class="activity-footer d-flex justify-content-between align-items-center">
+        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @TurnsPerRound</span>
+        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+    </div>
+}
+
+</div> @* end activity-page-wrapper *@
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceIds")]
+    public string? ResourceIdsParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
+
+    private const int ActiveWordCount = 10;
+    private const int TurnsPerRound = 10;
+
+    // State
+    private bool isBusy;
+    private bool showAnswer;
+    private bool isCorrect;
+    private bool showSessionSummary;
+    private bool requireCorrectTyping;
+    private string userInput = "";
+    private string userGuess = "";
+    private string userMode = "MultipleChoice";
+    private string questionText = "";
+    private string correctAnswer = "";
+    private string feedbackMessage = "";
+    private string[] choiceOptions = Array.Empty<string>();
+
+    private List<VocabularyQuizItem> vocabItems = new();
+    private List<VocabularyQuizItem> sessionItems = new();
+    private List<VocabularyQuizItem> pendingReplacements = new();
+    private List<VocabularyQuizItem> roundWordOrder = new();
+    private VocabularyQuizItem? currentItem;
+
+    private int currentTurnInRound;
+    private int roundsCompleted;
+    private int wordsMastered;
+    private int totalTurns;
+    private int correctCount;
+
+    private readonly Random random = new();
+    private System.Diagnostics.Stopwatch responseTimer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVocabulary();
+    }
+
+    private async Task LoadVocabulary()
+    {
+        isBusy = true;
+        try
+        {
+            var resourceIds = ParseResourceIds();
+            if (resourceIds.Length == 0) { isBusy = false; return; }
+
+            var allWords = new List<VocabularyWord>();
+            foreach (var id in resourceIds)
+            {
+                var resource = await ResourceRepo.GetResourceAsync(id);
+                if (resource?.Vocabulary?.Any() == true)
+                    allWords.AddRange(resource.Vocabulary);
+            }
+
+            if (!allWords.Any())
+            {
+                Toast.ShowWarning("No vocabulary found in the selected resources.");
+                isBusy = false;
+                return;
+            }
+
+            // Deduplicate
+            allWords = allWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
+                .GroupBy(w => w.Id).Select(g => g.First()).ToList();
+
+            // Get progress
+            var wordIds = allWords.Select(w => w.Id).ToList();
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
+
+            vocabItems = allWords.Select(word =>
+            {
+                var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
+                    : new SentenceStudio.Shared.Models.VocabularyProgress
+                    {
+                        VocabularyWordId = word.Id, IsCompleted = false, MasteryScore = 0.0f,
+                        CurrentPhase = LearningPhase.Recognition, TotalAttempts = 0, CorrectAttempts = 0
+                    };
+                return new VocabularyQuizItem { Word = word, Progress = progress };
+            })
+            .Where(i => !(i.Progress?.IsCompleted ?? false))
+            .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
+            .ThenBy(_ => Guid.NewGuid())
+            .Take(ActiveWordCount)
+            .ToList();
+
+            if (!vocabItems.Any())
+            {
+                Toast.ShowInfo("All vocabulary in this resource is mastered!");
+                isBusy = false;
+                return;
+            }
+
+            await SetupNewRound();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load vocabulary");
+            Toast.ShowError($"Error loading vocabulary: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task SetupNewRound()
+    {
+        showSessionSummary = false;
+
+        // Add pending replacements
+        foreach (var item in pendingReplacements)
+        {
+            if (vocabItems.Count < ActiveWordCount)
+                vocabItems.Add(item);
+        }
+        pendingReplacements.Clear();
+
+        if (!vocabItems.Any())
+        {
+            Toast.ShowSuccess("All words mastered! Session complete.");
+            GoBack();
+            return;
+        }
+
+        // Shuffle for round
+        roundWordOrder = vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
+        currentTurnInRound = 0;
+        await LoadCurrentItem();
+    }
+
+    private async Task LoadCurrentItem()
+    {
+        if (currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
+        {
+            // Round complete
+            roundsCompleted++;
+            await HandleMasteredWords();
+
+            sessionItems = vocabItems.ToList();
+            showSessionSummary = true;
+            return;
+        }
+
+        currentItem = roundWordOrder[currentTurnInRound];
+        questionText = currentItem.Word.TargetLanguageTerm ?? "";
+        correctAnswer = currentItem.Word.NativeLanguageTerm ?? "";
+        userInput = "";
+        userGuess = "";
+        showAnswer = false;
+        feedbackMessage = "";
+        isCorrect = false;
+        requireCorrectTyping = false;
+
+        // Determine mode
+        userMode = (currentItem.IsPromotedInQuiz || (currentItem.Progress?.MasteryScore ?? 0f) >= 0.50f)
+            ? "Text" : "MultipleChoice";
+
+        if (userMode == "MultipleChoice")
+        {
+            choiceOptions = GenerateChoiceOptions(currentItem);
+        }
+
+        responseTimer.Restart();
+    }
+
+    private string[] GenerateChoiceOptions(VocabularyQuizItem item)
+    {
+        var options = vocabItems
+            .Where(i => i != item)
+            .Select(i => i.Word.NativeLanguageTerm ?? "")
+            .Where(t => !string.IsNullOrEmpty(t))
+            .OrderBy(_ => Guid.NewGuid())
+            .Take(3)
+            .ToList();
+
+        options.Add(correctAnswer);
+        return options.OrderBy(_ => Guid.NewGuid()).ToArray();
+    }
+
+    private async Task SelectMultipleChoice(string option)
+    {
+        if (showAnswer) return;
+        userGuess = option;
+        await CheckAnswer();
+    }
+
+    private async Task SubmitTextInput()
+    {
+        if (requireCorrectTyping)
+            await NextItem();
+        else
+            await CheckAnswer();
+    }
+
+    private async Task CheckAnswer()
+    {
+        if (currentItem == null) return;
+        responseTimer.Stop();
+
+        string answer = userMode == "MultipleChoice" ? userGuess : userInput;
+        if (string.IsNullOrWhiteSpace(answer)) return;
+
+        isCorrect = string.Equals(answer.Trim(), correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+        showAnswer = true;
+
+        // Update streaks
+        if (userMode == "MultipleChoice")
+        {
+            if (isCorrect) currentItem.QuizRecognitionStreak++;
+            else currentItem.QuizRecognitionStreak = 0;
+        }
+        else
+        {
+            if (isCorrect) currentItem.QuizProductionStreak++;
+            else currentItem.QuizProductionStreak = 0;
+        }
+
+        feedbackMessage = isCorrect ? "Correct!" : $"The answer is: {correctAnswer}";
+
+        // Record attempt
+        try
+        {
+            await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+            {
+                VocabularyWordId = currentItem.Word.Id,
+                UserId = 1,
+                Activity = "VocabularyQuiz",
+                InputMode = userMode,
+                WasCorrect = isCorrect,
+                DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
+                ContextType = "Isolated",
+                UserInput = answer,
+                ExpectedAnswer = correctAnswer,
+                ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to record attempt");
+        }
+
+        totalTurns++;
+        if (isCorrect) correctCount++;
+
+        if (!isCorrect && userMode == "Text")
+        {
+            requireCorrectTyping = true;
+            userInput = "";
+        }
+    }
+
+    private async Task NextItem()
+    {
+        currentTurnInRound++;
+        requireCorrectTyping = false;
+        await LoadCurrentItem();
+    }
+
+    private async Task HandleMasteredWords()
+    {
+        var mastered = vocabItems.Where(i => i.ReadyToRotateOut).ToList();
+        foreach (var item in mastered)
+        {
+            vocabItems.Remove(item);
+            wordsMastered++;
+        }
+    }
+
+    private int[] ParseResourceIds()
+    {
+        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<int>();
+        return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var id) ? id : 0)
+            .Where(id => id > 0).ToArray();
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}
