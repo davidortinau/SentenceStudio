@@ -1,0 +1,374 @@
+@page "/writing"
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title="Writing" ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+@if (showSessionSummary)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Complete!</h2>
+        <div class="card card-ss p-4" style="min-width: 340px;">
+            <div class="d-flex justify-content-around mb-3">
+                <div class="text-center">
+                    <div class="ss-title2 text-success">@sessionGradedCount</div>
+                    <small class="text-secondary-ss">Graded</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2" style="color: var(--bs-primary);">
+                        @(sessionGradedCount > 0 ? (int)(sessionAccuracySum / sessionGradedCount) : 0)%
+                    </div>
+                    <small class="text-secondary-ss">Avg Accuracy</small>
+                </div>
+                <div class="text-center">
+                    <div class="ss-title2" style="color: var(--bs-info);">
+                        @(sessionGradedCount > 0 ? (int)(sessionFluencySum / sessionGradedCount) : 0)%
+                    </div>
+                    <small class="text-secondary-ss">Avg Fluency</small>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">Continue Practice</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+    </div>
+}
+else if (isBusy)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
+    </div>
+}
+else if (vocabBlocks.Any())
+{
+    @* Previous sentences *@
+    @if (sentences.Any())
+    {
+        <div class="mb-4">
+            @foreach (var sentence in sentences)
+            {
+                <div class="card card-ss p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <p class="ss-body1 mb-1">@sentence.Answer</p>
+                            @if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
+                            {
+                                <small class="text-secondary-ss d-block">
+                                    <strong>Suggested:</strong> @sentence.RecommendedSentence
+                                </small>
+                            }
+                        </div>
+                        <div class="d-flex gap-3 ms-3 text-nowrap">
+                            @if (sentence.Accuracy > 0)
+                            {
+                                <div class="text-center">
+                                    <div class="ss-body2" style="color: @GetScoreColor(sentence.Accuracy);">@((int)sentence.Accuracy)%</div>
+                                    <small class="text-secondary-ss">Accuracy</small>
+                                </div>
+                            }
+                            @if (sentence.Fluency > 0)
+                            {
+                                <div class="text-center">
+                                    <div class="ss-body2" style="color: @GetScoreColor(sentence.Fluency);">@((int)sentence.Fluency)%</div>
+                                    <small class="text-secondary-ss">Fluency</small>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
+                    {
+                        <details class="mt-2">
+                            <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show details</summary>
+                            <div class="mt-1">
+                                @if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
+                                {
+                                    <small class="d-block text-secondary-ss"><strong>Accuracy:</strong> @sentence.AccuracyExplanation</small>
+                                }
+                                @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
+                                {
+                                    <small class="d-block text-secondary-ss"><strong>Fluency:</strong> @sentence.FluencyExplanation</small>
+                                }
+                                @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
+                                {
+                                    <small class="d-block text-secondary-ss"><strong>Notes:</strong> @sentence.GrammarNotes</small>
+                                }
+                            </div>
+                        </details>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @* Vocabulary blocks *@
+    <div class="mb-3">
+        <p class="ss-body2 text-secondary-ss mb-2">Choose vocabulary to use:</p>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var word in vocabBlocks)
+            {
+                var w = word;
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseVocab(w.TargetLanguageTerm)">
+                    @w.TargetLanguageTerm
+                </button>
+            }
+            <button class="btn btn-sm btn-ss-secondary" @onclick="ShuffleVocab">
+                <i class="bi bi-shuffle"></i>
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">No vocabulary available. Select a resource with vocabulary first.</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+    </div>
+}
+</div>
+
+@if (vocabBlocks.Any() && !showSessionSummary && !isBusy)
+{
+<div class="activity-input-bar">
+    <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
+        <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
+               @bind="userInput"
+               placeholder="Write a sentence using the vocabulary..." />
+        <button type="button" class="btn btn-ss-secondary" @onclick="TranslateInput"
+                disabled="@(string.IsNullOrWhiteSpace(userInput))">
+            <i class="bi bi-translate"></i>
+        </button>
+        <button type="submit" class="btn btn-ss-primary"
+                disabled="@(isGrading || string.IsNullOrWhiteSpace(userInput))">
+            @if (isGrading)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <span>Grade</span>
+            }
+        </button>
+    </form>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <span class="ss-body2 text-secondary-ss">@sentences.Count sentence(s) written</span>
+        @if (sentences.Count >= 3)
+        {
+            <button class="btn btn-sm btn-ss-secondary" @onclick="ShowSummary">End Session</button>
+        }
+    </div>
+</div>
+}
+
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public int? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public int? SkillIdParam { get; set; }
+
+    [Inject] private TeacherService TeacherSvc { get; set; } = default!;
+    [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<Writing> Logger { get; set; } = default!;
+
+    private bool isBusy;
+    private bool isGrading;
+    private bool showSessionSummary;
+    private string userInput = "";
+    private int sessionGradedCount;
+    private double sessionAccuracySum;
+    private double sessionFluencySum;
+
+    private List<Sentence> sentences = new();
+    private List<VocabularyWord> vocabBlocks = new();
+    private List<VocabularyWord> allVocabulary = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVocabulary();
+    }
+
+    private async Task LoadVocabulary()
+    {
+        isBusy = true;
+        try
+        {
+            var resourceId = ResourceIdParam ?? 0;
+            if (resourceId > 0)
+            {
+                var resource = await ResourceRepo.GetResourceAsync(resourceId);
+                if (resource?.Vocabulary?.Any() == true)
+                {
+                    allVocabulary = resource.Vocabulary;
+                    ShuffleVocab();
+                }
+                else
+                {
+                    Toast.ShowWarning("No vocabulary found in the selected resource.");
+                }
+            }
+            else
+            {
+                Toast.ShowWarning("Please select a resource to practice writing.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading vocabulary");
+            Toast.ShowError($"Error loading vocabulary: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ShuffleVocab()
+    {
+        vocabBlocks = allVocabulary
+            .OrderBy(_ => Random.Shared.Next())
+            .Take(4)
+            .ToList();
+    }
+
+    private void UseVocab(string word)
+    {
+        userInput = string.IsNullOrEmpty(userInput) ? word : $"{userInput} {word}";
+    }
+
+    private async Task SubmitInput()
+    {
+        await GradeMe();
+    }
+
+    private async Task GradeMe()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        isGrading = true;
+        StateHasChanged();
+
+        try
+        {
+            var sentence = new Sentence { Answer = userInput };
+
+            var grade = await TeacherSvc.GradeSentence(userInput, "");
+            if (grade == null)
+            {
+                Toast.ShowError("Error grading your sentence. Please try again.");
+                return;
+            }
+
+            sentence.Accuracy = grade.Accuracy;
+            sentence.Fluency = grade.Fluency;
+            sentence.FluencyExplanation = grade.FluencyExplanation;
+            sentence.AccuracyExplanation = grade.AccuracyExplanation;
+            sentence.RecommendedSentence = grade.GrammarNotes?.RecommendedTranslation;
+            sentence.GrammarNotes = grade.GrammarNotes?.Explanation;
+
+            sentences.Add(sentence);
+
+            sessionGradedCount++;
+            sessionAccuracySum += grade.Accuracy;
+            sessionFluencySum += grade.Fluency;
+
+            // Record activity
+            await ActivityRepo.SaveAsync(new UserActivity
+            {
+                Activity = SentenceStudio.Shared.Models.Activity.Writer.ToString(),
+                Input = userInput,
+                Accuracy = grade.Accuracy,
+                Fluency = grade.Fluency,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+
+            // Record vocabulary progress
+            if (grade.VocabularyAnalysis?.Any() == true)
+            {
+                foreach (var vocabItem in grade.VocabularyAnalysis)
+                {
+                    var matched = allVocabulary.FirstOrDefault(v =>
+                        v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
+
+                    if (matched != null)
+                    {
+                        await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                        {
+                            VocabularyWordId = matched.Id,
+                            UserId = 1,
+                            Activity = "Writing",
+                            InputMode = "Text",
+                            WasCorrect = vocabItem.UsageCorrect,
+                            DifficultyWeight = 1.0f,
+                            ContextType = "Application",
+                            UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
+                            ExpectedAnswer = vocabItem.DictionaryForm
+                        });
+                    }
+                }
+            }
+
+            userInput = "";
+            ShuffleVocab();
+            Toast.ShowSuccess($"Graded! Accuracy: {(int)grade.Accuracy}%");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error grading sentence");
+            Toast.ShowError("Error grading your sentence. Please try again.");
+        }
+        finally
+        {
+            isGrading = false;
+        }
+    }
+
+    private async Task TranslateInput()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        try
+        {
+            var translation = await TranslationSvc.TranslateAsync(userInput);
+            Toast.ShowInfo(translation);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error translating");
+            Toast.ShowError("Translation failed.");
+        }
+    }
+
+    private void ShowSummary()
+    {
+        showSessionSummary = true;
+    }
+
+    private async Task ContinueAfterSummary()
+    {
+        showSessionSummary = false;
+        sessionGradedCount = 0;
+        sessionAccuracySum = 0;
+        sessionFluencySum = 0;
+        sentences.Clear();
+        await LoadVocabulary();
+    }
+
+    private string GetScoreColor(double score) => score switch
+    {
+        >= 80 => "var(--bs-success)",
+        >= 50 => "var(--bs-warning)",
+        _ => "var(--bs-danger)"
+    };
+
+    private void GoBack() => NavManager.NavigateTo("/");
+}

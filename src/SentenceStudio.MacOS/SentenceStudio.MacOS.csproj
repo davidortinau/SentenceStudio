@@ -33,9 +33,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- macOS-specific index.html with direct CSS paths (no _content/ prefix) -->
+		<!-- macOS-specific index.html -->
 		<BundleResource Include="wwwroot\index.html" Link="wwwroot\index.html" />
-		<BundleResource Include="..\SentenceStudio.UI\wwwroot\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" />
+		<!-- Copy UI wwwroot to _content/SentenceStudio.UI/ so shared Blazor code (MainLayout JS import) resolves correctly -->
+		<BundleResource Include="..\SentenceStudio.UI\wwwroot\**" Link="wwwroot\_content\SentenceStudio.UI\%(RecursiveDir)%(Filename)%(Extension)" />
 
 		<!-- Raw assets from AppLib (scriban templates, appsettings, etc.) -->
 		<BundleResource Include="..\SentenceStudio.AppLib\Resources\Raw\**" Link="%(Filename)%(Extension)" />
