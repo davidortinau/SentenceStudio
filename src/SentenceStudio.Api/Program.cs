@@ -1,8 +1,18 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using SentenceStudio.Api.Auth;
+using SentenceStudio.Contracts.Auth;
+using SentenceStudio.Domain.Abstractions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 var app = builder.Build();
 
@@ -13,6 +23,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<TenantContextMiddleware>();
+
+app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
+    Results.Ok(new BootstrapResponse
+    {
+        TenantId = tenantContext.TenantId ?? user.FindFirstValue("tenant_id"),
+        UserId = tenantContext.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier),
+        DisplayName = tenantContext.DisplayName ?? user.FindFirstValue(ClaimTypes.Name),
+        Email = tenantContext.Email ?? user.FindFirstValue(ClaimTypes.Email)
+    }))
+    .RequireAuthorization();
 
 var summaries = new[]
 {
