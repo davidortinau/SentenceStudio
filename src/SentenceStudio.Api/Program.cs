@@ -1,7 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using SentenceStudio.Api.Auth;
+using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
+using SentenceStudio.Contracts.Plans;
+using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Domain.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +38,18 @@ app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenan
         DisplayName = tenantContext.DisplayName ?? user.FindFirstValue(ClaimTypes.Name),
         Email = tenantContext.Email ?? user.FindFirstValue(ClaimTypes.Email)
     }))
+    .RequireAuthorization();
+
+app.MapPost("/api/v1/ai/chat", (ChatRequest request) =>
+        Results.Problem("AI chat endpoint not implemented yet.", statusCode: StatusCodes.Status501NotImplemented))
+    .RequireAuthorization();
+
+app.MapPost("/api/v1/speech/synthesize", (SynthesizeRequest request) =>
+        Results.Problem("Speech synthesis endpoint not implemented yet.", statusCode: StatusCodes.Status501NotImplemented))
+    .RequireAuthorization();
+
+app.MapPost("/api/v1/plans/generate", (GeneratePlanRequest request) =>
+        Results.Problem("Plan generation endpoint not implemented yet.", statusCode: StatusCodes.Status501NotImplemented))
     .RequireAuthorization();
 
 var summaries = new[]

@@ -49,6 +49,10 @@ public static class SentenceStudioAppBuilder
         var dbPath = Constants.DatabasePath;
         builder.Services.AddDataServices(dbPath);
         builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+
+        var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl")
+            ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5001";
+        builder.Services.AddApiClients(new Uri(apiBaseUrl));
         builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
         // Register Multi-Agent Conversation Services

@@ -3,6 +3,7 @@ using CoreSync.Http.Client;
 using CoreSync.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Agents;
 using SentenceStudio.Shared.Models;
 
@@ -55,6 +56,13 @@ public static class ServiceCollectionExtentions
             options.HttpClientName = "HttpClientToServer";
             //options.UseBinaryFormat = true;
         });
+    }
+
+    public static void AddApiClients(this IServiceCollection services, Uri baseUri)
+    {
+        services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri);
+        services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri);
+        services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri);
     }
 
     class SyncLogger(ILogger<SyncLogger> logger) : ISyncLogger

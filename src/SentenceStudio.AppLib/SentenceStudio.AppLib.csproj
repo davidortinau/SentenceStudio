@@ -76,6 +76,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
+		<ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
 		<ProjectReference Include="..\SentenceStudio.ServiceDefaults\SentenceStudio.ServiceDefaults.csproj" />
 	</ItemGroup>
 
