@@ -154,7 +154,7 @@ else
     public string? ResourceIdsParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "skillId")]
-    public int? SkillIdParam { get; set; }
+    public string? SkillIdParam { get; set; }
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -387,7 +387,7 @@ else
             await ProgressService.RecordAttemptAsync(new VocabularyAttempt
             {
                 VocabularyWordId = currentItem.Word.Id,
-                UserId = 1,
+                UserId = "1",
                 Activity = "VocabularyQuiz",
                 InputMode = userMode,
                 WasCorrect = isCorrect,
@@ -430,12 +430,11 @@ else
         }
     }
 
-    private int[] ParseResourceIds()
+    private string[] ParseResourceIds()
     {
-        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<int>();
+        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<string>();
         return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s, out var id) ? id : 0)
-            .Where(id => id > 0).ToArray();
+            .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
     private void GoBack() => NavManager.NavigateTo("/");

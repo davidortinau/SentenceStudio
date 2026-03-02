@@ -165,10 +165,10 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "skillId")]
-    public int? SkillIdParam { get; set; }
+    public string? SkillIdParam { get; set; }
 
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
@@ -201,8 +201,8 @@ else
         isBusy = true;
         try
         {
-            var resourceId = ResourceIdParam ?? 0;
-            if (resourceId > 0)
+            var resourceId = ResourceIdParam ?? "";
+            if (!string.IsNullOrEmpty(resourceId))
             {
                 var resource = await ResourceRepo.GetResourceAsync(resourceId);
                 if (resource?.Vocabulary?.Any() == true)
@@ -304,7 +304,7 @@ else
                         await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                         {
                             VocabularyWordId = matched.Id,
-                            UserId = 1,
+                            UserId = "1",
                             Activity = "Writing",
                             InputMode = "Text",
                             WasCorrect = vocabItem.UsageCorrect,

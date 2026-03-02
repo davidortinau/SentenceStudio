@@ -75,7 +75,7 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
@@ -106,7 +106,7 @@ else
 
     private async Task LoadVideo()
     {
-        if (ResourceIdParam is null or 0)
+        if (string.IsNullOrEmpty(ResourceIdParam))
         {
             errorMessage = "No resource specified.";
             return;
@@ -115,7 +115,7 @@ else
         isBusy = true;
         try
         {
-            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam.Value);
+            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam);
             if (resource is null)
             {
                 errorMessage = "Resource not found.";

@@ -1,4 +1,4 @@
-@page "/resources/edit/{Id:int}"
+@page "/resources/edit/{Id}"
 @using SentenceStudio.Services
 
 @if (isLoading)
@@ -162,7 +162,7 @@ else
 }
 
 @code {
-    [Parameter] public int Id { get; set; }
+    [Parameter] public string Id { get; set; } = "";
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;

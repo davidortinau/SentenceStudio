@@ -188,7 +188,7 @@ else
 
     private void AddResource() => NavManager.NavigateTo("/resources/add");
 
-    private void EditResource(int id) => NavManager.NavigateTo($"/resources/edit/{id}");
+    private void EditResource(string id) => NavManager.NavigateTo($"/resources/edit/{id}");
 
     private async Task CreateStarterResource()
     {

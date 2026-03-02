@@ -123,10 +123,10 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "skillId")]
-    public int? SkillIdParam { get; set; }
+    public string? SkillIdParam { get; set; }
 
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
     [Inject] private AiService AiSvc { get; set; } = default!;
@@ -166,8 +166,8 @@ else
         isBusy = true;
         try
         {
-            var resourceId = ResourceIdParam ?? 0;
-            var skillId = SkillIdParam ?? 0;
+            var resourceId = ResourceIdParam ?? "";
+            var skillId = SkillIdParam ?? "";
 
             var result = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
             if (result?.Any() == true)
@@ -305,8 +305,8 @@ else
     {
         try
         {
-            var resourceId = ResourceIdParam ?? 0;
-            var skillId = SkillIdParam ?? 0;
+            var resourceId = ResourceIdParam ?? "";
+            var skillId = SkillIdParam ?? "";
             var more = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
             if (more?.Any() == true)
             {

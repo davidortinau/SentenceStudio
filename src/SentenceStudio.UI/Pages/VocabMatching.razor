@@ -296,7 +296,7 @@ else
                 await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                 {
                     VocabularyWordId = matchedWord.Id,
-                    UserId = 1,
+                    UserId = "1",
                     Activity = "VocabularyMatching",
                     InputMode = "MultipleChoice",
                     WasCorrect = isMatch,
@@ -396,12 +396,11 @@ else
         return "";
     }
 
-    private int[] ParseResourceIds()
+    private string[] ParseResourceIds()
     {
-        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<int>();
+        if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<string>();
         return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s, out var id) ? id : 0)
-            .Where(id => id > 0).ToArray();
+            .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
     private void GoBack() => NavManager.NavigateTo("/");

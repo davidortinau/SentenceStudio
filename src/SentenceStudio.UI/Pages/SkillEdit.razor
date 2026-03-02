@@ -1,4 +1,4 @@
-@page "/skills/edit/{Id:int}"
+@page "/skills/edit/{Id}"
 
 @if (isLoading)
 {
@@ -47,7 +47,7 @@ else
 }
 
 @code {
-    [Parameter] public int Id { get; set; }
+    [Parameter] public string Id { get; set; } = "";
 
     [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -117,7 +117,7 @@ else
             profile.Description = description;
 
             var result = await SkillRepo.SaveAsync(profile);
-            if (result > 0)
+            if (!string.IsNullOrEmpty(result))
             {
                 Toast.ShowSuccess("Skill profile saved.");
             }

@@ -102,10 +102,10 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "skillId")]
-    public int? SkillIdParam { get; set; }
+    public string? SkillIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
@@ -161,12 +161,12 @@ else
 
     private async Task LoadSentences()
     {
-        if (ResourceIdParam is null or 0) return;
+        if (string.IsNullOrEmpty(ResourceIdParam)) return;
         isBusy = true;
         try
         {
             var result = await ShadowingSvc.GetOrGenerateSentencesAsync(
-                ResourceIdParam.Value, 10, SkillIdParam ?? 0);
+                ResourceIdParam, 10, SkillIdParam ?? "");
             sentences = result ?? new();
 
             if (sentences.Any())

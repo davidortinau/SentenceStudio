@@ -91,7 +91,7 @@
 }
 
 @* Success result *@
-@if (savedResourceId > 0)
+@if (!string.IsNullOrEmpty(savedResourceId))
 {
     <div class="alert alert-success d-flex align-items-center gap-2">
         <span><i class="bi bi-check-circle-fill me-1"></i> Resource saved successfully!</span>
@@ -123,7 +123,7 @@
     private bool isLoadingTranscript;
     private bool isPolishing;
     private bool isSaving;
-    private int savedResourceId;
+    private string savedResourceId = "";
 
     private List<TranscriptTrack> availableTranscripts = new();
     private TranscriptTrack? selectedTrack;
@@ -157,7 +157,7 @@
         errorMessage = "";
         availableTranscripts.Clear();
         transcriptText = "";
-        savedResourceId = 0;
+        savedResourceId = "";
         StateHasChanged();
 
         try
@@ -270,7 +270,7 @@
             };
 
             var id = await ResourceRepo.SaveResourceAsync(resource);
-            if (id <= 0) throw new Exception("Save returned no valid resource ID");
+            if (string.IsNullOrEmpty(id)) throw new Exception("Save returned no valid resource ID");
             savedResourceId = id;
             Toast.ShowSuccess("Resource saved successfully!");
         }
@@ -297,7 +297,7 @@
         errorMessage = "";
         availableTranscripts.Clear();
         selectedTrack = null;
-        savedResourceId = 0;
+        savedResourceId = "";
         videoTitle = null;
     }
 

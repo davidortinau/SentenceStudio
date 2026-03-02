@@ -94,8 +94,8 @@ else
     private string errorMessage = "";
     private string searchA = "";
     private string searchB = "";
-    private int? selectedWordAId;
-    private int? selectedWordBId;
+    private string? selectedWordAId;
+    private string? selectedWordBId;
     private string contrastLabel = "";
 
     private IEnumerable<VocabularyWord> FilteredWordsA =>
@@ -150,9 +150,9 @@ else
         try
         {
             var pair = await PairRepo.CreatePairAsync(
-                userId: 1,
-                wordAId: selectedWordAId.Value,
-                wordBId: selectedWordBId.Value,
+                userId: "1",
+                wordAId: selectedWordAId,
+                wordBId: selectedWordBId,
                 contrastLabel: string.IsNullOrWhiteSpace(contrastLabel) ? null : contrastLabel.Trim()
             );
 

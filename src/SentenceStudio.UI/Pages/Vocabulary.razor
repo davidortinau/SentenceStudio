@@ -185,7 +185,7 @@ else
     }
 
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
-    private void EditWord(int id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
+    private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
 
     private static string GetStatusBadgeClass(VocabularyCardItem item) => item switch
     {

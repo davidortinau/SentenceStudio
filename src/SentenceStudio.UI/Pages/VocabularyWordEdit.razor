@@ -1,4 +1,4 @@
-@page "/vocabulary/edit/{Id:int}"
+@page "/vocabulary/edit/{Id}"
 
 @if (isLoading)
 {
@@ -8,7 +8,7 @@
 }
 else
 {
-    @if (Id > 0)
+    @if (!string.IsNullOrEmpty(Id) && Id != "0")
     {
         <PageHeader Title="Edit Vocabulary Word" ShowBack="true" OnBack="GoBack">
             <PrimaryActions>
@@ -65,7 +65,7 @@ else
     <div class="card card-ss p-4 mb-3">
         <h5 class="ss-title3 mb-3">Encoding &amp; Memory Aids</h5>
 
-        @if (Id > 0)
+        @if (!string.IsNullOrEmpty(Id) && Id != "0")
         {
             <p class="ss-body2 mb-3">
                 Encoding Strength:
@@ -104,7 +104,7 @@ else
     </div>
 
     @* Progress Section (existing words only) *@
-    @if (Id > 0)
+    @if (!string.IsNullOrEmpty(Id) && Id != "0")
     {
         <div class="card card-ss p-4 mb-3">
             <h5 class="ss-title3 mb-3">Learning Progress</h5>
@@ -158,7 +158,7 @@ else
 }
 
 @code {
-    [Parameter] public int Id { get; set; }
+    [Parameter] public string Id { get; set; } = "";
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -183,8 +183,8 @@ else
 
     // Resources
     private List<LearningResource> availableResources = new();
-    private HashSet<int> selectedResourceIds = new();
-    private HashSet<int> originalResourceIds = new();
+    private HashSet<string> selectedResourceIds = new();
+    private HashSet<string> originalResourceIds = new();
 
     // Progress
     private SentenceStudio.Shared.Models.VocabularyProgress? progress;
@@ -213,7 +213,7 @@ else
         isLoading = true;
         try
         {
-            if (Id > 0)
+            if (!string.IsNullOrEmpty(Id) && Id != "0")
             {
                 var loadedWord = await ResourceRepo.GetVocabularyWordByIdAsync(Id);
                 if (loadedWord == null)
@@ -242,8 +242,8 @@ else
                 var associatedResources = await associatedTask;
                 availableResources = await resourcesTask;
 
-                selectedResourceIds = new HashSet<int>(associatedResources.Select(r => r.Id));
-                originalResourceIds = new HashSet<int>(selectedResourceIds);
+                selectedResourceIds = new HashSet<string>(associatedResources.Select(r => r.Id));
+                originalResourceIds = new HashSet<string>(selectedResourceIds);
 
                 UpdateProgressDisplay();
                 UpdateEncodingStrength();
@@ -309,7 +309,7 @@ else
         encodingStrengthLabel = label;
     }
 
-    private void ToggleResource(int resourceId)
+    private void ToggleResource(string resourceId)
     {
         if (!selectedResourceIds.Remove(resourceId))
             selectedResourceIds.Add(resourceId);
@@ -350,7 +350,7 @@ else
             await ResourceRepo.SaveWordAsync(word);
 
             // Handle resource associations
-            if (word.Id > 0)
+            if (!string.IsNullOrEmpty(word.Id))
             {
                 foreach (var resourceId in originalResourceIds.Except(selectedResourceIds))
                     await ResourceRepo.RemoveVocabularyFromResourceAsync(resourceId, word.Id);
@@ -364,7 +364,7 @@ else
                     await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
             }
 
-            Toast.ShowSuccess(Id == 0 ? "Vocabulary word added!" : "Vocabulary word updated!");
+            Toast.ShowSuccess(string.IsNullOrEmpty(Id) || Id == "0" ? "Vocabulary word added!" : "Vocabulary word updated!");
             GoBack();
         }
         catch (Exception ex)

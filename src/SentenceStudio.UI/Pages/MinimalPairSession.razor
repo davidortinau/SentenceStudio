@@ -1,4 +1,4 @@
-@page "/minimal-pairs/session/{Id:int}"
+@page "/minimal-pairs/session/{Id}"
 @using Plugin.Maui.Audio
 @implements IDisposable
 
@@ -78,7 +78,7 @@ else
 }
 
 @code {
-    [Parameter] public int Id { get; set; }
+    [Parameter] public string Id { get; set; } = "";
 
     [SupplyParameterFromQuery(Name = "pairIds")]
     public string? PairIdsParam { get; set; }
@@ -121,7 +121,7 @@ else
     private VocabularyWord? otherWord;
     private VocabularyWord? leftWord;
     private VocabularyWord? rightWord;
-    private int? selectedWordId;
+    private string? selectedWordId;
     private bool? answerWasCorrect;
 
     private IAudioPlayer? audioPlayer;
@@ -160,7 +160,7 @@ else
             var mode = ModeParam ?? "Focus";
             totalTrials = TrialsParam ?? 20;
 
-            var session = await SessionRepo.StartSessionAsync(1, mode, totalTrials);
+            var session = await SessionRepo.StartSessionAsync("1", mode, totalTrials);
             sessionId = session.Id;
             sessionStartedAt = DateTime.UtcNow;
             isInitializing = false;
@@ -272,7 +272,7 @@ else
         }
     }
 
-    private void SelectWord(int wordId)
+    private void SelectWord(string wordId)
     {
         if (isDebouncing || hasCheckedAnswer) return;
         selectedWordId = wordId;
@@ -290,8 +290,8 @@ else
 
         if (sessionId.HasValue && currentPair != null && promptWord != null)
         {
-            await SessionRepo.RecordAttemptAsync(1, sessionId.Value, currentPair.Id,
-                promptWord.Id, selectedWordId.Value, isCorrect);
+            await SessionRepo.RecordAttemptAsync("1", sessionId.Value, currentPair.Id,
+                promptWord.Id, selectedWordId, isCorrect);
         }
 
         currentTrialIndex++;

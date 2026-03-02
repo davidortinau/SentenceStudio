@@ -383,14 +383,14 @@ else
         // Pass resource/skill via query params when available
         var query = new List<string>();
         var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
-        if (item.ResourceId.HasValue)
+        if (!string.IsNullOrEmpty(item.ResourceId))
         {
             if (multiResourceRoutes.Contains(route))
                 query.Add($"resourceIds={item.ResourceId}");
             else
                 query.Add($"resourceId={item.ResourceId}");
         }
-        if (item.SkillId.HasValue)
+        if (!string.IsNullOrEmpty(item.SkillId))
             query.Add($"skillId={item.SkillId}");
         query.Add($"planItemId={item.Id}");
 

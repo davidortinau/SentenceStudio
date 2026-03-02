@@ -110,7 +110,7 @@ else
         isLoading = true;
         try
         {
-            pairs = await PairRepo.GetUserPairsAsync(1);
+            pairs = await PairRepo.GetUserPairsAsync("1");
         }
         catch (Exception ex)
         {

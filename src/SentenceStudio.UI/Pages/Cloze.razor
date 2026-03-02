@@ -141,10 +141,10 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "skillId")]
-    public int? SkillIdParam { get; set; }
+    public string? SkillIdParam { get; set; }
 
     [Inject] private ClozureService ClozureSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
@@ -182,8 +182,8 @@ else
         isBusy = true;
         try
         {
-            var resourceId = ResourceIdParam ?? 0;
-            var skillId = SkillIdParam ?? 0;
+            var resourceId = ResourceIdParam ?? "";
+            var skillId = SkillIdParam ?? "";
 
             var result = await ClozureSvc.GetSentences(resourceId, 8, skillId);
             if (result?.Any() == true)
@@ -275,7 +275,7 @@ else
                     await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                     {
                         VocabularyWordId = vocabWord.Id,
-                        UserId = 1,
+                        UserId = "1",
                         Activity = "Clozure",
                         InputMode = inputMode,
                         WasCorrect = isCorrect,

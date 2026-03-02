@@ -195,7 +195,7 @@
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceId")]
-    public int? ResourceIdParam { get; set; }
+    public string? ResourceIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
@@ -270,11 +270,11 @@
 
     private async Task LoadResource()
     {
-        if (ResourceIdParam is null or 0) return;
+        if (string.IsNullOrEmpty(ResourceIdParam)) return;
         isBusy = true;
         try
         {
-            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam.Value);
+            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam);
             if (resource is null)
             {
                 errorMessage = "Resource not found.";
@@ -597,7 +597,7 @@
             if (result > 0)
             {
                 // Associate with current resource
-                if (resource?.Id > 0)
+                if (!string.IsNullOrEmpty(resource?.Id))
                 {
                     await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, newWord.Id);
                     vocabularyWords ??= new();
