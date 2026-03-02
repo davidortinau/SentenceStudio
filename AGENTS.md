@@ -49,6 +49,27 @@ Always search Microsoft documentation (MS Learn) when working with .NET, Windows
 
 If you encounter errors like "unable to open database file" or migration conflicts, investigate and fix the root cause rather than starting fresh.
 
+## Database Migrations
+
+**CRITICAL: Always use EF Core migrations for schema changes. NEVER use raw SQL ALTER TABLE statements.**
+
+1. **Use `dotnet ef` CLI to generate migrations** — do NOT hand-write migration files:
+   ```bash
+   dotnet ef migrations add <MigrationName> \
+     --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj \
+     --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj
+   ```
+
+2. **The Shared project targets plain `net10.0`** and works fine with EF tooling. There is no TFM conflict — the MAUI TFMs are only in the app head projects.
+
+3. **Review the generated migration** before committing. Verify table names match what's in `ApplicationDbContext.OnModelCreating` (singular names: `SkillProfile`, `LearningResource`, etc.).
+
+4. **Migrations are applied at runtime** via `MigrateAsync()` in `UserProfileRepository.GetAsync()`. No manual `dotnet ef database update` is needed.
+
+5. **Data backfill** (populating new columns for existing rows) should be done in a separate method called after `MigrateAsync()`, not inside the migration itself. See `BackfillUserProfileIdsAsync()` for the pattern.
+
+6. **Never suppress `PendingModelChangesWarning`** — if EF detects model/migration mismatch, create the missing migration instead of hiding the warning.
+
 ## Troubleshooting and Issue Resolution
 
 When encountering build errors, runtime issues, or unexpected behavior:
