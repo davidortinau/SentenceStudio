@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
@@ -212,13 +213,21 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get vocabulary summary counts using efficient SQL aggregation
     /// </summary>
-    public async Task<(int New, int Learning, int Review, int Known)> GetVocabSummaryCountsAsync(int userId = 1)
+    public async Task<(int New, int Learning, int Review, int Known)> GetVocabSummaryCountsAsync(int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // PHASE 1: Get total vocabulary word count (all words in database)
-        var totalVocabWords = await db.VocabularyWords.CountAsync();
+        // Count vocabulary words belonging to this user's resources (via ResourceVocabularyMapping)
+        var totalVocabWords = await db.Set<ResourceVocabularyMapping>()
+            .Where(rvm => db.Set<LearningResource>()
+                .Where(lr => lr.UserProfileId == userId)
+                .Select(lr => lr.Id)
+                .Contains(rvm.ResourceId))
+            .Select(rvm => rvm.VocabularyWordId)
+            .Distinct()
+            .CountAsync();
 
         // PHASE 2: Load progress records for words that have been practiced
         var allProgress = await db.VocabularyProgresses
@@ -250,8 +259,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get 7-day success rate using efficient SQL aggregation
     /// </summary>
-    public async Task<double> GetSuccessRate7dAsync(int userId = 1)
+    public async Task<double> GetSuccessRate7dAsync(int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -275,8 +285,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get count of vocabulary words due for review based on SRS schedule
     /// </summary>
-    public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, int userId = 1)
+    public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -290,8 +301,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get vocabulary words due for review with word and resource details for planning
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, int userId = 1)
+    public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -308,8 +320,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get aggregated progress for vocabulary words in a specific resource using SQL joins
     /// </summary>
-    public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(int resourceId, int userId = 1)
+    public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(int resourceId, int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -337,8 +350,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get aggregated progress for multiple resources in one query
     /// </summary>
-    public async Task<Dictionary<int, ResourceProgressAggregation>> GetMultipleResourceProgressAggregationsAsync(List<int> resourceIds, int userId = 1)
+    public async Task<Dictionary<int, ResourceProgressAggregation>> GetMultipleResourceProgressAggregationsAsync(List<int> resourceIds, int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -370,8 +384,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get overall vocabulary progress aggregation (for skill progress calculation)
     /// </summary>
-    public async Task<ResourceProgressAggregation?> GetOverallProgressAggregationAsync(int userId = 1)
+    public async Task<ResourceProgressAggregation?> GetOverallProgressAggregationAsync(int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

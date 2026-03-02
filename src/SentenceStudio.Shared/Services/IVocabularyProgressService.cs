@@ -15,22 +15,22 @@ public interface IVocabularyProgressService
     /// <summary>
     /// Gets progress for a specific vocabulary word and user
     /// </summary>
-    Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 1);
+    Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 0);
 
     /// <summary>
     /// Gets words that are due for review based on spaced repetition schedule
     /// </summary>
-    Task<List<VocabularyProgress>> GetReviewCandidatesAsync(int userId = 1);
+    Task<List<VocabularyProgress>> GetReviewCandidatesAsync(int userId = 0);
 
     /// <summary>
     /// Gets all progress records for a user
     /// </summary>
-    Task<List<VocabularyProgress>> GetAllProgressAsync(int userId = 1);
+    Task<List<VocabularyProgress>> GetAllProgressAsync(int userId = 0);
 
     /// <summary>
     /// Gets progress for multiple vocabulary words and returns as dictionary
     /// </summary>
-    Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 1);
+    Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 0);
 
     /// <summary>
     /// Gets ALL progress records for a user and returns as dictionary keyed by VocabularyWordId
