@@ -119,7 +119,7 @@ public class ConversationAgentService : IConversationAgentService
     }
 
     /// <inheritdoc/>
-    public async Task LoadMemoryStateAsync(int conversationId)
+    public async Task LoadMemoryStateAsync(string conversationId)
     {
         _logger.LogDebug("Loading memory state for conversation {ConversationId}", conversationId);
 
@@ -155,7 +155,7 @@ public class ConversationAgentService : IConversationAgentService
     }
 
     /// <inheritdoc/>
-    public async Task SaveMemoryStateAsync(int conversationId)
+    public async Task SaveMemoryStateAsync(string conversationId)
     {
         if (_currentMemory == null)
         {
@@ -418,12 +418,12 @@ Do not nitpick minor stylistic preferences.";
     }
 
     /// <inheritdoc/>
-    public async Task<int> SaveConversationAsync(Conversation conversation)
+    public async Task<string> SaveConversationAsync(Conversation conversation)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        if (conversation.Id == 0)
+        if (string.IsNullOrEmpty(conversation.Id))
         {
             db.Conversations.Add(conversation);
         }
@@ -450,7 +450,7 @@ Do not nitpick minor stylistic preferences.";
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        if (chunk.Id == 0)
+        if (string.IsNullOrEmpty(chunk.Id))
         {
             db.ConversationChunks.Add(chunk);
         }
@@ -506,7 +506,7 @@ Do not nitpick minor stylistic preferences.";
     }
 
     /// <inheritdoc/>
-    public async Task<Conversation?> GetConversationAsync(int id)
+    public async Task<Conversation?> GetConversationAsync(string id)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -517,7 +517,7 @@ Do not nitpick minor stylistic preferences.";
     }
 
     /// <inheritdoc/>
-    public async Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId)
+    public async Task<List<ConversationChunk>> GetConversationChunksAsync(string conversationId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

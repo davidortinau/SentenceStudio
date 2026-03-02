@@ -6,9 +6,9 @@ namespace SentenceStudio.Shared.Models;
 [Table("VocabularyLearningContexts")]
 public class VocabularyLearningContext
 {
-    public int Id { get; set; }
-    public int VocabularyProgressId { get; set; }
-    public int? LearningResourceId { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string VocabularyProgressId { get; set; } = string.Empty;
+    public string? LearningResourceId { get; set; }
     
     // Activity tracking
     public string Activity { get; set; } = string.Empty; // "VocabularyQuiz", "Clozure", etc.

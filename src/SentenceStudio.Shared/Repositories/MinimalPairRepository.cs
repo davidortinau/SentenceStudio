@@ -25,10 +25,10 @@ public class MinimalPairRepository
     /// <param name="wordBId">Second vocabulary word ID</param>
     /// <param name="contrastLabel">Optional label describing the contrast (e.g., "ㅂ vs ㅃ")</param>
     /// <returns>The created MinimalPair, or null if a duplicate already exists</returns>
-    public async Task<MinimalPair?> CreatePairAsync(int userId, int wordAId, int wordBId, string? contrastLabel = null)
+    public async Task<MinimalPair?> CreatePairAsync(string userId, string wordAId, string wordBId, string? contrastLabel = null)
     {
         // Normalize: ensure A < B to prevent duplicates
-        var (normalizedA, normalizedB) = wordAId < wordBId ? (wordAId, wordBId) : (wordBId, wordAId);
+        var (normalizedA, normalizedB) = string.Compare(wordAId, wordBId, StringComparison.Ordinal) < 0 ? (wordAId, wordBId) : (wordBId, wordAId);
 
         // Check for existing pair
         var existingPair = await _context.MinimalPairs
@@ -60,7 +60,7 @@ public class MinimalPairRepository
     /// <summary>
     /// Gets all minimal pairs for a user, including related vocabulary words.
     /// </summary>
-    public async Task<List<MinimalPair>> GetUserPairsAsync(int userId)
+    public async Task<List<MinimalPair>> GetUserPairsAsync(string userId)
     {
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
@@ -84,9 +84,9 @@ public class MinimalPairRepository
     /// <summary>
     /// Checks if a minimal pair exists for the given word IDs (order-independent).
     /// </summary>
-    public async Task<bool> PairExistsAsync(int userId, int wordAId, int wordBId)
+    public async Task<bool> PairExistsAsync(string userId, string wordAId, string wordBId)
     {
-        var (normalizedA, normalizedB) = wordAId < wordBId ? (wordAId, wordBId) : (wordBId, wordAId);
+        var (normalizedA, normalizedB) = string.Compare(wordAId, wordBId, StringComparison.Ordinal) < 0 ? (wordAId, wordBId) : (wordBId, wordAId);
 
         return await _context.MinimalPairs
             .AnyAsync(p =>
@@ -133,7 +133,7 @@ public class MinimalPairRepository
     /// Gets all pairs that include a specific vocabulary word.
     /// Useful for finding related pairs when browsing vocabulary.
     /// </summary>
-    public async Task<List<MinimalPair>> GetPairsByWordIdAsync(int userId, int wordId)
+    public async Task<List<MinimalPair>> GetPairsByWordIdAsync(string userId, string wordId)
     {
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)

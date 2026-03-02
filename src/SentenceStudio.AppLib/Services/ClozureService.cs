@@ -37,20 +37,20 @@ public class ClozureService
         _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
     }
 
-    public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
+    public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID)
     {
         _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}",
             resourceID, numberOfSentences, skillID);
         var watch = new Stopwatch();
         watch.Start();
 
-        if (resourceID == 0)
+        if (string.IsNullOrEmpty(resourceID))
         {
             _logger.LogDebug("Resource ID is 0 - no resource selected");
             return new List<Challenge>();
         }
 
-        if (skillID == 0)
+        if (string.IsNullOrEmpty(skillID))
         {
             _logger.LogDebug("Skill ID is 0 - no skill selected");
             return new List<Challenge>();
@@ -167,7 +167,7 @@ public class ClozureService
         }
     }
 
-    public async Task<int> SaveChallenges(Challenge item)
+    public async Task<string> SaveChallenges(Challenge item)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -180,7 +180,7 @@ public class ClozureService
 
         try
         {
-            if (item.Id != 0)
+            if (!string.IsNullOrEmpty(item.Id))
             {
                 db.Challenges.Update(item);
             }
@@ -239,7 +239,7 @@ public class ClozureService
         return await db.Challenges.ToListAsync();
     }
 
-    public async Task<Challenge> GetChallengeAsync(int id)
+    public async Task<Challenge> GetChallengeAsync(string id)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -260,7 +260,7 @@ public class ClozureService
         return await db.GradeResponses.Where(gr => gr.Id == id).FirstOrDefaultAsync();
     }
 
-    public async Task<List<GradeResponse>> GetGradeResponsesForChallengeAsync(int challengeId)
+    public async Task<List<GradeResponse>> GetGradeResponsesForChallengeAsync(string challengeId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

@@ -37,19 +37,19 @@ namespace SentenceStudio.Services
             _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
         }
 
-        public async Task<List<Challenge>> GetTranslationSentences(int resourceID, int numberOfSentences, int skillID)
+        public async Task<List<Challenge>> GetTranslationSentences(string resourceID, int numberOfSentences, string skillID)
         {
             _logger.LogDebug("GetTranslationSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}", resourceID, numberOfSentences, skillID);
             var watch = new Stopwatch();
             watch.Start();
 
-            if (resourceID == 0)
+            if (string.IsNullOrEmpty(resourceID))
             {
                 _logger.LogWarning("Resource ID is 0 - no resource selected");
                 return new List<Challenge>();
             }
 
-            if (skillID == 0)
+            if (string.IsNullOrEmpty(skillID))
             {
                 _logger.LogWarning("Skill ID is 0 - no skill selected");
                 return new List<Challenge>();

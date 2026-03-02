@@ -65,8 +65,8 @@ public class UserProfileRepository
 
         // Load the active profile if one was selected during login
         UserProfile profile = null;
-        var activeId = _preferences?.Get("active_profile_id", 0) ?? 0;
-        if (activeId > 0)
+        var activeId = _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+        if (!string.IsNullOrEmpty(activeId))
         {
             profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == activeId);
         }
@@ -168,7 +168,7 @@ public class UserProfileRepository
 
         try
         {
-            if (item.Id > 0)
+            if (!string.IsNullOrEmpty(item.Id))
             {
                 db.UserProfiles.Update(item);
             }
@@ -186,7 +186,7 @@ public class UserProfileRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            if (item.Id == 0)
+            if (string.IsNullOrEmpty(item.Id))
             {
                 // UXDivers popup removed - error already logged above
             }

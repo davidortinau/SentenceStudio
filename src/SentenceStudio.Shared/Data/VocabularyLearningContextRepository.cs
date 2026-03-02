@@ -27,7 +27,7 @@ public class VocabularyLearningContextRepository
             .ToListAsync();
     }
 
-    public async Task<List<VocabularyLearningContext>> GetByProgressIdAsync(int vocabularyProgressId)
+    public async Task<List<VocabularyLearningContext>> GetByProgressIdAsync(string vocabularyProgressId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -38,7 +38,7 @@ public class VocabularyLearningContextRepository
             .ToListAsync();
     }
 
-    public async Task<List<VocabularyLearningContext>> GetRecentAttemptsAsync(int vocabularyProgressId, int count)
+    public async Task<List<VocabularyLearningContext>> GetRecentAttemptsAsync(string vocabularyProgressId, int count)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -71,7 +71,7 @@ public class VocabularyLearningContextRepository
         {
             item.UpdatedAt = DateTime.Now;
             
-            if (item.Id != 0)
+            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (item.VocabularyProgress != null)

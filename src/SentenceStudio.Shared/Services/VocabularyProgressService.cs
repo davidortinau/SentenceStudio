@@ -160,7 +160,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// Gets progress for a specific vocabulary word and user
     /// </summary>
-    public Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 0)
+    public Task<VocabularyProgress> GetProgressAsync(string vocabularyWordId, string userId = "")
     {
         return GetOrCreateProgressAsync(vocabularyWordId, userId);
     }
@@ -168,7 +168,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// Gets words due for review based on spaced repetition
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetReviewCandidatesAsync(int userId = 0)
+    public async Task<List<VocabularyProgress>> GetReviewCandidatesAsync(string userId = "")
     {
         var allProgress = await _progressRepo.ListAsync();
         return allProgress.Where(p =>
@@ -180,7 +180,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// Gets all progress records for a user
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetAllProgressAsync(int userId = 0)
+    public async Task<List<VocabularyProgress>> GetAllProgressAsync(string userId = "")
     {
         var allProgress = await _progressRepo.ListAsync();
         return allProgress.Where(p => p.UserId == userId).ToList();
@@ -191,10 +191,10 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// OPTIMIZED: Uses batch query and only returns EXISTING progress (no auto-creation).
     /// Use this for list views where you just want to display status.
     /// </summary>
-    public async Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 0)
+    public async Task<Dictionary<string, VocabularyProgress>> GetProgressForWordsAsync(List<string> vocabularyWordIds, string userId = "")
     {
         if (!vocabularyWordIds.Any())
-            return new Dictionary<int, VocabularyProgress>();
+            return new Dictionary<string, VocabularyProgress>();
 
         // OPTIMIZATION: Use batch query instead of loading entire table
         var existingProgress = await _progressRepo.GetByWordIdsAsync(vocabularyWordIds);
@@ -210,7 +210,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// OPTIMIZATION: Use this instead of GetProgressForWordsAsync when loading all vocabulary
     /// Avoids massive WHERE IN clauses by loading everything in one efficient query
     /// </summary>
-    public async Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 0)
+    public async Task<Dictionary<string, VocabularyProgress>> GetAllProgressDictionaryAsync(string userId = "")
     {
         var allProgress = await _progressRepo.GetAllForUserAsync(userId);
         
@@ -344,7 +344,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         progress.NextReviewDate = DateTime.Now.AddDays(progress.ReviewInterval);
     }
 
-    private Task RecordLearningContextAsync(int vocabularyProgressId, VocabularyAttempt attempt)
+    private Task RecordLearningContextAsync(string vocabularyProgressId, VocabularyAttempt attempt)
     {
         var context = new VocabularyLearningContext
         {
@@ -367,7 +367,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         return _contextRepo.SaveAsync(context);
     }
 
-    private async Task<VocabularyProgress> GetOrCreateProgressAsync(int vocabularyWordId, int userId)
+    private async Task<VocabularyProgress> GetOrCreateProgressAsync(string vocabularyWordId, string userId)
     {
         var existing = await _progressRepo.GetByWordIdAndUserIdAsync(vocabularyWordId, userId);
         if (existing != null)
@@ -396,24 +396,24 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)
     /// </summary>
-    public Task<VocabularyProgress> GetOrCreateProgressAsync(int vocabularyWordId)
+    public Task<VocabularyProgress> GetOrCreateProgressAsync(string vocabularyWordId)
     {
-        return GetOrCreateProgressAsync(vocabularyWordId, userId: 1);
+        return GetOrCreateProgressAsync(vocabularyWordId, userId: string.Empty);
     }
 
     /// <summary>
     /// Legacy method: Records a correct answer (backward compatibility)
     /// </summary>
     public Task<VocabularyProgress> RecordCorrectAnswerAsync(
-        int vocabularyWordId,
+        string vocabularyWordId,
         InputMode inputMode,
         string activity = "VocabularyQuiz",
-        int? learningResourceId = null)
+        string? learningResourceId = null)
     {
         var attempt = new VocabularyAttempt
         {
             VocabularyWordId = vocabularyWordId,
-            UserId = 1, // Default user
+            UserId = string.Empty, // Default user
             Activity = activity,
             InputMode = inputMode.ToString(),
             LearningResourceId = learningResourceId,
@@ -431,15 +431,15 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// Legacy method: Records an incorrect answer (backward compatibility)
     /// </summary>
     public Task<VocabularyProgress> RecordIncorrectAnswerAsync(
-        int vocabularyWordId,
+        string vocabularyWordId,
         InputMode inputMode,
         string activity = "VocabularyQuiz",
-        int? learningResourceId = null)
+        string? learningResourceId = null)
     {
         var attempt = new VocabularyAttempt
         {
             VocabularyWordId = vocabularyWordId,
-            UserId = 1, // Default user
+            UserId = string.Empty, // Default user
             Activity = activity,
             InputMode = inputMode.ToString(),
             LearningResourceId = learningResourceId,

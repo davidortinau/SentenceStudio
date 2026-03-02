@@ -15,51 +15,51 @@ public interface IVocabularyProgressService
     /// <summary>
     /// Gets progress for a specific vocabulary word and user
     /// </summary>
-    Task<VocabularyProgress> GetProgressAsync(int vocabularyWordId, int userId = 0);
+    Task<VocabularyProgress> GetProgressAsync(string vocabularyWordId, string userId = "");
 
     /// <summary>
     /// Gets words that are due for review based on spaced repetition schedule
     /// </summary>
-    Task<List<VocabularyProgress>> GetReviewCandidatesAsync(int userId = 0);
+    Task<List<VocabularyProgress>> GetReviewCandidatesAsync(string userId = "");
 
     /// <summary>
     /// Gets all progress records for a user
     /// </summary>
-    Task<List<VocabularyProgress>> GetAllProgressAsync(int userId = 0);
+    Task<List<VocabularyProgress>> GetAllProgressAsync(string userId = "");
 
     /// <summary>
     /// Gets progress for multiple vocabulary words and returns as dictionary
     /// </summary>
-    Task<Dictionary<int, VocabularyProgress>> GetProgressForWordsAsync(List<int> vocabularyWordIds, int userId = 0);
+    Task<Dictionary<string, VocabularyProgress>> GetProgressForWordsAsync(List<string> vocabularyWordIds, string userId = "");
 
     /// <summary>
     /// Gets ALL progress records for a user and returns as dictionary keyed by VocabularyWordId
     /// OPTIMIZATION: Use this instead of GetProgressForWordsAsync when loading all vocabulary
     /// </summary>
-    Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 0);
+    Task<Dictionary<string, VocabularyProgress>> GetAllProgressDictionaryAsync(string userId = "");
 
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)
     /// </summary>
-    Task<VocabularyProgress> GetOrCreateProgressAsync(int vocabularyWordId);
+    Task<VocabularyProgress> GetOrCreateProgressAsync(string vocabularyWordId);
 
     /// <summary>
     /// Legacy method: Records a correct answer (backward compatibility)
     /// </summary>
     Task<VocabularyProgress> RecordCorrectAnswerAsync(
-        int vocabularyWordId,
+        string vocabularyWordId,
         InputMode inputMode,
         string activity = "VocabularyQuiz",
-        int? learningResourceId = null);
+        string? learningResourceId = null);
 
     /// <summary>
     /// Legacy method: Records an incorrect answer (backward compatibility)
     /// </summary>
     Task<VocabularyProgress> RecordIncorrectAnswerAsync(
-        int vocabularyWordId,
+        string vocabularyWordId,
         InputMode inputMode,
         string activity = "VocabularyQuiz",
-        int? learningResourceId = null);
+        string? learningResourceId = null);
 
     /// <summary>
     /// Migrates existing vocabulary progress to streak-based scoring system.

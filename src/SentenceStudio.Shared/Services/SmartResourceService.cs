@@ -40,7 +40,7 @@ public class SmartResourceService
     /// Initialize smart resources on first app launch.
     /// Creates three default smart resources if they don't exist.
     /// </summary>
-    public async Task InitializeSmartResourcesAsync(string targetLanguage = "Korean", int userId = 0)
+    public async Task InitializeSmartResourcesAsync(string targetLanguage = "Korean", string userId = "")
     {
         _logger.LogInformation("🎯 Initializing smart resources for language: {Language}", targetLanguage);
 
@@ -121,7 +121,7 @@ public class SmartResourceService
     /// Refresh a smart resource by clearing existing vocabulary and re-populating
     /// based on its type and current SRS state.
     /// </summary>
-    public async Task RefreshSmartResourceAsync(int resourceId, int userId = 0)
+    public async Task RefreshSmartResourceAsync(string resourceId, string userId = "")
     {
         try
         {
@@ -168,7 +168,7 @@ public class SmartResourceService
     /// <summary>
     /// Refresh all smart resources at once (e.g., on app launch).
     /// </summary>
-    public async Task RefreshAllSmartResourcesAsync(int userId = 0)
+    public async Task RefreshAllSmartResourcesAsync(string userId = "")
     {
         _logger.LogInformation("🔄 Refreshing all smart resources");
 
@@ -193,14 +193,14 @@ public class SmartResourceService
     /// <summary>
     /// Get vocabulary word IDs for a specific smart resource type.
     /// </summary>
-    private async Task<List<int>> GetSmartResourceVocabularyIdsAsync(string smartResourceType, int userId = 0)
+    private async Task<List<string>> GetSmartResourceVocabularyIdsAsync(string smartResourceType, string userId = "")
     {
         return smartResourceType switch
         {
             SmartResourceType_DailyReview => await GetDailyReviewVocabularyIdsAsync(userId),
             SmartResourceType_NewWords => await GetNewWordsVocabularyIdsAsync(userId),
             SmartResourceType_Struggling => await GetStrugglingWordsVocabularyIdsAsync(userId),
-            _ => new List<int>()
+            _ => new List<string>()
         };
     }
 
@@ -208,7 +208,7 @@ public class SmartResourceService
     /// Get vocabulary IDs for Daily Review: words due for SRS review today.
     /// Selection: NextReviewDate <= Today AND MasteryScore < 0.85
     /// </summary>
-    private async Task<List<int>> GetDailyReviewVocabularyIdsAsync(int userId = 0)
+    private async Task<List<string>> GetDailyReviewVocabularyIdsAsync(string userId = "")
     {
         var dueWords = await _progressRepo.GetDueVocabularyAsync(DateTime.Today, userId);
 
@@ -225,7 +225,7 @@ public class SmartResourceService
     /// Get vocabulary IDs for New Words: words never practiced.
     /// Selection: No progress record OR TotalAttempts = 0
     /// </summary>
-    private async Task<List<int>> GetNewWordsVocabularyIdsAsync(int userId = 0)
+    private async Task<List<string>> GetNewWordsVocabularyIdsAsync(string userId = "")
     {
         // Get all vocabulary words
         var allWords = await _resourceRepo.GetAllVocabularyWordsAsync();
@@ -249,7 +249,7 @@ public class SmartResourceService
     /// Get vocabulary IDs for Struggling Words: low mastery despite multiple attempts.
     /// Selection: TotalAttempts >= 5 AND MasteryScore < 0.5
     /// </summary>
-    private async Task<List<int>> GetStrugglingWordsVocabularyIdsAsync(int userId = 0)
+    private async Task<List<string>> GetStrugglingWordsVocabularyIdsAsync(string userId = "")
     {
         var allProgress = await _progressRepo.ListAsync();
         var userProgress = allProgress.Where(vp => vp.UserId == userId).ToList();

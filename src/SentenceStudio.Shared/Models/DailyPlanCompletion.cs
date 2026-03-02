@@ -10,8 +10,8 @@ public class DailyPlanCompletion
     public DateTime Date { get; set; }
     public string PlanItemId { get; set; } = string.Empty;
     public string ActivityType { get; set; } = string.Empty;
-    public int? ResourceId { get; set; }
-    public int? SkillId { get; set; }
+    public string? ResourceId { get; set; }
+    public string? SkillId { get; set; }
     public bool IsCompleted { get; set; }
     public DateTime? CompletedAt { get; set; }
     

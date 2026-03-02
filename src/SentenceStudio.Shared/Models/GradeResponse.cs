@@ -32,7 +32,7 @@ public class GradeResponse
     public List<VocabularyAnalysis>? VocabularyAnalysis { get; set; }
     
     public DateTime CreatedAt { get; set; }
-    public int ChallengeID { get; set; }
+    public string ChallengeID { get; set; } = string.Empty;
 }
 
 public class VocabularyAnalysis

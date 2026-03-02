@@ -121,7 +121,7 @@ public class ProgressService : IProgressService
             .ToList();
     }
 
-    public async Task<SkillProgress?> GetSkillProgressAsync(int skillId, CancellationToken ct = default)
+    public async Task<SkillProgress?> GetSkillProgressAsync(string skillId, CancellationToken ct = default)
     {
         // PHASE 2 OPTIMIZATION: Check cache first
         var cached = _cache.GetSkillProgress(skillId);
@@ -639,8 +639,7 @@ public class ProgressService : IProgressService
 
         var recentResourceIds = recentHistory
             .Where(a => !string.IsNullOrEmpty(a.Input))
-            .Select(a => int.TryParse(a.Input, out var id) ? id : 0)
-            .Where(id => id > 0)
+            .Select(a => a.Input!)
             .Distinct()
             .ToHashSet();
 

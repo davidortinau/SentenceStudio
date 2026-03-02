@@ -16,7 +16,7 @@ public class ConversationMemoryState
     /// <summary>
     /// The conversation this memory state belongs to.
     /// </summary>
-    public int ConversationId { get; set; }
+    public string ConversationId { get; set; } = string.Empty;
 
     /// <summary>
     /// JSON-serialized memory state from the AIContextProvider.

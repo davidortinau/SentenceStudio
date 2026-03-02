@@ -15,17 +15,17 @@ public class MinimalPair
     /// <summary>
     /// User who owns this minimal pair (default 1 for single-user app)
     /// </summary>
-    public int UserId { get; set; } = 1;
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>
     /// First vocabulary word in the pair (must be &lt; VocabularyWordBId for normalization)
     /// </summary>
-    public int VocabularyWordAId { get; set; }
+    public string VocabularyWordAId { get; set; } = string.Empty;
 
     /// <summary>
     /// Second vocabulary word in the pair (must be &gt; VocabularyWordAId for normalization)
     /// </summary>
-    public int VocabularyWordBId { get; set; }
+    public string VocabularyWordBId { get; set; } = string.Empty;
 
     /// <summary>
     /// Optional label describing the contrast (e.g., "ㅅ vs ㅆ", "Initial consonant")

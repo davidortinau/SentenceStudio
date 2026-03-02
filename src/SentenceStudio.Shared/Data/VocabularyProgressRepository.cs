@@ -19,7 +19,7 @@ public class VocabularyProgressRepository
         _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<VocabularyProgress>> ListAsync()
     {
@@ -30,12 +30,12 @@ public class VocabularyProgressRepository
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
             .AsQueryable();
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(vp => vp.UserId == userId);
         return await query.ToListAsync();
     }
 
-    public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(int vocabularyWordId, int userId)
+    public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(string vocabularyWordId, string userId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -46,7 +46,7 @@ public class VocabularyProgressRepository
             .FirstOrDefaultAsync(vp => vp.VocabularyWordId == vocabularyWordId && vp.UserId == userId);
     }
 
-    public async Task<VocabularyProgress?> GetByWordIdAsync(int vocabularyWordId)
+    public async Task<VocabularyProgress?> GetByWordIdAsync(string vocabularyWordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -56,7 +56,7 @@ public class VocabularyProgressRepository
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
             .Where(vp => vp.VocabularyWordId == vocabularyWordId);
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(vp => vp.UserId == userId);
         return await query.FirstOrDefaultAsync();
     }
@@ -65,7 +65,7 @@ public class VocabularyProgressRepository
     /// Get progress for specific vocabulary word IDs with batching
     /// OPTIMIZATION: Batches queries to avoid SQLite's 999 parameter limit
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetByWordIdsAsync(List<int> vocabularyWordIds)
+    public async Task<List<VocabularyProgress>> GetByWordIdsAsync(List<string> vocabularyWordIds)
     {
         if (!vocabularyWordIds.Any())
             return new List<VocabularyProgress>();
@@ -99,9 +99,9 @@ public class VocabularyProgressRepository
     /// OPTIMIZATION: Use this instead of GetByWordIdsAsync when loading all vocabulary
     /// Avoids massive WHERE IN clauses by loading everything in one query
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetAllForUserAsync(int userId = 0)
+    public async Task<List<VocabularyProgress>> GetAllForUserAsync(string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -111,7 +111,7 @@ public class VocabularyProgressRepository
             .ToListAsync();
     }
 
-    public async Task<VocabularyProgress> GetOrCreateAsync(int vocabularyWordId)
+    public async Task<VocabularyProgress> GetOrCreateAsync(string vocabularyWordId)
     {
         var existing = await GetByWordIdAsync(vocabularyWordId);
         if (existing != null)
@@ -141,10 +141,10 @@ public class VocabularyProgressRepository
             item.UpdatedAt = DateTime.Now;
 
             // Auto-set UserId for new items if not already set
-            if (item.UserId <= 0 && ActiveUserId > 0)
+            if (string.IsNullOrEmpty(item.UserId) && !string.IsNullOrEmpty(ActiveUserId))
                 item.UserId = ActiveUserId;
 
-            if (item.Id != 0)
+            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (item.VocabularyWord != null)
@@ -179,7 +179,7 @@ public class VocabularyProgressRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            if (item.Id == 0)
+            if (string.IsNullOrEmpty(item.Id) || item.Id == Guid.Empty.ToString())
             {
                 // UXDivers popup removed - error already logged above
             }
@@ -213,9 +213,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get vocabulary summary counts using efficient SQL aggregation
     /// </summary>
-    public async Task<(int New, int Learning, int Review, int Known)> GetVocabSummaryCountsAsync(int userId = 0)
+    public async Task<(int New, int Learning, int Review, int Known)> GetVocabSummaryCountsAsync(string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -259,9 +259,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get 7-day success rate using efficient SQL aggregation
     /// </summary>
-    public async Task<double> GetSuccessRate7dAsync(int userId = 0)
+    public async Task<double> GetSuccessRate7dAsync(string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -285,9 +285,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get count of vocabulary words due for review based on SRS schedule
     /// </summary>
-    public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, int userId = 0)
+    public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -301,9 +301,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get vocabulary words due for review with word and resource details for planning
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, int userId = 0)
+    public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -320,9 +320,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get aggregated progress for vocabulary words in a specific resource using SQL joins
     /// </summary>
-    public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(int resourceId, int userId = 0)
+    public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(string resourceId, string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -350,9 +350,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get aggregated progress for multiple resources in one query
     /// </summary>
-    public async Task<Dictionary<int, ResourceProgressAggregation>> GetMultipleResourceProgressAggregationsAsync(List<int> resourceIds, int userId = 0)
+    public async Task<Dictionary<string, ResourceProgressAggregation>> GetMultipleResourceProgressAggregationsAsync(List<string> resourceIds, string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -384,9 +384,9 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get overall vocabulary progress aggregation (for skill progress calculation)
     /// </summary>
-    public async Task<ResourceProgressAggregation?> GetOverallProgressAggregationAsync(int userId = 0)
+    public async Task<ResourceProgressAggregation?> GetOverallProgressAggregationAsync(string userId = "")
     {
-        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

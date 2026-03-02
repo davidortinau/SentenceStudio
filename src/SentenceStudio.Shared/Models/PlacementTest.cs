@@ -11,7 +11,7 @@ namespace SentenceStudio.Shared.Models;
 public class PlacementTest
 {
     public int Id { get; set; }
-    public int UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
     
     public PlacementTestType TestType { get; set; }
     public PlacementTestStatus Status { get; set; } = PlacementTestStatus.NotStarted;
@@ -46,7 +46,7 @@ public class PlacementTestItem
 {
     public int Id { get; set; }
     public int PlacementTestId { get; set; }
-    public int VocabularyWordId { get; set; }
+    public string VocabularyWordId { get; set; } = string.Empty;
     
     public PlacementItemType ItemType { get; set; }
     public int FrequencyRank { get; set; } // 1-10000 range

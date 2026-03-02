@@ -8,7 +8,7 @@ namespace SentenceStudio.Shared.Models;
 [Table("LearningResources")]
 public partial class LearningResource : ObservableObject
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     [ObservableProperty]
     private string? title;
@@ -37,10 +37,10 @@ public partial class LearningResource : ObservableObject
     private string? language;
 
     // Skills related to this resource
-    public int? SkillID { get; set; }
+    public string? SkillID { get; set; }
 
     // For compatibility with existing VocabularyList
-    public int? OldVocabularyListID { get; set; }
+    public string? OldVocabularyListID { get; set; }
 
     // Tags for easier filtering
     [ObservableProperty]
@@ -58,7 +58,7 @@ public partial class LearningResource : ObservableObject
     [JsonIgnore]
     public DateTime UpdatedAt { get; set; }
 
-    public int? UserProfileId { get; set; }
+    public string? UserProfileId { get; set; }
 
     // The vocabulary words associated with this resource (skip navigation)
     [NotMapped]

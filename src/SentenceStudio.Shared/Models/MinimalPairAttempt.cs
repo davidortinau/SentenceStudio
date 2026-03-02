@@ -14,7 +14,7 @@ public class MinimalPairAttempt
     /// <summary>
     /// User who made this attempt (default 1 for single-user app)
     /// </summary>
-    public int UserId { get; set; } = 1;
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>
     /// The session this attempt belongs to
@@ -29,12 +29,12 @@ public class MinimalPairAttempt
     /// <summary>
     /// Which vocabulary word was played as the prompt (the correct answer)
     /// </summary>
-    public int PromptWordId { get; set; }
+    public string PromptWordId { get; set; } = string.Empty;
 
     /// <summary>
     /// Which vocabulary word the user selected
     /// </summary>
-    public int SelectedWordId { get; set; }
+    public string SelectedWordId { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether the user's selection was correct (PromptWordId == SelectedWordId)

@@ -143,14 +143,14 @@ public class DeterministicPlanBuilder
         // Group by resource to find best vocabulary-resource match
         var wordsByResource = dueWords
             .SelectMany(w => w.LearningContexts
-                .Where(lc => lc.LearningResourceId.HasValue)
-                .Select(lc => new { Word = w, ResourceId = lc.LearningResourceId!.Value }))
+                .Where(lc => !string.IsNullOrEmpty(lc.LearningResourceId))
+                .Select(lc => new { Word = w, ResourceId = lc.LearningResourceId! }))
             .GroupBy(x => x.ResourceId)
             .OrderByDescending(g => g.Count())
             .FirstOrDefault();
 
-        int? resourceId = null;
-        int? skillId = null;
+        string? resourceId = null;
+        string? skillId = null;
 
         if (wordsByResource != null && wordsByResource.Count() >= 5)
         {
@@ -162,7 +162,7 @@ public class DeterministicPlanBuilder
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var recentSkill = await db.DailyPlanCompletions
-                .Where(c => c.ResourceId == resourceId && c.SkillId.HasValue)
+                .Where(c => c.ResourceId == resourceId && !string.IsNullOrEmpty(c.SkillId))
                 .OrderByDescending(c => c.Date)
                 .Select(c => c.SkillId)
                 .FirstOrDefaultAsync(ct);
@@ -189,7 +189,7 @@ public class DeterministicPlanBuilder
             ResourceId = resourceId,
             SkillId = skillId,
             EstimatedMinutes = estimatedMinutes,
-            IsContextual = resourceId.HasValue
+            IsContextual = !string.IsNullOrEmpty(resourceId)
         };
     }
 
@@ -202,7 +202,7 @@ public class DeterministicPlanBuilder
     /// </summary>
     private async Task<SelectedResource?> SelectPrimaryResourceAsync(
         DateTime today,
-        int? vocabResourceId,
+        string? vocabResourceId,
         CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
@@ -210,7 +210,7 @@ public class DeterministicPlanBuilder
 
         // Get recent activity to analyze resource usage patterns
         var recentActivity = await db.DailyPlanCompletions
-            .Where(c => c.Date >= today.AddDays(-14) && c.ResourceId.HasValue)
+            .Where(c => c.Date >= today.AddDays(-14) && !string.IsNullOrEmpty(c.ResourceId))
             .OrderByDescending(c => c.Date)
             .ToListAsync(ct);
 
@@ -219,7 +219,7 @@ public class DeterministicPlanBuilder
 
         // Build resource usage map
         var resourceLastUsed = recentActivity
-            .GroupBy(a => a.ResourceId!.Value)
+            .GroupBy(a => a.ResourceId!)
             .ToDictionary(
                 g => g.Key,
                 g => g.Max(a => a.Date)
@@ -235,7 +235,7 @@ public class DeterministicPlanBuilder
 
         // Filter and score resources
         var candidates = resources
-            .Where(r => r.Id > 0 && !string.IsNullOrEmpty(r.Title))
+            .Where(r => !string.IsNullOrEmpty(r.Id) && !string.IsNullOrEmpty(r.Title))
             .Where(r => r.MediaType != "Other") // Skip test/invalid resources
             .Select(r => new ResourceCandidate
             {
@@ -341,12 +341,12 @@ public class DeterministicPlanBuilder
 
         // Try to find skill from recent activity with this resource
         var recentSkill = await db.DailyPlanCompletions
-            .Where(c => c.ResourceId == resource.Id && c.SkillId.HasValue)
+            .Where(c => c.ResourceId == resource.Id && !string.IsNullOrEmpty(c.SkillId))
             .OrderByDescending(c => c.Date)
-            .Select(c => c.SkillId!.Value)
+            .Select(c => c.SkillId!)
             .FirstOrDefaultAsync(ct);
 
-        if (recentSkill > 0)
+        if (!string.IsNullOrEmpty(recentSkill))
         {
             var skill = await _skillRepo.GetAsync(recentSkill);
             if (skill != null)
@@ -362,12 +362,12 @@ public class DeterministicPlanBuilder
 
         // Fallback: Use most recently practiced skill overall
         var fallbackSkill = await db.DailyPlanCompletions
-            .Where(c => c.SkillId.HasValue)
+            .Where(c => !string.IsNullOrEmpty(c.SkillId))
             .OrderByDescending(c => c.Date)
-            .Select(c => c.SkillId!.Value)
+            .Select(c => c.SkillId!)
             .FirstOrDefaultAsync(ct);
 
-        if (fallbackSkill > 0)
+        if (!string.IsNullOrEmpty(fallbackSkill))
         {
             var skill = await _skillRepo.GetAsync(fallbackSkill);
             if (skill != null)
@@ -607,8 +607,8 @@ public class VocabularyReviewBlock
 {
     public int WordCount { get; set; }
     public int TotalDue { get; set; }
-    public int? ResourceId { get; set; }
-    public int? SkillId { get; set; }
+    public string? ResourceId { get; set; }
+    public string? SkillId { get; set; }
     public int EstimatedMinutes { get; set; }
     public bool IsContextual { get; set; }
 }
@@ -618,7 +618,7 @@ public class VocabularyReviewBlock
 /// </summary>
 public class SelectedResource
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Title { get; set; }
     public string MediaType { get; set; }
     public string Language { get; set; }
@@ -635,7 +635,7 @@ public class SelectedResource
 /// </summary>
 public class SkillInfo
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Title { get; set; }
     public string Description { get; set; }
 }
@@ -659,8 +659,8 @@ public class PlanSkeleton
 public class PlannedActivity
 {
     public string ActivityType { get; set; }
-    public int? ResourceId { get; set; }
-    public int? SkillId { get; set; }
+    public string? ResourceId { get; set; }
+    public string? SkillId { get; set; }
     public int EstimatedMinutes { get; set; }
     public int Priority { get; set; }
     public string Rationale { get; set; }

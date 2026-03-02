@@ -19,9 +19,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Challenge", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -51,9 +50,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -74,9 +72,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Author")
                         .HasColumnType("TEXT");
@@ -87,8 +84,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("ComprehensionNotes")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("GrammarCorrectionsJson")
                         .HasColumnType("TEXT");
@@ -115,8 +113,9 @@ namespace SentenceStudio.Shared.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConversationSummary")
                         .HasColumnType("TEXT");
@@ -238,11 +237,11 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ResourceId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ResourceId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<int?>("SkillId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("SkillId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TitleKey")
                         .IsRequired()
@@ -272,8 +271,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<bool>("IsCore")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("LearningResourceId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("LearningResourceId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NativeSentence")
                         .HasMaxLength(500)
@@ -287,8 +286,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyWordId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -313,8 +313,9 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("TEXT")
                         .HasJsonPropertyName("accuracy_explanation");
 
-                    b.Property<int>("ChallengeID")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ChallengeID")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -337,9 +338,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.LearningResource", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -359,11 +359,11 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("MediaUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("OldVocabularyListID")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("OldVocabularyListID")
+                        .HasColumnType("TEXT");
 
-                    b.Property<int?>("SkillID")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("SkillID")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SmartResourceType")
                         .HasColumnType("TEXT");
@@ -383,8 +383,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("UserProfileId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -406,14 +406,17 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyWordAId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyWordAId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyWordBId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyWordBId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -442,11 +445,13 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("PairId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("PromptWordId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("PromptWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("SelectedWordId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("SelectedWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("SequenceNumber")
                         .HasColumnType("INTEGER");
@@ -454,8 +459,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("SessionId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -495,8 +501,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -505,15 +512,16 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ResourceVocabularyMapping", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("ResourceId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyWordId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -546,9 +554,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SkillProfile", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -566,8 +573,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("UserProfileId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -586,11 +593,13 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("ListID")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ListID")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("SkillID")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("SkillID")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -665,8 +674,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("UserProfileId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -675,9 +684,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.UserProfile", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -718,9 +726,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyLearningContext", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Activity")
                         .IsRequired()
@@ -748,8 +755,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("LearnedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("LearningResourceId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("LearningResourceId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ResponseTimeMs")
                         .HasColumnType("INTEGER");
@@ -763,8 +770,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("UserInput")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyProgressId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyProgressId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("WasCorrect")
                         .HasColumnType("INTEGER");
@@ -780,9 +788,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyList", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -800,9 +807,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyProgress", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ApplicationAttempts")
                         .HasColumnType("INTEGER");
@@ -876,11 +882,13 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<int>("VocabularyWordId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("VocabularyWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -895,9 +903,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyWord", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AudioPronunciationUri")
                         .HasColumnType("TEXT");

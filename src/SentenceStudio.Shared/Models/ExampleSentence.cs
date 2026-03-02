@@ -7,9 +7,9 @@ public class ExampleSentence
 {
     public int Id { get; set; }
     
-    public int VocabularyWordId { get; set; }
+    public string VocabularyWordId { get; set; } = string.Empty;
     
-    public int? LearningResourceId { get; set; }
+    public string? LearningResourceId { get; set; }
     
     [Required]
     [MaxLength(500)]

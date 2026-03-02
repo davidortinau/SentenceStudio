@@ -32,7 +32,7 @@ namespace SentenceStudio.Services
             _logger = logger;
         }
 
-        public async Task<List<Challenge>> GetChallenges(int resourceID, int numberOfSentences, int skillProfileID)
+        public async Task<List<Challenge>> GetChallenges(string resourceID, int numberOfSentences, string skillProfileID)
         {
             var watch = new Stopwatch();
             watch.Start();
@@ -93,7 +93,7 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<int> SaveChallenges(Challenge item)
+        public async Task<string> SaveChallenges(Challenge item)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -110,7 +110,7 @@ namespace SentenceStudio.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred in SaveChallenges");
-                return -1;
+                return null;
             }
         }
 

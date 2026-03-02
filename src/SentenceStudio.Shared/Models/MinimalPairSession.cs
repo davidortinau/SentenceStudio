@@ -14,7 +14,7 @@ public class MinimalPairSession
     /// <summary>
     /// User who performed this session (default 1 for single-user app)
     /// </summary>
-    public int UserId { get; set; } = 1;
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>
     /// Practice mode: "Focus" (single pair), "Mixed" (multiple pairs), "Adaptive"

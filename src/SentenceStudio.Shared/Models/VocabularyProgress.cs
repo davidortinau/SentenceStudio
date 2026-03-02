@@ -10,9 +10,9 @@ public class VocabularyProgress
     private const int MIN_PRODUCTION_FOR_KNOWN = 2;
     private const float MASTERY_THRESHOLD = 0.85f;
 
-    public int Id { get; set; }
-    public int VocabularyWordId { get; set; } // FK - ONE record per word
-    public int UserId { get; set; } = 1; // FK - Support multiple users (default to 1 for backward compatibility)
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string VocabularyWordId { get; set; } = string.Empty; // FK - ONE record per word
+    public string UserId { get; set; } = string.Empty; // FK - Support multiple users
 
     // Core mastery tracking
     public float MasteryScore { get; set; } = 0.0f; // 0.0 to 1.0

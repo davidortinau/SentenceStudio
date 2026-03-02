@@ -20,14 +20,14 @@ public class UserActivityRepository
         _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<UserActivity>> ListAsync()
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             return await db.UserActivities.Where(a => a.UserProfileId == userId).ToListAsync();
         return await db.UserActivities.ToListAsync();
     }
@@ -38,7 +38,7 @@ public class UserActivityRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
         var query = db.UserActivities.Where(i => i.Activity == activity.ToString());
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(a => a.UserProfileId == userId);
         return await query.ToListAsync();
     }
@@ -49,7 +49,7 @@ public class UserActivityRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
         var query = db.UserActivities.Where(a => a.CreatedAt >= fromUtc && a.CreatedAt <= toUtc);
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(a => a.UserProfileId == userId);
         return await query.ToListAsync();
     }
@@ -62,7 +62,7 @@ public class UserActivityRepository
         try
         {
             // Ensure UserProfileId is set for new items
-            if ((item.UserProfileId == null || item.UserProfileId == 0) && ActiveUserId > 0)
+            if (string.IsNullOrEmpty(item.UserProfileId) && !string.IsNullOrEmpty(ActiveUserId))
                 item.UserProfileId = ActiveUserId;
 
             if (item.Id != 0)

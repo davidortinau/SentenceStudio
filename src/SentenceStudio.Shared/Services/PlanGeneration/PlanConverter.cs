@@ -11,8 +11,8 @@ public static class PlanConverter
     public static TodaysPlan ConvertToTodaysPlan(
         DailyPlanResponse llmResponse,
         DateTime date,
-        Dictionary<int, string> resourceTitles,
-        Dictionary<int, string> skillNames,
+        Dictionary<string, string> resourceTitles,
+        Dictionary<string, string> skillNames,
         int vocabDueCount)
     {
         var planItems = new List<DailyPlanItem>();
@@ -23,12 +23,12 @@ public static class PlanConverter
             var route = GetRouteForActivity(activityType);
             var routeParams = BuildRouteParameters(activity, activityType);
 
-            var resourceTitle = activity.ResourceId.HasValue && resourceTitles.ContainsKey(activity.ResourceId.Value)
-                ? resourceTitles[activity.ResourceId.Value]
+            var resourceTitle = !string.IsNullOrEmpty(activity.ResourceId) && resourceTitles.ContainsKey(activity.ResourceId)
+                ? resourceTitles[activity.ResourceId]
                 : null;
 
-            var skillName = activity.SkillId.HasValue && skillNames.ContainsKey(activity.SkillId.Value)
-                ? skillNames[activity.SkillId.Value]
+            var skillName = !string.IsNullOrEmpty(activity.SkillId) && skillNames.ContainsKey(activity.SkillId)
+                ? skillNames[activity.SkillId]
                 : null;
 
             planItems.Add(new DailyPlanItem(
@@ -114,7 +114,7 @@ public static class PlanConverter
     /// Builds route parameters for a given activity type with resource/skill IDs.
     /// Public to allow plan reconstruction from database without storing parameters.
     /// </summary>
-    public static Dictionary<string, object> BuildRouteParameters(PlanActivityType activityType, int? resourceId, int? skillId)
+    public static Dictionary<string, object> BuildRouteParameters(PlanActivityType activityType, string? resourceId, string? skillId)
     {
         var parameters = new Dictionary<string, object>();
 
@@ -122,21 +122,21 @@ public static class PlanConverter
         {
             parameters["Mode"] = "SRS";
             parameters["DueOnly"] = true;
-            if (resourceId.HasValue)
-                parameters["ResourceId"] = resourceId.Value;
+            if (!string.IsNullOrEmpty(resourceId))
+                parameters["ResourceId"] = resourceId;
         }
         else if (activityType == PlanActivityType.VocabularyGame)
         {
-            if (skillId.HasValue)
-                parameters["SkillId"] = skillId.Value;
+            if (!string.IsNullOrEmpty(skillId))
+                parameters["SkillId"] = skillId;
         }
         else
         {
             // Resource-based activities
-            if (resourceId.HasValue)
-                parameters["ResourceId"] = resourceId.Value;
-            if (skillId.HasValue)
-                parameters["SkillId"] = skillId.Value;
+            if (!string.IsNullOrEmpty(resourceId))
+                parameters["ResourceId"] = resourceId;
+            if (!string.IsNullOrEmpty(skillId))
+                parameters["SkillId"] = skillId;
         }
 
         return parameters;
@@ -188,7 +188,7 @@ public static class PlanConverter
         };
     }
 
-    private static string GeneratePlanItemId(DateTime date, PlanActivityType activityType, int? resourceId, int? skillId)
+    private static string GeneratePlanItemId(DateTime date, PlanActivityType activityType, string? resourceId, string? skillId)
     {
         var components = new List<string>
         {
@@ -196,10 +196,10 @@ public static class PlanConverter
             activityType.ToString()
         };
 
-        if (resourceId.HasValue)
-            components.Add($"R{resourceId.Value}");
-        if (skillId.HasValue)
-            components.Add($"S{skillId.Value}");
+        if (!string.IsNullOrEmpty(resourceId))
+            components.Add($"R{resourceId}");
+        if (!string.IsNullOrEmpty(skillId))
+            components.Add($"S{skillId}");
 
         var combined = string.Join("_", components);
 

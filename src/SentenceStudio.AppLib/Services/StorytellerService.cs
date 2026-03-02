@@ -34,7 +34,7 @@ namespace SentenceStudio.Services
             _logger = logger;
         }
 
-        public async Task<Story> TellAStory(int resourceId, int numberOfWords, int skillID)
+        public async Task<Story> TellAStory(string resourceId, int numberOfWords, string skillID)
         {
             var watch = new Stopwatch();
             watch.Start();

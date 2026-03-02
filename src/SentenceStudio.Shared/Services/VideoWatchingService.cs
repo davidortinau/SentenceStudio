@@ -111,7 +111,7 @@ public class VideoWatchingService
     /// </summary>
     /// <param name="resourceId">The resource ID.</param>
     /// <returns>The resource if found and has valid video URL, null otherwise.</returns>
-    public async Task<LearningResource?> GetResourceWithVideoAsync(int resourceId)
+    public async Task<LearningResource?> GetResourceWithVideoAsync(string resourceId)
     {
         _logger.LogInformation("Loading resource {ResourceId} for video playback", resourceId);
 

@@ -176,7 +176,7 @@ public class VocabularyEncodingRepository
     /// [T038] Filter vocabulary words by resource IDs using JOIN through ResourceVocabularyMapping
     /// Multiple resource filters combine with OR logic (words in ANY of the specified resources)
     /// </summary>
-    public async Task<List<VocabularyWord>> FilterByResourcesAsync(IEnumerable<int> resourceIds)
+    public async Task<List<VocabularyWord>> FilterByResourcesAsync(IEnumerable<string> resourceIds)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var resourceIdList = resourceIds.ToList();
@@ -246,7 +246,7 @@ public class VocabularyEncodingRepository
     {
         word.UpdatedAt = DateTime.UtcNow;
 
-        if (word.Id == 0)
+        if (string.IsNullOrEmpty(word.Id) || word.Id == Guid.Empty.ToString())
         {
             word.CreatedAt = DateTime.UtcNow;
             _context.VocabularyWords.Add(word);

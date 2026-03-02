@@ -50,9 +50,9 @@ public class ShadowingService
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A list of sentences for shadowing practice.</returns>
     public async Task<List<ShadowingSentence>> GenerateSentencesAsync(
-        int resourceId, 
+        string resourceId, 
         int numberOfSentences = 10, 
-        int skillID = 0, 
+        string skillID = null, 
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -110,9 +110,9 @@ public class ShadowingService
     /// <param name="skillId">Skill profile ID for AI generation</param>
     /// <returns>List of shadowing sentences</returns>
     public async Task<List<ShadowingSentence>> GetOrGenerateSentencesAsync(
-        int resourceId,
+        string resourceId,
         int count = 10,
-        int skillId = 0)
+        string skillId = null)
     {
         _logger.LogInformation("🔍 GetOrGenerateSentencesAsync called - ResourceId: {ResourceId}, Count: {Count}, SkillId: {SkillId}",
             resourceId, count, skillId);

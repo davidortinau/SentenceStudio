@@ -8,7 +8,7 @@ namespace SentenceStudio.Shared.Models;
 
 public partial class VocabularyWord : ObservableObject
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     [Description("The word in the user's native language, usually English.")]
     [ObservableProperty]

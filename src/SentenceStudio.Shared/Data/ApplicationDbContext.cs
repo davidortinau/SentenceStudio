@@ -35,23 +35,47 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Configure table names to match CoreSync expectations (singular)
+        // Synced entities use string (GUID) PKs — tell EF not to auto-generate values
         modelBuilder.Entity<LearningResource>().ToTable("LearningResource").HasKey(e => e.Id);
+        modelBuilder.Entity<LearningResource>().Property(e => e.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<VocabularyWord>().ToTable("VocabularyWord").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyList>().Property(e => e.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<SkillProfile>().ToTable("SkillProfile").HasKey(e => e.Id);
+        modelBuilder.Entity<SkillProfile>().Property(e => e.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<UserProfile>().ToTable("UserProfile").HasKey(e => e.Id);
-        modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
+        modelBuilder.Entity<UserProfile>().Property(e => e.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<Challenge>().ToTable("Challenge").HasKey(e => e.Id);
+        modelBuilder.Entity<Challenge>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
+        modelBuilder.Entity<Conversation>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationChunk>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
+        modelBuilder.Entity<ResourceVocabularyMapping>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyProgress>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyLearningContext>().Property(e => e.Id).ValueGeneratedNever();
+
+        // Non-synced entities (keep int auto-increment PKs)
+        modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
         modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
         modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.Id);
         modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
-        modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
-        modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationScenario>().ToTable("ConversationScenario").HasKey(e => e.Id);
-        modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
-        modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
-        modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);

@@ -5,14 +5,14 @@ namespace SentenceStudio.Shared.Models;
 /// </summary>
 public class VocabularyAttempt
 {
-    public int VocabularyWordId { get; set; }
-    public int UserId { get; set; }
+    public string VocabularyWordId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public string Activity { get; set; } = string.Empty; // "VocabularyQuiz", "Clozure", etc.
     public string InputMode { get; set; } = string.Empty; // "MultipleChoice", "Text", "Voice" (from InputMode enum)
     public bool WasCorrect { get; set; }
     public float DifficultyWeight { get; set; } = 1.0f; // 0.0-2.0, how hard was this usage
     public string? ContextType { get; set; } // "Isolated", "Sentence", "Conjugated"
-    public int? LearningResourceId { get; set; }
+    public string? LearningResourceId { get; set; }
     public string? UserInput { get; set; }
     public string? ExpectedAnswer { get; set; }
     public int ResponseTimeMs { get; set; }

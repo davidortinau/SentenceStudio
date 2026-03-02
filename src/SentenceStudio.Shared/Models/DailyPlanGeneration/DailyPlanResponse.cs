@@ -17,10 +17,10 @@ public class PlanActivity
     public string ActivityType { get; set; } = string.Empty;
 
     [Description("Resource ID to use (null for vocabulary-only activities like VocabularyReview or VocabularyGame)")]
-    public int? ResourceId { get; set; }
+    public string? ResourceId { get; set; }
 
     [Description("Skill ID to practice (null for VocabularyReview)")]
-    public int? SkillId { get; set; }
+    public string? SkillId { get; set; }
 
     [Description("Estimated minutes for this activity (5-15 range)")]
     public int EstimatedMinutes { get; set; }

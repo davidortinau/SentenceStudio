@@ -20,7 +20,7 @@ public class ProgressCacheService
     private CacheEntry<VocabProgressSummary>? _vocabSummaryCache;
     private CacheEntry<IReadOnlyList<PracticeHeatPoint>>? _practiceHeatCache;
     private CacheEntry<List<ResourceProgress>>? _resourceProgressCache;
-    private readonly Dictionary<int, CacheEntry<SkillProgress>> _skillProgressCache = new();
+    private readonly Dictionary<string, CacheEntry<SkillProgress>> _skillProgressCache = new();
     private CacheEntry<TodaysPlan>? _todaysPlanCache;
 
     /// <summary>
@@ -89,7 +89,7 @@ public class ProgressCacheService
     /// <summary>
     /// Get cached skill progress for a specific skill or null if expired/not cached
     /// </summary>
-    public SkillProgress? GetSkillProgress(int skillId)
+    public SkillProgress? GetSkillProgress(string skillId)
     {
         if (!_skillProgressCache.TryGetValue(skillId, out var entry) || entry.IsExpired())
             return null;
@@ -101,7 +101,7 @@ public class ProgressCacheService
     /// <summary>
     /// Cache skill progress data for a specific skill
     /// </summary>
-    public void SetSkillProgress(int skillId, SkillProgress data)
+    public void SetSkillProgress(string skillId, SkillProgress data)
     {
         _skillProgressCache[skillId] = new CacheEntry<SkillProgress>(data);
         _logger.LogDebug("🏴‍☠️ Cache SET: SkillProgress for skill {SkillId}", skillId);
@@ -126,7 +126,7 @@ public class ProgressCacheService
     public void InvalidateVocabSummary() => _vocabSummaryCache = null;
     public void InvalidatePracticeHeat() => _practiceHeatCache = null;
     public void InvalidateResourceProgress() => _resourceProgressCache = null;
-    public void InvalidateSkillProgress(int skillId) => _skillProgressCache.Remove(skillId);
+    public void InvalidateSkillProgress(string skillId) => _skillProgressCache.Remove(skillId);
 
     public TodaysPlan? GetTodaysPlan()
     {

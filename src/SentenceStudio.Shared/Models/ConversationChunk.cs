@@ -8,7 +8,7 @@ namespace SentenceStudio.Shared.Models;
 public partial class ConversationChunk : ObservableObject
 {
     // Id property for CoreSync (Entity Framework/Database)
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
     
     // Original properties with ObservableProperty for UI binding
     [ObservableProperty]
@@ -26,7 +26,7 @@ public partial class ConversationChunk : ObservableObject
     // Other properties
     public DateTime SentTime { get; set; }
     public string? Author { get; set; }
-    public int ConversationId { get; set; }
+    public string ConversationId { get; set; } = string.Empty;
     
     /// <summary>
     /// The role of this message (User or Assistant).
@@ -67,7 +67,7 @@ public partial class ConversationChunk : ObservableObject
     
     // Additional properties for CoreSync compatibility
     [NotMapped]
-    public int ConversationID 
+    public string ConversationID 
     { 
         get => ConversationId; 
         set => ConversationId = value; 
@@ -97,7 +97,7 @@ public partial class ConversationChunk : ObservableObject
     // Constructors
     public ConversationChunk() { }
     
-    public ConversationChunk(int conversationId, DateTime sentTime, string author, string text)
+    public ConversationChunk(string conversationId, DateTime sentTime, string author, string text)
     {
         ConversationId = conversationId;
         Text = text;
@@ -105,7 +105,7 @@ public partial class ConversationChunk : ObservableObject
         Author = author;
     }
     
-    public ConversationChunk(int conversationId, DateTime sentTime, string author, string text, ConversationRole role)
+    public ConversationChunk(string conversationId, DateTime sentTime, string author, string text, ConversationRole role)
     {
         ConversationId = conversationId;
         Text = text;

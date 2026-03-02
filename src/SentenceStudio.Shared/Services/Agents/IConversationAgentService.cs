@@ -32,13 +32,13 @@ public interface IConversationAgentService
     /// Loads memory state for a conversation from persistence.
     /// </summary>
     /// <param name="conversationId">The conversation ID to load memory for.</param>
-    Task LoadMemoryStateAsync(int conversationId);
+    Task LoadMemoryStateAsync(string conversationId);
 
     /// <summary>
     /// Saves the current memory state for a conversation.
     /// </summary>
     /// <param name="conversationId">The conversation ID to save memory for.</param>
-    Task SaveMemoryStateAsync(int conversationId);
+    Task SaveMemoryStateAsync(string conversationId);
 
     /// <summary>
     /// Gets the current conversation memory info (for debugging/display).
@@ -59,7 +59,7 @@ public interface IConversationAgentService
     /// <summary>
     /// Saves a conversation to the database.
     /// </summary>
-    Task<int> SaveConversationAsync(Conversation conversation);
+    Task<string> SaveConversationAsync(Conversation conversation);
 
     /// <summary>
     /// Saves a conversation chunk to the database.
@@ -79,10 +79,10 @@ public interface IConversationAgentService
     /// <summary>
     /// Gets a conversation by ID.
     /// </summary>
-    Task<Conversation?> GetConversationAsync(int id);
+    Task<Conversation?> GetConversationAsync(string id);
 
     /// <summary>
     /// Gets all chunks for a conversation.
     /// </summary>
-    Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId);
+    Task<List<ConversationChunk>> GetConversationChunksAsync(string conversationId);
 }

@@ -8,8 +8,8 @@ namespace SentenceStudio.Shared.Models;
 public class Story
 {
     public int Id { get; set; }
-    public int ListID {get;set;}
-    public int SkillID {get;set;}
+    public string ListID {get;set;} = string.Empty;
+    public string SkillID {get;set;} = string.Empty;
     public string? Body { get; set; }
     
     [NotMapped]

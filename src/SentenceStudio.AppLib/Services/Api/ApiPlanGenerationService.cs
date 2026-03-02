@@ -24,8 +24,8 @@ public sealed class ApiPlanGenerationService(IPlansApiClient plansApiClient, ILo
                     ActivityType = activity.ActivityType,
                     EstimatedMinutes = activity.EstimatedMinutes,
                     Priority = activity.Priority,
-                    ResourceId = activity.ResourceId,
-                    SkillId = activity.SkillId,
+                    ResourceId = activity.ResourceId?.ToString(),
+                    SkillId = activity.SkillId?.ToString(),
                     VocabWordCount = activity.VocabWordCount
                 }).ToList()
             };

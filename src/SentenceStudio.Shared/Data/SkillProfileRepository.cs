@@ -18,14 +18,14 @@ public class SkillProfileRepository
         _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<SkillProfile>> ListAsync()
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             return await db.SkillProfiles.Where(s => s.UserProfileId == userId).ToListAsync();
         return await db.SkillProfiles.ToListAsync();
     }
@@ -36,12 +36,12 @@ public class SkillProfileRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
         var query = db.SkillProfiles.Where(s => s.Language == language);
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(s => s.UserProfileId == userId);
         return await query.ToListAsync();
     }
 
-    public async Task<int> SaveAsync(SkillProfile item)
+    public async Task<string> SaveAsync(SkillProfile item)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -55,10 +55,10 @@ public class SkillProfileRepository
             item.UpdatedAt = DateTime.UtcNow;
 
             // Ensure UserProfileId is set for new items
-            if (item.UserProfileId == null || item.UserProfileId == 0)
-                item.UserProfileId = ActiveUserId > 0 ? ActiveUserId : null;
+            if (string.IsNullOrEmpty(item.UserProfileId))
+                item.UserProfileId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
 
-            if (item.Id != 0)
+            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
             {
                 db.SkillProfiles.Update(item);
             }
@@ -76,7 +76,7 @@ public class SkillProfileRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            return -1;
+            return string.Empty;
         }
     }
 
@@ -101,14 +101,14 @@ public class SkillProfileRepository
         }
     }
 
-    public async Task<SkillProfile?> GetSkillProfileAsync(int skillID)
+    public async Task<SkillProfile?> GetSkillProfileAsync(string skillID)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.SkillProfiles.Where(s => s.Id == skillID).FirstOrDefaultAsync();
     }
 
-    public async Task<SkillProfile?> GetAsync(int skillId)
+    public async Task<SkillProfile?> GetAsync(string skillId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

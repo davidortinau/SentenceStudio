@@ -91,7 +91,7 @@ namespace SentenceStudio.Services
 
             try
             {
-                if (chunk.Id != 0)
+                if (!string.IsNullOrEmpty(chunk.Id))
                 {
                     db.ConversationChunks.Update(chunk);
                 }
@@ -228,7 +228,7 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<int> SaveConversation(Conversation conversation)
+        public async Task<string> SaveConversation(Conversation conversation)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -239,7 +239,7 @@ namespace SentenceStudio.Services
 
             try
             {
-                if (conversation.Id != 0)
+                if (!string.IsNullOrEmpty(conversation.Id))
                 {
                     db.Conversations.Update(conversation);
                 }
@@ -290,7 +290,7 @@ namespace SentenceStudio.Services
                 .ToListAsync();
         }
 
-        public async Task<Conversation> GetConversationAsync(int id)
+        public async Task<Conversation> GetConversationAsync(string id)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -301,7 +301,7 @@ namespace SentenceStudio.Services
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<List<ConversationChunk>> GetConversationChunksAsync(int conversationId)
+        public async Task<List<ConversationChunk>> GetConversationChunksAsync(string conversationId)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

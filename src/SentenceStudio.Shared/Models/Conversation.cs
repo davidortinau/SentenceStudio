@@ -9,7 +9,7 @@ namespace SentenceStudio.Shared.Models;
 public partial class Conversation : ObservableObject
 {
     // Id property for CoreSync (Entity Framework/Database)
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     // Original properties
     public DateTime CreatedAt { get; set; } = DateTime.Now;

@@ -2,9 +2,9 @@ namespace SentenceStudio.Shared.Models;
 
 public class ResourceVocabularyMapping
 {
-    public int Id { get; set; }
-    public int ResourceId { get; set; }
-    public int VocabularyWordId { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ResourceId { get; set; } = string.Empty;
+    public string VocabularyWordId { get; set; } = string.Empty;
     
     // Navigation properties
     public LearningResource Resource { get; set; } = null!;

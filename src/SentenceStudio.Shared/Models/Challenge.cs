@@ -9,7 +9,7 @@ namespace SentenceStudio.Shared.Models;
 public partial class Challenge : ObservableObject
 {
     [JsonIgnore]
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
     
     [ObservableProperty]
     private string? sentenceText;

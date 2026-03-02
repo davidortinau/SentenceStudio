@@ -57,11 +57,11 @@ public class EncodingStrengthCalculator
     /// <summary>
     /// Calculate encoding strength for multiple words (batch operation)
     /// </summary>
-    public Dictionary<int, (double Score, string Label)> CalculateBatch(
+    public Dictionary<string, (double Score, string Label)> CalculateBatch(
         IEnumerable<VocabularyWord> words,
-        Dictionary<int, int> exampleSentenceCounts)
+        Dictionary<string, int> exampleSentenceCounts)
     {
-        var results = new Dictionary<int, (double, string)>();
+        var results = new Dictionary<string, (double, string)>();
         
         foreach (var word in words)
         {

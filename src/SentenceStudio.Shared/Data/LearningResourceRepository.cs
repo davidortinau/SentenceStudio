@@ -30,7 +30,7 @@ public class LearningResourceRepository
         }
     }
 
-    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
@@ -56,7 +56,7 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
         {
             var userWordIds = db.ResourceVocabularyMappings
                 .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
@@ -90,7 +90,7 @@ public class LearningResourceRepository
             .Where(wr => wr.Resource.Language == language);
 
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(wr => wr.Resource.UserProfileId == userId);
 
         var termsQuery = query
@@ -112,7 +112,7 @@ public class LearningResourceRepository
 
         try
         {
-            if (word.Id != 0)
+            if (!string.IsNullOrEmpty(word.Id) && word.Id != Guid.Empty.ToString())
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (word.LearningResources?.Any() == true)
@@ -160,7 +160,7 @@ public class LearningResourceRepository
         var query = db.LearningResources
             .Include(r => r.Vocabulary);
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             return await query.Where(r => r.UserProfileId == userId).ToListAsync();
         return await query.ToListAsync();
     }
@@ -177,7 +177,7 @@ public class LearningResourceRepository
         IQueryable<LearningResource> query = db.LearningResources.AsNoTracking();
 
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             query = query.Where(r => r.UserProfileId == userId);
 
         if (!string.IsNullOrEmpty(filterType) && filterType != "All")
@@ -192,7 +192,7 @@ public class LearningResourceRepository
             .ToListAsync();
     }
 
-    public async Task<LearningResource> GetResourceAsync(int resourceId)
+    public async Task<LearningResource> GetResourceAsync(string resourceId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -205,7 +205,7 @@ public class LearningResourceRepository
         return resource;
     }
 
-    public async Task<int> SaveResourceAsync(LearningResource resource)
+    public async Task<string> SaveResourceAsync(LearningResource resource)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -223,10 +223,10 @@ public class LearningResourceRepository
             var vocabularyWordIds = vocabularyWords.Select(v => v.Id).ToList();
 
             // Set user ownership for new resources
-            if (resource.Id == 0)
-                resource.UserProfileId ??= ActiveUserId > 0 ? ActiveUserId : null;
+            if (string.IsNullOrEmpty(resource.Id) || resource.Id == Guid.Empty.ToString())
+                resource.UserProfileId ??= !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
 
-            if (resource.Id != 0)
+            if (!string.IsNullOrEmpty(resource.Id) && resource.Id != Guid.Empty.ToString())
             {
                 var existingResource = await db.LearningResources
                     .Include(r => r.Vocabulary)
@@ -282,7 +282,7 @@ public class LearningResourceRepository
         {
             _logger.LogError(ex, "❌ SaveResourceAsync error");
             // UXDivers popup removed - error already logged above
-            return -1;
+            return string.Empty;
         }
     }
 
@@ -317,7 +317,7 @@ public class LearningResourceRepository
             .Where(r => r.Title.Contains(query) || r.Description.Contains(query) ||
                    r.Tags.Contains(query) || r.Language.Contains(query));
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
@@ -331,7 +331,7 @@ public class LearningResourceRepository
         var results = db.LearningResources
             .Where(r => r.MediaType == mediaType);
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
@@ -351,7 +351,7 @@ public class LearningResourceRepository
         var results = db.LearningResources
             .Where(r => r.Language == language);
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
@@ -365,7 +365,7 @@ public class LearningResourceRepository
         var results = db.LearningResources
             .Where(r => r.IsSmartResource);
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
@@ -379,13 +379,13 @@ public class LearningResourceRepository
         var results = db.LearningResources
             .Where(r => r.IsSmartResource && r.SmartResourceType == smartResourceType);
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
             results = results.Where(r => r.UserProfileId == userId);
         return await results.FirstOrDefaultAsync();
     }
 
     // Add vocabulary word to a learning resource
-    public async Task<bool> AddVocabularyToResourceAsync(int resourceId, int vocabularyWordId)
+    public async Task<bool> AddVocabularyToResourceAsync(string resourceId, string vocabularyWordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -419,7 +419,7 @@ public class LearningResourceRepository
     }
 
     // Remove vocabulary word from a learning resource
-    public async Task<bool> RemoveVocabularyFromResourceAsync(int resourceId, int vocabularyWordId)
+    public async Task<bool> RemoveVocabularyFromResourceAsync(string resourceId, string vocabularyWordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -528,7 +528,7 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
         {
             var userWordIds = db.ResourceVocabularyMappings
                 .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
@@ -559,7 +559,7 @@ public class LearningResourceRepository
         var searchTerm = query.ToLower().Trim();
 
         var userId = ActiveUserId;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
         {
             var userWordIds = db.ResourceVocabularyMappings
                 .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
@@ -610,7 +610,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Get a specific vocabulary word with all its associated resources
     /// </summary>
-    public async Task<VocabularyWord?> GetVocabularyWordWithResourcesAsync(int wordId)
+    public async Task<VocabularyWord?> GetVocabularyWordWithResourcesAsync(string wordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -623,7 +623,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Get a specific vocabulary word by ID (without resources)
     /// </summary>
-    public async Task<VocabularyWord?> GetVocabularyWordByIdAsync(int wordId)
+    public async Task<VocabularyWord?> GetVocabularyWordByIdAsync(string wordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -635,7 +635,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Get all learning resources associated with a specific vocabulary word
     /// </summary>
-    public async Task<List<LearningResource>> GetResourcesForVocabularyWordAsync(int wordId)
+    public async Task<List<LearningResource>> GetResourcesForVocabularyWordAsync(string wordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -657,7 +657,7 @@ public class LearningResourceRepository
         var userId = ActiveUserId;
         int totalWords;
         int associatedWords;
-        if (userId > 0)
+        if (!string.IsNullOrEmpty(userId))
         {
             var userWordIds = db.ResourceVocabularyMappings
                 .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
@@ -681,7 +681,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Safely delete a vocabulary word and all its associations
     /// </summary>
-    public async Task<bool> DeleteVocabularyWordAsync(int wordId)
+    public async Task<bool> DeleteVocabularyWordAsync(string wordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -774,7 +774,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Bulk associate multiple vocabulary words with a learning resource
     /// </summary>
-    public async Task<bool> BulkAssociateWordsWithResourceAsync(int resourceId, List<int> vocabularyWordIds)
+    public async Task<bool> BulkAssociateWordsWithResourceAsync(string resourceId, List<string> vocabularyWordIds)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -815,7 +815,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Bulk remove vocabulary words from a learning resource
     /// </summary>
-    public async Task<bool> BulkRemoveWordsFromResourceAsync(int resourceId, List<int> vocabularyWordIds)
+    public async Task<bool> BulkRemoveWordsFromResourceAsync(string resourceId, List<string> vocabularyWordIds)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -843,7 +843,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Bulk delete multiple vocabulary words
     /// </summary>
-    public async Task<bool> BulkDeleteVocabularyWordsAsync(List<int> vocabularyWordIds)
+    public async Task<bool> BulkDeleteVocabularyWordsAsync(List<string> vocabularyWordIds)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -880,7 +880,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Get vocabulary words associated with a specific learning resource
     /// </summary>
-    public async Task<List<VocabularyWord>> GetVocabularyWordsByResourceAsync(int resourceId)
+    public async Task<List<VocabularyWord>> GetVocabularyWordsByResourceAsync(string resourceId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -908,7 +908,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Get learning resources that contain a specific vocabulary word
     /// </summary>
-    public async Task<List<LearningResource>> GetResourcesContainingWordAsync(int vocabularyWordId)
+    public async Task<List<LearningResource>> GetResourcesContainingWordAsync(string vocabularyWordId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

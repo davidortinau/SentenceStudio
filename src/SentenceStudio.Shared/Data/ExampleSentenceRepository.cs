@@ -22,7 +22,7 @@ public class ExampleSentenceRepository
     /// <summary>
     /// Get all example sentences for a vocabulary word
     /// </summary>
-    public Task<List<ExampleSentence>> GetByVocabularyWordIdAsync(int vocabularyWordId)
+    public Task<List<ExampleSentence>> GetByVocabularyWordIdAsync(string vocabularyWordId)
     {
         return _context.ExampleSentences
             .Where(es => es.VocabularyWordId == vocabularyWordId)
@@ -34,7 +34,7 @@ public class ExampleSentenceRepository
     /// Get core example sentences for a vocabulary word (IsCore = true)
     /// Uses composite index (VocabularyWordId, IsCore) for performance
     /// </summary>
-    public Task<List<ExampleSentence>> GetCoreExamplesAsync(int vocabularyWordId)
+    public Task<List<ExampleSentence>> GetCoreExamplesAsync(string vocabularyWordId)
     {
         return _context.ExampleSentences
             .Where(es => es.VocabularyWordId == vocabularyWordId && es.IsCore)
@@ -45,10 +45,10 @@ public class ExampleSentenceRepository
     /// <summary>
     /// Get example sentence counts for multiple vocabulary words (batch query to avoid N+1)
     /// </summary>
-    public async Task<Dictionary<int, int>> GetCountsByVocabularyWordIdsAsync(List<int> vocabularyWordIds)
+    public async Task<Dictionary<string, int>> GetCountsByVocabularyWordIdsAsync(List<string> vocabularyWordIds)
     {
         if (!vocabularyWordIds.Any())
-            return new Dictionary<int, int>();
+            return new Dictionary<string, int>();
 
         return await _context.ExampleSentences
             .Where(es => vocabularyWordIds.Contains(es.VocabularyWordId))

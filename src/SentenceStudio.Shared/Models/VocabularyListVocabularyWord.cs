@@ -6,8 +6,8 @@ namespace SentenceStudio.Shared.Models;
 public class VocabularyListVocabularyWord
 {
     [ForeignKey(typeof(VocabularyList))]
-    public int VocabularyListId { get; set; }
+    public string VocabularyListId { get; set; } = string.Empty;
 
     [ForeignKey(typeof(VocabularyWord))]
-    public int VocabularyWordId { get; set; }
+    public string VocabularyWordId { get; set; } = string.Empty;
 }
