@@ -291,6 +291,9 @@
         };
         await ProfileRepo.SaveAsync(profile);
         AppState.CurrentUserProfile = profile;
+
+        // Set this as the active profile so GetAsync() returns it
+        Preferences.Set("active_profile_id", profile.Id);
     }
 
     private async Task FinishOnboarding()
@@ -299,6 +302,7 @@
             await SaveProfile();
 
         Preferences.Set("is_onboarded", true);
+        Preferences.Set("app_is_authenticated", true);
         NavManager.NavigateTo("/", forceLoad: true);
     }
 }

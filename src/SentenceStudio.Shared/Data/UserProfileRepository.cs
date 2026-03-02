@@ -9,12 +9,17 @@ public class UserProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;
     private readonly ILogger<UserProfileRepository> _logger;
+    private readonly SentenceStudio.Abstractions.IPreferencesService _preferences;
+
+    /// <summary>Preference key storing the active profile's ID (set during login).</summary>
+    public const string ActiveProfileIdKey = "active_profile_id";
 
     public UserProfileRepository(IServiceProvider serviceProvider, ILogger<UserProfileRepository> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = serviceProvider.GetService<ISyncService>();
+        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
     public async Task<List<UserProfile>> ListAsync()
@@ -35,7 +40,16 @@ public class UserProfileRepository
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_NativeLanguageTerm ON VocabularyWord(NativeLanguageTerm)");
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResourceVocabularyMapping_VocabularyWordId ON ResourceVocabularyMapping(VocabularyWordId)");
 
-        var profile = await db.UserProfiles.FirstOrDefaultAsync();
+        // Load the active profile if one was selected during login
+        UserProfile profile = null;
+        var activeId = _preferences?.Get("active_profile_id", 0) ?? 0;
+        if (activeId > 0)
+        {
+            profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == activeId);
+        }
+
+        // Fall back to first profile if active profile not found
+        profile ??= await db.UserProfiles.FirstOrDefaultAsync();
 
         // Ensure DisplayLanguage is never null or empty for existing profiles
         if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))
