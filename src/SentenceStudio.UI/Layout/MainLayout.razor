@@ -2,10 +2,11 @@
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@inject SentenceStudio.Abstractions.IPreferencesService Preferences
 @implements IDisposable
 
 <div class="d-flex vh-100">
-    @if (!isOnboarding)
+    @if (!isOnboarding && !isAuthGate)
     {
         @* Sidebar navigation (desktop only) *@
         <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
@@ -30,7 +31,7 @@
         </main>
     </div>
 
-    @if (!isOnboarding)
+    @if (!isOnboarding && !isAuthGate)
     {
         @* Mobile offcanvas navigation *@
         <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav"
@@ -49,24 +50,38 @@
 
 @code {
     private IJSObjectReference? jsModule;
+    private const string WebAppAuthenticatedPreferenceKey = "webapp_is_authenticated";
     private bool sidebarCollapsed;
     private bool isOnboarding;
+    private bool isAuthGate;
 
     protected override void OnInitialized()
     {
-        // Redirect to onboarding on first launch
-        if (!Preferences.Default.Get("is_onboarded", false))
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var isWebAppContext = uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+        var isAuthRoute = uri.AbsolutePath.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
+
+        if (isWebAppContext && !Preferences.Get(WebAppAuthenticatedPreferenceKey, false))
+        {
+            isAuthGate = true;
+            if (!isAuthRoute)
+            {
+                NavigationManager.NavigateTo("/auth");
+                return;
+            }
+        }
+        else if (!Preferences.Get("is_onboarded", false))
         {
             isOnboarding = true;
-            var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-            if (!uri.AbsolutePath.Contains("onboarding", StringComparison.OrdinalIgnoreCase))
+            if (!uri.AbsolutePath.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase))
             {
                 NavigationManager.NavigateTo("/onboarding");
                 return;
             }
         }
 
-        sidebarCollapsed = Preferences.Default.Get("SidebarCollapsed", false);
+        sidebarCollapsed = Preferences.Get("SidebarCollapsed", false);
         NavigationManager.LocationChanged += OnLocationChanged;
     }
 
@@ -84,7 +99,7 @@
     private void ToggleSidebar()
     {
         sidebarCollapsed = !sidebarCollapsed;
-        Preferences.Default.Set("SidebarCollapsed", sidebarCollapsed);
+        Preferences.Set("SidebarCollapsed", sidebarCollapsed);
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

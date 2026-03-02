@@ -88,6 +88,7 @@ else if (history.Any())
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
     [Inject] private IAudioManager AudioManager { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -167,7 +168,7 @@ else if (history.Any())
             var audioStream = await SpeechService.TextToSpeechAsync(phrase, voiceId, 0.5f, 0.75f, 0.85f);
 
             // Save to cache
-            var cacheDir = Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+            var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
             Directory.CreateDirectory(cacheDir);
             var safeName = string.Join("_", phrase.Split(Path.GetInvalidFileNameChars())).Substring(0, Math.Min(50, phrase.Length));
             var filePath = Path.Combine(cacheDir, $"{safeName}_{Guid.NewGuid():N}.mp3");

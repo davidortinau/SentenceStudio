@@ -7,12 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.2.0-preview.1.26063.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SentenceStudio.Domain\SentenceStudio.Domain.csproj" />
     <ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
+    <ProjectReference Include="..\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
     <ProjectReference Include="..\SentenceStudio.ServiceDefaults\SentenceStudio.ServiceDefaults.csproj" />
   </ItemGroup>
 

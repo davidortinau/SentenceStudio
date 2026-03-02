@@ -3,47 +3,52 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - SentenceStudio.Marketing</title>
+    <title>@ViewData["Title"]</title>
+    <meta name="description" content="@(ViewData["MetaDescription"] ?? "Sentence Studio helps language learners build speaking, listening, reading, and vocabulary skills with AI-guided daily practice.")" />
+    <meta property="og:title" content="@(ViewData["Title"] ?? "Sentence Studio")" />
+    <meta property="og:description" content="@(ViewData["MetaDescription"] ?? "AI-powered language learning with adaptive daily practice.")" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sentence Studio" />
+    <meta name="twitter:card" content="summary_large_image" />
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/SentenceStudio.Marketing.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+    <header class="site-header">
+        <nav class="navbar navbar-expand-lg navbar-dark">
             <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">SentenceStudio.Marketing</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">Sentence Studio</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#marketingNav" aria-controls="marketingNav"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+                <div class="collapse navbar-collapse" id="marketingNav">
+                    <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                        <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/#how-it-works">How it works</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-area="" asp-page="/Privacy">Privacy</a></li>
+                        <li class="nav-item ms-lg-2">
+                            <a class="btn btn-sm btn-outline-light px-3" href="https://app.sentence.studio" target="_blank" rel="noopener noreferrer">Open app</a>
                         </li>
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - SentenceStudio.Marketing - <a asp-area="" asp-page="/Privacy">Privacy</a>
+    <main role="main">
+        @RenderBody()
+    </main>
+
+    <footer class="site-footer py-4">
+        <div class="container d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+            <p class="mb-0 small text-secondary">&copy; @DateTime.UtcNow.Year Sentence Studio. Built for language learners.</p>
+            <a class="small text-secondary text-decoration-none" asp-area="" asp-page="/Privacy">Privacy</a>
         </div>
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 

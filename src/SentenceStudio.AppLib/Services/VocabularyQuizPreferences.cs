@@ -1,14 +1,16 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
 /// <summary>
-/// Manages vocabulary quiz preferences using .NET MAUI Preferences API.
-/// Preferences are stored locally per-device and persist across app sessions.
+/// Manages vocabulary quiz preferences through the platform preference abstraction.
+/// Preferences are stored locally per host and persist across app sessions.
 /// </summary>
 public class VocabularyQuizPreferences
 {
     private readonly ILogger<VocabularyQuizPreferences> _logger;
+    private readonly IPreferencesService _preferences;
 
     // Preference keys
     private const string KEY_DISPLAY_DIRECTION = "vocab_quiz_display_direction";
@@ -28,10 +30,12 @@ public class VocabularyQuizPreferences
 
     public VocabularyQuizPreferences(
         ILogger<VocabularyQuizPreferences> logger,
-        SpeechVoicePreferences speechVoicePreferences)
+        SpeechVoicePreferences speechVoicePreferences,
+        IPreferencesService preferences)
     {
         _logger = logger;
         _speechVoicePreferences = speechVoicePreferences;
+        _preferences = preferences;
     }
 
     /// <summary>
@@ -41,7 +45,7 @@ public class VocabularyQuizPreferences
     /// </summary>
     public string DisplayDirection
     {
-        get => Preferences.Get(KEY_DISPLAY_DIRECTION, DEFAULT_DISPLAY_DIRECTION);
+        get => _preferences.Get(KEY_DISPLAY_DIRECTION, DEFAULT_DISPLAY_DIRECTION);
         set
         {
             if (value != "TargetToNative" && value != "NativeToTarget")
@@ -49,7 +53,7 @@ public class VocabularyQuizPreferences
                 _logger.LogWarning("⚠️ Invalid DisplayDirection: {Direction}. Defaulting to TargetToNative.", value);
                 value = "TargetToNative";
             }
-            Preferences.Set(KEY_DISPLAY_DIRECTION, value);
+            _preferences.Set(KEY_DISPLAY_DIRECTION, value);
             _logger.LogInformation("📋 Vocab quiz display direction set to: {Direction}", value);
         }
     }
@@ -59,10 +63,10 @@ public class VocabularyQuizPreferences
     /// </summary>
     public bool AutoPlayVocabAudio
     {
-        get => Preferences.Get(KEY_AUTO_PLAY_VOCAB_AUDIO, DEFAULT_AUTO_PLAY_VOCAB_AUDIO);
+        get => _preferences.Get(KEY_AUTO_PLAY_VOCAB_AUDIO, DEFAULT_AUTO_PLAY_VOCAB_AUDIO);
         set
         {
-            Preferences.Set(KEY_AUTO_PLAY_VOCAB_AUDIO, value);
+            _preferences.Set(KEY_AUTO_PLAY_VOCAB_AUDIO, value);
             _logger.LogInformation("📋 Vocab quiz auto-play vocab audio set to: {Value}", value);
         }
     }
@@ -73,10 +77,10 @@ public class VocabularyQuizPreferences
     /// </summary>
     public bool AutoPlaySampleAudio
     {
-        get => Preferences.Get(KEY_AUTO_PLAY_SAMPLE_AUDIO, DEFAULT_AUTO_PLAY_SAMPLE_AUDIO);
+        get => _preferences.Get(KEY_AUTO_PLAY_SAMPLE_AUDIO, DEFAULT_AUTO_PLAY_SAMPLE_AUDIO);
         set
         {
-            Preferences.Set(KEY_AUTO_PLAY_SAMPLE_AUDIO, value);
+            _preferences.Set(KEY_AUTO_PLAY_SAMPLE_AUDIO, value);
             _logger.LogInformation("📋 Vocab quiz auto-play sample audio set to: {Value}", value);
         }
     }
@@ -86,10 +90,10 @@ public class VocabularyQuizPreferences
     /// </summary>
     public bool ShowMnemonicImage
     {
-        get => Preferences.Get(KEY_SHOW_MNEMONIC_IMAGE, DEFAULT_SHOW_MNEMONIC_IMAGE);
+        get => _preferences.Get(KEY_SHOW_MNEMONIC_IMAGE, DEFAULT_SHOW_MNEMONIC_IMAGE);
         set
         {
-            Preferences.Set(KEY_SHOW_MNEMONIC_IMAGE, value);
+            _preferences.Set(KEY_SHOW_MNEMONIC_IMAGE, value);
             _logger.LogInformation("📋 Vocab quiz show mnemonic image set to: {Value}", value);
         }
     }
@@ -107,7 +111,7 @@ public class VocabularyQuizPreferences
     /// </summary>
     public int AutoAdvanceDuration
     {
-        get => Preferences.Get(KEY_AUTO_ADVANCE_DURATION, DEFAULT_AUTO_ADVANCE_DURATION);
+        get => _preferences.Get(KEY_AUTO_ADVANCE_DURATION, DEFAULT_AUTO_ADVANCE_DURATION);
         set
         {
             // Clamp value between 1000ms and 5000ms
@@ -116,7 +120,7 @@ public class VocabularyQuizPreferences
             {
                 _logger.LogWarning("⚠️ Auto-advance duration {Value}ms out of range. Clamping to {Clamped}ms.", value, clampedValue);
             }
-            Preferences.Set(KEY_AUTO_ADVANCE_DURATION, clampedValue);
+            _preferences.Set(KEY_AUTO_ADVANCE_DURATION, clampedValue);
             _logger.LogInformation("📋 Vocab quiz auto-advance duration set to: {Duration}ms", clampedValue);
         }
     }

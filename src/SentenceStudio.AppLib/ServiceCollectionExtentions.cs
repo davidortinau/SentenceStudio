@@ -63,6 +63,8 @@ public static class ServiceCollectionExtentions
         services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri);
         services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri);
         services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri);
+        services.AddSingleton<IAiGatewayClient, AiGatewayClient>();
+        services.AddSingleton<ISpeechGatewayClient, SpeechGatewayClient>();
     }
 
     class SyncLogger(ILogger<SyncLogger> logger) : ISyncLogger

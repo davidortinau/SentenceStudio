@@ -233,6 +233,7 @@ else
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
@@ -272,7 +273,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var savedMode = Preferences.Default.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
+        var savedMode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
         isTodaysPlanMode = savedMode == "TodaysPlan";
 
         await LoadVocabStatsAsync();
@@ -297,7 +298,7 @@ else
     {
         if (isTodaysPlanMode == todaysPlan) return;
         isTodaysPlanMode = todaysPlan;
-        Preferences.Default.Set(PREF_DASHBOARD_MODE, todaysPlan ? "TodaysPlan" : "ChooseOwn");
+        Preferences.Set(PREF_DASHBOARD_MODE, todaysPlan ? "TodaysPlan" : "ChooseOwn");
         StateHasChanged();
 
         if (todaysPlan)
@@ -410,11 +411,11 @@ else
             allSkills ??= await SkillRepo.ListAsync();
 
             // Load saved selections
-            var savedResIds = Preferences.Default.Get(PREF_SELECTED_RESOURCE_IDS, "");
+            var savedResIds = Preferences.Get(PREF_SELECTED_RESOURCE_IDS, "");
             selectedResourceIds = string.IsNullOrEmpty(savedResIds)
                 ? new List<string>()
                 : savedResIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            selectedSkillId = Preferences.Default.Get(PREF_SELECTED_SKILL_PROFILE_ID, "");
+            selectedSkillId = Preferences.Get(PREF_SELECTED_SKILL_PROFILE_ID, "");
 
             // Init resource multi-select
             var resOptions = allResources.Select(r => new { value = r.Id.ToString(), text = r.Title ?? $"Resource {r.Id}" }).ToArray();
@@ -446,9 +447,9 @@ else
         selectedResourceIds = values.ToList();
         var csv = string.Join(",", values);
         if (!string.IsNullOrEmpty(csv))
-            Preferences.Default.Set(PREF_SELECTED_RESOURCE_IDS, csv);
+            Preferences.Set(PREF_SELECTED_RESOURCE_IDS, csv);
         else
-            Preferences.Default.Remove(PREF_SELECTED_RESOURCE_IDS);
+            Preferences.Remove(PREF_SELECTED_RESOURCE_IDS);
     }
 
     [JSInvokable]
@@ -456,9 +457,9 @@ else
     {
         selectedSkillId = values.FirstOrDefault();
         if (!string.IsNullOrEmpty(selectedSkillId))
-            Preferences.Default.Set(PREF_SELECTED_SKILL_PROFILE_ID, selectedSkillId);
+            Preferences.Set(PREF_SELECTED_SKILL_PROFILE_ID, selectedSkillId);
         else
-            Preferences.Default.Remove(PREF_SELECTED_SKILL_PROFILE_ID);
+            Preferences.Remove(PREF_SELECTED_SKILL_PROFILE_ID);
     }
 
     // ---- Shared ----

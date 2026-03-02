@@ -1,14 +1,17 @@
+using SentenceStudio.Abstractions;
+
 namespace SentenceStudio.Services;
 
 /// <summary>
 /// Service for managing app theme (color palette) and mode (light/dark).
-/// Persists user preferences via Microsoft.Maui.Storage.Preferences.
+/// Persists user preferences via the platform preference abstraction.
 /// Themes fall into two categories:
 ///   - Custom CSS-variable themes (seoul-pop, ocean, forest, sunset, monochrome) that override --bs-* on default Bootstrap
 ///   - Bootswatch themes (flatly, sketchy, slate, vapor, brite) that swap the entire Bootstrap CSS file
 /// </summary>
 public class ThemeService
 {
+    private readonly IPreferencesService _preferences;
     private const string PREF_THEME = "AppTheme";
     private const string PREF_MODE = "AppThemeMode";
     private const string PREF_FONT_SCALE = "AppFontScale";
@@ -22,11 +25,12 @@ public class ThemeService
 
     public event EventHandler<ThemeChangedEventArgs>? ThemeChanged;
 
-    public ThemeService()
+    public ThemeService(IPreferencesService preferences)
     {
-        _currentTheme = Preferences.Default.Get(PREF_THEME, DEFAULT_THEME);
-        _currentMode = Preferences.Default.Get(PREF_MODE, DEFAULT_MODE);
-        _fontScale = Preferences.Default.Get(PREF_FONT_SCALE, DEFAULT_FONT_SCALE);
+        _preferences = preferences;
+        _currentTheme = _preferences.Get(PREF_THEME, DEFAULT_THEME);
+        _currentMode = _preferences.Get(PREF_MODE, DEFAULT_MODE);
+        _fontScale = _preferences.Get(PREF_FONT_SCALE, DEFAULT_FONT_SCALE);
     }
 
     public string CurrentTheme => _currentTheme;
@@ -40,7 +44,7 @@ public class ThemeService
         if (_currentTheme == theme) return;
 
         _currentTheme = theme;
-        Preferences.Default.Set(PREF_THEME, theme);
+        _preferences.Set(PREF_THEME, theme);
         OnThemeChanged();
     }
 
@@ -49,7 +53,7 @@ public class ThemeService
         if (_currentMode == mode) return;
 
         _currentMode = mode;
-        Preferences.Default.Set(PREF_MODE, mode);
+        _preferences.Set(PREF_MODE, mode);
         OnThemeChanged();
     }
 
@@ -58,7 +62,7 @@ public class ThemeService
         if (Math.Abs(_fontScale - scale) < 0.001) return;
 
         _fontScale = scale;
-        Preferences.Default.Set(PREF_FONT_SCALE, scale);
+        _preferences.Set(PREF_FONT_SCALE, scale);
         OnThemeChanged();
     }
 
@@ -69,14 +73,14 @@ public class ThemeService
         if (_currentTheme != theme)
         {
             _currentTheme = theme;
-            Preferences.Default.Set(PREF_THEME, theme);
+            _preferences.Set(PREF_THEME, theme);
             changed = true;
         }
 
         if (_currentMode != mode)
         {
             _currentMode = mode;
-            Preferences.Default.Set(PREF_MODE, mode);
+            _preferences.Set(PREF_MODE, mode);
             changed = true;
         }
 

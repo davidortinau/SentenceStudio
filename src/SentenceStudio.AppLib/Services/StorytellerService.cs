@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services
 {
@@ -10,6 +11,7 @@ namespace SentenceStudio.Services
         private StoryRepository _storyRepository;
         private readonly IServiceProvider _serviceProvider;
         private readonly ISyncService? _syncService;
+        private readonly IFileSystemService _fileSystem;
         private readonly ILogger<StorytellerService> _logger;
         
         private List<VocabularyWord> _words;
@@ -28,6 +30,7 @@ namespace SentenceStudio.Services
             _storyRepository = service.GetRequiredService<StoryRepository>();
             _serviceProvider = service;
             _syncService = syncService;
+            _fileSystem = service.GetRequiredService<IFileSystemService>();
             _logger = logger;
         }
 
@@ -55,7 +58,7 @@ namespace SentenceStudio.Services
             string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
 
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("TellAStory.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("TellAStory.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());

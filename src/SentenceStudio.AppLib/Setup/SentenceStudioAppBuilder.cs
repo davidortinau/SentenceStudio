@@ -211,7 +211,7 @@ public static class SentenceStudioAppBuilder
         services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
 
         services.AddSingleton<SentenceStudio.Services.PlanGeneration.DeterministicPlanBuilder>();
-        services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.PlanGeneration.LlmPlanGenerationService>();
+        services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.Api.ApiPlanGenerationService>();
         services.AddSingleton<VocabularyExampleGenerationService>();
 
         services.AddSingleton<ISpeechToText>(SpeechToText.Default);

@@ -1,11 +1,8 @@
-using Microsoft.Extensions.AI;
-using Microsoft.Agents.AI;
-using OpenAI;
-using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services
 {
@@ -16,8 +13,8 @@ namespace SentenceStudio.Services
         private readonly LearningResourceRepository _resourceRepo;
         private readonly SkillProfileRepository _skillRepository;
         private readonly ISyncService _syncService;
+        private readonly IFileSystemService _fileSystem;
         private readonly ILogger<TranslationService> _logger;
-        private readonly string _openAiApiKey;
 
         private List<VocabularyWord> _words;
 
@@ -29,15 +26,15 @@ namespace SentenceStudio.Services
             }
         }
 
-        public TranslationService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<TranslationService> logger)
+        public TranslationService(IServiceProvider serviceProvider, ILogger<TranslationService> logger)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
-            _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
             _aiService = serviceProvider.GetRequiredService<AiService>();
             _resourceRepo = serviceProvider.GetRequiredService<LearningResourceRepository>();
             _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
             _syncService = serviceProvider.GetService<ISyncService>();
+            _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
         }
 
         public async Task<List<Challenge>> GetTranslationSentences(int resourceID, int numberOfSentences, int skillID)
@@ -81,7 +78,7 @@ namespace SentenceStudio.Services
             string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
 
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
@@ -97,22 +94,18 @@ namespace SentenceStudio.Services
             _logger.LogTrace("Prompt created, length: {PromptLength}", prompt.Length);
             try
             {
-                IChatClient client =
-                new OpenAIClient(_openAiApiKey)
-                    .GetChatClient(model: "gpt-4o-mini").AsIChatClient();
-
                 _logger.LogDebug("Sending prompt to AI service");
-                var reply = await client.GetResponseAsync<TranslationResponse>(prompt);
+                var reply = await _aiService.SendPrompt<TranslationResponse>(prompt);
 
-                if (reply != null && reply.Result.Sentences != null)
+                if (reply?.Sentences != null)
                 {
-                    _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Result.Sentences.Count);
+                    _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
 
                     // Convert TranslationDto objects to Challenge objects and link vocabulary
-                    _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Result.Sentences.Count);
+                    _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Sentences.Count);
                     var challenges = new List<Challenge>();
 
-                    foreach (var translationDto in reply.Result.Sentences)
+                    foreach (var translationDto in reply.Sentences)
                     {
                         _logger.LogTrace("=== Processing translation DTO ===");
                         _logger.LogTrace("DTO.SentenceText: '{SentenceText}'", translationDto.SentenceText);
@@ -173,7 +166,7 @@ namespace SentenceStudio.Services
             try
             {
                 string prompt;
-                using (Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Translate.scriban-txt"))
+                using (Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Translate.scriban-txt"))
                 using (StreamReader reader = new StreamReader(templateStream))
                 {
                     var template = Template.Parse(await reader.ReadToEndAsync());

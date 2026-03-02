@@ -1,31 +1,210 @@
-html {
-  font-size: 14px;
+:root {
+  --bg: #090d18;
+  --bg-soft: #10162a;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-strong: rgba(255, 255, 255, 0.1);
+  --text: #f7f9ff;
+  --text-secondary: #b8c2dd;
+  --primary: #6b8cff;
+  --accent: #2dd4bf;
+  --border: rgba(255, 255, 255, 0.15);
 }
 
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
+html,
+body {
   min-height: 100%;
 }
 
 body {
-  margin-bottom: 60px;
+  margin: 0;
+  background:
+    radial-gradient(1000px 500px at 80% -10%, rgba(107, 140, 255, 0.35), transparent),
+    radial-gradient(700px 450px at -10% 30%, rgba(45, 212, 191, 0.25), transparent),
+    var(--bg);
+  color: var(--text);
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-  color: var(--bs-secondary-color);
-  text-align: end;
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  backdrop-filter: blur(10px);
+  background: rgba(9, 13, 24, 0.8);
+  border-bottom: 1px solid var(--border);
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-  text-align: start;
+.navbar-brand,
+.nav-link {
+  color: var(--text) !important;
+}
+
+.nav-link {
+  opacity: 0.85;
+}
+
+.nav-link:hover {
+  opacity: 1;
+}
+
+.hero-section {
+  padding-top: 5.5rem;
+}
+
+.py-lg-6 {
+  padding-top: 6rem !important;
+  padding-bottom: 6rem !important;
+}
+
+.pb-6 {
+  padding-bottom: 6rem !important;
+}
+
+.eyebrow-pill {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.eyebrow-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, #8aa4ff 0%, #2dd4bf 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.15rem;
+  max-width: 52ch;
+}
+
+.hero-preview-card,
+.feature-card,
+.step-card,
+.cta-panel,
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.hero-preview-card {
+  padding: 1.5rem;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+}
+
+.plan-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.plan-list li:last-child {
+  border-bottom: 0;
+}
+
+.progress {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.metric-card {
+  padding: 0.95rem 1rem;
+}
+
+.metric-value {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.metric-label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.section-header .section-subtitle {
+  color: var(--text-secondary);
+  max-width: 60ch;
+  margin: 0 auto;
+}
+
+.feature-card,
+.step-card {
+  padding: 1.5rem;
+  height: 100%;
+}
+
+.feature-card p,
+.step-card p,
+.cta-panel p {
+  color: var(--text-secondary);
+  margin-bottom: 0;
+}
+
+.step-number {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background: rgba(107, 140, 255, 0.2);
+  color: #d6e0ff;
+}
+
+.cta-panel {
+  padding: 3rem 1.5rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, var(--primary), #4e7dff);
+  border-color: transparent;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: linear-gradient(90deg, #7b99ff, #5c89ff);
+  border-color: transparent;
+}
+
+.btn-outline-light {
+  border-color: var(--border);
+}
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: rgba(9, 13, 24, 0.9);
+}
+
+.text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+@media (max-width: 991.98px) {
+  .hero-section {
+    padding-top: 4.5rem;
+  }
+
+  .display-3 {
+    font-size: 2.35rem;
+  }
 }

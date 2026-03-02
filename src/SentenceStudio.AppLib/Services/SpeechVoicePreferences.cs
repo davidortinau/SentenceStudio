@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
@@ -9,6 +10,7 @@ namespace SentenceStudio.Services;
 public class SpeechVoicePreferences
 {
     private readonly ILogger<SpeechVoicePreferences> _logger;
+    private readonly IPreferencesService _preferences;
 
     private const string KEY_GLOBAL_VOICE_ID = "global_speech_voice_id";
     private const string KEY_VOICE_PREFIX = "speech_voice_"; // Per-language: speech_voice_Korean, speech_voice_German
@@ -27,9 +29,10 @@ public class SpeechVoicePreferences
         { "Spanish", "pNInz6obpgDQGcFmaJgB" } // Multilingual Adam (works well for Spanish)
     };
 
-    public SpeechVoicePreferences(ILogger<SpeechVoicePreferences> logger)
+    public SpeechVoicePreferences(ILogger<SpeechVoicePreferences> logger, IPreferencesService preferences)
     {
         _logger = logger;
+        _preferences = preferences;
 
         // Perform one-time migration from legacy quiz voice preference
         MigrateFromLegacyQuizVoiceIfNeeded();
@@ -41,7 +44,7 @@ public class SpeechVoicePreferences
     /// </summary>
     public string VoiceId
     {
-        get => Preferences.Get(KEY_GLOBAL_VOICE_ID, DEFAULT_VOICE_ID);
+        get => _preferences.Get(KEY_GLOBAL_VOICE_ID, DEFAULT_VOICE_ID);
         set
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -49,7 +52,7 @@ public class SpeechVoicePreferences
                 _logger.LogWarning("⚠️ Invalid global VoiceId: empty. Defaulting to JiYoung.");
                 value = DEFAULT_VOICE_ID;
             }
-            Preferences.Set(KEY_GLOBAL_VOICE_ID, value);
+            _preferences.Set(KEY_GLOBAL_VOICE_ID, value);
             _logger.LogInformation("🔧 Global speech voice ID set to: {VoiceId}", value);
         }
     }
@@ -68,7 +71,7 @@ public class SpeechVoicePreferences
         }
 
         var key = KEY_VOICE_PREFIX + language;
-        var voiceId = Preferences.Get(key, string.Empty);
+        var voiceId = _preferences.Get(key, string.Empty);
         
         if (!string.IsNullOrEmpty(voiceId))
         {
@@ -102,12 +105,12 @@ public class SpeechVoicePreferences
         if (string.IsNullOrWhiteSpace(voiceId))
         {
             // Clear the preference to use default
-            Preferences.Remove(key);
+            _preferences.Remove(key);
             _logger.LogInformation("🔧 Cleared voice preference for {Language}", language);
         }
         else
         {
-            Preferences.Set(key, voiceId);
+            _preferences.Set(key, voiceId);
             _logger.LogInformation("🔧 Voice for {Language} set to: {VoiceId}", language, voiceId);
         }
     }
@@ -128,35 +131,35 @@ public class SpeechVoicePreferences
         const string MIGRATION_V2_KEY = "per_language_voice_migration_complete";
 
         // V1 migration: Legacy quiz voice to global
-        if (!Preferences.Get(MIGRATION_KEY, false))
+        if (!_preferences.Get(MIGRATION_KEY, false))
         {
-            var legacyVoiceId = Preferences.Get(LEGACY_KEY_QUIZ_VOICE_ID, string.Empty);
-            var globalVoiceId = Preferences.Get(KEY_GLOBAL_VOICE_ID, string.Empty);
+            var legacyVoiceId = _preferences.Get(LEGACY_KEY_QUIZ_VOICE_ID, string.Empty);
+            var globalVoiceId = _preferences.Get(KEY_GLOBAL_VOICE_ID, string.Empty);
 
             if (string.IsNullOrWhiteSpace(globalVoiceId) && !string.IsNullOrWhiteSpace(legacyVoiceId))
             {
                 _logger.LogInformation("🔄 Migrating legacy quiz voice '{LegacyVoice}' to global voice preference", legacyVoiceId);
-                Preferences.Set(KEY_GLOBAL_VOICE_ID, legacyVoiceId);
+                _preferences.Set(KEY_GLOBAL_VOICE_ID, legacyVoiceId);
             }
 
-            Preferences.Set(MIGRATION_KEY, true);
+            _preferences.Set(MIGRATION_KEY, true);
             _logger.LogInformation("✅ Global voice migration check complete");
         }
 
         // V2 migration: Global voice to Korean-specific (since most existing users are studying Korean)
-        if (!Preferences.Get(MIGRATION_V2_KEY, false))
+        if (!_preferences.Get(MIGRATION_V2_KEY, false))
         {
-            var globalVoiceId = Preferences.Get(KEY_GLOBAL_VOICE_ID, string.Empty);
+            var globalVoiceId = _preferences.Get(KEY_GLOBAL_VOICE_ID, string.Empty);
             var koreanKey = KEY_VOICE_PREFIX + "Korean";
-            var koreanVoiceId = Preferences.Get(koreanKey, string.Empty);
+            var koreanVoiceId = _preferences.Get(koreanKey, string.Empty);
 
             if (!string.IsNullOrWhiteSpace(globalVoiceId) && string.IsNullOrWhiteSpace(koreanVoiceId))
             {
                 _logger.LogInformation("🔄 Migrating global voice '{GlobalVoice}' to Korean-specific preference", globalVoiceId);
-                Preferences.Set(koreanKey, globalVoiceId);
+                _preferences.Set(koreanKey, globalVoiceId);
             }
 
-            Preferences.Set(MIGRATION_V2_KEY, true);
+            _preferences.Set(MIGRATION_V2_KEY, true);
             _logger.LogInformation("✅ Per-language voice migration complete");
         }
     }
@@ -172,7 +175,7 @@ public class SpeechVoicePreferences
         foreach (var language in DefaultVoicesByLanguage.Keys)
         {
             var key = KEY_VOICE_PREFIX + language;
-            Preferences.Remove(key);
+            _preferences.Remove(key);
         }
         
         _logger.LogInformation("🔄 Speech voice preferences reset to defaults");
@@ -184,7 +187,7 @@ public class SpeechVoicePreferences
     public void ResetLanguageToDefault(string language)
     {
         var key = KEY_VOICE_PREFIX + language;
-        Preferences.Remove(key);
+        _preferences.Remove(key);
         _logger.LogInformation("🔄 Voice preference for {Language} reset to default", language);
     }
 }

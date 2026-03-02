@@ -1,0 +1,49 @@
+@page "/auth"
+
+<PageHeader Title="Welcome" />
+
+<div class="container" style="max-width: 600px;">
+    <div class="card card-ss p-4 mt-4">
+        <h1 class="ss-title1 mb-2">Welcome to SentenceStudio</h1>
+        <p class="ss-body2 text-secondary-ss mb-4">
+            Login to continue with your account or register to create a new one.
+        </p>
+
+        <div class="d-grid gap-2">
+            <button class="btn btn-ss-primary btn-lg" @onclick="LoginAsync">Login</button>
+            <button class="btn btn-ss-secondary btn-lg" @onclick="RegisterAsync">Register</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string WebAppAuthenticatedPreferenceKey = "webapp_is_authenticated";
+
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private IAppState AppState { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+
+    private async Task LoginAsync()
+    {
+        Preferences.Set(WebAppAuthenticatedPreferenceKey, true);
+
+        var profile = await ProfileRepo.GetAsync();
+        if (profile == null)
+        {
+            Preferences.Set("is_onboarded", false);
+            NavManager.NavigateTo("/onboarding");
+            return;
+        }
+
+        AppState.CurrentUserProfile = profile;
+        NavManager.NavigateTo("/", forceLoad: true);
+    }
+
+    private void RegisterAsync()
+    {
+        Preferences.Set(WebAppAuthenticatedPreferenceKey, true);
+        Preferences.Set("is_onboarded", false);
+        NavManager.NavigateTo("/onboarding");
+    }
+}

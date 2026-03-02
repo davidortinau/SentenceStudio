@@ -1,8 +1,6 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.AI;
-using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services
@@ -10,26 +8,21 @@ namespace SentenceStudio.Services
     public class ConversationService
     {
         private readonly IServiceProvider _serviceProvider;
-        readonly IConfiguration configuration;
-        private AiService _aiService;
-        private readonly IChatClient _client;
-        private readonly string _openAiApiKey;
-        private ISyncService _syncService;
+        private readonly AiService _aiService;
+        private readonly ISyncService _syncService;
+        private readonly IFileSystemService _fileSystem;
         private readonly ILogger<ConversationService> _logger;
 
         // Default persona name - could be made configurable
         private const string DefaultPersonaName = "김철수";
 
-        public ConversationService(IServiceProvider serviceProvider, IConfiguration configuration, IChatClient chatClient, ILogger<ConversationService> logger)
+        public ConversationService(IServiceProvider serviceProvider, ILogger<ConversationService> logger)
         {
             _serviceProvider = serviceProvider;
             _aiService = serviceProvider.GetRequiredService<AiService>();
-            _client = chatClient;
-            this.configuration = configuration;
             _syncService = serviceProvider.GetService<ISyncService>();
+            _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
             _logger = logger;
-
-            _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         }
 
         /// <summary>
@@ -37,7 +30,7 @@ namespace SentenceStudio.Services
         /// </summary>
         private async Task<string> GetSystemPromptAsync(string personaName = DefaultPersonaName)
         {
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
             return await template.RenderAsync(new { name = personaName });
@@ -56,7 +49,7 @@ namespace SentenceStudio.Services
                 targetLanguage = userProfile?.TargetLanguage ?? "Korean";
             }
             
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
 
@@ -72,22 +65,6 @@ namespace SentenceStudio.Services
                 },
                 target_language = targetLanguage
             });
-        }
-
-        /// <summary>
-        /// Builds a chat message list from conversation history with proper roles.
-        /// </summary>
-        private List<ChatMessage> BuildChatHistory(IEnumerable<ConversationChunk> chunks)
-        {
-            var messages = new List<ChatMessage>();
-
-            foreach (var chunk in chunks.OrderBy(c => c.SentTime))
-            {
-                var role = chunk.Role == ConversationRole.User ? ChatRole.User : ChatRole.Assistant;
-                messages.Add(new ChatMessage(role, chunk.Text ?? string.Empty));
-            }
-
-            return messages;
         }
 
         public async Task<Conversation> ResumeConversation()
@@ -155,7 +132,7 @@ namespace SentenceStudio.Services
                     _logger.LogInformation("Starting conversation with scenario: {Name}", scenario.Name);
 
                     // Use scenario-specific start conversation template
-                    using Stream scenarioTemplateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
+                    using Stream scenarioTemplateStream = await _fileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
                     using var scenarioReader = new StreamReader(scenarioTemplateStream);
                     var scenarioTemplate = Template.Parse(await scenarioReader.ReadToEndAsync());
                     userPrompt = await scenarioTemplate.RenderAsync(new
@@ -175,21 +152,15 @@ namespace SentenceStudio.Services
                     systemPrompt = await GetSystemPromptAsync();
 
                     // Use default start conversation template
-                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
+                    using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
                     userPrompt = await template.RenderAsync(new { target_language = targetLanguage });
                 }
 
-                // Build chat messages with proper roles
-                var messages = new List<ChatMessage>
-                {
-                    new ChatMessage(ChatRole.System, systemPrompt),
-                    new ChatMessage(ChatRole.User, userPrompt)
-                };
-
-                var response = await _client.GetResponseAsync<string>(messages);
-                return response.Result;
+                var combinedPrompt = $"SYSTEM INSTRUCTIONS:\n{systemPrompt}\n\nTASK:\n{userPrompt}";
+                var response = await _aiService.SendPrompt<string>(combinedPrompt);
+                return response ?? string.Empty;
             }
             catch (Exception ex)
             {
@@ -217,7 +188,7 @@ namespace SentenceStudio.Services
                 if (scenario != null)
                 {
                     // Use scenario-specific template
-                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scenario.scriban-txt");
+                    using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ContinueConversation.scenario.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new
@@ -237,7 +208,7 @@ namespace SentenceStudio.Services
                 else
                 {
                     // Use default template (original working pattern)
-                    using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
+                    using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ContinueConversation.scriban-txt");
                     using var reader = new StreamReader(templateStream);
                     var template = Template.Parse(await reader.ReadToEndAsync());
                     prompt = await template.RenderAsync(new { 
@@ -247,8 +218,8 @@ namespace SentenceStudio.Services
                     });  // Include ALL chunks
                 }
 
-                var response = await _client.GetResponseAsync<Reply>(prompt);
-                return response.Result;
+                var response = await _aiService.SendPrompt<Reply>(prompt);
+                return response ?? new Reply { Message = string.Empty };
             }
             catch (Exception ex)
             {

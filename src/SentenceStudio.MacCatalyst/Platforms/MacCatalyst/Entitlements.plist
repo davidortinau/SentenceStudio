@@ -9,6 +9,9 @@
         <!-- When App Sandbox is enabled, this value is required to open outgoing network connections. -->
         <key>com.apple.security.network.client</key>
         <true/>
+        <!-- Required for debug inspection tools that host a local HTTP server inside the app process. -->
+        <key>com.apple.security.network.server</key>
+        <true/>
     </dict>
 </plist>
 

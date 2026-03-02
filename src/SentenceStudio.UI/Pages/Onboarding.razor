@@ -175,6 +175,7 @@
     [Inject] private NavigationManager NavManager { get; set; }
     [Inject] private ToastService Toast { get; set; }
     [Inject] private ILogger<Onboarding> Logger { get; set; }
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private int currentStep = 0;
     private string name = "";
@@ -249,14 +250,8 @@
             creationProgressMessage = "Generating vocabulary...";
             StateHasChanged();
 
-            // Create starter resource and skill profile
-            var resource = new LearningResource
-            {
-                Title = $"Beginner {targetLanguage}",
-                Description = $"Starter vocabulary for {targetLanguage} learners",
-                Language = targetLanguage,
-            };
-            await ResourceRepo.SaveResourceAsync(resource);
+            // Create starter resource and vocabulary terms
+            await ResourceRepo.GetStarterVocabulary(nativeLanguage, targetLanguage);
 
             creationProgressMessage = "Creating skill profile...";
             StateHasChanged();
@@ -303,7 +298,7 @@
         if (AppState.CurrentUserProfile == null)
             await SaveProfile();
 
-        Microsoft.Maui.Storage.Preferences.Default.Set("is_onboarded", true);
+        Preferences.Set("is_onboarded", true);
         NavManager.NavigateTo("/", forceLoad: true);
     }
 }

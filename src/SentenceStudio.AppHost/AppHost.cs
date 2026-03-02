@@ -17,10 +17,7 @@ var storage = builder.AddAzureStorage("storage")
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithReference(postgres)
-    .WithReference(redis)
-    .WithReference(storage);
+    .WithEnvironment("ElevenLabsKey", elevenlabskey);
 
 var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithReference(api)

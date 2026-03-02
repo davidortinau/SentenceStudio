@@ -1,11 +1,8 @@
-using Microsoft.Extensions.AI;
-using Microsoft.Agents.AI;
-using OpenAI;
-using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
@@ -17,6 +14,7 @@ public class ClozureService
     private SkillProfileRepository _skillRepository;
     private LearningResourceRepository _resourceRepository;
     private ISyncService _syncService;
+    private readonly IFileSystemService _fileSystem;
 
     private List<VocabularyWord> _words;
 
@@ -28,17 +26,15 @@ public class ClozureService
         }
     }
 
-    private readonly string _openAiApiKey;
-
-    public ClozureService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<ClozureService> logger)
+    public ClozureService(IServiceProvider serviceProvider, ILogger<ClozureService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
         _aiService = serviceProvider.GetRequiredService<AiService>();
         _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
         _resourceRepository = serviceProvider.GetRequiredService<LearningResourceRepository>();
         _syncService = serviceProvider.GetService<ISyncService>();
+        _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
     }
 
     public async Task<List<Challenge>> GetSentences(int resourceID, int numberOfSentences, int skillID)
@@ -85,7 +81,7 @@ public class ClozureService
         string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
 
         var prompt = string.Empty;
-        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(await reader.ReadToEndAsync());
@@ -101,24 +97,18 @@ public class ClozureService
         _logger.LogDebug("Prompt created, length: {PromptLength}", prompt.Length);
         try
         {
-            IChatClient client =
-            new OpenAIClient(_openAiApiKey)
-                .GetChatClient(model: "gpt-4o-mini").AsIChatClient();
-
             _logger.LogDebug("Sending prompt to AI service");
+            var reply = await _aiService.SendPrompt<ClozureResponse>(prompt);
 
-            // Use GetResponseAsync which handles structured outputs properly
-            var reply = await client.GetResponseAsync<ClozureResponse>(prompt);
-
-            if (reply != null && reply?.Result?.Sentences != null)
+            if (reply?.Sentences != null)
             {
-                _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Result.Sentences.Count);
+                _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
 
                 // 🏴‍☠️ IMPORTANT: Convert ClozureDto objects to Challenge objects and link vocabulary
-                _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Result.Sentences.Count);
+                _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Sentences.Count);
                 var challenges = new List<Challenge>();
 
-                foreach (var clozureDto in reply.Result.Sentences)
+                foreach (var clozureDto in reply.Sentences)
                 {
                     _logger.LogDebug("Processing clozure DTO");
                     _logger.LogDebug("DTO.VocabularyWord: '{VocabularyWord}'", clozureDto.VocabularyWord);
@@ -282,7 +272,7 @@ public class ClozureService
         try
         {
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GradeTranslation.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
@@ -307,7 +297,7 @@ public class ClozureService
         try
         {
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Translate.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Translate.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
@@ -331,7 +321,7 @@ public class ClozureService
         try
         {
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GradeSentence.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
@@ -356,7 +346,7 @@ public class ClozureService
         try
         {
             var prompt = string.Empty;
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GradeMyDescription.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());

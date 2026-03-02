@@ -8,6 +8,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.Messaging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Messages;
+using SentenceStudio.Services.Api;
 
 namespace SentenceStudio.Services;
 
@@ -19,12 +20,21 @@ public class AiService {
     private readonly ImageClient _image;
     private readonly ILogger<AiService> _logger;
     private readonly IConnectivityService _connectivity;
-
-    public AiService(IConfiguration configuration, IChatClient client, ILogger<AiService> logger, IConnectivityService connectivity)
+    private readonly IAiGatewayClient? _aiGatewayClient;
+    private readonly ISpeechGatewayClient? _speechGatewayClient;
+    public AiService(
+        IConfiguration configuration,
+        IChatClient client,
+        ILogger<AiService> logger,
+        IConnectivityService connectivity,
+        IAiGatewayClient? aiGatewayClient = null,
+        ISpeechGatewayClient? speechGatewayClient = null)
     {
         _client = client;
         _logger = logger;
         _connectivity = connectivity;
+        _aiGatewayClient = aiGatewayClient;
+        _speechGatewayClient = speechGatewayClient;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
         // _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
@@ -43,6 +53,20 @@ public class AiService {
 
         try
         {
+            if (_aiGatewayClient != null)
+            {
+                try
+                {
+                    var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt);
+                    _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
+                    return gatewayResult;
+                }
+                catch (HttpRequestException ex) when (_client != null)
+                {
+                    _logger.LogWarning(ex, "AI gateway unavailable, falling back to direct client");
+                }
+            }
+
             _logger.LogDebug("Sending prompt to AI (length: {PromptLength} chars)", prompt?.Length ?? 0);
             var response = await _client.GetResponseAsync<T>(prompt);
             var hasResult = response != null && response.Result != null;
@@ -107,6 +131,22 @@ public class AiService {
         {
             WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));  
             return default(Stream);
+        }
+
+        if (_speechGatewayClient != null)
+        {
+            try
+            {
+                var stream = await _speechGatewayClient.SynthesizeAsync(text, voice, speed);
+                if (stream != null)
+                {
+                    return stream;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Speech gateway synthesis failed, falling back to local AI client");
+            }
         }
 
         var aiClient = new AIClient(_openAiApiKey, _connectivity);

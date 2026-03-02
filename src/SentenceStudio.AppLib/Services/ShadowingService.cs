@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
@@ -15,6 +16,7 @@ public class ShadowingService
     private readonly SkillProfileRepository _skillRepository;
     private readonly UserProfileRepository _userProfileRepository;
     private readonly TranscriptSentenceExtractor _sentenceExtractor;
+    private readonly IFileSystemService _fileSystem;
     private readonly ILogger<ShadowingService> _logger;
     private List<VocabularyWord> _words = new();
 
@@ -35,6 +37,7 @@ public class ShadowingService
         _skillRepository = service.GetRequiredService<SkillProfileRepository>();
         _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
         _sentenceExtractor = service.GetRequiredService<TranscriptSentenceExtractor>();
+        _fileSystem = service.GetRequiredService<IFileSystemService>();
         _logger = service.GetRequiredService<ILogger<ShadowingService>>();
     }
 
@@ -73,7 +76,7 @@ public class ShadowingService
         string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
         
         var prompt = string.Empty;     
-        using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(await reader.ReadToEndAsync());

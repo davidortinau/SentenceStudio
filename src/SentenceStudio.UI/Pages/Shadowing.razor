@@ -117,6 +117,7 @@ else
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
     [Inject] private IAudioManager AudioMgr { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -199,7 +200,9 @@ else
                 currentSentence.TargetLanguageText, vid, speed: playbackSpeed);
 
             // Save to temp and prepare for playback
-            var tempPath = Path.Combine(FileSystem.CacheDirectory, $"shadow_{currentIndex}_{Guid.NewGuid():N}.mp3");
+            var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "Cache");
+            Directory.CreateDirectory(cacheDir);
+            var tempPath = Path.Combine(cacheDir, $"shadow_{currentIndex}_{Guid.NewGuid():N}.mp3");
             using (var fs = File.Create(tempPath))
             {
                 await stream.CopyToAsync(fs);

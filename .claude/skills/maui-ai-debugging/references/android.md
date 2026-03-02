@@ -10,6 +10,35 @@
 
 ## Emulator Management
 
+### Avoiding multi-project conflicts
+
+When multiple projects (or AI agents) may deploy to Android emulators simultaneously,
+each project should use its own dedicated AVD. Two apps deployed to the same emulator
+will coexist (unlike iOS), but `adb reverse`/`adb forward` port forwarding is per-device
+and can cause confusion when multiple emulators are running.
+
+**Before creating or starting an emulator, check what's already in use:**
+```bash
+maui-devflow list                             # shows agents with platform + port
+adb devices                                   # shows connected emulators
+```
+
+If an emulator is already running another project's agent, create a new AVD:
+```bash
+android avd create --name "ProjectName-Pixel8" \
+  --sdk "system-images;android-35;google_apis;arm64-v8a" --device pixel_8
+android avd start --name "ProjectName-Pixel8"
+```
+
+**When multiple emulators are running**, use `-s <serial>` to target a specific one:
+```bash
+adb -s emulator-5554 reverse tcp:19223 tcp:19223   # first emulator
+adb -s emulator-5556 reverse tcp:19223 tcp:19223   # second emulator
+```
+
+**Naming convention:** Use `<ProjectName>-<DeviceType>` (e.g. `TodoApp-Pixel8`) so it's
+clear which AVD belongs to which project.
+
 ### List and start AVDs
 ```bash
 android avd list                              # list available AVDs
@@ -49,10 +78,19 @@ dotnet build -f net10.0-android
 ```
 
 **Critical: Port forwarding after deploy** — the Android emulator runs in its own network.
-Forward both the Agent and CDP ports:
+Forward the broker port and the agent port:
 ```bash
-adb reverse tcp:9223 tcp:9223                 # MauiDevFlow Agent
-# (CDP uses same port as agent - no separate forwarding needed)
+adb reverse tcp:19223 tcp:19223              # Broker (lets agent register)
+adb forward tcp:<port> tcp:<port>            # Agent (lets CLI reach agent)
+```
+
+The broker reverse is needed so the agent inside the emulator can connect to the host's
+broker daemon. The agent forward uses the port shown in `maui-devflow list` after the agent
+registers (range 10223–10899).
+
+If the broker isn't available (fallback mode), forward the port from `.mauidevflow` instead:
+```bash
+adb reverse tcp:9223 tcp:9223                # Fallback: direct agent port
 ```
 
 Then verify: `maui-devflow MAUI status` and `maui-devflow cdp status`.
@@ -118,10 +156,12 @@ adb shell am force-stop <pkg>                 # kill app
 
 ### Port forwarding (critical for MauiDevFlow)
 ```bash
-adb reverse tcp:9223 tcp:9223                 # Agent
-# (CDP uses same port as agent - no separate forwarding needed)
+adb reverse tcp:19223 tcp:19223              # Broker (agent → host)
+adb forward tcp:<port> tcp:<port>            # Agent (CLI → emulator, get port from `maui-devflow list`)
 adb reverse --list                            # verify forwarding
-adb reverse --remove-all                      # clean up
+adb forward --list                            # verify forwarding
+adb reverse --remove-all                      # clean up reverse
+adb forward --remove-all                      # clean up forward
 ```
 
 ### File operations
@@ -166,7 +206,7 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 ## Troubleshooting
 
 - **`adb devices` shows "unauthorized"**: Accept the USB debugging prompt on the device/emulator.
-- **Agent not connecting on emulator**: Forgot `adb reverse`. Run port forwarding commands.
+- **Agent not connecting on emulator**: Forgot `adb reverse tcp:19223 tcp:19223` for the broker. Run port forwarding, then check `maui-devflow list`.
 - **Emulator won't start**: Check available system images with `android avd targets`. May need
   to install with `android sdk install --package "system-images;..."`.
 - **Build error "No Android devices found"**: Ensure emulator is booted (`adb devices`).

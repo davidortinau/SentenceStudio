@@ -69,6 +69,9 @@ public partial class VocabularyWord : ObservableObject
     
     public static List<VocabularyWord> ParseVocabularyWords(string vocabList, string delimiter = "comma")
     {
+        if (string.IsNullOrWhiteSpace(vocabList))
+            return new List<VocabularyWord>();
+
         string _delimiter = delimiter == "tab" ? "\t" : ",";
 
         List<VocabularyWord> vocabWords = new List<VocabularyWord>();

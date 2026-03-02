@@ -2,6 +2,7 @@ using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 using Scriban;
@@ -18,6 +19,7 @@ public class ConversationAgentService : IConversationAgentService
     private readonly IServiceProvider _serviceProvider;
     private readonly UserProfileRepository _userProfileRepository;
     private readonly VocabularyLookupTool _vocabularyTool;
+    private readonly IFileSystemService _fileSystem;
     private readonly ILogger<ConversationAgentService> _logger;
 
     private ConversationMemory? _currentMemory;
@@ -34,12 +36,14 @@ public class ConversationAgentService : IConversationAgentService
         IServiceProvider serviceProvider,
         UserProfileRepository userProfileRepository,
         VocabularyLookupTool vocabularyTool,
+        IFileSystemService fileSystem,
         ILogger<ConversationAgentService> logger)
     {
         _chatClient = chatClient;
         _serviceProvider = serviceProvider;
         _userProfileRepository = userProfileRepository;
         _vocabularyTool = vocabularyTool;
+        _fileSystem = fileSystem;
         _logger = logger;
     }
 
@@ -302,7 +306,7 @@ public class ConversationAgentService : IConversationAgentService
 
         if (scenario != null)
         {
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Conversation.scenario.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
 
@@ -320,7 +324,7 @@ public class ConversationAgentService : IConversationAgentService
             });
         }
 
-        using Stream defaultStream = await FileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
+        using Stream defaultStream = await _fileSystem.OpenAppPackageFileAsync("Conversation.system.scriban-txt");
         using var defaultReader = new StreamReader(defaultStream);
         var defaultTemplate = Template.Parse(await defaultReader.ReadToEndAsync());
         return await defaultTemplate.RenderAsync(new { name = DefaultPersonaName, target_language = targetLanguage });
@@ -358,7 +362,7 @@ Do not nitpick minor stylistic preferences.";
 
         if (scenario != null)
         {
-            using Stream templateStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("StartConversation.scenario.scriban-txt");
             using var reader = new StreamReader(templateStream);
             var template = Template.Parse(await reader.ReadToEndAsync());
 
@@ -375,7 +379,7 @@ Do not nitpick minor stylistic preferences.";
             });
         }
 
-        using Stream defaultStream = await FileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
+        using Stream defaultStream = await _fileSystem.OpenAppPackageFileAsync("StartConversation.scriban-txt");
         using var defaultReader = new StreamReader(defaultStream);
         var defaultTemplate = Template.Parse(await defaultReader.ReadToEndAsync());
         return await defaultTemplate.RenderAsync(new { target_language = targetLanguage });

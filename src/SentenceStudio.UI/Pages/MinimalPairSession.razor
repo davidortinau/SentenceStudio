@@ -95,6 +95,8 @@ else
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private IAudioManager AudioManager { get; set; } = default!;
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<MinimalPairSession> Logger { get; set; } = default!;
@@ -230,11 +232,11 @@ else
             {
                 audioStream = File.OpenRead(cached.AudioFilePath);
             }
-            else if (Connectivity.Current.NetworkAccess.HasFlag(NetworkAccess.Internet))
+            else if (Connectivity.IsInternetAvailable)
             {
                 audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f);
 
-                var cacheDir = Path.Combine(FileSystem.AppDataDirectory, "AudioCache");
+                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(cacheDir);
                 var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
                 using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }

@@ -214,6 +214,7 @@
     [Inject] private ILogger<SentenceTimingCalculator> TimingCalcLogger { get; set; } = default!;
     [Inject] private IActivityTimerService TimerService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     // Content state
     private bool isBusy;
@@ -255,9 +256,9 @@
         targetMinutes = TargetMinutesParam ?? 15;
 
         // Load persisted preferences
-        fontSize = (int)Preferences.Default.Get("ReadingActivity_FontSize", 20.0);
-        playbackSpeed = Preferences.Default.Get("ReadingActivity_PlaybackSpeed", 1.0f);
-        hasShownJumpHint = Preferences.Default.Get("ReadingActivity_HasShownJumpHint", false);
+        fontSize = (int)Preferences.Get("ReadingActivity_FontSize", 20.0);
+        playbackSpeed = Preferences.Get("ReadingActivity_PlaybackSpeed", 1.0f);
+        hasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
 
         if (fromPlan)
         {
@@ -472,7 +473,7 @@
             System.Globalization.CultureInfo.InvariantCulture, out var speed))
         {
             playbackSpeed = speed;
-            Preferences.Default.Set("ReadingActivity_PlaybackSpeed", playbackSpeed);
+            Preferences.Set("ReadingActivity_PlaybackSpeed", playbackSpeed);
         }
     }
 
@@ -481,7 +482,7 @@
         if (int.TryParse(e.Value?.ToString(), out var size))
         {
             fontSize = size;
-            Preferences.Default.Set("ReadingActivity_FontSize", (double)fontSize);
+            Preferences.Set("ReadingActivity_FontSize", (double)fontSize);
         }
     }
 
@@ -567,7 +568,7 @@
         {
             Toast.ShowSuccess("Double-click a sentence to jump to it!");
             hasShownJumpHint = true;
-            Preferences.Default.Set("ReadingActivity_HasShownJumpHint", true);
+            Preferences.Set("ReadingActivity_HasShownJumpHint", true);
         }
 
         currentSentenceIndex = sentenceIndex;

@@ -1,10 +1,144 @@
-﻿@page
+@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Sentence Studio — AI language learning that sticks";
+    ViewData["MetaDescription"] = "Train speaking, listening, reading, and vocabulary with adaptive daily plans, AI conversation practice, and progress tracking in Sentence Studio.";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<section class="hero-section py-5 py-lg-6">
+    <div class="container">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <span class="eyebrow-pill mb-3 d-inline-flex align-items-center">
+                    <span class="dot me-2"></span> Built for serious language learners
+                </span>
+                <h1 class="display-3 fw-bold lh-tight mb-3">
+                    Learn faster with <span class="text-gradient">daily AI coaching</span>
+                </h1>
+                <p class="hero-subtitle mb-4">
+                    Sentence Studio turns your resources into focused speaking, reading, and vocabulary practice with adaptive plans and measurable progress.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a class="btn btn-primary btn-lg px-4" href="https://app.sentence.studio" target="_blank" rel="noopener noreferrer">
+                        Start learning
+                    </a>
+                    <a class="btn btn-outline-light btn-lg px-4" href="#features">
+                        Explore features
+                    </a>
+                </div>
+                <div class="hero-metrics row g-3 mt-3">
+                    <div class="col-sm-4">
+                        <div class="metric-card">
+                            <div class="metric-value">10+</div>
+                            <div class="metric-label">activity types</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="metric-card">
+                            <div class="metric-value">Daily</div>
+                            <div class="metric-label">adaptive plans</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="metric-card">
+                            <div class="metric-value">All-in-one</div>
+                            <div class="metric-label">speaking + vocab</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="hero-preview-card">
+                    <h2 class="h5 mb-3">Today’s plan</h2>
+                    <ul class="plan-list list-unstyled mb-0">
+                        <li><span>Vocabulary Review</span><span>8 min</span></li>
+                        <li><span>Conversation Warmup</span><span>12 min</span></li>
+                        <li><span>Reading + Audio</span><span>10 min</span></li>
+                        <li><span>Shadowing Practice</span><span>10 min</span></li>
+                    </ul>
+                    <div class="progress mt-4" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: 65%;" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <p class="small text-secondary mt-2 mb-0">65% complete • keep your streak alive</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="features" class="py-5">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <h2 class="display-6 fw-semibold mb-3">A complete language training studio</h2>
+            <p class="section-subtitle">
+                Everything you need to move from recognition to confident production.
+            </p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6 col-xl-3">
+                <article class="feature-card h-100">
+                    <h3 class="h5">Adaptive daily plans</h3>
+                    <p>Create focused sessions that balance vocabulary review, reading, listening, and speaking based on your progress.</p>
+                </article>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <article class="feature-card h-100">
+                    <h3 class="h5">AI conversation coaching</h3>
+                    <p>Practice realistic dialogues, get instant grammar feedback, and build speaking confidence in your target language.</p>
+                </article>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <article class="feature-card h-100">
+                    <h3 class="h5">Resource-powered learning</h3>
+                    <p>Turn videos, transcripts, and vocabulary lists into meaningful exercises aligned to your goals.</p>
+                </article>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <article class="feature-card h-100">
+                    <h3 class="h5">Measurable progress</h3>
+                    <p>Track streaks, mastery, and activity history so you can see real momentum week after week.</p>
+                </article>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="how-it-works" class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="step-card">
+                    <span class="step-number">01</span>
+                    <h3 class="h5 mt-3">Import your material</h3>
+                    <p>Bring in videos, text, and vocabulary so learning starts from content you actually care about.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="step-card">
+                    <span class="step-number">02</span>
+                    <h3 class="h5 mt-3">Train with guided activities</h3>
+                    <p>Move through conversation, reading, shadowing, and quiz flows designed for retention and output.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="step-card">
+                    <span class="step-number">03</span>
+                    <h3 class="h5 mt-3">Review and improve daily</h3>
+                    <p>Use progress insights and personalized plans to stay consistent and level up faster.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cta" class="py-5 pb-6">
+    <div class="container">
+        <div class="cta-panel text-center">
+            <h2 class="display-6 fw-semibold mb-3">Ready to build real fluency?</h2>
+            <p class="mb-4">Start your next session in Sentence Studio and make daily progress that compounds.</p>
+            <a class="btn btn-primary btn-lg px-5" href="https://app.sentence.studio" target="_blank" rel="noopener noreferrer">
+                Open Sentence Studio
+            </a>
+        </div>
+    </div>
+</section>

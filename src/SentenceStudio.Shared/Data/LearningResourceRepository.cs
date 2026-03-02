@@ -424,6 +424,12 @@ public class LearningResourceRepository
         {
             var response = await _aiService.SendPrompt<string>(prompt);
 
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                _logger.LogWarning("AI returned empty response for starter vocabulary");
+                return;
+            }
+
             // Create a LearningResource instead of VocabularyList
             var resource = new LearningResource
             {
