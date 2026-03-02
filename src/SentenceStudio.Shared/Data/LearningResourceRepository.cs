@@ -12,6 +12,7 @@ public class LearningResourceRepository
     private ISyncService _syncService;
     private AiService _aiService;
     private readonly IFileSystemService _fileSystem;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public LearningResourceRepository(
         IServiceProvider serviceProvider,
@@ -25,8 +26,11 @@ public class LearningResourceRepository
         {
             _syncService = serviceProvider.GetService<ISyncService>();
             _aiService = serviceProvider.GetService<AiService>();
+            _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
         }
     }
+
+    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
@@ -51,6 +55,14 @@ public class LearningResourceRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userId = ActiveUserId;
+        if (userId > 0)
+        {
+            var userWordIds = db.ResourceVocabularyMappings
+                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+            return await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).ToListAsync();
+        }
         return await db.VocabularyWords.ToListAsync();
     }
 
@@ -75,16 +87,22 @@ public class LearningResourceRepository
                 resource => resource.Id,
                 (wm, resource) => new { wm.Word, Resource = resource }
             )
-            .Where(wr => wr.Resource.Language == language)
+            .Where(wr => wr.Resource.Language == language);
+
+        var userId = ActiveUserId;
+        if (userId > 0)
+            query = query.Where(wr => wr.Resource.UserProfileId == userId);
+
+        var termsQuery = query
             .Select(wr => wr.Word.TargetLanguageTerm)
             .Distinct();
 
         if (limit.HasValue)
         {
-            query = query.Take(limit.Value);
+            termsQuery = termsQuery.Take(limit.Value);
         }
 
-        return await query.ToListAsync();
+        return await termsQuery.ToListAsync();
     }
 
     public async Task<int> SaveWordAsync(VocabularyWord word)
@@ -139,9 +157,12 @@ public class LearningResourceRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.LearningResources
-            .Include(r => r.Vocabulary) // Include vocabulary words like GetResourceAsync does
-            .ToListAsync();
+        var query = db.LearningResources
+            .Include(r => r.Vocabulary);
+        var userId = ActiveUserId;
+        if (userId > 0)
+            return await query.Where(r => r.UserProfileId == userId).ToListAsync();
+        return await query.ToListAsync();
     }
 
     /// <summary>
@@ -154,6 +175,10 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         IQueryable<LearningResource> query = db.LearningResources.AsNoTracking();
+
+        var userId = ActiveUserId;
+        if (userId > 0)
+            query = query.Where(r => r.UserProfileId == userId);
 
         if (!string.IsNullOrEmpty(filterType) && filterType != "All")
             query = query.Where(r => r.MediaType == filterType);
@@ -197,9 +222,12 @@ public class LearningResourceRepository
             var vocabularyWords = resource.Vocabulary?.ToList() ?? new List<VocabularyWord>();
             var vocabularyWordIds = vocabularyWords.Select(v => v.Id).ToList();
 
+            // Set user ownership for new resources
+            if (resource.Id == 0)
+                resource.UserProfileId ??= ActiveUserId > 0 ? ActiveUserId : null;
+
             if (resource.Id != 0)
             {
-                // For existing resources, attach it to the context
                 var existingResource = await db.LearningResources
                     .Include(r => r.Vocabulary)
                     .FirstOrDefaultAsync(r => r.Id == resource.Id);
@@ -284,11 +312,14 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.LearningResources
+        var results = db.LearningResources
             .AsNoTracking()
             .Where(r => r.Title.Contains(query) || r.Description.Contains(query) ||
-                   r.Tags.Contains(query) || r.Language.Contains(query))
-            .ToListAsync();
+                   r.Tags.Contains(query) || r.Language.Contains(query));
+        var userId = ActiveUserId;
+        if (userId > 0)
+            results = results.Where(r => r.UserProfileId == userId);
+        return await results.ToListAsync();
     }
 
     // Get resources of a specific type
@@ -297,9 +328,12 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.LearningResources
-            .Where(r => r.MediaType == mediaType)
-            .ToListAsync();
+        var results = db.LearningResources
+            .Where(r => r.MediaType == mediaType);
+        var userId = ActiveUserId;
+        if (userId > 0)
+            results = results.Where(r => r.UserProfileId == userId);
+        return await results.ToListAsync();
     }
 
     // Get all vocabulary lists
@@ -314,9 +348,12 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.LearningResources
-            .Where(r => r.Language == language)
-            .ToListAsync();
+        var results = db.LearningResources
+            .Where(r => r.Language == language);
+        var userId = ActiveUserId;
+        if (userId > 0)
+            results = results.Where(r => r.UserProfileId == userId);
+        return await results.ToListAsync();
     }
 
     // Get all smart resources
@@ -325,9 +362,12 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.LearningResources
-            .Where(r => r.IsSmartResource)
-            .ToListAsync();
+        var results = db.LearningResources
+            .Where(r => r.IsSmartResource);
+        var userId = ActiveUserId;
+        if (userId > 0)
+            results = results.Where(r => r.UserProfileId == userId);
+        return await results.ToListAsync();
     }
 
     // Get smart resource by type
@@ -336,9 +376,12 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.LearningResources
-            .Where(r => r.IsSmartResource && r.SmartResourceType == smartResourceType)
-            .FirstOrDefaultAsync();
+        var results = db.LearningResources
+            .Where(r => r.IsSmartResource && r.SmartResourceType == smartResourceType);
+        var userId = ActiveUserId;
+        if (userId > 0)
+            results = results.Where(r => r.UserProfileId == userId);
+        return await results.FirstOrDefaultAsync();
     }
 
     // Add vocabulary word to a learning resource
@@ -484,6 +527,18 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        var userId = ActiveUserId;
+        if (userId > 0)
+        {
+            var userWordIds = db.ResourceVocabularyMappings
+                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+            return await db.VocabularyWords
+                .AsNoTracking()
+                .Include(vw => vw.LearningResources)
+                .Where(w => userWordIds.Contains(w.Id))
+                .ToListAsync();
+        }
         return await db.VocabularyWords
             .AsNoTracking()
             .Include(vw => vw.LearningResources)
@@ -503,6 +558,20 @@ public class LearningResourceRepository
 
         var searchTerm = query.ToLower().Trim();
 
+        var userId = ActiveUserId;
+        if (userId > 0)
+        {
+            var userWordIds = db.ResourceVocabularyMappings
+                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+            return await db.VocabularyWords
+                .Include(vw => vw.LearningResources)
+                .Where(vw => userWordIds.Contains(vw.Id))
+                .Where(vw =>
+                    (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
+                    (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
+                .ToListAsync();
+        }
         return await db.VocabularyWords
             .Include(vw => vw.LearningResources)
             .Where(vw =>
@@ -585,11 +654,25 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var totalWords = await db.VocabularyWords.CountAsync();
-        var associatedWords = await db.ResourceVocabularyMappings
-            .Select(rvm => rvm.VocabularyWordId)
-            .Distinct()
-            .CountAsync();
+        var userId = ActiveUserId;
+        int totalWords;
+        int associatedWords;
+        if (userId > 0)
+        {
+            var userWordIds = db.ResourceVocabularyMappings
+                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+            totalWords = await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).CountAsync();
+            associatedWords = await userWordIds.Distinct().CountAsync();
+        }
+        else
+        {
+            totalWords = await db.VocabularyWords.CountAsync();
+            associatedWords = await db.ResourceVocabularyMappings
+                .Select(rvm => rvm.VocabularyWordId)
+                .Distinct()
+                .CountAsync();
+        }
         var orphanedWords = totalWords - associatedWords;
 
         return (totalWords, associatedWords, orphanedWords);

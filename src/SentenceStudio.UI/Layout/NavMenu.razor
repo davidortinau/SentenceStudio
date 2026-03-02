@@ -3,6 +3,7 @@
 @inject NavigationMemoryService NavMemory
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
 @inject IAppState AppState
+@inject SentenceStudio.Services.Progress.ProgressCacheService CacheService
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -66,6 +67,9 @@
 
     private void Logout()
     {
+        // Clear all caches to prevent stale cross-user data
+        CacheService.InvalidateAll();
+
         // Clear auth state
         Preferences.Set("app_is_authenticated", false);
         Preferences.Remove("active_profile_id");

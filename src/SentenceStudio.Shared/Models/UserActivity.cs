@@ -11,6 +11,7 @@ public class UserActivity
     public string? Input {get; set;}
     public double Fluency { get; set; }
     public double Accuracy { get; set; }
+    public int? UserProfileId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     

@@ -8,22 +8,30 @@ public class VocabularyProgressRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly ILogger<VocabularyProgressRepository> _logger;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public VocabularyProgressRepository(IServiceProvider serviceProvider, ILogger<VocabularyProgressRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = syncService;
+        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
+
+    private int ActiveUserId => _preferences?.Get("active_profile_id", 0) ?? 0;
 
     public async Task<List<VocabularyProgress>> ListAsync()
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VocabularyProgresses
+        var userId = ActiveUserId;
+        var query = db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
-            .ToListAsync();
+            .AsQueryable();
+        if (userId > 0)
+            query = query.Where(vp => vp.UserId == userId);
+        return await query.ToListAsync();
     }
 
     public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(int vocabularyWordId, int userId)
@@ -41,11 +49,15 @@ public class VocabularyProgressRepository
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VocabularyProgresses
+        var userId = ActiveUserId;
+        var query = db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
-            .FirstOrDefaultAsync(vp => vp.VocabularyWordId == vocabularyWordId);
+            .Where(vp => vp.VocabularyWordId == vocabularyWordId);
+        if (userId > 0)
+            query = query.Where(vp => vp.UserId == userId);
+        return await query.FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -86,8 +98,9 @@ public class VocabularyProgressRepository
     /// OPTIMIZATION: Use this instead of GetByWordIdsAsync when loading all vocabulary
     /// Avoids massive WHERE IN clauses by loading everything in one query
     /// </summary>
-    public async Task<List<VocabularyProgress>> GetAllForUserAsync(int userId = 1)
+    public async Task<List<VocabularyProgress>> GetAllForUserAsync(int userId = 0)
     {
+        if (userId <= 0) userId = ActiveUserId > 0 ? ActiveUserId : 1;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -125,6 +138,10 @@ public class VocabularyProgressRepository
         try
         {
             item.UpdatedAt = DateTime.Now;
+
+            // Auto-set UserId for new items if not already set
+            if (item.UserId <= 0 && ActiveUserId > 0)
+                item.UserId = ActiveUserId;
 
             if (item.Id != 0)
             {

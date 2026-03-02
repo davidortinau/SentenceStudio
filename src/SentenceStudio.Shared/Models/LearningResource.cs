@@ -58,6 +58,8 @@ public partial class LearningResource : ObservableObject
     [JsonIgnore]
     public DateTime UpdatedAt { get; set; }
 
+    public int? UserProfileId { get; set; }
+
     // The vocabulary words associated with this resource (skip navigation)
     [NotMapped]
     public List<VocabularyWord> Vocabulary { get; set; } = new List<VocabularyWord>();

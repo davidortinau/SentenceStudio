@@ -36,7 +36,7 @@ public interface IVocabularyProgressService
     /// Gets ALL progress records for a user and returns as dictionary keyed by VocabularyWordId
     /// OPTIMIZATION: Use this instead of GetProgressForWordsAsync when loading all vocabulary
     /// </summary>
-    Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 1);
+    Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 0);
 
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)

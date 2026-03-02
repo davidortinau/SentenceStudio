@@ -210,7 +210,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// OPTIMIZATION: Use this instead of GetProgressForWordsAsync when loading all vocabulary
     /// Avoids massive WHERE IN clauses by loading everything in one efficient query
     /// </summary>
-    public async Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 1)
+    public async Task<Dictionary<int, VocabularyProgress>> GetAllProgressDictionaryAsync(int userId = 0)
     {
         var allProgress = await _progressRepo.GetAllForUserAsync(userId);
         
