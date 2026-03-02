@@ -24,11 +24,6 @@ public class ApplicationDbContext : DbContext
             optionsBuilder.UseSqlite("Data Source=dummy.db");
         }
 
-        // Suppress PendingModelChangesWarning — we manage schema changes via raw SQL
-        // for columns like UserProfileId that aren't covered by EF migrations
-        optionsBuilder.ConfigureWarnings(w =>
-            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-
         base.OnConfiguring(optionsBuilder);
     }
 

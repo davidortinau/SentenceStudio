@@ -29,33 +29,39 @@ public class UserProfileRepository
         return await db.UserProfiles.ToListAsync();
     }
 
-    private static bool _schemaEnsured;
+    private static bool _backfillDone;
 
     /// <summary>
-    /// Ensures multi-user schema columns exist. Called once per app session.
+    /// Backfills UserProfileId on existing rows that predate multi-user support.
+    /// Runs once per app session. Column creation is handled by EF migration.
     /// </summary>
-    public async Task EnsureMultiUserSchemaAsync()
+    public async Task EnsureMultiUserBackfillAsync()
     {
-        if (_schemaEnsured) return;
+        if (_backfillDone) return;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await EnsureUserProfileIdColumnsAsync(db);
-        _schemaEnsured = true;
+        await BackfillUserProfileIdsAsync(db);
+        _backfillDone = true;
     }
 
     public async Task<UserProfile> GetAsync()
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.MigrateAsync(); // Apply any pending migrations
+
+        // Handle databases where UserProfileId columns were added via raw SQL
+        // before this EF migration existed — mark migration as applied so MigrateAsync skips it
+        await MarkMigrationIfColumnsExistAsync(db);
+
+        await db.Database.MigrateAsync(); // Apply any pending migrations (including UserProfileId columns)
 
         // Ensure performance indexes exist (CREATE IF NOT EXISTS is idempotent)
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_TargetLanguageTerm ON VocabularyWord(TargetLanguageTerm)");
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_NativeLanguageTerm ON VocabularyWord(NativeLanguageTerm)");
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResourceVocabularyMapping_VocabularyWordId ON ResourceVocabularyMapping(VocabularyWordId)");
 
-        // Add UserProfileId columns for multi-user data isolation (idempotent)
-        await EnsureMultiUserSchemaAsync();
+        // Backfill UserProfileId for existing data (idempotent, runs once per session)
+        await EnsureMultiUserBackfillAsync();
 
         // Load the active profile if one was selected during login
         UserProfile profile = null;
@@ -77,43 +83,57 @@ public class UserProfileRepository
         return profile; // Return null if no profile exists
     }
 
-    private static async Task EnsureUserProfileIdColumnsAsync(ApplicationDbContext db)
+    private static async Task BackfillUserProfileIdsAsync(ApplicationDbContext db)
     {
-        // SQLite: add nullable UserProfileId columns if they don't exist
-        // Table names are SINGULAR (as configured in ApplicationDbContext.OnModelCreating)
-        var tables = new[] { "SkillProfile", "LearningResource", "UserActivity" };
-        foreach (var table in tables)
-        {
-            try
-            {
-                // PRAGMA table_info returns column details; check if UserProfileId exists
-                var cols = await db.Database.SqlQueryRaw<string>(
-                    $"SELECT name FROM pragma_table_info('{table}') WHERE name = 'UserProfileId'").ToListAsync();
-                if (cols.Count == 0)
-                {
-                    await db.Database.ExecuteSqlRawAsync($"ALTER TABLE {table} ADD COLUMN UserProfileId INTEGER");
-                }
-            }
-            catch { /* column already exists or table doesn't exist yet */ }
-        }
-
-        // Backfill: assign unowned SkillProfiles by matching Language → UserProfile.TargetLanguage
+        // Assign unowned SkillProfiles by matching Language → UserProfile.TargetLanguage
         await db.Database.ExecuteSqlRawAsync(@"
             UPDATE SkillProfile SET UserProfileId = (
                 SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = SkillProfile.Language LIMIT 1
             ) WHERE UserProfileId IS NULL");
 
-        // Backfill: assign unowned LearningResources by matching Language → UserProfile.TargetLanguage
+        // Assign unowned LearningResources by matching Language → UserProfile.TargetLanguage
         await db.Database.ExecuteSqlRawAsync(@"
             UPDATE LearningResource SET UserProfileId = (
                 SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = LearningResource.Language LIMIT 1
             ) WHERE UserProfileId IS NULL");
 
-        // Backfill: assign unowned UserActivities to first profile
+        // Assign unowned UserActivities to first profile
         await db.Database.ExecuteSqlRawAsync(@"
             UPDATE UserActivity SET UserProfileId = (
                 SELECT Id FROM UserProfile ORDER BY Id LIMIT 1
             ) WHERE UserProfileId IS NULL");
+    }
+
+    /// <summary>
+    /// One-time compat fix: if UserProfileId columns were added via raw SQL before the EF migration
+    /// existed, mark the migration as applied so MigrateAsync() doesn't try to add them again.
+    /// </summary>
+    private static bool _migrationChecked;
+    private static async Task MarkMigrationIfColumnsExistAsync(ApplicationDbContext db)
+    {
+        if (_migrationChecked) return;
+        _migrationChecked = true;
+
+        const string migrationId = "20260302040632_AddUserProfileIdToEntities";
+        try
+        {
+            // Check if the column already exists but the migration hasn't been recorded
+            var cols = await db.Database.SqlQueryRaw<string>(
+                "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
+            if (cols.Count > 0)
+            {
+                // Column exists — check if migration is already recorded
+                var applied = await db.Database.SqlQueryRaw<string>(
+                    $"SELECT MigrationId FROM __EFMigrationsHistory WHERE MigrationId = '{migrationId}'").ToListAsync();
+                if (applied.Count == 0)
+                {
+                    // Column exists but migration not recorded — mark it as applied
+                    await db.Database.ExecuteSqlRawAsync(
+                        $"INSERT INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ('{migrationId}', '10.0.2')");
+                }
+            }
+        }
+        catch { /* __EFMigrationsHistory may not exist yet on fresh databases */ }
     }
 
     public async Task<UserProfile> GetOrCreateDefaultAsync()

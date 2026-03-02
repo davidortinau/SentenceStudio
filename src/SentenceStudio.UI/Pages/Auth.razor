@@ -51,8 +51,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Ensure multi-user schema columns exist before any repo queries
-        await ProfileRepo.EnsureMultiUserSchemaAsync();
+        // Ensure backfill runs for existing data before any repo queries
+        await ProfileRepo.EnsureMultiUserBackfillAsync();
         _profiles = await ProfileRepo.ListAsync() ?? new();
     }
 
