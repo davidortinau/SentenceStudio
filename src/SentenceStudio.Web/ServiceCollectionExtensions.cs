@@ -29,6 +29,8 @@ namespace SentenceStudio.Web
                     .Table<SentenceStudio.Shared.Models.UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
                     .Table<SentenceStudio.Shared.Models.SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
                     .Table<SentenceStudio.Shared.Models.VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
+                    .Table<SentenceStudio.Shared.Models.VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload)
                     .Table<SentenceStudio.Shared.Models.ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload);
 
                 return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote, new ServerSyncLogger(serviceProvider.GetRequiredService<ILogger<ServerSyncLogger>>()));

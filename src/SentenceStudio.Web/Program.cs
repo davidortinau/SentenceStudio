@@ -1,4 +1,5 @@
 
+using CoreSync;
 using CoreSync.Http.Server;
 using SentenceStudio.Data;
 using SentenceStudio.Web;
@@ -42,6 +43,31 @@ app.UseCoreSyncHttpServer();
 app.UseLatestDatabaseVersion();
 
 app.SetupServerSynchronization();
+
+// Endpoint for clients to query server max PKs before sync (prevents PK collisions)
+app.MapGet("/api/sync/table-maxids", (IServiceProvider sp) =>
+{
+    var syncProvider = sp.GetRequiredService<ISyncProvider>();
+    // Use the same DB path as the sync provider
+    var connectionString = $"Data Source={databasePath}";
+    using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+    connection.Open();
+    
+    var tables = new[] { "UserProfile", "SkillProfile", "VocabularyWord", "VocabularyList",
+        "LearningResource", "ResourceVocabularyMapping", "Challenge", "Conversation",
+        "ConversationChunk", "VocabularyProgress", "VocabularyLearningContext" };
+    
+    var result = new Dictionary<string, long>();
+    foreach (var table in tables)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT COALESCE(MAX(Id), 0) FROM [{table}]";
+        var maxId = (long)(cmd.ExecuteScalar() ?? 0L);
+        result[table] = maxId;
+    }
+    
+    return Results.Ok(result);
+});
 
 // app.UseHttpsRedirection();
 

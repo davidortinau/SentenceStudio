@@ -24,6 +24,11 @@ public class ApplicationDbContext : DbContext
             optionsBuilder.UseSqlite("Data Source=dummy.db");
         }
 
+        // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
+        // without throwing when the compiled model is ahead of the last recorded migration.
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+
         base.OnConfiguring(optionsBuilder);
     }
 
