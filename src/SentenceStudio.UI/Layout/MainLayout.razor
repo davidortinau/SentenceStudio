@@ -50,7 +50,6 @@
 
 @code {
     private IJSObjectReference? jsModule;
-    private const string WebAppAuthenticatedPreferenceKey = "webapp_is_authenticated";
     private bool sidebarCollapsed;
     private bool isOnboarding;
     private bool isAuthGate;
@@ -58,11 +57,10 @@
     protected override void OnInitialized()
     {
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-        var isWebAppContext = uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-            || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
         var isAuthRoute = uri.AbsolutePath.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
 
-        if (isWebAppContext && !Preferences.Get(WebAppAuthenticatedPreferenceKey, false))
+        // Auth gate applies to all contexts (WebApp and MAUI)
+        if (!Preferences.Get("app_is_authenticated", false))
         {
             isAuthGate = true;
             if (!isAuthRoute)

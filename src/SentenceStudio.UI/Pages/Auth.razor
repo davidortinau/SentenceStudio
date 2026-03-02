@@ -6,43 +6,66 @@
     <div class="card card-ss p-4 mt-4">
         <h1 class="ss-title1 mb-2">Welcome to SentenceStudio</h1>
         <p class="ss-body2 text-secondary-ss mb-4">
-            Login to continue with your account or register to create a new one.
+            Select a user to continue, or register to create a new account.
         </p>
 
+        @if (_profiles.Count > 0)
+        {
+            <h2 class="ss-title3 mb-2">Choose a user</h2>
+            <div class="d-grid gap-2 mb-3">
+                @foreach (var profile in _profiles)
+                {
+                    var p = profile;
+                    <button class="btn btn-ss-secondary btn-lg text-start d-flex align-items-center gap-2"
+                            @onclick="() => LoginAsAsync(p)">
+                        <i class="bi bi-person-circle"></i>
+                        <div>
+                            <strong>@p.Name</strong>
+                            <br />
+                            <small class="text-secondary-ss">@p.NativeLanguage → @p.TargetLanguage</small>
+                        </div>
+                    </button>
+                }
+            </div>
+            <hr class="my-3" />
+        }
+
         <div class="d-grid gap-2">
-            <button class="btn btn-ss-primary btn-lg" @onclick="LoginAsync">Login</button>
-            <button class="btn btn-ss-secondary btn-lg" @onclick="RegisterAsync">Register</button>
+            <button class="btn btn-ss-primary btn-lg" @onclick="RegisterAsync">
+                <i class="bi bi-plus-circle me-2"></i>Create New User
+            </button>
         </div>
     </div>
 </div>
 
 @code {
-    private const string WebAppAuthenticatedPreferenceKey = "webapp_is_authenticated";
+    public const string AuthenticatedPreferenceKey = "app_is_authenticated";
+    public const string ActiveProfileIdKey = "active_profile_id";
 
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private IAppState AppState { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
 
-    private async Task LoginAsync()
+    private List<UserProfile> _profiles = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        Preferences.Set(WebAppAuthenticatedPreferenceKey, true);
+        _profiles = await ProfileRepo.ListAsync() ?? new();
+    }
 
-        var profile = await ProfileRepo.GetAsync();
-        if (profile == null)
-        {
-            Preferences.Set("is_onboarded", false);
-            NavManager.NavigateTo("/onboarding");
-            return;
-        }
-
+    private void LoginAsAsync(UserProfile profile)
+    {
+        Preferences.Set(AuthenticatedPreferenceKey, true);
+        Preferences.Set(ActiveProfileIdKey, profile.Id);
+        Preferences.Set("is_onboarded", true);
         AppState.CurrentUserProfile = profile;
         NavManager.NavigateTo("/", forceLoad: true);
     }
 
     private void RegisterAsync()
     {
-        Preferences.Set(WebAppAuthenticatedPreferenceKey, true);
+        Preferences.Set(AuthenticatedPreferenceKey, true);
         Preferences.Set("is_onboarded", false);
         NavManager.NavigateTo("/onboarding");
     }

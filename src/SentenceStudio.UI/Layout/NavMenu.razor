@@ -1,6 +1,8 @@
 @using Microsoft.AspNetCore.Components.Routing
 @inject NavigationManager Nav
 @inject NavigationMemoryService NavMemory
+@inject SentenceStudio.Abstractions.IPreferencesService Preferences
+@inject IAppState AppState
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -24,6 +26,11 @@
             <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
         </a>
     }
+
+    <a class="nav-link nav-link-ss rounded px-3 py-2 text-danger"
+       href="" @onclick="Logout" @onclick:preventDefault title="Logout">
+        <i class="bi bi-box-arrow-left"></i> <span class="nav-label">Logout</span>
+    </a>
 </nav>
 
 @code {
@@ -55,6 +62,17 @@
         var route = NavMemory.GetSectionRoute(sectionKey);
         Nav.NavigateTo(route);
         await CloseOffcanvas();
+    }
+
+    private void Logout()
+    {
+        // Clear auth state
+        Preferences.Set("app_is_authenticated", false);
+        Preferences.Remove("active_profile_id");
+        AppState.CurrentUserProfile = null;
+
+        // Navigate to auth page with full reload to reset layout state
+        Nav.NavigateTo("/auth", forceLoad: true);
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
