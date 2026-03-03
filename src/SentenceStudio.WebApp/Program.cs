@@ -54,6 +54,10 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 
 builder.Services.AddDataServices(databasePath);
 
+var syncServerUrl = builder.Configuration.GetValue<string>("SyncServerUrl") ?? "http://localhost:5240";
+builder.Services.AddSyncServices(databasePath, new Uri(syncServerUrl));
+builder.Services.AddSingleton<ISyncService, SyncService>();
+
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
@@ -91,8 +95,9 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
+    await syncService.InitializeDatabaseAsync();
+    await syncService.TriggerSyncAsync();
 }
 
 if (!app.Environment.IsDevelopment())
