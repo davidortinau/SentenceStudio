@@ -144,16 +144,17 @@ public class VocabularyProgressRepository
             if (string.IsNullOrEmpty(item.UserId) && !string.IsNullOrEmpty(ActiveUserId))
                 item.UserId = ActiveUserId;
 
-            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
+            var existsInDb = await db.VocabularyProgresses.AnyAsync(x => x.Id == item.Id);
+
+            if (existsInDb)
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (item.VocabularyWord != null)
                 {
                     db.Entry(item.VocabularyWord).State = EntityState.Detached;
-                    item.VocabularyWord = null; // Clear navigation property to avoid tracking
+                    item.VocabularyWord = null;
                 }
 
-                // Detach any learning contexts to avoid conflicts
                 if (item.LearningContexts?.Any() == true)
                 {
                     foreach (var context in item.LearningContexts)
@@ -179,10 +180,6 @@ public class VocabularyProgressRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            if (string.IsNullOrEmpty(item.Id) || item.Id == Guid.Empty.ToString())
-            {
-                // UXDivers popup removed - error already logged above
-            }
             throw;
         }
     }

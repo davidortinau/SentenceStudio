@@ -112,7 +112,9 @@ public class LearningResourceRepository
 
         try
         {
-            if (!string.IsNullOrEmpty(word.Id) && word.Id != Guid.Empty.ToString())
+            var existsInDb = await db.VocabularyWords.AnyAsync(w => w.Id == word.Id);
+
+            if (existsInDb)
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (word.LearningResources?.Any() == true)
@@ -222,11 +224,10 @@ public class LearningResourceRepository
             var vocabularyWords = resource.Vocabulary?.ToList() ?? new List<VocabularyWord>();
             var vocabularyWordIds = vocabularyWords.Select(v => v.Id).ToList();
 
-            // Set user ownership for new resources
-            if (string.IsNullOrEmpty(resource.Id) || resource.Id == Guid.Empty.ToString())
-                resource.UserProfileId ??= !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
+            // Check if this resource already exists in the database
+            var existsInDb = await db.LearningResources.AnyAsync(r => r.Id == resource.Id);
 
-            if (!string.IsNullOrEmpty(resource.Id) && resource.Id != Guid.Empty.ToString())
+            if (existsInDb)
             {
                 var existingResource = await db.LearningResources
                     .Include(r => r.Vocabulary)
@@ -238,12 +239,10 @@ public class LearningResourceRepository
                     db.Entry(existingResource).CurrentValues.SetValues(resource);
 
                     // Handle vocabulary associations
-                    // Get the actual vocabulary words from the database in this context
                     var dbVocabularyWords = await db.VocabularyWords
                         .Where(v => vocabularyWordIds.Contains(v.Id))
                         .ToListAsync();
 
-                    // Clear existing and add new associations
                     existingResource.Vocabulary.Clear();
                     foreach (var word in dbVocabularyWords)
                     {
@@ -253,9 +252,11 @@ public class LearningResourceRepository
             }
             else
             {
-                // For new resources
+                // New resource — set user ownership
+                resource.UserProfileId ??= !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
+
                 db.LearningResources.Add(resource);
-                await db.SaveChangesAsync(); // Save to get the resource ID
+                await db.SaveChangesAsync();
 
                 // Now associate vocabulary words
                 if (vocabularyWordIds.Any())

@@ -246,7 +246,9 @@ public class VocabularyEncodingRepository
     {
         word.UpdatedAt = DateTime.UtcNow;
 
-        if (string.IsNullOrEmpty(word.Id) || word.Id == Guid.Empty.ToString())
+        var existsInDb = await _context.VocabularyWords.AnyAsync(w => w.Id == word.Id);
+
+        if (!existsInDb)
         {
             word.CreatedAt = DateTime.UtcNow;
             _context.VocabularyWords.Add(word);

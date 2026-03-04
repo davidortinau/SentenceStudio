@@ -71,19 +71,21 @@ public class VocabularyLearningContextRepository
         {
             item.UpdatedAt = DateTime.Now;
             
-            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
+            var existsInDb = await db.VocabularyLearningContexts.AnyAsync(x => x.Id == item.Id);
+
+            if (existsInDb)
             {
                 // For updates, detach any tracked navigation properties to avoid conflicts
                 if (item.VocabularyProgress != null)
                 {
                     db.Entry(item.VocabularyProgress).State = EntityState.Detached;
-                    item.VocabularyProgress = null; // Clear navigation property to avoid tracking
+                    item.VocabularyProgress = null;
                 }
                 
                 if (item.LearningResource != null)
                 {
                     db.Entry(item.LearningResource).State = EntityState.Detached;
-                    item.LearningResource = null; // Clear navigation property to avoid tracking
+                    item.LearningResource = null;
                 }
                 
                 db.VocabularyLearningContexts.Update(item);
