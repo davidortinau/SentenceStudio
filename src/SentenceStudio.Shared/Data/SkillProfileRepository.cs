@@ -58,7 +58,12 @@ public class SkillProfileRepository
             if (string.IsNullOrEmpty(item.UserProfileId))
                 item.UserProfileId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
 
-            if (!string.IsNullOrEmpty(item.Id) && item.Id != Guid.Empty.ToString())
+            // With GUID PKs, Id is always pre-set by the model constructor.
+            // Check DB existence to determine Add vs Update.
+            var exists = !string.IsNullOrEmpty(item.Id)
+                && await db.SkillProfiles.AnyAsync(p => p.Id == item.Id);
+
+            if (exists)
             {
                 db.SkillProfiles.Update(item);
             }

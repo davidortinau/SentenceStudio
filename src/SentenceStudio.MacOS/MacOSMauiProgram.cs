@@ -37,7 +37,7 @@ public static class MacOSMauiProgram
             .AddDebug()
             .AddConsole()
             .SetMinimumLevel(LogLevel.Debug);
-        builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
+        builder.AddMauiDevFlowAgent(options => { options.Port = 9225; });
         builder.AddMauiBlazorDevFlowTools();
 #endif
 

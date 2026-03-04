@@ -168,7 +168,12 @@ public class UserProfileRepository
 
         try
         {
-            if (!string.IsNullOrEmpty(item.Id))
+            // With GUID PKs, Id is always pre-set by the model constructor.
+            // Check DB existence to determine Add vs Update.
+            var exists = !string.IsNullOrEmpty(item.Id)
+                && await db.UserProfiles.AnyAsync(p => p.Id == item.Id);
+
+            if (exists)
             {
                 db.UserProfiles.Update(item);
             }
