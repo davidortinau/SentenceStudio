@@ -48,7 +48,12 @@ public static class SentenceStudioAppBuilder
         // --- CoreSync setup ---
         var dbPath = Constants.DatabasePath;
         builder.Services.AddDataServices(dbPath);
-        builder.Services.AddSyncServices(dbPath, new Uri($"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5240"));
+
+        var syncHost = DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost";
+        var syncServerUrl = Environment.GetEnvironmentVariable("services__web__http__0")
+            ?? builder.Configuration.GetValue<string>("SyncServerUrl")
+            ?? $"http://{syncHost}:5240";
+        builder.Services.AddSyncServices(dbPath, new Uri(syncServerUrl));
 
         var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl")
             ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5001";

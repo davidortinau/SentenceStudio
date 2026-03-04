@@ -19,8 +19,11 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("ElevenLabsKey", elevenlabskey);
 
+var web = builder.AddProject<SentenceStudio_Web>("web");
+
 var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithReference(api)
+    .WithReference(web)
     .WithReference(redis);
 
 builder.AddProject<SentenceStudio_Marketing>("marketing");

@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="../SentenceStudio.Api/SentenceStudio.Api.csproj" />
     <ProjectReference Include="../SentenceStudio.Marketing/SentenceStudio.Marketing.csproj" />
+    <ProjectReference Include="../SentenceStudio.Web/SentenceStudio.Web.csproj" />
     <ProjectReference Include="../SentenceStudio.WebApp/SentenceStudio.WebApp.csproj" />
     <ProjectReference Include="../SentenceStudio.Workers/SentenceStudio.Workers.csproj" />
   </ItemGroup>

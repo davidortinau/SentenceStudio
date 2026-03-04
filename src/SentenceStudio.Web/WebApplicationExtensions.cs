@@ -12,6 +12,7 @@ namespace SentenceStudio.Web
             using var scope = app.ApplicationServices.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             dbContext.Database.Migrate();
+            dbContext.EnableWalMode();
 
             return app;
         }

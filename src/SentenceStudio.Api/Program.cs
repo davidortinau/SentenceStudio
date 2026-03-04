@@ -114,6 +114,76 @@ app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IChatC
     })
     .RequireAuthorization();
 
+app.MapPost("/api/v1/ai/chat-messages", async (ChatMessagesRequest request, [FromServices] IChatClient? chatClient, CancellationToken cancellationToken) =>
+    {
+        if (chatClient == null)
+        {
+            return Results.Problem("OpenAI client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var messages = request.Messages.Select(m => new ChatMessage(
+            m.Role switch
+            {
+                "assistant" => ChatRole.Assistant,
+                "system" => ChatRole.System,
+                _ => ChatRole.User
+            },
+            m.Content)).ToList();
+
+        var responseType = ResolveResponseType(request.ResponseType);
+
+        var options = string.IsNullOrWhiteSpace(request.Instructions)
+            ? null
+            : new ChatOptions { Instructions = request.Instructions };
+
+        if (responseType == null || responseType == typeof(string))
+        {
+            var response = await chatClient.GetResponseAsync(messages, options, cancellationToken);
+            return Results.Ok(new SentenceStudio.Contracts.Ai.ChatResponse
+            {
+                Response = response.Text ?? string.Empty
+            });
+        }
+
+        // Typed response via reflection
+        var method = typeof(Program)
+            .GetMethod(nameof(GetTypedResponseFromMessagesAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(responseType);
+        var task = (Task<object?>)method.Invoke(null, new object?[] { chatClient, messages, request.Instructions, cancellationToken })!;
+        var typedResult = await task;
+
+        var json = JsonSerializer.Serialize(typedResult, responseType);
+        return Results.Ok(new SentenceStudio.Contracts.Ai.ChatResponse
+        {
+            Response = json
+        });
+    })
+    .RequireAuthorization();
+
+app.MapPost("/api/v1/ai/analyze-image", async (AnalyzeImageRequest request, [FromServices] IChatClient? chatClient, CancellationToken cancellationToken) =>
+    {
+        if (chatClient == null)
+        {
+            return Results.Problem("OpenAI client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var imageBytes = Convert.FromBase64String(request.ImageBase64);
+        var dataUri = $"data:{request.MediaType};base64,{request.ImageBase64}";
+
+        var message = new ChatMessage(ChatRole.User, request.Prompt);
+        message.Contents.Add(new DataContent(new Uri(dataUri), mediaType: request.MediaType));
+
+        var response = await chatClient.GetResponseAsync(
+            new[] { message },
+            cancellationToken: cancellationToken);
+
+        return Results.Ok(new SentenceStudio.Contracts.Ai.ChatResponse
+        {
+            Response = response.Text ?? string.Empty
+        });
+    })
+    .RequireAuthorization();
+
 app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [FromServices] ElevenLabsClient? client) =>
     {
         if (client == null)
@@ -242,6 +312,23 @@ static async Task<object?> GetTypedResponseCoreAsync<T>(
         {
             new ChatMessage(ChatRole.User, message)
         },
+        options,
+        cancellationToken: cancellationToken);
+    return response.Result;
+}
+
+static async Task<object?> GetTypedResponseFromMessagesAsync<T>(
+    IChatClient chatClient,
+    IList<ChatMessage> messages,
+    string? instructions,
+    CancellationToken cancellationToken)
+{
+    var options = string.IsNullOrWhiteSpace(instructions)
+        ? null
+        : new ChatOptions { Instructions = instructions };
+
+    var response = await chatClient.GetResponseAsync<T>(
+        messages,
         options,
         cancellationToken: cancellationToken);
     return response.Result;

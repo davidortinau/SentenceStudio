@@ -13,7 +13,7 @@ graph TB
 
     subgraph ServerSide["Server-Side"]
         Api["SentenceStudio.Api<br/><i>REST API</i><br/>Chat, Speech, Plans"]
-        Web["SentenceStudio.Web<br/><i>CoreSync Server</i><br/>port 5240"]
+        Web["SentenceStudio.Web<br/><i>CoreSync Server</i><br/>Aspire-managed"]
         WebApp["SentenceStudio.WebApp<br/><i>Blazor Server UI</i>"]
         Workers["SentenceStudio.Workers<br/><i>Background Jobs</i>"]
         Marketing["SentenceStudio.Marketing<br/><i>Static Site</i>"]
@@ -22,6 +22,8 @@ graph TB
     subgraph Clients["MAUI Clients (Offline-Capable)"]
         MacCatalyst["MacCatalyst App"]
         MacOS["macOS App"]
+        iOS["iOS App"]
+        Android["Android App"]
         Windows["Windows App"]
     end
 
@@ -30,16 +32,18 @@ graph TB
         ElevenLabs["ElevenLabs<br/>Text-to-Speech"]
     end
 
-    subgraph DataStores["Local Data Stores"]
-        ServerDB[("Server SQLite<br/>sentencestudio.db")]
-        WebAppDB[("WebApp SQLite<br/>sstudio-webapp.db3")]
+    subgraph DataStores["Data Stores"]
+        ServerDB[("Server SQLite (WAL)<br/>sentencestudio.db<br/><i>shared by Web + WebApp</i>")]
         CatalystDB[("MacCatalyst SQLite<br/>sstudio.db3")]
         MacOSDB[("macOS SQLite<br/>sstudio.db3")]
+        iOSDB[("iOS SQLite<br/>sstudio.db3")]
+        AndroidDB[("Android SQLite<br/>sstudio.db3")]
         WinDB[("Windows SQLite<br/>sstudio.db3")]
     end
 
     %% Aspire orchestrates server-side services
     Aspire --> Api
+    Aspire --> Web
     Aspire --> WebApp
     Aspire --> Workers
     Aspire --> Marketing
@@ -48,9 +52,9 @@ graph TB
     Api -->|IChatClient| OpenAI
     Api -->|TTS| ElevenLabs
 
-    %% WebApp calls Api for AI and currently syncs with Web
+    %% WebApp calls Api for AI and shares the server DB
     WebApp -->|HTTP API| Api
-    WebApp -.->|CoreSync client| Web
+    WebApp ---|shared DB| ServerDB
 
     %% Workers use Aspire infrastructure
     Workers --> Postgres
@@ -61,27 +65,32 @@ graph TB
     %% Web (sync server) owns the server DB
     Web --- ServerDB
 
-    %% WebApp has its own DB (current state - should share server DB)
-    WebApp --- WebAppDB
-
     %% MAUI clients have local SQLite + sync
     MacCatalyst --- CatalystDB
     MacOS --- MacOSDB
+    iOS --- iOSDB
+    Android --- AndroidDB
     Windows --- WinDB
 
     %% MAUI clients sync bidirectionally with Web
     MacCatalyst <-->|CoreSync| Web
     MacOS <-->|CoreSync| Web
+    iOS <-->|CoreSync| Web
+    Android <-->|CoreSync| Web
     Windows <-->|CoreSync| Web
 
     %% MAUI clients call Api for AI features
     MacCatalyst -->|HTTP API| Api
     MacOS -->|HTTP API| Api
+    iOS -->|HTTP API| Api
+    Android -->|HTTP API| Api
     Windows -->|HTTP API| Api
 
     %% MAUI clients also have local IChatClient (offline)
     MacCatalyst -.->|local IChatClient| OpenAI
     MacOS -.->|local IChatClient| OpenAI
+    iOS -.->|local IChatClient| OpenAI
+    Android -.->|local IChatClient| OpenAI
     Windows -.->|local IChatClient| OpenAI
 
     %% Styling
@@ -93,9 +102,9 @@ graph TB
 
     class Postgres,Redis,Blob aspire
     class Api,Web,WebApp,Workers,Marketing server
-    class MacCatalyst,MacOS,Windows client
+    class MacCatalyst,MacOS,iOS,Android,Windows client
     class OpenAI,ElevenLabs external
-    class ServerDB,WebAppDB,CatalystDB,MacOSDB,WinDB db
+    class ServerDB,CatalystDB,MacOSDB,iOSDB,AndroidDB,WinDB db
 ```
 
 ## Data Flow: CoreSync
@@ -105,17 +114,17 @@ sequenceDiagram
     participant MC as MacCatalyst
     participant MO as macOS
     participant WS as Web (Sync Server)
-    participant WA as WebApp
+    participant WA as WebApp (shared DB)
 
     Note over MC,WA: All clients use GUID primary keys (no collisions)
 
     MC->>MC: Create user "Gunther" (GUID: e32b...)
     MC->>WS: CoreSync push (INSERT UserProfile)
-    WS->>WS: Store in server SQLite
+    WS->>WS: Store in server SQLite (WAL mode)
 
     MO->>MO: Create user "Jose" (GUID: 3091...)
     MO->>WS: CoreSync push (INSERT UserProfile)
-    WS->>WS: Store in server SQLite
+    WS->>WS: Store in server SQLite (WAL mode)
 
     MC->>WS: CoreSync pull (changes since last anchor)
     WS-->>MC: Jose's profile (no PK conflict)
@@ -123,10 +132,10 @@ sequenceDiagram
     MO->>WS: CoreSync pull (changes since last anchor)
     WS-->>MO: Gunther's profile (no PK conflict)
 
-    WA->>WS: CoreSync pull (on startup)
-    WS-->>WA: Both Gunther + Jose
+    Note over WA: WebApp reads shared DB directly — no sync needed
+    WA->>WA: Read from server SQLite (concurrent via WAL)
 
-    Note over MC,WA: All 4 nodes now have both users
+    Note over MC,WA: All nodes now have both users
 ```
 
 ## Project Responsibilities
@@ -134,13 +143,15 @@ sequenceDiagram
 | Project | Role | Data Store | Calls | Exposes |
 |---------|------|-----------|-------|---------|
 | **AppHost** | Aspire orchestrator | Postgres, Redis, Blob | — | Dashboard |
-| **Api** | REST API gateway | None (stateless) | OpenAI, ElevenLabs | `/api/v1/ai/chat`, `/api/v1/speech/synthesize`, `/api/v1/plans/generate` |
-| **Web** | CoreSync sync server | Server SQLite | — | CoreSync HTTP endpoints |
-| **WebApp** | Blazor Server UI | WebApp SQLite ⚠️ | Api, Web (sync) | Blazor pages |
+| **Api** | REST API gateway | None (stateless) | OpenAI, ElevenLabs | `/api/v1/ai/chat`, `/api/v1/ai/chat-messages`, `/api/v1/ai/analyze-image`, `/api/v1/speech/synthesize`, `/api/v1/plans/generate` |
+| **Web** | CoreSync sync server | Server SQLite (shared, WAL) | — | CoreSync HTTP endpoints |
+| **WebApp** | Blazor Server UI | Server SQLite (shared, WAL) | Api | Blazor pages |
 | **Workers** | Background jobs | Postgres, Redis, Blob | Api | — |
 | **Marketing** | Static marketing site | None | — | Razor pages |
 | **MacCatalyst** | MAUI desktop client | Local SQLite | Api, Web (sync), OpenAI | — |
 | **macOS** | MAUI desktop client | Local SQLite | Api, Web (sync), OpenAI | — |
+| **iOS** | MAUI mobile client | Local SQLite | Api, Web (sync), OpenAI | — |
+| **Android** | MAUI mobile client | Local SQLite | Api, Web (sync), OpenAI | — |
 | **Windows** | MAUI desktop client | Local SQLite | Api, Web (sync), OpenAI | — |
 
 ## Shared Libraries
@@ -150,25 +161,21 @@ sequenceDiagram
 | **SentenceStudio.Shared** | EF Core models, DbContext, repositories, services, CoreSync sync service |
 | **SentenceStudio.AppLib** | MAUI app builder, service registration, CoreSync client config, API clients |
 | **SentenceStudio.UI** | Blazor Razor components (shared between WebApp and MAUI Blazor WebView) |
-| **SentenceStudio.Contracts** | Shared DTOs and interfaces |
+| **SentenceStudio.Contracts** | Shared DTOs and API request/response models |
 | **SentenceStudio.ServiceDefaults** | Aspire service defaults (OpenTelemetry, health checks) |
 | **SentenceStudio.Domain** | Domain logic |
 
-## Known Architecture Issues
+## Architecture Decisions
 
-### ⚠️ WebApp has a redundant SQLite database
+### WebApp shares the server database (WAL mode)
+The WebApp is always server-side and always online. Instead of maintaining a separate SQLite database and syncing via CoreSync, it reads/writes the same database as the sync server. SQLite WAL (Write-Ahead Logging) enables concurrent reads from both processes.
 
-The WebApp currently runs its own SQLite database (`sstudio-webapp.db3`) and syncs with the Web sync server via CoreSync. Since the WebApp is server-side (always online), it should instead read/write the sync server's database directly — or both should share Postgres.
+### MAUI clients sync via CoreSync with GUID PKs
+All synced entities use string GUID primary keys to prevent cross-client collisions. CoreSync handles bidirectional sync with INSERT conflicts resolved as Skip (same GUID = same record).
 
-### ⚠️ IChatClient is registered in multiple places
+### IChatClient remains in WebApp temporarily
+`ConversationAgentService` requires `IChatClient` directly for multi-turn conversation with `ConversationMemory` middleware pipeline. Routing this through the REST API requires refactoring the agent pipeline. The WebApp retains its own `IChatClient` registration until that work is done. All other AI services route through the Api.
 
-`IChatClient` (OpenAI) is registered independently in:
-- **Api** — the intended gateway for AI calls
-- **WebApp** — redundant local registration
-- **MAUI clients** (via AppLib) — needed for offline capability
+### Sync server managed by Aspire
+The `SentenceStudio.Web` sync server is registered in the Aspire AppHost and starts automatically with `aspire run`. MAUI clients read the sync URL from environment variables or fall back to `localhost:5240`.
 
-The WebApp should route all AI calls through the Api rather than having its own `IChatClient`.
-
-### ⚠️ Web sync server is not in Aspire AppHost
-
-The `SentenceStudio.Web` sync server must be started separately (`dotnet run` on port 5240). It's not orchestrated by Aspire, which means it's easy to forget to start it.

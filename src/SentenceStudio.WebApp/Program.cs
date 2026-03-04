@@ -1,6 +1,5 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Plugin.Maui.Audio;
@@ -22,13 +21,20 @@ using SentenceStudio.WebUI.Services;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
+// WebApp shares the server's database directly (no local sync needed)
+var serverDbFolder = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "sentencestudio",
+    "server");
+Directory.CreateDirectory(serverDbFolder);
+var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
+
+// Preferences stay local to the webapp
 var appDataRoot = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
     "sentencestudio",
     "webapp");
 Directory.CreateDirectory(appDataRoot);
-
-var databasePath = Path.Combine(appDataRoot, "sstudio-webapp.db3");
 var preferencesPath = Path.Combine(appDataRoot, "preferences.json");
 
 var appLibRawAssets = Path.GetFullPath(
@@ -54,14 +60,13 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 
 builder.Services.AddDataServices(databasePath);
 
-var syncServerUrl = builder.Configuration.GetValue<string>("SyncServerUrl") ?? "http://localhost:5240";
-builder.Services.AddSyncServices(databasePath, new Uri(syncServerUrl));
-builder.Services.AddSingleton<ISyncService, SyncService>();
-
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
 
+// OpenAI key — needed by ConversationAgentService which uses IChatClient directly for
+// multi-turn conversation with ConversationMemory middleware. Removing this requires
+// refactoring ConversationAgentService to use the gateway client instead.
 var openAiApiKey = builder.Configuration["Settings:OpenAIKey"];
 if (string.IsNullOrWhiteSpace(openAiApiKey))
 {
@@ -92,13 +97,6 @@ RegisterSentenceStudioServices(builder.Services);
 RegisterBlazorServices(builder.Services);
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-    await syncService.InitializeDatabaseAsync();
-    await syncService.TriggerSyncAsync();
-}
 
 if (!app.Environment.IsDevelopment())
 {

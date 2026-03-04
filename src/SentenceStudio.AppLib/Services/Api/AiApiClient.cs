@@ -15,4 +15,20 @@ public sealed class AiApiClient(HttpClient httpClient) : IAiApiClient
         return await response.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: cancellationToken)
             ?? new ChatResponse();
     }
+
+    public async Task<ChatResponse> SendChatMessagesAsync(ChatMessagesRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/v1/ai/chat-messages", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: cancellationToken)
+            ?? new ChatResponse();
+    }
+
+    public async Task<ChatResponse> AnalyzeImageAsync(AnalyzeImageRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/v1/ai/analyze-image", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: cancellationToken)
+            ?? new ChatResponse();
+    }
 }

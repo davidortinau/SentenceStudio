@@ -32,6 +32,15 @@ public class ApplicationDbContext : DbContext
         base.OnConfiguring(optionsBuilder);
     }
 
+    /// <summary>
+    /// Enables WAL journal mode for concurrent read access across multiple processes.
+    /// Call once after database creation/migration.
+    /// </summary>
+    public void EnableWalMode()
+    {
+        Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Configure table names to match CoreSync expectations (singular)
