@@ -169,9 +169,7 @@ else
         isLoading = true;
         try
         {
-            Logger.LogInformation("LoadProfile: starting, active_profile_id={Id}", Preferences.Get("active_profile_id", 0));
             var profile = await ProfileRepo.GetAsync();
-            Logger.LogInformation("LoadProfile: got profile={Name}, id={Id}", profile?.Name, profile?.Id);
             if (profile != null)
             {
                 name = profile.Name ?? "";
@@ -185,7 +183,7 @@ else
             }
             else
             {
-                Logger.LogWarning("LoadProfile: profile is null!");
+                Logger.LogWarning("LoadProfile: no active profile found");
             }
         }
         catch (Exception ex)
