@@ -147,9 +147,11 @@ app.MapPost("/api/v1/ai/chat-messages", async (ChatMessagesRequest request, [Fro
 
         // Typed response via reflection
         var method = typeof(Program)
-            .GetMethod(nameof(GetTypedResponseFromMessagesAsync), BindingFlags.NonPublic | BindingFlags.Static)!
-            .MakeGenericMethod(responseType);
-        var task = (Task<object?>)method.Invoke(null, new object?[] { chatClient, messages, request.Instructions, cancellationToken })!;
+            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .FirstOrDefault(m => m.Name.Contains(nameof(GetTypedResponseFromMessagesAsync)) && m.IsGenericMethodDefinition)
+            ?? throw new InvalidOperationException($"Could not find method {nameof(GetTypedResponseFromMessagesAsync)} via reflection.");
+        var genericMethod = method.MakeGenericMethod(responseType);
+        var task = (Task<object?>)genericMethod.Invoke(null, new object?[] { chatClient, messages, request.Instructions, cancellationToken })!;
         var typedResult = await task;
 
         var json = JsonSerializer.Serialize(typedResult, responseType);
@@ -290,10 +292,13 @@ static async Task<object?> GetTypedResponseAsync(
     CancellationToken cancellationToken)
 {
     var method = typeof(Program)
-        .GetMethod(nameof(GetTypedResponseCoreAsync), BindingFlags.NonPublic | BindingFlags.Static)!
-        .MakeGenericMethod(responseType);
+        .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+        .FirstOrDefault(m => m.Name.Contains(nameof(GetTypedResponseCoreAsync)) && m.IsGenericMethodDefinition)
+        ?? throw new InvalidOperationException($"Could not find method {nameof(GetTypedResponseCoreAsync)} via reflection.");
 
-    var task = (Task<object?>)method.Invoke(null, new object?[] { chatClient, message, instructions, cancellationToken })!;
+    var genericMethod = method.MakeGenericMethod(responseType);
+
+    var task = (Task<object?>)genericMethod.Invoke(null, new object?[] { chatClient, message, instructions, cancellationToken })!;
     return await task;
 }
 
