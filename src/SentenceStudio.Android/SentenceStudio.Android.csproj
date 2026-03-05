@@ -29,5 +29,6 @@
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
+		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
 	</ItemGroup>
 </Project>

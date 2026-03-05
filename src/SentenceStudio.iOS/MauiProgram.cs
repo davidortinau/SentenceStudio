@@ -2,6 +2,7 @@ using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
 using MauiDevFlow.Agent;
 using MauiDevFlow.Blazor;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
 using SentenceStudio;
@@ -19,6 +20,7 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder.Configuration.AddEmbeddedAppSettings();
+        builder.AddMauiServiceDefaults();
 
         builder
             .UseMauiApp<BlazorApp>()

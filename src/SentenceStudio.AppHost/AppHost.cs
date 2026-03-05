@@ -52,6 +52,31 @@ windows.AddWindowsDevice()
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithReference(api);
 
+// Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly)
+var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
+    .WithAnonymousAccess()
+    .WithReference(api.GetEndpoint("https"));
+
+// Android
+var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
+
+android.AddAndroidEmulator()
+    .WithOtlpDevTunnel()
+    .WithEnvironment("SyncfusionKey", syncfusionkey)
+    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+    .WithEnvironment("ElevenLabsKey", elevenlabskey)
+    .WithReference(api, publicDevTunnel);
+
+// iOS
+var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
+
+ios.AddiOSSimulator()
+    .WithOtlpDevTunnel()
+    .WithEnvironment("SyncfusionKey", syncfusionkey)
+    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+    .WithEnvironment("ElevenLabsKey", elevenlabskey)
+    .WithReference(api, publicDevTunnel);
+
 builder.Build().Run();
 
 // var existingFoundryName = builder.AddParameter("existingFoundryName")
