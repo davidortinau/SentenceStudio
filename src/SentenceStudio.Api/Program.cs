@@ -28,7 +28,7 @@ builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
-var openAiApiKey = builder.Configuration["AI__OpenAI__ApiKey"];
+var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
     builder.Services.AddSingleton<IChatClient>(_ =>

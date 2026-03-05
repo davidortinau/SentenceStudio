@@ -55,19 +55,12 @@ public class AiService {
         {
             if (_aiGatewayClient != null)
             {
-                try
-                {
-                    var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt);
-                    _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
-                    return gatewayResult;
-                }
-                catch (Exception ex) when (_client != null)
-                {
-                    _logger.LogWarning(ex, "AI gateway unavailable ({ExceptionType}), falling back to direct client", ex.GetType().Name);
-                }
+                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt);
+                _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
+                return gatewayResult;
             }
 
-            _logger.LogDebug("Sending prompt to AI (length: {PromptLength} chars)", prompt?.Length ?? 0);
+            _logger.LogDebug("Sending prompt to AI via direct client (length: {PromptLength} chars)", prompt?.Length ?? 0);
             var response = await _client.GetResponseAsync<T>(prompt);
             var hasResult = response != null && response.Result != null;
             _logger.LogDebug("AI response received: {HasResult}", hasResult);
@@ -76,7 +69,7 @@ public class AiService {
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SendPrompt");
-            return default(T);
+            throw;
         }
     }
 
@@ -135,20 +128,14 @@ public class AiService {
 
         if (_speechGatewayClient != null)
         {
-            try
+            var stream = await _speechGatewayClient.SynthesizeAsync(text, voice, speed);
+            if (stream != null)
             {
-                var stream = await _speechGatewayClient.SynthesizeAsync(text, voice, speed);
-                if (stream != null)
-                {
-                    return stream;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Speech gateway synthesis failed, falling back to local AI client");
+                return stream;
             }
         }
 
+        // Direct client fallback for standalone (non-Aspire) mode
         var aiClient = new AIClient(_openAiApiKey, _connectivity);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
