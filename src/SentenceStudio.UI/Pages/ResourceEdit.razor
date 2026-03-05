@@ -373,14 +373,19 @@ Transcript:
                 var targetTerm = wordData.TargetLanguageTerm.Trim();
                 var nativeTerm = wordData.NativeLanguageTerm?.Trim() ?? "";
 
-                // Detect swapped terms
-                bool targetIsEnglish = IsLikelyEnglish(targetTerm);
-                bool nativeIsEnglish = IsLikelyEnglish(nativeTerm);
+                // Detect swapped terms — only for non-Latin-script target languages
+                // (e.g., Korean, Japanese, Chinese, Arabic). For Latin-script targets
+                // (Spanish, French, German, etc.) both terms are Latin, so trust the AI.
+                if (!IsLatinScriptLanguage(targetLanguage))
+                {
+                    bool targetIsLatin = IsLikelyLatinScript(targetTerm);
+                    bool nativeIsLatin = IsLikelyLatinScript(nativeTerm);
 
-                if (targetIsEnglish && !nativeIsEnglish)
-                    (targetTerm, nativeTerm) = (nativeTerm, targetTerm);
-                else if (targetIsEnglish && nativeIsEnglish)
-                    continue;
+                    if (targetIsLatin && !nativeIsLatin)
+                        (targetTerm, nativeTerm) = (nativeTerm, targetTerm);
+                    else if (targetIsLatin && nativeIsLatin)
+                        continue;
+                }
 
                 // Skip if already in resource
                 if (resource.Vocabulary.Any(w =>
@@ -446,7 +451,7 @@ Transcript:
         return word;
     }
 
-    private static bool IsLikelyEnglish(string text)
+    private static bool IsLikelyLatinScript(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
         int latinCount = 0, totalLetters = 0;
@@ -455,10 +460,23 @@ Transcript:
             if (char.IsLetter(c))
             {
                 totalLetters++;
-                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '\u00C0' && c <= '\u024F')) // Latin Extended (accented chars)
                     latinCount++;
             }
         }
         return totalLetters > 0 && (latinCount / (double)totalLetters) > 0.8;
+    }
+
+    private static bool IsLatinScriptLanguage(string language)
+    {
+        var latinLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Spanish", "French", "German", "Italian", "Portuguese",
+            "Dutch", "Swedish", "Norwegian", "Danish", "Finnish",
+            "Polish", "Czech", "Romanian", "Hungarian", "Turkish",
+            "Vietnamese", "Indonesian", "Malay", "Tagalog", "Swahili"
+        };
+        return latinLanguages.Contains(language);
     }
 }
