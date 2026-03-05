@@ -61,9 +61,9 @@ public class AiService {
                     _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
                     return gatewayResult;
                 }
-                catch (HttpRequestException ex) when (_client != null)
+                catch (Exception ex) when (_client != null)
                 {
-                    _logger.LogWarning(ex, "AI gateway unavailable, falling back to direct client");
+                    _logger.LogWarning(ex, "AI gateway unavailable ({ExceptionType}), falling back to direct client", ex.GetType().Name);
                 }
             }
 
