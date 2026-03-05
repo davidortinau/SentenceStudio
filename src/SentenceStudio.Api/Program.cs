@@ -72,10 +72,8 @@ app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IChatC
         }
 
         var responseType = ResolveResponseType(request.ResponseType);
-        if (!string.IsNullOrWhiteSpace(request.ResponseType) && responseType == null)
-        {
-            return Results.BadRequest($"Unsupported response type '{request.ResponseType}'.");
-        }
+        // If type resolution fails, fall back to string/text response rather than 400.
+        // The client prompt already requests JSON format, so the client can parse it.
 
         if (responseType == null || responseType == typeof(string))
         {
@@ -351,13 +349,38 @@ static Type? ResolveResponseType(string? responseType)
         return typeof(string);
     }
 
-    var normalized = responseType.Split(',')[0].Trim();
-    return Type.GetType(responseType, throwOnError: false)
-        ?? Type.GetType(normalized, throwOnError: false)
-        ?? AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Select(assembly => assembly.GetType(normalized, throwOnError: false))
-            .FirstOrDefault(type => type != null);
+    // Try full assembly-qualified name first (works for simple and generic types)
+    var resolved = Type.GetType(responseType, throwOnError: false);
+    if (resolved != null) return resolved;
+
+    // Strip outer assembly info while preserving generic type arguments.
+    // For generic types like "List`1[[..., Assembly]], mscorlib, ..."
+    // we need to strip only the OUTER assembly, not the inner ones.
+    var normalized = StripOuterAssembly(responseType);
+    resolved = Type.GetType(normalized, throwOnError: false);
+    if (resolved != null) return resolved;
+
+    // Scan loaded assemblies
+    return AppDomain.CurrentDomain
+        .GetAssemblies()
+        .Select(assembly => assembly.GetType(normalized, throwOnError: false))
+        .FirstOrDefault(type => type != null);
+}
+
+static string StripOuterAssembly(string aqn)
+{
+    // Find the end of the type name portion (after any generic args in [[ ]])
+    int depth = 0;
+    for (int i = 0; i < aqn.Length; i++)
+    {
+        if (aqn[i] == '[') depth++;
+        else if (aqn[i] == ']') depth--;
+        else if (aqn[i] == ',' && depth == 0)
+        {
+            return aqn[..i].Trim();
+        }
+    }
+    return aqn.Trim();
 }
 
 app.Run();

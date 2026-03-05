@@ -64,14 +64,46 @@ public sealed class AiGatewayClient(IAiApiClient aiApiClient, ILogger<AiGatewayC
             return default;
         }
 
+        var json = CleanJsonResponse(response.Response);
+
         try
         {
-            return JsonSerializer.Deserialize<T>(response.Response, JsonOptions);
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Failed to deserialize AI gateway response to {ResponseType}", typeof(T).FullName);
+            _logger.LogError(ex, "Failed to deserialize AI gateway response to {ResponseType}. Response: {Response}",
+                typeof(T).FullName, json.Length > 200 ? json[..200] + "..." : json);
             return default;
         }
+    }
+
+    /// <summary>
+    /// Strips markdown code fences and leading/trailing non-JSON text from AI responses.
+    /// </summary>
+    private static string CleanJsonResponse(string response)
+    {
+        var trimmed = response.Trim();
+
+        // Strip ```json ... ``` or ``` ... ``` wrappers
+        if (trimmed.StartsWith("```"))
+        {
+            var firstNewline = trimmed.IndexOf('\n');
+            if (firstNewline > 0)
+                trimmed = trimmed[(firstNewline + 1)..];
+            if (trimmed.EndsWith("```"))
+                trimmed = trimmed[..^3];
+            return trimmed.Trim();
+        }
+
+        // Try to extract JSON array or object if surrounded by text
+        var jsonStart = trimmed.IndexOfAny(['[', '{']);
+        var jsonEnd = Math.Max(trimmed.LastIndexOf(']'), trimmed.LastIndexOf('}'));
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
+        {
+            return trimmed[jsonStart..(jsonEnd + 1)];
+        }
+
+        return trimmed;
     }
 }

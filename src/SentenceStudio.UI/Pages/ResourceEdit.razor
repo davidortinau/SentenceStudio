@@ -472,11 +472,16 @@ Transcript:
     {
         var latinLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "Spanish", "French", "German", "Italian", "Portuguese",
+            "English", "Spanish", "French", "German", "Italian", "Portuguese",
             "Dutch", "Swedish", "Norwegian", "Danish", "Finnish",
             "Polish", "Czech", "Romanian", "Hungarian", "Turkish",
             "Vietnamese", "Indonesian", "Malay", "Tagalog", "Swahili"
         };
-        return latinLanguages.Contains(language);
+        // Normalize: strip parenthetical suffixes like "(auto-generated)"
+        var normalized = language;
+        var parenIndex = language.IndexOf('(');
+        if (parenIndex > 0)
+            normalized = language[..parenIndex].Trim();
+        return latinLanguages.Contains(normalized);
     }
 }

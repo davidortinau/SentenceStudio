@@ -266,7 +266,7 @@
                 MediaUrl = videoUrl,
                 Transcript = transcriptText,
                 MediaType = "Video",
-                Language = selectedTrack?.LanguageName ?? ""
+                Language = NormalizeLanguageName(selectedTrack?.LanguageName ?? "")
             };
 
             var id = await ResourceRepo.SaveResourceAsync(resource);
@@ -304,5 +304,15 @@
     private async Task HandleUrlKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter") await FetchTranscripts();
+    }
+
+    private static string NormalizeLanguageName(string language)
+    {
+        if (string.IsNullOrWhiteSpace(language)) return language;
+        // Strip parenthetical suffixes like "(auto-generated)"
+        var parenIndex = language.IndexOf('(');
+        if (parenIndex > 0)
+            language = language[..parenIndex];
+        return language.Trim();
     }
 }
