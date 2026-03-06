@@ -1,4 +1,5 @@
 @page "/shadowing"
+@using Microsoft.JSInterop
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Speech
@@ -121,10 +122,12 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Shadowing> Logger { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool isBusy;
     private bool isBuffering;
     private bool isAudioPlaying;
+    private bool _useJsAudio;
     private bool showTranslation;
     private bool fromPlan;
     private int targetMinutes;
@@ -141,6 +144,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -208,14 +212,30 @@ else
             }
 
             StopAudio();
-            using var playStream = File.OpenRead(tempPath);
-            audioPlayer = AudioMgr.CreatePlayer(playStream);
-            audioPlayer.PlaybackEnded += (s, e) =>
+
+            if (_useJsAudio)
             {
-                isAudioPlaying = false;
-                InvokeAsync(StateHasChanged);
-            };
-            audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
+                // Server-side Blazor: read file to base64 and use JS interop
+                var bytes = await File.ReadAllBytesAsync(tempPath);
+                var base64 = Convert.ToBase64String(bytes);
+                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                isAudioPlaying = true;
+
+                // Estimate duration from file size (~16kB/s for mp3)
+                var fileInfo = new FileInfo(tempPath);
+                audioDuration = TimeSpan.FromSeconds(Math.Max(1, fileInfo.Length / 16000.0));
+            }
+            else
+            {
+                using var playStream = File.OpenRead(tempPath);
+                audioPlayer = AudioMgr.CreatePlayer(playStream);
+                audioPlayer.PlaybackEnded += (s, e) =>
+                {
+                    isAudioPlaying = false;
+                    InvokeAsync(StateHasChanged);
+                };
+                audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
+            }
 
             // Generate simple placeholder waveform
             waveformData = GeneratePlaceholderWaveform();
@@ -242,6 +262,20 @@ else
 
     private async Task TogglePlayback()
     {
+        if (_useJsAudio)
+        {
+            if (!isAudioPlaying)
+            {
+                await GenerateAudioForCurrent();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("audioInterop.stop");
+                isAudioPlaying = false;
+            }
+            return;
+        }
+
         if (audioPlayer is null)
         {
             await GenerateAudioForCurrent();
@@ -273,7 +307,11 @@ else
         playbackSpeed = speed;
         StopAudio();
         await GenerateAudioForCurrent();
-        if (audioPlayer is not null)
+        if (_useJsAudio)
+        {
+            // Audio already playing from GenerateAudioForCurrent
+        }
+        else if (audioPlayer is not null)
         {
             audioPlayer.Play();
             isAudioPlaying = true;
@@ -318,6 +356,10 @@ else
 
     private void StopAudio()
     {
+        if (_useJsAudio)
+        {
+            _ = JS.InvokeVoidAsync("audioInterop.stop");
+        }
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
