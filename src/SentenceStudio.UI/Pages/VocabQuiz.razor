@@ -197,6 +197,9 @@ else
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.VocabularyQuizPreferences QuizPrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -210,6 +213,7 @@ else
     private bool isPlayingAudio;
     private bool showMnemonicImage;
     private IAudioPlayer? audioPlayer;
+    private CancellationTokenSource? autoAdvanceCts;
     private string userInput = "";
     private string userGuess = "";
     private string userMode = "MultipleChoice";
@@ -423,10 +427,11 @@ else
         // Record attempt
         try
         {
+            var activeUserId = Preferences.Get("active_profile_id", "");
             await ProgressService.RecordAttemptAsync(new VocabularyAttempt
             {
                 VocabularyWordId = currentItem.Word.Id,
-                UserId = "1",
+                UserId = activeUserId,
                 Activity = "VocabularyQuiz",
                 InputMode = userMode,
                 WasCorrect = isCorrect,
@@ -450,10 +455,35 @@ else
             requireCorrectTyping = true;
             userInput = "";
         }
+
+        // Auto-advance after showing the answer (skip if user must retype)
+        if (!requireCorrectTyping)
+        {
+            autoAdvanceCts?.Cancel();
+            autoAdvanceCts = new CancellationTokenSource();
+            var token = autoAdvanceCts.Token;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(QuizPrefs.AutoAdvanceDuration, token);
+                    await InvokeAsync(async () =>
+                    {
+                        if (!token.IsCancellationRequested)
+                        {
+                            await NextItem();
+                            StateHasChanged();
+                        }
+                    });
+                }
+                catch (TaskCanceledException) { }
+            });
+        }
     }
 
     private async Task NextItem()
     {
+        autoAdvanceCts?.Cancel();
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
@@ -525,7 +555,19 @@ else
             audioPlayer?.Stop();
             audioPlayer?.Dispose();
             audioPlayer = AudioManager.CreatePlayer(audioStream);
-            audioPlayer.Play();
+            if (audioPlayer != null)
+            {
+                audioPlayer.Play();
+            }
+            else
+            {
+                // JS interop fallback for server-side Blazor (WebApp)
+                audioStream.Position = 0;
+                using var ms = new MemoryStream();
+                await audioStream.CopyToAsync(ms);
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+            }
         }
         catch (Exception ex)
         {
@@ -539,6 +581,8 @@ else
 
     public void Dispose()
     {
+        autoAdvanceCts?.Cancel();
+        autoAdvanceCts?.Dispose();
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
