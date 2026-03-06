@@ -1,6 +1,7 @@
 @page "/how-do-you-say"
 @using Plugin.Maui.Audio
 @using SentenceStudio.Services.Speech
+@using Microsoft.JSInterop
 @implements IDisposable
 
 <PageHeader Title="How Do You Say...?" ShowBack="true" OnBack="GoBack" />
@@ -90,6 +91,7 @@ else if (history.Any())
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
     [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<HowDoYouSay> Logger { get; set; } = default!;
@@ -100,6 +102,7 @@ else if (history.Any())
     private bool isBusy;
     private bool isLoadingHistory = true;
     private bool isAudioPlaying;
+    private bool _useJsAudio;
 
     private List<VoiceInfo> availableVoices = new();
     private List<StreamHistory> history = new();
@@ -108,6 +111,7 @@ else if (history.Any())
 
     protected override async Task OnInitializedAsync()
     {
+        _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         var profile = await ProfileRepo.GetAsync();
         targetLanguage = profile?.TargetLanguage ?? "Korean";
 
@@ -190,9 +194,18 @@ else if (history.Any())
 
             // Play it
             StopAudio();
-            using var playStream = File.OpenRead(filePath);
-            audioPlayer = AudioManager.CreatePlayer(playStream);
-            audioPlayer.Play();
+            if (_useJsAudio)
+            {
+                var audioBytes = await File.ReadAllBytesAsync(filePath);
+                var base64 = Convert.ToBase64String(audioBytes);
+                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+            }
+            else
+            {
+                using var playStream = File.OpenRead(filePath);
+                audioPlayer = AudioManager.CreatePlayer(playStream);
+                audioPlayer.Play();
+            }
             currentPlayingItem = entry;
             isAudioPlaying = true;
 
@@ -213,7 +226,7 @@ else if (history.Any())
         }
     }
 
-    private void PlayHistoryItem(StreamHistory item)
+    private async Task PlayHistoryItem(StreamHistory item)
     {
         if (currentPlayingItem?.Id == item.Id && isAudioPlaying)
         {
@@ -227,9 +240,18 @@ else if (history.Any())
         {
             if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
             {
-                var stream = File.OpenRead(item.AudioFilePath);
-                audioPlayer = AudioManager.CreatePlayer(stream);
-                audioPlayer.Play();
+                if (_useJsAudio)
+                {
+                    var audioBytes = await File.ReadAllBytesAsync(item.AudioFilePath);
+                    var base64 = Convert.ToBase64String(audioBytes);
+                    await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                }
+                else
+                {
+                    var stream = File.OpenRead(item.AudioFilePath);
+                    audioPlayer = AudioManager.CreatePlayer(stream);
+                    audioPlayer.Play();
+                }
                 currentPlayingItem = item;
                 isAudioPlaying = true;
             }
@@ -282,6 +304,10 @@ else if (history.Any())
 
     private void StopAudio()
     {
+        if (_useJsAudio)
+        {
+            _ = JS.InvokeVoidAsync("audioInterop.stop");
+        }
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
