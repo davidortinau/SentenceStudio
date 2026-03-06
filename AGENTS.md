@@ -391,6 +391,20 @@ Do NOT mark a task as complete after only a successful build. You MUST use the *
 - ✅ No regressions in surrounding functionality
 - ❌ "It builds" alone is NOT sufficient for UI changes
 
+### E2E test scripts
+
+Before verifying a bug fix or feature, load the relevant test script from `docs/e2e-tests/`:
+
+| File | Covers |
+|------|--------|
+| `docs/e2e-tests/smoke-test.md` | 5-min smoke test + cross-cutting checks (run after any change) |
+| `docs/e2e-tests/import-and-resources.md` | Import, Resource Edit, Vocabulary Detail |
+| `docs/e2e-tests/quiz-activities.md` | Vocab Quiz, Vocab Matching, Cloze, Writing, Translation |
+| `docs/e2e-tests/listening-activities.md` | Shadowing, Minimal Pairs, How Do You Say |
+| `docs/e2e-tests/other-activities.md` | Conversation, Reading, Scene, Video Watching |
+
+Read **only** the file relevant to your change to keep context small. Always run the smoke test after any fix.
+
 ## Localization Guidelines
 
 **CRITICAL: Always use string interpolation with LocalizationManager!**
