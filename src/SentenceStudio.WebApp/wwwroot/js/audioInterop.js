@@ -3,33 +3,62 @@ window.audioInterop = {
     _player: null,
     _timeupdateRef: null,
     _endedRef: null,
+    _ready: false,
 
     playFromBase64: function (base64Data, mimeType) {
         this.stop();
         try {
             var audio = new Audio("data:" + (mimeType || "audio/mpeg") + ";base64," + base64Data);
             this._player = audio;
-            audio.play();
+            this._ready = false;
+            audio.addEventListener('canplaythrough', function () {
+                window.audioInterop._ready = true;
+            }, { once: true });
+            audio.play().catch(function (e) {
+                console.error("Audio playback failed:", e);
+            });
         } catch (e) {
             console.error("Audio playback failed:", e);
         }
     },
 
     loadFromBase64: function (base64Data, mimeType) {
+        var self = this;
         this.stop();
-        try {
-            var audio = new Audio("data:" + (mimeType || "audio/mpeg") + ";base64," + base64Data);
-            this._player = audio;
-            return audio.duration || 0;
-        } catch (e) {
-            console.error("Audio load failed:", e);
-            return 0;
-        }
+        return new Promise(function (resolve) {
+            try {
+                var audio = new Audio("data:" + (mimeType || "audio/mpeg") + ";base64," + base64Data);
+                self._player = audio;
+                self._ready = false;
+
+                audio.addEventListener('canplaythrough', function () {
+                    self._ready = true;
+                    console.log("[audioInterop] Audio ready, duration:", audio.duration);
+                    resolve(audio.duration || 0);
+                }, { once: true });
+
+                audio.addEventListener('error', function (e) {
+                    console.error("[audioInterop] Audio load error:", e);
+                    resolve(0);
+                }, { once: true });
+
+                // Trigger load
+                audio.load();
+            } catch (e) {
+                console.error("Audio load failed:", e);
+                resolve(0);
+            }
+        });
     },
 
     play: function () {
         if (this._player) {
-            this._player.play();
+            var p = this._player.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function (e) {
+                    console.error("[audioInterop] play() rejected:", e);
+                });
+            }
         }
     },
 
@@ -41,7 +70,11 @@ window.audioInterop = {
 
     seekTo: function (timeSeconds) {
         if (this._player) {
-            this._player.currentTime = timeSeconds;
+            try {
+                this._player.currentTime = timeSeconds;
+            } catch (e) {
+                console.warn("[audioInterop] seekTo failed:", e);
+            }
         }
     },
 
@@ -91,5 +124,6 @@ window.audioInterop = {
             this._player.currentTime = 0;
             this._player = null;
         }
+        this._ready = false;
     }
 };

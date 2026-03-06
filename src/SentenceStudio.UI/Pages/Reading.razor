@@ -351,11 +351,15 @@
 
                 await _audioManager.LoadAudioAsync(timestampedAudio);
 
-                // Check if native audio player is available (MAUI) or JS fallback needed (webapp)
-                _useJsAudio = !_audioManager.HasNativePlayer;
+                // In server-side Blazor, AudioManager.Current.CreatePlayer() succeeds but
+                // plays audio on the SERVER, not in the user's browser. Detect this by
+                // checking if IJSRuntime is a remote (SignalR) runtime.
+                var isServerSide = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
+                _useJsAudio = isServerSide || !_audioManager.HasNativePlayer;
                 if (_useJsAudio)
                 {
-                    Logger.LogInformation("Native audio unavailable — using JS interop audio fallback");
+                    Logger.LogInformation("Using JS interop audio (serverSide={IsServer}, nativePlayer={HasNative})",
+                        isServerSide, _audioManager.HasNativePlayer);
                     var base64 = Convert.ToBase64String(timestampedAudio.AudioData);
                     await JS.InvokeVoidAsync("audioInterop.loadFromBase64", base64, "audio/mpeg");
                 }
