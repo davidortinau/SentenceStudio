@@ -97,6 +97,7 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabMatching> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     private bool isBusy;
     private bool isGameComplete;
@@ -307,6 +308,7 @@ else
                     ExpectedAnswer = $"{matchedWord.NativeLanguageTerm} = {matchedWord.TargetLanguageTerm}",
                     ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
                 });
+                CacheService.InvalidateVocabSummary();
             }
             catch (Exception ex)
             {

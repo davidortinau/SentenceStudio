@@ -200,6 +200,7 @@ else
     [Inject] private SentenceStudio.Services.VocabularyQuizPreferences QuizPrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -441,6 +442,7 @@ else
                 ExpectedAnswer = correctAnswer,
                 ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
             });
+            CacheService.InvalidateVocabSummary();
         }
         catch (Exception ex)
         {
