@@ -95,8 +95,8 @@ public class ApplicationDbContext : DbContext
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()
             .HasOne(vp => vp.VocabularyWord)
-            .WithOne()
-            .HasForeignKey<VocabularyProgress>(vp => vp.VocabularyWordId)
+            .WithMany()
+            .HasForeignKey(vp => vp.VocabularyWordId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<VocabularyLearningContext>()
