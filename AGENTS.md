@@ -393,18 +393,7 @@ Do NOT mark a task as complete after only a successful build. You MUST use the *
 
 ### E2E test scripts
 
-Before verifying a bug fix or feature, load the relevant test script from `docs/e2e-tests/`:
-
-| File | Covers |
-|------|--------|
-| `docs/e2e-tests/smoke-test.md` | 5-min smoke test + cross-cutting checks (run after any change) |
-| `docs/e2e-tests/import-and-resources.md` | Import, Resource Edit, Vocabulary Detail |
-| `docs/e2e-tests/quiz-activities.md` | Vocab Quiz, Vocab Matching, Cloze, Writing, Translation |
-| `docs/e2e-tests/listening-activities.md` | Shadowing, Minimal Pairs, How Do You Say |
-| `docs/e2e-tests/other-activities.md` | Conversation, Reading, Scene, Video Watching |
-| `docs/e2e-tests/management-pages.md` | Resources, Vocabulary, Skills, Profile, Settings CRUD |
-
-Read **only** the file relevant to your change to keep context small. Always run the smoke test after any fix.
+Use the **e2e-testing** skill (`.claude/skills/e2e-testing/`) to verify bug fixes and features. The skill contains step-by-step test scripts for every activity and management page, organized as reference files you load on demand. Invoke it after every change.
 
 ## Localization Guidelines
 
