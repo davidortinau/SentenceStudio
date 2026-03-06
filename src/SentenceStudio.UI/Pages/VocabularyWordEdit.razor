@@ -1,4 +1,6 @@
 @page "/vocabulary/edit/{Id}"
+@using Plugin.Maui.Audio
+@implements IDisposable
 
 @if (isLoading)
 {
@@ -50,8 +52,15 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Target Language Term</label>
-            <input type="text" class="form-control form-control-ss" @bind="targetLanguageTerm"
-                   placeholder="Enter target language term" />
+            <div class="input-group">
+                <input type="text" class="form-control form-control-ss" @bind="targetLanguageTerm"
+                       placeholder="Enter target language term" />
+                <button class="btn btn-outline-secondary" type="button"
+                        title="Play audio" disabled="@(isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm))"
+                        @onclick="PlayTermAudio">
+                    <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                </button>
+            </div>
         </div>
 
         <div class="mb-3">
@@ -166,10 +175,18 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<VocabularyWordEdit> Logger { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
 
     private VocabularyWord word = new();
     private bool isLoading = true;
     private bool isSaving;
+    private bool isPlayingAudio;
+    private IAudioPlayer? audioPlayer;
     private string errorMessage = "";
     private IJSObjectReference? jsModule;
 
@@ -419,4 +436,64 @@ else
         "Learning" => "bg-warning text-dark",
         _ => "bg-secondary"
     };
+
+    private async Task PlayTermAudio()
+    {
+        if (isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm)) return;
+        isPlayingAudio = true;
+
+        try
+        {
+            var voiceId = VoicePrefs.VoiceId;
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetLanguageTerm, voiceId);
+            Stream audioStream;
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.IsInternetAvailable)
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(targetLanguageTerm, voiceId, 0.5f, 0.75f, 0.85f);
+
+                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = targetLanguageTerm, VoiceId = voiceId, AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                Toast.ShowWarning("Audio unavailable offline.");
+                return;
+            }
+
+            audioPlayer?.Stop();
+            audioPlayer?.Dispose();
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            audioPlayer.Play();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play term audio");
+        }
+        finally
+        {
+            isPlayingAudio = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+    }
 }
