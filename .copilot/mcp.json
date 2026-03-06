@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "aspire": {
+      "type": "http",
+      "url": "http://localhost:16036/mcp",
+      "headers": {
+        "x-mcp-api-key": "${input:aspire-mcp-api-key}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "aspire-mcp-api-key",
+      "type": "promptString",
+      "description": "Aspire MCP API Key — run: ./scripts/get-aspire-mcp-key.sh",
+      "password": true
+    }
+  ]
+}
