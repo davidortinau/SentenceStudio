@@ -402,6 +402,7 @@ Before verifying a bug fix or feature, load the relevant test script from `docs/
 | `docs/e2e-tests/quiz-activities.md` | Vocab Quiz, Vocab Matching, Cloze, Writing, Translation |
 | `docs/e2e-tests/listening-activities.md` | Shadowing, Minimal Pairs, How Do You Say |
 | `docs/e2e-tests/other-activities.md` | Conversation, Reading, Scene, Video Watching |
+| `docs/e2e-tests/management-pages.md` | Resources, Vocabulary, Skills, Profile, Settings CRUD |
 
 Read **only** the file relevant to your change to keep context small. Always run the smoke test after any fix.
 
