@@ -26,9 +26,25 @@ public class TimestampedAudioManager : IDisposable
     public event EventHandler? PlaybackEnded;
 
     public bool IsPlaying => _player?.IsPlaying ?? false;
+    public bool HasNativePlayer => _player != null;
     public TimeSpan CurrentPosition => TimeSpan.FromSeconds(_player?.CurrentPosition ?? 0.0);
     public TimeSpan Duration => TimeSpan.FromSeconds(_player?.Duration ?? 0.0);
     public int CurrentSentenceIndex => _currentSentenceIndex;
+
+    /// <summary>Returns the loaded TimestampedAudio for JS fallback access to characters/transcript.</summary>
+    public TimestampedAudio? GetCurrentAudio() => _currentAudio;
+
+    /// <summary>Returns the sentence index at the given time (seconds) using pre-calculated timings.</summary>
+    public int GetSentenceIndexAtTime(double timeSeconds)
+    {
+        for (int i = _sentenceTimings.Count - 1; i >= 0; i--)
+        {
+            var (startTime, endTime, sentenceIdx) = _sentenceTimings[i];
+            if (timeSeconds >= startTime)
+                return sentenceIdx;
+        }
+        return -1;
+    }
 
     private List<(int StartCharIdx, int EndCharIdx)> _sentenceCharRanges = new();
     private List<string> _sentences = new();
@@ -105,7 +121,14 @@ public class TimestampedAudioManager : IDisposable
             // Create audio player from data
             var audioStream = new MemoryStream(audio.AudioData);
             _player = AudioManager.Current.CreatePlayer(audioStream);
-            _player.PlaybackEnded += OnPlaybackEnded;
+            if (_player != null)
+            {
+                _player.PlaybackEnded += OnPlaybackEnded;
+            }
+            else
+            {
+                _logger.LogWarning("AudioManager.CreatePlayer returned null — native audio unavailable (web/server context)");
+            }
 
             // Setup progress tracking timer (50ms for smooth real-time updates)
             _progressTimer = new System.Timers.Timer(50);
@@ -113,8 +136,8 @@ public class TimestampedAudioManager : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading audio: {Message}", ex.Message);
-            throw;
+            _logger.LogWarning(ex, "Native audio player unavailable: {Message}. JS fallback will be used.", ex.Message);
+            // Don't throw — let the caller use JS interop fallback
         }
     }
 

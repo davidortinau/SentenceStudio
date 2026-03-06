@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Models;
 using Microsoft.Extensions.Logging;
 
@@ -17,6 +18,7 @@ public class AudioCacheManager : IDisposable
 {
     private readonly ElevenLabsSpeechService _speechService;
     private readonly ILogger<AudioCacheManager> _logger;
+    private readonly IFileSystemService _fileSystem;
     private readonly AudioCacheConfig _config;
     private readonly ConcurrentQueue<int> _preloadQueue = new();
     private readonly SemaphoreSlim _generationSemaphore;
@@ -29,10 +31,11 @@ public class AudioCacheManager : IDisposable
     private List<string> _sentences = new();
     private bool _disposed = false;
 
-    public AudioCacheManager(ElevenLabsSpeechService speechService, ILogger<AudioCacheManager> logger, AudioCacheConfig? config = null)
+    public AudioCacheManager(ElevenLabsSpeechService speechService, ILogger<AudioCacheManager> logger, IFileSystemService fileSystem, AudioCacheConfig? config = null)
     {
         _speechService = speechService;
         _logger = logger;
+        _fileSystem = fileSystem;
         _config = config ?? new AudioCacheConfig();
         _generationSemaphore = new SemaphoreSlim(_config.MaxConcurrentJobs, _config.MaxConcurrentJobs);
     }
@@ -180,7 +183,7 @@ public class AudioCacheManager : IDisposable
         {
             var sentence = _sentences[sentenceIndex];
             var cacheKey = $"reading_{_currentResource.Id}_{sentenceIndex}";
-            var audioFilePath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
+            var audioFilePath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.mp3");
 
             // Check file cache first
             if (File.Exists(audioFilePath))

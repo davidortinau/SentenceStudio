@@ -238,6 +238,8 @@
     private double currentAudioTime;
     private double audioDuration;
     private int currentSentenceIndex = -1;
+    private bool _useJsAudio; // true when native IAudioPlayer is unavailable (webapp)
+    private DotNetObjectReference<Reading>? _dotNetRef;
 
     // Word lookup state
     private bool showWordPanel;
@@ -348,6 +350,16 @@
                 await InvokeAsync(StateHasChanged);
 
                 await _audioManager.LoadAudioAsync(timestampedAudio);
+
+                // Check if native audio player is available (MAUI) or JS fallback needed (webapp)
+                _useJsAudio = !_audioManager.HasNativePlayer;
+                if (_useJsAudio)
+                {
+                    Logger.LogInformation("Native audio unavailable — using JS interop audio fallback");
+                    var base64 = Convert.ToBase64String(timestampedAudio.AudioData);
+                    await JS.InvokeVoidAsync("audioInterop.loadFromBase64", base64, "audio/mpeg");
+                }
+
                 _audioManager.SentenceChanged += OnSentenceChanged;
                 _audioManager.ProgressUpdated += OnProgressUpdated;
                 _audioManager.PlaybackEnded += OnPlaybackEnded;
@@ -433,13 +445,28 @@
 
         if (isAudioPlaying)
         {
-            _audioManager.Pause();
+            if (_useJsAudio)
+            {
+                await JS.InvokeVoidAsync("audioInterop.pause");
+                await StopJsTimeTracking();
+            }
+            else
+            {
+                _audioManager.Pause();
+            }
             isAudioPlaying = false;
         }
         else
         {
             var startIndex = currentSentenceIndex >= 0 ? currentSentenceIndex : 0;
-            await _audioManager.PlayFromSentenceAsync(startIndex);
+            if (_useJsAudio)
+            {
+                await JsPlayFromSentence(startIndex);
+            }
+            else
+            {
+                await _audioManager.PlayFromSentenceAsync(startIndex);
+            }
             isAudioPlaying = true;
             currentSentenceIndex = startIndex;
         }
@@ -452,7 +479,12 @@
         {
             currentSentenceIndex--;
             if (isAudioPlaying)
-                await _audioManager.PreviousSentenceAsync();
+            {
+                if (_useJsAudio)
+                    await JsPlayFromSentence(currentSentenceIndex);
+                else
+                    await _audioManager.PreviousSentenceAsync();
+            }
         }
     }
 
@@ -463,7 +495,12 @@
         {
             currentSentenceIndex++;
             if (isAudioPlaying)
-                await _audioManager.NextSentenceAsync();
+            {
+                if (_useJsAudio)
+                    await JsPlayFromSentence(currentSentenceIndex);
+                else
+                    await _audioManager.NextSentenceAsync();
+            }
         }
     }
 
@@ -484,6 +521,68 @@
             fontSize = size;
             Preferences.Set("ReadingActivity_FontSize", (double)fontSize);
         }
+    }
+
+    // ── JS interop audio fallback (webapp) ──
+
+    private async Task JsPlayFromSentence(int sentenceIndex)
+    {
+        if (_audioManager?.GetCurrentAudio() is null) return;
+
+        var sentenceInfo = _timingCalculator?.GetSentenceTimingInfo(
+            sentenceIndex,
+            _audioManager.GetCurrentAudio()!.Characters,
+            _audioManager.GetCurrentAudio()!.FullTranscript);
+
+        if (sentenceInfo != null)
+        {
+            await JS.InvokeVoidAsync("audioInterop.seekTo", sentenceInfo.StartTime);
+        }
+        await JS.InvokeVoidAsync("audioInterop.play");
+        await StartJsTimeTracking();
+    }
+
+    private async Task StartJsTimeTracking()
+    {
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("audioInterop.startTimeTracking", _dotNetRef, 50);
+    }
+
+    private async Task StopJsTimeTracking()
+    {
+        await JS.InvokeVoidAsync("audioInterop.stopTimeTracking");
+    }
+
+    [JSInvokable]
+    public void OnJsTimeUpdate(double currentTime)
+    {
+        currentAudioTime = currentTime;
+        // Update sentence highlighting based on current time
+        if (_audioManager != null)
+        {
+            var newIndex = _audioManager.GetSentenceIndexAtTime(currentTime);
+            if (newIndex >= 0 && newIndex != currentSentenceIndex)
+            {
+                currentSentenceIndex = newIndex;
+                _ = InvokeAsync(async () =>
+                {
+                    StateHasChanged();
+                    await Task.Yield();
+                    await JS.InvokeVoidAsync("eval",
+                        "document.querySelector('.sentence--selected')?.scrollIntoView({behavior:'smooth',block:'center'})");
+                });
+                return;
+            }
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnJsPlaybackEnded()
+    {
+        isAudioPlaying = false;
+        currentSentenceIndex = -1;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     // ── Word interaction ──
@@ -572,7 +671,10 @@
         }
 
         currentSentenceIndex = sentenceIndex;
-        await _audioManager.PlayFromSentenceAsync(sentenceIndex);
+        if (_useJsAudio)
+            await JsPlayFromSentence(sentenceIndex);
+        else
+            await _audioManager.PlayFromSentenceAsync(sentenceIndex);
         isAudioPlaying = true;
     }
 
@@ -694,5 +796,6 @@
             _audioManager.PlaybackEnded -= OnPlaybackEnded;
             _audioManager.Dispose();
         }
+        _dotNetRef?.Dispose();
     }
 }

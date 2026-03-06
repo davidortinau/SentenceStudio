@@ -87,6 +87,7 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<MinimalPairCreate> Logger { get; set; } = default!;
+    [Inject] private IPreferences Preferences { get; set; } = default!;
 
     private List<VocabularyWord> availableWords = new();
     private bool isLoading = true;
@@ -150,7 +151,7 @@ else
         try
         {
             var pair = await PairRepo.CreatePairAsync(
-                userId: "1",
+                userId: Preferences.Get("active_profile_id", ""),
                 wordAId: selectedWordAId,
                 wordBId: selectedWordBId,
                 contrastLabel: string.IsNullOrWhiteSpace(contrastLabel) ? null : contrastLabel.Trim()

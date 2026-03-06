@@ -2,6 +2,7 @@ using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Models;
 using Microsoft.Extensions.Logging;
 
@@ -37,6 +38,7 @@ public class ElevenLabsSpeechService
     private readonly ElevenLabsClient _client;
     private readonly Dictionary<string, Voice> _cachedVoices = new();
     private readonly ILogger<ElevenLabsSpeechService> _logger;
+    private readonly IFileSystemService _fileSystem;
     private bool _voicesInitialized = false;
 
     /// <summary>
@@ -81,10 +83,11 @@ public class ElevenLabsSpeechService
     /// </summary>
     /// <param name="client">The ElevenLabs client instance.</param>
     /// <param name="logger">The logger instance.</param>
-    public ElevenLabsSpeechService(ElevenLabsClient client, ILogger<ElevenLabsSpeechService> logger)
+    public ElevenLabsSpeechService(ElevenLabsClient client, ILogger<ElevenLabsSpeechService> logger, IFileSystemService fileSystem)
     {
         _client = client;
         _logger = logger;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>
@@ -224,8 +227,8 @@ public class ElevenLabsSpeechService
         {
             // Check cache first
             var cacheKey = $"timestamped_{resource.Id}_{voiceId}_{speed:F1}";
-            var cacheFilePath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.mp3");
-            var cacheMetaPath = Path.Combine(FileSystem.AppDataDirectory, $"{cacheKey}.json");
+            var cacheFilePath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.mp3");
+            var cacheMetaPath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.json");
 
             if (File.Exists(cacheFilePath) && File.Exists(cacheMetaPath))
             {
