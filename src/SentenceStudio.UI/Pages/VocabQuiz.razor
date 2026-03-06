@@ -1,4 +1,6 @@
 @page "/vocab-quiz"
+@using Plugin.Maui.Audio
+@implements IDisposable
 
 <div class="activity-page-wrapper">
 
@@ -58,6 +60,34 @@ else if (currentItem != null)
     @* Term display — show the target language word *@
     <div class="text-center my-4">
         <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
+
+        @* Audio & Image hint buttons *@
+        <div class="d-flex justify-content-center gap-3 mb-2">
+            <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                    style="width: 44px; height: 44px;"
+                    title="Play audio"
+                    disabled="@isPlayingAudio"
+                    @onclick="PlayWordAudio">
+                <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+            </button>
+            @if (!string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+            {
+                <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                        style="width: 44px; height: 44px;"
+                        title="@(showMnemonicImage ? "Hide image" : "Show image hint")"
+                        @onclick="ToggleMnemonicImage">
+                    <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
+                </button>
+            }
+        </div>
+
+        @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+        {
+            <div class="mb-3">
+                <img src="@currentItem.Word.MnemonicImageUri" alt="Mnemonic hint"
+                     class="rounded shadow-sm" style="max-height: 160px; object-fit: contain;" />
+            </div>
+        }
 
         @if (showAnswer)
         {
@@ -161,6 +191,12 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
+    [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
+    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -171,6 +207,9 @@ else
     private bool isCorrect;
     private bool showSessionSummary;
     private bool requireCorrectTyping;
+    private bool isPlayingAudio;
+    private bool showMnemonicImage;
+    private IAudioPlayer? audioPlayer;
     private string userInput = "";
     private string userGuess = "";
     private string userMode = "MultipleChoice";
@@ -417,6 +456,7 @@ else
     {
         currentTurnInRound++;
         requireCorrectTyping = false;
+        showMnemonicImage = false;
         await LoadCurrentItem();
     }
 
@@ -438,4 +478,69 @@ else
     }
 
     private void GoBack() => NavManager.NavigateTo("/");
+
+    private void ToggleMnemonicImage() => showMnemonicImage = !showMnemonicImage;
+
+    private async Task PlayWordAudio()
+    {
+        if (currentItem?.Word == null || isPlayingAudio) return;
+        isPlayingAudio = true;
+
+        try
+        {
+            var text = currentItem.Word.TargetLanguageTerm;
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            var voiceId = VoicePrefs.VoiceId;
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
+            Stream audioStream;
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.IsInternetAvailable)
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f);
+
+                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = text, VoiceId = voiceId, AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                Toast.ShowWarning("Audio unavailable offline.");
+                return;
+            }
+
+            audioPlayer?.Stop();
+            audioPlayer?.Dispose();
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            audioPlayer.Play();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play word audio");
+        }
+        finally
+        {
+            isPlayingAudio = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        audioPlayer = null;
+    }
 }
