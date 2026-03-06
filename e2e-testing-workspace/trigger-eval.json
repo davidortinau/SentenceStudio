@@ -1,0 +1,82 @@
+[
+  {
+    "query": "I just fixed the auto-advance timer in VocabQuiz.razor — can you verify it actually works by running the quiz and checking that it moves to the next word after 2 seconds?",
+    "should_trigger": true
+  },
+  {
+    "query": "the audio button on the vocabulary detail page isn't playing anything on the webapp. test it end to end and figure out what's broken",
+    "should_trigger": true
+  },
+  {
+    "query": "I changed the dashboard to show Learning count but it still shows 0 after I do quizzes. verify the cache invalidation is working by answering some quiz questions and checking the dashboard",
+    "should_trigger": true
+  },
+  {
+    "query": "run a quick smoke test on the app after my last commit — make sure the basic flows still work",
+    "should_trigger": true
+  },
+  {
+    "query": "I added a new Generate from Transcript button on the resource edit page. test that it actually generates vocabulary words when I click it — use Gunther's German transcript",
+    "should_trigger": true
+  },
+  {
+    "query": "can you verify that the import workflow works? paste this youtube URL, fetch the transcript, polish it, save it, then generate vocabulary from it",
+    "should_trigger": true
+  },
+  {
+    "query": "I fixed the UserId bug in Cloze.razor — it was hardcoded to '1' instead of the GUID. verify the fix by doing some cloze exercises and checking that the VocabularyProgress records have the right user ID",
+    "should_trigger": true
+  },
+  {
+    "query": "test the skill profile CRUD — create a new skill, edit it, verify it shows up in the list, then delete it",
+    "should_trigger": true
+  },
+  {
+    "query": "after my refactor of the settings page, make sure theme switching and quiz preferences still save correctly",
+    "should_trigger": true
+  },
+  {
+    "query": "verify that the minimal pairs session records attempts correctly to the database after I changed the scoring logic",
+    "should_trigger": true
+  },
+  {
+    "query": "add a speaker button next to the target language term input on the vocabulary edit page",
+    "should_trigger": false
+  },
+  {
+    "query": "refactor the VocabularyProgressService to use batch SQL updates instead of individual saves",
+    "should_trigger": false
+  },
+  {
+    "query": "the IsLatinScriptLanguage method doesn't handle language names with parenthetical suffixes like 'German (auto-generated)'. Fix the normalization logic",
+    "should_trigger": false
+  },
+  {
+    "query": "create a new Blazor component for displaying vocabulary flashcards with flip animation",
+    "should_trigger": false
+  },
+  {
+    "query": "add ElevenLabs TTS integration to the shadowing page so it can generate audio for each sentence",
+    "should_trigger": false
+  },
+  {
+    "query": "update the AGENTS.md to document the new database migration process we agreed on",
+    "should_trigger": false
+  },
+  {
+    "query": "I need to increase the Polly resilience timeout from 30s to 120s for AI calls — they're timing out on large transcripts",
+    "should_trigger": false
+  },
+  {
+    "query": "write a new EF Core migration to add a MnemonicImageUri column to the VocabularyWord table",
+    "should_trigger": false
+  },
+  {
+    "query": "set up the Aspire AppHost to include the Android and iOS projects in the orchestration",
+    "should_trigger": false
+  },
+  {
+    "query": "I want to change the quiz auto-advance duration default from 2 seconds to 3 seconds in VocabularyQuizPreferences.cs",
+    "should_trigger": false
+  }
+]

@@ -1,13 +1,15 @@
 ---
 name: e2e-testing
 description: >
-  End-to-end verification of SentenceStudio features and bug fixes using Aspire, Playwright (webapp),
-  and maui-ai-debugging (native apps). Use when: (1) verifying a bug fix works before marking it done,
-  (2) validating a new feature end-to-end after implementation, (3) running a smoke test after any code change,
-  (4) checking that activity pages record progress correctly, (5) verifying audio playback works across
-  platforms, (6) confirming AI gateway calls succeed through Aspire. Invoke this skill whenever you need
-  to test something in the running app — even if you think a build check is enough, it probably isn't.
-  This skill should be used after EVERY bug fix and feature implementation as a mandatory final step.
+  End-to-end testing and verification for SentenceStudio. USE THIS SKILL whenever the user says
+  "test", "verify", "check", "validate", "confirm it works", "smoke test", "run the app and check",
+  "does it work", "try it", "make sure", or any variation of testing a feature or fix in a running app.
+  Also use after EVERY bug fix or feature implementation as a mandatory final verification step — even
+  if you think a build check is enough. Covers: launching via Aspire, interacting with Playwright (webapp)
+  or maui-ai-debugging (native), verifying UI state, checking database records, and reading structured logs.
+  If someone asks you to test anything in this app, or to verify a fix works, or to run a smoke test,
+  or to check that CRUD operations work, or to confirm audio/quiz/import/activity features behave correctly
+  — this is the skill to use. Do NOT skip this skill when verification is needed.
 ---
 
 # E2E Testing
