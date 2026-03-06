@@ -10,9 +10,9 @@ namespace SentenceStudio.Shared.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_VocabularyProgress_VocabularyWordId",
-                table: "VocabularyProgress");
+            // Use raw SQL for idempotent drop (index may already be absent)
+            migrationBuilder.Sql(
+                "DROP INDEX IF EXISTS IX_VocabularyProgress_VocabularyWordId;");
         }
 
         /// <inheritdoc />
