@@ -1,0 +1,44 @@
+{
+  "agents": {
+    "zoe": {
+      "persistent_name": "Zoe",
+      "universe": "Firefly",
+      "role": "Lead",
+      "created_at": "2026-03-07T22:38:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "kaylee": {
+      "persistent_name": "Kaylee",
+      "universe": "Firefly",
+      "role": "Full-stack Dev",
+      "created_at": "2026-03-07T22:38:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "wash": {
+      "persistent_name": "Wash",
+      "universe": "Firefly",
+      "role": "Backend Dev",
+      "created_at": "2026-03-07T22:38:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "river": {
+      "persistent_name": "River",
+      "universe": "Firefly",
+      "role": "AI/Prompt Engineer",
+      "created_at": "2026-03-07T22:38:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "jayne": {
+      "persistent_name": "Jayne",
+      "universe": "Firefly",
+      "role": "Tester",
+      "created_at": "2026-03-07T22:38:00Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
+}

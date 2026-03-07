@@ -1,0 +1,23 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Firefly",
+      "assigned_at": "2026-03-07T22:38:00Z",
+      "project": "SentenceStudio"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "assignment-001": {
+      "assignment_id": "assignment-001",
+      "universe": "Firefly",
+      "timestamp": "2026-03-07T22:38:00Z",
+      "agents": {
+        "zoe": "Lead",
+        "kaylee": "Full-stack Dev",
+        "wash": "Backend Dev",
+        "river": "AI/Prompt Engineer",
+        "jayne": "Tester"
+      }
+    }
+  }
+}
