@@ -12,7 +12,20 @@ Entries to grade:
 {{ end }}
 
 For EACH entry, determine:
-1. **related**: Is this entry meaningfully related to the vocabulary word "{{ target_term }}" ({{ native_term }})? A clue is "related" if it is a synonym, antonym, opposite, negation, category member, commonly associated concept, word that frequently co-occurs, a sentence using the word correctly, or any reasonable semantic connection — including indirect associations like describing the word by what it is NOT (e.g., "not the end" for "to begin"). Be generous -- if a native speaker would see a clear connection, mark it as related. Do NOT penalize spelling mistakes. Judge the intent behind the word, not the spelling.
+1. **related**: Is this entry meaningfully connected to the vocabulary word "{{ target_term }}" ({{ native_term }}) in ANY way?
+
+   This is a word association game. The student is brainstorming connections. Be VERY permissive. Mark related=true for ANY of these:
+   - Synonyms, antonyms, opposites, contrasts
+   - Words that evoke similar feelings, moods, or imagery
+   - Words from the same topic, category, or semantic field
+   - Descriptions using "opposite of X" or contrast phrases
+   - Collocations or words that commonly appear together
+   - Sentences or phrases using the word
+   - Cultural associations, personal associations, or subjective connections
+   - Multi-step associations (A reminds me of B which connects to the word)
+   - Anything a language learner could reasonably explain as connected
+   
+   Only mark related=false if the entry has absolutely NO discernible connection — a truly random, unrelated word with no possible link. When in doubt, ALWAYS give credit. Err heavily on the side of related=true. This is a learning exercise, not an exam. If you can construct even a tenuous explanation for why the student might have written this clue, mark it as related.
 2. **is_cloze**: Is this entry a full sentence (not just a single word or short phrase)? Mark true if it contains a subject and verb or is clearly a complete sentence.
 3. **corrected_text**: If the entry contains any spelling or grammar mistakes, provide the corrected version. If the entry is already correct, return null.
 
