@@ -81,31 +81,31 @@ else
         </div>
     }
 
-    @* Dropdown filters *@
+    @* Dropdown filter shortcuts — selecting writes into the search query *@
     <div class="d-flex gap-2 mb-4 flex-wrap">
         <select class="form-select form-control-ss" style="max-width: 160px;"
-                @bind="selectedAssociation" @bind:after="ApplyFilters">
-            <option value="All">All Words</option>
-            <option value="Associated">Associated</option>
-            <option value="Orphaned">Orphaned</option>
+                value="@CurrentAssociation" @onchange="OnAssociationDropdown">
+            <option value="">All Words</option>
+            <option value="associated">Associated</option>
+            <option value="orphaned">Orphaned</option>
         </select>
 
         <select class="form-select form-control-ss" style="max-width: 160px;"
-                @bind="selectedStatus" @bind:after="ApplyFilters">
-            <option value="All">All Status</option>
-            <option value="Known">Known</option>
-            <option value="Learning">Learning</option>
-            <option value="Unknown">Unknown</option>
+                value="@CurrentStatus" @onchange="OnStatusDropdown">
+            <option value="">All Status</option>
+            <option value="known">Known</option>
+            <option value="learning">Learning</option>
+            <option value="unknown">Unknown</option>
         </select>
 
         @if (availableResources.Count > 0)
         {
             <select class="form-select form-control-ss" style="max-width: 220px;"
-                    @bind="selectedResourceId" @bind:after="ApplyFilters">
+                    value="@CurrentResource" @onchange="OnResourceDropdown">
                 <option value="">All Resources</option>
                 @foreach (var r in availableResources)
                 {
-                    <option value="@r.Id">@TruncateTitle(r.Title, 30)</option>
+                    <option value="@r.Title">@TruncateTitle(r.Title, 30)</option>
                 }
             </select>
         }
@@ -113,7 +113,7 @@ else
         @if (availableTags.Count > 0)
         {
             <select class="form-select form-control-ss" style="max-width: 160px;"
-                    @bind="selectedTag" @bind:after="ApplyFilters">
+                    value="@CurrentTag" @onchange="OnTagDropdown">
                 <option value="">All Tags</option>
                 @foreach (var tag in availableTags)
                 {
@@ -125,7 +125,7 @@ else
         @if (availableLemmas.Count > 0)
         {
             <select class="form-select form-control-ss" style="max-width: 160px;"
-                    @bind="selectedLemma" @bind:after="ApplyFilters">
+                    value="@CurrentLemma" @onchange="OnLemmaDropdown">
                 <option value="">All Lemmas</option>
                 @foreach (var lemma in availableLemmas)
                 {
@@ -208,13 +208,6 @@ else
     // Search query (unified with filter syntax)
     private string searchQuery = "";
     private ParsedQuery? parsedQuery;
-    private string selectedAssociation = "All";
-
-    // Dropdown filter state
-    private string selectedStatus = "All";
-    private string selectedResourceId = "";
-    private string selectedTag = "";
-    private string selectedLemma = "";
 
     // Autocomplete
     private bool showAutocomplete;
@@ -225,13 +218,17 @@ else
     private List<string> availableTags = new();
     private List<string> availableLemmas = new();
 
-    private bool HasActiveFilters =>
-        !string.IsNullOrWhiteSpace(searchQuery) ||
-        selectedAssociation != "All" ||
-        selectedStatus != "All" ||
-        !string.IsNullOrEmpty(selectedResourceId) ||
-        !string.IsNullOrEmpty(selectedTag) ||
-        !string.IsNullOrEmpty(selectedLemma);
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
+
+    // Computed dropdown values — read from the parsed search query
+    private string CurrentAssociation => GetFilterValue("association");
+    private string CurrentStatus => GetFilterValue("status");
+    private string CurrentResource => GetFilterValue("resource");
+    private string CurrentTag => GetFilterValue("tag");
+    private string CurrentLemma => GetFilterValue("lemma");
+
+    private string GetFilterValue(string type) =>
+        parsedQuery?.Filters.FirstOrDefault(f => f.Type.Equals(type, StringComparison.OrdinalIgnoreCase))?.Value ?? "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -375,43 +372,37 @@ else
         ApplyFilters();
     }
 
+    private void OnAssociationDropdown(ChangeEventArgs e) => OnDropdownChanged("association", e);
+    private void OnStatusDropdown(ChangeEventArgs e) => OnDropdownChanged("status", e);
+    private void OnResourceDropdown(ChangeEventArgs e) => OnDropdownChanged("resource", e);
+    private void OnTagDropdown(ChangeEventArgs e) => OnDropdownChanged("tag", e);
+    private void OnLemmaDropdown(ChangeEventArgs e) => OnDropdownChanged("lemma", e);
+
+    private void OnDropdownChanged(string filterType, ChangeEventArgs e)
+    {
+        var newValue = e.Value?.ToString() ?? "";
+
+        // Remove existing filter of this type
+        var existing = parsedQuery?.Filters.FirstOrDefault(f => f.Type.Equals(filterType, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            searchQuery = SearchParser.RemoveFilter(searchQuery, existing);
+
+        // Add new filter if a value was selected (not "All"/"")
+        if (!string.IsNullOrEmpty(newValue))
+        {
+            var valueStr = newValue.Contains(' ') ? $"\"{newValue}\"" : newValue;
+            searchQuery = (searchQuery.TrimEnd() + $" {filterType}:{valueStr}").Trim();
+        }
+
+        parsedQuery = SearchParser.Parse(searchQuery);
+        showAutocomplete = false;
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         var filtered = allWords.AsEnumerable();
 
-        // Association dropdown
-        if (selectedAssociation == "Associated")
-            filtered = filtered.Where(v => v.AssociatedResources.Any());
-        else if (selectedAssociation == "Orphaned")
-            filtered = filtered.Where(v => !v.AssociatedResources.Any());
-
-        // Status dropdown
-        if (selectedStatus == "Known")
-            filtered = filtered.Where(v => v.IsKnown);
-        else if (selectedStatus == "Learning")
-            filtered = filtered.Where(v => v.IsLearning);
-        else if (selectedStatus == "Unknown")
-            filtered = filtered.Where(v => !v.IsKnown && !v.IsLearning);
-
-        // Resource dropdown
-        if (!string.IsNullOrEmpty(selectedResourceId))
-            filtered = filtered.Where(v =>
-                v.AssociatedResources.Any(r => r.Id == selectedResourceId));
-
-        // Tag dropdown
-        if (!string.IsNullOrEmpty(selectedTag))
-            filtered = filtered.Where(v =>
-                v.Word.Tags != null &&
-                v.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Any(t => t.Equals(selectedTag, StringComparison.OrdinalIgnoreCase)));
-
-        // Lemma dropdown
-        if (!string.IsNullOrEmpty(selectedLemma))
-            filtered = filtered.Where(v =>
-                v.Word.Lemma != null &&
-                v.Word.Lemma.Equals(selectedLemma, StringComparison.OrdinalIgnoreCase));
-
-        // Apply parsed query filters (from search syntax)
         if (parsedQuery != null)
         {
             foreach (var filter in parsedQuery.Filters)
@@ -419,6 +410,12 @@ else
                 var val = filter.Value.ToLower();
                 filtered = filter.Type.ToLower() switch
                 {
+                    "association" => val switch
+                    {
+                        "associated" => filtered.Where(v => v.AssociatedResources.Any()),
+                        "orphaned" => filtered.Where(v => !v.AssociatedResources.Any()),
+                        _ => filtered
+                    },
                     "status" => val switch
                     {
                         "known" => filtered.Where(v => v.IsKnown),
@@ -459,11 +456,6 @@ else
     {
         searchQuery = "";
         parsedQuery = null;
-        selectedAssociation = "All";
-        selectedStatus = "All";
-        selectedResourceId = "";
-        selectedTag = "";
-        selectedLemma = "";
         showAutocomplete = false;
         ApplyFilters();
     }
@@ -494,6 +486,7 @@ else
         "resource" => "bg-primary",
         "status" => "bg-warning text-dark",
         "lemma" => "bg-secondary",
+        "association" => "bg-success",
         _ => "bg-dark"
     };
 
@@ -503,6 +496,7 @@ else
         "resource" => "bi bi-book",
         "status" => "bi bi-check-circle",
         "lemma" => "bi bi-braces",
+        "association" => "bi bi-link-45deg",
         _ => "bi bi-funnel"
     };
 

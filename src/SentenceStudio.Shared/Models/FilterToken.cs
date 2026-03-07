@@ -7,7 +7,8 @@ public sealed record FilterToken(string Type, string Value)
         "tag",
         "resource",
         "lemma",
-        "status"
+        "status",
+        "association"
     };
 
     public bool IsValid =>

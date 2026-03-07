@@ -15,11 +15,11 @@ namespace SentenceStudio.Services;
 /// </summary>
 public class SearchQueryParser : ISearchQueryParser
 {
-    // Regex pattern to match filter tokens: (tag|resource|lemma|status):value
+    // Regex pattern to match filter tokens: (tag|resource|lemma|status|association):value
     // Supports quoted values for multi-word filters: tag:"multi word"
     // Also supports unquoted values that end at whitespace
     private static readonly Regex FilterPattern = new(
-        @"(tag|resource|lemma|status):(?:""([^""]*)""|(\S+))",
+        @"(tag|resource|lemma|status|association):(?:""([^""]*)""|(\S+))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -128,7 +128,7 @@ public class SearchQueryParser : ISearchQueryParser
         var textBeforeCursor = text.Substring(0, cursorPosition);
 
         // Match filter prefix at end of text: tag:partial or tag:"partial
-        var activeFilterPattern = new Regex(@"(tag|resource|lemma|status):(?:""([^""]*)|(\S*))$", RegexOptions.IgnoreCase);
+        var activeFilterPattern = new Regex(@"(tag|resource|lemma|status|association):(?:""([^""]*)|(\S*))$", RegexOptions.IgnoreCase);
         var match = activeFilterPattern.Match(textBeforeCursor);
 
         if (match.Success)
