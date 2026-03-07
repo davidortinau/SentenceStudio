@@ -1,4 +1,5 @@
 @page "/vocabulary"
+@using SentenceStudio.Models
 
 <PageHeader Title="Vocabulary">
     <PrimaryActions>
@@ -27,11 +28,33 @@ else
         <span class="badge bg-info text-dark rounded-pill">Showing: @filteredWords.Count</span>
     </div>
 
-    @* Search bar *@
+    @* Unified search bar with filter syntax *@
     <div class="d-flex gap-2 mb-2">
-        <input type="text" class="form-control form-control-ss flex-grow-1"
-               placeholder="Search vocabulary..."
-               @bind="searchText" @bind:event="oninput" @bind:after="ApplyFilters" />
+        <div class="flex-grow-1 position-relative">
+            <input type="text" class="form-control form-control-ss"
+                   placeholder="Search... (try tag:clothing status:learning resource:&quot;Starter&quot;)"
+                   @bind="searchQuery" @bind:event="oninput" @bind:after="OnSearchChanged" />
+
+            @* Autocomplete dropdown *@
+            @if (showAutocomplete && autocompleteSuggestions.Count > 0)
+            {
+                <div class="dropdown-menu show w-100 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                    @foreach (var suggestion in autocompleteSuggestions)
+                    {
+                        <button class="dropdown-item d-flex justify-content-between" @onclick="() => AcceptSuggestion(suggestion)">
+                            <span>
+                                <span class="badge @GetFilterTypeBadgeClass(suggestion.Type) me-1">@suggestion.Type</span>
+                                @suggestion.DisplayText
+                            </span>
+                            @if (suggestion.Count.HasValue)
+                            {
+                                <small class="text-secondary-ss">@suggestion.Count</small>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
 
         @if (HasActiveFilters)
         {
@@ -41,58 +64,31 @@ else
         }
     </div>
 
-    @* Filter row *@
+    @* Active filter chips *@
+    @if (parsedQuery?.Filters.Count > 0)
+    {
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            @foreach (var filter in parsedQuery.Filters)
+            {
+                <span class="badge @GetFilterTypeBadgeClass(filter.Type) d-flex align-items-center gap-1 py-2 px-3"
+                      style="font-size: 0.85rem;">
+                    <i class="@GetFilterTypeIcon(filter.Type)"></i>
+                    @filter.Type:@filter.Value
+                    <button class="btn-close btn-close-white ms-1" style="font-size: 0.5rem;"
+                            @onclick="() => RemoveFilter(filter)" @onclick:stopPropagation="true"></button>
+                </span>
+            }
+        </div>
+    }
+
+    @* Quick filter buttons *@
     <div class="d-flex gap-2 mb-4 flex-wrap">
-        <select class="form-select form-control-ss" style="max-width: 160px;"
-                @bind="selectedFilter" @bind:after="ApplyFilters">
-            <option value="All">All Words</option>
-            <option value="Associated">Associated</option>
-            <option value="Orphaned">Orphaned</option>
-        </select>
-
-        <select class="form-select form-control-ss" style="max-width: 160px;"
-                @bind="selectedStatus" @bind:after="ApplyFilters">
-            <option value="All">All Status</option>
-            <option value="Known">Known</option>
-            <option value="Learning">Learning</option>
-            <option value="Unknown">Unknown</option>
-        </select>
-
-        @if (availableResources.Count > 0)
-        {
-            <select class="form-select form-control-ss" style="max-width: 220px;"
-                    @bind="selectedResourceId" @bind:after="ApplyFilters">
-                <option value="">All Resources</option>
-                @foreach (var r in availableResources)
-                {
-                    <option value="@r.Id">@TruncateTitle(r.Title, 30)</option>
-                }
-            </select>
-        }
-
-        @if (availableTags.Count > 0)
-        {
-            <select class="form-select form-control-ss" style="max-width: 160px;"
-                    @bind="selectedTag" @bind:after="ApplyFilters">
-                <option value="">All Tags</option>
-                @foreach (var tag in availableTags)
-                {
-                    <option value="@tag">@tag</option>
-                }
-            </select>
-        }
-
-        @if (availableLemmas.Count > 0)
-        {
-            <select class="form-select form-control-ss" style="max-width: 160px;"
-                    @bind="selectedLemma" @bind:after="ApplyFilters">
-                <option value="">All Lemmas</option>
-                @foreach (var lemma in availableLemmas)
-                {
-                    <option value="@lemma">@lemma</option>
-                }
-            </select>
-        }
+        <button class="btn @(selectedAssociation == "All" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
+                @onclick='() => SetAssociationFilter("All")'>All</button>
+        <button class="btn @(selectedAssociation == "Associated" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
+                @onclick='() => SetAssociationFilter("Associated")'>Associated</button>
+        <button class="btn @(selectedAssociation == "Orphaned" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
+                @onclick='() => SetAssociationFilter("Orphaned")'>Orphaned</button>
     </div>
 
     @if (filteredWords.Count == 0)
@@ -155,6 +151,7 @@ else
 @code {
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private ISearchQueryParser SearchParser { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Vocabulary> Logger { get; set; } = default!;
@@ -164,26 +161,23 @@ else
     private (int TotalWords, int AssociatedWords, int OrphanedWords) stats;
     private bool isLoading = true;
 
-    // Filters
-    private string searchText = "";
-    private string selectedFilter = "All";
-    private string selectedStatus = "All";
-    private string selectedResourceId = "";
-    private string selectedTag = "";
-    private string selectedLemma = "";
+    // Search query (unified with filter syntax)
+    private string searchQuery = "";
+    private ParsedQuery? parsedQuery;
+    private string selectedAssociation = "All";
 
-    // Filter options (populated from loaded data)
+    // Autocomplete
+    private bool showAutocomplete;
+    private List<AutocompleteSuggestion> autocompleteSuggestions = new();
+
+    // Lookup data for autocomplete and filter matching
     private List<LearningResource> availableResources = new();
     private List<string> availableTags = new();
     private List<string> availableLemmas = new();
 
     private bool HasActiveFilters =>
-        !string.IsNullOrWhiteSpace(searchText) ||
-        selectedFilter != "All" ||
-        selectedStatus != "All" ||
-        !string.IsNullOrEmpty(selectedResourceId) ||
-        !string.IsNullOrEmpty(selectedTag) ||
-        !string.IsNullOrEmpty(selectedLemma);
+        !string.IsNullOrWhiteSpace(searchQuery) ||
+        selectedAssociation != "All";
 
     protected override async Task OnInitializedAsync()
     {
@@ -222,7 +216,7 @@ else
                 };
             }).ToList();
 
-            // Extract unique tags and lemmas for filter dropdowns
+            // Extract unique tags and lemmas for autocomplete
             availableTags = allWords
                 .Where(w => !string.IsNullOrWhiteSpace(w.Word.Tags))
                 .SelectMany(w => w.Word.Tags!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -238,8 +232,6 @@ else
                 .ToList();
 
             ApplyFilters();
-            Logger.LogInformation("✅ Vocabulary loaded: {Count} words, {Tags} tags, {Lemmas} lemmas, {Resources} resources",
-                allWords.Count, availableTags.Count, availableLemmas.Count, availableResources.Count);
         }
         catch (Exception ex)
         {
@@ -252,50 +244,138 @@ else
         }
     }
 
+    private void OnSearchChanged()
+    {
+        parsedQuery = SearchParser.Parse(searchQuery);
+        UpdateAutocomplete();
+        ApplyFilters();
+    }
+
+    private void UpdateAutocomplete()
+    {
+        autocompleteSuggestions.Clear();
+        showAutocomplete = false;
+
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+
+        var (filterType, partialValue) = SearchParser.DetectActiveFilter(searchQuery, searchQuery.Length);
+        if (filterType == null) return;
+
+        var partial = partialValue?.ToLower() ?? "";
+
+        switch (filterType)
+        {
+            case "tag":
+                autocompleteSuggestions = availableTags
+                    .Where(t => string.IsNullOrEmpty(partial) || t.ToLower().Contains(partial))
+                    .Take(10)
+                    .Select(t => AutocompleteSuggestion.ForTag(t, allWords.Count(w =>
+                        w.Word.Tags?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Any(tag => tag.Equals(t, StringComparison.OrdinalIgnoreCase)) == true)))
+                    .ToList();
+                break;
+
+            case "resource":
+                autocompleteSuggestions = availableResources
+                    .Where(r => string.IsNullOrEmpty(partial) || (r.Title?.ToLower().Contains(partial) == true))
+                    .Take(10)
+                    .Select(r => AutocompleteSuggestion.ForResource(r.Title ?? "Unknown"))
+                    .ToList();
+                break;
+
+            case "lemma":
+                autocompleteSuggestions = availableLemmas
+                    .Where(l => string.IsNullOrEmpty(partial) || l.ToLower().Contains(partial))
+                    .Take(10)
+                    .Select(l => AutocompleteSuggestion.ForLemma(l, allWords.Count(w =>
+                        w.Word.Lemma?.Equals(l, StringComparison.OrdinalIgnoreCase) == true)))
+                    .ToList();
+                break;
+
+            case "status":
+                var statuses = new[] { ("known", "Known"), ("learning", "Learning"), ("unknown", "Unknown") };
+                autocompleteSuggestions = statuses
+                    .Where(s => string.IsNullOrEmpty(partial) || s.Item1.Contains(partial))
+                    .Select(s => AutocompleteSuggestion.ForStatus(s.Item1, s.Item2))
+                    .ToList();
+                break;
+        }
+
+        showAutocomplete = autocompleteSuggestions.Count > 0;
+    }
+
+    private void AcceptSuggestion(AutocompleteSuggestion suggestion)
+    {
+        var value = suggestion.Value.Contains(' ') ? $"\"{suggestion.Value}\"" : suggestion.Value;
+        searchQuery = SearchParser.InsertFilter(searchQuery, searchQuery.Length, suggestion.Type, suggestion.Value);
+        showAutocomplete = false;
+        parsedQuery = SearchParser.Parse(searchQuery);
+        ApplyFilters();
+    }
+
+    private void RemoveFilter(FilterToken filter)
+    {
+        searchQuery = SearchParser.RemoveFilter(searchQuery, filter);
+        parsedQuery = SearchParser.Parse(searchQuery);
+        showAutocomplete = false;
+        ApplyFilters();
+    }
+
+    private void SetAssociationFilter(string value)
+    {
+        selectedAssociation = value;
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         var filtered = allWords.AsEnumerable();
 
-        // Association filter
-        if (selectedFilter == "Associated")
+        // Association quick-filter buttons
+        if (selectedAssociation == "Associated")
             filtered = filtered.Where(v => v.AssociatedResources.Any());
-        else if (selectedFilter == "Orphaned")
+        else if (selectedAssociation == "Orphaned")
             filtered = filtered.Where(v => !v.AssociatedResources.Any());
 
-        // Status filter
-        if (selectedStatus == "Known")
-            filtered = filtered.Where(v => v.IsKnown);
-        else if (selectedStatus == "Learning")
-            filtered = filtered.Where(v => v.IsLearning);
-        else if (selectedStatus == "Unknown")
-            filtered = filtered.Where(v => !v.IsKnown && !v.IsLearning);
-
-        // Resource filter
-        if (!string.IsNullOrEmpty(selectedResourceId))
-            filtered = filtered.Where(v => v.AssociatedResources.Any(r => r.Id == selectedResourceId));
-
-        // Tag filter
-        if (!string.IsNullOrEmpty(selectedTag))
-            filtered = filtered.Where(v =>
-                v.Word.Tags != null &&
-                v.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Any(t => t.Equals(selectedTag, StringComparison.OrdinalIgnoreCase)));
-
-        // Lemma filter
-        if (!string.IsNullOrEmpty(selectedLemma))
-            filtered = filtered.Where(v =>
-                v.Word.Lemma != null &&
-                v.Word.Lemma.Equals(selectedLemma, StringComparison.OrdinalIgnoreCase));
-
-        // Text search
-        if (!string.IsNullOrWhiteSpace(searchText))
+        // Apply parsed query filters
+        if (parsedQuery != null)
         {
-            var search = searchText.ToLower();
-            filtered = filtered.Where(v =>
-                (v.Word.TargetLanguageTerm?.ToLower().Contains(search) == true) ||
-                (v.Word.NativeLanguageTerm?.ToLower().Contains(search) == true) ||
-                (v.Word.Tags?.ToLower().Contains(search) == true) ||
-                (v.Word.Lemma?.ToLower().Contains(search) == true));
+            foreach (var filter in parsedQuery.Filters)
+            {
+                var val = filter.Value.ToLower();
+                filtered = filter.Type.ToLower() switch
+                {
+                    "status" => val switch
+                    {
+                        "known" => filtered.Where(v => v.IsKnown),
+                        "learning" => filtered.Where(v => v.IsLearning),
+                        "unknown" => filtered.Where(v => !v.IsKnown && !v.IsLearning),
+                        _ => filtered
+                    },
+                    "tag" => filtered.Where(v =>
+                        v.Word.Tags != null &&
+                        v.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Any(t => t.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))),
+                    "resource" => filtered.Where(v =>
+                        v.AssociatedResources.Any(r =>
+                            r.Title != null && r.Title.Contains(filter.Value, StringComparison.OrdinalIgnoreCase))),
+                    "lemma" => filtered.Where(v =>
+                        v.Word.Lemma != null &&
+                        v.Word.Lemma.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
+                    _ => filtered
+                };
+            }
+
+            // Free text search (non-filter terms)
+            foreach (var term in parsedQuery.FreeTextTerms)
+            {
+                var search = term.ToLower();
+                filtered = filtered.Where(v =>
+                    (v.Word.TargetLanguageTerm?.ToLower().Contains(search) == true) ||
+                    (v.Word.NativeLanguageTerm?.ToLower().Contains(search) == true) ||
+                    (v.Word.Tags?.ToLower().Contains(search) == true) ||
+                    (v.Word.Lemma?.ToLower().Contains(search) == true));
+            }
         }
 
         filteredWords = filtered.ToList();
@@ -303,21 +383,15 @@ else
 
     private void ClearFilters()
     {
-        searchText = "";
-        selectedFilter = "All";
-        selectedStatus = "All";
-        selectedResourceId = "";
-        selectedTag = "";
-        selectedLemma = "";
+        searchQuery = "";
+        parsedQuery = null;
+        selectedAssociation = "All";
+        showAutocomplete = false;
         ApplyFilters();
     }
 
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
     private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
-
-    private static string TruncateTitle(string? title, int maxLength) =>
-        string.IsNullOrEmpty(title) ? "Unknown" :
-        title.Length <= maxLength ? title : title[..maxLength] + "…";
 
     private static string GetStatusBadgeClass(VocabularyCardItem item) => item switch
     {
@@ -331,6 +405,24 @@ else
         "Strong" => "bg-success bg-opacity-25 text-success",
         "Good" => "bg-warning bg-opacity-25 text-warning",
         _ => "bg-secondary bg-opacity-25 text-secondary-ss"
+    };
+
+    private static string GetFilterTypeBadgeClass(string filterType) => filterType.ToLower() switch
+    {
+        "tag" => "bg-info",
+        "resource" => "bg-primary",
+        "status" => "bg-warning text-dark",
+        "lemma" => "bg-secondary",
+        _ => "bg-dark"
+    };
+
+    private static string GetFilterTypeIcon(string filterType) => filterType.ToLower() switch
+    {
+        "tag" => "bi bi-tag",
+        "resource" => "bi bi-book",
+        "status" => "bi bi-check-circle",
+        "lemma" => "bi bi-braces",
+        _ => "bi bi-funnel"
     };
 
     private class VocabularyCardItem
