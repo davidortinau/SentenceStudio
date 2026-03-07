@@ -1,5 +1,6 @@
 @page "/vocabulary/progress"
 @page "/vocabulary/progress/{WordId:int}"
+@using SentenceStudio.Shared.Models
 
 <PageHeader Title="Vocabulary Progress" ShowBack="true" OnBack="GoBack" />
 
@@ -52,7 +53,38 @@ else
                     <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
                     <span class="ss-body2 text-secondary-ss mb-2">@(item.Word.NativeLanguageTerm ?? "")</span>
                     <div class="mb-1">
-                        <span class="badge @GetStatusBadgeClass(item)">@GetStatusText(item)</span>
+                        @if (item.IsKnown)
+                        {
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle-fill me-1"></i>Known
+                            </span>
+                        }
+                        else
+                        {
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button"
+                                        class="btn @(GetItemStatus(item) == LearningStatus.Unknown ? "btn-secondary" : "btn-outline-secondary") btn-sm py-0 px-1"
+                                        title="Unknown"
+                                        disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                        @onclick="() => SetWordStatus(item, LearningStatus.Unknown)">
+                                    <i class="bi bi-question-circle"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn @(GetItemStatus(item) == LearningStatus.Learning ? "btn-primary" : "btn-outline-primary") btn-sm py-0 px-1"
+                                        title="Learning"
+                                        disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                        @onclick="() => SetWordStatus(item, LearningStatus.Learning)">
+                                    <i class="bi bi-book"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn @(GetItemStatus(item) == LearningStatus.Familiar ? "btn-warning text-dark" : "btn-outline-warning") btn-sm py-0 px-1"
+                                        title="Familiar"
+                                        disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                        @onclick="() => SetWordStatus(item, LearningStatus.Familiar)">
+                                    <i class="bi bi-star"></i>
+                                </button>
+                            </div>
+                        }
                     </div>
                     <small class="text-secondary-ss d-block mb-1">@GetProgressText(item)</small>
                     <small class="@GetReviewDateClass(item)">@GetReviewDateText(item)</small>
@@ -70,6 +102,8 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabularyProgress> Logger { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     private List<ProgressItem> allItems = new();
     private List<ProgressItem> filteredItems = new();
@@ -144,6 +178,40 @@ else
         filteredItems = filtered.ToList();
     }
 
+    private string? statusUpdatingWordId;
+
+    private static LearningStatus GetItemStatus(ProgressItem item) =>
+        item.Progress?.Status ?? LearningStatus.Unknown;
+
+    private async Task SetWordStatus(ProgressItem item, LearningStatus status)
+    {
+        if (statusUpdatingWordId != null) return;
+        var currentStatus = GetItemStatus(item);
+        if (currentStatus == status) return;
+
+        statusUpdatingWordId = item.Word.Id;
+        try
+        {
+            var userId = Preferences.Get("active_profile_id", "");
+            var updatedProgress = await ProgressService.SetUserDeclaredStatusAsync(item.Word.Id, userId, status);
+            item.Progress = updatedProgress;
+            CacheService.InvalidateVocabSummary();
+            ApplyFilters();
+
+            if (status == LearningStatus.Familiar)
+                Toast.ShowInfo("Got it -- we trust you on this one. We will check in occasionally to keep it fresh.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update status: {ex.Message}");
+            Logger.LogError(ex, "Failed to set word status for {WordId}", item.Word.Id);
+        }
+        finally
+        {
+            statusUpdatingWordId = null;
+        }
+    }
+
     private static string GetStatusText(ProgressItem item) =>
         item.IsKnown ? "Known" : item.IsLearning ? "Learning" : "Unknown";
 
@@ -178,10 +246,10 @@ else
         if (item.Progress?.NextReviewDate == null) return "Not scheduled";
         var now = DateTime.Now.Date;
         var reviewDate = item.Progress.NextReviewDate.Value.Date;
-        if (reviewDate <= now) return "📅 Due now";
-        if (reviewDate == now.AddDays(1)) return "📅 Tomorrow";
-        if (reviewDate <= now.AddDays(7)) return $"📅 {(reviewDate - now).Days} days away";
-        return $"📅 {reviewDate:MMM d}";
+        if (reviewDate <= now) return "Due now";
+        if (reviewDate == now.AddDays(1)) return "Tomorrow";
+        if (reviewDate <= now.AddDays(7)) return $"{(reviewDate - now).Days} days away";
+        return $"{reviewDate:MMM d}";
     }
 
     private static string GetReviewDateClass(ProgressItem item) =>

@@ -1,5 +1,6 @@
 @page "/vocabulary"
 @using SentenceStudio.Models
+@using SentenceStudio.Shared.Models
 
 <PageHeader Title="Vocabulary">
     <PrimaryActions>
@@ -159,9 +160,40 @@ else
                                 <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
                                 <span class="ss-body2 text-secondary-ss">@(item.Word.NativeLanguageTerm ?? "")</span>
                             </div>
-                            <div class="d-flex gap-1 flex-shrink-0">
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center">
                                 <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
-                                <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
+                                @if (item.IsKnown)
+                                {
+                                    <span class="badge bg-success" title="Earned through practice">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Known
+                                    </span>
+                                }
+                                else
+                                {
+                                    <div class="btn-group btn-group-sm" role="group" @onclick:stopPropagation="true">
+                                        <button type="button"
+                                                class="btn @(item.StatusText == "Unknown" ? "btn-secondary" : "btn-outline-secondary") btn-sm py-0 px-1"
+                                                title="Unknown"
+                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                                @onclick="() => SetWordStatus(item, LearningStatus.Unknown)">
+                                            <i class="bi bi-question-circle"></i>
+                                        </button>
+                                        <button type="button"
+                                                class="btn @(item.StatusText == "Learning" ? "btn-primary" : "btn-outline-primary") btn-sm py-0 px-1"
+                                                title="Learning"
+                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                                @onclick="() => SetWordStatus(item, LearningStatus.Learning)">
+                                            <i class="bi bi-book"></i>
+                                        </button>
+                                        <button type="button"
+                                                class="btn @(item.StatusText == "Familiar" ? "btn-warning text-dark" : "btn-outline-warning") btn-sm py-0 px-1"
+                                                title="Familiar"
+                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
+                                                @onclick="() => SetWordStatus(item, LearningStatus.Familiar)">
+                                            <i class="bi bi-star"></i>
+                                        </button>
+                                    </div>
+                                }
                             </div>
                         </div>
                         <div class="mt-2 d-flex gap-2 flex-wrap">
@@ -199,6 +231,8 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Vocabulary> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     private List<VocabularyCardItem> allWords = new();
     private List<VocabularyCardItem> filteredWords = new();
@@ -463,6 +497,36 @@ else
     private static string TruncateTitle(string? title, int maxLen) =>
         title == null ? "" : title.Length <= maxLen ? title : title[..maxLen] + "…";
 
+    private string? statusUpdatingWordId;
+
+    private async Task SetWordStatus(VocabularyCardItem item, LearningStatus status)
+    {
+        if (statusUpdatingWordId != null) return;
+        var currentStatus = item.Progress?.Status ?? LearningStatus.Unknown;
+        if (currentStatus == status) return;
+
+        statusUpdatingWordId = item.Word.Id;
+        try
+        {
+            var userId = Preferences.Get("active_profile_id", "");
+            var updatedProgress = await ProgressService.SetUserDeclaredStatusAsync(item.Word.Id, userId, status);
+            item.Progress = updatedProgress;
+            CacheService.InvalidateVocabSummary();
+
+            if (status == LearningStatus.Familiar)
+                Toast.ShowInfo("Got it -- we trust you on this one. We will check in occasionally to keep it fresh.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update status: {ex.Message}");
+            Logger.LogError(ex, "Failed to set word status for {WordId}", item.Word.Id);
+        }
+        finally
+        {
+            statusUpdatingWordId = null;
+        }
+    }
+
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
     private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
 
@@ -512,6 +576,12 @@ else
         public bool IsLearning => Progress?.IsLearning ?? false;
         public bool IsOrphaned => !AssociatedResources.Any();
 
-        public string StatusText => IsKnown ? "Known" : IsLearning ? "Learning" : "Unknown";
+        public string StatusText => Progress?.Status switch
+        {
+            LearningStatus.Known => "Known",
+            LearningStatus.Familiar => "Familiar",
+            LearningStatus.Learning => "Learning",
+            _ => "Unknown"
+        };
     }
 }

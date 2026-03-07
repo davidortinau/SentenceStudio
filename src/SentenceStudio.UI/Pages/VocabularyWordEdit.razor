@@ -120,7 +120,40 @@ else
             <div class="row g-2">
                 <div class="col-4 col-md-2"><strong class="ss-body2">Status</strong></div>
                 <div class="col-8 col-md-4 ss-body2">
-                    <span class="badge @GetProgressBadgeClass()">@progressStatusText</span>
+                    @if (progress?.IsKnown == true)
+                    {
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle-fill me-1"></i>Known
+                        </span>
+                        <small class="text-secondary-ss ms-1">(earned through practice)</small>
+                    }
+                    else
+                    {
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button"
+                                    class="btn @(currentLearningStatus == LearningStatus.Unknown ? "btn-secondary" : "btn-outline-secondary")"
+                                    disabled="@isSettingStatus"
+                                    @onclick="() => SetStatus(LearningStatus.Unknown)">
+                                <i class="bi bi-question-circle me-1"></i>Unknown
+                            </button>
+                            <button type="button"
+                                    class="btn @(currentLearningStatus == LearningStatus.Learning ? "btn-primary" : "btn-outline-primary")"
+                                    disabled="@isSettingStatus"
+                                    @onclick="() => SetStatus(LearningStatus.Learning)">
+                                <i class="bi bi-book me-1"></i>Learning
+                            </button>
+                            <button type="button"
+                                    class="btn @(currentLearningStatus == LearningStatus.Familiar ? "btn-warning text-dark" : "btn-outline-warning")"
+                                    disabled="@isSettingStatus"
+                                    @onclick="() => SetStatus(LearningStatus.Familiar)">
+                                <i class="bi bi-star me-1"></i>Familiar
+                            </button>
+                        </div>
+                        @if (isSettingStatus)
+                        {
+                            <span class="spinner-border spinner-border-sm ms-2"></span>
+                        }
+                    }
                 </div>
                 <div class="col-4 col-md-2"><strong class="ss-body2">Details</strong></div>
                 <div class="col-8 col-md-4 ss-body2" style="white-space: pre-line;">@progressDetails</div>
@@ -181,6 +214,8 @@ else
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     private VocabularyWord word = new();
     private bool isLoading = true;
@@ -209,6 +244,8 @@ else
     private string progressDetails = "";
     private string reviewDateText = "Not scheduled";
     private string encodingStrengthLabel = "Basic";
+    private SentenceStudio.Shared.Models.LearningStatus currentLearningStatus = SentenceStudio.Shared.Models.LearningStatus.Unknown;
+    private bool isSettingStatus;
 
     private bool IsFormValid =>
         !string.IsNullOrWhiteSpace(targetLanguageTerm) &&
@@ -294,14 +331,16 @@ else
 
     private void UpdateProgressDisplay()
     {
+        currentLearningStatus = progress?.Status ?? SentenceStudio.Shared.Models.LearningStatus.Unknown;
+
         var isKnown = progress?.IsKnown ?? false;
         var isLearning = progress?.IsLearning ?? false;
 
-        progressStatusText = isKnown ? "Known" : isLearning ? "Learning" : "Unknown";
+        progressStatusText = currentLearningStatus.ToString();
 
         if (isKnown)
             progressDetails = "Known";
-        else if (progress == null || (!isKnown && !isLearning))
+        else if (progress == null || (!isKnown && !isLearning && currentLearningStatus == SentenceStudio.Shared.Models.LearningStatus.Unknown))
             progressDetails = "Start practicing to track progress.";
         else
         {
@@ -322,10 +361,10 @@ else
         {
             var now = DateTime.Now.Date;
             var reviewDate = progress.NextReviewDate.Value.Date;
-            reviewDateText = reviewDate <= now ? "📅 Due now"
-                : reviewDate == now.AddDays(1) ? "📅 Tomorrow"
-                : reviewDate <= now.AddDays(7) ? $"📅 {(reviewDate - now).Days} days away"
-                : $"📅 {reviewDate:MMM d}";
+            reviewDateText = reviewDate <= now ? "Due now"
+                : reviewDate == now.AddDays(1) ? "Tomorrow"
+                : reviewDate <= now.AddDays(7) ? $"{(reviewDate - now).Days} days away"
+                : $"{reviewDate:MMM d}";
         }
     }
 
@@ -432,6 +471,33 @@ else
     }
 
     private void GoBack() => NavManager.NavigateTo("/vocabulary");
+
+    private async Task SetStatus(SentenceStudio.Shared.Models.LearningStatus status)
+    {
+        if (isSettingStatus || string.IsNullOrEmpty(Id) || Id == "0") return;
+        if (currentLearningStatus == status) return;
+
+        isSettingStatus = true;
+        try
+        {
+            var userId = Preferences.Get("active_profile_id", "");
+            progress = await ProgressService.SetUserDeclaredStatusAsync(Id, userId, status);
+            CacheService.InvalidateVocabSummary();
+            UpdateProgressDisplay();
+
+            if (status == SentenceStudio.Shared.Models.LearningStatus.Familiar)
+                Toast.ShowInfo("Got it -- we trust you on this one. We will check in occasionally to keep it fresh.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update status: {ex.Message}");
+            Logger.LogError(ex, "Failed to set word status for {WordId}", Id);
+        }
+        finally
+        {
+            isSettingStatus = false;
+        }
+    }
 
     private string GetEncodingClass() => encodingStrengthLabel switch
     {
