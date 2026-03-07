@@ -81,14 +81,58 @@ else
         </div>
     }
 
-    @* Quick filter buttons *@
+    @* Dropdown filters *@
     <div class="d-flex gap-2 mb-4 flex-wrap">
-        <button class="btn @(selectedAssociation == "All" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
-                @onclick='() => SetAssociationFilter("All")'>All</button>
-        <button class="btn @(selectedAssociation == "Associated" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
-                @onclick='() => SetAssociationFilter("Associated")'>Associated</button>
-        <button class="btn @(selectedAssociation == "Orphaned" ? "btn-ss-secondary" : "btn-outline-secondary") btn-sm"
-                @onclick='() => SetAssociationFilter("Orphaned")'>Orphaned</button>
+        <select class="form-select form-control-ss" style="max-width: 160px;"
+                @bind="selectedAssociation" @bind:after="ApplyFilters">
+            <option value="All">All Words</option>
+            <option value="Associated">Associated</option>
+            <option value="Orphaned">Orphaned</option>
+        </select>
+
+        <select class="form-select form-control-ss" style="max-width: 160px;"
+                @bind="selectedStatus" @bind:after="ApplyFilters">
+            <option value="All">All Status</option>
+            <option value="Known">Known</option>
+            <option value="Learning">Learning</option>
+            <option value="Unknown">Unknown</option>
+        </select>
+
+        @if (availableResources.Count > 0)
+        {
+            <select class="form-select form-control-ss" style="max-width: 220px;"
+                    @bind="selectedResourceId" @bind:after="ApplyFilters">
+                <option value="">All Resources</option>
+                @foreach (var r in availableResources)
+                {
+                    <option value="@r.Id">@TruncateTitle(r.Title, 30)</option>
+                }
+            </select>
+        }
+
+        @if (availableTags.Count > 0)
+        {
+            <select class="form-select form-control-ss" style="max-width: 160px;"
+                    @bind="selectedTag" @bind:after="ApplyFilters">
+                <option value="">All Tags</option>
+                @foreach (var tag in availableTags)
+                {
+                    <option value="@tag">@tag</option>
+                }
+            </select>
+        }
+
+        @if (availableLemmas.Count > 0)
+        {
+            <select class="form-select form-control-ss" style="max-width: 160px;"
+                    @bind="selectedLemma" @bind:after="ApplyFilters">
+                <option value="">All Lemmas</option>
+                @foreach (var lemma in availableLemmas)
+                {
+                    <option value="@lemma">@lemma</option>
+                }
+            </select>
+        }
     </div>
 
     @if (filteredWords.Count == 0)
@@ -166,6 +210,12 @@ else
     private ParsedQuery? parsedQuery;
     private string selectedAssociation = "All";
 
+    // Dropdown filter state
+    private string selectedStatus = "All";
+    private string selectedResourceId = "";
+    private string selectedTag = "";
+    private string selectedLemma = "";
+
     // Autocomplete
     private bool showAutocomplete;
     private List<AutocompleteSuggestion> autocompleteSuggestions = new();
@@ -177,7 +227,11 @@ else
 
     private bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(searchQuery) ||
-        selectedAssociation != "All";
+        selectedAssociation != "All" ||
+        selectedStatus != "All" ||
+        !string.IsNullOrEmpty(selectedResourceId) ||
+        !string.IsNullOrEmpty(selectedTag) ||
+        !string.IsNullOrEmpty(selectedLemma);
 
     protected override async Task OnInitializedAsync()
     {
@@ -321,23 +375,43 @@ else
         ApplyFilters();
     }
 
-    private void SetAssociationFilter(string value)
-    {
-        selectedAssociation = value;
-        ApplyFilters();
-    }
-
     private void ApplyFilters()
     {
         var filtered = allWords.AsEnumerable();
 
-        // Association quick-filter buttons
+        // Association dropdown
         if (selectedAssociation == "Associated")
             filtered = filtered.Where(v => v.AssociatedResources.Any());
         else if (selectedAssociation == "Orphaned")
             filtered = filtered.Where(v => !v.AssociatedResources.Any());
 
-        // Apply parsed query filters
+        // Status dropdown
+        if (selectedStatus == "Known")
+            filtered = filtered.Where(v => v.IsKnown);
+        else if (selectedStatus == "Learning")
+            filtered = filtered.Where(v => v.IsLearning);
+        else if (selectedStatus == "Unknown")
+            filtered = filtered.Where(v => !v.IsKnown && !v.IsLearning);
+
+        // Resource dropdown
+        if (!string.IsNullOrEmpty(selectedResourceId))
+            filtered = filtered.Where(v =>
+                v.AssociatedResources.Any(r => r.Id == selectedResourceId));
+
+        // Tag dropdown
+        if (!string.IsNullOrEmpty(selectedTag))
+            filtered = filtered.Where(v =>
+                v.Word.Tags != null &&
+                v.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(t => t.Equals(selectedTag, StringComparison.OrdinalIgnoreCase)));
+
+        // Lemma dropdown
+        if (!string.IsNullOrEmpty(selectedLemma))
+            filtered = filtered.Where(v =>
+                v.Word.Lemma != null &&
+                v.Word.Lemma.Equals(selectedLemma, StringComparison.OrdinalIgnoreCase));
+
+        // Apply parsed query filters (from search syntax)
         if (parsedQuery != null)
         {
             foreach (var filter in parsedQuery.Filters)
@@ -386,9 +460,16 @@ else
         searchQuery = "";
         parsedQuery = null;
         selectedAssociation = "All";
+        selectedStatus = "All";
+        selectedResourceId = "";
+        selectedTag = "";
+        selectedLemma = "";
         showAutocomplete = false;
         ApplyFilters();
     }
+
+    private static string TruncateTitle(string? title, int maxLen) =>
+        title == null ? "" : title.Length <= maxLen ? title : title[..maxLen] + "…";
 
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
     private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
