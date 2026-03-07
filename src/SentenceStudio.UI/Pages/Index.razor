@@ -269,6 +269,7 @@ else
         new("Shadowing", "bi-soundwave", "shadowing"),
         new("How Do You Say", "bi-chat-left-dots", "how-do-you-say"),
         new("Minimal Pairs", "bi-ear", "minimal-pairs"),
+        new("Word Association", "bi-lightbulb", "word-association"),
     ];
 
     protected override async Task OnInitializedAsync()
@@ -487,7 +488,7 @@ else
         var query = new List<string>();
 
         // Activities that support multiple resources
-        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
+        var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching", "word-association" };
 
         if (selectedResourceIds.Count > 0)
         {

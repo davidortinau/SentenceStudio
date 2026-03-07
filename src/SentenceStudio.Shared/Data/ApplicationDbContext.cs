@@ -137,6 +137,10 @@ public class ApplicationDbContext : DbContext
             .HasIndex(cms => cms.ConversationId)
             .IsUnique();
 
+        // WordAssociationScore — string GUID PK, not synced but uses GUIDs for consistency
+        modelBuilder.Entity<WordAssociationScore>().ToTable("WordAssociationScore").HasKey(e => e.Id);
+        modelBuilder.Entity<WordAssociationScore>().Property(e => e.Id).ValueGeneratedNever();
+
         // Create unique constraint to ensure one progress record per vocabulary word per user
         modelBuilder.Entity<VocabularyProgress>()
             .HasIndex(vp => new { vp.VocabularyWordId, vp.UserId })
@@ -250,5 +254,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<MinimalPairSession> MinimalPairSessions => Set<MinimalPairSession>();
     public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
     public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
+    public DbSet<WordAssociationScore> WordAssociationScores => Set<WordAssociationScore>();
 
 }

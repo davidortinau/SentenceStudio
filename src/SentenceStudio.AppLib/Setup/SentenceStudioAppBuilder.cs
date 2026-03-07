@@ -156,6 +156,7 @@ public static class SentenceStudioAppBuilder
         services.AddSingleton<AiService>();
         services.AddSingleton<SceneImageService>();
         services.AddSingleton<ClozureService>();
+        services.AddSingleton<WordAssociationService>();
         services.AddSingleton<StorytellerService>();
         services.AddSingleton<TranslationService>();
         services.AddSingleton<ShadowingService>();

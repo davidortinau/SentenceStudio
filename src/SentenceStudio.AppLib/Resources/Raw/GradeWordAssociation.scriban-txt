@@ -1,0 +1,30 @@
+I am a student that speaks {{ native_language }}, and I'm learning {{ target_language }}.
+
+Given this vocabulary word:
+- {{ target_language }} term: "{{ target_term }}"
+- {{ native_language }} meaning: "{{ native_term }}"
+
+The student has written the following clues or associations that they believe are related to this word. Each entry may be a single word, a phrase, or a full cloze-style sentence in {{ target_language }} or {{ native_language }}.
+
+Entries to grade:
+{{ for entry in entries }}
+{{ for.index + 1 }}. "{{ entry }}"
+{{ end }}
+
+For EACH entry, determine:
+1. **related**: Is this entry meaningfully related to the vocabulary word "{{ target_term }}" ({{ native_term }})? A clue is "related" if it is a synonym, antonym, category member, commonly associated concept, word that frequently co-occurs, a sentence using the word correctly, or any reasonable semantic connection. Be generous — if a native speaker would see a clear connection, mark it as related.
+2. **is_cloze**: Is this entry a full sentence (not just a single word or short phrase)? Mark true if it contains a subject and verb or is clearly a complete sentence.
+
+Format your response as JSON:
+{
+  "entries": [
+    {
+      "text": "the original entry text",
+      "related": true,
+      "is_cloze": false,
+      "explanation": "Brief explanation of why it is or isn't related"
+    }
+  ]
+}
+
+IMPORTANT: Return exactly {{ entries | array.size }} entries in the same order as provided. Every entry must have all four fields.
