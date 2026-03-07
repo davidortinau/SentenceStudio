@@ -150,6 +150,15 @@ else
         </button>
     </form>
 
+    @if (currentClues.Any(c => !c.Graded))
+    {
+        <div class="d-flex justify-content-center mb-2">
+            <button class="btn btn-ss-primary w-100" @onclick="GradeCurrentWord" disabled="@isGrading">
+                <i class="bi bi-check2-all me-1"></i> Grade Clues
+            </button>
+        </div>
+    }
+
     <div class="d-flex justify-content-between align-items-center">
         <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousWord" disabled="@(currentWordIndex <= 0 || isGrading)">
             <i class="bi bi-chevron-left"></i>
@@ -157,13 +166,13 @@ else
         <span class="ss-body2 text-secondary-ss">@(currentWordIndex + 1) / @words.Count</span>
         @if (currentWordIndex < words.Count - 1)
         {
-            <button class="btn btn-sm btn-ss-secondary" @onclick="NextWord" disabled="@isGrading">
+            <button class="btn btn-sm btn-ss-secondary" @onclick="NextWord" disabled="@(isGrading || currentClues.Any(c => !c.Graded))">
                 Next <i class="bi bi-chevron-right"></i>
             </button>
         }
         else
         {
-            <button class="btn btn-sm btn-ss-primary" @onclick="FinishRound" disabled="@isGrading">
+            <button class="btn btn-sm btn-ss-primary" @onclick="FinishRound" disabled="@(isGrading || currentClues.Any(c => !c.Graded))">
                 Finish Round
             </button>
         }
@@ -338,10 +347,6 @@ else
 
     private async Task NextWord()
     {
-        // Grade ungraded clues for current word before moving on
-        if (currentClues.Any(c => !c.Graded))
-            await GradeCurrentWord();
-
         if (currentWordIndex < words.Count - 1)
         {
             currentWordIndex++;
