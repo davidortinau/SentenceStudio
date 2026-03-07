@@ -467,3 +467,11 @@ return $"{_localize[item.TitleKey]}"; // May not match resource file format
    - Korean translation guidelines
    - String interpolation patterns
    - Common translation reference
+
+## UI Style Rules
+
+**NEVER use emoji characters in UI, code output, logs, or any user-facing text.** This is non-negotiable. Use Bootstrap icons (bi-* classes) or plain text labels instead. Examples:
+- Instead of a checkmark emoji, use `<i class="bi bi-check-circle-fill"></i>`
+- Instead of an X emoji, use `<i class="bi bi-x-circle-fill"></i>`  
+- Instead of a clock emoji, use `<i class="bi bi-clock"></i>`
+- Instead of emoji decorations around text, just use the text with an icon prefix

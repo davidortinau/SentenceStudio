@@ -12,8 +12,9 @@ Entries to grade:
 {{ end }}
 
 For EACH entry, determine:
-1. **related**: Is this entry meaningfully related to the vocabulary word "{{ target_term }}" ({{ native_term }})? A clue is "related" if it is a synonym, antonym, category member, commonly associated concept, word that frequently co-occurs, a sentence using the word correctly, or any reasonable semantic connection. Be generous — if a native speaker would see a clear connection, mark it as related.
+1. **related**: Is this entry meaningfully related to the vocabulary word "{{ target_term }}" ({{ native_term }})? A clue is "related" if it is a synonym, antonym, category member, commonly associated concept, word that frequently co-occurs, a sentence using the word correctly, or any reasonable semantic connection. Be generous -- if a native speaker would see a clear connection, mark it as related. Do NOT penalize spelling mistakes. Judge the intent behind the word, not the spelling.
 2. **is_cloze**: Is this entry a full sentence (not just a single word or short phrase)? Mark true if it contains a subject and verb or is clearly a complete sentence.
+3. **corrected_text**: If the entry contains any spelling or grammar mistakes, provide the corrected version. If the entry is already correct, return null.
 
 Format your response as JSON:
 {
@@ -22,9 +23,10 @@ Format your response as JSON:
       "text": "the original entry text",
       "related": true,
       "is_cloze": false,
-      "explanation": "Brief explanation of why it is or isn't related"
+      "explanation": "Brief explanation of why it is or isn't related to the target word",
+      "corrected_text": null
     }
   ]
 }
 
-IMPORTANT: Return exactly {{ entries | array.size }} entries in the same order as provided. Every entry must have all four fields.
+IMPORTANT: Return exactly {{ entries | array.size }} entries in the same order as provided. Every entry must have all five fields. For the explanation, describe the semantic connection (or lack thereof) in plain language.

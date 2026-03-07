@@ -28,4 +28,7 @@ public class ClueGrade
 
     [JsonPropertyName("explanation")]
     public string Explanation { get; set; } = string.Empty;
+
+    [JsonPropertyName("corrected_text")]
+    public string? CorrectedText { get; set; }
 }

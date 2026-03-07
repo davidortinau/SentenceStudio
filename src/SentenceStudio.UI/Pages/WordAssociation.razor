@@ -29,13 +29,13 @@
         @if (highScoreType == "alltime")
         {
             <div class="alert alert-success mt-3 text-center">
-                <i class="bi bi-star-fill me-1"></i> 🎉 NEW ALL-TIME HIGH SCORE! 🎉
+                <i class="bi bi-star-fill me-1"></i> NEW ALL-TIME HIGH SCORE!
             </div>
         }
         else if (highScoreType == "weekly")
         {
             <div class="alert alert-info mt-3 text-center">
-                <i class="bi bi-calendar-star me-1"></i> 🌟 Best score this week!
+                <i class="bi bi-calendar-star me-1"></i> Best score this week!
             </div>
         }
 
@@ -67,6 +67,7 @@ else if (words.Any())
         {
             <p class="ss-body2 text-secondary-ss fst-italic">
                 Write clues related to this word — synonyms, categories, sentences, anything connected!
+                <br /><small class="text-secondary-ss">Each related clue earns 1 point. Full sentences earn 2 points.</small>
             </p>
         }
 
@@ -76,7 +77,10 @@ else if (words.Any())
                 @if (clue.Graded)
                 {
                     <span class="badge @(clue.Related ? "bg-success" : "bg-danger") mt-1">
-                        @(clue.Related ? "✅" : "❌")
+                        @if (clue.Related)
+                        {<i class="bi bi-check-circle-fill"></i>}
+                        else
+                        {<i class="bi bi-x-circle-fill"></i>}
                     </span>
                     <div class="flex-grow-1">
                         <span class="ss-body1">@clue.Text</span>
@@ -88,11 +92,15 @@ else if (words.Any())
                         {
                             <br /><small class="text-secondary-ss">@clue.Explanation</small>
                         }
+                        @if (!string.IsNullOrEmpty(clue.CorrectedText) && clue.CorrectedText != clue.Text)
+                        {
+                            <br /><small class="text-muted fst-italic">(Corrected: @clue.CorrectedText)</small>
+                        }
                     </div>
                 }
                 else
                 {
-                    <span class="badge bg-secondary mt-1">⏳</span>
+                    <span class="badge bg-secondary mt-1"><i class="bi bi-clock"></i></span>
                     <span class="ss-body1 flex-grow-1">@clue.Text</span>
                     <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveClue(clue)">
                         <i class="bi bi-x"></i>
@@ -114,7 +122,7 @@ else if (words.Any())
             var wordScore = currentClues.Where(c => c.Graded).Sum(c => c.Related ? (c.IsCloze ? 2 : 1) : 0);
             var wordMax = currentClues.Where(c => c.Graded).Sum(c => c.IsCloze ? 2 : 1);
             <div class="mt-3 ss-body1-strong">
-                Score: @wordScore / @wordMax
+                Word score: @wordScore of @wordMax possible points
             </div>
         }
     </div>
@@ -280,6 +288,7 @@ else
                 clues[i].Related = result.Entries[i].Related;
                 clues[i].IsCloze = result.Entries[i].IsCloze;
                 clues[i].Explanation = result.Entries[i].Explanation;
+                clues[i].CorrectedText = result.Entries[i].CorrectedText;
             }
 
             // Record vocabulary progress
@@ -405,5 +414,6 @@ else
         public bool Related { get; set; }
         public bool IsCloze { get; set; }
         public string? Explanation { get; set; }
+        public string? CorrectedText { get; set; }
     }
 }
