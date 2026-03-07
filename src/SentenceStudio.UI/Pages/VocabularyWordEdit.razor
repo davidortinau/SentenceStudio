@@ -144,7 +144,7 @@ else
         }
         else
         {
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
                 @foreach (var resource in availableResources)
                 {
                     var isSelected = selectedResourceIds.Contains(resource.Id);
@@ -248,16 +248,16 @@ else
                 mnemonicText = word.MnemonicText ?? "";
                 mnemonicImageUri = word.MnemonicImageUri ?? "";
 
-                // Load progress and associated resources in parallel
-                var progressTask = ProgressService.GetProgressAsync(Id);
-                var associatedTask = ResourceRepo.GetResourcesForVocabularyWordAsync(Id);
-                var resourcesTask = ResourceRepo.GetAllResourcesLightweightAsync();
+                // Load resources independently so one failure doesn't block others
+                var progressTask = SafeLoadAsync(() => ProgressService.GetProgressAsync(Id));
+                var associatedTask = SafeLoadAsync(() => ResourceRepo.GetResourcesForVocabularyWordAsync(Id));
+                var resourcesTask = SafeLoadAsync(() => ResourceRepo.GetAllResourcesLightweightAsync());
 
                 await Task.WhenAll(progressTask, associatedTask, resourcesTask);
 
                 progress = await progressTask;
-                var associatedResources = await associatedTask;
-                availableResources = await resourcesTask;
+                var associatedResources = await associatedTask ?? new();
+                availableResources = await resourcesTask ?? new();
 
                 selectedResourceIds = new HashSet<string>(associatedResources.Select(r => r.Id));
                 originalResourceIds = new HashSet<string>(selectedResourceIds);
@@ -279,6 +279,16 @@ else
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task<T?> SafeLoadAsync<T>(Func<Task<T>> loader) where T : class
+    {
+        try { return await loader(); }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Non-fatal error loading {Type}", typeof(T).Name);
+            return null;
         }
     }
 

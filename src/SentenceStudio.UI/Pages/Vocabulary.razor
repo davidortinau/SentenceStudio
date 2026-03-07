@@ -20,30 +20,78 @@
 else
 {
     @* Stats bar *@
-    <div class="d-flex gap-3 mb-3">
+    <div class="d-flex gap-3 mb-3 flex-wrap">
         <span class="badge bg-secondary rounded-pill">Total: @stats.TotalWords</span>
         <span class="badge bg-success rounded-pill">Associated: @stats.AssociatedWords</span>
         <span class="badge bg-warning text-dark rounded-pill">Orphaned: @stats.OrphanedWords</span>
+        <span class="badge bg-info text-dark rounded-pill">Showing: @filteredWords.Count</span>
     </div>
 
-    @* Search and filter *@
-    <div class="d-flex gap-2 mb-4">
+    @* Search bar *@
+    <div class="d-flex gap-2 mb-2">
         <input type="text" class="form-control form-control-ss flex-grow-1"
                placeholder="Search vocabulary..."
                @bind="searchText" @bind:event="oninput" @bind:after="ApplyFilters" />
 
-        <select class="form-select form-control-ss" style="max-width: 180px;"
+        @if (HasActiveFilters)
+        {
+            <button class="btn btn-ss-secondary" @onclick="ClearFilters" title="Clear all filters">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        }
+    </div>
+
+    @* Filter row *@
+    <div class="d-flex gap-2 mb-4 flex-wrap">
+        <select class="form-select form-control-ss" style="max-width: 160px;"
                 @bind="selectedFilter" @bind:after="ApplyFilters">
-            <option value="All">All</option>
+            <option value="All">All Words</option>
             <option value="Associated">Associated</option>
             <option value="Orphaned">Orphaned</option>
         </select>
 
-        @if (!string.IsNullOrWhiteSpace(searchText) || selectedFilter != "All")
+        <select class="form-select form-control-ss" style="max-width: 160px;"
+                @bind="selectedStatus" @bind:after="ApplyFilters">
+            <option value="All">All Status</option>
+            <option value="Known">Known</option>
+            <option value="Learning">Learning</option>
+            <option value="Unknown">Unknown</option>
+        </select>
+
+        @if (availableResources.Count > 0)
         {
-            <button class="btn btn-ss-secondary" @onclick="ClearFilters">
-                <i class="bi bi-x-lg"></i>
-            </button>
+            <select class="form-select form-control-ss" style="max-width: 220px;"
+                    @bind="selectedResourceId" @bind:after="ApplyFilters">
+                <option value="">All Resources</option>
+                @foreach (var r in availableResources)
+                {
+                    <option value="@r.Id">@TruncateTitle(r.Title, 30)</option>
+                }
+            </select>
+        }
+
+        @if (availableTags.Count > 0)
+        {
+            <select class="form-select form-control-ss" style="max-width: 160px;"
+                    @bind="selectedTag" @bind:after="ApplyFilters">
+                <option value="">All Tags</option>
+                @foreach (var tag in availableTags)
+                {
+                    <option value="@tag">@tag</option>
+                }
+            </select>
+        }
+
+        @if (availableLemmas.Count > 0)
+        {
+            <select class="form-select form-control-ss" style="max-width: 160px;"
+                    @bind="selectedLemma" @bind:after="ApplyFilters">
+                <option value="">All Lemmas</option>
+                @foreach (var lemma in availableLemmas)
+                {
+                    <option value="@lemma">@lemma</option>
+                }
+            </select>
         }
     </div>
 
@@ -71,7 +119,10 @@ else
                                 <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
                                 <span class="ss-body2 text-secondary-ss">@(item.Word.NativeLanguageTerm ?? "")</span>
                             </div>
-                            <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
+                            <div class="d-flex gap-1 flex-shrink-0">
+                                <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
+                                <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
+                            </div>
                         </div>
                         <div class="mt-2 d-flex gap-2 flex-wrap">
                             @if (item.IsOrphaned)
@@ -81,6 +132,10 @@ else
                             else
                             {
                                 <small class="text-secondary-ss"><i class="bi bi-book me-1"></i>@item.AssociatedResources.Count resource(s)</small>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Word.Lemma))
+                            {
+                                <small class="text-secondary-ss"><i class="bi bi-braces me-1"></i>@item.Word.Lemma</small>
                             }
                             @if (!string.IsNullOrWhiteSpace(item.Word.Tags))
                             {
@@ -108,8 +163,27 @@ else
     private List<VocabularyCardItem> filteredWords = new();
     private (int TotalWords, int AssociatedWords, int OrphanedWords) stats;
     private bool isLoading = true;
+
+    // Filters
     private string searchText = "";
     private string selectedFilter = "All";
+    private string selectedStatus = "All";
+    private string selectedResourceId = "";
+    private string selectedTag = "";
+    private string selectedLemma = "";
+
+    // Filter options (populated from loaded data)
+    private List<LearningResource> availableResources = new();
+    private List<string> availableTags = new();
+    private List<string> availableLemmas = new();
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(searchText) ||
+        selectedFilter != "All" ||
+        selectedStatus != "All" ||
+        !string.IsNullOrEmpty(selectedResourceId) ||
+        !string.IsNullOrEmpty(selectedTag) ||
+        !string.IsNullOrEmpty(selectedLemma);
 
     protected override async Task OnInitializedAsync()
     {
@@ -124,26 +198,48 @@ else
             var wordsTask = ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
             var progressTask = ProgressService.GetAllProgressDictionaryAsync();
             var statsTask = ResourceRepo.GetVocabularyStatsAsync();
+            var resourcesTask = ResourceRepo.GetAllResourcesLightweightAsync();
 
-            await Task.WhenAll(wordsTask, progressTask, statsTask);
+            await Task.WhenAll(wordsTask, progressTask, statsTask, resourcesTask);
 
             var words = await wordsTask;
             var progressData = await progressTask;
             stats = await statsTask;
+            availableResources = await resourcesTask;
 
             allWords = words.Select(w =>
             {
                 var progress = progressData.TryGetValue(w.Id, out var p) ? p : null;
+                var exampleCount = w.ExampleSentences?.Count ?? 0;
+                var (score, label) = EncodingScoreHelper.CalculateWithLabel(w, exampleCount);
                 return new VocabularyCardItem
                 {
                     Word = w,
                     AssociatedResources = w.LearningResources?.ToList() ?? new(),
-                    Progress = progress
+                    Progress = progress,
+                    EncodingScore = score,
+                    EncodingLabel = label
                 };
             }).ToList();
 
+            // Extract unique tags and lemmas for filter dropdowns
+            availableTags = allWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.Word.Tags))
+                .SelectMany(w => w.Word.Tags!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(t => t)
+                .ToList();
+
+            availableLemmas = allWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.Word.Lemma))
+                .Select(w => w.Word.Lemma!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(l => l)
+                .ToList();
+
             ApplyFilters();
-            Logger.LogInformation("✅ Vocabulary loaded: {Count} words", allWords.Count);
+            Logger.LogInformation("✅ Vocabulary loaded: {Count} words, {Tags} tags, {Lemmas} lemmas, {Resources} resources",
+                allWords.Count, availableTags.Count, availableLemmas.Count, availableResources.Count);
         }
         catch (Exception ex)
         {
@@ -160,18 +256,46 @@ else
     {
         var filtered = allWords.AsEnumerable();
 
+        // Association filter
         if (selectedFilter == "Associated")
             filtered = filtered.Where(v => v.AssociatedResources.Any());
         else if (selectedFilter == "Orphaned")
             filtered = filtered.Where(v => !v.AssociatedResources.Any());
 
+        // Status filter
+        if (selectedStatus == "Known")
+            filtered = filtered.Where(v => v.IsKnown);
+        else if (selectedStatus == "Learning")
+            filtered = filtered.Where(v => v.IsLearning);
+        else if (selectedStatus == "Unknown")
+            filtered = filtered.Where(v => !v.IsKnown && !v.IsLearning);
+
+        // Resource filter
+        if (!string.IsNullOrEmpty(selectedResourceId))
+            filtered = filtered.Where(v => v.AssociatedResources.Any(r => r.Id == selectedResourceId));
+
+        // Tag filter
+        if (!string.IsNullOrEmpty(selectedTag))
+            filtered = filtered.Where(v =>
+                v.Word.Tags != null &&
+                v.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(t => t.Equals(selectedTag, StringComparison.OrdinalIgnoreCase)));
+
+        // Lemma filter
+        if (!string.IsNullOrEmpty(selectedLemma))
+            filtered = filtered.Where(v =>
+                v.Word.Lemma != null &&
+                v.Word.Lemma.Equals(selectedLemma, StringComparison.OrdinalIgnoreCase));
+
+        // Text search
         if (!string.IsNullOrWhiteSpace(searchText))
         {
             var search = searchText.ToLower();
             filtered = filtered.Where(v =>
                 (v.Word.TargetLanguageTerm?.ToLower().Contains(search) == true) ||
                 (v.Word.NativeLanguageTerm?.ToLower().Contains(search) == true) ||
-                (v.Word.Tags?.ToLower().Contains(search) == true));
+                (v.Word.Tags?.ToLower().Contains(search) == true) ||
+                (v.Word.Lemma?.ToLower().Contains(search) == true));
         }
 
         filteredWords = filtered.ToList();
@@ -181,11 +305,19 @@ else
     {
         searchText = "";
         selectedFilter = "All";
+        selectedStatus = "All";
+        selectedResourceId = "";
+        selectedTag = "";
+        selectedLemma = "";
         ApplyFilters();
     }
 
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
     private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
+
+    private static string TruncateTitle(string? title, int maxLength) =>
+        string.IsNullOrEmpty(title) ? "Unknown" :
+        title.Length <= maxLength ? title : title[..maxLength] + "…";
 
     private static string GetStatusBadgeClass(VocabularyCardItem item) => item switch
     {
@@ -194,11 +326,20 @@ else
         _ => "bg-secondary"
     };
 
+    private static string GetEncodingBadgeClass(VocabularyCardItem item) => item.EncodingLabel switch
+    {
+        "Strong" => "bg-success bg-opacity-25 text-success",
+        "Good" => "bg-warning bg-opacity-25 text-warning",
+        _ => "bg-secondary bg-opacity-25 text-secondary-ss"
+    };
+
     private class VocabularyCardItem
     {
         public VocabularyWord Word { get; set; } = null!;
         public List<LearningResource> AssociatedResources { get; set; } = new();
         public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
+        public double EncodingScore { get; set; }
+        public string EncodingLabel { get; set; } = "Basic";
 
         public bool IsKnown => Progress?.IsKnown ?? false;
         public bool IsLearning => Progress?.IsLearning ?? false;
