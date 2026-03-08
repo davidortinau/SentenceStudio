@@ -1,6 +1,8 @@
 @page "/vocabulary"
 @using SentenceStudio.Models
 @using SentenceStudio.Shared.Models
+@using SentenceStudio.Data
+@using SentenceStudio.Services
 
 <PageHeader Title="Vocabulary">
     <PrimaryActions>
@@ -10,6 +12,11 @@
     </PrimaryActions>
     <SecondaryActions>
         <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>Add Word</button></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item" @onclick="FindDuplicates"><i class="bi bi-files me-2"></i>Find Duplicates</button></li>
+        <li><button class="dropdown-item" @onclick="PopulateLemmas"><i class="bi bi-book me-2"></i>Populate Lemmas</button></li>
+        <li><button class="dropdown-item" @onclick="FixSwappedLanguages"><i class="bi bi-arrow-left-right me-2"></i>Fix Swapped Languages</button></li>
+        <li><button class="dropdown-item" @onclick="AssignOrphanedWords"><i class="bi bi-box-arrow-in-right me-2"></i>Assign Orphaned Words</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -95,6 +102,7 @@ else
                 value="@CurrentStatus" @onchange="OnStatusDropdown">
             <option value="">All Status</option>
             <option value="known">Known</option>
+            <option value="familiar">Familiar</option>
             <option value="learning">Learning</option>
             <option value="unknown">Unknown</option>
         </select>
@@ -134,7 +142,107 @@ else
                 }
             </select>
         }
+
+        @if (availableLanguages.Count > 1)
+        {
+            <select class="form-select form-control-ss" style="max-width: 160px;"
+                    value="@CurrentLanguage" @onchange="OnLanguageDropdown">
+                <option value="">All Languages</option>
+                @foreach (var lang in availableLanguages)
+                {
+                    <option value="@lang">@lang</option>
+                }
+            </select>
+        }
+
+        <select class="form-select form-control-ss" style="max-width: 180px;"
+                value="@CurrentEncoding" @onchange="OnEncodingDropdown">
+            <option value="">All Encoding</option>
+            <option value="strong">Strong</option>
+            <option value="good">Good</option>
+            <option value="basic">Basic</option>
+        </select>
     </div>
+
+    @if (showCleanupPanel)
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">@cleanupTitle</h6>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CloseCleanupPanel">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                @if (isCleanupRunning)
+                {
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                        <span>@cleanupStatus</span>
+                    </div>
+                    @if (cleanupTotal > 0)
+                    {
+                        <div class="progress mb-2" style="height: 20px;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: @((cleanupProgress * 100.0 / cleanupTotal).ToString("F0"))%"
+                                 aria-valuenow="@cleanupProgress" aria-valuemin="0" aria-valuemax="@cleanupTotal">
+                                @cleanupProgress / @cleanupTotal
+                            </div>
+                        </div>
+                    }
+                }
+
+                @if (showDuplicatePanel)
+                {
+                    <div class="mb-3">
+                        <p>Found <strong>@duplicateGroups.Count</strong> groups of duplicate words (@duplicateGroups.Sum(g => g.Words.Count - 1) extra records).</p>
+                        <button class="btn btn-primary btn-sm me-2" @onclick="AutoMergeAllDuplicates" disabled="@isCleanupRunning">
+                            Auto-merge All
+                        </button>
+                    </div>
+
+                    <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+                        @foreach (var group in duplicateGroups)
+                        {
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <strong>@group.NormalizedTerm</strong>
+                                        <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    @foreach (var wordInfo in group.Words)
+                                    {
+                                        <div class="d-flex align-items-center gap-2 py-1">
+                                            <small class="text-muted">@wordInfo.Word.NativeLanguageTerm</small>
+                                            <span class="badge bg-info">@wordInfo.ResourceCount resources</span>
+                                            <span class="badge bg-secondary">@(wordInfo.EncodingScore >= 0.67 ? "Strong" : wordInfo.EncodingScore >= 0.34 ? "Good" : "Basic")</span>
+                                            <small class="text-muted">ID: @wordInfo.Word.Id[..8]...</small>
+                                        </div>
+                                    }
+                                </div>
+                                <button class="btn btn-sm btn-outline-primary mt-1"
+                                        @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                    Merge (keep best)
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (cleanupResults.Count > 0 && !isCleanupRunning)
+                {
+                    <div class="mt-3">
+                        @foreach (var result in cleanupResults)
+                        {
+                            <div class="alert alert-info py-2 mb-1">@result</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
 
     @if (filteredWords.Count == 0)
     {
@@ -164,35 +272,15 @@ else
                                 <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
                                 @if (item.IsKnown)
                                 {
-                                    <span class="badge bg-success" title="Earned through practice">
+                                    <span class="badge bg-success" title="Mastered through practice and verified">
                                         <i class="bi bi-check-circle-fill me-1"></i>Known
                                     </span>
                                 }
                                 else
                                 {
-                                    <div class="btn-group btn-group-sm" role="group" @onclick:stopPropagation="true">
-                                        <button type="button"
-                                                class="btn @(item.StatusText == "Unknown" ? "btn-secondary" : "btn-outline-secondary") btn-sm py-0 px-1"
-                                                title="Unknown"
-                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
-                                                @onclick="() => SetWordStatus(item, LearningStatus.Unknown)">
-                                            <i class="bi bi-question-circle"></i>
-                                        </button>
-                                        <button type="button"
-                                                class="btn @(item.StatusText == "Learning" ? "btn-primary" : "btn-outline-primary") btn-sm py-0 px-1"
-                                                title="Learning"
-                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
-                                                @onclick="() => SetWordStatus(item, LearningStatus.Learning)">
-                                            <i class="bi bi-book"></i>
-                                        </button>
-                                        <button type="button"
-                                                class="btn @(item.StatusText == "Familiar" ? "btn-warning text-dark" : "btn-outline-warning") btn-sm py-0 px-1"
-                                                title="Familiar"
-                                                disabled="@(statusUpdatingWordId == item.Word.Id)"
-                                                @onclick="() => SetWordStatus(item, LearningStatus.Familiar)">
-                                            <i class="bi bi-star"></i>
-                                        </button>
-                                    </div>
+                                    <span class="badge @GetStatusBadgeClass(item)" title="@GetStatusTooltip(item)">
+                                        <i class="bi @GetStatusIcon(item)"></i>
+                                    </span>
                                 }
                             </div>
                         </div>
@@ -231,8 +319,10 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Vocabulary> Logger { get; set; } = default!;
-    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
-    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
+    [Inject] private AiService AiSvc { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QueryFromUrl { get; set; }
 
     private List<VocabularyCardItem> allWords = new();
     private List<VocabularyCardItem> filteredWords = new();
@@ -251,6 +341,18 @@ else
     private List<LearningResource> availableResources = new();
     private List<string> availableTags = new();
     private List<string> availableLemmas = new();
+    private List<string> availableLanguages = new();
+
+    // Cleanup state
+    private bool showCleanupPanel;
+    private bool showDuplicatePanel;
+    private bool isCleanupRunning;
+    private string cleanupTitle = "";
+    private string cleanupStatus = "";
+    private int cleanupProgress;
+    private int cleanupTotal;
+    private List<DuplicateGroup> duplicateGroups = new();
+    private List<string> cleanupResults = new();
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
 
@@ -260,12 +362,19 @@ else
     private string CurrentResource => GetFilterValue("resource");
     private string CurrentTag => GetFilterValue("tag");
     private string CurrentLemma => GetFilterValue("lemma");
+    private string CurrentLanguage => GetFilterValue("language");
+    private string CurrentEncoding => GetFilterValue("encoding");
 
     private string GetFilterValue(string type) =>
         parsedQuery?.Filters.FirstOrDefault(f => f.Type.Equals(type, StringComparison.OrdinalIgnoreCase))?.Value ?? "";
 
     protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrWhiteSpace(QueryFromUrl))
+        {
+            searchQuery = QueryFromUrl;
+            parsedQuery = SearchParser.Parse(searchQuery);
+        }
         await LoadData();
     }
 
@@ -286,6 +395,8 @@ else
             stats = await statsTask;
             availableResources = await resourcesTask;
 
+            var userResourceIds = new HashSet<string>(availableResources.Select(r => r.Id));
+
             allWords = words.Select(w =>
             {
                 var progress = progressData.TryGetValue(w.Id, out var p) ? p : null;
@@ -294,7 +405,9 @@ else
                 return new VocabularyCardItem
                 {
                     Word = w,
-                    AssociatedResources = w.LearningResources?.ToList() ?? new(),
+                    AssociatedResources = w.LearningResources?
+                        .Where(r => userResourceIds.Contains(r.Id))
+                        .ToList() ?? new(),
                     Progress = progress,
                     EncodingScore = score,
                     EncodingLabel = label
@@ -312,6 +425,14 @@ else
             availableLemmas = allWords
                 .Where(w => !string.IsNullOrWhiteSpace(w.Word.Lemma))
                 .Select(w => w.Word.Lemma!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(l => l)
+                .ToList();
+
+            availableLanguages = allWords
+                .SelectMany(w => w.AssociatedResources)
+                .Where(r => !string.IsNullOrWhiteSpace(r.Language))
+                .Select(r => r.Language!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(l => l)
                 .ToList();
@@ -334,6 +455,7 @@ else
         parsedQuery = SearchParser.Parse(searchQuery);
         UpdateAutocomplete();
         ApplyFilters();
+        SyncUrlWithFilters();
     }
 
     private void UpdateAutocomplete()
@@ -411,6 +533,8 @@ else
     private void OnResourceDropdown(ChangeEventArgs e) => OnDropdownChanged("resource", e);
     private void OnTagDropdown(ChangeEventArgs e) => OnDropdownChanged("tag", e);
     private void OnLemmaDropdown(ChangeEventArgs e) => OnDropdownChanged("lemma", e);
+    private void OnLanguageDropdown(ChangeEventArgs e) => OnDropdownChanged("language", e);
+    private void OnEncodingDropdown(ChangeEventArgs e) => OnDropdownChanged("encoding", e);
 
     private void OnDropdownChanged(string filterType, ChangeEventArgs e)
     {
@@ -431,6 +555,15 @@ else
         parsedQuery = SearchParser.Parse(searchQuery);
         showAutocomplete = false;
         ApplyFilters();
+        SyncUrlWithFilters();
+    }
+
+    private void SyncUrlWithFilters()
+    {
+        var url = string.IsNullOrWhiteSpace(searchQuery)
+            ? "/vocabulary"
+            : $"/vocabulary?q={Uri.EscapeDataString(searchQuery)}";
+        NavManager.NavigateTo(url, replace: true);
     }
 
     private void ApplyFilters()
@@ -452,9 +585,10 @@ else
                     },
                     "status" => val switch
                     {
-                        "known" => filtered.Where(v => v.IsKnown),
-                        "learning" => filtered.Where(v => v.IsLearning),
-                        "unknown" => filtered.Where(v => !v.IsKnown && !v.IsLearning),
+                        "known" => filtered.Where(v => v.StatusText == "Known"),
+                        "familiar" => filtered.Where(v => v.StatusText == "Familiar"),
+                        "learning" => filtered.Where(v => v.StatusText == "Learning"),
+                        "unknown" => filtered.Where(v => v.StatusText == "Unknown"),
                         _ => filtered
                     },
                     "tag" => filtered.Where(v =>
@@ -463,10 +597,15 @@ else
                             .Any(t => t.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))),
                     "resource" => filtered.Where(v =>
                         v.AssociatedResources.Any(r =>
-                            r.Title != null && r.Title.Contains(filter.Value, StringComparison.OrdinalIgnoreCase))),
+                            r.Title != null && r.Title.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))),
                     "lemma" => filtered.Where(v =>
                         v.Word.Lemma != null &&
                         v.Word.Lemma.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
+                    "language" => filtered.Where(v =>
+                        v.AssociatedResources.Any(r =>
+                            r.Language != null && r.Language.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))),
+                    "encoding" => filtered.Where(v =>
+                        v.EncodingLabel.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
                     _ => filtered
                 };
             }
@@ -497,44 +636,30 @@ else
     private static string TruncateTitle(string? title, int maxLen) =>
         title == null ? "" : title.Length <= maxLen ? title : title[..maxLen] + "…";
 
-    private string? statusUpdatingWordId;
-
-    private async Task SetWordStatus(VocabularyCardItem item, LearningStatus status)
-    {
-        if (statusUpdatingWordId != null) return;
-        var currentStatus = item.Progress?.Status ?? LearningStatus.Unknown;
-        if (currentStatus == status) return;
-
-        statusUpdatingWordId = item.Word.Id;
-        try
-        {
-            var userId = Preferences.Get("active_profile_id", "");
-            var updatedProgress = await ProgressService.SetUserDeclaredStatusAsync(item.Word.Id, userId, status);
-            item.Progress = updatedProgress;
-            CacheService.InvalidateVocabSummary();
-
-            if (status == LearningStatus.Familiar)
-                Toast.ShowInfo("Got it -- we trust you on this one. We will check in occasionally to keep it fresh.");
-        }
-        catch (Exception ex)
-        {
-            Toast.ShowError($"Failed to update status: {ex.Message}");
-            Logger.LogError(ex, "Failed to set word status for {WordId}", item.Word.Id);
-        }
-        finally
-        {
-            statusUpdatingWordId = null;
-        }
-    }
-
     private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
     private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
 
-    private static string GetStatusBadgeClass(VocabularyCardItem item) => item switch
+    private static string GetStatusBadgeClass(VocabularyCardItem item) => item.StatusText switch
     {
-        { IsKnown: true } => "bg-success",
-        { IsLearning: true } => "bg-warning text-dark",
+        "Known" => "bg-success",
+        "Familiar" => "bg-warning text-dark",
+        "Learning" => "bg-primary",
         _ => "bg-secondary"
+    };
+
+    private static string GetStatusIcon(VocabularyCardItem item) => item.StatusText switch
+    {
+        "Known" => "bi-check-circle-fill",
+        "Familiar" => "bi-star",
+        "Learning" => "bi-book",
+        _ => "bi-question-circle"
+    };
+
+    private static string GetStatusTooltip(VocabularyCardItem item) => item.StatusText switch
+    {
+        "Familiar" => "Marked familiar — verification pending",
+        "Learning" => "Currently studying",
+        _ => "Not yet studied"
     };
 
     private static string GetEncodingBadgeClass(VocabularyCardItem item) => item.EncodingLabel switch
@@ -563,6 +688,408 @@ else
         "association" => "bi bi-link-45deg",
         _ => "bi bi-funnel"
     };
+
+    // ===== CLEANUP PANEL =====
+
+    private void CloseCleanupPanel()
+    {
+        showCleanupPanel = false;
+        showDuplicatePanel = false;
+        cleanupResults.Clear();
+    }
+
+    // ===== FIND DUPLICATES =====
+    private async Task FindDuplicates()
+    {
+        showCleanupPanel = true;
+        showDuplicatePanel = true;
+        isCleanupRunning = true;
+        cleanupTitle = "Find Duplicates";
+        cleanupStatus = "Scanning for duplicates...";
+        cleanupResults.Clear();
+        StateHasChanged();
+
+        try
+        {
+            duplicateGroups = await ResourceRepo.GetDuplicateGroupsAsync();
+            cleanupStatus = "";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error finding duplicates");
+            cleanupResults.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MergeDuplicateGroup(DuplicateGroup group)
+    {
+        isCleanupRunning = true;
+        cleanupStatus = $"Merging group: {group.NormalizedTerm}...";
+        StateHasChanged();
+
+        try
+        {
+            var sorted = group.Words
+                .OrderByDescending(w => w.ResourceCount)
+                .ThenByDescending(w => w.EncodingScore)
+                .ToList();
+
+            var keeper = sorted.First();
+            var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
+
+            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+            cleanupResults.Add($"Merged '{group.NormalizedTerm}': kept 1, removed {deleted}");
+
+            duplicateGroups.Remove(group);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error merging duplicate group {Term}", group.NormalizedTerm);
+            cleanupResults.Add($"Error merging '{group.NormalizedTerm}': {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AutoMergeAllDuplicates()
+    {
+        isCleanupRunning = true;
+        cleanupTotal = duplicateGroups.Count;
+        cleanupProgress = 0;
+        cleanupStatus = "Auto-merging all duplicates...";
+        cleanupResults.Clear();
+        StateHasChanged();
+
+        int totalMerged = 0;
+        int errors = 0;
+
+        var groupsToProcess = duplicateGroups.ToList();
+
+        foreach (var group in groupsToProcess)
+        {
+            try
+            {
+                var sorted = group.Words
+                    .OrderByDescending(w => w.ResourceCount)
+                    .ThenByDescending(w => w.EncodingScore)
+                    .ToList();
+
+                var keeper = sorted.First();
+                var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
+
+                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+                totalMerged += deleted;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error auto-merging group {Term}", group.NormalizedTerm);
+                errors++;
+            }
+
+            cleanupProgress++;
+            StateHasChanged();
+        }
+
+        duplicateGroups.Clear();
+        cleanupResults.Add($"Auto-merge complete: removed {totalMerged} duplicate(s)" + (errors > 0 ? $", {errors} error(s)" : ""));
+        isCleanupRunning = false;
+
+        await LoadData();
+        StateHasChanged();
+    }
+
+    // ===== POPULATE LEMMAS =====
+
+    private class LemmaResponse
+    {
+        public List<LemmaItem> Lemmas { get; set; } = new();
+    }
+
+    private class LemmaItem
+    {
+        public int Id { get; set; }
+        public string Lemma { get; set; } = "";
+    }
+
+    private async Task PopulateLemmas()
+    {
+        showCleanupPanel = true;
+        showDuplicatePanel = false;
+        isCleanupRunning = true;
+        cleanupTitle = "Populate Lemmas";
+        cleanupResults.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var wordsNeedingLemma = allWords
+                .Where(w => string.IsNullOrWhiteSpace(w.Word.Lemma))
+                .Select(w => w.Word)
+                .ToList();
+
+            cleanupTotal = wordsNeedingLemma.Count;
+            cleanupProgress = 0;
+            cleanupStatus = $"Processing {cleanupTotal} words missing lemmas...";
+            StateHasChanged();
+
+            if (cleanupTotal == 0)
+            {
+                cleanupResults.Add("All words already have lemmas.");
+                isCleanupRunning = false;
+                StateHasChanged();
+                return;
+            }
+
+            int updated = 0;
+            int batchSize = 50;
+            var batches = wordsNeedingLemma
+                .Select((word, index) => new { word, index })
+                .GroupBy(x => x.index / batchSize)
+                .Select(g => g.Select(x => x.word).ToList())
+                .ToList();
+
+            foreach (var batch in batches)
+            {
+                cleanupStatus = $"Processing batch {cleanupProgress / batchSize + 1} of {batches.Count}...";
+                StateHasChanged();
+
+                try
+                {
+                    var wordList = string.Join("\n", batch.Select((w, i) =>
+                        $"{i + 1}. {w.TargetLanguageTerm} ({w.NativeLanguageTerm})"));
+
+                    var prompt = $@"For each word below, return its dictionary form (lemma). If the word is already in dictionary form, return it unchanged. Return ONLY a JSON object with a ""lemmas"" array where each item has ""id"" (the number) and ""lemma"" (the dictionary form in the target language).
+
+Words:
+{wordList}
+
+Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, ...]}}";
+
+                    var response = await AiSvc.SendPrompt<LemmaResponse>(prompt);
+
+                    if (response?.Lemmas != null)
+                    {
+                        var lemmaUpdates = new Dictionary<string, string>();
+                        foreach (var item in response.Lemmas)
+                        {
+                            var idx = item.Id - 1; // 0-based index
+                            if (idx >= 0 && idx < batch.Count && !string.IsNullOrWhiteSpace(item.Lemma))
+                            {
+                                lemmaUpdates[batch[idx].Id] = item.Lemma;
+                            }
+                        }
+
+                        if (lemmaUpdates.Any())
+                        {
+                            int batchUpdated = await ResourceRepo.BulkUpdateLemmasAsync(lemmaUpdates);
+                            updated += batchUpdated;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error processing lemma batch");
+                    cleanupResults.Add($"Batch error: {ex.Message}");
+                }
+
+                cleanupProgress += batch.Count;
+                StateHasChanged();
+
+                await Task.Delay(500);
+            }
+
+            cleanupResults.Add($"Lemma population complete: updated {updated} of {cleanupTotal} words");
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error populating lemmas");
+            cleanupResults.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    // ===== FIX SWAPPED LANGUAGES =====
+    private static bool IsEnglish(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        return text.All(c => c <= 127 || char.IsWhiteSpace(c));
+    }
+
+    private static bool IsKorean(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        return text.Any(c =>
+            (c >= 0xAC00 && c <= 0xD7AF) ||  // Hangul Syllables
+            (c >= 0x1100 && c <= 0x11FF) ||   // Hangul Jamo
+            (c >= 0x3130 && c <= 0x318F));    // Hangul Compatibility Jamo
+    }
+
+    private async Task FixSwappedLanguages()
+    {
+        showCleanupPanel = true;
+        showDuplicatePanel = false;
+        isCleanupRunning = true;
+        cleanupTitle = "Fix Swapped Languages";
+        cleanupResults.Clear();
+        cleanupStatus = "Scanning for swapped language entries...";
+        StateHasChanged();
+
+        try
+        {
+            int swappedCount = 0;
+            int mergedCount = 0;
+
+            var wordsToSwap = new List<(string Id, string NewTarget, string NewNative)>();
+            var wordsToMerge = new List<(string FromId, string ToId)>();
+
+            foreach (var item in allWords)
+            {
+                var word = item.Word;
+                if (string.IsNullOrWhiteSpace(word.TargetLanguageTerm) ||
+                    string.IsNullOrWhiteSpace(word.NativeLanguageTerm))
+                    continue;
+
+                bool targetIsEnglish = IsEnglish(word.TargetLanguageTerm);
+                bool nativeIsKorean = IsKorean(word.NativeLanguageTerm);
+
+                if (targetIsEnglish && nativeIsKorean)
+                {
+                    var swappedTarget = word.NativeLanguageTerm;
+                    var swappedNative = word.TargetLanguageTerm;
+
+                    var existingWord = await ResourceRepo.FindDuplicateVocabularyWordAsync(swappedTarget, swappedNative);
+
+                    if (existingWord != null && existingWord.Id != word.Id)
+                    {
+                        wordsToMerge.Add((word.Id, existingWord.Id));
+                    }
+                    else
+                    {
+                        wordsToSwap.Add((word.Id, swappedTarget, swappedNative));
+                    }
+                }
+            }
+
+            cleanupTotal = wordsToSwap.Count + wordsToMerge.Count;
+            cleanupProgress = 0;
+            cleanupStatus = $"Fixing {cleanupTotal} entries...";
+            StateHasChanged();
+
+            foreach (var (fromId, toId) in wordsToMerge)
+            {
+                var wordResources = await ResourceRepo.GetResourcesContainingWordAsync(fromId);
+                foreach (var resource in wordResources)
+                {
+                    await ResourceRepo.BulkAssociateWordsWithResourceAsync(resource.Id, new List<string> { toId });
+                }
+                await ResourceRepo.DeleteVocabularyWordAsync(fromId);
+                mergedCount++;
+                cleanupProgress++;
+                StateHasChanged();
+            }
+
+            foreach (var (id, newTarget, newNative) in wordsToSwap)
+            {
+                await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative);
+                swappedCount++;
+                cleanupProgress++;
+                StateHasChanged();
+            }
+
+            cleanupResults.Add($"Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)");
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fixing swapped languages");
+            cleanupResults.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    // ===== ASSIGN ORPHANED WORDS =====
+    private async Task AssignOrphanedWords()
+    {
+        showCleanupPanel = true;
+        showDuplicatePanel = false;
+        isCleanupRunning = true;
+        cleanupTitle = "Assign Orphaned Words";
+        cleanupResults.Clear();
+        cleanupStatus = "Finding orphaned words...";
+        StateHasChanged();
+
+        try
+        {
+            var orphanedWords = await ResourceRepo.GetOrphanedVocabularyWordsAsync();
+
+            if (!orphanedWords.Any())
+            {
+                cleanupResults.Add("No orphaned words found.");
+                isCleanupRunning = false;
+                StateHasChanged();
+                return;
+            }
+
+            cleanupStatus = $"Assigning {orphanedWords.Count} orphaned words...";
+            StateHasChanged();
+
+            var allResources = availableResources;
+            var generalResource = allResources.FirstOrDefault(r =>
+                r.Title == "General Vocabulary" && r.MediaType == "Vocabulary List");
+
+            if (generalResource == null)
+            {
+                generalResource = new LearningResource
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Title = "General Vocabulary",
+                    Description = "Catch-all vocabulary list for words without a specific learning resource",
+                    MediaType = "Vocabulary List",
+                    Language = "Korean",
+                    Tags = "general,unassigned",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await ResourceRepo.SaveResourceAsync(generalResource);
+            }
+
+            var orphanIds = orphanedWords.Select(w => w.Id).ToList();
+            await ResourceRepo.BulkAssociateWordsWithResourceAsync(generalResource.Id, orphanIds);
+
+            cleanupResults.Add($"Assigned {orphanIds.Count} orphaned word(s) to 'General Vocabulary'");
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error assigning orphaned words");
+            cleanupResults.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
 
     private class VocabularyCardItem
     {
