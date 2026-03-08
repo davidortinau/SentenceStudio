@@ -210,7 +210,7 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get vocabulary summary counts using efficient SQL aggregation
     /// </summary>
-    public async Task<(int New, int Learning, int Review, int Known)> GetVocabSummaryCountsAsync(string userId = "")
+    public async Task<(int New, int Learning, int Familiar, int Review, int Known)> GetVocabSummaryCountsAsync(string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
         using var scope = _serviceProvider.CreateScope();
@@ -233,24 +233,36 @@ public class VocabularyProgressRepository
             {
                 vp.TotalAttempts,
                 vp.MasteryScore,
-                vp.NextReviewDate
+                vp.NextReviewDate,
+                vp.IsUserDeclared,
+                vp.VerificationState,
+                vp.IsKnown
             })
             .ToListAsync();
 
         var now = DateTime.Now;
 
-        // Words with progress records
-        var learning = allProgress.Count(p => p.MasteryScore < 0.8f && p.TotalAttempts > 0 && (p.NextReviewDate == null || p.NextReviewDate > now));
-        var review = allProgress.Count(p => p.MasteryScore < 0.8f && p.NextReviewDate != null && p.NextReviewDate <= now);
-        var known = allProgress.Count(p => p.MasteryScore >= 0.8f);
+        // Familiar = user-declared but not yet verified through practice
+        var familiar = allProgress.Count(p => p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending);
+
+        // Words with progress records (excluding Familiar, which is its own category)
+        var learning = allProgress.Count(p =>
+            !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending)
+            && !p.IsKnown && p.TotalAttempts > 0
+            && (p.NextReviewDate == null || p.NextReviewDate > now));
+        var review = allProgress.Count(p =>
+            !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending)
+            && !p.IsKnown && p.NextReviewDate != null && p.NextReviewDate <= now);
+        var known = allProgress.Count(p => p.IsKnown);
 
         // "New" = Total words that have never been practiced (no progress record OR progress with 0 attempts)
         var wordsWithProgress = allProgress.Count;
-        var newFromProgress = allProgress.Count(p => p.TotalAttempts == 0);
+        var newFromProgress = allProgress.Count(p => p.TotalAttempts == 0
+            && !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending));
         var wordsNeverSeen = totalVocabWords - wordsWithProgress;
         var newCount = wordsNeverSeen + newFromProgress;
 
-        return (newCount, learning, review, known);
+        return (newCount, learning, familiar, review, known);
     }
 
     /// <summary>

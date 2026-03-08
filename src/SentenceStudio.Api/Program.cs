@@ -14,7 +14,10 @@ using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Contracts.Speech;
+using SentenceStudio.Contracts.Vocabulary;
+using SentenceStudio.Data;
 using SentenceStudio.Domain.Abstractions;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +30,22 @@ builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+
+// Database - shared with WebApp server instance
+var serverDbFolder = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "sentencestudio",
+    "server");
+Directory.CreateDirectory(serverDbFolder);
+var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
+builder.Services.AddDataServices(databasePath);
+
+// Vocabulary progress services
+builder.Services.AddSingleton<VocabularyProgressRepository>();
+builder.Services.AddSingleton<VocabularyLearningContextRepository>();
+builder.Services.AddSingleton<VocabularyProgressService>();
+builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
+    provider.GetRequiredService<VocabularyProgressService>());
 
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
@@ -214,6 +233,45 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
 app.MapPost("/api/v1/plans/generate", (GeneratePlanRequest request) =>
         Results.Ok(BuildPlanResponse(request)))
     .RequireAuthorization();
+
+app.MapPost("/api/v1/vocabulary/{wordId}/status", async (
+    string wordId,
+    SetVocabularyStatusRequest request,
+    ITenantContext tenantContext,
+    IVocabularyProgressService progressService) =>
+{
+    var userId = tenantContext.UserId;
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (!Enum.TryParse<LearningStatus>(request.Status, ignoreCase: true, out var status))
+    {
+        return Results.BadRequest($"Invalid status '{request.Status}'. Valid values: Unknown, Learning, Familiar.");
+    }
+
+    if (status == LearningStatus.Known)
+    {
+        return Results.BadRequest("Known status must be earned through practice.");
+    }
+
+    var progress = await progressService.SetUserDeclaredStatusAsync(wordId, userId, status);
+
+    return Results.Ok(new VocabularyProgressResponse
+    {
+        Id = progress.Id,
+        VocabularyWordId = progress.VocabularyWordId,
+        Status = progress.Status.ToString(),
+        MasteryScore = progress.MasteryScore,
+        IsUserDeclared = progress.IsUserDeclared,
+        UserDeclaredAt = progress.UserDeclaredAt,
+        VerificationState = progress.VerificationState.ToString(),
+        CurrentStreak = progress.CurrentStreak,
+        TotalAttempts = progress.TotalAttempts
+    });
+})
+.RequireAuthorization();
 
 var summaries = new[]
 {

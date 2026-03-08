@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
 
@@ -166,7 +167,9 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// Gets words due for review based on spaced repetition
+    /// Gets words due for review based on spaced repetition.
+    /// Excludes: Known words, Familiar words in grace period.
+    /// Includes at low frequency: Familiar words past grace period (verification probes).
     /// </summary>
     public async Task<List<VocabularyProgress>> GetReviewCandidatesAsync(string userId = "")
     {
@@ -174,7 +177,8 @@ public class VocabularyProgressService : IVocabularyProgressService
         return allProgress.Where(p =>
             p.UserId == userId &&
             p.IsDueForReview &&
-            !p.IsKnown).ToList();
+            !p.IsKnown &&
+            !p.IsInGracePeriod).ToList();
     }
 
     /// <summary>
@@ -391,7 +395,105 @@ public class VocabularyProgressService : IVocabularyProgressService
         return await _progressRepo.SaveAsync(newProgress);
     }
 
-    // Legacy method implementations for backward compatibility ⚓
+    // Legacy method implementations for backward compatibility
+
+    /// <summary>
+    /// Sets a user-declared status for a vocabulary word ("Trust but Verify").
+    /// </summary>
+    public async Task<VocabularyProgress> SetUserDeclaredStatusAsync(string vocabularyWordId, string userId, LearningStatus declaredStatus)
+    {
+        if (declaredStatus == LearningStatus.Known)
+            throw new ArgumentException("Known status must be earned through practice or verification, not declared manually.");
+
+        var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
+
+        if (declaredStatus == LearningStatus.Familiar)
+        {
+            progress.IsUserDeclared = true;
+            progress.UserDeclaredAt = DateTime.Now;
+            progress.VerificationState = VerificationStatus.Pending;
+            // Set review date to end of grace period (14 days)
+            progress.NextReviewDate = DateTime.Now.AddDays(14);
+            progress.ReviewInterval = 30; // After grace period, review every 30 days
+
+            _logger.LogInformation("Word {WordId} marked as Familiar by user {UserId}. Grace period until {GraceEnd:d}.",
+                vocabularyWordId, userId, progress.NextReviewDate);
+        }
+        else
+        {
+            // Learning or Unknown: reset to algorithmic tracking
+            progress.IsUserDeclared = true;
+            progress.UserDeclaredAt = DateTime.Now;
+            progress.VerificationState = VerificationStatus.None;
+
+            if (declaredStatus == LearningStatus.Unknown)
+            {
+                // Reset mastery to zero — user says they don't know it
+                progress.MasteryScore = 0;
+                progress.CurrentStreak = 0;
+                progress.ProductionInStreak = 0;
+                progress.MasteredAt = null;
+                progress.NextReviewDate = null;
+                progress.ReviewInterval = 1;
+                progress.EaseFactor = 2.5f;
+            }
+            // For Learning: keep existing mastery data, just mark as user-declared
+
+            _logger.LogInformation("Word {WordId} marked as {Status} by user {UserId}.",
+                vocabularyWordId, declaredStatus, userId);
+        }
+
+        progress.UpdatedAt = DateTime.Now;
+        return await _progressRepo.SaveAsync(progress);
+    }
+
+    /// <summary>
+    /// Handles the result of a verification probe for a Familiar word.
+    /// </summary>
+    public async Task<VocabularyProgress> HandleVerificationProbeResultAsync(string vocabularyWordId, string userId, bool wasCorrect)
+    {
+        var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
+
+        if (!progress.IsFamiliar)
+        {
+            _logger.LogWarning("HandleVerificationProbeResultAsync called for non-Familiar word {WordId}. Ignoring.", vocabularyWordId);
+            return progress;
+        }
+
+        if (wasCorrect)
+        {
+            // Promote to Known
+            progress.VerificationState = VerificationStatus.Confirmed;
+            progress.MasteryScore = 1.0f;
+            progress.CurrentStreak = 7;
+            progress.ProductionInStreak = MIN_PRODUCTION_FOR_KNOWN;
+            progress.MasteredAt = DateTime.Now;
+            progress.ReviewInterval = 60;
+            progress.EaseFactor = 2.5f;
+            progress.NextReviewDate = DateTime.Now.AddDays(60);
+
+            _logger.LogInformation("Word {WordId} verified and promoted to Known for user {UserId}.",
+                vocabularyWordId, userId);
+        }
+        else
+        {
+            // Demote to Learning
+            progress.VerificationState = VerificationStatus.Demoted;
+            progress.IsUserDeclared = false;
+            progress.MasteryScore = 0.3f;
+            progress.CurrentStreak = 0;
+            progress.ProductionInStreak = 0;
+            progress.ReviewInterval = 1;
+            progress.NextReviewDate = DateTime.Now.AddDays(1);
+
+            _logger.LogInformation("Word {WordId} failed verification, moved to Learning for user {UserId}.",
+                vocabularyWordId, userId);
+        }
+
+        progress.LastPracticedAt = DateTime.Now;
+        progress.UpdatedAt = DateTime.Now;
+        return await _progressRepo.SaveAsync(progress);
+    }
 
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)

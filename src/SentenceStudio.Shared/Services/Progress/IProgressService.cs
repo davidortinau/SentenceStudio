@@ -27,6 +27,7 @@ public record VocabProgressSummary
 (
     int New,
     int Learning,
+    int Familiar,
     int Review,
     int Known,
     double SuccessRate7d // 0..1

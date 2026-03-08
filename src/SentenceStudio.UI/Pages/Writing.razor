@@ -327,6 +327,10 @@ else
                         {
                             await ProgressService.HandleVerificationProbeResultAsync(
                                 matched.Id, activeUserId, vocabItem.UsageCorrect);
+                            if (vocabItem.UsageCorrect)
+                                Toast.ShowSuccess("Confirmed! This one is solid.");
+                            else
+                                Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
                         }
                     }
                 }

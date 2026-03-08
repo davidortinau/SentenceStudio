@@ -4,5 +4,6 @@ public enum LearningStatus
 {
     Unknown,
     Learning,
+    Familiar,
     Known
 }

@@ -154,11 +154,11 @@ public class ProgressService : IProgressService
 
         _logger.LogDebug("🏴‍☠️ Loading VocabSummary from database");
         // PHASE 1 OPTIMIZATION: Use SQL aggregation instead of loading all progress records
-        var (newCount, learning, review, known) = await _progressRepo.GetVocabSummaryCountsAsync();
+        var (newCount, learning, familiar, review, known) = await _progressRepo.GetVocabSummaryCountsAsync();
         var success7d = await _progressRepo.GetSuccessRate7dAsync();
 
-        _logger.LogDebug("🏴‍☠️ VocabSummary: New={NewCount}, Learning={Learning}, Review={Review}, Known={Known}, Success7d={Success7d}", newCount, learning, review, known, success7d);
-        var result = new VocabProgressSummary(newCount, learning, review, known, success7d);
+        _logger.LogDebug("🏴‍☠️ VocabSummary: New={NewCount}, Learning={Learning}, Familiar={Familiar}, Review={Review}, Known={Known}, Success7d={Success7d}", newCount, learning, familiar, review, known, success7d);
+        var result = new VocabProgressSummary(newCount, learning, familiar, review, known, success7d);
 
         // PHASE 2 OPTIMIZATION: Cache the result
         _cache.SetVocabSummary(result);

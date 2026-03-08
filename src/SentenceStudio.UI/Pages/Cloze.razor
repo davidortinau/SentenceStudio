@@ -292,6 +292,10 @@ else
                     {
                         await ProgressService.HandleVerificationProbeResultAsync(
                             vocabWord.Id, Preferences.Get("active_profile_id", ""), isCorrect);
+                        if (isCorrect)
+                            Toast.ShowSuccess("Confirmed! This one is solid.");
+                        else
+                            Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
                     }
 
                     CacheService.InvalidateVocabSummary();

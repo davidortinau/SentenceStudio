@@ -66,4 +66,18 @@ public interface IVocabularyProgressService
     /// Returns the count of records migrated.
     /// </summary>
     Task<int> MigrateToStreakBasedScoringAsync();
+
+    /// <summary>
+    /// Sets a user-declared status for a vocabulary word ("Trust but Verify").
+    /// Familiar: sets grace period, excludes from quizzes for 14 days, then soft verification probes.
+    /// Learning/Unknown: resets to algorithmic tracking.
+    /// Known is not settable — it must be earned through practice or verified from Familiar.
+    /// </summary>
+    Task<VocabularyProgress> SetUserDeclaredStatusAsync(string vocabularyWordId, string userId, LearningStatus declaredStatus);
+
+    /// <summary>
+    /// Handles the result of a verification probe for a Familiar word.
+    /// Correct: promotes to Known. Incorrect: demotes to Learning.
+    /// </summary>
+    Task<VocabularyProgress> HandleVerificationProbeResultAsync(string vocabularyWordId, string userId, bool wasCorrect);
 }

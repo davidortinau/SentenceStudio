@@ -316,6 +316,10 @@ else
                 {
                     await ProgressService.HandleVerificationProbeResultAsync(
                         matchedWord.Id, activeUserId, isMatch);
+                    if (isMatch)
+                        Toast.ShowSuccess("Confirmed! This one is solid.");
+                    else
+                        Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
                 }
 
                 CacheService.InvalidateVocabSummary();

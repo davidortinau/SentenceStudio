@@ -56,6 +56,11 @@ public class VocabularyProgress
     [Obsolete("Use IsKnown instead. Will be removed in future version.")]
     public bool IsCompleted { get; set; } = false;
 
+    // User-declared status ("Trust but Verify")
+    public bool IsUserDeclared { get; set; } = false;
+    public DateTime? UserDeclaredAt { get; set; }
+    public VerificationStatus VerificationState { get; set; } = VerificationStatus.None;
+
     // Learning metadata
     public DateTime FirstSeenAt { get; set; } = DateTime.Now;
     public DateTime LastPracticedAt { get; set; } = DateTime.Now;
@@ -80,12 +85,15 @@ public class VocabularyProgress
 
     // Computed properties for status classification
     [NotMapped]
-    public LearningStatus Status => MasteryScore switch
-    {
-        0 => LearningStatus.Unknown,
-        _ when IsKnown => LearningStatus.Known,
-        _ => LearningStatus.Learning
-    };
+    public LearningStatus Status =>
+        IsUserDeclared && VerificationState == VerificationStatus.Pending
+            ? LearningStatus.Familiar
+            : MasteryScore switch
+            {
+                0 => LearningStatus.Unknown,
+                _ when IsKnown => LearningStatus.Known,
+                _ => LearningStatus.Learning
+            };
 
     // NEW: IsKnown requires both mastery threshold AND production evidence
     [NotMapped]
@@ -118,6 +126,13 @@ public class VocabularyProgress
 
     [NotMapped]
     public bool IsDueForReview => NextReviewDate.HasValue && NextReviewDate.Value <= DateTime.Now;
+
+    [NotMapped]
+    public bool IsFamiliar => IsUserDeclared && VerificationState == VerificationStatus.Pending;
+
+    [NotMapped]
+    public bool IsInGracePeriod => IsFamiliar && UserDeclaredAt.HasValue
+        && (DateTime.Now - UserDeclaredAt.Value).TotalDays < 14;
 
     // LEGACY: computed properties for backward compatibility
     [NotMapped]
