@@ -26,6 +26,8 @@ namespace SentenceStudio.Services
             }
         }
 
+        private readonly VocabularyProgressService _progressService;
+
         public TranslationService(IServiceProvider serviceProvider, ILogger<TranslationService> logger)
         {
             _serviceProvider = serviceProvider;
@@ -35,6 +37,7 @@ namespace SentenceStudio.Services
             _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
             _syncService = serviceProvider.GetService<ISyncService>();
             _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
+            _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
         }
 
         public async Task<List<Challenge>> GetTranslationSentences(string resourceID, int numberOfSentences, string skillID)
@@ -64,9 +67,15 @@ namespace SentenceStudio.Services
                 return new List<Challenge>();
             }
 
-            // Send ALL vocabulary words to AI to ensure it only uses words from our vocabulary list
-            _words = resource.Vocabulary.ToList();
-            _logger.LogDebug("Sending ALL {VocabularyCount} vocabulary words to AI", _words.Count);
+            // Send vocabulary words to AI, excluding Familiar words in grace period
+            var allVocab = resource.Vocabulary.ToList();
+            var wordIds = allVocab.Select(w => w.Id).ToList();
+            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+            _words = allVocab
+                .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+                .ToList();
+            _logger.LogDebug("Sending {VocabularyCount} vocabulary words to AI ({Excluded} excluded for grace period)",
+                _words.Count, allVocab.Count - _words.Count);
 
             var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
             _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");

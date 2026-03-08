@@ -274,7 +274,7 @@ else
 
                 if (vocabWord != null)
                 {
-                    await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                    var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                     {
                         VocabularyWordId = vocabWord.Id,
                         UserId = Preferences.Get("active_profile_id", ""),
@@ -286,6 +286,14 @@ else
                         UserInput = answer,
                         ExpectedAnswer = current.VocabularyWordAsUsed
                     });
+
+                    // Handle verification probe for Familiar words
+                    if (updatedProgress.IsFamiliar)
+                    {
+                        await ProgressService.HandleVerificationProbeResultAsync(
+                            vocabWord.Id, Preferences.Get("active_profile_id", ""), isCorrect);
+                    }
+
                     CacheService.InvalidateVocabSummary();
                 }
             }

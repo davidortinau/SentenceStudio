@@ -152,6 +152,7 @@ else
             var selectedWords = allWords
                 .Select(w => new { Word = w, Progress = progressDict.ContainsKey(w.Id) ? progressDict[w.Id] : null })
                 .Where(wp => !(wp.Progress?.IsKnown ?? false))
+                .Where(wp => !(wp.Progress?.IsInGracePeriod ?? false))
                 .OrderBy(wp => wp.Progress?.MasteryScore ?? 0f)
                 .ThenBy(_ => Guid.NewGuid())
                 .Take(8)
@@ -295,10 +296,11 @@ else
         {
             try
             {
-                await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                var activeUserId = Preferences.Get("active_profile_id", "");
+                var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                 {
                     VocabularyWordId = matchedWord.Id,
-                    UserId = Preferences.Get("active_profile_id", ""),
+                    UserId = activeUserId,
                     Activity = "VocabularyMatching",
                     InputMode = "MultipleChoice",
                     WasCorrect = isMatch,
@@ -308,6 +310,14 @@ else
                     ExpectedAnswer = $"{matchedWord.NativeLanguageTerm} = {matchedWord.TargetLanguageTerm}",
                     ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
                 });
+
+                // Handle verification probe for Familiar words
+                if (updatedProgress.IsFamiliar)
+                {
+                    await ProgressService.HandleVerificationProbeResultAsync(
+                        matchedWord.Id, activeUserId, isMatch);
+                }
+
                 CacheService.InvalidateVocabSummary();
             }
             catch (Exception ex)

@@ -307,7 +307,7 @@ else
                 var totalCount = currentClues.Count(c => c.Graded);
                 var wasCorrect = totalCount > 0 && (float)relatedCount / totalCount >= 0.5f;
 
-                await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                 {
                     VocabularyWordId = currentWord.Id,
                     UserId = userId,
@@ -317,6 +317,14 @@ else
                     DifficultyWeight = 1.0f,
                     ContextType = "Association"
                 });
+
+                // Handle verification probe for Familiar words
+                if (updatedProgress.IsFamiliar)
+                {
+                    await ProgressService.HandleVerificationProbeResultAsync(
+                        currentWord.Id, userId, wasCorrect);
+                }
+
                 CacheService.InvalidateVocabSummary();
             }
 

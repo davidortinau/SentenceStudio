@@ -15,6 +15,8 @@ public class WordAssociationService
     private readonly LearningResourceRepository _resourceRepository;
     private readonly IFileSystemService _fileSystem;
 
+    private readonly VocabularyProgressService _progressService;
+
     public WordAssociationService(IServiceProvider serviceProvider, ILogger<WordAssociationService> logger)
     {
         _serviceProvider = serviceProvider;
@@ -22,10 +24,12 @@ public class WordAssociationService
         _aiService = serviceProvider.GetRequiredService<AiService>();
         _resourceRepository = serviceProvider.GetRequiredService<LearningResourceRepository>();
         _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
+        _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
     }
 
     /// <summary>
     /// Select vocabulary words for a round from the given Learning Resource(s).
+    /// Excludes Familiar words still in their 14-day grace period.
     /// </summary>
     public async Task<List<VocabularyWord>> GetRoundWordsAsync(string resourceIds, int count = 5)
     {
@@ -39,18 +43,25 @@ public class WordAssociationService
                 allWords.AddRange(resource.Vocabulary);
         }
 
-        // Deduplicate by Id, shuffle, take requested count
+        // Deduplicate by Id
         var distinct = allWords
             .GroupBy(w => w.Id)
             .Select(g => g.First())
+            .ToList();
+
+        // Filter out Familiar words in grace period
+        var wordIds = distinct.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var graceExcluded = distinct
+            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
             .ToList();
 
-        _logger.LogDebug("GetRoundWordsAsync selected {Count} words from {ResourceCount} resources",
-            distinct.Count, ids.Length);
+        _logger.LogDebug("GetRoundWordsAsync selected {Count} words from {ResourceCount} resources (excluded {Excluded} in grace period)",
+            graceExcluded.Count, ids.Length, distinct.Count - graceExcluded.Count);
 
-        return distinct;
+        return graceExcluded;
     }
 
     /// <summary>

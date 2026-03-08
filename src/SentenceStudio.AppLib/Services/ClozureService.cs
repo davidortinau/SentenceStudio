@@ -26,6 +26,8 @@ public class ClozureService
         }
     }
 
+    private readonly VocabularyProgressService _progressService;
+
     public ClozureService(IServiceProvider serviceProvider, ILogger<ClozureService> logger)
     {
         _serviceProvider = serviceProvider;
@@ -35,6 +37,7 @@ public class ClozureService
         _resourceRepository = serviceProvider.GetRequiredService<LearningResourceRepository>();
         _syncService = serviceProvider.GetService<ISyncService>();
         _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
+        _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
     }
 
     public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID)
@@ -65,11 +68,15 @@ public class ClozureService
             return new List<Challenge>(); // Return empty list instead of null
         }
 
-        // 🏴‍☠️ CRITICAL FIX: Send ALL vocabulary words to AI, not just a subset
-        // This ensures the AI can only use words from our vocabulary list
-        _words = resource.Vocabulary.ToList();
-        _logger.LogDebug("Sending ALL {WordCount} vocabulary words to AI (not just {SentenceCount})",
-            _words.Count, numberOfSentences);
+        // Send vocabulary words to AI, excluding Familiar words in grace period
+        var allVocab = resource.Vocabulary.ToList();
+        var wordIds = allVocab.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        _words = allVocab
+            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+            .ToList();
+        _logger.LogDebug("Sending {WordCount} vocabulary words to AI ({Excluded} excluded for grace period)",
+            _words.Count, allVocab.Count - _words.Count);
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
         _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");

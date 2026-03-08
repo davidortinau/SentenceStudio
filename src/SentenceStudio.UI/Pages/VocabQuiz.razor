@@ -286,6 +286,7 @@ else
                 return new VocabularyQuizItem { Word = word, Progress = progress };
             })
             .Where(i => !(i.Progress?.IsCompleted ?? false))
+            .Where(i => !(i.Progress?.IsInGracePeriod ?? false))
             .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
             .ThenBy(_ => Guid.NewGuid())
             .Take(ActiveWordCount)
@@ -429,7 +430,7 @@ else
         try
         {
             var activeUserId = Preferences.Get("active_profile_id", "");
-            await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+            var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
             {
                 VocabularyWordId = currentItem.Word.Id,
                 UserId = activeUserId,
@@ -442,6 +443,14 @@ else
                 ExpectedAnswer = correctAnswer,
                 ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
             });
+
+            // Handle verification probe for Familiar words
+            if (updatedProgress.IsFamiliar)
+            {
+                await ProgressService.HandleVerificationProbeResultAsync(
+                    currentItem.Word.Id, activeUserId, isCorrect);
+            }
+
             CacheService.InvalidateVocabSummary();
         }
         catch (Exception ex)

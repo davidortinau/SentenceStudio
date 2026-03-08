@@ -209,7 +209,12 @@ else
                 var resource = await ResourceRepo.GetResourceAsync(resourceId);
                 if (resource?.Vocabulary?.Any() == true)
                 {
-                    allVocabulary = resource.Vocabulary;
+                    // Filter out Familiar words in grace period
+                    var wordIds = resource.Vocabulary.Select(w => w.Id).ToList();
+                    var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
+                    allVocabulary = resource.Vocabulary
+                        .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+                        .ToList();
                     ShuffleVocab();
                 }
                 else
@@ -296,6 +301,7 @@ else
             // Record vocabulary progress
             if (grade.VocabularyAnalysis?.Any() == true)
             {
+                var activeUserId = Preferences.Get("active_profile_id", "");
                 foreach (var vocabItem in grade.VocabularyAnalysis)
                 {
                     var matched = allVocabulary.FirstOrDefault(v =>
@@ -303,10 +309,10 @@ else
 
                     if (matched != null)
                     {
-                        await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                        var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                         {
                             VocabularyWordId = matched.Id,
-                            UserId = Preferences.Get("active_profile_id", ""),
+                            UserId = activeUserId,
                             Activity = "Writing",
                             InputMode = "Text",
                             WasCorrect = vocabItem.UsageCorrect,
@@ -315,6 +321,13 @@ else
                             UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
                             ExpectedAnswer = vocabItem.DictionaryForm
                         });
+
+                        // Handle verification probe for Familiar words
+                        if (updatedProgress.IsFamiliar)
+                        {
+                            await ProgressService.HandleVerificationProbeResultAsync(
+                                matched.Id, activeUserId, vocabItem.UsageCorrect);
+                        }
                     }
                 }
             }
