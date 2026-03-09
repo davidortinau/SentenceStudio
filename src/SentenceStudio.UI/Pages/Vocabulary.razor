@@ -30,12 +30,12 @@ else
 {
     @* Stats bar *@
     <div class="d-flex gap-3 mb-3 flex-wrap">
-        <span class="badge bg-secondary rounded-pill">Total: @statTotal</span>
+        <span class="badge bg-dark rounded-pill">Total: @statTotal</span>
         <span class="badge bg-secondary rounded-pill">Unknown: @statUnknown</span>
         <span class="badge bg-primary rounded-pill">Learning: @statLearning</span>
         <span class="badge bg-warning text-dark rounded-pill">Familiar: @statFamiliar</span>
         <span class="badge bg-success rounded-pill">Known: @statKnown</span>
-        <span class="badge bg-secondary-subtle text-dark rounded-pill">Showing: @filteredWords.Count</span>
+        <span class="badge bg-dark rounded-pill">Showing: @filteredWords.Count</span>
     </div>
 
     @* Unified search bar with filter syntax *@
@@ -274,15 +274,11 @@ else
                                 <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
                                 @if (item.IsKnown)
                                 {
-                                    <span class="badge bg-success" title="Mastered through practice and verified">
-                                        <i class="bi bi-check-circle-fill me-1"></i>Known
-                                    </span>
+                                    <span class="badge bg-success" title="Mastered through practice and verified">Known</span>
                                 }
                                 else
                                 {
-                                    <span class="badge @GetStatusBadgeClass(item)" title="@GetStatusTooltip(item)">
-                                        <i class="bi @GetStatusIcon(item)"></i>
-                                    </span>
+                                    <span class="badge @GetStatusBadgeClass(item)" title="@GetStatusTooltip(item)">@item.StatusText</span>
                                 }
                             </div>
                         </div>
