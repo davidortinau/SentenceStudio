@@ -32,6 +32,7 @@ else
     <div class="d-flex gap-3 mb-3 flex-wrap">
         <span class="badge bg-dark rounded-pill">Total: @statTotal</span>
         <span class="badge bg-dark rounded-pill">Showing: @filteredWords.Count</span>
+        <span class="badge bg-secondary rounded-pill">Unknown: @statUnknown</span>
         <span class="badge bg-primary rounded-pill">Learning: @statLearning</span>
         <span class="badge bg-warning text-dark rounded-pill">Familiar: @statFamiliar</span>
         <span class="badge bg-success rounded-pill">Known: @statKnown</span>
@@ -323,7 +324,7 @@ else
 
     private List<VocabularyCardItem> allWords = new();
     private List<VocabularyCardItem> filteredWords = new();
-    private int statTotal, statLearning, statFamiliar, statKnown;
+    private int statTotal, statUnknown, statLearning, statFamiliar, statKnown;
     private bool isLoading = true;
 
     // Search query (unified with filter syntax)
@@ -621,6 +622,7 @@ else
 
         filteredWords = filtered.ToList();
 
+        statUnknown = filteredWords.Count(w => w.StatusText == "Unknown");
         statLearning = filteredWords.Count(w => w.StatusText == "Learning");
         statFamiliar = filteredWords.Count(w => w.StatusText == "Familiar");
         statKnown = filteredWords.Count(w => w.StatusText == "Known");
