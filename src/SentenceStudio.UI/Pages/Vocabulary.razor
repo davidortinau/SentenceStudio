@@ -29,12 +29,20 @@
 else
 {
     @* Stats bar *@
-    <div class="d-flex gap-3 mb-3 flex-wrap">
+    <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
         <span class="badge bg-dark rounded-pill">@filteredWords.Count of @statTotal</span>
         <span class="badge bg-secondary rounded-pill">Unknown: @statUnknown</span>
         <span class="badge bg-primary rounded-pill">Learning: @statLearning</span>
         <span class="badge bg-warning text-dark rounded-pill">Familiar: @statFamiliar</span>
         <span class="badge bg-success rounded-pill">Known: @statKnown</span>
+        <div class="ms-auto btn-group btn-group-sm" role="group">
+            <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => viewMode = "grid"' title="Grid view">
+                <i class="bi bi-grid-3x3-gap"></i>
+            </button>
+            <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => viewMode = "list"' title="List view">
+                <i class="bi bi-list-ul"></i>
+            </button>
+        </div>
     </div>
 
     @* Unified search bar with filter syntax *@
@@ -259,6 +267,8 @@ else
     }
     else
     {
+        @if (viewMode == "grid")
+        {
         <div class="row g-3">
             @foreach (var item in filteredWords)
             {
@@ -306,6 +316,28 @@ else
                 </div>
             }
         </div>
+        }
+        else
+        {
+        <div class="list-group">
+            @foreach (var item in filteredWords)
+            {
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => EditWord(item.Word.Id)">
+                    <span class="fw-semibold" style="min-width:140px;">@(item.Word.TargetLanguageTerm ?? "")</span>
+                    <span class="text-secondary-ss flex-grow-1">@(item.Word.NativeLanguageTerm ?? "")</span>
+                    <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
+                    @if (item.IsKnown)
+                    {
+                        <span class="badge bg-success">Known</span>
+                    }
+                    else
+                    {
+                        <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
+                    }
+                </button>
+            }
+        </div>
+        }
     }
 }
 
@@ -325,6 +357,7 @@ else
     private List<VocabularyCardItem> filteredWords = new();
     private int statTotal, statUnknown, statLearning, statFamiliar, statKnown;
     private bool isLoading = true;
+    private string viewMode = "grid"; // "grid" or "list"
 
     // Search query (unified with filter syntax)
     private string searchQuery = "";
