@@ -267,7 +267,7 @@ else
         }
     }
 
-    private void ImportVocabulary()
+    private async Task ImportVocabulary()
     {
         if (string.IsNullOrWhiteSpace(vocabList))
             return;
@@ -285,18 +285,23 @@ else
 
                 if (!isDuplicate)
                 {
-                    word.CreatedAt = DateTime.UtcNow;
-                    word.UpdatedAt = DateTime.UtcNow;
-                    resource.Vocabulary.Add(word);
+                    var dbWord = await GetOrCreateWordAsync(
+                        word.TargetLanguageTerm?.Trim() ?? "",
+                        word.NativeLanguageTerm?.Trim() ?? "");
+                    resource.Vocabulary.Add(dbWord);
                     added++;
                 }
             }
+
+            // Persist the resource-vocabulary mappings
+            await ResourceRepo.SaveResourceAsync(resource);
 
             vocabList = "";
             Toast.ShowSuccess($"Imported {added} vocabulary words.");
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "ImportVocabulary error");
             Toast.ShowError($"Import failed: {ex.Message}");
         }
     }
