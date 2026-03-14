@@ -25,18 +25,12 @@ public sealed class AuthenticatedApiDelegatingHandler : DelegatingHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var scopes = _configuration.GetSection("DownstreamApi:Scopes").Get<string[]>()
-                         ?? ["api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/.default"];
+        var scopes = _configuration.GetSection("DownstreamApi:Scopes").Get<string[]>()
+                     ?? throw new InvalidOperationException(
+                         "DownstreamApi:Scopes must be configured when Entra ID auth is active.");
 
-            var token = await _tokenAcquisition.GetAccessTokenForUserAsync(scopes);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to acquire token for downstream API call");
-        }
+        var token = await _tokenAcquisition.GetAccessTokenForUserAsync(scopes, cancellationToken: cancellationToken);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         return await base.SendAsync(request, cancellationToken);
     }
