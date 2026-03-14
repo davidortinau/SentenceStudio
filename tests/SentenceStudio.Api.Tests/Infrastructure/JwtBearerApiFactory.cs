@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace SentenceStudio.Api.Tests.Infrastructure;
@@ -9,13 +10,21 @@ namespace SentenceStudio.Api.Tests.Infrastructure;
 /// <summary>
 /// Test host configured with JWT Bearer authentication.
 /// Replaces DevAuthHandler with real JWT validation using a test signing key.
-/// Simulates the production Entra ID auth path without Azure credentials.
+/// Explicitly sets Auth:UseEntraId=true to simulate the production Entra ID path.
 /// </summary>
 public class JwtBearerApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Auth:UseEntraId"] = "true"
+            });
+        });
 
         builder.ConfigureServices(services =>
         {
