@@ -17,8 +17,14 @@
 - DI registration in `SentenceStudioAppBuilder.cs` (AppLib) and `Program.cs` (WebApp)
 - Aspire env var config: `builder.Configuration["AI:OpenAI:ApiKey"]` not `["AI__OpenAI__ApiKey"]`
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
-- Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
+
+- Microsoft.Identity.Web v3.8.2 added to API for Entra ID JWT Bearer auth
+- Conditional auth pattern: `Auth:UseEntraId` config flag switches between Entra ID and DevAuthHandler
+- TenantContextMiddleware maps both Entra ID claims (tid, oid, name) and DevAuthHandler claims (tenant_id, NameIdentifier, Name) — Entra ID claims take precedence
+- appsettings.json is gitignored; use appsettings.Development.json for tracked config and AppHost env vars for runtime
+- Scope policies: `RequireScope("user.read")` etc. via Microsoft.Identity.Web authorization helpers
+- AzureAd public IDs (TenantId, ClientId, Audience) are NOT secrets — safe to commit
 
 ## Work Sessions
 

@@ -8,6 +8,7 @@ using ElevenLabs.Voices;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
+using Microsoft.Identity.Web;
 using OpenAI;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Contracts.Ai;
@@ -27,9 +28,37 @@ builder.AddServiceDefaults();
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
-builder.Services.AddAuthorization();
+var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
+
+if (useEntraId)
+{
+    builder.Services.AddAuthentication(Microsoft.Identity.Web.Constants.Bearer)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("RequireUserRead", policy =>
+            policy.RequireScope("user.read"));
+        options.AddPolicy("RequireUserWrite", policy =>
+            policy.RequireScope("user.write"));
+        options.AddPolicy("RequireAiAccess", policy =>
+            policy.RequireScope("ai.access"));
+        options.AddPolicy("RequireSyncReadWrite", policy =>
+            policy.RequireScope("sync.readwrite"));
+    });
+}
+else if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+    builder.Services.AddAuthorization();
+}
+else
+{
+    throw new InvalidOperationException(
+        "Entra ID authentication must be enabled in non-development environments. Set Auth:UseEntraId=true.");
+}
+
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // CORS — basic policies for known callers.
