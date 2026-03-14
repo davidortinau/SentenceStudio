@@ -37,3 +37,20 @@
 
 **Key Dependencies:** Zoe coordinates Phase 1-3 decisions; Kaylee implements CI/deploy automation; Captain provides Azure portal access.
 
+### 2026-03-14 — Phase 2 (Secrets) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Wash Completed #39:**
+- Initialized user-secrets for Api, WebApp
+- Created secrets.template.json with full inventory
+- Updated README with three secrets management paths
+- Documented AppHost → service flow via Aspire Parameters and env var normalization
+
+**Kaylee Completed #41:**
+- Added SecurityHeadersExtensions to shared lib (linked to all web projects)
+- Implemented HSTS, CORS, AllowedHosts across API/WebApp/Marketing
+- Environment-aware HTTPS redirect
+
+**Phase 2 Closed:** Ready to begin Phase 1 (Entra ID) now that Captain has provisioned app registrations.
