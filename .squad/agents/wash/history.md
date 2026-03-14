@@ -17,7 +17,6 @@
 - DI registration in `SentenceStudioAppBuilder.cs` (AppLib) and `Program.cs` (WebApp)
 - Aspire env var config: `builder.Configuration["AI:OpenAI:ApiKey"]` not `["AI__OpenAI__ApiKey"]`
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
-- Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
 
 ## Work Sessions

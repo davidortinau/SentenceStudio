@@ -51,7 +51,7 @@ Created `.github/workflows/ci.yml` with:
 - DevAuthHandler via `Auth__UseEntraId=false`
 - Local NuGet source stripped for CI (dev-machine-only path)
 - `dorny/test-reporter` for inline PR test results
-- .NET SDK version from `global.json` (10.0.101)
+- .NET SDK version: 10.0.x (explicit in workflow; global.json is gitignored)
 
 **Discovered:** IntegrationTests references a non-existent `SentenceStudio.csproj` — will fail in CI. Needs follow-up fix.
 
