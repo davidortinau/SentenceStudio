@@ -45,6 +45,22 @@
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
 
+### 2026-03-14 — Fix Copilot Review Issues on PR #70 and PR #71
+
+**Status:** Complete
+
+**PR #70 (feature/44-webapp-oidc):**
+- Pinned Microsoft.Identity.Web packages to 4.5.0 (was floating `*`)
+- Removed unused `OpenIdConnect` using from Program.cs
+- Replaced hardcoded GUID fallback scope with startup config validation
+- Handler now passes `cancellationToken` and propagates exceptions
+
+**PR #71 (feature/45-maui-msal):**
+- MsalAuthService reads TenantId, ClientId, RedirectUri, Scopes from IConfiguration
+- Fixed IsSignedIn: `_cachedAccount` now updated on every successful token acquisition
+- AuthenticatedHttpMessageHandler attempts token unconditionally (no IsSignedIn gate)
+- Handler scopes also read from config instead of hardcoded GUIDs
+
 ### 2026-03-13 — MSAL.NET Authentication for MAUI Clients (#45)
 
 **Status:** Complete  
