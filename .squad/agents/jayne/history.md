@@ -37,3 +37,22 @@
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL) — requires comprehensive data migration testing.
 
+- API test project is `tests/SentenceStudio.Api.Tests/` — separate from IntegrationTests (which targets MAUI)
+- WebApplicationFactory<Program> requires `public partial class Program { }` in API's Program.cs
+- TestJwtGenerator creates HMAC-SHA256 signed tokens with Entra ID claims (tid, oid, scp)
+- JwtBearerApiFactory overrides auth to JWT Bearer mode; DevAuthApiFactory uses default DevAuthHandler
+- API's `/api/v1/plans/generate` is POST — don't test it with GET or you get 405 not 401
+- DevAuthHandler always authenticates with claims: dev-tenant, dev-user, Dev User, dev@sentencestudio.local
+
+### 2026-03-13 — Auth Integration Tests (#47)
+
+**Status:** Complete
+**Branch:** `feature/47-auth-tests`
+**Tests:** 11 passing (7 JWT Bearer + 4 DevAuthHandler)
+
+Created `tests/SentenceStudio.Api.Tests/` with WebApplicationFactory-based auth integration tests. Two test factories: JwtBearerApiFactory (simulates Entra ID mode) and DevAuthApiFactory (simulates local dev mode). TestJwtGenerator creates mock tokens signed with a test key for CI-compatible testing.
+
+Key findings during testing:
+- The API's `Auth:UseEntraId` config flag exists in appsettings.json but isn't yet wired in Program.cs code — Wash's #43 needs to implement the conditional switch
+- No scope-based authorization policies exist yet — can't test EnforcesAuthorizationPolicies until policies are added
+- TenantContextMiddleware correctly extracts claims from both DevAuthHandler and JWT Bearer tokens
