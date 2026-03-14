@@ -131,56 +131,61 @@ cd src
 dotnet restore
 ```
 
-### 3. API Keys Configuration
+### 3. API Keys and Secrets
 
-Sentence Studio requires API keys for AI and text-to-speech functionality. You'll need to obtain and configure the following:
+Sentence Studio requires API keys for AI and text-to-speech functionality. Obtain the following keys before proceeding:
 
-#### Required API Keys
+| Secret | Required | Where to get it |
+|--------|----------|-----------------|
+| **OpenAI API Key** | Yes | https://platform.openai.com/api-keys |
+| **ElevenLabs API Key** | Yes | https://elevenlabs.io/app/speech-synthesis |
+| **Syncfusion License Key** | Optional | https://www.syncfusion.com/account/downloads |
+| **HuggingFace Token** | Optional | https://huggingface.co/settings/tokens |
 
-1. **OpenAI API Key** - For AI-powered language learning features
-   - Visit: https://platform.openai.com/api-keys
-   - Create an account and generate an API key
-   - Ensure your account has sufficient credits or an active subscription
+See `secrets.template.json` at the repo root for the full key structure.
 
-2. **ElevenLabs API Key** - For text-to-speech functionality
-   - Visit: https://elevenlabs.io/app/speech-synthesis
-   - Create an account and generate an API key
-   - Free tier available with usage limitations
+#### Option A: Running with .NET Aspire (recommended)
 
-3. **HuggingFace Token** (Optional) - For additional AI model access
-   - Visit: https://huggingface.co/settings/tokens
-   - Create an account and generate an access token
-
-4. **Syncfusion Key** (Optional) - For premium UI components
-   - Visit: https://www.syncfusion.com/account/downloads
-   - Create a community account for free license
-
-#### Configuration Setup
-
-Copy the template configuration file and add your API keys:
+When running through the AppHost, secrets are managed centrally and passed to all services automatically. Set them once in the AppHost project:
 
 ```bash
-# Copy the template file
-cp src/SentenceStudio/appsettings.template.json src/SentenceStudio/appsettings.json
+cd src/SentenceStudio.AppHost
 
-# Edit the appsettings.json file with your actual API keys
-# Note: This file is gitignored for security
+dotnet user-secrets set "Parameters:openaikey" "sk-proj-your-key-here"
+dotnet user-secrets set "Parameters:elevenlabskey" "sk_your-key-here"
+dotnet user-secrets set "Parameters:syncfusionkey" "your-license-key-here"
 ```
 
-Your `appsettings.json` should look like:
+The AppHost passes these to Api, WebApp, Workers, and MAUI projects via `WithEnvironment()` at runtime. You do not need to configure secrets in each individual project when using Aspire.
 
-```json
-{
-  "Settings": {
-    "OpenAIKey": "sk-proj-your-actual-openai-key-here",
-    "HuggingFaceToken": "hf_your-actual-huggingface-token-here", 
-    "ElevenLabsKey": "sk_your-actual-elevenlabs-key-here",
-    "SyncfusionKey": "your-actual-syncfusion-key-here"
-  }
-}
+#### Option B: Running individual projects without Aspire
+
+If you run a project standalone (not through the AppHost), set its secrets directly:
+
+**Api:**
+```bash
+cd src/SentenceStudio.Api
+dotnet user-secrets set "AI:OpenAI:ApiKey" "sk-proj-your-key-here"
+dotnet user-secrets set "ElevenLabsKey" "sk_your-key-here"
 ```
 
-**⚠️ Security Warning**: Never commit the `appsettings.json` file containing real API keys to version control. The file is included in `.gitignore` to prevent accidental exposure.
+**WebApp:**
+```bash
+cd src/SentenceStudio.WebApp
+dotnet user-secrets set "Settings:OpenAIKey" "sk-proj-your-key-here"
+dotnet user-secrets set "Settings:ElevenLabsKey" "sk_your-key-here"
+```
+
+#### Option C: MAUI mobile/desktop apps (without Aspire)
+
+MAUI apps read from `appsettings.json` in the AppLib project. This file is gitignored:
+
+```bash
+cp src/SentenceStudio.AppLib/appsettings.template.json src/SentenceStudio.AppLib/appsettings.json
+# Edit src/SentenceStudio.AppLib/appsettings.json with your actual keys
+```
+
+**Security note:** The `appsettings.json` files containing secrets are gitignored. Never commit real API keys to version control. Use `dotnet user-secrets` for all server-side projects.
 
 ## Building and Running
 
