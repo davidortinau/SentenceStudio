@@ -14,11 +14,7 @@ namespace SentenceStudio.Services;
 /// </summary>
 public class AuthenticatedHttpMessageHandler : DelegatingHandler
 {
-    private static readonly string[] DefaultScopes =
-    [
-        "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/user.read",
-        "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/sync.readwrite"
-    ];
+    private static string[] DefaultScopes => AuthConstants.DefaultScopes;
 
     private readonly IAuthService _authService;
     private readonly ILogger<AuthenticatedHttpMessageHandler> _logger;

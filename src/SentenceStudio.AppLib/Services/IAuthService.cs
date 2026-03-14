@@ -1,10 +1,10 @@
-using Microsoft.Identity.Client;
+using System.Threading.Tasks;
 
 namespace SentenceStudio.Services;
 
 public interface IAuthService
 {
-    Task<AuthenticationResult?> SignInAsync();
+    Task<AuthResult?> SignInAsync();
     Task SignOutAsync();
     Task<string?> GetAccessTokenAsync(string[] scopes);
     bool IsSignedIn { get; }

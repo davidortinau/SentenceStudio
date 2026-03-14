@@ -9,11 +9,7 @@ public class MsalAuthService : IAuthService
     private const string ClientId = "68d5abeb-9ca7-46cc-9572-42e33f15a0ba";
     private const string RedirectUri = "msal68d5abeb-9ca7-46cc-9572-42e33f15a0ba://auth";
 
-    private static readonly string[] DefaultScopes =
-    [
-        "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/user.read",
-        "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/sync.readwrite"
-    ];
+    private static string[] DefaultScopes => AuthConstants.DefaultScopes;
 
     private readonly IPublicClientApplication _pca;
     private readonly ILogger<MsalAuthService> _logger;
@@ -33,7 +29,7 @@ public class MsalAuthService : IAuthService
             .Build();
     }
 
-    public async Task<AuthenticationResult?> SignInAsync()
+    public async Task<AuthResult?> SignInAsync()
     {
         try
         {
@@ -42,8 +38,12 @@ public class MsalAuthService : IAuthService
             {
                 _cachedAccount = result.Account;
                 _logger.LogInformation("Signed in as {User}", result.Account.Username);
+                return new AuthResult(
+                    result.AccessToken,
+                    result.Account.Username,
+                    result.ExpiresOn);
             }
-            return result;
+            return null;
         }
         catch (Exception ex)
         {
