@@ -46,11 +46,16 @@ if (useEntraId)
             policy.RequireScope("sync.readwrite"));
     });
 }
-else
+else if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
     builder.Services.AddAuthorization();
+}
+else
+{
+    throw new InvalidOperationException(
+        "Entra ID authentication must be enabled in non-development environments. Set Auth:UseEntraId=true.");
 }
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
