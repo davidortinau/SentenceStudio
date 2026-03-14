@@ -39,3 +39,19 @@
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
 
+### 2026-03-13 — CI Workflow (#56)
+
+**Status:** Complete  
+**Branch:** `feature/56-ci-workflow`
+
+Created `.github/workflows/ci.yml` with:
+- Build matrix: Api, WebApp, AppLib (with MAUI workload)
+- Test job: UnitTests + IntegrationTests with xUnit TRX reporting
+- NuGet caching via `actions/cache`
+- DevAuthHandler via `Auth__UseEntraId=false`
+- Local NuGet source stripped for CI (dev-machine-only path)
+- `dorny/test-reporter` for inline PR test results
+- .NET SDK version from `global.json` (10.0.101)
+
+**Discovered:** IntegrationTests references a non-existent `SentenceStudio.csproj` — will fail in CI. Needs follow-up fix.
+
