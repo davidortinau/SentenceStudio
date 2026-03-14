@@ -1,6 +1,9 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.AI;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 using OpenAI;
 using Plugin.Maui.Audio;
 using SentenceStudio.WebApp.Platform;
@@ -46,8 +49,34 @@ if (!Directory.Exists(appLibRawAssets))
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+
+var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
+
+if (useEntraId)
+{
+    builder.Services.AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+        .EnableTokenAcquisitionToCallDownstreamApi(
+            builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>()
+            ?? ["api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/.default"])
+        .AddDistributedTokenCaches();
+
+    builder.AddRedisDistributedCache("cache");
+
+    builder.Services.AddTransient<AuthenticatedApiDelegatingHandler>();
+    builder.Services.ConfigureHttpClientDefaults(http =>
+    {
+        http.AddHttpMessageHandler<AuthenticatedApiDelegatingHandler>();
+    });
+
+    builder.Services.AddControllersWithViews()
+        .AddMicrosoftIdentityUI();
+}
+else
+{
+    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+}
+
 builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<IPreferencesService>(_ => new WebPreferencesService(preferencesPath));
@@ -110,6 +139,12 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+if (useEntraId)
+{
+    app.MapControllers();
+}
+
 app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(SentenceStudio.WebUI.Routes).Assembly)
     .AddInteractiveServerRenderMode();
