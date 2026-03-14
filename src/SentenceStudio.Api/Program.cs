@@ -34,23 +34,26 @@ builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // CORS — basic policies for known callers.
 // Production fine-tuning is tracked in issue #62.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowWebApp", policy =>
+    if (allowedOrigins?.Length > 0)
     {
-        policy.WithOrigins(
-                builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? Array.Empty<string>())
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
+        options.AddPolicy("AllowWebApp", policy =>
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+    }
 
     if (builder.Environment.IsDevelopment())
     {
         options.AddPolicy("AllowDevClients", policy =>
         {
             policy.SetIsOriginAllowed(origin =>
-                    new Uri(origin).Host is "localhost" or "127.0.0.1")
+                    Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                    && uri.Host is "localhost" or "127.0.0.1")
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();

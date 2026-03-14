@@ -97,6 +97,13 @@ builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
 RegisterSentenceStudioServices(builder.Services);
 RegisterBlazorServices(builder.Services);
 
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
