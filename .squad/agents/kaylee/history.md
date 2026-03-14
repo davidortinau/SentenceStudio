@@ -9,6 +9,12 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- `SentenceStudio.AppLib` has `ImplicitUsings>disable` — must add explicit `using` for System.Net.Http, etc.
+- `Auth:UseEntraId` config flag pattern works across Api, WebApp, and now MAUI clients
+- MSAL.NET `WithBroker(BrokerOptions)` overload removed in v4.x — just omit it when not using a broker
+- `AuthenticatedHttpMessageHandler` is wired into all HttpClient registrations (API + CoreSync) via `AddHttpMessageHandler<T>()`
+- Pre-existing build error: `DuplicateGroup` missing in `SentenceStudio.UI/Pages/Vocabulary.razor` — blocks MacCatalyst full build
+
 - Blazor pages in `src/SentenceStudio.UI/Pages/` — follow `activity-page-wrapper` layout pattern
 - MauiReactor conventions: `VStart()` not `Top()`, `VEnd()` not `Bottom()`, `HStart()`/`HEnd()` not `Start()`/`End()`
 - NEVER use emojis in UI — use Bootstrap icons (bi-*) or text. Non-negotiable.
@@ -38,4 +44,16 @@
 **Phase Execution Order:** Phase 2 (Secrets) → Phase 1 (Auth, localhost-testable) → Phase 3 (Infra) → Phase 4 (Pipeline) → Phase 5 (Hardening)
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
+
+### 2026-03-13 — MSAL.NET Authentication for MAUI Clients (#45)
+
+**Status:** Complete  
+**Branch:** `feature/45-maui-msal`
+
+Implemented MSAL.NET public client auth in `SentenceStudio.AppLib`:
+- `IAuthService` interface + `MsalAuthService` (PKCE via system browser)
+- `DevAuthService` no-op for local dev (config-driven via `Auth:UseEntraId`)
+- `AuthenticatedHttpMessageHandler` wired into all HttpClient registrations
+- MacCatalyst `Info.plist` updated with MSAL redirect URL scheme
+- AppLib builds clean; full MacCatalyst build blocked by pre-existing UI error
 
