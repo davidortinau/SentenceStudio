@@ -68,6 +68,86 @@ Comprehensive architecture plan for transitioning SentenceStudio from local-dev-
 
 **Estimated Monthly Cost (Production):** ~$107-252
 
+### 3. WebApp OIDC Authentication (#44) (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Kaylee (Full-Stack Dev)  
+**Branch:** `feature/44-webapp-oidc`  
+**PR:** #70  
+
+Added Microsoft.Identity.Web OIDC authentication to the Blazor WebApp with the same conditional `Auth:UseEntraId` pattern used in the API (Wash's #43 work).
+
+**Key Decisions:**
+- **Conditional auth pattern:** DevAuthHandler for local dev (zero friction), Entra ID for production
+- **Redis token cache:** WebApp is server-rendered, needs shared distributed token cache; Redis already in AppHost
+- **DelegatingHandler architecture:** `AuthenticatedApiDelegatingHandler` via `ConfigureHttpClientDefaults` ensures all API calls get Bearer tokens automatically
+- **Bootstrap icons only:** bi-person, bi-box-arrow-right per team standards
+
+**NuGet Packages Added:**
+- `Microsoft.Identity.Web` — OIDC/OpenID Connect integration
+- `Microsoft.Identity.Web.UI` — Sign-in/sign-out controller endpoints
+- `Microsoft.Identity.Web.DownstreamApi` — Token acquisition for downstream API
+- `Aspire.StackExchange.Redis.DistributedCaching` (v13.3.0-preview.1.26156.1) — Redis-backed cache
+
+**New Files:**
+- `Auth/AuthenticatedApiDelegatingHandler.cs` — DelegatingHandler using ITokenAcquisition
+- `Components/Layout/LoginDisplay.razor` — Sign-in/sign-out UI
+
+**Production Configuration Required:**
+1. Set `Auth:UseEntraId` to `true`
+2. Store client secret: `dotnet user-secrets set "AzureAd:ClientSecret" "<value>"`
+3. Redis running (Aspire AppHost already configured)
+
+**Dependencies:** #42 (Entra ID registrations), #43 (API JWT Bearer), Redis in AppHost
+
+---
+
+### 4. MAUI MSAL Authentication (#45) (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Kaylee (Full-Stack Dev)  
+**Branch:** `feature/45-maui-msal`  
+**PR:** #71  
+
+Implemented MSAL.NET authentication for MAUI native clients (mobile + desktop) with secure token persistence.
+
+**Key Decisions:**
+- **PublicClientApplication:** MSAL.NET for public clients (MAUI — desktop/mobile cannot securely store secrets)
+- **WebAuthenticator:** Interactive login flow through system browser
+- **SecureStorage:** Token persistence using MAUI's platform-native secure storage
+- **Bootstrap icons:** bi-person, bi-box-arrow-right per team standards
+- **Bearer token injection:** Automatic application to API HttpClient calls
+
+**AuthService Pattern:**
+- Encapsulates MSAL logic, token caching, and refresh flow
+- Dependency-injected for easy testing and platform-specific registration
+
+**Dependencies:** #42 (Entra ID app registration with MSAL configuration), #43 (API JWT Bearer), Kaylee #44 (UX consistency)
+
+---
+
+### 5. CI Workflow Setup (#56) (2026-03-14)
+
+**Status:** IMPLEMENTED (flags noted)  
+**Date:** 2026-03-14  
+**Author:** Kaylee (Full-Stack Dev)  
+**Branch:** `feature/56-ci-workflow`  
+**PR:** #69  
+
+Set up GitHub Actions CI workflow for automated testing and multi-platform builds.
+
+**Key Decisions:**
+- **Multi-platform matrix:** .NET 10 on macOS runner (minimum for MAUI builds)
+- **Build artifact publishing:** Deployment readiness
+- **Job dependencies:** Sequential execution for build → test → artifact stages
+
+**Flagged Issue:**
+- Workflow references `IntegrationTests` project — verify project exists or adjust workflow before merge
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
