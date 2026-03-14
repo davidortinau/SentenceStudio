@@ -1,8 +1,10 @@
 ﻿using CoreSync;
 using CoreSync.Http.Client;
 using CoreSync.Sqlite;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Agents;
 using SentenceStudio.Shared.Models;
@@ -49,7 +51,8 @@ public static class ServiceCollectionExtentions
         {
             httpClient.BaseAddress = serverUri;
             httpClient.Timeout = TimeSpan.FromMinutes(10);
-        });
+        })
+        .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
 
         services.AddCoreSyncHttpClient(options =>
         {
@@ -58,11 +61,31 @@ public static class ServiceCollectionExtentions
         });
     }
 
+    public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        var useEntraId = configuration.GetValue<bool>("Auth:UseEntraId");
+
+        if (useEntraId)
+        {
+            services.AddSingleton<IAuthService, MsalAuthService>();
+        }
+        else
+        {
+            services.AddSingleton<IAuthService, DevAuthService>();
+        }
+
+        services.AddTransient<AuthenticatedHttpMessageHandler>();
+        return services;
+    }
+
     public static void AddApiClients(this IServiceCollection services, Uri baseUri)
     {
-        services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri);
-        services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri);
-        services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri);
+        services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddSingleton<IAiGatewayClient, AiGatewayClient>();
         services.AddSingleton<ISpeechGatewayClient, SpeechGatewayClient>();
     }
