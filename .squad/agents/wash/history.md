@@ -26,6 +26,10 @@
 - appsettings.json is gitignored; use appsettings.Development.json for tracked config and AppHost env vars for runtime
 - Scope policies: `RequireScope("user.read")` etc. via Microsoft.Identity.Web authorization helpers
 - AzureAd public IDs (TenantId, ClientId, Audience) are NOT secrets — safe to commit
+- CoreSync HTTP client uses named HttpClient `"HttpClientToServer"` — auth handler chains via `.AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()`
+- CoreSync server (`SentenceStudio.Web`) uses `UseCoreSyncHttpServer()` middleware — auth middleware must run BEFORE it
+- DevAuthHandler is duplicated in both API and Web projects — future refactor to shared project
+- Web server auth follows same `Auth:UseEntraId` pattern as API server
 
 ## Work Sessions
 
@@ -43,4 +47,20 @@
 - Critical Path: CoreSync SQLite→PostgreSQL migration (#55, XL) — coordinate safe data migration in production
 
 **Key Dependencies:** Zoe coordinates Phase 1-3 decisions; Kaylee implements CI/deploy automation; Captain provides Azure portal access.
+
+### 2026-03-14 — CoreSync Auth: Bearer Token on Sync Client (#46)
+
+**Status:** Complete  
+**Branch:** `feature/46-coresync-auth`  
+**Depends on:** #43 (API JWT), #45 (MAUI MSAL)
+
+**What was done:**
+- Merged #43 and #45 into branch as dependencies
+- Added JWT Bearer auth to `SentenceStudio.Web` (CoreSync sync server)
+- Created `DevAuthHandler` for dev mode (mirrors API pattern)
+- `UseAuthentication()` + `UseAuthorization()` before `UseCoreSyncHttpServer()`
+- Client side already handled by #45's `AuthenticatedHttpMessageHandler` on `"HttpClientToServer"`
+- Graceful fallback: no token → request proceeds without auth header; server doesn't reject
+
+**Key Insight:** CoreSync uses ASP.NET middleware (`UseCoreSyncHttpServer()`), not minimal API endpoints, so `RequireAuthorization()` can't be applied directly. Auth middleware populates identity; future enforcement needs a gating middleware or policy.
 

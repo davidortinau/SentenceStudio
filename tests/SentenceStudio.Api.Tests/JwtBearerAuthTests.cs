@@ -20,28 +20,25 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
         _client = factory.CreateClient();
     }
 
-    [Theory]
-    [InlineData("/api/v1/auth/bootstrap")]
-    [InlineData("/api/v1/plans/generate")]
-    public async Task API_RejectsUnauthenticatedRequests(string endpoint)
+    [Fact]
+    public async Task API_RejectsUnauthenticatedGetRequest()
     {
-        // No Authorization header — should be rejected
-        var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        var response = await _client.SendAsync(request);
+        var response = await _client.GetAsync("/api/v1/auth/bootstrap");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
-            $"endpoint {endpoint} should reject requests without a token");
+            "GET /auth/bootstrap should reject requests without a token");
     }
 
     [Fact]
-    public async Task API_RejectsUnauthenticatedPostRequests()
+    public async Task API_RejectsUnauthenticatedPostRequest()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/plans/generate", new
         {
             Minutes = 30
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "POST /plans/generate should reject requests without a token");
     }
 
     [Fact]
