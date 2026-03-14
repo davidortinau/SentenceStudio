@@ -17,7 +17,12 @@ var storage = builder.AddAzureStorage("storage")
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey);
+    .WithEnvironment("ElevenLabsKey", elevenlabskey)
+    .WithEnvironment("Auth__UseEntraId", "false")
+    .WithEnvironment("AzureAd__Instance", "https://login.microsoftonline.com/")
+    .WithEnvironment("AzureAd__TenantId", "49c0cd14-bc68-4c6d-b87b-9d65a56fa6df")
+    .WithEnvironment("AzureAd__ClientId", "8c051bcf-bd3a-4051-9cd3-0556ba5df2d8")
+    .WithEnvironment("AzureAd__Audience", "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8");
 
 var web = builder.AddProject<SentenceStudio_Web>("web");
 
