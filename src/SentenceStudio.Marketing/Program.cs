@@ -1,3 +1,5 @@
+using SentenceStudio.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
@@ -14,7 +16,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirect in development — Aspire may terminate TLS at the proxy.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseSecurityHeaders();
 
 app.UseRouting();
 

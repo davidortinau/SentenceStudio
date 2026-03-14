@@ -7,6 +7,7 @@ using SentenceStudio.WebApp.Platform;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Infrastructure;
 using SentenceStudio.Repositories;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
@@ -104,7 +105,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirect in development — Aspire may terminate TLS at the proxy.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseSecurityHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
