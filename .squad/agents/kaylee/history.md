@@ -16,3 +16,26 @@
 - Activity pages: PageHeader, activity-content area, footer with activity-input-bar
 - Word Association activity at `/word-association` — latest activity, has Grade-first UX flow
 - Dashboard activities listed in `src/SentenceStudio.UI/Pages/Index.razor`
+
+## Work Sessions
+
+### 2026-03-13 — Cross-Agent Update: Azure Deployment Issues
+
+**Status:** In Progress  
+**GitHub Issues:** #39-#65 created by Zoe (Lead)  
+**Kaylee's Assignments:** 8 issues  
+
+**Issues Assigned to Kaylee:**
+- #44 WebApp OIDC Integration (Phase 1, size:L)
+- #45 MAUI MSAL Implementation (Phase 1, size:XL)
+- #56 CI Workflow Setup (Phase 4, size:M)
+- #57 Deploy Workflow (Phase 4, size:L)
+- #58 Staging Environment (Phase 4, size:M)
+- #60 Azure Monitor/Application Insights (Phase 5, size:M)
+- #62 CORS Configuration (Phase 5, size:S)
+- #64 Auto-Scaling Rules (Phase 5, size:M)
+
+**Phase Execution Order:** Phase 2 (Secrets) → Phase 1 (Auth, localhost-testable) → Phase 3 (Infra) → Phase 4 (Pipeline) → Phase 5 (Hardening)
+
+**Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
+
