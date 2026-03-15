@@ -139,7 +139,6 @@ else
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private ILogger<Profile> Logger { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
-    [Inject] private IAuthService AuthService { get; set; } = default!;
 
     private bool isLoading = true;
     private string name = "";
@@ -255,19 +254,9 @@ else
         {
             try
             {
-                var profile = await ProfileRepo.GetAsync();
-                if (profile != null)
-                {
-                    await ProfileRepo.DeleteAsync(profile);
-                }
-
-                Preferences.Remove("active_profile_id");
-                Preferences.Remove("app_is_authenticated");
-                Preferences.Set("is_onboarded", false);
                 AppState.CurrentUserProfile = null;
-
-                await AuthService.SignOutAsync();
-                NavManager.NavigateTo("/auth", forceLoad: true);
+                // Redirect to HTTP endpoint that can properly sign out and delete
+                NavManager.NavigateTo("/account-action/DeleteAccount", forceLoad: true);
             }
             catch (Exception ex)
             {

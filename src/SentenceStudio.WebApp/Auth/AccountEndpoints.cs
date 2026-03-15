@@ -191,5 +191,51 @@ public static class AccountEndpoints
                 : Results.Redirect($"/Account/ResetPassword?error=ResetFailed&email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}");
         })
         .DisableAntiforgery();
+
+        group.MapGet("/DeleteAccount", async (
+            HttpContext context,
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager,
+            ApplicationDbContext db,
+            IPreferencesService preferences) =>
+        {
+            var user = await userManager.GetUserAsync(context.User);
+            if (user is not null)
+            {
+                // Delete linked UserProfile
+                if (!string.IsNullOrEmpty(user.UserProfileId))
+                {
+                    var profile = await db.UserProfiles.FindAsync(user.UserProfileId);
+                    if (profile is not null)
+                    {
+                        db.UserProfiles.Remove(profile);
+                        await db.SaveChangesAsync();
+                    }
+                }
+
+                await signInManager.SignOutAsync();
+                await userManager.DeleteAsync(user);
+            }
+            else
+            {
+                // No Identity user — delete active profile from preferences
+                var activeProfileId = preferences.Get("active_profile_id", string.Empty);
+                if (!string.IsNullOrEmpty(activeProfileId))
+                {
+                    var profile = await db.UserProfiles.FindAsync(activeProfileId);
+                    if (profile is not null)
+                    {
+                        db.UserProfiles.Remove(profile);
+                        await db.SaveChangesAsync();
+                    }
+                }
+            }
+
+            preferences.Remove("active_profile_id");
+            preferences.Remove("app_is_authenticated");
+            preferences.Set("is_onboarded", false);
+
+            return Results.Redirect("/auth");
+        });
     }
 }
