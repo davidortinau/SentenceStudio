@@ -1,68 +1,62 @@
 @page "/Account/Register"
-@layout SentenceStudio.WebApp.Components.Layout.MainLayout
+@layout SentenceStudio.WebApp.Components.Layout.AuthLayout
 
 <PageTitle>Create Account - Sentence Studio</PageTitle>
 
-<div class="container">
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-5">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h2 class="card-title text-center mb-4">Create Account</h2>
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="card-title text-center mb-4">Create Account</h2>
 
-                    @if (ErrorMessages.Any())
+        @if (ErrorMessages.Any())
+        {
+            <div class="alert alert-danger" role="alert">
+                <ul class="mb-0">
+                    @foreach (var msg in ErrorMessages)
                     {
-                        <div class="alert alert-danger" role="alert">
-                            <ul class="mb-0">
-                                @foreach (var msg in ErrorMessages)
-                                {
-                                    <li>@msg</li>
-                                }
-                            </ul>
-                        </div>
+                        <li>@msg</li>
                     }
+                </ul>
+            </div>
+        }
 
-                    <form method="post" action="/account-action/Register">
-                        <AntiforgeryToken />
-                        <div class="mb-3">
-                            <label for="displayName" class="form-label">Display Name</label>
-                            <input type="text" class="form-control" id="displayName" name="displayName"
-                                   autocomplete="name" />
-                        </div>
+        <form method="post" action="/account-action/Register">
+            <AntiforgeryToken />
+            <div class="mb-3">
+                <label for="displayName" class="form-label">Display Name</label>
+                <input type="text" class="form-control" id="displayName" name="displayName"
+                       autocomplete="name" />
+            </div>
 
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="email" name="email"
-                                   required autocomplete="username" />
-                        </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       required autocomplete="username" />
+            </div>
 
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password"
-                                   required minlength="8" autocomplete="new-password" />
-                            <div class="form-text">
-                                At least 8 characters, with an uppercase letter and a digit.
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="confirmPassword" class="form-label">Confirm Password</label>
-                            <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
-                                   required minlength="8" autocomplete="new-password" />
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100">Create Account</button>
-                    </form>
-
-                    <hr />
-
-                    <div class="text-center">
-                        <p class="mb-0">
-                            Already have an account? <a href="/Account/Login">Sign in</a>
-                        </p>
-                    </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password"
+                       required minlength="8" autocomplete="new-password" />
+                <div class="form-text">
+                    At least 8 characters, with an uppercase letter and a digit.
                 </div>
             </div>
+
+            <div class="mb-3">
+                <label for="confirmPassword" class="form-label">Confirm Password</label>
+                <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                       required minlength="8" autocomplete="new-password" />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Create Account</button>
+        </form>
+
+        <hr />
+
+        <div class="text-center">
+            <p class="mb-0">
+                Already have an account? <a href="/Account/Login">Sign in</a>
+            </p>
         </div>
     </div>
 </div>

@@ -1,61 +1,55 @@
 @page "/Account/Login"
 @using Microsoft.AspNetCore.Components.Authorization
-@layout SentenceStudio.WebApp.Components.Layout.MainLayout
+@layout SentenceStudio.WebApp.Components.Layout.AuthLayout
 
 <PageTitle>Sign In - Sentence Studio</PageTitle>
 
-<div class="container">
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-5">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h2 class="card-title text-center mb-4">Sign In</h2>
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="card-title text-center mb-4">Sign In</h2>
 
-                    @if (!string.IsNullOrEmpty(ErrorMessage))
-                    {
-                        <div class="alert alert-danger" role="alert">@ErrorMessage</div>
-                    }
-                    @if (!string.IsNullOrEmpty(SuccessMessage))
-                    {
-                        <div class="alert alert-success" role="alert">@SuccessMessage</div>
-                    }
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+        }
+        @if (!string.IsNullOrEmpty(SuccessMessage))
+        {
+            <div class="alert alert-success" role="alert">@SuccessMessage</div>
+        }
 
-                    <form method="post" action="/account-action/Login">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+        <form method="post" action="/account-action/Login">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
 
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="email" name="email"
-                                   required autocomplete="username" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password"
-                                   required autocomplete="current-password" />
-                        </div>
-
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="rememberMe" name="rememberMe" value="true" />
-                            <label class="form-check-label" for="rememberMe">Remember me</label>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100">Sign In</button>
-                    </form>
-
-                    <hr />
-
-                    <div class="text-center">
-                        <p class="mb-1">
-                            <a href="/Account/ForgotPassword">Forgot your password?</a>
-                        </p>
-                        <p class="mb-0">
-                            Don't have an account? <a href="/Account/Register">Create one</a>
-                        </p>
-                    </div>
-                </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       required autocomplete="username" />
             </div>
+
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password"
+                       required autocomplete="current-password" />
+            </div>
+
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="rememberMe" name="rememberMe" value="true" />
+                <label class="form-check-label" for="rememberMe">Remember me</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Sign In</button>
+        </form>
+
+        <hr />
+
+        <div class="text-center">
+            <p class="mb-1">
+                <a href="/Account/ForgotPassword">Forgot your password?</a>
+            </p>
+            <p class="mb-0">
+                Don't have an account? <a href="/Account/Register">Create one</a>
+            </p>
         </div>
     </div>
 </div>
