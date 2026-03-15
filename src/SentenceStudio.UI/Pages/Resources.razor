@@ -1,11 +1,6 @@
 @page "/resources"
 
 <PageHeader Title="Learning Resources">
-    <ToolbarActions>
-        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="GoToProgress" title="Progress">
-            <i class="bi bi-graph-up" style="font-size: 1.125rem;"></i>
-        </button>
-    </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddResource">
             <i class="bi bi-plus-lg me-1"></i> Add Resource
@@ -13,7 +8,6 @@
     </PrimaryActions>
     <SecondaryActions>
         <li><button class="dropdown-item" @onclick="AddResource"><i class="bi bi-plus-lg me-2"></i>Add Resource</button></li>
-        <li><button class="dropdown-item" @onclick="GoToProgress"><i class="bi bi-graph-up me-2"></i>Vocabulary Progress</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -233,5 +227,4 @@ else
     };
 
     private void ToggleSearch() => showSearch = !showSearch;
-    private void GoToProgress() => NavManager.NavigateTo("vocabulary/progress");
 }
