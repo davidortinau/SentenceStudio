@@ -33,30 +33,49 @@
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="displayName">Display Name</label>
                 <input type="text" id="displayName" class="form-control form-control-ss"
-                       @bind="displayName" placeholder="Your name" disabled="@isBusy" />
+                       @bind="displayName" @bind:event="oninput" placeholder="Your name" disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
                 <input type="email" id="email" class="form-control form-control-ss"
-                       @bind="email" placeholder="you@example.com" disabled="@isBusy" />
+                       @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
                 <input type="password" id="password" class="form-control form-control-ss"
-                       @bind="password" placeholder="Password" disabled="@isBusy" />
+                       @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                @if (!string.IsNullOrEmpty(password))
+                {
+                    <div class="mt-1">
+                        <small class="@(password.Length >= 8 ? "text-success" : "text-danger")">
+                            <i class="bi @(password.Length >= 8 ? "bi-check-circle" : "bi-x-circle")"></i>
+                            At least 8 characters
+                        </small><br/>
+                        <small class="@(password.Any(char.IsUpper) ? "text-success" : "text-danger")">
+                            <i class="bi @(password.Any(char.IsUpper) ? "bi-check-circle" : "bi-x-circle")"></i>
+                            One uppercase letter
+                        </small><br/>
+                        <small class="@(password.Any(char.IsDigit) ? "text-success" : "text-danger")">
+                            <i class="bi @(password.Any(char.IsDigit) ? "bi-check-circle" : "bi-x-circle")"></i>
+                            One number
+                        </small>
+                    </div>
+                }
             </div>
 
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="confirmPassword">Confirm Password</label>
                 <input type="password" id="confirmPassword" class="form-control form-control-ss"
-                       @bind="confirmPassword" placeholder="Confirm password" disabled="@isBusy" />
+                       @bind="confirmPassword" @bind:event="oninput" placeholder="Confirm password" disabled="@isBusy" />
             </div>
 
             @if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(confirmPassword) && password != confirmPassword)
             {
-                <p class="text-danger ss-caption1 mb-3">Passwords do not match.</p>
+                <p class="text-danger ss-caption1 mb-3">
+                    <i class="bi bi-exclamation-triangle"></i> Passwords do not match.
+                </p>
             }
 
             <div class="d-grid gap-2 mb-3">
@@ -100,10 +119,16 @@
     private bool isBusy;
     private bool registrationComplete;
 
+    private bool IsPasswordValid =>
+        !string.IsNullOrEmpty(password)
+        && password.Length >= 8
+        && password.Any(char.IsUpper)
+        && password.Any(char.IsDigit);
+
     private bool CanSubmit => !isBusy
         && !string.IsNullOrWhiteSpace(displayName)
         && !string.IsNullOrWhiteSpace(email)
-        && !string.IsNullOrWhiteSpace(password)
+        && IsPasswordValid
         && password == confirmPassword;
 
     private async Task HandleRegister()

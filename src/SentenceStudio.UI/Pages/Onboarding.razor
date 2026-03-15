@@ -125,9 +125,52 @@
 
                 @if (isCreatingContent)
                 {
-                    <div class="mb-3">
-                        <div class="spinner-border text-primary mb-2"></div>
-                        <p class="ss-body2 text-muted-ss">@creationProgressMessage</p>
+                    <div class="card card-ss p-4 text-start mb-3">
+                        <div class="d-flex align-items-center mb-3">
+                            @if (contentStepsDone >= 1)
+                            {
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            }
+                            else if (contentStepsDone == 0)
+                            {
+                                <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-circle text-secondary me-2"></i>
+                            }
+                            <span class="ss-body2">Saving your profile</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            @if (contentStepsDone >= 2)
+                            {
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            }
+                            else if (contentStepsDone == 1)
+                            {
+                                <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-circle text-secondary me-2"></i>
+                            }
+                            <span class="ss-body2">Generating starter vocabulary (this may take a moment)</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            @if (contentStepsDone >= 3)
+                            {
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            }
+                            else if (contentStepsDone == 2)
+                            {
+                                <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-circle text-secondary me-2"></i>
+                            }
+                            <span class="ss-body2">Creating skill profile</span>
+                        </div>
                     </div>
                 }
                 else
@@ -137,7 +180,7 @@
                             Create Starter Content
                         </button>
                         <button class="btn btn-ss-secondary btn-lg" @onclick="FinishOnboarding">
-                            Skip — I'll set up my own
+                            Skip -- I'll set up my own
                         </button>
                     </div>
                 }
@@ -187,7 +230,7 @@
     private string[] suggestedNames = Array.Empty<string>();
     private bool isLoadingNames;
     private bool isCreatingContent;
-    private string creationProgressMessage = "";
+    private int contentStepsDone;
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
     private readonly string[] targetLanguages = { "Korean", "English", "French", "German", "Spanish", "Japanese", "Chinese" };
@@ -201,6 +244,29 @@
         3 => !string.IsNullOrWhiteSpace(name),
         _ => true
     };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Pre-populate from existing profile (e.g., created during registration)
+        try
+        {
+            var existing = await ProfileRepo.GetAsync();
+            if (existing != null)
+            {
+                name = existing.Name ?? "";
+                if (!string.IsNullOrEmpty(existing.NativeLanguage))
+                    nativeLanguage = existing.NativeLanguage;
+                if (!string.IsNullOrEmpty(existing.TargetLanguage))
+                    targetLanguage = existing.TargetLanguage;
+                if (!string.IsNullOrEmpty(existing.OpenAI_APIKey))
+                    openAiApiKey = existing.OpenAI_APIKey;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load existing profile for onboarding");
+        }
+    }
 
     private async Task NextStep()
     {
@@ -242,18 +308,16 @@
     private async Task CreateStarterContent()
     {
         isCreatingContent = true;
-        creationProgressMessage = "Creating learning resources...";
+        contentStepsDone = 0;
         StateHasChanged();
         try
         {
             await SaveProfile();
-            creationProgressMessage = "Generating vocabulary...";
+            contentStepsDone = 1;
             StateHasChanged();
 
-            // Create starter resource and vocabulary terms
             await ResourceRepo.GetStarterVocabulary(nativeLanguage, targetLanguage);
-
-            creationProgressMessage = "Creating skill profile...";
+            contentStepsDone = 2;
             StateHasChanged();
 
             var skill = new SkillProfile
@@ -262,7 +326,11 @@
                 Language = targetLanguage,
             };
             await SkillRepo.SaveAsync(skill);
+            contentStepsDone = 3;
+            StateHasChanged();
 
+            // Brief pause so user sees the final checkmark
+            await Task.Delay(500);
             await FinishOnboarding();
         }
         catch (Exception ex)
@@ -279,21 +347,38 @@
 
     private async Task SaveProfile()
     {
-        var profile = new UserProfile
+        // Check if a profile already exists (created during registration)
+        var existingProfile = await ProfileRepo.GetAsync();
+        if (existingProfile != null)
         {
-            Name = name,
-            NativeLanguage = nativeLanguage,
-            TargetLanguage = targetLanguage,
-            DisplayLanguage = "English",
-            OpenAI_APIKey = openAiApiKey,
-            PreferredSessionMinutes = preferredSessionMinutes,
-            TargetCEFRLevel = targetCEFRLevel
-        };
-        await ProfileRepo.SaveAsync(profile);
-        AppState.CurrentUserProfile = profile;
-
-        // Set this as the active profile so GetAsync() returns it
-        Preferences.Set("active_profile_id", profile.Id);
+            // Update the existing profile with onboarding selections
+            existingProfile.Name = name;
+            existingProfile.NativeLanguage = nativeLanguage;
+            existingProfile.TargetLanguage = targetLanguage;
+            existingProfile.DisplayLanguage = "English";
+            existingProfile.OpenAI_APIKey = openAiApiKey;
+            existingProfile.PreferredSessionMinutes = preferredSessionMinutes;
+            existingProfile.TargetCEFRLevel = targetCEFRLevel;
+            await ProfileRepo.SaveAsync(existingProfile);
+            AppState.CurrentUserProfile = existingProfile;
+            Preferences.Set("active_profile_id", existingProfile.Id);
+        }
+        else
+        {
+            var profile = new UserProfile
+            {
+                Name = name,
+                NativeLanguage = nativeLanguage,
+                TargetLanguage = targetLanguage,
+                DisplayLanguage = "English",
+                OpenAI_APIKey = openAiApiKey,
+                PreferredSessionMinutes = preferredSessionMinutes,
+                TargetCEFRLevel = targetCEFRLevel
+            };
+            await ProfileRepo.SaveAsync(profile);
+            AppState.CurrentUserProfile = profile;
+            Preferences.Set("active_profile_id", profile.Id);
+        }
     }
 
     private async Task FinishOnboarding()

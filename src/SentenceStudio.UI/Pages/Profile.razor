@@ -130,6 +130,29 @@ else
     </div>
 }
 
+@if (!string.IsNullOrEmpty(errorModalMessage))
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-surface">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-error-ss">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Error
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="DismissErrorModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ss-body2">@errorModalMessage</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-ss-secondary" @onclick="DismissErrorModal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Inject] private UserProfileRepository ProfileRepo { get; set; }
     [Inject] private DataExportService ExportService { get; set; }
@@ -151,6 +174,7 @@ else
     private string targetCEFRLevel = "A2";
     private bool isExporting;
     private string exportProgressMessage = "";
+    private string? errorModalMessage;
     private IJSObjectReference? jsModule;
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
@@ -220,8 +244,14 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to save: {ex.Message}");
+            Logger.LogError(ex, "Failed to save profile");
+            errorModalMessage = $"Failed to save profile: {ex.Message}";
         }
+    }
+
+    private void DismissErrorModal()
+    {
+        errorModalMessage = null;
     }
 
     private async Task ExportData()
