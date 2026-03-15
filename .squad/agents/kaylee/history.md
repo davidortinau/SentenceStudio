@@ -159,3 +159,25 @@ Created `.github/workflows/ci.yml` with:
 **Wash Completed #39 (user-secrets setup):**
 - Kaylee coordination: CORS setup confirmed not required for MAUI clients (use service discovery)
 - Phase 2 ready for Phase 1 (Entra ID auth) — Captain has provisioned 3 app registrations
+
+### Mobile Auth Gate Fix (2026-03-15)
+
+**Status:** Complete
+
+**Problem:** Mobile app (iOS/MacCatalyst) launched straight to Dashboard without requiring authentication. The auth gate in `MainLayout.razor` only checked a boolean preference (`app_is_authenticated`) — a stale flag from a previous session bypassed all token validation. Additionally, `Auth.razor` allowed "Create Local User" and "Select Local Profile" flows that set the preference without any server authentication.
+
+**Root Cause:** `MainLayout.OnInitialized()` was synchronous and only checked `Preferences.Get("app_is_authenticated", false)`. It never consulted `IAuthService.IsSignedIn` or attempted a silent token refresh. After an app restart, the in-memory JWT cache in `IdentityAuthService` was empty, but the preference persisted — resulting in unauthenticated access to all pages.
+
+**Fix:**
+1. **MainLayout.razor** — Changed `OnInitialized` to `OnInitializedAsync`. Injected `IAuthService`. When the preference says authenticated, it now verifies `IAuthService.IsSignedIn`, attempts `SignInAsync()` (silent refresh from SecureStorage), and clears the stale preference if auth fails.
+2. **Auth.razor** — `LoginAsAsync` made async: verifies server auth before granting access. If no valid session, shows a warning and stays on the auth page. `RegisterLocalAsync` now redirects to `/auth/register` (server registration) instead of setting the preference directly.
+
+**WebApp compatibility:** `ServerAuthService.IsSignedIn` checks `HttpContext.User.Identity.IsAuthenticated` (cookie-based), so the WebApp auth flow is unaffected. `ServerAuthService.SignInAsync()` (no params) is a no-op that returns null — safe to call.
+
+## Learnings
+
+- `MainLayout.razor` is the shared auth gate for BOTH WebApp and mobile — changes here affect all contexts
+- `IdentityAuthService.IsSignedIn` only checks in-memory cache; after app restart it's always false until `SignInAsync()` restores from SecureStorage
+- `ServerAuthService.SignInAsync()` (parameterless) returns null — it's a no-op because the WebApp uses cookie auth via ASP.NET Identity middleware
+- `ServerAuthService.IsSignedIn` checks `HttpContext.User.Identity.IsAuthenticated` — this is the cookie check for WebApp
+- Mobile auth preference (`app_is_authenticated`) must be validated against real token state on every app launch — never trust persisted preferences alone

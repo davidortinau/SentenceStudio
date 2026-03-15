@@ -3,6 +3,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
+@inject IAuthService AuthService
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -56,13 +57,34 @@
     private bool isOnboarding;
     private bool isAuthGate;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
         var isAuthRoute = uri.AbsolutePath.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
 
-        // Auth gate applies to all contexts (WebApp and MAUI)
-        if (!Preferences.Get("app_is_authenticated", false))
+        // Auth gate: verify real authentication state, not just a preference flag.
+        // On mobile, the preference persists across app restarts but the JWT token
+        // may be expired. We validate the token and attempt a silent refresh.
+        var prefAuthenticated = Preferences.Get("app_is_authenticated", false);
+
+        if (prefAuthenticated)
+        {
+            if (!AuthService.IsSignedIn)
+            {
+                // Attempt silent sign-in (restores session from refresh token on mobile;
+                // no-op on WebApp where cookie auth handles persistence)
+                await AuthService.SignInAsync();
+            }
+
+            if (!AuthService.IsSignedIn)
+            {
+                // Token invalid/expired and refresh failed — clear stale preference
+                Preferences.Remove("app_is_authenticated");
+                prefAuthenticated = false;
+            }
+        }
+
+        if (!prefAuthenticated)
         {
             isAuthGate = true;
             if (!isAuthRoute)

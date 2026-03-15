@@ -18,6 +18,13 @@
             </a>
         </div>
 
+        @if (!string.IsNullOrEmpty(loginError))
+        {
+            <div class="alert alert-warning mb-3" role="alert">
+                <i class="bi bi-shield-lock me-2"></i>@loginError
+            </div>
+        }
+
         @if (_profiles.Count > 0)
         {
             <hr class="my-3" />
@@ -48,7 +55,7 @@
 
         <div class="d-grid gap-2">
             <button class="btn btn-outline-secondary btn-lg" @onclick="RegisterLocalAsync">
-                <i class="bi bi-plus-circle me-2"></i>Create Local User
+                <i class="bi bi-plus-circle me-2"></i>New User? Create Account
             </button>
         </div>
     </div>
@@ -96,11 +103,14 @@
     [Inject] private ILogger<Auth> Logger { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
+    [Inject] private IAuthService AuthService { get; set; } = default!;
+
     private List<UserProfile> _profiles = new();
     private bool showDeleteConfirm;
     private string deleteConfirmMessage = "";
     private bool isDeleting;
     private UserProfile? profileToDelete;
+    private string? loginError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -108,13 +118,30 @@
         _profiles = await ProfileRepo.ListAsync() ?? new();
     }
 
-    private void LoginAsAsync(UserProfile profile)
+    private async Task LoginAsAsync(UserProfile profile)
     {
-        Preferences.Set(AuthenticatedPreferenceKey, true);
+        loginError = null;
         Preferences.Set(ActiveProfileIdKey, profile.Id);
-        Preferences.Set("is_onboarded", true);
         AppState.CurrentUserProfile = profile;
-        NavManager.NavigateTo("/", forceLoad: true);
+
+        // Verify server authentication before granting access
+        if (!AuthService.IsSignedIn)
+        {
+            await AuthService.SignInAsync();
+        }
+
+        if (AuthService.IsSignedIn)
+        {
+            Preferences.Set(AuthenticatedPreferenceKey, true);
+            Preferences.Set("is_onboarded", true);
+            NavManager.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            // No valid server session — redirect to login
+            loginError = "Server authentication required. Please sign in first.";
+            StateHasChanged();
+        }
     }
 
     private void RequestDelete(UserProfile profile)
@@ -199,8 +226,6 @@
 
     private void RegisterLocalAsync()
     {
-        Preferences.Set(AuthenticatedPreferenceKey, true);
-        Preferences.Set("is_onboarded", false);
-        NavManager.NavigateTo("/onboarding");
+        NavManager.NavigateTo("/auth/register");
     }
 }
