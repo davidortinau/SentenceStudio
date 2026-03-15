@@ -1,0 +1,87 @@
+@page "/Account/Register"
+@layout SentenceStudio.WebApp.Components.Layout.MainLayout
+
+<PageTitle>Create Account - Sentence Studio</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="card-title text-center mb-4">Create Account</h2>
+
+                    @if (ErrorMessages.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <ul class="mb-0">
+                                @foreach (var msg in ErrorMessages)
+                                {
+                                    <li>@msg</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <form method="post" action="/Account/Register">
+                        <div class="mb-3">
+                            <label for="displayName" class="form-label">Display Name</label>
+                            <input type="text" class="form-control" id="displayName" name="displayName"
+                                   autocomplete="name" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email"
+                                   required autocomplete="username" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   required minlength="8" autocomplete="new-password" />
+                            <div class="form-text">
+                                At least 8 characters, with an uppercase letter and a digit.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">Confirm Password</label>
+                            <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                                   required minlength="8" autocomplete="new-password" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Create Account</button>
+                    </form>
+
+                    <hr />
+
+                    <div class="text-center">
+                        <p class="mb-0">
+                            Already have an account? <a href="/Account/Login">Sign in</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? errors { get; set; }
+
+    private IReadOnlyList<string> ErrorMessages => string.IsNullOrEmpty(errors)
+        ? Array.Empty<string>()
+        : errors.Split(',').Select(FormatError).ToList();
+
+    private static string FormatError(string code) => code switch
+    {
+        "DuplicateEmail" => "An account with this email already exists.",
+        "DuplicateUserName" => "An account with this email already exists.",
+        "PasswordTooShort" => "Password must be at least 8 characters.",
+        "PasswordRequiresUpper" => "Password must contain an uppercase letter.",
+        "PasswordRequiresDigit" => "Password must contain a digit.",
+        "PasswordRequiresNonAlphanumeric" => "Password must contain a special character.",
+        _ => $"An error occurred ({code})."
+    };
+}

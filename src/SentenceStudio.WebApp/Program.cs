@@ -1,12 +1,12 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.AI;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using OpenAI;
 using Plugin.Maui.Audio;
-using SentenceStudio.WebApp.Platform;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -17,6 +17,7 @@ using SentenceStudio.Services.Api;
 using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Services.PlanGeneration;
 using SentenceStudio.Services.Progress;
+using SentenceStudio.Shared.Models;
 using SentenceStudio.WebApp.Auth;
 using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
@@ -52,6 +53,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
+var useDevAuth = builder.Configuration.GetValue<bool>("Auth:UseDevAuth");
 
 if (useEntraId)
 {
@@ -79,10 +81,37 @@ if (useEntraId)
     builder.Services.AddControllersWithViews()
         .AddMicrosoftIdentityUI();
 }
-else
+else if (useDevAuth)
 {
     builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+}
+else
+{
+    // Identity cookie auth — the default non-Entra, non-dev path.
+    // ApplicationDbContext is registered below via AddDataServices; Identity shares the same DB.
+    builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.Password.RequiredLength = 8;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireDigit = true;
+        options.Password.RequireNonAlphanumeric = false;
+        options.SignIn.RequireConfirmedEmail = false;
+        options.User.RequireUniqueEmail = true;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+    builder.Services.ConfigureApplicationCookie(options =>
+    {
+        options.LoginPath = "/Account/Login";
+        options.LogoutPath = "/Account/Logout";
+        options.AccessDeniedPath = "/Account/AccessDenied";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromDays(14);
+        options.SlidingExpiration = true;
+    });
 }
 
 builder.Services.AddAuthorization();
@@ -169,6 +198,11 @@ app.MapStaticAssets();
 if (useEntraId)
 {
     app.MapControllers();
+}
+
+if (!useEntraId && !useDevAuth)
+{
+    app.MapAccountEndpoints();
 }
 
 app.MapRazorComponents<App>()

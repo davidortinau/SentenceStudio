@@ -18,8 +18,9 @@ public sealed class TenantContextMiddleware
         {
             // Entra ID uses "tid" for tenant, "oid" for object/user ID,
             // and "preferred_username" or "name" for display info.
+            // Identity JWTs use standard ClaimTypes: NameIdentifier, Email, Name, plus "tenant_id".
             // DevAuthHandler uses "tenant_id", NameIdentifier, Name, Email.
-            // We check both sets so both auth paths populate TenantContext.
+            // The fallback chain below covers all three auth paths.
             mutableContext.TenantId =
                 context.User.FindFirstValue("tid")
                 ?? context.User.FindFirstValue("tenant_id");
