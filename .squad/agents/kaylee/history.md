@@ -9,6 +9,11 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- `SentenceStudio.AppLib` has `ImplicitUsings>disable` — must add explicit `using` for System.Net.Http, etc.
+- `Auth:UseEntraId` config flag pattern works across Api, WebApp, and now MAUI clients
+- MSAL.NET `WithBroker(BrokerOptions)` overload removed in v4.x — just omit it when not using a broker
+- `AuthenticatedHttpMessageHandler` is wired into all HttpClient registrations (API + CoreSync) via `AddHttpMessageHandler<T>()`
+- Pre-existing build error: `DuplicateGroup` missing in `SentenceStudio.UI/Pages/Vocabulary.razor` — blocks MacCatalyst full build
 - `Auth:UseEntraId` config flag controls auth mode in both API and WebApp — false = DevAuthHandler, true = Entra ID OIDC
 - Microsoft.Identity.Web OIDC uses `AddMicrosoftIdentityWebApp()` + `EnableTokenAcquisitionToCallDownstreamApi()` chain
 - Redis-backed distributed token cache via `Aspire.StackExchange.Redis.DistributedCaching` (match AppHost Aspire version for preview packages)
@@ -46,6 +51,34 @@
 **Phase Execution Order:** Phase 2 (Secrets) → Phase 1 (Auth, localhost-testable) → Phase 3 (Infra) → Phase 4 (Pipeline) → Phase 5 (Hardening)
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
+
+### 2026-03-14 — Fix Copilot Review Issues on PR #70 and PR #71
+
+**Status:** Complete
+
+**PR #70 (feature/44-webapp-oidc):**
+- Pinned Microsoft.Identity.Web packages to 4.5.0 (was floating `*`)
+- Removed unused `OpenIdConnect` using from Program.cs
+- Replaced hardcoded GUID fallback scope with startup config validation
+- Handler now passes `cancellationToken` and propagates exceptions
+
+**PR #71 (feature/45-maui-msal):**
+- MsalAuthService reads TenantId, ClientId, RedirectUri, Scopes from IConfiguration
+- Fixed IsSignedIn: `_cachedAccount` now updated on every successful token acquisition
+- AuthenticatedHttpMessageHandler attempts token unconditionally (no IsSignedIn gate)
+- Handler scopes also read from config instead of hardcoded GUIDs
+
+### 2026-03-13 — MSAL.NET Authentication for MAUI Clients (#45)
+
+**Status:** Complete  
+**Branch:** `feature/45-maui-msal`
+
+Implemented MSAL.NET public client auth in `SentenceStudio.AppLib`:
+- `IAuthService` interface + `MsalAuthService` (PKCE via system browser)
+- `DevAuthService` no-op for local dev (config-driven via `Auth:UseEntraId`)
+- `AuthenticatedHttpMessageHandler` wired into all HttpClient registrations
+- MacCatalyst `Info.plist` updated with MSAL redirect URL scheme
+- AppLib builds clean; full MacCatalyst build blocked by pre-existing UI error
 
 ### 2026-03-14 — WebApp OIDC Authentication (#44)
 
@@ -92,3 +125,37 @@ Set up GitHub Actions CI workflow for automated testing and builds:
 
 **Flagged Issue:** Workflow references `IntegrationTests` project — verify project exists or adjust workflow before merge.
 
+### 2026-03-13 — CI Workflow (#56)
+
+**Status:** Complete  
+**Branch:** `feature/56-ci-workflow`
+
+Created `.github/workflows/ci.yml` with:
+- Build matrix: Api, WebApp, AppLib (with MAUI workload)
+- Test job: UnitTests + IntegrationTests with xUnit TRX reporting
+- NuGet caching via `actions/cache`
+- DevAuthHandler via `Auth__UseEntraId=false`
+- Local NuGet source stripped for CI (dev-machine-only path)
+- `dorny/test-reporter` for inline PR test results
+- .NET SDK version: 10.0.x (explicit in workflow; global.json is gitignored)
+
+**Discovered:** IntegrationTests references a non-existent `SentenceStudio.csproj` — will fail in CI. Needs follow-up fix.
+
+### 2026-03-14 — Phase 2 (Secrets & Security) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Kaylee Completed #41 — Security Headers & HTTPS:**
+- Added shared `SecurityHeadersExtensions` in `src/Shared/SecurityHeadersExtensions.cs` (linked to web projects via `<Compile Include>`)
+- Security headers: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, Permissions-Policy (camera/mic/geo)
+- HTTPS redirect environment-aware (skipped in dev, Aspire proxy terminates TLS)
+- API explicit HSTS: 365-day max-age, includeSubDomains, preload
+- CORS: AllowWebApp policy (config-driven) + AllowDevClients (dev-only localhost)
+- AllowedHosts restrictions in Production appsettings
+
+**Key Decision:** Linked source file instead of WebServiceDefaults to avoid ambiguous call errors with MAUI defaults.
+
+**Wash Completed #39 (user-secrets setup):**
+- Kaylee coordination: CORS setup confirmed not required for MAUI clients (use service discovery)
+- Phase 2 ready for Phase 1 (Entra ID auth) — Captain has provisioned 3 app registrations

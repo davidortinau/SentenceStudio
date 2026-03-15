@@ -17,8 +17,18 @@
 - DI registration in `SentenceStudioAppBuilder.cs` (AppLib) and `Program.cs` (WebApp)
 - Aspire env var config: `builder.Configuration["AI:OpenAI:ApiKey"]` not `["AI__OpenAI__ApiKey"]`
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
-- Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
+
+- Microsoft.Identity.Web v3.8.2 added to API for Entra ID JWT Bearer auth
+- Conditional auth pattern: `Auth:UseEntraId` config flag switches between Entra ID and DevAuthHandler
+- TenantContextMiddleware maps both Entra ID claims (tid, oid, name) and DevAuthHandler claims (tenant_id, NameIdentifier, Name) — Entra ID claims take precedence
+- appsettings.json is gitignored; use appsettings.Development.json for tracked config and AppHost env vars for runtime
+- Scope policies: `RequireScope("user.read")` etc. via Microsoft.Identity.Web authorization helpers
+- AzureAd public IDs (TenantId, ClientId, Audience) are NOT secrets — safe to commit
+- CoreSync HTTP client uses named HttpClient `"HttpClientToServer"` — auth handler chains via `.AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()`
+- CoreSync server (`SentenceStudio.Web`) uses `UseCoreSyncHttpServer()` middleware — auth middleware must run BEFORE it
+- DevAuthHandler is duplicated in both API and Web projects — future refactor to shared project
+- Web server auth follows same `Auth:UseEntraId` pattern as API server
 
 ## Work Sessions
 
@@ -54,3 +64,36 @@ Implemented JWT Bearer token authentication for the API:
 
 **Unblocks:** Kaylee's WebApp OIDC (#44), MAUI MSAL (#45), remaining auth work
 
+### 2026-03-14 — CoreSync Auth: Bearer Token on Sync Client (#46)
+
+**Status:** Complete  
+**Branch:** `feature/46-coresync-auth`  
+**Depends on:** #43 (API JWT), #45 (MAUI MSAL)
+
+**What was done:**
+- Merged #43 and #45 into branch as dependencies
+- Added JWT Bearer auth to `SentenceStudio.Web` (CoreSync sync server)
+- Created `DevAuthHandler` for dev mode (mirrors API pattern)
+- `UseAuthentication()` + `UseAuthorization()` before `UseCoreSyncHttpServer()`
+- Client side already handled by #45's `AuthenticatedHttpMessageHandler` on `"HttpClientToServer"`
+- Graceful fallback: no token → request proceeds without auth header; server doesn't reject
+
+**Key Insight:** CoreSync uses ASP.NET middleware (`UseCoreSyncHttpServer()`), not minimal API endpoints, so `RequireAuthorization()` can't be applied directly. Auth middleware populates identity; future enforcement needs a gating middleware or policy.
+
+### 2026-03-14 — Phase 2 (Secrets) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Wash Completed #39:**
+- Initialized user-secrets for Api, WebApp
+- Created secrets.template.json with full inventory
+- Updated README with three secrets management paths
+- Documented AppHost → service flow via Aspire Parameters and env var normalization
+
+**Kaylee Completed #41:**
+- Added SecurityHeadersExtensions to shared lib (linked to all web projects)
+- Implemented HSTS, CORS, AllowedHosts across API/WebApp/Marketing
+- Environment-aware HTTPS redirect
+
+**Phase 2 Closed:** Ready to begin Phase 1 (Entra ID) now that Captain has provisioned app registrations.

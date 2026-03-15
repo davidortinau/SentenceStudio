@@ -1,6 +1,5 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.AI;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
@@ -10,6 +9,7 @@ using SentenceStudio.WebApp.Platform;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Infrastructure;
 using SentenceStudio.Repositories;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
@@ -54,10 +54,16 @@ var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
 
 if (useEntraId)
 {
+    var downstreamScopes = builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>();
+    if (downstreamScopes is null || downstreamScopes.Length == 0)
+    {
+        throw new InvalidOperationException(
+            "DownstreamApi:Scopes must be configured when Auth:UseEntraId is enabled. "
+            + "Add a 'DownstreamApi:Scopes' array to appsettings.json or user-secrets.");
+    }
+
     builder.Services.AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
-        .EnableTokenAcquisitionToCallDownstreamApi(
-            builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>()
-            ?? ["api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8/.default"])
+        .EnableTokenAcquisitionToCallDownstreamApi(downstreamScopes)
         .AddDistributedTokenCaches();
 
     builder.AddRedisDistributedCache("cache");
@@ -125,6 +131,13 @@ builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
 RegisterSentenceStudioServices(builder.Services);
 RegisterBlazorServices(builder.Services);
 
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -133,7 +146,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirect in development — Aspire may terminate TLS at the proxy.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseSecurityHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

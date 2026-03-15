@@ -147,6 +147,71 @@ Set up GitHub Actions CI workflow for automated testing and multi-platform build
 - Workflow references `IntegrationTests` project — verify project exists or adjust workflow before merge
 
 ---
+### 3. User-Secrets Workflow for Local Development (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Wash (Backend Dev)  
+**Issue:** #39  
+
+Established .NET user-secrets pattern for secure local development across all server-side projects.
+
+**Key Decisions:**
+- AppHost uses Aspire Parameters (`builder.AddParameter("openaikey", secret: true)`) resolving from AppHost user-secrets under `Parameters:openaikey`
+- Parameters passed to child projects via `.WithEnvironment("AI__OpenAI__ApiKey", openaikey)`
+- Aspire normalizes `__` to `:` in configuration across services
+- Three paths documented in README:
+  - **Option A:** Aspire (recommended) — set secrets in AppHost, flow to all services
+  - **Option B:** Standalone projects — per-project `dotnet user-secrets`
+  - **Option C:** MAUI mobile/desktop — gitignored `appsettings.json` in AppLib
+
+**Projects with UserSecretsId:**
+| Project | UserSecretsId |
+|---------|---------------|
+| AppHost | d8521a4e-969b-4696-9990-45dea324bda8 |
+| Api | 9ae3953f-a490-41b3-a2b8-a8e2555b4615 |
+| WebApp | 33f95f89-d495-4311-b6cb-53a47b5c34e6 |
+| Workers | dotnet-SentenceStudio.Workers-8ded0183-d135-40b2-b2d4-b49b096922b8 |
+
+**Secrets Inventory:**
+| Secret | AppHost Parameter | Api Key | WebApp Key |
+|--------|-------------------|---------|------------|
+| OpenAI | Parameters:openaikey | AI:OpenAI:ApiKey | Settings:OpenAIKey |
+| ElevenLabs | Parameters:elevenlabskey | ElevenLabsKey | Settings:ElevenLabsKey |
+| Syncfusion | Parameters:syncfusionkey | N/A | N/A |
+
+**No Data Impact:** No database changes, no secret migrations, AppHost user-secrets remain intact.
+
+---
+
+### 4. Security Headers and HTTPS Enforcement (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Kaylee (Full-stack Dev)  
+**Issue:** #41  
+
+Added security hardening across API, WebApp, and Marketing services.
+
+**Security Headers (all services):**
+- Shared extension `UseSecurityHeaders()` in `src/Shared/SecurityHeadersExtensions.cs`
+- Linked via `<Compile Include>` to prevent ambiguous call errors with MAUI defaults
+- Headers: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+**HTTPS and HSTS:**
+- HTTPS redirect environment-aware: skipped in Development (Aspire terminates TLS at proxy)
+- API explicit HSTS: 365-day max-age, includeSubDomains, preload
+- WebApp and Marketing HSTS unchanged (already configured in non-dev block)
+
+**CORS (API only):**
+- `AllowWebApp` policy: restricts to `Cors:AllowedOrigins` config
+- `AllowDevClients` policy: dev-only, localhost with credentials
+- Production origins in `appsettings.Production.json`
+- MAUI clients unaffected (service discovery, not browser CORS)
+
+**AllowedHosts:** Production `appsettings.json` files restrict to specific domains, not wildcard.
+
+**Deferred:** Production CORS fine-tuning (#62), CSP header (Blazor inline scripts), production auth (still DevAuthHandler).
 
 ## Governance
 
