@@ -26,15 +26,22 @@
                 @foreach (var profile in _profiles)
                 {
                     var p = profile;
-                    <button class="btn btn-ss-secondary btn-lg text-start d-flex align-items-center gap-2"
-                            @onclick="() => LoginAsAsync(p)">
-                        <i class="bi bi-person-circle"></i>
-                        <div>
-                            <strong>@p.Name</strong>
-                            <br />
-                            <small class="text-secondary-ss">@p.NativeLanguage → @p.TargetLanguage</small>
-                        </div>
-                    </button>
+                    <div class="d-flex gap-2 align-items-stretch">
+                        <button class="btn btn-ss-secondary btn-lg text-start d-flex align-items-center gap-2 flex-grow-1"
+                                @onclick="() => LoginAsAsync(p)">
+                            <i class="bi bi-person-circle"></i>
+                            <div>
+                                <strong>@p.Name</strong>
+                                <br />
+                                <small class="text-secondary-ss">@p.NativeLanguage &rarr; @p.TargetLanguage</small>
+                            </div>
+                        </button>
+                        <button class="btn btn-outline-danger d-flex align-items-center"
+                                title="Delete profile"
+                                @onclick="() => DeleteProfileAsync(p)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 }
             </div>
         }
@@ -55,12 +62,14 @@
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private IAppState AppState { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private ILogger<Auth> Logger { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private List<UserProfile> _profiles = new();
 
     protected override async Task OnInitializedAsync()
     {
-        // Ensure backfill runs for existing data before any repo queries
         await ProfileRepo.EnsureMultiUserBackfillAsync();
         _profiles = await ProfileRepo.ListAsync() ?? new();
     }
@@ -72,6 +81,53 @@
         Preferences.Set("is_onboarded", true);
         AppState.CurrentUserProfile = profile;
         NavManager.NavigateTo("/", forceLoad: true);
+    }
+
+    private async Task DeleteProfileAsync(UserProfile profile)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Delete profile \"{profile.Name}\"? This removes the user and all associated data. This cannot be undone.");
+        if (!confirmed) return;
+
+        try
+        {
+            // Try to delete the associated Identity user (WebApp only)
+            try
+            {
+                var userManager = ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<SentenceStudio.Shared.Models.ApplicationUser>>();
+                if (userManager is not null)
+                {
+                    var users = userManager.Users.Where(u => u.UserProfileId == profile.Id).ToList();
+                    foreach (var user in users)
+                    {
+                        await userManager.DeleteAsync(user);
+                        Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profile.Id);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not delete Identity user for profile {Id} (may not exist or not in WebApp context)", profile.Id);
+            }
+
+            await ProfileRepo.DeleteAsync(profile);
+
+            // Clear active profile if this was the selected one
+            var activeId = Preferences.Get("active_profile_id", string.Empty);
+            if (activeId == profile.Id)
+            {
+                Preferences.Remove("active_profile_id");
+                Preferences.Remove("app_is_authenticated");
+            }
+
+            _profiles.Remove(profile);
+            Logger.LogInformation("Deleted profile {Name} ({Id})", profile.Name, profile.Id);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete profile {Id}", profile.Id);
+        }
     }
 
     private void RegisterLocalAsync()

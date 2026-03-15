@@ -122,6 +122,34 @@ public class ServerAuthService : IAuthService
         _logger.LogInformation("Signed out");
     }
 
+    public async Task<bool> DeleteAccountAsync()
+    {
+        var userName = _httpContextAccessor.HttpContext?.User?.Identity?.Name;
+        if (string.IsNullOrEmpty(userName)) return false;
+
+        using var scope = _scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var signInManager = scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
+
+        var user = await userManager.FindByNameAsync(userName);
+        if (user is null) return false;
+
+        await signInManager.SignOutAsync();
+        var result = await userManager.DeleteAsync(user);
+
+        if (result.Succeeded)
+        {
+            _logger.LogInformation("Deleted Identity account for {User}", userName);
+        }
+        else
+        {
+            _logger.LogWarning("Failed to delete Identity account for {User}: {Errors}",
+                userName, string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return result.Succeeded;
+    }
+
     public Task<string?> GetAccessTokenAsync(string[] scopes) =>
         Task.FromResult<string?>("cookie-auth");
 }

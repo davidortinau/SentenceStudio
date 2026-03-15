@@ -148,6 +148,26 @@ public sealed class IdentityAuthService : IAuthService
         _logger.LogInformation("Signed out, tokens cleared");
     }
 
+    public async Task<bool> DeleteAccountAsync()
+    {
+        try
+        {
+            var response = await _http.DeleteAsync("/api/auth/account");
+            if (response.IsSuccessStatusCode)
+            {
+                await SignOutAsync();
+                return true;
+            }
+            _logger.LogWarning("Account deletion failed: {Status}", response.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Account deletion failed");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Returns a valid JWT access token. If the cached token is expired,
     /// attempts a refresh. Returns null if no valid token is available.

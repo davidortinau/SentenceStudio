@@ -8,6 +8,7 @@ public interface IAuthService
     Task<AuthResult?> SignInAsync(string email, string password);
     Task<AuthResult?> RegisterAsync(string email, string password, string displayName);
     Task SignOutAsync();
+    Task<bool> DeleteAccountAsync();
     Task<string?> GetAccessTokenAsync(string[] scopes);
     bool IsSignedIn { get; }
     string? UserName { get; }

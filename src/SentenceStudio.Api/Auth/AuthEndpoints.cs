@@ -18,6 +18,7 @@ public static class AuthEndpoints
         group.MapGet("/confirm-email", ConfirmEmail);
         group.MapPost("/forgot-password", ForgotPassword);
         group.MapPost("/reset-password", ResetPassword);
+        group.MapDelete("/account", DeleteAccount).RequireAuthorization();
 
         return app;
     }
@@ -251,5 +252,36 @@ public static class AuthEndpoints
         }
 
         return Results.Ok(new { message = "Password has been reset." });
+    }
+
+    private static async Task<IResult> DeleteAccount(
+        HttpContext context,
+        UserManager<ApplicationUser> userManager,
+        ApplicationDbContext db)
+    {
+        var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
+            return Results.NotFound(new { error = "Account not found." });
+
+        // Delete UserProfile if linked
+        if (!string.IsNullOrEmpty(user.UserProfileId))
+        {
+            var profile = await db.UserProfiles.FindAsync(user.UserProfileId);
+            if (profile is not null)
+            {
+                db.UserProfiles.Remove(profile);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var result = await userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+        return Results.Ok(new { message = "Account deleted." });
     }
 }

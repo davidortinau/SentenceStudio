@@ -123,7 +123,10 @@ else
     @* Danger Zone *@
     <div class="card card-ss p-4 border border-danger mb-5">
         <h5 class="ss-title3 text-error-ss mb-3">Danger Zone</h5>
-        <button class="btn btn-ss-danger w-100" @onclick="ResetProfile">Reset Profile</button>
+        <p class="ss-body2 text-secondary-ss mb-3">
+            Permanently delete your account and all associated data.
+        </p>
+        <button class="btn btn-ss-danger w-100" @onclick="DeleteAccount">Delete My Account</button>
     </div>
 }
 
@@ -135,6 +138,8 @@ else
     [Inject] private IAppState AppState { get; set; }
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private ILogger<Profile> Logger { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private IAuthService AuthService { get; set; } = default!;
 
     private bool isLoading = true;
     private string name = "";
@@ -240,23 +245,34 @@ else
         }
     }
 
-    private async Task ResetProfile()
+    private async Task DeleteAccount()
     {
         if (jsModule == null) return;
         var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
-            "This will delete your profile and all preferences. This cannot be undone.");
+            "This will permanently delete your account and all data. This cannot be undone.");
 
         if (confirmed)
         {
             try
             {
-                await ProfileRepo.DeleteAsync();
+                var profile = await ProfileRepo.GetAsync();
+                if (profile != null)
+                {
+                    await ProfileRepo.DeleteAsync(profile);
+                }
+
+                Preferences.Remove("active_profile_id");
+                Preferences.Remove("app_is_authenticated");
                 Preferences.Set("is_onboarded", false);
-                Toast.ShowInfo("Profile reset. Please restart the app.");
+                AppState.CurrentUserProfile = null;
+
+                await AuthService.SignOutAsync();
+                NavManager.NavigateTo("/auth", forceLoad: true);
             }
             catch (Exception ex)
             {
-                Toast.ShowError($"Reset failed: {ex.Message}");
+                Logger.LogError(ex, "Account deletion failed");
+                Toast.ShowError($"Deletion failed: {ex.Message}");
             }
         }
     }
