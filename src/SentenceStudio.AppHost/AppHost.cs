@@ -26,6 +26,13 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AzureAd__TenantId", azureAdTenantId)
     .WithEnvironment("AzureAd__ClientId", azureAdClientId)
     .WithEnvironment("AzureAd__Audience", azureAdAudience);
+    // Email (production only -- dev mode uses ConsoleEmailSender automatically):
+    //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
+    //   .WithEnvironment("Email__SmtpPort", "587")
+    //   .WithEnvironment("Email__FromAddress", "noreply@sentencestudio.app")
+    //   .WithEnvironment("Email__FromName", "SentenceStudio")
+    //   .WithEnvironment("Email__Username", "<smtp-user>")       // user-secrets
+    //   .WithEnvironment("Email__Password", "<smtp-password>")   // user-secrets
 
 var web = builder.AddProject<SentenceStudio_Web>("web");
 
