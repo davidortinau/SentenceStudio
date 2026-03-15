@@ -20,7 +20,8 @@
                         <div class="alert alert-success" role="alert">@SuccessMessage</div>
                     }
 
-                    <form method="post" action="/Account/Login">
+                    <form method="post" action="/account-action/Login">
+                        <AntiforgeryToken />
                         <input type="hidden" name="returnUrl" value="@ReturnUrl" />
 
                         <div class="mb-3">

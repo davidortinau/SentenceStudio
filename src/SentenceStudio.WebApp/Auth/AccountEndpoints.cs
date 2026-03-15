@@ -9,7 +9,7 @@ public static class AccountEndpoints
 {
     public static void MapAccountEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/Account");
+        var group = app.MapGroup("/account-action");
 
         group.MapPost("/Login", async (
             [FromForm] string email,
