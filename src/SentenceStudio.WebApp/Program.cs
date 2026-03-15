@@ -98,7 +98,11 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 builder.Services.AddDataServices(databasePath);
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
-builder.Services.AddAuthServices(builder.Configuration);
+// WebApp uses OIDC (not MSAL) for auth — register a no-op IAuthService + the handler
+// so AppLib's HttpClient pipeline resolves, while the WebApp's own
+// AuthenticatedApiDelegatingHandler handles real token attachment.
+builder.Services.AddSingleton<IAuthService, DevAuthService>();
+builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
 
