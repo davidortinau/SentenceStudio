@@ -12,12 +12,12 @@ namespace SentenceStudio.Api.Tests.Infrastructure;
 /// </summary>
 public static class TestJwtGenerator
 {
-    private const string TestSigningKeyValue = "SuperSecretTestKey-AtLeast32Characters!!";
+    public const string TestSigningKeyValue = "SuperSecretTestKey-AtLeast32Characters!!";
     public static readonly SymmetricSecurityKey SecurityKey =
         new(Encoding.UTF8.GetBytes(TestSigningKeyValue));
 
-    public const string TestIssuer = "https://test-sts.sentencestudio.local";
-    public const string TestAudience = "api://sentencestudio-test";
+    public const string TestIssuer = "SentenceStudio";
+    public const string TestAudience = "SentenceStudio.Api";
 
     public const string DefaultTenantId = "49c0cd14-bc68-4c6d-b87b-9d65a56fa6df";
     public const string DefaultUserId = "test-user-oid-12345";

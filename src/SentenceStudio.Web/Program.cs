@@ -1,8 +1,11 @@
 
+using System.Text;
 using CoreSync;
 using CoreSync.Http.Server;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using SentenceStudio.Data;
 using SentenceStudio.Web;
 using SentenceStudio.Web.Auth;
@@ -36,6 +39,24 @@ else
         .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
     builder.Services.AddAuthorization();
 }
+
+// Accept Identity JWTs alongside Entra ID / DevAuth
+builder.Services.AddAuthentication()
+    .AddJwtBearer("IdentityJwt", options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "SentenceStudio",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]
+                    ?? "DevelopmentSigningKey-AtLeast32Chars!!")),
+            ValidateLifetime = true
+        };
+    });
 
 builder.Services.AddDataServices(databasePath);
 builder.Services.AddSyncServices(databasePath);
