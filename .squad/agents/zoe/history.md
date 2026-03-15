@@ -33,3 +33,4 @@
 - Issues propagated to respective agent history files
 
 See `.squad/decisions.md` for full decision record.
+

@@ -4,6 +4,10 @@
     <ProjectReference Include="..\SentenceStudio.ServiceDefaults\SentenceStudio.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Shared\SecurityHeadersExtensions.cs" Link="Infrastructure\SecurityHeadersExtensions.cs" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

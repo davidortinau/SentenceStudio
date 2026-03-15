@@ -19,6 +19,13 @@
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
 
+- Microsoft.Identity.Web v3.8.2 added to API for Entra ID JWT Bearer auth
+- Conditional auth pattern: `Auth:UseEntraId` config flag switches between Entra ID and DevAuthHandler
+- TenantContextMiddleware maps both Entra ID claims (tid, oid, name) and DevAuthHandler claims (tenant_id, NameIdentifier, Name) — Entra ID claims take precedence
+- appsettings.json is gitignored; use appsettings.Development.json for tracked config and AppHost env vars for runtime
+- Scope policies: `RequireScope("user.read")` etc. via Microsoft.Identity.Web authorization helpers
+- AzureAd public IDs (TenantId, ClientId, Audience) are NOT secrets — safe to commit
+
 ## Work Sessions
 
 ### 2026-03-13 — Cross-Agent Update: Azure Deployment Issues
@@ -36,3 +43,20 @@
 
 **Key Dependencies:** Zoe coordinates Phase 1-3 decisions; Kaylee implements CI/deploy automation; Captain provides Azure portal access.
 
+### 2026-03-14 — Phase 2 (Secrets) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Wash Completed #39:**
+- Initialized user-secrets for Api, WebApp
+- Created secrets.template.json with full inventory
+- Updated README with three secrets management paths
+- Documented AppHost → service flow via Aspire Parameters and env var normalization
+
+**Kaylee Completed #41:**
+- Added SecurityHeadersExtensions to shared lib (linked to all web projects)
+- Implemented HSTS, CORS, AllowedHosts across API/WebApp/Marketing
+- Environment-aware HTTPS redirect
+
+**Phase 2 Closed:** Ready to begin Phase 1 (Entra ID) now that Captain has provisioned app registrations.

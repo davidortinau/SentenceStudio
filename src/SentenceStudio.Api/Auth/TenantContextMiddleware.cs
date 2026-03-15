@@ -16,10 +16,26 @@ public sealed class TenantContextMiddleware
     {
         if (tenantContext is TenantContext mutableContext && context.User.Identity?.IsAuthenticated == true)
         {
-            mutableContext.TenantId = context.User.FindFirstValue("tenant_id");
-            mutableContext.UserId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            mutableContext.DisplayName = context.User.FindFirstValue(ClaimTypes.Name);
-            mutableContext.Email = context.User.FindFirstValue(ClaimTypes.Email);
+            // Entra ID uses "tid" for tenant, "oid" for object/user ID,
+            // and "preferred_username" or "name" for display info.
+            // DevAuthHandler uses "tenant_id", NameIdentifier, Name, Email.
+            // We check both sets so both auth paths populate TenantContext.
+            mutableContext.TenantId =
+                context.User.FindFirstValue("tid")
+                ?? context.User.FindFirstValue("tenant_id");
+
+            mutableContext.UserId =
+                context.User.FindFirstValue("oid")
+                ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            mutableContext.DisplayName =
+                context.User.FindFirstValue("name")
+                ?? context.User.FindFirstValue("preferred_username")
+                ?? context.User.FindFirstValue(ClaimTypes.Name);
+
+            mutableContext.Email =
+                context.User.FindFirstValue(ClaimTypes.Email)
+                ?? context.User.FindFirstValue("preferred_username");
         }
 
         await _next(context);
