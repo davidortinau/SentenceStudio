@@ -1,159 +1,157 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services.Progress;
 
 /// <summary>
-/// PHASE 2 OPTIMIZATION: Simple in-memory cache for progress data
-/// Reduces database queries on return visits to the dashboard
+/// PHASE 2 OPTIMIZATION: Simple in-memory cache for progress data.
+/// All entries are keyed by userId to prevent cross-profile data bleed.
 /// </summary>
 public class ProgressCacheService
 {
     private readonly ILogger<ProgressCacheService> _logger;
+    private readonly IPreferencesService _preferences;
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
 
-    public ProgressCacheService(ILogger<ProgressCacheService> logger)
+    public ProgressCacheService(ILogger<ProgressCacheService> logger, IPreferencesService preferences)
     {
         _logger = logger;
+        _preferences = preferences;
     }
 
-    // Cache entries
-    private CacheEntry<VocabProgressSummary>? _vocabSummaryCache;
-    private CacheEntry<IReadOnlyList<PracticeHeatPoint>>? _practiceHeatCache;
-    private CacheEntry<List<ResourceProgress>>? _resourceProgressCache;
+    // Cache entries keyed by userId
+    private readonly Dictionary<string, CacheEntry<VocabProgressSummary>> _vocabSummaryCache = new();
+    private readonly Dictionary<string, CacheEntry<IReadOnlyList<PracticeHeatPoint>>> _practiceHeatCache = new();
+    private readonly Dictionary<string, CacheEntry<List<ResourceProgress>>> _resourceProgressCache = new();
     private readonly Dictionary<string, CacheEntry<SkillProgress>> _skillProgressCache = new();
-    private CacheEntry<TodaysPlan>? _todaysPlanCache;
+    private readonly Dictionary<string, CacheEntry<TodaysPlan>> _todaysPlanCache = new();
 
-    /// <summary>
-    /// Get cached vocab summary or null if expired/not cached
-    /// </summary>
+    private string UserId => _preferences.Get("active_profile_id", string.Empty);
+
     public VocabProgressSummary? GetVocabSummary()
     {
-        if (_vocabSummaryCache?.IsExpired() != false)
+        var key = UserId;
+        if (!_vocabSummaryCache.TryGetValue(key, out var entry) || entry.IsExpired())
             return null;
 
-        _logger.LogDebug("🏴‍☠️ Cache HIT: VocabSummary");
-        return _vocabSummaryCache.Data;
-    }
-
-    /// <summary>
-    /// Cache vocab summary data
-    /// </summary>
-    public void SetVocabSummary(VocabProgressSummary data)
-    {
-        _vocabSummaryCache = new CacheEntry<VocabProgressSummary>(data);
-        _logger.LogDebug("🏴‍☠️ Cache SET: VocabSummary");
-    }
-
-    /// <summary>
-    /// Get cached practice heat data or null if expired/not cached
-    /// </summary>
-    public IReadOnlyList<PracticeHeatPoint>? GetPracticeHeat()
-    {
-        if (_practiceHeatCache?.IsExpired() != false)
-            return null;
-
-        _logger.LogDebug("🏴‍☠️ Cache HIT: PracticeHeat");
-        return _practiceHeatCache.Data;
-    }
-
-    /// <summary>
-    /// Cache practice heat data
-    /// </summary>
-    public void SetPracticeHeat(IReadOnlyList<PracticeHeatPoint> data)
-    {
-        _practiceHeatCache = new CacheEntry<IReadOnlyList<PracticeHeatPoint>>(data);
-        _logger.LogDebug("🏴‍☠️ Cache SET: PracticeHeat");
-    }
-
-    /// <summary>
-    /// Get cached resource progress or null if expired/not cached
-    /// </summary>
-    public List<ResourceProgress>? GetResourceProgress()
-    {
-        if (_resourceProgressCache?.IsExpired() != false)
-            return null;
-
-        _logger.LogDebug("🏴‍☠️ Cache HIT: ResourceProgress");
-        return _resourceProgressCache.Data;
-    }
-
-    /// <summary>
-    /// Cache resource progress data
-    /// </summary>
-    public void SetResourceProgress(List<ResourceProgress> data)
-    {
-        _resourceProgressCache = new CacheEntry<List<ResourceProgress>>(data);
-        _logger.LogDebug("🏴‍☠️ Cache SET: ResourceProgress");
-    }
-
-    /// <summary>
-    /// Get cached skill progress for a specific skill or null if expired/not cached
-    /// </summary>
-    public SkillProgress? GetSkillProgress(string skillId)
-    {
-        if (!_skillProgressCache.TryGetValue(skillId, out var entry) || entry.IsExpired())
-            return null;
-
-        _logger.LogDebug("🏴‍☠️ Cache HIT: SkillProgress for skill {SkillId}", skillId);
+        _logger.LogDebug("Cache HIT: VocabSummary for user {UserId}", key);
         return entry.Data;
     }
 
-    /// <summary>
-    /// Cache skill progress data for a specific skill
-    /// </summary>
+    public void SetVocabSummary(VocabProgressSummary data)
+    {
+        _vocabSummaryCache[UserId] = new CacheEntry<VocabProgressSummary>(data);
+        _logger.LogDebug("Cache SET: VocabSummary for user {UserId}", UserId);
+    }
+
+    public IReadOnlyList<PracticeHeatPoint>? GetPracticeHeat()
+    {
+        var key = UserId;
+        if (!_practiceHeatCache.TryGetValue(key, out var entry) || entry.IsExpired())
+            return null;
+
+        _logger.LogDebug("Cache HIT: PracticeHeat for user {UserId}", key);
+        return entry.Data;
+    }
+
+    public void SetPracticeHeat(IReadOnlyList<PracticeHeatPoint> data)
+    {
+        _practiceHeatCache[UserId] = new CacheEntry<IReadOnlyList<PracticeHeatPoint>>(data);
+        _logger.LogDebug("Cache SET: PracticeHeat for user {UserId}", UserId);
+    }
+
+    public List<ResourceProgress>? GetResourceProgress()
+    {
+        var key = UserId;
+        if (!_resourceProgressCache.TryGetValue(key, out var entry) || entry.IsExpired())
+            return null;
+
+        _logger.LogDebug("Cache HIT: ResourceProgress for user {UserId}", key);
+        return entry.Data;
+    }
+
+    public void SetResourceProgress(List<ResourceProgress> data)
+    {
+        _resourceProgressCache[UserId] = new CacheEntry<List<ResourceProgress>>(data);
+        _logger.LogDebug("Cache SET: ResourceProgress for user {UserId}", UserId);
+    }
+
+    public SkillProgress? GetSkillProgress(string skillId)
+    {
+        var key = $"{UserId}:{skillId}";
+        if (!_skillProgressCache.TryGetValue(key, out var entry) || entry.IsExpired())
+            return null;
+
+        _logger.LogDebug("Cache HIT: SkillProgress for skill {SkillId}, user {UserId}", skillId, UserId);
+        return entry.Data;
+    }
+
     public void SetSkillProgress(string skillId, SkillProgress data)
     {
-        _skillProgressCache[skillId] = new CacheEntry<SkillProgress>(data);
-        _logger.LogDebug("🏴‍☠️ Cache SET: SkillProgress for skill {SkillId}", skillId);
+        _skillProgressCache[$"{UserId}:{skillId}"] = new CacheEntry<SkillProgress>(data);
+        _logger.LogDebug("Cache SET: SkillProgress for skill {SkillId}, user {UserId}", skillId, UserId);
     }
 
     /// <summary>
-    /// Invalidate all caches (call after practice activities)
+    /// Invalidate all caches for all users
     /// </summary>
     public void InvalidateAll()
     {
-        _vocabSummaryCache = null;
-        _practiceHeatCache = null;
-        _resourceProgressCache = null;
+        _vocabSummaryCache.Clear();
+        _practiceHeatCache.Clear();
+        _resourceProgressCache.Clear();
         _skillProgressCache.Clear();
-        _todaysPlanCache = null;
-        _logger.LogDebug("🏴‍☠️ Cache INVALIDATED: All");
+        _todaysPlanCache.Clear();
+        _logger.LogDebug("Cache INVALIDATED: All");
     }
 
-    /// <summary>
-    /// Invalidate specific cache entries
-    /// </summary>
-    public void InvalidateVocabSummary() => _vocabSummaryCache = null;
-    public void InvalidatePracticeHeat() => _practiceHeatCache = null;
-    public void InvalidateResourceProgress() => _resourceProgressCache = null;
-    public void InvalidateSkillProgress(string skillId) => _skillProgressCache.Remove(skillId);
+    public void InvalidateVocabSummary()
+    {
+        _vocabSummaryCache.Remove(UserId);
+    }
+
+    public void InvalidatePracticeHeat()
+    {
+        _practiceHeatCache.Remove(UserId);
+    }
+
+    public void InvalidateResourceProgress()
+    {
+        _resourceProgressCache.Remove(UserId);
+    }
+
+    public void InvalidateSkillProgress(string skillId)
+    {
+        _skillProgressCache.Remove($"{UserId}:{skillId}");
+    }
 
     public TodaysPlan? GetTodaysPlan()
     {
-        if (_todaysPlanCache?.IsExpired() != false)
+        var key = UserId;
+        if (!_todaysPlanCache.TryGetValue(key, out var entry) || entry.IsExpired())
             return null;
 
-        _logger.LogDebug("🏴‍☠️ Cache HIT: TodaysPlan");
-        return _todaysPlanCache.Data;
+        _logger.LogDebug("Cache HIT: TodaysPlan for user {UserId}", key);
+        return entry.Data;
     }
 
     public void SetTodaysPlan(TodaysPlan data)
     {
-        _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
-        _logger.LogDebug("🏴‍☠️ Cache SET: TodaysPlan");
+        _todaysPlanCache[UserId] = new CacheEntry<TodaysPlan>(data);
+        _logger.LogDebug("Cache SET: TodaysPlan for user {UserId}", UserId);
     }
 
-    public void InvalidateTodaysPlan() => _todaysPlanCache = null;
+    public void InvalidateTodaysPlan()
+    {
+        _todaysPlanCache.Remove(UserId);
+    }
 
     public void UpdateTodaysPlan(TodaysPlan data)
     {
-        _todaysPlanCache = new CacheEntry<TodaysPlan>(data);
-        _logger.LogDebug("🏴‍☠️ Cache UPDATE: TodaysPlan");
+        _todaysPlanCache[UserId] = new CacheEntry<TodaysPlan>(data);
+        _logger.LogDebug("Cache UPDATE: TodaysPlan for user {UserId}", UserId);
     }
 
-    /// <summary>
-    /// Internal cache entry with expiration
-    /// </summary>
     private class CacheEntry<T>
     {
         public T Data { get; }
