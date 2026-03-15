@@ -6,10 +6,6 @@ var openaikey = builder.AddParameter("openaikey", secret: true);
 var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 
-var azureAdTenantId = builder.AddParameter("AzureAdTenantId", secret: false);
-var azureAdClientId = builder.AddParameter("AzureAdClientId", secret: false);
-var azureAdAudience = builder.AddParameter("AzureAdAudience", secret: false);
-
 var postgres = builder.AddPostgres("db")
     .AddDatabase("sentencestudio");
 
@@ -21,11 +17,7 @@ var storage = builder.AddAzureStorage("storage")
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithEnvironment("AzureAd__Instance", "https://login.microsoftonline.com/")
-    .WithEnvironment("AzureAd__TenantId", azureAdTenantId)
-    .WithEnvironment("AzureAd__ClientId", azureAdClientId)
-    .WithEnvironment("AzureAd__Audience", azureAdAudience);
+    .WithEnvironment("ElevenLabsKey", elevenlabskey);
     // Email (production only -- dev mode uses ConsoleEmailSender automatically):
     //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
     //   .WithEnvironment("Email__SmtpPort", "587")

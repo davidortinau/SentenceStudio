@@ -12,8 +12,7 @@ namespace SentenceStudio.Api.Tests.Infrastructure;
 /// <summary>
 /// Test host configured with IdentityJwt Bearer authentication.
 /// Uses an isolated SQLite database per factory instance.
-/// Sets Auth:UseEntraId=false with Development environment, then overrides
-/// the default auth scheme to IdentityJwt.
+/// Uses Development environment and overrides the default auth scheme to IdentityJwt.
 /// </summary>
 public class JwtBearerApiFactory : WebApplicationFactory<Program>
 {
@@ -24,7 +23,6 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
 
-        builder.UseSetting("Auth:UseEntraId", "false");
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
@@ -40,12 +38,10 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlite($"Data Source={_dbPath}"));
 
-            // Override default auth to use IdentityJwt scheme (already registered by the API
-            // because we provide Jwt:SigningKey via UseSetting above)
             services.Configure<AuthenticationOptions>(options =>
             {
-                options.DefaultAuthenticateScheme = "IdentityJwt";
-                options.DefaultChallengeScheme = "IdentityJwt";
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             });
 
             // Ensure the database schema is created

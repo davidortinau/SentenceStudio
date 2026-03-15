@@ -14,7 +14,7 @@ public class DevAuthApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-
-        builder.UseSetting("Auth:UseEntraId", "false");
+        // Clear JWT key so the API falls back to DevAuthHandler
+        builder.UseSetting("Jwt:SigningKey", "");
     }
 }

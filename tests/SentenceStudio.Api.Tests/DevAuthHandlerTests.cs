@@ -6,7 +6,7 @@ using SentenceStudio.Contracts.Auth;
 namespace SentenceStudio.Api.Tests;
 
 /// <summary>
-/// Integration tests for DevAuthHandler mode (Auth:UseEntraId=false).
+/// Integration tests for DevAuthHandler mode.
 /// Validates that all requests are auto-authenticated with dev claims.
 /// This is the local development authentication path.
 /// </summary>

@@ -1,10 +1,7 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.AI;
-using Microsoft.Identity.Web;
-using Microsoft.Identity.Web.UI;
 using OpenAI;
 using Plugin.Maui.Audio;
 using SentenceStudio;
@@ -52,67 +49,29 @@ if (!Directory.Exists(appLibRawAssets))
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
-var useDevAuth = builder.Configuration.GetValue<bool>("Auth:UseDevAuth");
-
-if (useEntraId)
+// Identity cookie auth — ApplicationDbContext is registered below via AddDataServices.
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    var downstreamScopes = builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>();
-    if (downstreamScopes is null || downstreamScopes.Length == 0)
-    {
-        throw new InvalidOperationException(
-            "DownstreamApi:Scopes must be configured when Auth:UseEntraId is enabled. "
-            + "Add a 'DownstreamApi:Scopes' array to appsettings.json or user-secrets.");
-    }
+    options.Password.RequiredLength = 8;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireDigit = true;
+    options.Password.RequireNonAlphanumeric = false;
+    options.SignIn.RequireConfirmedEmail = false;
+    options.User.RequireUniqueEmail = true;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
 
-    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
-        .EnableTokenAcquisitionToCallDownstreamApi(downstreamScopes)
-        .AddDistributedTokenCaches();
-
-    builder.AddRedisDistributedCache("cache");
-
-    builder.Services.AddTransient<AuthenticatedApiDelegatingHandler>();
-    builder.Services.ConfigureHttpClientDefaults(http =>
-    {
-        http.AddHttpMessageHandler<AuthenticatedApiDelegatingHandler>();
-    });
-
-    builder.Services.AddControllersWithViews()
-        .AddMicrosoftIdentityUI();
-}
-else if (useDevAuth)
+builder.Services.ConfigureApplicationCookie(options =>
 {
-    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
-}
-else
-{
-    // Identity cookie auth — the default non-Entra, non-dev path.
-    // ApplicationDbContext is registered below via AddDataServices; Identity shares the same DB.
-    builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-    {
-        options.Password.RequiredLength = 8;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireDigit = true;
-        options.Password.RequireNonAlphanumeric = false;
-        options.SignIn.RequireConfirmedEmail = false;
-        options.User.RequireUniqueEmail = true;
-    })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
-
-    builder.Services.ConfigureApplicationCookie(options =>
-    {
-        options.LoginPath = "/Account/Login";
-        options.LogoutPath = "/Account/Logout";
-        options.AccessDeniedPath = "/Account/AccessDenied";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.ExpireTimeSpan = TimeSpan.FromDays(14);
-        options.SlidingExpiration = true;
-    });
-}
+    options.LoginPath = "/Account/Login";
+    options.LogoutPath = "/Account/Logout";
+    options.AccessDeniedPath = "/Account/AccessDenied";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromDays(14);
+    options.SlidingExpiration = true;
+});
 
 builder.Services.AddAuthorization();
 
@@ -131,9 +90,7 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 builder.Services.AddDataServices(databasePath);
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
-// WebApp uses OIDC (not MSAL) for auth — register a no-op IAuthService + the handler
-// so AppLib's HttpClient pipeline resolves, while the WebApp's own
-// AuthenticatedApiDelegatingHandler handles real token attachment.
+// Register a no-op IAuthService so AppLib's HttpClient pipeline resolves.
 builder.Services.AddSingleton<IAuthService, DevAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
@@ -199,15 +156,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-if (useEntraId)
-{
-    app.MapControllers();
-}
-
-if (!useEntraId && !useDevAuth)
-{
-    app.MapAccountEndpoints();
-}
+app.MapAccountEndpoints();
 
 app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(SentenceStudio.WebUI.Routes).Assembly)

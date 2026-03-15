@@ -3,9 +3,6 @@
   <ItemGroup>
     <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.3.0-preview.1.26156.1" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Identity.Web" Version="4.5.0" />
-    <PackageReference Include="Microsoft.Identity.Web.DownstreamApi" Version="4.5.0" />
-    <PackageReference Include="Microsoft.Identity.Web.UI" Version="4.5.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -8,7 +8,7 @@ namespace SentenceStudio.Api.Tests;
 
 /// <summary>
 /// Integration tests for JWT Bearer authentication mode.
-/// Uses JwtBearerApiFactory to simulate Auth:UseEntraId=true.
+/// Uses JwtBearerApiFactory to test IdentityJwt Bearer authentication.
 /// All tests run without real Entra ID credentials.
 /// </summary>
 public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>

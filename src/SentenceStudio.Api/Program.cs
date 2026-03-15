@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
-using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using OpenAI;
 using SentenceStudio.Api.Auth;
@@ -32,36 +31,6 @@ builder.AddServiceDefaults();
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
-
-if (useEntraId)
-{
-    builder.Services.AddAuthentication(Microsoft.Identity.Web.Constants.Bearer)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
-
-    builder.Services.AddAuthorization(options =>
-    {
-        options.AddPolicy("RequireUserRead", policy =>
-            policy.RequireScope("user.read"));
-        options.AddPolicy("RequireUserWrite", policy =>
-            policy.RequireScope("user.write"));
-        options.AddPolicy("RequireAiAccess", policy =>
-            policy.RequireScope("ai.access"));
-        options.AddPolicy("RequireSyncReadWrite", policy =>
-            policy.RequireScope("sync.readwrite"));
-    });
-}
-else if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
-    builder.Services.AddAuthorization();
-}
-else
-{
-    throw new InvalidOperationException(
-        "Entra ID authentication must be enabled in non-development environments. Set Auth:UseEntraId=true.");
-}
 
 // ASP.NET Core Identity for local account management
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -74,12 +43,12 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-// JWT Bearer validation for Identity-issued tokens
+// JWT Bearer authentication for Identity-issued tokens
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
 if (!string.IsNullOrWhiteSpace(jwtSigningKey))
 {
-    builder.Services.AddAuthentication()
-        .AddJwtBearer("IdentityJwt", options =>
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
             options.TokenValidationParameters = new TokenValidationParameters
             {
@@ -95,6 +64,19 @@ if (!string.IsNullOrWhiteSpace(jwtSigningKey))
             };
         });
 }
+else if (builder.Environment.IsDevelopment())
+{
+    // Fallback to dev auth handler when no JWT key is configured
+    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+}
+else
+{
+    throw new InvalidOperationException(
+        "Jwt:SigningKey must be configured in non-development environments.");
+}
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<JwtTokenService>();
 

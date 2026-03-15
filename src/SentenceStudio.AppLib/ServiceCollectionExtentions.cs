@@ -63,16 +63,7 @@ public static class ServiceCollectionExtentions
 
     public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var useEntraId = configuration.GetValue<bool>("Auth:UseEntraId");
-
-        if (useEntraId)
-        {
-            services.AddSingleton<IAuthService, MsalAuthService>();
-        }
-        else
-        {
-            services.AddSingleton<IAuthService, IdentityAuthService>();
-        }
+        services.AddSingleton<IAuthService, IdentityAuthService>();
 
         // Register a named HttpClient for auth endpoints (login, register, refresh).
         // Uses the same API base URL as other clients but without the auth handler
