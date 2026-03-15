@@ -18,6 +18,7 @@ using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Contracts.Vocabulary;
 using SentenceStudio.Data;
 using SentenceStudio.Domain.Abstractions;
+using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
@@ -46,14 +47,55 @@ if (useEntraId)
             policy.RequireScope("sync.readwrite"));
     });
 }
-else
+else if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
     builder.Services.AddAuthorization();
 }
+else
+{
+    throw new InvalidOperationException(
+        "Entra ID authentication must be enabled in non-development environments. Set Auth:UseEntraId=true.");
+}
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+
+// CORS — basic policies for known callers.
+// Production fine-tuning is tracked in issue #62.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+builder.Services.AddCors(options =>
+{
+    if (allowedOrigins?.Length > 0)
+    {
+        options.AddPolicy("AllowWebApp", policy =>
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+    }
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.AddPolicy("AllowDevClients", policy =>
+        {
+            policy.SetIsOriginAllowed(origin =>
+                    Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                    && uri.Host is "localhost" or "127.0.0.1")
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        });
+    }
+});
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
 
 // Database - shared with WebApp server instance
 var serverDbFolder = Path.Combine(
@@ -92,7 +134,19 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+// Skip HTTPS redirect in development — Aspire may terminate TLS at the proxy.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseSecurityHeaders();
+app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();

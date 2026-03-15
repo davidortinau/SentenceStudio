@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
 
@@ -5,12 +6,7 @@ namespace SentenceStudio.Services;
 
 public class MsalAuthService : IAuthService
 {
-    private const string TenantId = "49c0cd14-bc68-4c6d-b87b-9d65a56fa6df";
-    private const string ClientId = "68d5abeb-9ca7-46cc-9572-42e33f15a0ba";
-    private const string RedirectUri = "msal68d5abeb-9ca7-46cc-9572-42e33f15a0ba://auth";
-
-    private static string[] DefaultScopes => AuthConstants.DefaultScopes;
-
+    private readonly string[] _defaultScopes;
     private readonly IPublicClientApplication _pca;
     private readonly ILogger<MsalAuthService> _logger;
     private IAccount? _cachedAccount;
@@ -18,32 +14,39 @@ public class MsalAuthService : IAuthService
     public bool IsSignedIn => _cachedAccount is not null;
     public string? UserName => _cachedAccount?.Username;
 
-    public MsalAuthService(ILogger<MsalAuthService> logger)
+    public MsalAuthService(IConfiguration configuration, ILogger<MsalAuthService> logger)
     {
         _logger = logger;
 
+        var tenantId = configuration["AzureAd:TenantId"]
+            ?? throw new InvalidOperationException("AzureAd:TenantId must be configured.");
+        var clientId = configuration["AzureAd:ClientId"]
+            ?? throw new InvalidOperationException("AzureAd:ClientId must be configured.");
+        var redirectUri = configuration["AzureAd:RedirectUri"]
+            ?? $"msal{clientId}://auth";
+
+        _defaultScopes = configuration.GetSection("AzureAd:Scopes").Get<string[]>()
+            ?? throw new InvalidOperationException(
+                "AzureAd:Scopes must be configured. Add an array of API scopes to appsettings.json or user-secrets.");
+
         _pca = PublicClientApplicationBuilder
-            .Create(ClientId)
-            .WithAuthority(AzureCloudInstance.AzurePublic, TenantId)
-            .WithRedirectUri(RedirectUri)
+            .Create(clientId)
+            .WithAuthority(AzureCloudInstance.AzurePublic, tenantId)
+            .WithRedirectUri(redirectUri)
             .Build();
     }
 
-    public async Task<AuthResult?> SignInAsync()
+    public async Task<AuthenticationResult?> SignInAsync()
     {
         try
         {
-            var result = await AcquireTokenAsync(DefaultScopes);
+            var result = await AcquireTokenAsync(_defaultScopes);
             if (result is not null)
             {
                 _cachedAccount = result.Account;
                 _logger.LogInformation("Signed in as {User}", result.Account.Username);
-                return new AuthResult(
-                    result.AccessToken,
-                    result.Account.Username,
-                    result.ExpiresOn);
             }
-            return null;
+            return result;
         }
         catch (Exception ex)
         {
@@ -94,7 +97,9 @@ public class MsalAuthService : IAuthService
         {
             try
             {
-                return await _pca.AcquireTokenSilent(scopes, account).ExecuteAsync();
+                var result = await _pca.AcquireTokenSilent(scopes, account).ExecuteAsync();
+                _cachedAccount = result.Account;
+                return result;
             }
             catch (MsalUiRequiredException)
             {
@@ -105,9 +110,11 @@ public class MsalAuthService : IAuthService
         // Fall back to interactive (system browser with PKCE)
         try
         {
-            return await _pca.AcquireTokenInteractive(scopes)
+            var result = await _pca.AcquireTokenInteractive(scopes)
                 .WithUseEmbeddedWebView(false)
                 .ExecuteAsync();
+            _cachedAccount = result.Account;
+            return result;
         }
         catch (MsalClientException ex) when (ex.ErrorCode == MsalError.AuthenticationCanceledError)
         {

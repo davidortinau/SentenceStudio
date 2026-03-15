@@ -17,7 +17,6 @@
 - DI registration in `SentenceStudioAppBuilder.cs` (AppLib) and `Program.cs` (WebApp)
 - Aspire env var config: `builder.Configuration["AI:OpenAI:ApiKey"]` not `["AI__OpenAI__ApiKey"]`
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
-- Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
 
 - Microsoft.Identity.Web v3.8.2 added to API for Entra ID JWT Bearer auth
@@ -64,3 +63,20 @@
 
 **Key Insight:** CoreSync uses ASP.NET middleware (`UseCoreSyncHttpServer()`), not minimal API endpoints, so `RequireAuthorization()` can't be applied directly. Auth middleware populates identity; future enforcement needs a gating middleware or policy.
 
+### 2026-03-14 — Phase 2 (Secrets) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Wash Completed #39:**
+- Initialized user-secrets for Api, WebApp
+- Created secrets.template.json with full inventory
+- Updated README with three secrets management paths
+- Documented AppHost → service flow via Aspire Parameters and env var normalization
+
+**Kaylee Completed #41:**
+- Added SecurityHeadersExtensions to shared lib (linked to all web projects)
+- Implemented HSTS, CORS, AllowedHosts across API/WebApp/Marketing
+- Environment-aware HTTPS redirect
+
+**Phase 2 Closed:** Ready to begin Phase 1 (Entra ID) now that Captain has provisioned app registrations.

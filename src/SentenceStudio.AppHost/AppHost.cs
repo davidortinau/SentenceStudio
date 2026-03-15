@@ -6,6 +6,10 @@ var openaikey = builder.AddParameter("openaikey", secret: true);
 var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 
+var azureAdTenantId = builder.AddParameter("AzureAdTenantId", secret: false);
+var azureAdClientId = builder.AddParameter("AzureAdClientId", secret: false);
+var azureAdAudience = builder.AddParameter("AzureAdAudience", secret: false);
+
 var postgres = builder.AddPostgres("db")
     .AddDatabase("sentencestudio");
 
@@ -18,11 +22,10 @@ var storage = builder.AddAzureStorage("storage")
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithEnvironment("Auth__UseEntraId", "false")
     .WithEnvironment("AzureAd__Instance", "https://login.microsoftonline.com/")
-    .WithEnvironment("AzureAd__TenantId", "49c0cd14-bc68-4c6d-b87b-9d65a56fa6df")
-    .WithEnvironment("AzureAd__ClientId", "8c051bcf-bd3a-4051-9cd3-0556ba5df2d8")
-    .WithEnvironment("AzureAd__Audience", "api://8c051bcf-bd3a-4051-9cd3-0556ba5df2d8");
+    .WithEnvironment("AzureAd__TenantId", azureAdTenantId)
+    .WithEnvironment("AzureAd__ClientId", azureAdClientId)
+    .WithEnvironment("AzureAd__Audience", azureAdAudience);
 
 var web = builder.AddProject<SentenceStudio_Web>("web");
 
