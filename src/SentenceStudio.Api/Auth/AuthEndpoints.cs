@@ -27,6 +27,8 @@ public static class AuthEndpoints
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext db,
         IAppEmailSender emailSender,
+        IWebHostEnvironment env,
+        JwtTokenService tokenService,
         HttpContext httpContext)
     {
         var user = new ApplicationUser
@@ -54,11 +56,41 @@ public static class AuthEndpoints
         };
 
         db.UserProfiles.Add(profile);
-        user.UserProfileId = profile.Id;
-        await userManager.UpdateAsync(user);
         await db.SaveChangesAsync();
 
-        // Generate email confirmation token and send confirmation email
+        user.UserProfileId = profile.Id;
+        await userManager.UpdateAsync(user);
+
+        if (env.IsDevelopment())
+        {
+            // Auto-confirm email in development so devs aren't blocked
+            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            await userManager.ConfirmEmailAsync(user, confirmToken);
+
+            // Issue tokens so the client auto-logs in
+            var jwt = tokenService.GenerateToken(user);
+            var refreshTokenValue = JwtTokenService.GenerateRefreshToken();
+            var expiryMinutes = tokenService.GetExpiryMinutes();
+
+            var refreshToken = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = refreshTokenValue,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.RefreshTokens.Add(refreshToken);
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new AuthResponse(
+                Token: jwt,
+                RefreshToken: refreshTokenValue,
+                ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
+                UserName: user.DisplayName ?? user.UserName));
+        }
+
+        // Production: send confirmation email
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
         var encodedToken = Uri.EscapeDataString(token);
         var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
@@ -52,7 +53,8 @@ public static class AccountEndpoints
             [FromForm] string password,
             [FromForm] string? displayName,
             UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager) =>
+            SignInManager<ApplicationUser> signInManager,
+            ApplicationDbContext db) =>
         {
             var user = new ApplicationUser
             {
@@ -64,6 +66,23 @@ public static class AccountEndpoints
             var result = await userManager.CreateAsync(user, password);
             if (result.Succeeded)
             {
+                // Create linked UserProfile
+                var profile = new UserProfile
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = displayName ?? email,
+                    Email = email,
+                    NativeLanguage = "English",
+                    TargetLanguage = "Korean",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                db.UserProfiles.Add(profile);
+                await db.SaveChangesAsync();
+
+                user.UserProfileId = profile.Id;
+                await userManager.UpdateAsync(user);
+
                 await signInManager.SignInAsync(user, isPersistent: false);
                 return Results.Redirect("/");
             }

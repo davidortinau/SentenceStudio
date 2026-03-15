@@ -44,13 +44,17 @@ public class IdentityAuthTests : IClassFixture<JwtBearerApiFactory>
     {
         var email = $"unconfirmed-{Guid.NewGuid():N}@test.local";
 
-        // Register but do NOT confirm email
-        var reg = await _client.PostAsJsonAsync("/api/auth/register", new
+        // Create user directly via UserManager (bypasses register endpoint's dev auto-confirm)
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser
         {
+            UserName = email,
             Email = email,
-            Password = "Test1234!",
-        });
-        reg.EnsureSuccessStatusCode();
+            DisplayName = "Unconfirmed User"
+        };
+        var createResult = await userManager.CreateAsync(user, "Test1234!");
+        createResult.Succeeded.Should().BeTrue("user creation should succeed");
 
         var response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
