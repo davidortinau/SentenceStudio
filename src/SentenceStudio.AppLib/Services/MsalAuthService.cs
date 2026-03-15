@@ -36,7 +36,7 @@ public class MsalAuthService : IAuthService
             .Build();
     }
 
-    public async Task<AuthenticationResult?> SignInAsync()
+    public async Task<AuthResult?> SignInAsync()
     {
         try
         {
@@ -46,7 +46,9 @@ public class MsalAuthService : IAuthService
                 _cachedAccount = result.Account;
                 _logger.LogInformation("Signed in as {User}", result.Account.Username);
             }
-            return result;
+            return result is not null
+                ? new AuthResult(result.AccessToken, result.Account.Username, result.ExpiresOn)
+                : null;
         }
         catch (Exception ex)
         {
