@@ -1,11 +1,5 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
@@ -44,16 +38,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Identity tables must be configured first
-        base.OnModelCreating(modelBuilder);
-
-        // ApplicationUser -> UserProfile (optional one-to-one)
-        modelBuilder.Entity<ApplicationUser>()
-            .HasOne(u => u.UserProfile)
-            .WithMany()
-            .HasForeignKey(u => u.UserProfileId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         // Configure table names to match CoreSync expectations (singular)
         // Synced entities use string (GUID) PKs — tell EF not to auto-generate values
         modelBuilder.Entity<LearningResource>().ToTable("LearningResource").HasKey(e => e.Id);
@@ -229,6 +213,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<MinimalPairAttempt>()
             .HasIndex(mpa => new { mpa.SessionId, mpa.SequenceNumber });
 
+        // RefreshToken — server-side token storage for JWT refresh flow
+        modelBuilder.Entity<RefreshToken>().ToTable("RefreshTokens");
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany()
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.Token)
+            .IsUnique();
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -237,6 +232,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Ignore<ShadowingSentence>();
         modelBuilder.Ignore<Question>();
         modelBuilder.Ignore<Lesson>();
+
+        base.OnModelCreating(modelBuilder);
     }
 
 
@@ -264,5 +261,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
     public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
     public DbSet<WordAssociationScore> WordAssociationScores => Set<WordAssociationScore>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
 }

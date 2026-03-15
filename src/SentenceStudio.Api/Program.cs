@@ -1,15 +1,18 @@
 using System.Security.Claims;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using OpenAI;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Contracts.Ai;
@@ -60,6 +63,41 @@ else
         "Entra ID authentication must be enabled in non-development environments. Set Auth:UseEntraId=true.");
 }
 
+// ASP.NET Core Identity for local account management
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.SignIn.RequireConfirmedEmail = true;
+        options.Password.RequireDigit = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequiredLength = 8;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+// JWT Bearer validation for Identity-issued tokens
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
+if (!string.IsNullOrWhiteSpace(jwtSigningKey))
+{
+    builder.Services.AddAuthentication()
+        .AddJwtBearer("IdentityJwt", options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "SentenceStudio",
+                ValidateAudience = true,
+                ValidAudience = builder.Configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(jwtSigningKey)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(1)
+            };
+        });
+}
+
+builder.Services.AddScoped<JwtTokenService>();
+
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // CORS — basic policies for known callers.
@@ -107,38 +145,12 @@ Directory.CreateDirectory(serverDbFolder);
 var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
 builder.Services.AddDataServices(databasePath);
 
-// ASP.NET Core Identity — user store and token providers.
-// Registered regardless of auth scheme; JWT/Entra ID auth is layered separately.
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-{
-    options.Password.RequireDigit = true;
-    options.Password.RequiredLength = 8;
-    options.Password.RequireNonAlphanumeric = false;
-    options.SignIn.RequireConfirmedEmail = true;
-    options.User.RequireUniqueEmail = true;
-})
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
-
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
 builder.Services.AddSingleton<VocabularyProgressService>();
 builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
     provider.GetRequiredService<VocabularyProgressService>());
-
-// Email sender -- use SMTP when configured, console logger otherwise (dev)
-var smtpHost = builder.Configuration["Email:SmtpHost"];
-if (!string.IsNullOrEmpty(smtpHost))
-{
-    builder.Services.AddTransient<IEmailSender<ApplicationUser>, SmtpEmailSender>();
-    builder.Services.AddTransient<IAppEmailSender, SmtpEmailSender>();
-}
-else
-{
-    builder.Services.AddTransient<IEmailSender<ApplicationUser>, ConsoleEmailSender>();
-    builder.Services.AddTransient<IAppEmailSender, ConsoleEmailSender>();
-}
 
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
@@ -177,6 +189,9 @@ app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp")
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
+
+// Auth endpoints (anonymous — they handle login/register)
+app.MapAuthEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse
