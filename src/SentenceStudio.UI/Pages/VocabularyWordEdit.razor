@@ -22,7 +22,7 @@ else
             <SecondaryActions>
                 <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Save</button></li>
                 <li><hr class="dropdown-divider" /></li>
-                <li><button class="dropdown-item text-danger" @onclick="DeleteWord" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
+                <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
             </SecondaryActions>
         </PageHeader>
     }
@@ -199,6 +199,36 @@ else
     </div>
 }
 
+@if (showDeleteConfirm)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-surface">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-error-ss">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ss-body2">@deleteConfirmMessage</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Id { get; set; } = "";
 
@@ -223,7 +253,9 @@ else
     private bool isPlayingAudio;
     private IAudioPlayer? audioPlayer;
     private string errorMessage = "";
-    private IJSObjectReference? jsModule;
+    private bool showDeleteConfirm;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting;
 
     // Form fields
     private string targetLanguageTerm = "";
@@ -254,12 +286,6 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
     }
 
     private async Task LoadData()
@@ -444,15 +470,20 @@ else
         }
     }
 
-    private async Task DeleteWord()
+    private void RequestDelete()
     {
-        if (jsModule == null) return;
-        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
-            $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.");
+        deleteConfirmMessage = $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.";
+        showDeleteConfirm = true;
+    }
 
-        if (!confirmed) return;
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+    }
 
-        isSaving = true;
+    private async Task ConfirmDelete()
+    {
+        isDeleting = true;
         try
         {
             await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
@@ -466,7 +497,8 @@ else
         }
         finally
         {
-            isSaving = false;
+            isDeleting = false;
+            showDeleteConfirm = false;
         }
     }
 

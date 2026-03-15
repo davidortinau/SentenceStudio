@@ -38,7 +38,7 @@
                         </button>
                         <button class="btn btn-outline-danger d-flex align-items-center"
                                 title="Delete profile"
-                                @onclick="() => DeleteProfileAsync(p)">
+                                @onclick="() => RequestDelete(p)">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -54,6 +54,36 @@
     </div>
 </div>
 
+@if (showDeleteConfirm)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-surface">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-error-ss">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ss-body2">@deleteConfirmMessage</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     public const string AuthenticatedPreferenceKey = "app_is_authenticated";
     public const string ActiveProfileIdKey = "active_profile_id";
@@ -67,6 +97,10 @@
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private List<UserProfile> _profiles = new();
+    private bool showDeleteConfirm;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting;
+    private UserProfile? profileToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,12 +117,24 @@
         NavManager.NavigateTo("/", forceLoad: true);
     }
 
-    private async Task DeleteProfileAsync(UserProfile profile)
+    private void RequestDelete(UserProfile profile)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"Delete profile \"{profile.Name}\"? This removes the user and all associated data. This cannot be undone.");
-        if (!confirmed) return;
+        profileToDelete = profile;
+        deleteConfirmMessage = $"Are you sure you want to delete profile \"{profile.Name}\"? This removes the user and all associated data. This cannot be undone.";
+        showDeleteConfirm = true;
+    }
 
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        profileToDelete = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (profileToDelete == null) return;
+        
+        isDeleting = true;
         try
         {
             // Try to delete the associated Identity user (WebApp only)
@@ -97,36 +143,42 @@
                 var userManager = ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<SentenceStudio.Shared.Models.ApplicationUser>>();
                 if (userManager is not null)
                 {
-                    var users = userManager.Users.Where(u => u.UserProfileId == profile.Id).ToList();
+                    var users = userManager.Users.Where(u => u.UserProfileId == profileToDelete.Id).ToList();
                     foreach (var user in users)
                     {
                         await userManager.DeleteAsync(user);
-                        Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profile.Id);
+                        Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profileToDelete.Id);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Could not delete Identity user for profile {Id} (may not exist or not in WebApp context)", profile.Id);
+                Logger.LogWarning(ex, "Could not delete Identity user for profile {Id} (may not exist or not in WebApp context)", profileToDelete.Id);
             }
 
-            await ProfileRepo.DeleteAsync(profile);
+            await ProfileRepo.DeleteAsync(profileToDelete);
 
             // Clear active profile if this was the selected one
             var activeId = Preferences.Get("active_profile_id", string.Empty);
-            if (activeId == profile.Id)
+            if (activeId == profileToDelete.Id)
             {
                 Preferences.Remove("active_profile_id");
                 Preferences.Remove("app_is_authenticated");
             }
 
-            _profiles.Remove(profile);
-            Logger.LogInformation("Deleted profile {Name} ({Id})", profile.Name, profile.Id);
+            _profiles.Remove(profileToDelete);
+            Logger.LogInformation("Deleted profile {Name} ({Id})", profileToDelete.Name, profileToDelete.Id);
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to delete profile {Id}", profile.Id);
+            Logger.LogError(ex, "Failed to delete profile {Id}", profileToDelete?.Id);
+        }
+        finally
+        {
+            isDeleting = false;
+            showDeleteConfirm = false;
+            profileToDelete = null;
         }
     }
 

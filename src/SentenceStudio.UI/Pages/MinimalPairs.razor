@@ -71,13 +71,43 @@ else
                             }
                         </div>
                         <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => DeletePair(pair)" @onclick:stopPropagation="true">
+                                @onclick="() => RequestDelete(pair)" @onclick:stopPropagation="true">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </div>
             </div>
         }
+    </div>
+}
+
+@if (showDeleteConfirm)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-surface">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-error-ss">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ss-body2">@deleteConfirmMessage</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 }
 
@@ -92,17 +122,14 @@ else
     private bool isLoading = true;
     private string selectedMode = "Focus";
     private int? selectedPairId;
-    private IJSObjectReference? jsModule;
+    private bool showDeleteConfirm;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting;
+    private MinimalPair? pairToDelete;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPairs();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
     }
 
     private async Task LoadPairs()
@@ -158,17 +185,27 @@ else
         NavManager.NavigateTo($"/minimal-pairs/session/0?pairIds={pairIds}&mode={selectedMode}&trials={trialCount}");
     }
 
-    private async Task DeletePair(MinimalPair pair)
+    private void RequestDelete(MinimalPair pair)
     {
-        if (jsModule == null) return;
-        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
-            $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?");
+        pairToDelete = pair;
+        deleteConfirmMessage = $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?";
+        showDeleteConfirm = true;
+    }
 
-        if (!confirmed) return;
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        pairToDelete = null;
+    }
 
+    private async Task ConfirmDelete()
+    {
+        if (pairToDelete == null) return;
+        
+        isDeleting = true;
         try
         {
-            var success = await PairRepo.DeletePairAsync(pair.Id);
+            var success = await PairRepo.DeletePairAsync(pairToDelete.Id);
             if (success)
             {
                 await LoadPairs();
@@ -179,6 +216,12 @@ else
         {
             Toast.ShowError($"Failed to delete pair: {ex.Message}");
             Logger.LogError(ex, "Failed to delete pair");
+        }
+        finally
+        {
+            isDeleting = false;
+            showDeleteConfirm = false;
+            pairToDelete = null;
         }
     }
 

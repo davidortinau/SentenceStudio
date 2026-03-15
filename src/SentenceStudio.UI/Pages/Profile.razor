@@ -126,11 +126,11 @@ else
         <p class="ss-body2 text-secondary-ss mb-3">
             Permanently delete your account and all associated data.
         </p>
-        <button class="btn btn-ss-danger w-100" @onclick="DeleteAccount">Delete My Account</button>
+        <button class="btn btn-ss-danger w-100" @onclick="RequestDelete">Delete My Account</button>
     </div>
 }
 
-@if (!string.IsNullOrEmpty(errorModalMessage))
+@if (showDeleteConfirm)
 {
     <div class="modal-backdrop fade show"></div>
     <div class="modal fade show d-block" tabindex="-1" role="dialog">
@@ -138,15 +138,22 @@ else
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Error
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
                     </h5>
-                    <button type="button" class="btn-close" @onclick="DismissErrorModal"></button>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="ss-body2">@errorModalMessage</p>
+                    <p class="ss-body2">@deleteConfirmMessage</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="DismissErrorModal">OK</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
                 </div>
             </div>
         </div>
@@ -174,8 +181,9 @@ else
     private string targetCEFRLevel = "A2";
     private bool isExporting;
     private string exportProgressMessage = "";
-    private string? errorModalMessage;
-    private IJSObjectReference? jsModule;
+    private bool showDeleteConfirm;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting;
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
     private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
@@ -184,12 +192,6 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadProfile();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
     }
 
     private async Task LoadProfile()
@@ -217,6 +219,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "LoadProfile failed");
+            Toast.ShowError("Failed to load profile.");
         }
         finally
         {
@@ -245,13 +248,8 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save profile");
-            errorModalMessage = $"Failed to save profile: {ex.Message}";
+            Toast.ShowError($"Failed to save profile: {ex.Message}");
         }
-    }
-
-    private void DismissErrorModal()
-    {
-        errorModalMessage = null;
     }
 
     private async Task ExportData()
@@ -274,26 +272,37 @@ else
         }
     }
 
-    private async Task DeleteAccount()
+    private void RequestDelete()
     {
-        if (jsModule == null) return;
-        var confirmed = await jsModule.InvokeAsync<bool>("showConfirm",
-            "This will permanently delete your account and all data. This cannot be undone.");
+        deleteConfirmMessage = "Are you sure you want to delete your account? All your data will be permanently removed. This cannot be undone.";
+        showDeleteConfirm = true;
+    }
 
-        if (confirmed)
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        isDeleting = true;
+        try
         {
-            try
-            {
-                var profileId = Preferences.Get("active_profile_id", string.Empty);
-                AppState.CurrentUserProfile = null;
-                // Redirect to HTTP endpoint that can properly sign out and delete
-                NavManager.NavigateTo($"/account-action/DeleteAccount?profileId={Uri.EscapeDataString(profileId)}", forceLoad: true);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Account deletion failed");
-                Toast.ShowError($"Deletion failed: {ex.Message}");
-            }
+            var profileId = Preferences.Get("active_profile_id", string.Empty);
+            AppState.CurrentUserProfile = null;
+            Toast.ShowSuccess("Account deleted.");
+            // Redirect to HTTP endpoint that can properly sign out and delete
+            NavManager.NavigateTo($"/account-action/DeleteAccount?profileId={Uri.EscapeDataString(profileId)}", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Account deletion failed");
+            Toast.ShowError($"Deletion failed: {ex.Message}");
+        }
+        finally
+        {
+            isDeleting = false;
+            showDeleteConfirm = false;
         }
     }
 }
