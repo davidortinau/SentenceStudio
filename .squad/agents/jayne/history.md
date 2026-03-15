@@ -38,6 +38,44 @@
 - WebApplicationFactory<Program> requires `public partial class Program { }` in API's Program.cs
 - TestJwtGenerator creates HMAC-SHA256 signed tokens with Entra ID claims (tid, oid, scp)
 - JwtBearerApiFactory overrides auth to JWT Bearer mode; DevAuthApiFactory uses default DevAuthHandler
+
+### 2026-03-15 — Cross-Agent Update: Mobile Auth Guard Bypass Fix (Kaylee) + Auth E2E Test Plan (Zoe)
+
+**Status:** COMPLETED  
+**Related Decisions:** Mobile Auth Guard, Auth E2E Testing (skill)  
+**Impact on Jayne's Testing:**
+
+**Summary:** 
+1. **Kaylee's Fix:** Mobile auth gate in MainLayout.razor now validates real token state (`IAuthService.IsSignedIn`) instead of preference flag. Auth.razor enforces server auth before profile selection.
+2. **Zoe's Test Plan:** Authored `.squad/skills/auth-e2e-testing/SKILL.md` with 11 test suites covering registration, login, token refresh, session restoration, and WebApp regression.
+
+**Test Suites Defined (Jayne to implement):**
+- Pre-Auth State Tests (fresh app)
+- Registration Tests (`/auth/register`)
+- Login Tests (Entra ID + DevAuth)
+- Token Refresh Tests (background silent refresh)
+- Session Restoration Tests (app restart with valid tokens)
+- WebApp Regression Tests (cookie-based auth unaffected)
+- Failure Path Tests (expired, invalid, network errors)
+- Performance Tests (auth latency)
+- iOS-Specific Tests (Keychain SecureStorage, MSAL URL scheme)
+- Profile Selection Tests (server auth gating)
+- Offline Fallback Tests (graceful degradation)
+
+**What This Means for Jayne's QA:**
+- Fresh app should redirect to `/auth`, not show Dashboard
+- Valid refresh token in SecureStorage should restore session without re-login
+- Expired tokens must force re-login
+- Create Local User should be removed or redirect to `/auth/register`
+- Bootstrap modal for auth failures (not JS alert)
+- iOS Keychain must persist tokens across app restarts
+- WebApp sign-in/sign-out unaffected by mobile changes
+
+**Learnings Added:**
+- Auth gates must check server state, not local preferences — preference persistence alone is not auth
+- Token refresh from SecureStorage is critical for mobile UX
+- iOS Keychain integration via MAUI SecureStorage is non-negotiable for production
+- E2E tests must cover both happy path and failure modes (expired, network, invalid)
 - API's `/api/v1/plans/generate` is POST — don't test it with GET or you get 405 not 401
 - DevAuthHandler always authenticates with claims: dev-tenant, dev-user, Dev User, dev@sentencestudio.local
 

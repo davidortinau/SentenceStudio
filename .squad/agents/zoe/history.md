@@ -19,6 +19,8 @@
 - E2E testing is mandatory for every feature/fix
 - Activities follow pattern: `activity-page-wrapper` → `PageHeader` → `activity-content` → `activity-input-bar`
 - CRUD feedback pattern: Success/errors use toasts (auto-dismiss), destructive ops require Bootstrap modal confirmation BEFORE + toast AFTER
+- Auth flow complete: IdentityAuthService handles JWT + refresh tokens via API, SecureStorage persists on iOS, token auto-refresh on expiry via 60s buffer
+- Token lifespan: JWT ~15 min, refresh tokens 7 days; /api/auth endpoints: register, login, refresh, confirm-email, forgot-password, reset-password, delete (protected)
 
 ## Work Sessions
 
@@ -56,4 +58,42 @@ Audited all CRUD pages (Resources, Skills, Vocabulary, Minimal Pairs, Profile, S
 **Code patterns documented** for Kaylee: save operation, Bootstrap delete modal (markup + C#), load/list with errors.
 
 **Next:** Captain approval, then Kaylee implements fixes.
+
+### 2026-03-14 — Auth E2E Test Plan Created for iOS
+
+**Status:** Complete  
+**Location:** `.squad/skills/auth-e2e-testing/SKILL.md`  
+**Executed by:** Jayne (Tester) — uses this plan to verify auth flow
+
+Designed a comprehensive E2E test plan covering complete authentication flow on iOS with dev tunnel, local Aspire, and simulator. Plan includes 11 test suites with 45+ individual test cases:
+
+**Coverage:**
+- Registration (happy path, duplicate email, weak password)
+- Login (happy path, wrong password, non-existent email)
+- Onboarding (first-time, returning user skips)
+- Token persistence (SecureStorage, kill/relaunch, logout clears)
+- Token refresh & expiry (auto-refresh, 7-day boundary)
+- Logout (UI flow, token cleanup)
+- Profile operations (view, edit, delete account)
+- Data isolation (User A not seeing User B's data, JWT claims)
+- Error handling (API down, network timeout, malformed responses)
+- Webapp regression (login, logout, registration still work)
+- Load testing (optional, concurrent logins)
+
+**Key Details:**
+- Test infrastructure setup verified (Aspire dashboard, simulator, dev tunnel health)
+- 11 test suites, 45+ individual test cases
+- Each case includes: preconditions, steps, verification, expected outcome, screenshots
+- Database queries for validation (SQLite)
+- Aspire structured logs for error checking
+- Tools: Playwright (webapp), maui-devflow (iOS), xcrun simctl (simulator management)
+- Checklist for tracking execution
+- Known issues & workarounds documented
+
+**Dependencies:**
+- Aspire running locally with all services (Api, WebApp, Workers, Redis, SqliteDb)
+- iOS simulator booted (iPhone 17 Pro, iOS 26.2)
+- Dev tunnel active: `https://c60qm31n-7012.use.devtunnels.ms`
+
+**Next:** Jayne executes plan to verify mobile auth flow before feature freeze.
 

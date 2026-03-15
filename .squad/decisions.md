@@ -213,6 +213,179 @@ Added security hardening across API, WebApp, and Marketing services.
 
 **Deferred:** Production CORS fine-tuning (#62), CSP header (Blazor inline scripts), production auth (still DevAuthHandler).
 
+### 6. JWT Bearer Authentication for API (#43) (2026-03-13)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-13  
+**Author:** Wash (Backend Dev)  
+**Branch:** `feature/43-api-jwt-bearer`  
+
+Added real JWT Bearer authentication via Microsoft Entra ID while keeping DevAuthHandler for local dev.
+
+**Key Decisions:**
+- **Conditional authentication:** `Auth:UseEntraId` config flag (default `false`) controls DevAuthHandler vs. real auth
+- **Scope-based policies:** Four policies defined matching Entra ID app registration scopes (user.read, user.write, ai.access, sync.readwrite)
+- **TenantContextMiddleware dual mapping:** Checks both Entra ID claims (`tid`, `oid`, `name`, `preferred_username`) and DevAuthHandler claims
+- **Public configuration:** Tenant, client, audience IDs in `appsettings.Development.json` (tracked git); secrets in gitignored `appsettings.json`
+
+**Files Changed:**
+- `SentenceStudio.Api.csproj` — Microsoft.Identity.Web v3.8.2
+- `Program.cs` — Conditional registration + scope policies
+- `TenantContextMiddleware.cs` — Dual claim mapping
+- `appsettings.Development.json` — AzureAd config
+
+**Consequences:**
+- No breaking change (defaults to DevAuthHandler)
+- Ready for production (`Auth:UseEntraId = true`)
+- Single-tenant (Microsoft.Identity.Web `AzureADMyOrg`)
+
+---
+
+### 7. Auth Integration Test Infrastructure (#47) (2026-03-13)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-13  
+**Author:** Jayne (Tester)  
+**Branch:** `feature/47-auth-tests`  
+
+Created `tests/SentenceStudio.Api.Tests/` — integration test infrastructure for API authentication flows.
+
+**Key Decisions:**
+- **TestJwtGenerator:** Generates HMAC-SHA256 signed tokens with Entra ID claims (tid, oid, scp, name, email); supports expired and custom tokens
+- **JwtBearerApiFactory:** WebApplicationFactory simulating `Auth:UseEntraId=true` with JWT Bearer validation
+- **DevAuthApiFactory:** WebApplicationFactory simulating `Auth:UseEntraId=false` with DevAuthHandler
+- **CI-compatible:** No Azure/Entra ID credentials required
+
+**Test Coverage:** 11 tests, all passing
+- 7 JWT Bearer mode tests (auth, expiry, tenant context)
+- 4 DevAuthHandler mode tests
+
+**Impact:**
+- Validates conditional auth when `feature/43-api-jwt-bearer` lands
+- Reusable infrastructure for future API tests
+- Fast execution (~0.8s)
+
+---
+
+### 8. CoreSync Auth — Bearer Token on Sync Client (#46) (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Wash (Backend Dev)  
+**Branch:** `feature/46-coresync-auth`  
+
+Added Bearer token authentication to CoreSync HTTP sync channel (MAUI clients ↔ Web server).
+
+**Key Decisions:**
+- **Client:** `AuthenticatedHttpMessageHandler` already wired to `"HttpClientToServer"` named HttpClient (Kaylee's MSAL work #45)
+- **Server:** `Auth:UseEntraId` config flag (same pattern as API); Entra ID validates tokens, DevAuthHandler creates synthetic identity
+- **Graceful fallback:** Client omits auth header if no token available; server accepts unauthenticated requests (no `RequireAuthorization()` yet)
+- **Offline-friendly:** Keeps sync working in offline/dev scenarios
+
+**AzureAd Configuration:** Shared with API (TenantId, ClientId, Audience)
+
+**Dependencies:** Merges `feature/43-api-jwt-bearer` + `feature/45-maui-msal`
+
+---
+
+### 9. CI Workflow Setup (#56) (2026-03-14)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-14  
+**Author:** Kaylee (Full-stack Dev)  
+**Branch:** `feature/56-ci-workflow`  
+
+GitHub Actions CI workflow for automated testing and multi-platform builds.
+
+**Pipeline:**
+| Project | Notes |
+|---------|-------|
+| Api | ASP.NET Core Web API |
+| WebApp | Blazor web app |
+| AppLib | MAUI shared library (installs MAUI workload) |
+| UnitTests | xUnit, net10.0 |
+| IntegrationTests | xUnit, net10.0 |
+
+**Key Decisions:**
+- **.NET SDK from global.json** — `actions/setup-dotnet` reads version
+- **NuGet caching** — keyed by csproj/NuGet.config hashes
+- **Local NuGet source removal** — `sed` strips dev-machine-only source before restore
+- **DevAuthHandler in CI** — `Auth__UseEntraId=false` env var
+- **MAUI workload conditional** — Only installed for AppLib entry
+- **fail-fast: false** — All matrix entries run for maximum signal
+- **Test reporting** — TRX artifacts + `dorny/test-reporter` for PR inline results
+
+---
+
+### 10. Mobile Auth Guard — Validate Tokens, Not Preferences (#2026-03-15)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-15  
+**Author:** Kaylee (Full-stack Dev)  
+
+Fixed critical mobile authentication bypass vulnerability where auth gate only checked a boolean preference flag, not actual token state.
+
+**Key Decisions:**
+- **MainLayout.razor:** Single auth enforcement point. On initialization: verify `IAuthService.IsSignedIn`, attempt silent refresh, redirect to `/auth` if unsigned
+- **Auth.razor:** Profile selection and "Create Local User" both enforce server authentication via `LoginAsAsync` before preference is set
+- **No local-only bypass:** Users must authenticate with API server before accessing content
+
+**Rationale:**
+- Boolean preferences are convenience hints, not security mechanisms
+- Mobile JWT tokens expire; app restarts lose in-memory cache
+- WebApp cookie auth unaffected (server-rendered)
+- Aligns with "DevAuthHandler for dev, real auth for production" strategy
+
+**Files Changed:**
+- `src/SentenceStudio.UI/Layout/MainLayout.razor` — Async auth verification
+- `src/SentenceStudio.UI/Pages/Auth.razor` — Server auth gating
+
+**Impact on Other Agents:**
+- **Wash (API):** No API changes needed
+- **Zoe (Arch):** Consistent with Phase 1 architecture
+- **Jayne (QA):** Auth gate tests required
+
+---
+
+### 11. CRUD Feedback Standard (2026-03-14)
+
+**Status:** PROPOSED  
+**Date:** 2026-03-14  
+**Author:** Zoe (Lead)  
+
+Uniform CRUD feedback pattern across all pages (Resources, Skills, Vocabulary, Profile, Settings).
+
+**Standard Pattern:**
+| Operation | Feedback | Method |
+|-----------|----------|--------|
+| Success | Toast (3000ms auto-dismiss) | `Toast.ShowSuccess()` |
+| Error | Toast (5000ms auto-dismiss) | `Toast.ShowError()` with details |
+| Warning | Toast (4000ms auto-dismiss) | `Toast.ShowWarning()` |
+| Destructive (Delete) | Bootstrap modal BEFORE + Toast AFTER | Modal → ConfirmDelete → Toast |
+| Info/Status | Toast (3000ms auto-dismiss) | `Toast.ShowInfo()` |
+
+**Issues to Fix:**
+1. Replace JS `confirm()` dialogs with Bootstrap modals (5 pages)
+2. Fix Profile.razor inconsistencies (load/save/delete feedback)
+3. Remove jsModule interop dependency
+
+**Rationale:**
+- Consistency — users learn one pattern
+- Accessibility — Bootstrap modals keyboard-accessible, screen-reader friendly
+- Clarity — color/icon-coded (success=green, error=red, warning=yellow, info=blue)
+- Non-intrusive — toasts auto-dismiss
+- Safety — destructive ops require explicit confirmation
+- Velocity — clear patterns reduce decision fatigue
+
+**Approval Required:** Captain
+
+**Next Steps:**
+1. Kaylee: Implement Bootstrap delete modals in 5 pages
+2. Kaylee: Fix Profile.razor feedback
+3. Zoe: Code review for pattern adherence
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

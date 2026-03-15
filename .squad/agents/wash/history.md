@@ -38,6 +38,25 @@
 **GitHub Issues:** #39-#65 created by Zoe (Lead)  
 **Wash's Role:** Deployment orchestration support  
 
+### 2026-03-15 — Cross-Agent Update: Mobile Auth Guard Bypass Fix (Kaylee)
+
+**Status:** COMPLETED  
+**Related Decision:** Mobile Auth Guard — Validate Tokens, Not Preferences  
+**Impact on Wash:** No API changes required for this fix
+
+**Summary:** Kaylee fixed critical mobile auth bypass in MainLayout.razor and Auth.razor. The auth gate now validates real token state (`IAuthService.IsSignedIn`) instead of checking a boolean preference flag. This enforces server authentication before any content access.
+
+**What This Means for API Work:**
+- Your JWT Bearer implementation (#43) is now critical — mobile clients will call API to validate tokens
+- DevAuthHandler fallback keeps dev flow working
+- No scope policy changes needed; endpoints using `RequireAuthorization()` work as-is
+- Consider testing API token refresh flow with mobile clients (Jayne's E2E plan)
+
+**Learnings Added:**
+- Mobile apps cannot rely on persistent local flags for auth state — must validate against server on every session restart
+- Preference flags are convenience hints, not security mechanisms
+- SecureStorage persistence for MSAL tokens is essential for smooth UX (app restart with valid tokens should work seamlessly)
+
 **Phase Execution Order:** Phase 2 (Secrets) → Phase 1 (Auth, localhost-testable) → Phase 3 (Infra) → Phase 4 (Pipeline) → Phase 5 (Hardening)
 
 **Wash Coordination Points:**
