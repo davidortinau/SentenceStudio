@@ -97,3 +97,67 @@ Designed a comprehensive E2E test plan covering complete authentication flow on 
 
 **Next:** Jayne executes plan to verify mobile auth flow before feature freeze.
 
+### 2026-03-15 — Blazor Hybrid Auth Architecture Research
+
+**Status:** Complete  
+**Location:** `docs/blazor-hybrid-auth-research.md`, `.squad/decisions.md` (Decision #12)  
+**Decision:** PROPOSED (awaiting Captain approval)
+
+Conducted deep architectural research into Microsoft's official Blazor Hybrid authentication patterns after persistent issues with auth gate in MainLayout.razor. Identified fundamental gap: we're not using Blazor's authentication system at all.
+
+**Key Findings:**
+
+1. **Microsoft prescribes AuthenticationStateProvider** — the official abstraction for auth in Blazor, NOT custom boolean preferences or IAuthService alone
+2. **Router must use AuthorizeRouteView** — NOT plain RouteView. Declarative auth via `[Authorize]` attributes, inline rendering in `<NotAuthorized>` slot
+3. **No NavigateTo() for auth redirects** — Router handles gating declaratively during component lifecycle, eliminating timing issues
+4. **Reactive state changes** — NotifyAuthenticationStateChanged() updates all components automatically
+5. **ClaimsPrincipal is the security boundary** — not boolean preferences
+
+**Gaps in Our Implementation:**
+
+| Component | Microsoft Pattern | Our Implementation | Severity |
+|-----------|-------------------|--------------------| ---------|
+| Auth Abstraction | AuthenticationStateProvider | IAuthService only | HIGH |
+| Router | AuthorizeRouteView | RouteView | HIGH |
+| Auth Gate | Router `<NotAuthorized>` slot | MainLayout boolean logic | HIGH |
+| Page Protection | `[Authorize]` attributes | None | MEDIUM |
+| State Change | NotifyAuthenticationStateChanged() | Manual preference writes | HIGH |
+| DI Registration | AddAuthorizationCore() | Missing | HIGH |
+
+**Root Cause of NavigateTo() Issues:**
+
+NavigateTo() during OnInitializedAsync in Blazor Hybrid WebView is unreliable due to WebView lifecycle timing and race conditions with router initialization. Microsoft's pattern avoids this entirely via declarative routing.
+
+**Proposed Architecture:**
+
+1. Create `SentenceStudioAuthStateProvider : AuthenticationStateProvider` (wraps existing IAuthService)
+2. Replace `<RouteView>` with `<AuthorizeRouteView>` in Routes.razor
+3. Remove manual auth gate logic from MainLayout.razor (~60 lines deleted)
+4. Add `[Authorize]` attributes to protected pages
+5. Keep IAuthService unchanged (well-designed for token management)
+
+**4-Phase Migration Path:**
+- Phase 1: Add auth infrastructure (no breaking changes)
+- Phase 2: Router replacement
+- Phase 3: MainLayout simplification
+- Phase 4: Page attributes
+
+**Estimated effort:** 1-2 days (Phases 1-4)
+
+**Documentation Sources:**
+- [ASP.NET Core Blazor Hybrid authentication and authorization](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/?view=aspnetcore-10.0&pivots=maui)
+- [MAUI Blazor Hybrid and Web App with ASP.NET Core Identity sample](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/maui-blazor-web-identity?view=aspnetcore-10.0)
+- [Blazor Hybrid security considerations](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/security-considerations?view=aspnetcore-10.0)
+
+**Key Learnings:**
+- AuthenticationStateProvider is the official auth abstraction in Blazor — custom gate logic bypasses the framework
+- AuthorizeRouteView handles auth declaratively via `[Authorize]` attributes and `<NotAuthorized>` inline rendering
+- NavigateTo() during component init in Blazor Hybrid is unreliable — use router-based declarative auth instead
+- ClaimsPrincipal with ClaimsIdentity is the security boundary, not boolean preferences
+- NotifyAuthenticationStateChanged() enables reactive auth state updates across components
+- Microsoft sample uses inline component rendering in `<NotAuthorized>` slot, NOT NavigateTo() redirects
+- IAuthService pattern (token management, API calls) is complementary to AuthenticationStateProvider, not a replacement
+- AddAuthorizationCore() registration is required for `[Authorize]` attributes and auth components to work
+
+**Next:** Captain approval, then 4-phase implementation.
+

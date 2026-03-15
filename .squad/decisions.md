@@ -386,6 +386,113 @@ Uniform CRUD feedback pattern across all pages (Resources, Skills, Vocabulary, P
 
 ---
 
+### 12. Adopt Official Blazor Hybrid Authentication Pattern (2026-03-15)
+
+**Status:** PROPOSED  
+**Date:** 2026-03-15  
+**Author:** Zoe (Lead)  
+**Research:** [docs/blazor-hybrid-auth-research.md](/Users/davidortinau/work/SentenceStudio/docs/blazor-hybrid-auth-research.md)  
+
+We've been fighting NavigateTo() timing issues in MainLayout.razor that stem from a fundamental architecture gap: we're not using Blazor's authentication framework at all. Microsoft prescribes `AuthenticationStateProvider` as the core abstraction, integrated with `AuthorizeRouteView` in the router for declarative auth enforcement.
+
+**Current Implementation (Broken):**
+- Custom `IAuthService` interface (good for API calls, but not integrated with Blazor)
+- Manual boolean gate logic in MainLayout (`isAuthGate`, `authCheckComplete`, `showAuthInline`)
+- Attempted NavigateTo() redirects (doesn't work during OnInitializedAsync)
+- No support for `[Authorize]` attributes
+- No reactive state updates
+
+**Official Pattern (Microsoft Docs):**
+1. `AuthenticationStateProvider` wraps `IAuthService`, exposes `ClaimsPrincipal`
+2. `AuthorizeRouteView` in router (not plain `RouteView`)
+3. Declarative `[Authorize]` attributes on pages
+4. Inline component rendering in `<NotAuthorized>` slot (NOT NavigateTo redirects)
+5. Reactive state changes via `NotifyAuthenticationStateChanged()`
+
+**Proposed 4-Phase Migration:**
+| Phase | Component | Complexity |
+|-------|-----------|-----------|
+| 1 | Create SentenceStudioAuthStateProvider (foundation) | Medium |
+| 2 | Replace RouteView with AuthorizeRouteView | Trivial |
+| 3 | Remove MainLayout auth gate logic (~60 lines) | Medium |
+| 4 | Add [Authorize] to protected pages | Trivial |
+
+**Key Benefits:**
+- Eliminates NavigateTo() timing issues
+- Follows Microsoft best practices (framework-designed, not custom workarounds)
+- Reduces MainLayout complexity
+- Enables standard Blazor auth components and role-based auth
+- Cleaner, more maintainable code
+
+**What Stays Unchanged:**
+- `IAuthService` (token management, API calls, refresh logic)
+- Token storage in SecureStorage
+- DevAuthHandler integration
+- All API endpoints
+
+**Approval Required:** Captain (David Ortinau)  
+**Estimated Effort:** 1-2 days (Phases 1-4)  
+
+---
+
+### 13. Refactor to Official Blazor Hybrid Auth Pattern (2026-03-15)
+
+**Status:** PROPOSED  
+**Date:** 2026-03-15  
+**Author:** Kaylee (Full-stack Dev)  
+**Priority:** HIGH  
+**Research:** [docs/blazor-hybrid-auth-implementation.md](/Users/davidortinau/work/SentenceStudio/docs/blazor-hybrid-auth-implementation.md)  
+
+Detailed implementation roadmap for refactoring from manual MainLayout gates to official Blazor Hybrid auth pattern.
+
+**Root Cause:**
+MainLayout.razor should NOT be an auth gate. The Router (Routes.razor) is the official enforcement point via `AuthorizeRouteView`, which renders `<NotAuthorized>` inline instead of relying on NavigateTo().
+
+**7-Phase Implementation:**
+
+| Phase | Component | Complexity | Risk |
+|-------|-----------|-----------|------|
+| 1 | Create MauiAuthenticationStateProvider | Medium | Low |
+| 2 | Update Routes.razor (AuthorizeRouteView) | Trivial | Low |
+| 3 | Strip MainLayout.razor auth logic | Medium | Medium |
+| 4 | Add [Authorize] attributes to pages | Trivial | Low |
+| 5 | Update Auth.razor | Trivial | Medium |
+| 6 | WebApp integration (CascadingAuthenticationState) | Trivial | High |
+| 7 | Remove boolean preferences | Trivial | Low |
+
+**MauiAuthenticationStateProvider (Phase 1):**
+- Wraps existing IdentityAuthService
+- Implements LogInAsync, LogOutAsync, LogInSilentlyAsync
+- Exposes ClaimsPrincipal from JWT claims
+- Calls NotifyAuthenticationStateChanged() to update UI
+
+**MainLayout Simplification (Phase 3):**
+- Remove `authCheckComplete`, `showAuthInline`, `isAuthGate` flags
+- Remove OnInitializedAsync() auth checking
+- AuthorizeRouteView handles auth enforcement
+
+**WebApp Integration (Phase 6):**
+- Option A (recommended): Add `<CascadingAuthenticationState>` to App.razor only (minimal change, ASP.NET Core Identity middleware provides AuthenticationStateProvider automatically)
+- Option B: Create custom WebAuthenticationStateProvider for consistency
+
+**Mitigation Strategy:**
+- Feature flag: `Auth:UseFrameworkAuth=true/false`
+- Keep boolean preferences as fallback during rollout
+- E2E tests required before merge
+
+**Impact on Other Agents:**
+- **Zoe (Arch):** Aligns with Entra ID migration
+- **Wash (API):** No API changes needed
+- **Jayne (QA):** New E2E tests required for AuthorizeRouteView flow
+
+**Approval Required:** Captain  
+**Key Questions:**
+1. Phase 6 approach: Option A (minimal) or Option B (custom provider)?
+2. Feature flag rollout strategy: flip all at once or gradual?
+3. E2E test requirements: which scenarios must pass before merge?
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

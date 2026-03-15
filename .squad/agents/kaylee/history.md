@@ -181,3 +181,56 @@ Created `.github/workflows/ci.yml` with:
 - `ServerAuthService.SignInAsync()` (parameterless) returns null — it's a no-op because the WebApp uses cookie auth via ASP.NET Identity middleware
 - `ServerAuthService.IsSignedIn` checks `HttpContext.User.Identity.IsAuthenticated` — this is the cookie check for WebApp
 - Mobile auth preference (`app_is_authenticated`) must be validated against real token state on every app launch — never trust persisted preferences alone
+
+### 2026-03-15 — Blazor Hybrid Auth Implementation Research
+
+**Status:** Complete  
+**Output:** `docs/blazor-hybrid-auth-implementation.md` + decision in `.squad/decisions.md` (Decision #13)  
+
+Researched official Blazor Hybrid auth patterns from Microsoft Learn docs. Analyzed why our current MainLayout.razor auth gate is broken and how to migrate to the framework's intended architecture.
+
+**Key Findings:**
+
+1. **Official Pattern:** Custom `AuthenticationStateProvider` + `AuthorizeRouteView` + `[Authorize]` attributes — not manual boolean preferences in MainLayout
+2. **Why Our Approach Fails:**
+   - NavigateTo() doesn't fire during OnInitializedAsync in Blazor Hybrid WebView
+   - MainLayout persists across route changes (auth state can desync)
+   - No framework-level auth awareness (cannot use AuthorizeView or [Authorize])
+   - Boolean preference is not auth state (stale flags bypass server validation)
+3. **Implementation Roadmap:** 7-phase migration from manual gates to framework auth (MauiAuthenticationStateProvider, AuthorizeRouteView, [Authorize] attributes, remove preferences)
+4. **Risk Assessment:** Medium risk for MainLayout changes (shared across WebApp and mobile), low risk for Router and new provider
+
+**Concrete Implementation Details:**
+- `MauiAuthenticationStateProvider` wraps IdentityAuthService, exposes ClaimsPrincipal from JWT claims
+- Routes.razor gets `<AuthorizeRouteView>` with `<NotAuthorized>` fragment rendering Auth page inline
+- MainLayout.razor stripped to pure layout (no auth checking)
+- Protected pages marked with `@attribute [Authorize]`
+- WebApp adds `<CascadingAuthenticationState>` (minimal change, low risk)
+
+**7-Phase Migration:**
+| Phase | Component | Complexity | Risk |
+|-------|-----------|-----------|------|
+| 1 | MauiAuthenticationStateProvider | Medium | Low |
+| 2 | Routes.razor (AuthorizeRouteView) | Trivial | Low |
+| 3 | MainLayout.razor cleanup | Medium | Medium |
+| 4 | Add [Authorize] attributes | Trivial | Low |
+| 5 | Auth.razor refactor | Trivial | Medium |
+| 6 | WebApp integration | Trivial | High |
+| 7 | Remove boolean preferences | Trivial | Low |
+
+**WebApp Integration Approach:** Option A (recommended) = add `<CascadingAuthenticationState>` to App.razor only (minimal, ASP.NET Core Identity middleware provides AuthenticationStateProvider automatically)
+
+**Mitigation Strategy:**
+- Feature flag: `Auth:UseFrameworkAuth=true/false`
+- Keep boolean preferences as fallback during rollout
+- E2E tests required before merge
+
+**Decision Required:** Captain approval on implementation approach
+
+**Learnings:**
+- **AuthorizeRouteView is the official auth enforcement point** — not MainLayout.razor. The Router component, not the layout, decides whether to render a page or redirect to login.
+- **NavigateTo() in OnInitializedAsync doesn't work in Blazor Hybrid** — the WebView routing stack isn't ready. Use AuthorizeRouteView's `<NotAuthorized>` fragment to render login inline without navigation.
+- **AuthenticationStateProvider.NotifyAuthenticationStateChanged()** is the official way to trigger UI updates when auth state changes — not manual StateHasChanged() on layout components.
+- **ClaimsPrincipal is auth state** — not boolean preferences. SecureStorage holds tokens for persistence, but the in-memory ClaimsPrincipal (created from JWT claims) is the runtime auth state.
+- **WebApp cookie auth vs. mobile JWT auth** — both can use the same Blazor auth primitives (AuthorizeRouteView, AuthorizeView) via their respective AuthenticationStateProvider implementations.
+- **Token lifecycle pattern:** App startup → GetAuthenticationStateAsync() → check SecureStorage → silent refresh if token exists → create ClaimsPrincipal from JWT → NotifyAuthenticationStateChanged() on login/logout.
