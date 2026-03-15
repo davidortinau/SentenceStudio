@@ -9,6 +9,14 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- `Auth:UseEntraId` config flag controls auth mode in both API and WebApp — false = DevAuthHandler, true = Entra ID OIDC
+- Microsoft.Identity.Web OIDC uses `AddMicrosoftIdentityWebApp()` + `EnableTokenAcquisitionToCallDownstreamApi()` chain
+- Redis-backed distributed token cache via `Aspire.StackExchange.Redis.DistributedCaching` (match AppHost Aspire version for preview packages)
+- `ConfigureHttpClientDefaults` adds DelegatingHandler to ALL HttpClient instances from the factory
+- Microsoft.Identity.Web.UI requires `AddControllersWithViews()` + `MapControllers()` for sign-in/sign-out endpoints
+- `appsettings.json` is gitignored — config changes there are local-only, use `appsettings.Development.json` for tracked dev config
+- Client secrets go in user-secrets, never in tracked config files
+
 - Blazor pages in `src/SentenceStudio.UI/Pages/` — follow `activity-page-wrapper` layout pattern
 - MauiReactor conventions: `VStart()` not `Top()`, `VEnd()` not `Bottom()`, `HStart()`/`HEnd()` not `Start()`/`End()`
 - NEVER use emojis in UI — use Bootstrap icons (bi-*) or text. Non-negotiable.
@@ -38,6 +46,20 @@
 **Phase Execution Order:** Phase 2 (Secrets) → Phase 1 (Auth, localhost-testable) → Phase 3 (Infra) → Phase 4 (Pipeline) → Phase 5 (Hardening)
 
 **Critical Path:** CoreSync SQLite→PostgreSQL migration (#55, XL).
+
+### 2026-03-14 — WebApp OIDC Authentication (#44)
+
+**Status:** Complete
+**Branch:** `feature/44-webapp-oidc`
+
+Added OIDC authentication to the Blazor WebApp:
+- NuGet: Microsoft.Identity.Web, .UI, .DownstreamApi, Aspire Redis distributed cache
+- Conditional auth via `Auth:UseEntraId` flag (false = DevAuthHandler, true = Entra ID)
+- `AuthenticatedApiDelegatingHandler` attaches Bearer tokens to all outgoing API calls
+- Redis-backed distributed token cache (Aspire integration, matches AppHost Aspire version)
+- `LoginDisplay.razor` with Bootstrap icons (bi-person, bi-box-arrow-right)
+- `CascadingAuthenticationState` in App.razor
+- Build verified: zero new errors (pre-existing DuplicateGroup issue in SentenceStudio.UI is unrelated)
 
 ### 2026-03-13 — CI Workflow (#56)
 

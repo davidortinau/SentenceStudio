@@ -1,6 +1,8 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.AI;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 using OpenAI;
 using Plugin.Maui.Audio;
 using SentenceStudio.WebApp.Platform;
@@ -47,8 +49,40 @@ if (!Directory.Exists(appLibRawAssets))
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+
+var useEntraId = builder.Configuration.GetValue<bool>("Auth:UseEntraId");
+
+if (useEntraId)
+{
+    var downstreamScopes = builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>();
+    if (downstreamScopes is null || downstreamScopes.Length == 0)
+    {
+        throw new InvalidOperationException(
+            "DownstreamApi:Scopes must be configured when Auth:UseEntraId is enabled. "
+            + "Add a 'DownstreamApi:Scopes' array to appsettings.json or user-secrets.");
+    }
+
+    builder.Services.AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+        .EnableTokenAcquisitionToCallDownstreamApi(downstreamScopes)
+        .AddDistributedTokenCaches();
+
+    builder.AddRedisDistributedCache("cache");
+
+    builder.Services.AddTransient<AuthenticatedApiDelegatingHandler>();
+    builder.Services.ConfigureHttpClientDefaults(http =>
+    {
+        http.AddHttpMessageHandler<AuthenticatedApiDelegatingHandler>();
+    });
+
+    builder.Services.AddControllersWithViews()
+        .AddMicrosoftIdentityUI();
+}
+else
+{
+    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+}
+
 builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<IPreferencesService>(_ => new WebPreferencesService(preferencesPath));
@@ -124,6 +158,12 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+if (useEntraId)
+{
+    app.MapControllers();
+}
+
 app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(SentenceStudio.WebUI.Routes).Assembly)
     .AddInteractiveServerRenderMode();
