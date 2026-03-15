@@ -1,14 +1,44 @@
-<Router AppAssembly="typeof(Routes).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="typeof(Layout.MainLayout)">
-            <div class="container text-center mt-5">
-                <h1>Page not found</h1>
-                <p class="text-secondary">Sorry, the page you requested could not be found.</p>
-            </div>
-        </LayoutView>
-    </NotFound>
-</Router>
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Routes).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                <Authorizing>
+                    <div class="d-flex justify-content-center align-items-center vh-100">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Checking authentication...</span>
+                        </div>
+                    </div>
+                </Authorizing>
+                <NotAuthorized>
+                    @* Inline landing — avoids loading Auth.razor which references
+                       Identity types not available on mobile platforms. *@
+                    <div class="container d-flex align-items-center justify-content-center" style="min-height: 80vh;">
+                        <div class="card card-ss p-4" style="max-width: 420px; width: 100%;">
+                            <h1 class="ss-title1 mb-2 text-center">SentenceStudio</h1>
+                            <p class="ss-body2 text-secondary-ss mb-4 text-center">
+                                Sign in to continue learning.
+                            </p>
+                            <div class="d-grid gap-2">
+                                <a href="/auth/login" class="btn btn-ss-primary btn-lg">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                                </a>
+                                <a href="/auth/register" class="btn btn-ss-secondary btn-lg">
+                                    <i class="bi bi-person-plus me-2"></i>Create Account
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(Layout.MainLayout)">
+                <div class="container text-center mt-5">
+                    <h1>Page not found</h1>
+                    <p class="text-secondary">Sorry, the page you requested could not be found.</p>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

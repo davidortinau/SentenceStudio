@@ -3,11 +3,10 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
-@inject IAuthService AuthService
 @implements IDisposable
 
 <div class="d-flex vh-100">
-    @if (!isOnboarding && !isAuthGate)
+    @if (!isOnboarding && isAuthenticated)
     {
         @* Sidebar navigation (desktop only) *@
         <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
@@ -32,7 +31,7 @@
         </main>
     </div>
 
-    @if (!isOnboarding && !isAuthGate)
+    @if (!isOnboarding && isAuthenticated)
     {
         @* Mobile offcanvas navigation *@
         <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav"
@@ -52,59 +51,37 @@
 </div>
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private IJSObjectReference? jsModule;
     private bool sidebarCollapsed;
     private bool isOnboarding;
-    private bool isAuthGate;
+    private bool isAuthenticated;
 
     protected override async Task OnInitializedAsync()
     {
+        NavigationManager.LocationChanged += OnLocationChanged;
+
+        // Resolve authentication state from CascadingAuthenticationState
+        if (AuthStateTask is not null)
+        {
+            var authState = await AuthStateTask;
+            isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
+        }
+
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-        var isAuthRoute = uri.AbsolutePath.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
+        var isOnboardingPath = uri.AbsolutePath.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase);
 
-        // Auth gate: verify real authentication state, not just a preference flag.
-        // On mobile, the preference persists across app restarts but the JWT token
-        // may be expired. We validate the token and attempt a silent refresh.
-        var prefAuthenticated = Preferences.Get("app_is_authenticated", false);
-
-        if (prefAuthenticated)
-        {
-            if (!AuthService.IsSignedIn)
-            {
-                // Attempt silent sign-in (restores session from refresh token on mobile;
-                // no-op on WebApp where cookie auth handles persistence)
-                await AuthService.SignInAsync();
-            }
-
-            if (!AuthService.IsSignedIn)
-            {
-                // Token invalid/expired and refresh failed — clear stale preference
-                Preferences.Remove("app_is_authenticated");
-                prefAuthenticated = false;
-            }
-        }
-
-        if (!prefAuthenticated)
-        {
-            isAuthGate = true;
-            if (!isAuthRoute)
-            {
-                NavigationManager.NavigateTo("/auth");
-                return;
-            }
-        }
-        else if (!Preferences.Get("is_onboarded", false))
+        // Only redirect to onboarding when authenticated but not yet onboarded
+        if (isAuthenticated && !Preferences.Get("is_onboarded", false) && !isOnboardingPath)
         {
             isOnboarding = true;
-            if (!uri.AbsolutePath.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase))
-            {
-                NavigationManager.NavigateTo("/onboarding");
-                return;
-            }
+            NavigationManager.NavigateTo("/onboarding");
         }
 
+        isOnboarding = isOnboardingPath || isOnboarding;
         sidebarCollapsed = Preferences.Get("SidebarCollapsed", false);
-        NavigationManager.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -126,12 +103,19 @@
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
+        var newUri = NavigationManager.ToAbsoluteUri(e.Location);
+        var path = newUri.AbsolutePath;
+
+        isOnboarding = path.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase);
+
         try
         {
             if (jsModule != null)
                 await jsModule.InvokeVoidAsync("resetScroll");
         }
         catch { /* component may be disposed */ }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async void OnThemeChanged(object? sender, ThemeChangedEventArgs e)

@@ -1,6 +1,7 @@
 ﻿using CoreSync;
 using CoreSync.Http.Client;
 using CoreSync.Sqlite;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -64,6 +65,8 @@ public static class ServiceCollectionExtentions
     public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IAuthService, IdentityAuthService>();
+        services.AddAuthorizationCore();
+        services.AddScoped<AuthenticationStateProvider, MauiAuthenticationStateProvider>();
 
         // Register a named HttpClient for auth endpoints (login, register, refresh).
         // Uses the same API base URL as other clients but without the auth handler

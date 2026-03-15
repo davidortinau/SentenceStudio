@@ -1,7 +1,20 @@
+@inject NavigationManager NavManager
+
 <Router AppAssembly="typeof(SentenceStudio.WebUI.Routes).Assembly"
         AdditionalAssemblies="new[] { typeof(AppRoutes).Assembly }">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(SentenceStudio.WebUI.Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(SentenceStudio.WebUI.Layout.MainLayout)">
+            <NotAuthorized>
+                <div class="d-flex justify-content-center align-items-center vh-100">
+                    <div class="text-center">
+                        <i class="bi bi-shield-lock" style="font-size: 3rem;"></i>
+                        <h2 class="mt-3">Sign in required</h2>
+                        <p class="text-secondary">Please sign in to access this page.</p>
+                        <a href="/Account/Login" class="btn btn-primary">Sign In</a>
+                    </div>
+                </div>
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
