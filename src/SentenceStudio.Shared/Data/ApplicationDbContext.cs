@@ -1,15 +1,10 @@
-﻿
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext() { }
 
@@ -218,6 +213,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MinimalPairAttempt>()
             .HasIndex(mpa => new { mpa.SessionId, mpa.SequenceNumber });
 
+        // RefreshToken — server-side token storage for JWT refresh flow
+        modelBuilder.Entity<RefreshToken>().ToTable("RefreshTokens");
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany()
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.Token)
+            .IsUnique();
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -255,5 +261,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
     public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
     public DbSet<WordAssociationScore> WordAssociationScores => Set<WordAssociationScore>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
 }
