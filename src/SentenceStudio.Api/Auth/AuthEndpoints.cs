@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Auth;
@@ -24,7 +25,9 @@ public static class AuthEndpoints
     private static async Task<IResult> Register(
         RegisterRequest request,
         UserManager<ApplicationUser> userManager,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        IAppEmailSender emailSender,
+        HttpContext httpContext)
     {
         var user = new ApplicationUser
         {
@@ -55,12 +58,15 @@ public static class AuthEndpoints
         await userManager.UpdateAsync(user);
         await db.SaveChangesAsync();
 
-        // Generate email confirmation token
+        // Generate email confirmation token and send confirmation email
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-        // In production, send the confirmation link via IEmailSender.
-        // For development, the token is generated but email sending is a no-op.
+        var encodedToken = Uri.EscapeDataString(token);
+        var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+        var confirmUrl = $"{baseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedToken}";
 
-        return Results.Ok(new { message = "Check your email to confirm your account." });
+        await emailSender.SendConfirmationLinkAsync(user, request.Email, confirmUrl);
+
+        return Results.Ok(new { message = "Check your email to confirm your account.", userId = user.Id });
     }
 
     private static async Task<IResult> Login(
@@ -178,14 +184,19 @@ public static class AuthEndpoints
 
     private static async Task<IResult> ForgotPassword(
         ForgotPasswordRequest request,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IAppEmailSender emailSender,
+        HttpContext httpContext)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is not null)
         {
             var token = await userManager.GeneratePasswordResetTokenAsync(user);
-            // In production, send this token via email.
-            // Always return 200 to prevent user enumeration.
+            var encodedToken = Uri.EscapeDataString(token);
+            var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+            var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(request.Email)}&token={encodedToken}";
+
+            await emailSender.SendPasswordResetLinkAsync(user, request.Email, resetUrl);
         }
 
         return Results.Ok(new { message = "If that email is registered, a reset link has been sent." });

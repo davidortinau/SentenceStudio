@@ -98,6 +98,10 @@ if (!string.IsNullOrWhiteSpace(jwtSigningKey))
 
 builder.Services.AddScoped<JwtTokenService>();
 
+// Email sender — ConsoleEmailSender logs to Aspire structured logs in development;
+// swap for SmtpEmailSender in production.
+builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
+
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // CORS — basic policies for known callers.

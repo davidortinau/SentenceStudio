@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.WebApp.Auth;
@@ -91,15 +92,19 @@ public static class AccountEndpoints
 
         group.MapPost("/ForgotPassword", async (
             [FromForm] string email,
-            UserManager<ApplicationUser> userManager) =>
+            UserManager<ApplicationUser> userManager,
+            IAppEmailSender emailSender,
+            HttpContext httpContext) =>
         {
             var user = await userManager.FindByEmailAsync(email);
             if (user is not null)
             {
-                // In production, send the reset token via email.
-                // For now, just redirect with a confirmation message.
                 var token = await userManager.GeneratePasswordResetTokenAsync(user);
-                // TODO: Send email with reset link containing token
+                var encodedToken = Uri.EscapeDataString(token);
+                var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+                var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(email)}&token={encodedToken}";
+
+                await emailSender.SendPasswordResetLinkAsync(user, email, resetUrl);
             }
 
             // Always redirect to avoid email enumeration

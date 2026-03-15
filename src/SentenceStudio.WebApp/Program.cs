@@ -116,6 +116,10 @@ else
 
 builder.Services.AddAuthorization();
 
+// Email sender — ConsoleEmailSender logs to Aspire structured logs in development;
+// swap for SmtpEmailSender in production.
+builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
+
 builder.Services.AddSingleton<IPreferencesService>(_ => new WebPreferencesService(preferencesPath));
 builder.Services.AddSingleton<ISecureStorageService, WebSecureStorageService>();
 builder.Services.AddSingleton<IConnectivityService, WebConnectivityService>();
