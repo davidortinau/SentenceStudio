@@ -53,7 +53,29 @@ public class UserProfileRepository
         // before this EF migration existed — mark migration as applied so MigrateAsync skips it
         await MarkMigrationIfColumnsExistAsync(db);
 
-        await db.Database.MigrateAsync(); // Apply any pending migrations (including UserProfileId columns)
+        try
+        {
+            await db.Database.MigrateAsync();
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("already exists"))
+        {
+            // Tables already exist (e.g. Identity tables created by a different migration path).
+            // Mark all pending migrations as applied so future calls succeed.
+            var pending = await db.Database.GetPendingMigrationsAsync();
+            if (pending.Any())
+            {
+                _logger.LogWarning("Skipping {Count} migrations due to existing tables: {Error}",
+                    pending.Count(), ex.Message);
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+                foreach (var migration in pending)
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = $"INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ('{migration}', '10.0.0')";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
 
         // Ensure performance indexes exist (CREATE IF NOT EXISTS is idempotent)
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_TargetLanguageTerm ON VocabularyWord(TargetLanguageTerm)");

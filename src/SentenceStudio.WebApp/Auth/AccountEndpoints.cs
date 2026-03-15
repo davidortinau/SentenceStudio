@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
@@ -18,7 +19,9 @@ public static class AccountEndpoints
             [FromForm] string password,
             [FromForm] bool? rememberMe,
             [FromForm] string? returnUrl,
-            SignInManager<ApplicationUser> signInManager) =>
+            SignInManager<ApplicationUser> signInManager,
+            UserManager<ApplicationUser> userManager,
+            IPreferencesService preferences) =>
         {
             returnUrl ??= "/";
 
@@ -27,6 +30,11 @@ public static class AccountEndpoints
 
             if (result.Succeeded)
             {
+                var user = await userManager.FindByEmailAsync(email);
+                if (user?.UserProfileId is not null)
+                {
+                    preferences.Set("active_profile_id", user.UserProfileId);
+                }
                 return Results.LocalRedirect(returnUrl);
             }
 
@@ -99,7 +107,8 @@ public static class AccountEndpoints
             [FromQuery] string token,
             [FromQuery] string? returnUrl,
             UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager) =>
+            SignInManager<ApplicationUser> signInManager,
+            IPreferencesService preferences) =>
         {
             var user = await userManager.FindByIdAsync(userId);
             if (user is null)
@@ -115,6 +124,13 @@ public static class AccountEndpoints
             }
 
             await signInManager.SignInAsync(user, isPersistent: true);
+
+            // Set the active profile so Profile page and other features find it
+            if (!string.IsNullOrEmpty(user.UserProfileId))
+            {
+                preferences.Set("active_profile_id", user.UserProfileId);
+            }
+
             return Results.LocalRedirect(returnUrl ?? "/");
         });
 
