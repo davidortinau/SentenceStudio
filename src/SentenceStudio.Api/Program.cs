@@ -6,6 +6,7 @@ using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.Identity.Web;
@@ -16,6 +17,7 @@ using SentenceStudio.Contracts.Auth;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Contracts.Vocabulary;
+using Microsoft.AspNetCore.Identity;
 using SentenceStudio.Data;
 using SentenceStudio.Domain.Abstractions;
 using SentenceStudio.Infrastructure;
@@ -106,12 +108,38 @@ Directory.CreateDirectory(serverDbFolder);
 var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
 builder.Services.AddDataServices(databasePath);
 
+// ASP.NET Core Identity — user store and token providers.
+// Registered regardless of auth scheme; JWT/Entra ID auth is layered separately.
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = false;
+    options.SignIn.RequireConfirmedEmail = true;
+    options.User.RequireUniqueEmail = true;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
 builder.Services.AddSingleton<VocabularyProgressService>();
 builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
     provider.GetRequiredService<VocabularyProgressService>());
+
+// Email sender -- use SMTP when configured, console logger otherwise (dev)
+var smtpHost = builder.Configuration["Email:SmtpHost"];
+if (!string.IsNullOrEmpty(smtpHost))
+{
+    builder.Services.AddTransient<IEmailSender<ApplicationUser>, SmtpEmailSender>();
+    builder.Services.AddTransient<IAppEmailSender, SmtpEmailSender>();
+}
+else
+{
+    builder.Services.AddTransient<IEmailSender<ApplicationUser>, ConsoleEmailSender>();
+    builder.Services.AddTransient<IAppEmailSender, ConsoleEmailSender>();
+}
 
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))

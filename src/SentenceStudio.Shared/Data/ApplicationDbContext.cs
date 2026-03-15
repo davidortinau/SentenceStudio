@@ -1,4 +1,5 @@
-﻿
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,7 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext() { }
 
@@ -43,6 +44,16 @@ public class ApplicationDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Identity tables must be configured first
+        base.OnModelCreating(modelBuilder);
+
+        // ApplicationUser -> UserProfile (optional one-to-one)
+        modelBuilder.Entity<ApplicationUser>()
+            .HasOne(u => u.UserProfile)
+            .WithMany()
+            .HasForeignKey(u => u.UserProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Configure table names to match CoreSync expectations (singular)
         // Synced entities use string (GUID) PKs — tell EF not to auto-generate values
         modelBuilder.Entity<LearningResource>().ToTable("LearningResource").HasKey(e => e.Id);
@@ -226,8 +237,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Ignore<ShadowingSentence>();
         modelBuilder.Ignore<Question>();
         modelBuilder.Ignore<Lesson>();
-
-        base.OnModelCreating(modelBuilder);
     }
 
 
