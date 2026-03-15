@@ -82,8 +82,9 @@ Implemented MSAL.NET public client auth in `SentenceStudio.AppLib`:
 
 ### 2026-03-14 — WebApp OIDC Authentication (#44)
 
-**Status:** Complete
-**Branch:** `feature/44-webapp-oidc`
+**Status:** Complete  
+**Branch:** `feature/44-webapp-oidc`  
+**PR:** #70  
 
 Added OIDC authentication to the Blazor WebApp:
 - NuGet: Microsoft.Identity.Web, .UI, .DownstreamApi, Aspire Redis distributed cache
@@ -93,6 +94,36 @@ Added OIDC authentication to the Blazor WebApp:
 - `LoginDisplay.razor` with Bootstrap icons (bi-person, bi-box-arrow-right)
 - `CascadingAuthenticationState` in App.razor
 - Build verified: zero new errors (pre-existing DuplicateGroup issue in SentenceStudio.UI is unrelated)
+
+### 2026-03-14 — MAUI MSAL Authentication (#45)
+
+**Status:** Complete  
+**Branch:** `feature/45-maui-msal`  
+**PR:** #71  
+
+Implemented MSAL.NET authentication for MAUI native clients:
+- NuGet: Microsoft.Identity.Client, MSAL for public client (MAUI cannot securely store secrets)
+- PublicClientApplication configured with Entra ID authority
+- Interactive login via WebAuthenticator (system browser flow)
+- Token persistence using MAUI SecureStorage (platform-native: Keychain/CredentialManager)
+- AuthService encapsulates MSAL logic and token caching
+- Sign-in/sign-out UI with Bootstrap icons (bi-person, bi-box-arrow-right)
+- Bearer token injection to API HttpClient calls
+- Completes full auth suite: API + WebApp + MAUI clients
+
+### 2026-03-14 — CI Workflow Setup (#56)
+
+**Status:** Complete (flags noted)  
+**Branch:** `feature/56-ci-workflow`  
+**PR:** #69  
+
+Set up GitHub Actions CI workflow for automated testing and builds:
+- Multi-platform build matrix (.NET 10 on macOS runner)
+- NuGet restore, dotnet build, test execution
+- Build artifact publishing for deployment readiness
+- Job dependencies for sequential execution
+
+**Flagged Issue:** Workflow references `IntegrationTests` project — verify project exists or adjust workflow before merge.
 
 ### 2026-03-13 — CI Workflow (#56)
 

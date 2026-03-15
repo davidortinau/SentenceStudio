@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Components.Authorization
+@inject IConfiguration Configuration
 
 <AuthorizeView>
     <Authorized>
@@ -6,14 +7,32 @@
             <span class="text-light">
                 <i class="bi bi-person-circle me-1"></i>@context.User.Identity?.Name
             </span>
-            <a href="MicrosoftIdentity/Account/SignOut" class="btn btn-outline-light btn-sm">
-                <i class="bi bi-box-arrow-right me-1"></i>Sign out
-            </a>
+            @if (UseEntraId)
+            {
+                <a href="/MicrosoftIdentity/Account/SignOut" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-box-arrow-right me-1"></i>Sign out
+                </a>
+            }
+            else
+            {
+                <span class="badge bg-info text-dark">Dev Mode</span>
+            }
         </div>
     </Authorized>
     <NotAuthorized>
-        <a href="MicrosoftIdentity/Account/SignIn" class="btn btn-outline-light btn-sm">
-            <i class="bi bi-person me-1"></i>Sign in
-        </a>
+        @if (UseEntraId)
+        {
+            <a href="/MicrosoftIdentity/Account/SignIn" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-person me-1"></i>Sign in
+            </a>
+        }
+        else
+        {
+            <span class="badge bg-info text-dark">Dev Mode</span>
+        }
     </NotAuthorized>
 </AuthorizeView>
+
+@code {
+    private bool UseEntraId => Configuration.GetValue<bool>("Auth:UseEntraId");
+}

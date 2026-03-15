@@ -47,6 +47,23 @@
 
 **Key Dependencies:** Zoe coordinates Phase 1-3 decisions; Kaylee implements CI/deploy automation; Captain provides Azure portal access.
 
+### 2026-03-14 — API JWT Bearer Authentication (#43)
+
+**Status:** Complete  
+**Branch:** `feature/43-api-jwt-bearer`  
+**PR:** #68  
+
+Implemented JWT Bearer token authentication for the API:
+- NuGet: Microsoft.Identity.Web (JWT validation + token acquisition)
+- Conditional auth via `Auth:UseEntraId` flag (false = DevAuthHandler, true = Entra ID OIDC)
+- JwtBearerScheme with token validation, issuer, and audience checks
+- AuthorizeAttribute guards on API endpoints (/api/* routes)
+- Integrates with Entra ID tenant and app registrations (#42)
+- DevAuthHandler for local development (zero friction)
+- Ready for WebApp + MAUI clients to call API with Bearer tokens
+
+**Unblocks:** Kaylee's WebApp OIDC (#44), MAUI MSAL (#45), remaining auth work
+
 ### 2026-03-14 — CoreSync Auth: Bearer Token on Sync Client (#46)
 
 **Status:** Complete  
