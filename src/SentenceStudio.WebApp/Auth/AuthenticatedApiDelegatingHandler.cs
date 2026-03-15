@@ -29,7 +29,7 @@ public sealed class AuthenticatedApiDelegatingHandler : DelegatingHandler
                      ?? throw new InvalidOperationException(
                          "DownstreamApi:Scopes must be configured when Entra ID auth is active.");
 
-        var token = await _tokenAcquisition.GetAccessTokenForUserAsync(scopes, cancellationToken: cancellationToken);
+        var token = await _tokenAcquisition.GetAccessTokenForUserAsync(scopes);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         return await base.SendAsync(request, cancellationToken);

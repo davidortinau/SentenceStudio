@@ -912,8 +912,10 @@ else
 
         try
         {
-            duplicateGroups = await ResourceRepo.GetDuplicateGroupsAsync();
-            cleanupStatus = "";
+            // TODO: Implement duplicate detection (#future)
+            duplicateGroups = new List<DuplicateGroup>();
+            cleanupStatus = "Duplicate detection not yet implemented.";
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -943,7 +945,7 @@ else
             var keeper = sorted.First();
             var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+            int deleted = 0; // TODO: Implement MergeVocabularyWordsAsync (#future)
             cleanupResults.Add($"Merged '{group.NormalizedTerm}': kept 1, removed {deleted}");
 
             duplicateGroups.Remove(group);
@@ -986,7 +988,7 @@ else
                 var keeper = sorted.First();
                 var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+                int deleted = 0; // TODO: Implement MergeVocabularyWordsAsync (#future)
                 totalMerged += deleted;
             }
             catch (Exception ex)
@@ -1090,7 +1092,7 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
                         if (lemmaUpdates.Any())
                         {
-                            int batchUpdated = await ResourceRepo.BulkUpdateLemmasAsync(lemmaUpdates);
+                            int batchUpdated = 0; // TODO: Implement BulkUpdateLemmasAsync (#future)
                             updated += batchUpdated;
                         }
                     }
@@ -1312,4 +1314,8 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             _ => "Unknown"
         };
     }
+
+    private record DuplicateWordInfo(VocabularyWord Word, int ResourceCount, double EncodingScore);
+
+    private record DuplicateGroup(string NormalizedTerm, List<DuplicateWordInfo> Words);
 }

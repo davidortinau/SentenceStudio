@@ -1,5 +1,6 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.AI;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
@@ -62,7 +63,8 @@ if (useEntraId)
             + "Add a 'DownstreamApi:Scopes' array to appsettings.json or user-secrets.");
     }
 
-    builder.Services.AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
         .EnableTokenAcquisitionToCallDownstreamApi(downstreamScopes)
         .AddDistributedTokenCaches();
 

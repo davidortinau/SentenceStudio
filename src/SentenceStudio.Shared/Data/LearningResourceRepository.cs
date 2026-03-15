@@ -744,7 +744,7 @@ public class LearningResourceRepository
     /// <summary>
     /// Updates vocabulary word terms by ID, avoiding context tracking issues
     /// </summary>
-    public async Task<bool> UpdateVocabularyWordTermsAsync(int wordId, string targetTerm, string nativeTerm)
+    public async Task<bool> UpdateVocabularyWordTermsAsync(string wordId, string targetTerm, string nativeTerm)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
