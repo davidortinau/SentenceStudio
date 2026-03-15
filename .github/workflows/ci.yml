@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  Auth__UseEntraId: "false"
+
+jobs:
+  build:
+    name: Build ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: Api
+            path: src/SentenceStudio.Api/SentenceStudio.Api.csproj
+          - project: WebApp
+            path: src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj
+          - project: AppLib
+            path: src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj
+            maui: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI workload
+        if: matrix.maui == true
+        run: dotnet workload install maui
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ matrix.project }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ matrix.project }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Remove local NuGet source
+        run: |
+          # Strip dev-only local NuGet source if NuGet.config is committed
+          if [ -f src/NuGet.config ]; then
+            sed -i '/<add key="localnugets"/d' src/NuGet.config
+            sed -i '/<packageSource key="localnugets">/,/<\/packageSource>/d' src/NuGet.config
+          fi
+
+      - name: Restore
+        run: dotnet restore ${{ matrix.path }}
+
+      - name: Build
+        run: dotnet build ${{ matrix.path }} --no-restore -c Release
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-test-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-test-
+            ${{ runner.os }}-nuget-
+
+      - name: Remove local NuGet source
+        run: |
+          if [ -f src/NuGet.config ]; then
+            sed -i '/<add key="localnugets"/d' src/NuGet.config
+            sed -i '/<packageSource key="localnugets">/,/<\/packageSource>/d' src/NuGet.config
+          fi
+
+      - name: Restore & build unit tests
+        run: |
+          dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj
+          dotnet build tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --no-restore -c Release
+
+      # IntegrationTests excluded: references non-existent src/SentenceStudio/SentenceStudio.csproj
+      # Re-enable once the broken ProjectReference is fixed (see PR #69 review)
+
+      - name: Run unit tests
+        run: >
+          dotnet test tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj
+          --no-build -c Release
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory ./test-results
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always() && github.event_name == 'pull_request'
+        with:
+          name: Test Results
+          path: test-results/**/*.trx
+          reporter: dotnet-trx

@@ -61,3 +61,37 @@ Added OIDC authentication to the Blazor WebApp:
 - `CascadingAuthenticationState` in App.razor
 - Build verified: zero new errors (pre-existing DuplicateGroup issue in SentenceStudio.UI is unrelated)
 
+### 2026-03-13 — CI Workflow (#56)
+
+**Status:** Complete  
+**Branch:** `feature/56-ci-workflow`
+
+Created `.github/workflows/ci.yml` with:
+- Build matrix: Api, WebApp, AppLib (with MAUI workload)
+- Test job: UnitTests + IntegrationTests with xUnit TRX reporting
+- NuGet caching via `actions/cache`
+- DevAuthHandler via `Auth__UseEntraId=false`
+- Local NuGet source stripped for CI (dev-machine-only path)
+- `dorny/test-reporter` for inline PR test results
+- .NET SDK version: 10.0.x (explicit in workflow; global.json is gitignored)
+
+**Discovered:** IntegrationTests references a non-existent `SentenceStudio.csproj` — will fail in CI. Needs follow-up fix.
+
+### 2026-03-14 — Phase 2 (Secrets & Security) Completion
+
+**Status:** COMPLETED  
+**Issues:** #39 (user-secrets setup), #41 (security headers)
+
+**Kaylee Completed #41 — Security Headers & HTTPS:**
+- Added shared `SecurityHeadersExtensions` in `src/Shared/SecurityHeadersExtensions.cs` (linked to web projects via `<Compile Include>`)
+- Security headers: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, Permissions-Policy (camera/mic/geo)
+- HTTPS redirect environment-aware (skipped in dev, Aspire proxy terminates TLS)
+- API explicit HSTS: 365-day max-age, includeSubDomains, preload
+- CORS: AllowWebApp policy (config-driven) + AllowDevClients (dev-only localhost)
+- AllowedHosts restrictions in Production appsettings
+
+**Key Decision:** Linked source file instead of WebServiceDefaults to avoid ambiguous call errors with MAUI defaults.
+
+**Wash Completed #39 (user-secrets setup):**
+- Kaylee coordination: CORS setup confirmed not required for MAUI clients (use service discovery)
+- Phase 2 ready for Phase 1 (Entra ID auth) — Captain has provisioned 3 app registrations
