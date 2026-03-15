@@ -17,7 +17,6 @@ using SentenceStudio.Contracts.Auth;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Contracts.Vocabulary;
-using Microsoft.AspNetCore.Identity;
 using SentenceStudio.Data;
 using SentenceStudio.Domain.Abstractions;
 using SentenceStudio.Infrastructure;
