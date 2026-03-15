@@ -28,13 +28,15 @@ public class AuthenticatedHttpMessageHandler : DelegatingHandler
         _logger = logger;
 
         _defaultScopes = configuration.GetSection("AzureAd:Scopes").Get<string[]>()
-            ?? throw new InvalidOperationException(
-                "AzureAd:Scopes must be configured.");
+            ?? Array.Empty<string>();
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        if (_defaultScopes.Length == 0)
+            return await base.SendAsync(request, cancellationToken);
+
         try
         {
             var token = await _authService.GetAccessTokenAsync(_defaultScopes);
