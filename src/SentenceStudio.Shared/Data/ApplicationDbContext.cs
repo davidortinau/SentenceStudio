@@ -1,10 +1,16 @@
+#if !IOS && !ANDROID && !MACCATALYST
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+#endif
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
+#if IOS || ANDROID || MACCATALYST
+public class ApplicationDbContext : DbContext
+#else
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+#endif
 {
     public ApplicationDbContext() { }
 

@@ -137,17 +137,32 @@
         isDeleting = true;
         try
         {
-            // Try to delete the associated Identity user (WebApp only)
+            // Try to delete the associated Identity user (WebApp only).
+            // Uses reflection to avoid compile-time dependency on ASP.NET Identity
+            // which is unavailable on mobile platforms.
             try
             {
-                var userManager = ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<SentenceStudio.Shared.Models.ApplicationUser>>();
-                if (userManager is not null)
+                var appUserType = typeof(SentenceStudio.Shared.Models.ApplicationUser);
+                var userManagerOpenType = Type.GetType("Microsoft.AspNetCore.Identity.UserManager`1, Microsoft.Extensions.Identity.Core");
+                if (userManagerOpenType is not null)
                 {
-                    var users = userManager.Users.Where(u => u.UserProfileId == profileToDelete.Id).ToList();
-                    foreach (var user in users)
+                    var userManagerType = userManagerOpenType.MakeGenericType(appUserType);
+                    var userManager = ServiceProvider.GetService(userManagerType);
+                    if (userManager is not null)
                     {
-                        await userManager.DeleteAsync(user);
-                        Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profileToDelete.Id);
+                        // Get Users property → filter by UserProfileId → delete each
+                        var usersProp = userManagerType.GetProperty("Users");
+                        if (usersProp?.GetValue(userManager) is IQueryable<SentenceStudio.Shared.Models.ApplicationUser> users)
+                        {
+                            var matches = users.Where(u => u.UserProfileId == profileToDelete.Id).ToList();
+                            var deleteMethod = userManagerType.GetMethod("DeleteAsync", [appUserType]);
+                            foreach (var user in matches)
+                            {
+                                if (deleteMethod is not null)
+                                    await (Task)deleteMethod.Invoke(userManager, [user])!;
+                                Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profileToDelete.Id);
+                            }
+                        }
                     }
                 }
             }

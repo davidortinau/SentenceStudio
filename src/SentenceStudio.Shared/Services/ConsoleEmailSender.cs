@@ -1,3 +1,4 @@
+#if !IOS && !ANDROID && !MACCATALYST
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
@@ -59,3 +60,4 @@ public class ConsoleEmailSender : IAppEmailSender
         return Task.CompletedTask;
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if !IOS && !ANDROID && !MACCATALYST
 using Microsoft.AspNetCore.Identity;
 using SentenceStudio.Shared.Models;
 
@@ -6,6 +7,7 @@ namespace SentenceStudio.Services;
 /// <summary>
 /// Application email sender that extends Identity's IEmailSender.
 /// Provides a general-purpose SendEmailAsync alongside the Identity-required methods.
+/// Server-only — not available on mobile platforms.
 /// </summary>
 public interface IAppEmailSender : IEmailSender<ApplicationUser>
 {
@@ -14,3 +16,4 @@ public interface IAppEmailSender : IEmailSender<ApplicationUser>
     /// </summary>
     Task SendEmailAsync(string toEmail, string subject, string htmlBody);
 }
+#endif

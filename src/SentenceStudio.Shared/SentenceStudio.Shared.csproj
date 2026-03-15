@@ -1,14 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Targeting net10.0 only since EF Core 10 requires it -->
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net10.0;net10.0-ios;net10.0-android;net10.0-maccatalyst</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
-	<ItemGroup>
+	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
+	</ItemGroup>
+
+	<!-- EF Core migrations reference Identity types — exclude on mobile -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != ''">
+		<Compile Remove="Migrations\**" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -18,7 +24,6 @@
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
 		<PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
 		<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -1,3 +1,4 @@
+#if !IOS && !ANDROID && !MACCATALYST
 using System.Net;
 using System.Net.Mail;
 using Microsoft.AspNetCore.Identity;
@@ -80,3 +81,4 @@ public class SmtpEmailSender : IAppEmailSender
         }
     }
 }
+#endif
