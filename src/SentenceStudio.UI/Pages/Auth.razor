@@ -6,12 +6,22 @@
     <div class="card card-ss p-4 mt-4">
         <h1 class="ss-title1 mb-2">Welcome to SentenceStudio</h1>
         <p class="ss-body2 text-secondary-ss mb-4">
-            Select a user to continue, or register to create a new account.
+            Sign in to your account or select a local user to continue.
         </p>
+
+        <div class="d-grid gap-2 mb-4">
+            <a href="/auth/login" class="btn btn-ss-primary btn-lg">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+            </a>
+            <a href="/auth/register" class="btn btn-ss-secondary btn-lg">
+                <i class="bi bi-person-plus me-2"></i>Create Account
+            </a>
+        </div>
 
         @if (_profiles.Count > 0)
         {
-            <h2 class="ss-title3 mb-2">Choose a user</h2>
+            <hr class="my-3" />
+            <h2 class="ss-title3 mb-2">Or choose a local user</h2>
             <div class="d-grid gap-2 mb-3">
                 @foreach (var profile in _profiles)
                 {
@@ -27,12 +37,11 @@
                     </button>
                 }
             </div>
-            <hr class="my-3" />
         }
 
         <div class="d-grid gap-2">
-            <button class="btn btn-ss-primary btn-lg" @onclick="RegisterAsync">
-                <i class="bi bi-plus-circle me-2"></i>Create New User
+            <button class="btn btn-outline-secondary btn-lg" @onclick="RegisterLocalAsync">
+                <i class="bi bi-plus-circle me-2"></i>Create Local User
             </button>
         </div>
     </div>
@@ -65,7 +74,7 @@
         NavManager.NavigateTo("/", forceLoad: true);
     }
 
-    private void RegisterAsync()
+    private void RegisterLocalAsync()
     {
         Preferences.Set(AuthenticatedPreferenceKey, true);
         Preferences.Set("is_onboarded", false);

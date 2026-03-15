@@ -9,9 +9,11 @@ namespace SentenceStudio.Services;
 
 /// <summary>
 /// Delegating handler that attaches a Bearer token to outgoing requests.
-/// Attempts token acquisition unconditionally. If it returns null, the
-/// request proceeds without an Authorization header so the server's
-/// DevAuthHandler handles unauthenticated requests during development.
+/// For Entra ID, uses configured scopes. For Identity auth (no scopes configured),
+/// requests the token with an empty scope array — IdentityAuthService returns the
+/// stored JWT regardless of scopes.
+/// If token acquisition returns null, the request proceeds unauthenticated so the
+/// server's DevAuthHandler can handle it during development.
 /// </summary>
 public class AuthenticatedHttpMessageHandler : DelegatingHandler
 {
@@ -34,9 +36,6 @@ public class AuthenticatedHttpMessageHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (_defaultScopes.Length == 0)
-            return await base.SendAsync(request, cancellationToken);
-
         try
         {
             var token = await _authService.GetAccessTokenAsync(_defaultScopes);

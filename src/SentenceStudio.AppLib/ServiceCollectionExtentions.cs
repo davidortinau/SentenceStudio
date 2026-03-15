@@ -71,7 +71,19 @@ public static class ServiceCollectionExtentions
         }
         else
         {
-            services.AddSingleton<IAuthService, DevAuthService>();
+            services.AddSingleton<IAuthService, IdentityAuthService>();
+        }
+
+        // Register a named HttpClient for auth endpoints (login, register, refresh).
+        // Uses the same API base URL as other clients but without the auth handler
+        // to avoid a circular dependency (auth client cannot require auth).
+        var apiBaseUrl = configuration.GetValue<string>("ApiBaseUrl");
+        if (!string.IsNullOrEmpty(apiBaseUrl))
+        {
+            services.AddHttpClient("AuthClient", client =>
+            {
+                client.BaseAddress = new Uri(apiBaseUrl);
+            });
         }
 
         services.AddTransient<AuthenticatedHttpMessageHandler>();

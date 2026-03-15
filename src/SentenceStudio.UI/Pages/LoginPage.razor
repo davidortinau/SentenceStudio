@@ -1,0 +1,111 @@
+@page "/auth/login"
+
+<PageHeader Title="Sign In" />
+
+<div class="container" style="max-width: 480px;">
+    <div class="card card-ss p-4 mt-4">
+        <h1 class="ss-title1 mb-2">Sign In</h1>
+        <p class="ss-body2 text-secondary-ss mb-4">
+            Enter your email and password to continue.
+        </p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger mb-3" role="alert">
+                @errorMessage
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
+            <input type="email" id="email" class="form-control form-control-ss"
+                   @bind="email" placeholder="you@example.com" disabled="@isBusy" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
+            <input type="password" id="password" class="form-control form-control-ss"
+                   @bind="password" placeholder="Password" disabled="@isBusy" />
+        </div>
+
+        <div class="d-grid gap-2 mb-3">
+            <button class="btn btn-ss-primary btn-lg" @onclick="HandleLogin" disabled="@(!CanSubmit)">
+                @if (isBusy)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Signing in...</span>
+                }
+                else
+                {
+                    <span>Sign In</span>
+                }
+            </button>
+        </div>
+
+        <div class="text-center">
+            <p class="ss-body2 text-secondary-ss">
+                Don't have an account?
+                <a href="/auth/register" class="text-primary-ss">Register</a>
+            </p>
+            <p class="ss-caption1">
+                <a href="/auth" class="text-secondary-ss">Back to user selection</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IAuthService AuthService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ILogger<LoginPage> Logger { get; set; } = default!;
+
+    private string email = "";
+    private string password = "";
+    private string? errorMessage;
+    private bool isBusy;
+
+    private bool CanSubmit => !isBusy
+        && !string.IsNullOrWhiteSpace(email)
+        && !string.IsNullOrWhiteSpace(password);
+
+    private async Task HandleLogin()
+    {
+        if (!CanSubmit) return;
+
+        isBusy = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AuthService.SignInAsync(email.Trim(), password);
+
+            if (result is not null)
+            {
+                Logger.LogInformation("Signed in as {User}", result.UserName);
+
+                Preferences.Set("app_is_authenticated", true);
+                NavManager.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                errorMessage = "Invalid email or password. Please try again.";
+            }
+        }
+        catch (NotSupportedException)
+        {
+            errorMessage = "Email/password login is not available with the current authentication configuration.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Login failed");
+            errorMessage = "An unexpected error occurred. Please try again.";
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+}

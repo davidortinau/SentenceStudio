@@ -1,0 +1,149 @@
+@page "/auth/register"
+
+<PageHeader Title="Create Account" />
+
+<div class="container" style="max-width: 480px;">
+    <div class="card card-ss p-4 mt-4">
+        <h1 class="ss-title1 mb-2">Create Account</h1>
+        <p class="ss-body2 text-secondary-ss mb-4">
+            Register to start your language learning journey.
+        </p>
+
+        @if (registrationComplete)
+        {
+            <div class="text-center py-4">
+                <i class="bi bi-envelope-check" style="font-size: 3rem; color: var(--bs-success);"></i>
+                <h2 class="ss-title2 mt-3 mb-2">Check your email</h2>
+                <p class="ss-body2 text-secondary-ss mb-4">
+                    We sent a confirmation link to <strong>@email</strong>.
+                    Please verify your email address, then sign in.
+                </p>
+                <a href="/auth/login" class="btn btn-ss-primary btn-lg">Go to Sign In</a>
+            </div>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger mb-3" role="alert">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss" for="displayName">Display Name</label>
+                <input type="text" id="displayName" class="form-control form-control-ss"
+                       @bind="displayName" placeholder="Your name" disabled="@isBusy" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
+                <input type="email" id="email" class="form-control form-control-ss"
+                       @bind="email" placeholder="you@example.com" disabled="@isBusy" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
+                <input type="password" id="password" class="form-control form-control-ss"
+                       @bind="password" placeholder="Password" disabled="@isBusy" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss" for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" class="form-control form-control-ss"
+                       @bind="confirmPassword" placeholder="Confirm password" disabled="@isBusy" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(confirmPassword) && password != confirmPassword)
+            {
+                <p class="text-danger ss-caption1 mb-3">Passwords do not match.</p>
+            }
+
+            <div class="d-grid gap-2 mb-3">
+                <button class="btn btn-ss-primary btn-lg" @onclick="HandleRegister" disabled="@(!CanSubmit)">
+                    @if (isBusy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Creating account...</span>
+                    }
+                    else
+                    {
+                        <span>Create Account</span>
+                    }
+                </button>
+            </div>
+
+            <div class="text-center">
+                <p class="ss-body2 text-secondary-ss">
+                    Already have an account?
+                    <a href="/auth/login" class="text-primary-ss">Sign In</a>
+                </p>
+                <p class="ss-caption1">
+                    <a href="/auth" class="text-secondary-ss">Back to user selection</a>
+                </p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] private IAuthService AuthService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private ILogger<RegisterPage> Logger { get; set; } = default!;
+
+    private string displayName = "";
+    private string email = "";
+    private string password = "";
+    private string confirmPassword = "";
+    private string? errorMessage;
+    private bool isBusy;
+    private bool registrationComplete;
+
+    private bool CanSubmit => !isBusy
+        && !string.IsNullOrWhiteSpace(displayName)
+        && !string.IsNullOrWhiteSpace(email)
+        && !string.IsNullOrWhiteSpace(password)
+        && password == confirmPassword;
+
+    private async Task HandleRegister()
+    {
+        if (!CanSubmit) return;
+
+        isBusy = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(email.Trim(), password, displayName.Trim());
+
+            if (result is not null)
+            {
+                // API returned tokens directly (auto-login after registration)
+                Logger.LogInformation("Registered and signed in as {User}", result.UserName);
+                Preferences.Set("app_is_authenticated", true);
+                NavManager.NavigateTo("/onboarding", forceLoad: true);
+            }
+            else
+            {
+                // Registration succeeded but email confirmation required
+                registrationComplete = true;
+            }
+        }
+        catch (NotSupportedException)
+        {
+            errorMessage = "Registration is not available with the current authentication configuration.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Registration failed");
+            errorMessage = "Registration failed. Please check your information and try again.";
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+}

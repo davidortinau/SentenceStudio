@@ -57,6 +57,12 @@ public class MsalAuthService : IAuthService
         }
     }
 
+    public Task<AuthResult?> SignInAsync(string email, string password)
+        => throw new NotSupportedException("Email/password sign-in is not supported with Entra ID. Use interactive sign-in.");
+
+    public Task<AuthResult?> RegisterAsync(string email, string password, string displayName)
+        => throw new NotSupportedException("Registration is not supported with Entra ID.");
+
     public async Task SignOutAsync()
     {
         try
