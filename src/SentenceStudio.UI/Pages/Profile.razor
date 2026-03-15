@@ -254,9 +254,10 @@ else
         {
             try
             {
+                var profileId = Preferences.Get("active_profile_id", string.Empty);
                 AppState.CurrentUserProfile = null;
                 // Redirect to HTTP endpoint that can properly sign out and delete
-                NavManager.NavigateTo("/account-action/DeleteAccount", forceLoad: true);
+                NavManager.NavigateTo($"/account-action/DeleteAccount?profileId={Uri.EscapeDataString(profileId)}", forceLoad: true);
             }
             catch (Exception ex)
             {

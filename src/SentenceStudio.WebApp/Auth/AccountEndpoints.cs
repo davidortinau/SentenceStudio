@@ -194,6 +194,7 @@ public static class AccountEndpoints
 
         group.MapGet("/DeleteAccount", async (
             HttpContext context,
+            [FromQuery] string? profileId,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             ApplicationDbContext db,
@@ -216,18 +217,14 @@ public static class AccountEndpoints
                 await signInManager.SignOutAsync();
                 await userManager.DeleteAsync(user);
             }
-            else
+            else if (!string.IsNullOrEmpty(profileId))
             {
-                // No Identity user — delete active profile from preferences
-                var activeProfileId = preferences.Get("active_profile_id", string.Empty);
-                if (!string.IsNullOrEmpty(activeProfileId))
+                // No Identity user — delete profile by explicit ID
+                var profile = await db.UserProfiles.FindAsync(profileId);
+                if (profile is not null)
                 {
-                    var profile = await db.UserProfiles.FindAsync(activeProfileId);
-                    if (profile is not null)
-                    {
-                        db.UserProfiles.Remove(profile);
-                        await db.SaveChangesAsync();
-                    }
+                    db.UserProfiles.Remove(profile);
+                    await db.SaveChangesAsync();
                 }
             }
 
