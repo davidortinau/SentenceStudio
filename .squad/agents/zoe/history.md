@@ -18,6 +18,7 @@
 - Build with TFM: `dotnet build -f net10.0-maccatalyst`
 - E2E testing is mandatory for every feature/fix
 - Activities follow pattern: `activity-page-wrapper` → `PageHeader` → `activity-content` → `activity-input-bar`
+- CRUD feedback pattern: Success/errors use toasts (auto-dismiss), destructive ops require Bootstrap modal confirmation BEFORE + toast AFTER
 
 ## Work Sessions
 
@@ -33,4 +34,26 @@
 - Issues propagated to respective agent history files
 
 See `.squad/decisions.md` for full decision record.
+
+### 2026-03-14 — CRUD Feedback Audit & Standard
+
+**Status:** Complete (PROPOSED decision)  
+**Location:** `.squad/decisions/inbox/zoe-crud-feedback-standard.md`  
+
+Audited all CRUD pages (Resources, Skills, Vocabulary, Minimal Pairs, Profile, Settings) for user feedback consistency. Found mostly good patterns with toasts, but inconsistencies exist:
+
+**Gaps Found:**
+1. **JS confirm dialogs** in 5 pages (ResourceEdit, SkillEdit, VocabularyWordEdit, MinimalPairs, Profile) — should be Bootstrap modals for accessibility
+2. **Profile.razor** has silent load errors, uses modal for save errors (should be toast), missing delete success feedback
+
+**Decision Written:**
+- Success operations → Toast (auto-dismiss, 3s)
+- Errors → Toast (longer, 5s)
+- Warnings → Toast (medium, 4s)
+- Destructive ops → Bootstrap modal confirmation BEFORE + Toast AFTER
+- Information → Toast (short, 3s)
+
+**Code patterns documented** for Kaylee: save operation, Bootstrap delete modal (markup + C#), load/list with errors.
+
+**Next:** Captain approval, then Kaylee implements fixes.
 
