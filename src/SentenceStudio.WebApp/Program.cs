@@ -98,6 +98,7 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 builder.Services.AddDataServices(databasePath);
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
+builder.Services.AddAuthServices(builder.Configuration);
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
 
