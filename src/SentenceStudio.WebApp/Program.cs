@@ -1,6 +1,7 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Plugin.Maui.Audio;
@@ -138,6 +139,13 @@ builder.Services.AddHsts(options =>
 });
 
 var app = builder.Build();
+
+// Apply EF Core migrations at startup (once, not per-request)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 if (!app.Environment.IsDevelopment())
 {
