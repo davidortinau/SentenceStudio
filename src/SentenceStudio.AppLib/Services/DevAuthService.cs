@@ -1,4 +1,4 @@
-using Microsoft.Identity.Client;
+using System.Threading.Tasks;
 
 namespace SentenceStudio.Services;
 
@@ -12,7 +12,7 @@ public class DevAuthService : IAuthService
     public bool IsSignedIn => true;
     public string? UserName => "dev@localhost";
 
-    public Task<AuthenticationResult?> SignInAsync() => Task.FromResult<AuthenticationResult?>(null);
+    public Task<AuthResult?> SignInAsync() => Task.FromResult<AuthResult?>(null);
     public Task SignOutAsync() => Task.CompletedTask;
     public Task<string?> GetAccessTokenAsync(string[] scopes) => Task.FromResult<string?>(null);
 }
