@@ -1,5 +1,9 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
@@ -19,15 +23,18 @@ public class ServerAuthService : IAuthService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<ServerAuthService> _logger;
 
     public ServerAuthService(
         IServiceScopeFactory scopeFactory,
         IHttpContextAccessor httpContextAccessor,
+        IConfiguration configuration,
         ILogger<ServerAuthService> logger)
     {
         _scopeFactory = scopeFactory;
         _httpContextAccessor = httpContextAccessor;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -150,6 +157,40 @@ public class ServerAuthService : IAuthService
         return result.Succeeded;
     }
 
-    public Task<string?> GetAccessTokenAsync(string[] scopes) =>
-        Task.FromResult<string?>("cookie-auth");
+    public Task<string?> GetAccessTokenAsync(string[] scopes)
+    {
+        var signingKey = _configuration["Jwt:SigningKey"];
+        if (string.IsNullOrWhiteSpace(signingKey))
+        {
+            _logger.LogDebug("No JWT signing key configured; skipping token generation");
+            return Task.FromResult<string?>(null);
+        }
+
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return Task.FromResult<string?>(null);
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown"),
+            new(ClaimTypes.Name, user.Identity.Name ?? ""),
+            new(ClaimTypes.Email, user.FindFirst(ClaimTypes.Email)?.Value ?? ""),
+            new("user_id", user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown"),
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"] ?? "SentenceStudio",
+            audience: _configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds);
+
+        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+        return Task.FromResult<string?>(jwt);
+    }
 }

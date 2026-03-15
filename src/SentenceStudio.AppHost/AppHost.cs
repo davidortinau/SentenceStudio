@@ -5,6 +5,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 var openaikey = builder.AddParameter("openaikey", secret: true);
 var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
+var jwtkey = builder.AddParameter("jwtkey", secret: true);
 
 var postgres = builder.AddPostgres("db")
     .AddDatabase("sentencestudio");
@@ -17,7 +18,8 @@ var storage = builder.AddAzureStorage("storage")
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey);
+    .WithEnvironment("ElevenLabsKey", elevenlabskey)
+    .WithEnvironment("Jwt__SigningKey", jwtkey);
     // Email (production only -- dev mode uses ConsoleEmailSender automatically):
     //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
     //   .WithEnvironment("Email__SmtpPort", "587")
@@ -30,6 +32,7 @@ var web = builder.AddProject<SentenceStudio_Web>("web");
 
 var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
+    .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
     .WithReference(web)
     .WithReference(redis);
