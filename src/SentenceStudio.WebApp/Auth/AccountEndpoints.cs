@@ -92,6 +92,32 @@ public static class AccountEndpoints
         })
         .DisableAntiforgery();
 
+        // One-time auto-sign-in via token (used by Blazor Server interactive pages
+        // that can't set cookies directly over WebSocket)
+        group.MapGet("/AutoSignIn", async (
+            [FromQuery] string userId,
+            [FromQuery] string token,
+            [FromQuery] string? returnUrl,
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager) =>
+        {
+            var user = await userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                return Results.Redirect("/Account/Login?error=InvalidLink");
+            }
+
+            var valid = await userManager.VerifyUserTokenAsync(
+                user, TokenOptions.DefaultProvider, "AutoSignIn", token);
+            if (!valid)
+            {
+                return Results.Redirect("/Account/Login?error=InvalidLink");
+            }
+
+            await signInManager.SignInAsync(user, isPersistent: true);
+            return Results.LocalRedirect(returnUrl ?? "/");
+        });
+
         group.MapGet("/ConfirmEmail", async (
             [FromQuery] string userId,
             [FromQuery] string code,

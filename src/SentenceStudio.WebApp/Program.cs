@@ -49,6 +49,8 @@ if (!Directory.Exists(appLibRawAssets))
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddHttpContextAccessor();
+
 // Identity cookie auth — ApplicationDbContext is registered below via AddDataServices.
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -90,8 +92,8 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 builder.Services.AddDataServices(databasePath);
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
-// Register a no-op IAuthService so AppLib's HttpClient pipeline resolves.
-builder.Services.AddSingleton<IAuthService, DevAuthService>();
+// Server-side IAuthService using Identity directly (UserManager + SignInManager)
+builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
