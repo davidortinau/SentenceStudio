@@ -31,6 +31,9 @@ public static class SentenceStudioAppBuilder
 
         RegisterServices(builder.Services);
 
+        // Auth services (MSAL or DevAuth based on configuration)
+        builder.Services.AddAuthServices(builder.Configuration);
+
         var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
             ? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
             : builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
