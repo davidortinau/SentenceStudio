@@ -53,7 +53,9 @@ public static class SentenceStudioAppBuilder
         // MauiServiceDefaults → AddServiceDiscovery(). When launched from Aspire,
         // env vars (services__api__https__0 etc.) override the config. When launched
         // manually, the Services section in appsettings.json provides fallback URLs.
-        var syncServerUri = new Uri("https+http://web");
+        // CoreSync server is hosted on the API (not the separate 'web' service) so
+        // mobile clients can reach it through the existing dev tunnel / service discovery.
+        var syncServerUri = new Uri("https+http://api");
         builder.Services.AddSyncServices(dbPath, syncServerUri);
 
         var apiBaseUri = new Uri("https+http://api");

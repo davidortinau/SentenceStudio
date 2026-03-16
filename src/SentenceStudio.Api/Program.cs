@@ -2,6 +2,9 @@ using System.Security.Claims;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using CoreSync;
+using CoreSync.Http.Server;
+using CoreSync.Sqlite;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
@@ -131,6 +134,27 @@ Directory.CreateDirectory(serverDbFolder);
 var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
 builder.Services.AddDataServices(databasePath);
 
+// CoreSync server — allows mobile clients to sync through the API endpoint
+// (mobile devices can't reach the separate 'web' service directly)
+builder.Services.AddCoreSyncHttpServer();
+builder.Services.AddSingleton<ISyncProvider>(sp =>
+{
+    var connectionString = $"Data Source={databasePath}";
+    var configurationBuilder = new SqliteSyncConfigurationBuilder(connectionString)
+        .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<VocabularyWord>("VocabularyWord", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
+        .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
+    return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
+});
+
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
@@ -153,6 +177,10 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 
 var app = builder.Build();
 
+// Apply CoreSync provisioning (creates change-tracking tables if missing)
+var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
+await syncProvider.ApplyProvisionAsync();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -174,6 +202,7 @@ app.UseSecurityHeaders();
 app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCoreSyncHttpServer();
 app.UseMiddleware<TenantContextMiddleware>();
 
 // Auth endpoints (anonymous — they handle login/register)
