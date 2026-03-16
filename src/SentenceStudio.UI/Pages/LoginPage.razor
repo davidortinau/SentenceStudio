@@ -1,17 +1,16 @@
 @page "/auth/login"
 @attribute [AllowAnonymous]
 
-<PageHeader Title="Sign In" ShowHamburger="false" />
-
-<div class="container" style="max-width: 480px;">
-    <div class="text-center my-3">
-        <h2 class="ss-title1">SentenceStudio</h2>
-    </div>
-    <div class="card card-ss p-4 mt-2">
-        <h1 class="ss-title1 mb-2">Sign In</h1>
-        <p class="ss-body2 text-secondary-ss mb-4">
-            Enter your email and password to continue.
-        </p>
+<div class="d-flex vh-100 align-items-center justify-content-center">
+    <div class="w-100" style="max-width: 440px; padding: 1rem;">
+        <div class="text-center mb-4">
+            <h1 class="text-primary-ss fs-3 fw-bold">
+                <i class="bi bi-translate me-2"></i>SentenceStudio
+            </h1>
+        </div>
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+        <h2 class="card-title text-center mb-4">Sign In</h2>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -21,15 +20,15 @@
         }
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
-            <input type="email" id="email" class="form-control form-control-ss"
+            <label class="form-label" for="email">Email</label>
+            <input type="email" id="email" class="form-control"
                    @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
+            <label class="form-label" for="password">Password</label>
             <div class="input-group">
-                <input type="@(showPassword ? "text" : "password")" id="password" class="form-control form-control-ss"
+                <input type="@(showPassword ? "text" : "password")" id="password" class="form-control"
                        @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
                 <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
                     <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
@@ -39,13 +38,13 @@
 
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="rememberMe" @bind="rememberMe" disabled="@isBusy" />
-            <label class="form-check-label ss-body2 text-secondary-ss" for="rememberMe">
+            <label class="form-check-label" for="rememberMe">
                 Remember me
             </label>
         </div>
 
         <div class="d-grid gap-2 mb-3">
-            <button class="btn btn-ss-primary btn-lg" @onclick="HandleLogin" disabled="@(!CanSubmit)">
+            <button class="btn btn-primary w-100" @onclick="HandleLogin" disabled="@(!CanSubmit)">
                 @if (isBusy)
                 {
                     <span class="spinner-border spinner-border-sm me-2"></span>
@@ -58,17 +57,17 @@
             </button>
         </div>
 
+        <hr />
         <div class="text-center">
-            <p class="ss-body2 text-secondary-ss mb-2">
-                <a href="/auth/forgot-password" class="text-secondary-ss">Forgot your password?</a>
+            <p class="mb-2">
+                <a href="/auth/forgot-password">Forgot your password?</a>
             </p>
-            <p class="ss-body2 text-secondary-ss">
+            <p>
                 Don't have an account?
-                <a href="/auth/register" class="text-primary-ss">Create one</a>
+                <a href="/auth/register">Create one</a>
             </p>
-            <p class="ss-caption1">
-                <a href="/auth" class="text-secondary-ss">Back to home</a>
-            </p>
+        </div>
+            </div>
         </div>
     </div>
 </div>

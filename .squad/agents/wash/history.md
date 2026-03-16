@@ -148,4 +148,7 @@ Implemented JWT Bearer token authentication for the API:
 - Workaround: Created nested private class `PasswordResetLogger` for logger category
 - Development check: `env.IsDevelopment()` ensures production safety
 - Format: `--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---`
+- WebApp Login/Register pages use plain HTML `<form method="post">` (NOT Blazor interactive) -- JS-based interactivity required for things like password toggle
+- AuthLayout is minimal (logo + @Body) -- no nav links
+- AppRoutes.razor NotAuthorized uses RedirectToLogin component with `forceLoad: true` to redirect unauthenticated users to /Account/Login
 

@@ -1,14 +1,16 @@
 @page "/auth/register"
 @attribute [AllowAnonymous]
 
-<PageHeader Title="Create Account" ShowHamburger="false" />
-
-<div class="container" style="max-width: 480px;">
-    <div class="card card-ss p-4 mt-4">
-        <h1 class="ss-title1 mb-2">Create Account</h1>
-        <p class="ss-body2 text-secondary-ss mb-4">
-            Register to start your language learning journey.
-        </p>
+<div class="d-flex vh-100 align-items-center justify-content-center">
+    <div class="w-100" style="max-width: 440px; padding: 1rem;">
+        <div class="text-center mb-4">
+            <h1 class="text-primary-ss fs-3 fw-bold">
+                <i class="bi bi-translate me-2"></i>SentenceStudio
+            </h1>
+        </div>
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+        <h2 class="card-title text-center mb-4">Create Account</h2>
 
         @if (registrationComplete)
         {
@@ -19,7 +21,7 @@
                     We sent a confirmation link to <strong>@email</strong>.
                     Please verify your email address, then sign in.
                 </p>
-                <a href="/auth/login" class="btn btn-ss-primary btn-lg">Go to Sign In</a>
+                <a href="/auth/login" class="btn btn-primary w-100">Go to Sign In</a>
             </div>
         }
         else
@@ -32,21 +34,21 @@
             }
 
             <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss" for="displayName">Display Name</label>
-                <input type="text" id="displayName" class="form-control form-control-ss"
+                <label class="form-label" for="displayName">Display Name</label>
+                <input type="text" id="displayName" class="form-control"
                        @bind="displayName" @bind:event="oninput" placeholder="Your name" disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
-                <input type="email" id="email" class="form-control form-control-ss"
+                <label class="form-label" for="email">Email</label>
+                <input type="email" id="email" class="form-control"
                        @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
+                <label class="form-label" for="password">Password</label>
                 <div class="input-group">
-                    <input type="@(showPassword ? "text" : "password")" id="password" class="form-control form-control-ss"
+                    <input type="@(showPassword ? "text" : "password")" id="password" class="form-control"
                            @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
                     <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
                         <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
@@ -72,9 +74,9 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss" for="confirmPassword">Confirm Password</label>
+                <label class="form-label" for="confirmPassword">Confirm Password</label>
                 <div class="input-group">
-                    <input type="@(showConfirmPassword ? "text" : "password")" id="confirmPassword" class="form-control form-control-ss"
+                    <input type="@(showConfirmPassword ? "text" : "password")" id="confirmPassword" class="form-control"
                            @bind="confirmPassword" @bind:event="oninput" placeholder="Confirm password" disabled="@isBusy" />
                     <button class="btn btn-outline-secondary" type="button" @onclick="() => showConfirmPassword = !showConfirmPassword" disabled="@isBusy">
                         <i class="bi @(showConfirmPassword ? "bi-eye-slash" : "bi-eye")"></i>
@@ -90,7 +92,7 @@
             }
 
             <div class="d-grid gap-2 mb-3">
-                <button class="btn btn-ss-primary btn-lg" @onclick="HandleRegister" disabled="@(!CanSubmit)">
+                <button class="btn btn-primary w-100" @onclick="HandleRegister" disabled="@(!CanSubmit)">
                     @if (isBusy)
                     {
                         <span class="spinner-border spinner-border-sm me-2"></span>
@@ -103,16 +105,16 @@
                 </button>
             </div>
 
+            <hr />
             <div class="text-center">
-                <p class="ss-body2 text-secondary-ss">
+                <p>
                     Already have an account?
-                    <a href="/auth/login" class="text-primary-ss">Sign In</a>
-                </p>
-                <p class="ss-caption1">
-                    <a href="/auth" class="text-secondary-ss">Back to user selection</a>
+                    <a href="/auth/login">Sign In</a>
                 </p>
             </div>
         }
+            </div>
+        </div>
     </div>
 </div>
 

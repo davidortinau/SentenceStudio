@@ -29,8 +29,14 @@
 
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password"
-                       required autocomplete="current-password" />
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" name="password"
+                           required autocomplete="current-password" />
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="var p=document.getElementById('password');var i=this.querySelector('i');if(p.type==='password'){p.type='text';i.className='bi bi-eye-slash';}else{p.type='password';i.className='bi bi-eye';}">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="mb-3 form-check">

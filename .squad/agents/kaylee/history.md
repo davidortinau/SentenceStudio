@@ -501,3 +501,21 @@ Fixed 4 auth page UX issues fer the Captain:
 - Remember me stores email in preferences when checked (`remember_me`, `remember_email` keys)
 - Forgot password page doesn't exist yet but link is there fer future implementation
 
+
+### Auth Pages — Web Parity Alignment (Surgical Edits)
+**Date:** $(date +%Y-%m-%d)
+**Files:** LoginPage.razor, RegisterPage.razor, Routes.razor, Shared/RedirectToLogin.razor (new)
+
+**What Changed:**
+- Removed PageHeader from LoginPage and RegisterPage — auth pages are self-contained now
+- Replaced `container` wrapper with `d-flex vh-100 align-items-center justify-content-center` + `w-100 max-width:440px` to match web's AuthLayout centering
+- Added SentenceStudio branding block with bi-translate icon and text-primary-ss fs-3 fw-bold above the card on both pages
+- Changed card from `card-ss p-4` to `card shadow-sm border-0` with inner `card-body p-4` (matching web)
+- Centered headings with `card-title text-center mb-4`
+- Stripped custom form classes: form-label is now plain, form-control drops form-control-ss, buttons use btn-primary w-100 instead of btn-ss-primary btn-lg
+- Removed instruction paragraphs, "Back to home/user selection" links
+- Added `<hr />` separator before footer links
+- Simplified link classes to plain `<a>` tags without color overrides
+- Routes.razor NotAuthorized now uses `<RedirectToLogin />` component instead of inline dead-end card
+- Created `Shared/RedirectToLogin.razor` — simple NavigationManager redirect to /auth/login
+
