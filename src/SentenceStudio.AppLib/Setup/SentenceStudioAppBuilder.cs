@@ -57,7 +57,7 @@ public static class SentenceStudioAppBuilder
 
         var apiBaseUrl = Environment.GetEnvironmentVariable("services__api__https__0")
             ?? builder.Configuration.GetValue<string>("ApiBaseUrl")
-            ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5001";
+            ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5081";
         var apiBaseUri = new Uri(apiBaseUrl);
 
         // Auth services — pass resolved API URI so AuthClient always has a BaseAddress
