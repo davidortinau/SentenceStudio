@@ -26,4 +26,5 @@ public sealed record AuthResponse(
     string Token,
     string RefreshToken,
     DateTime ExpiresAt,
-    string? UserName);
+    string? UserName,
+    string? UserProfileId);

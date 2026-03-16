@@ -37,29 +37,58 @@ public class SyncService : ISyncService
     {
         if (_isInitialized)
         {
-            _logger.LogInformation("⏭️ Database already initialized, skipping");
+            _logger.LogInformation("Database already initialized, skipping");
             return;
         }
 
         try
         {
-            _logger.LogInformation("🚀 Initializing CoreSync provider...");
+            _logger.LogInformation("Initializing CoreSync provider...");
 
-            // First: Ensure EF Core applies all migrations
+            // First: Ensure EF Core applies all migrations (server) or creates schema (mobile)
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            _logger.LogDebug("📋 Running EF Core migrations...");
+#if IOS || ANDROID || MACCATALYST
+            // On mobile, EF Core migrations are excluded from the build (they reference
+            // server-only Identity types). Use EnsureCreated for fresh databases and detect
+            // legacy schemas that need recreation.
+            _logger.LogDebug("Checking mobile database schema...");
+            var canConnect = await dbContext.Database.CanConnectAsync();
+            if (!canConnect)
+            {
+                _logger.LogInformation("Creating fresh mobile database with current schema...");
+                await dbContext.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                // Check if schema is current (UserProfileId column exists on LearningResource)
+                var cols = await dbContext.Database.SqlQueryRaw<string>(
+                    "SELECT name FROM pragma_table_info('LearningResource') WHERE name = 'UserProfileId'").ToListAsync();
+                if (cols.Count == 0)
+                {
+                    _logger.LogInformation("Legacy mobile database detected — recreating with current schema...");
+                    await dbContext.Database.EnsureDeletedAsync();
+                    await dbContext.Database.EnsureCreatedAsync();
+                }
+                else
+                {
+                    _logger.LogInformation("Mobile database schema is current");
+                }
+            }
+#else
+            _logger.LogDebug("Running EF Core migrations...");
             await dbContext.Database.MigrateAsync();
             _logger.LogInformation("EF Core database migrated");
+#endif
 
             // Then: Apply CoreSync provisioning to create sync tracking tables
-            _logger.LogDebug("📋 Applying CoreSync provisioning...");
+            _logger.LogDebug("Applying CoreSync provisioning...");
             await _localSyncProvider.ApplyProvisionAsync();
             _logger.LogInformation("CoreSync provisioning applied");
 
             _isInitialized = true;
-            _logger.LogInformation("✅ SyncService initialization complete");
+            _logger.LogInformation("SyncService initialization complete");
         }
         catch (Exception ex)
         {

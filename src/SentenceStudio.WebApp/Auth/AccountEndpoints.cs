@@ -25,7 +25,8 @@ public static class AccountEndpoints
             [FromForm] string? returnUrl,
             SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
-            IPreferencesService preferences) =>
+            IPreferencesService preferences,
+            HttpContext httpContext) =>
         {
             returnUrl ??= "/";
 
@@ -35,9 +36,31 @@ public static class AccountEndpoints
             if (result.Succeeded)
             {
                 var user = await userManager.FindByEmailAsync(email);
-                if (user?.UserProfileId is not null)
+                if (user is not null)
                 {
-                    preferences.Set("active_profile_id", user.UserProfileId);
+                    // Auto-create profile if missing (accounts from before registration fix)
+                    if (string.IsNullOrEmpty(user.UserProfileId))
+                    {
+                        var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                        var profile = new UserProfile
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Name = user.DisplayName ?? user.Email ?? email,
+                            Email = user.Email ?? email,
+                            NativeLanguage = "English",
+                            TargetLanguage = "Korean",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        db.UserProfiles.Add(profile);
+                        await db.SaveChangesAsync();
+                        user.UserProfileId = profile.Id;
+                        await userManager.UpdateAsync(user);
+                    }
+
+                    if (user.UserProfileId is not null)
+                    {
+                        preferences.Set("active_profile_id", user.UserProfileId);
+                    }
                 }
                 return Results.LocalRedirect(returnUrl);
             }

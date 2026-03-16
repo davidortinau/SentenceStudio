@@ -9,7 +9,7 @@ namespace SentenceStudio.Api.Auth;
 
 public static class AuthEndpoints
 {
-    // Logger category for password reset logging
+    private class AuthLog { }
     private class PasswordResetLogger { }
 
     public static WebApplication MapAuthEndpoints(this WebApplication app)
@@ -35,7 +35,7 @@ public static class AuthEndpoints
         IWebHostEnvironment env,
         JwtTokenService tokenService,
         HttpContext httpContext,
-        ILogger<AuthEndpoints> logger)
+        ILogger<AuthLog> logger)
     {
         var user = new ApplicationUser
         {
@@ -101,7 +101,8 @@ public static class AuthEndpoints
                 Token: jwt,
                 RefreshToken: refreshTokenValue,
                 ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
-                UserName: user.DisplayName ?? user.UserName));
+                UserName: user.DisplayName ?? user.UserName,
+                UserProfileId: user.UserProfileId));
         }
 
         // Production: send confirmation email
@@ -121,7 +122,7 @@ public static class AuthEndpoints
         ApplicationDbContext db,
         JwtTokenService tokenService,
         IWebHostEnvironment env,
-        ILogger<AuthEndpoints> logger,
+        ILogger<AuthLog> logger,
         HttpContext httpContext)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
@@ -157,6 +158,29 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
+        // Auto-create a UserProfile if one doesn't exist (accounts created before
+        // the registration flow was fixed may have NULL UserProfileId).
+        if (string.IsNullOrEmpty(user.UserProfileId))
+        {
+            var profile = new UserProfile
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = user.DisplayName ?? user.Email ?? request.Email,
+                Email = user.Email ?? request.Email,
+                NativeLanguage = "English",
+                TargetLanguage = "Korean",
+                CreatedAt = DateTime.UtcNow
+            };
+            db.UserProfiles.Add(profile);
+            await db.SaveChangesAsync();
+
+            user.UserProfileId = profile.Id;
+            await userManager.UpdateAsync(user);
+
+            logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
+                profile.Id, request.Email);
+        }
+
         var jwt = tokenService.GenerateToken(user);
         var refreshTokenValue = JwtTokenService.GenerateRefreshToken();
         var expiryMinutes = tokenService.GetExpiryMinutes();
@@ -176,7 +200,8 @@ public static class AuthEndpoints
             Token: jwt,
             RefreshToken: refreshTokenValue,
             ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
-            UserName: user.DisplayName ?? user.UserName));
+            UserName: user.DisplayName ?? user.UserName,
+            UserProfileId: user.UserProfileId));
     }
 
     private static async Task<IResult> Refresh(
@@ -225,7 +250,8 @@ public static class AuthEndpoints
             Token: jwt,
             RefreshToken: newRefreshTokenValue,
             ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
-            UserName: user.DisplayName ?? user.UserName));
+            UserName: user.DisplayName ?? user.UserName,
+            UserProfileId: user.UserProfileId));
     }
 
     private static async Task<IResult> ConfirmEmail(

@@ -19,6 +19,7 @@ public sealed class IdentityAuthService : IAuthService
 
     private readonly HttpClient _http;
     private readonly ISecureStorageService _secureStorage;
+    private readonly IPreferencesService _preferences;
     private readonly ILogger<IdentityAuthService> _logger;
 
     private string? _cachedToken;
@@ -28,10 +29,12 @@ public sealed class IdentityAuthService : IAuthService
     public IdentityAuthService(
         IHttpClientFactory httpClientFactory,
         ISecureStorageService secureStorage,
+        IPreferencesService preferences,
         ILogger<IdentityAuthService> logger)
     {
         _http = httpClientFactory.CreateClient("AuthClient");
         _secureStorage = secureStorage;
+        _preferences = preferences;
         _logger = logger;
     }
 
@@ -155,8 +158,9 @@ public sealed class IdentityAuthService : IAuthService
         _secureStorage.Remove(JwtKey);
         _secureStorage.Remove(RefreshKey);
         _secureStorage.Remove(ExpiresKey);
+        _preferences.Remove("active_profile_id");
 
-        _logger.LogInformation("Signed out, tokens cleared");
+        _logger.LogInformation("Signed out, tokens and profile cleared");
     }
 
     public async Task<bool> DeleteAccountAsync()
@@ -239,6 +243,17 @@ public sealed class IdentityAuthService : IAuthService
         await _secureStorage.SetAsync(RefreshKey, response.RefreshToken);
         await _secureStorage.SetAsync(ExpiresKey, response.ExpiresAt.ToString("O"));
 
+        // Set the active profile so all repositories filter by the correct user
+        if (!string.IsNullOrEmpty(response.UserProfileId))
+        {
+            _preferences.Set("active_profile_id", response.UserProfileId);
+            _logger.LogInformation("Active profile set to {ProfileId}", response.UserProfileId);
+        }
+        else
+        {
+            _logger.LogWarning("Login response missing UserProfileId — data queries may return empty");
+        }
+
         _logger.LogInformation("Tokens stored, expires at {Expires}", _cachedExpires);
     }
 
@@ -274,5 +289,6 @@ public sealed class IdentityAuthService : IAuthService
         string Token,
         string RefreshToken,
         DateTime ExpiresAt,
-        string? UserName);
+        string? UserName,
+        string? UserProfileId);
 }
