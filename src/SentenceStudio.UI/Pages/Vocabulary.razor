@@ -50,8 +50,8 @@ else
 
     @if (isBulkEditMode)
     {
-        <div class="d-flex gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
-            <span class="fw-semibold me-2">@selectedWordIds.Count selected</span>
+        <div class="d-flex flex-wrap gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
+            <span class="fw-semibold">@selectedWordIds.Count selected</span>
             <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
                 <option value="">Set Status...</option>
                 <option value="Unknown">Unknown</option>
@@ -66,8 +66,10 @@ else
                 Save
             </button>
             <button class="btn btn-sm btn-outline-secondary" @onclick="ExitBulkEditMode" disabled="@isBulkSaving">Cancel</button>
-            <button class="btn btn-sm btn-outline-secondary ms-auto" @onclick="SelectAll">Select All</button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">Select None</button>
+            <div class="w-100 d-flex gap-2 d-md-inline-flex w-md-auto">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">Select None</button>
+            </div>
         </div>
     }
 

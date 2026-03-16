@@ -141,7 +141,8 @@
     </button>
 </div>
 
-@* Database Migrations *@
+#if DEBUG
+@* Database Migrations - Dev Only *@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-3">Database Migrations</h5>
 
@@ -165,6 +166,7 @@
         <p class="ss-caption1 mt-2">@statusMessage</p>
     }
 </div>
+#endif
 
 @* About *@
 <div class="card card-ss p-4">

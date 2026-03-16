@@ -999,6 +999,11 @@ h3:focus,
         min-height: 36px;
     }
 
+    /* Cloze sentence font size — prevent Korean text wrapping */
+    .ss-display {
+        font-size: 1.5rem;
+    }
+
     /* Cards: reduce padding on mobile */
     .card-ss {
         padding: 0.5rem;

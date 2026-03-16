@@ -539,3 +539,51 @@ Audited all pages in `src/SentenceStudio.WebApp/Components/Pages/` against `src/
 **Gap identified:** No shared UI `ResetPasswordPage` exists — if a MAUI user receives a password reset email, the link points to `/Account/ResetPassword` which only exists in WebApp.
 
 **Decision written to:** `.squad/decisions/inbox/kaylee-shared-ui-audit.md`
+
+### Mobile UX Wave 1 Fixes (2026-03-16)
+**Branch:** `squad/mobile-ux-fixes`  
+**Status:** Complete — All 5 issues fixed, committed, and pushed  
+
+Fixed 5 GitHub issues related to mobile user experience:
+
+**Issue #99 — CSS `--bs-spacer` undefined variable:**
+- Root cause: CSS used `calc(var(--bs-spacer) * N / 16)` but `--bs-spacer` was never defined
+- The multipliers were also wrong (120, 160, 100 instead of 12, 16, 10)
+- Fixed by replacing all calc expressions with concrete rem values:
+  - Page header margin: `1rem`
+  - Main content mobile padding: `0.75rem` (12px)
+  - Page header breakout margins: `-0.75rem` and padding: `0.75rem`
+  - Card padding on mobile: `0.5rem` (8px)
+  - Reading page negative margins: `-0.75rem`
+- These values align with existing CSS custom properties defined at lines 759-767 (--ss-layout-padding, --ss-card-padding)
+
+**Issue #100 — Resources page filter row overflow:**
+- Added `flex-wrap` to filter container
+- Search input uses `w-100 w-md-auto flex-md-grow-1` to take full width on mobile, auto width on desktop
+- Filter dropdowns now wrap gracefully on narrow screens
+
+**Issue #102 — Vocabulary page toolbar density:**
+- Stats badges now use `overflow-auto flex-nowrap` with `-webkit-overflow-scrolling: touch` for horizontal scrolling on mobile
+- Added `flex-shrink-0` to all badges and buttons to prevent squishing
+- Keeps all stats visible without overwhelming vertical space
+
+**Issue #103 — Conversation input lacks safe-area-bottom:**
+- Added `style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;"` to the input card
+- Matches the `.activity-input-bar` pattern used by other activity pages
+- Ensures input isn't obscured by iOS home indicator
+
+**Issue #110 — Dashboard excessive scroll with 12 activity cards:**
+- Added `showAllActivities` boolean field (default: false)
+- Activity cards beyond index 6 get `d-none d-md-block` class when collapsed
+- Added mobile-only "See All / Show Less" toggle button with Bootstrap icons (bi-chevron-up/down)
+- Desktop (md+) always shows all 12 cards unchanged
+- Implemented `ToggleActivitiesExpanded()` method
+
+**Build Verification:** 0 errors, 279 warnings (pre-existing)
+
+**Learnings:**
+- Bootstrap 5.3 CDN doesn't expose `--bs-spacer` as a CSS custom property — it's a Sass variable that compiles away
+- When calc expressions look unreasonable (7.5rem mobile padding), the multipliers are probably wrong, not the variable
+- Existing CSS custom properties (`--ss-layout-padding: 12px`) are the source of truth for mobile spacing
+- Horizontal scroll for stats/badges is better UX than wrapping when space is tight — use `overflow-auto flex-nowrap` with `-webkit-overflow-scrolling: touch`
+- Collapsing content on mobile requires both CSS (`d-none d-md-block`) and a toggle button — can't rely on CSS alone for user control
