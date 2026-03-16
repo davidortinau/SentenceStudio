@@ -31,14 +31,14 @@
 }
 else
 {
-    @* Stats bar *@
-    <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
-        <span class="badge bg-dark rounded-pill">@filteredWords.Count of @statTotal</span>
-        <span class="badge bg-secondary rounded-pill">Unknown: @statUnknown</span>
-        <span class="badge bg-primary rounded-pill">Learning: @statLearning</span>
-        <span class="badge bg-warning text-dark rounded-pill">Familiar: @statFamiliar</span>
-        <span class="badge bg-success rounded-pill">Known: @statKnown</span>
-        <div class="ms-auto btn-group btn-group-sm" role="group">
+    @* Stats bar — horizontal scroll on mobile *@
+    <div class="d-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;">
+        <span class="badge bg-dark rounded-pill flex-shrink-0">@filteredWords.Count of @statTotal</span>
+        <span class="badge bg-secondary rounded-pill flex-shrink-0">Unknown: @statUnknown</span>
+        <span class="badge bg-primary rounded-pill flex-shrink-0">Learning: @statLearning</span>
+        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">Familiar: @statFamiliar</span>
+        <span class="badge bg-success rounded-pill flex-shrink-0">Known: @statKnown</span>
+        <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
             <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
                 <i class="bi bi-grid-3x3-gap"></i>
             </button>
