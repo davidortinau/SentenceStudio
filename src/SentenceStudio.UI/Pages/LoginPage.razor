@@ -135,6 +135,11 @@
         {
             errorMessage = "Email/password login is not available with the current authentication configuration.";
         }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Login connectivity error");
+            errorMessage = "Cannot reach the server. Please check your connection and try again.";
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Login failed");

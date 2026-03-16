@@ -62,11 +62,16 @@ public sealed class IdentityAuthService : IAuthService
 
     /// <summary>
     /// Sign in with email and password against POST /api/auth/login.
+    /// Returns null only for genuine auth failures (wrong credentials).
+    /// Throws for connectivity/infrastructure errors so the UI can show a distinct message.
     /// </summary>
     public async Task<AuthResult?> SignInAsync(string email, string password)
     {
         try
         {
+            _logger.LogInformation("Attempting login to {BaseAddress}/api/auth/login for {Email}",
+                _http.BaseAddress, email);
+
             var response = await _http.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
 
             if (!response.IsSuccessStatusCode)
@@ -83,10 +88,15 @@ public sealed class IdentityAuthService : IAuthService
             await StoreTokens(authResponse);
             return ToAuthResult(authResponse);
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Login HTTP error — cannot reach API at {BaseAddress}", _http.BaseAddress);
+            throw; // Let UI show a connectivity-specific message
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sign-in with credentials failed");
-            return null;
+            _logger.LogError(ex, "Sign-in with credentials failed unexpectedly");
+            throw; // Let UI show a generic error
         }
     }
 
