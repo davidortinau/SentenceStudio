@@ -428,3 +428,76 @@ Researched official Blazor Hybrid auth patterns from Microsoft Learn docs. Analy
 - **ClaimsPrincipal is auth state** — not boolean preferences. SecureStorage holds tokens for persistence, but the in-memory ClaimsPrincipal (created from JWT claims) is the runtime auth state.
 - **WebApp cookie auth vs. mobile JWT auth** — both can use the same Blazor auth primitives (AuthorizeRouteView, AuthorizeView) via their respective AuthenticationStateProvider implementations.
 - **Token lifecycle pattern:** App startup → GetAuthenticationStateAsync() → check SecureStorage → silent refresh if token exists → create ClaimsPrincipal from JWT → NotifyAuthenticationStateChanged() on login/logout.
+
+### Blazor Auth UI Layer Implementation (Phases 2-5)
+**Date:** $(date +%Y-%m-%d)
+**Decision:** #13 (Adopt official Blazor Hybrid auth pattern)
+
+**Changes Made:**
+1. **Routes.razor** — Replaced `<RouteView>` with `<AuthorizeRouteView>` wrapped in `<CascadingAuthenticationState>`. Added `<Authorizing>` spinner and `<NotAuthorized>` renders Auth page inline.
+2. **MainLayout.razor** — Stripped all auth gate logic (~80 lines removed). Removed `@inject IAuthService`, `@inject ILogger`, and fields `isAuthGate`, `authCheckComplete`, `showAuthInline`. Kept sidebar toggle, theme JS interop, onboarding redirect, and scroll reset. Changed `OnInitializedAsync` to sync `OnInitialized` since no async auth calls needed.
+3. **_Imports.razor** — Added `@using Microsoft.AspNetCore.Authorization` and `@using Microsoft.AspNetCore.Components.Authorization` for framework-wide access to [Authorize]/[AllowAnonymous] attributes and auth components.
+4. **27 protected pages** — Added `@attribute [Authorize]` to all non-auth pages (Index, Skills, Profile, Settings, Onboarding, all activity pages, etc.).
+5. **3 auth pages** — Added `@attribute [AllowAnonymous]` to Auth.razor, LoginPage.razor, RegisterPage.razor so they remain accessible without auth.
+6. **WebApp AppRoutes.razor** — Updated to use `<AuthorizeRouteView>` with a sign-in prompt linking to /Account/Login for the server-rendered path.
+
+**WebApp Compatibility:**
+- WebApp App.razor already wraps content in `<CascadingAuthenticationState>` — no change needed there.
+- ASP.NET Core Identity middleware provides server-side `AuthenticationStateProvider` automatically.
+- AppRoutes.razor updated with AuthorizeRouteView to enforce [Authorize] attributes on web side.
+
+**Kept for Phase 7:**
+- `Preferences.Set("app_is_authenticated", true)` in LoginPage/RegisterPage/Auth — boolean preference legacy.
+- `forceLoad: true` on NavigateTo after login — needed until MauiAuthenticationStateProvider implements NotifyAuthenticationStateChanged notification.
+
+**Build Verification:** Both SentenceStudio.UI and SentenceStudio.WebApp compile with 0 errors.
+
+**Learnings:**
+- `AuthorizeRouteView` checks [Authorize] on route match and calls `GetAuthenticationStateAsync()` — but it caches the result via `CascadingAuthenticationState`. A `forceLoad: true` navigation forces full re-initialization which refreshes the cached auth state.
+- For Blazor Hybrid (MAUI), the shared UI project needs `Microsoft.AspNetCore.Components.Authorization` NuGet package explicitly — it's not part of the base Razor class library SDK.
+- MainLayout only renders for authorized users when using AuthorizeRouteView — the layout is part of the authorized render path, not the gating mechanism.
+- Onboarding gate remains in MainLayout since it's orthogonal to auth (a user can be authenticated but not yet onboarded).
+
+### Remove OpenAI API Key from Mobile UI (2025-07-15)
+
+**What changed:** Removed the OpenAI API key input from both Onboarding.razor (step 4) and Profile.razor (API Configuration card). Onboarding steps renumbered from 7 (0-6) to 6 (0-5). All `openAiApiKey` variable usage, load/save logic, and env-var skip logic removed from both pages. The `UserProfile.OpenAI_APIKey` property was intentionally left untouched to avoid a database migration.
+
+**Learnings:**
+- AI calls now route through the web API backend; mobile clients no longer need or store an OpenAI API key.
+- When removing an onboarding step, all step index references must be updated: case labels, navigation bounds (`Math.Min`, `currentStep < N`), and the step indicator dot loop (`i <= N`).
+
+### 2026-03-15 — Auth Page UX Polish (Issues #92, #93, #94, #98)
+
+**Status:** Complete
+
+Fixed 4 auth page UX issues fer the Captain:
+
+**Issue #94 — Password visibility toggle:**
+- Added show/hide password eye icon to LoginPage.razor and RegisterPage.razor
+- Used Bootstrap icons `bi-eye` and `bi-eye-slash` (no emojis, per team standard)
+- Wrapped password inputs in `input-group` with toggle button
+- LoginPage: one field (`showPassword` bool)
+- RegisterPage: two fields (`showPassword` + `showConfirmPassword` bools)
+
+**Issue #93 — Hide hamburger on auth pages:**
+- Added `ShowHamburger` parameter to PageHeader.razor (default: true)
+- Gated hamburger button render with `else if (ShowHamburger)` condition
+- Applied `ShowHamburger="false"` to LoginPage, RegisterPage, and Auth.razor
+
+**Issue #92 — Mobile sign-in layout matches web:**
+- Added SentenceStudio branding above the card (h2, centered)
+- Added "Remember me" checkbox below password field (stores in preferences when checked)
+- Added "Forgot your password?" link below Sign In button (href="/auth/forgot-password")
+- Changed "Register" link text to "Create one" to match web
+- Changed "Back to user selection" to "Back to home" at bottom
+
+**Issue #98 — Link to /auth from NotAuthorized:**
+- Added "Back to user selection" link below Sign In / Create Account buttons in Routes.razor NotAuthorized block
+- Existing Auth.razor local user list already checks `_profiles.Count > 0` — works fer both debug and existing users
+
+**Technical Notes:**
+- Bootstrap input-group pattern: input + button with outline-secondary styling
+- Password toggle uses inline lambda `@onclick="() => showPassword = !showPassword"`
+- Remember me stores email in preferences when checked (`remember_me`, `remember_email` keys)
+- Forgot password page doesn't exist yet but link is there fer future implementation
+

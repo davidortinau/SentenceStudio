@@ -161,3 +161,31 @@ NavigateTo() during OnInitializedAsync in Blazor Hybrid WebView is unreliable du
 
 **Next:** Captain approval, then 4-phase implementation.
 
+### 2026-03-15 — Fixed Theme Flickering (Issue #96)
+
+**Status:** Complete  
+**Root Cause:** SSR-to-interactive hydration race condition  
+**Files Changed:** `src/SentenceStudio.WebApp/Components/App.razor`
+
+**Problem:**
+WebApp was flickering between light and dark mode during page load. Investigation revealed:
+1. App.razor had hardcoded `data-bs-theme="dark" data-ss-theme="seoul-pop"` in the HTML element
+2. SSR rendered the page with these hardcoded values first
+3. After interactive hydration, MainLayout.razor's `OnAfterRenderAsync` called `applyTheme()` with the user's saved preference from ThemeService
+4. If user preference was different (e.g., light mode), JS changed the attributes → visible flicker
+
+**Solution:**
+Injected `ThemeService` into App.razor and replaced hardcoded theme attributes with dynamic Razor expressions:
+```razor
+@inject ThemeService ThemeService
+<html lang="en" data-bs-theme="@ThemeService.CurrentMode" data-ss-theme="@ThemeService.CurrentTheme">
+```
+
+Now SSR renders with the correct theme from the start (ThemeService reads from persisted preferences), eliminating the flicker. The MainLayout's `applyTheme()` call becomes a no-op if the theme is already correct.
+
+**Key Learnings:**
+- Blazor SSR hydration can cause theme flicker if theme attributes are hardcoded in App.razor
+- ThemeService correctly reads from IPreferencesService (persisted JSON) during SSR, making it safe to inject into App.razor
+- Theme attributes on `<html>` must match user preference from first render to avoid SSR→interactive flash
+- No CSS `prefers-color-scheme` media queries were found — all theme control is via JS and CSS variables
+
