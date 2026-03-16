@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
@@ -10,6 +11,9 @@ namespace SentenceStudio.WebApp.Auth;
 
 public static class AccountEndpoints
 {
+    // Logger category for password reset logging
+    private class PasswordResetLogger { }
+
     public static void MapAccountEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/account-action");
@@ -155,7 +159,9 @@ public static class AccountEndpoints
             [FromForm] string email,
             UserManager<ApplicationUser> userManager,
             IAppEmailSender emailSender,
-            HttpContext httpContext) =>
+            HttpContext httpContext,
+            IWebHostEnvironment env,
+            ILogger<PasswordResetLogger> logger) =>
         {
             var user = await userManager.FindByEmailAsync(email);
             if (user is not null)
@@ -166,6 +172,13 @@ public static class AccountEndpoints
                 var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(email)}&token={encodedToken}";
 
                 await emailSender.SendPasswordResetLinkAsync(user, email, resetUrl);
+
+                if (env.IsDevelopment())
+                {
+                    logger.LogInformation(
+                        "--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---",
+                        email, resetUrl);
+                }
             }
 
             // Always redirect to avoid email enumeration

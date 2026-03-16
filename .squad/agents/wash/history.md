@@ -29,6 +29,9 @@
 - CoreSync server (`SentenceStudio.Web`) uses `UseCoreSyncHttpServer()` middleware — auth middleware must run BEFORE it
 - DevAuthHandler is duplicated in both API and Web projects — future refactor to shared project
 - Web server auth follows same `Auth:UseEntraId` pattern as API server
+- MauiAuthenticationStateProvider wraps IAuthService for Blazor's auth framework — registered Scoped, IAuthService stays Singleton
+- Microsoft.AspNetCore.Components.Authorization NuGet needed in both AppLib and UI projects for AuthorizeRouteView
+- Bumped Microsoft.Extensions.Configuration.Binder to 10.0.5 to satisfy transitive dependency from Components.Authorization
 
 ## Work Sessions
 
@@ -116,3 +119,33 @@ Implemented JWT Bearer token authentication for the API:
 - Environment-aware HTTPS redirect
 
 **Phase 2 Closed:** Ready to begin Phase 1 (Entra ID) now that Captain has provisioned app registrations.
+
+### 2026-03-16 — Issue #97 (API Error Investigation) and #95 (Password Reset URL Logging)
+
+**Status:** COMPLETED
+
+**Issue #97 - API Error Investigation:**
+- Investigated Aspire dashboard API errors as reported by Captain
+- Checked Aspire structured logs, console logs, and distributed traces for the API resource
+- Found NO errors — API is running healthy with successful requests (OpenAI chat completions, auth flows)
+- Logs show normal operation: token refresh cycles, email confirmations, database queries executing successfully
+- Recent traces show OpenAI API calls returning 200 OK (1.5-2s response times)
+- CORS and auth middleware properly configured
+- Conclusion: API is operating as expected; no issues found
+
+**Issue #95 - Password Reset URL Logging:**
+- Added development-only logging for password reset URLs in both API and WebApp
+- Modified `AuthEndpoints.ForgotPassword` (API) and `AccountEndpoints.ForgotPassword` (WebApp)
+- Injected `IWebHostEnvironment` and `ILogger<PasswordResetLogger>` into password reset handlers
+- Created nested `PasswordResetLogger` class in both static endpoint classes to provide logger category (workaround for static class limitation)
+- Added `env.IsDevelopment()` guard before logging to ensure URLs never leak in production
+- Reset URLs now logged at `LogInformation` level with clear "Copy and paste this URL" message
+- Logs appear in both console and Aspire structured logs for easy dev access
+- ConsoleEmailSender already logs email content; this adds explicit reset URL extraction for faster dev workflow
+
+**Technical Notes:**
+- Cannot use static classes as generic type parameters for `ILogger<T>`
+- Workaround: Created nested private class `PasswordResetLogger` for logger category
+- Development check: `env.IsDevelopment()` ensures production safety
+- Format: `--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---`
+

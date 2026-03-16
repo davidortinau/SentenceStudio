@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
@@ -8,6 +9,9 @@ namespace SentenceStudio.Api.Auth;
 
 public static class AuthEndpoints
 {
+    // Logger category for password reset logging
+    private class PasswordResetLogger { }
+
     public static WebApplication MapAuthEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/auth");
@@ -219,7 +223,9 @@ public static class AuthEndpoints
         ForgotPasswordRequest request,
         UserManager<ApplicationUser> userManager,
         IAppEmailSender emailSender,
-        HttpContext httpContext)
+        HttpContext httpContext,
+        IWebHostEnvironment env,
+        ILogger<PasswordResetLogger> logger)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is not null)
@@ -230,6 +236,13 @@ public static class AuthEndpoints
             var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(request.Email)}&token={encodedToken}";
 
             await emailSender.SendPasswordResetLinkAsync(user, request.Email, resetUrl);
+
+            if (env.IsDevelopment())
+            {
+                logger.LogInformation(
+                    "--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---",
+                    request.Email, resetUrl);
+            }
         }
 
         return Results.Ok(new { message = "If that email is registered, a reset link has been sent." });
