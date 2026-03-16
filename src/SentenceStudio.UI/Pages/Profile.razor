@@ -90,16 +90,6 @@ else
         </div>
     </div>
 
-    @* API Key *@
-    <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">API Configuration</h5>
-
-        <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">OpenAI API Key</label>
-            <input type="password" class="form-control form-control-ss" @bind="openAiApiKey" placeholder="sk-..." />
-        </div>
-    </div>
-
     @* Actions *@
     <div class="d-flex gap-2 mb-3">
         <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile">Save Profile</button>
@@ -177,7 +167,6 @@ else
     private string nativeLanguage = "English";
     private string targetLanguage = "Korean";
     private string displayLanguage = "English";
-    private string openAiApiKey = "";
     private int preferredSessionMinutes = 15;
     private string targetCEFRLevel = "A2";
     private bool isExporting;
@@ -208,7 +197,6 @@ else
                 nativeLanguage = profile.NativeLanguage ?? "English";
                 targetLanguage = profile.TargetLanguage ?? "Korean";
                 displayLanguage = profile.DisplayLanguage ?? "English";
-                openAiApiKey = profile.OpenAI_APIKey ?? "";
                 preferredSessionMinutes = profile.PreferredSessionMinutes > 0 ? profile.PreferredSessionMinutes : 15;
                 targetCEFRLevel = profile.TargetCEFRLevel ?? "A2";
             }
@@ -238,7 +226,6 @@ else
             profile.NativeLanguage = nativeLanguage;
             profile.TargetLanguage = targetLanguage;
             profile.DisplayLanguage = displayLanguage;
-            profile.OpenAI_APIKey = openAiApiKey;
             profile.PreferredSessionMinutes = preferredSessionMinutes;
             profile.TargetCEFRLevel = targetCEFRLevel;
 

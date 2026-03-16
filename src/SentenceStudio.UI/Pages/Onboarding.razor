@@ -76,18 +76,6 @@
             break;
 
         case 4:
-            @* API Key (conditional) *@
-            <div class="py-4">
-                <h2 class="ss-title1 mb-3">OpenAI API Key</h2>
-                <p class="ss-body2 text-secondary-ss mb-3">
-                    An API key is needed for AI-powered features. You can add this later in Settings.
-                </p>
-                <input type="password" class="form-control form-control-ss mb-3"
-                       @bind="openAiApiKey" placeholder="sk-..." />
-            </div>
-            break;
-
-        case 5:
             @* Learning Preferences *@
             <div class="py-4">
                 <h2 class="ss-title1 mb-3">Learning Preferences</h2>
@@ -116,7 +104,7 @@
             </div>
             break;
 
-        case 6:
+        case 5:
             @* Finish *@
             <div class="text-center py-5">
                 <h2 class="ss-title1 mb-3">You're all set!</h2>
@@ -190,7 +178,7 @@
     }
 
     @* Navigation *@
-    @if (currentStep > 0 && currentStep < 6)
+    @if (currentStep > 0 && currentStep < 5)
     {
         <div class="d-flex justify-content-between mt-4 pb-4">
             <button class="btn btn-ss-secondary" @onclick="PrevStep">Back</button>
@@ -200,7 +188,7 @@
 
     @* Step indicator *@
     <div class="d-flex justify-content-center gap-1 pb-3">
-        @for (int i = 0; i <= 6; i++)
+        @for (int i = 0; i <= 5; i++)
         {
             var step = i;
             <div class="rounded-circle @(step == currentStep ? "bg-primary" : "bg-secondary")"
@@ -225,7 +213,6 @@
     private string name = "";
     private string nativeLanguage = "English";
     private string targetLanguage = "Korean";
-    private string openAiApiKey = "";
     private int preferredSessionMinutes = 15;
     private string targetCEFRLevel = "A2";
     private string[] suggestedNames = Array.Empty<string>();
@@ -259,8 +246,6 @@
                     nativeLanguage = existing.NativeLanguage;
                 if (!string.IsNullOrEmpty(existing.TargetLanguage))
                     targetLanguage = existing.TargetLanguage;
-                if (!string.IsNullOrEmpty(existing.OpenAI_APIKey))
-                    openAiApiKey = existing.OpenAI_APIKey;
             }
         }
         catch (Exception ex)
@@ -274,11 +259,7 @@
         if (currentStep == 2)
             _ = LoadSuggestedNames();
 
-        // Skip API key step if already configured
-        if (currentStep == 3 && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")))
-            currentStep = 5;
-        else
-            currentStep = Math.Min(currentStep + 1, 6);
+        currentStep = Math.Min(currentStep + 1, 5);
     }
 
     private void PrevStep()
@@ -357,7 +338,6 @@
             existingProfile.NativeLanguage = nativeLanguage;
             existingProfile.TargetLanguage = targetLanguage;
             existingProfile.DisplayLanguage = "English";
-            existingProfile.OpenAI_APIKey = openAiApiKey;
             existingProfile.PreferredSessionMinutes = preferredSessionMinutes;
             existingProfile.TargetCEFRLevel = targetCEFRLevel;
             await ProfileRepo.SaveAsync(existingProfile);
@@ -372,7 +352,6 @@
                 NativeLanguage = nativeLanguage,
                 TargetLanguage = targetLanguage,
                 DisplayLanguage = "English",
-                OpenAI_APIKey = openAiApiKey,
                 PreferredSessionMinutes = preferredSessionMinutes,
                 TargetCEFRLevel = targetCEFRLevel
             };
