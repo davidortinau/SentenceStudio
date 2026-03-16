@@ -151,4 +151,7 @@ Implemented JWT Bearer token authentication for the API:
 - WebApp Login/Register pages use plain HTML `<form method="post">` (NOT Blazor interactive) -- JS-based interactivity required for things like password toggle
 - AuthLayout is minimal (logo + @Body) -- no nav links
 - AppRoutes.razor NotAuthorized uses RedirectToLogin component with `forceLoad: true` to redirect unauthenticated users to /Account/Login
+- WebApp's ServerAuthService.SignInAsync NEVER checks IsEmailConfirmedAsync — web login always bypasses email confirmation
+- API's AuthEndpoints.Login now auto-confirms email in development mode to match WebApp behavior; production still requires email confirmation
+- IdentityAuthService (MAUI client) logs response body on login failure for better debugging
 

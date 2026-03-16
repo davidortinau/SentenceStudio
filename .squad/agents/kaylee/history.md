@@ -519,3 +519,23 @@ Fixed 4 auth page UX issues fer the Captain:
 - Routes.razor NotAuthorized now uses `<RedirectToLogin />` component instead of inline dead-end card
 - Created `Shared/RedirectToLogin.razor` — simple NavigationManager redirect to /auth/login
 
+
+### 2026-03-16 — Shared UI Audit: WebApp vs Shared UI Page Duplication
+
+**Status:** Complete  
+**Requested by:** Captain
+
+Audited all pages in `src/SentenceStudio.WebApp/Components/Pages/` against `src/SentenceStudio.UI/Pages/` for consolidation opportunities.
+
+**Findings:**
+- All 6 WebApp Account pages (Login, Register, ForgotPassword, ResetPassword, AccessDenied, ConfirmEmail) must remain separate — they form a cohesive server-side ASP.NET Identity cookie auth workflow
+- Login/Register use `<form method="post">` because Blazor Server can't set auth cookies over WebSocket
+- ForgotPassword stays because the email link URL is generated relative to the WebApp's own host
+- ResetPassword has no shared UI equivalent; email links point to `/Account/ResetPassword`
+- AccessDenied/ConfirmEmail are ASP.NET auth infrastructure redirect targets
+- Removed 3 Blazor template leftovers: Counter.razor, Weather.razor, Home.razor
+- No non-auth page duplication found — all activity pages exist only in shared UI
+
+**Gap identified:** No shared UI `ResetPasswordPage` exists — if a MAUI user receives a password reset email, the link points to `/Account/ResetPassword` which only exists in WebApp.
+
+**Decision written to:** `.squad/decisions/inbox/kaylee-shared-ui-audit.md`
