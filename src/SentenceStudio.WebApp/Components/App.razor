@@ -1,5 +1,7 @@
-﻿<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark" data-ss-theme="seoul-pop">
+﻿@inject ThemeService ThemeService
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="@ThemeService.CurrentMode" data-ss-theme="@ThemeService.CurrentTheme">
 
 <head>
     <meta charset="utf-8" />
