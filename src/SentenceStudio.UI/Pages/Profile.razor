@@ -65,7 +65,7 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Session Duration (minutes)</label>
-            <div class="btn-group flex-wrap" role="group">
+            <div class="d-flex flex-column flex-md-row gap-2" role="group">
                 @foreach (var min in sessionOptions)
                 {
                     <button class="btn @(preferredSessionMinutes == min ? "btn-ss-primary" : "btn-ss-secondary")"
@@ -78,7 +78,7 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Target CEFR Level</label>
-            <div class="btn-group flex-wrap" role="group">
+            <div class="d-flex flex-column flex-md-row gap-2" role="group">
                 @foreach (var level in cefrLevels)
                 {
                     <button class="btn @(targetCEFRLevel == level ? "btn-ss-primary" : "btn-ss-secondary")"

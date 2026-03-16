@@ -21,8 +21,8 @@
 else
 {
     @* Search and filters *@
-    <div class="d-flex gap-2 mb-4">
-        <input type="text" class="form-control form-control-ss flex-grow-1"
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <input type="text" class="form-control form-control-ss w-100 w-md-auto flex-md-grow-1"
                placeholder="Search resources..."
                @bind="searchText" @bind:after="SearchResources" />
 

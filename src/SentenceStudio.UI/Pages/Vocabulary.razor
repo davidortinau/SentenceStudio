@@ -31,14 +31,14 @@
 }
 else
 {
-    @* Stats bar *@
-    <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
-        <span class="badge bg-dark rounded-pill">@filteredWords.Count of @statTotal</span>
-        <span class="badge bg-secondary rounded-pill">Unknown: @statUnknown</span>
-        <span class="badge bg-primary rounded-pill">Learning: @statLearning</span>
-        <span class="badge bg-warning text-dark rounded-pill">Familiar: @statFamiliar</span>
-        <span class="badge bg-success rounded-pill">Known: @statKnown</span>
-        <div class="ms-auto btn-group btn-group-sm" role="group">
+    @* Stats bar — horizontal scroll on mobile *@
+    <div class="d-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;">
+        <span class="badge bg-dark rounded-pill flex-shrink-0">@filteredWords.Count of @statTotal</span>
+        <span class="badge bg-secondary rounded-pill flex-shrink-0">Unknown: @statUnknown</span>
+        <span class="badge bg-primary rounded-pill flex-shrink-0">Learning: @statLearning</span>
+        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">Familiar: @statFamiliar</span>
+        <span class="badge bg-success rounded-pill flex-shrink-0">Known: @statKnown</span>
+        <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
             <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
                 <i class="bi bi-grid-3x3-gap"></i>
             </button>
@@ -50,8 +50,8 @@ else
 
     @if (isBulkEditMode)
     {
-        <div class="d-flex gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
-            <span class="fw-semibold me-2">@selectedWordIds.Count selected</span>
+        <div class="d-flex flex-wrap gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
+            <span class="fw-semibold">@selectedWordIds.Count selected</span>
             <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
                 <option value="">Set Status...</option>
                 <option value="Unknown">Unknown</option>
@@ -66,8 +66,10 @@ else
                 Save
             </button>
             <button class="btn btn-sm btn-outline-secondary" @onclick="ExitBulkEditMode" disabled="@isBulkSaving">Cancel</button>
-            <button class="btn btn-sm btn-outline-secondary ms-auto" @onclick="SelectAll">Select All</button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">Select None</button>
+            <div class="w-100 d-flex gap-2 d-md-inline-flex w-md-auto">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">Select None</button>
+            </div>
         </div>
     }
 

@@ -151,11 +151,25 @@ else
     </div>
 
     @* Activity cards *@
-    <h2 class="ss-title2 mb-3">Activities</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="ss-title2 mb-0">Activities</h2>
+        <button class="btn btn-sm btn-outline-secondary d-md-none" @onclick="ToggleActivitiesExpanded">
+            @if (showAllActivities)
+            {
+                <span>Show Less <i class="bi bi-chevron-up"></i></span>
+            }
+            else
+            {
+                <span>See All <i class="bi bi-chevron-down"></i></span>
+            }
+        </button>
+    </div>
     <div class="row g-3 mb-4">
-        @foreach (var activity in activities)
+        @for (int i = 0; i < activities.Length; i++)
         {
-            <div class="col-6 col-md-4 col-lg-3">
+            var activity = activities[i];
+            var hiddenOnMobile = i >= 6 && !showAllActivities; // Hide beyond 6 on mobile when collapsed
+            <div class="col-6 col-md-4 col-lg-3 @(hiddenOnMobile ? "d-none d-md-block" : "")">
                 <div class="card card-ss p-3 text-center h-100" role="button"
                      @onclick="() => NavigateToActivity(activity.Route)">
                     <div class="fs-2 mb-2"><i class="bi @activity.Icon"></i></div>
@@ -248,6 +262,7 @@ else
     private bool isLoading;
     private bool isPlanLoading;
     private bool isTodaysPlanMode = true;
+    private bool showAllActivities = false;
     private VocabProgressSummary? vocabSummary;
     private TodaysPlan? todaysPlan;
 
@@ -509,6 +524,11 @@ else
 
         var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
         NavManager.NavigateTo(url);
+    }
+
+    private void ToggleActivitiesExpanded()
+    {
+        showAllActivities = !showAllActivities;
     }
 
     private static string MapActivityRoute(PlanActivityType type) => type switch

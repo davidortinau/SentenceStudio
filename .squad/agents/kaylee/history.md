@@ -539,3 +539,92 @@ Audited all pages in `src/SentenceStudio.WebApp/Components/Pages/` against `src/
 **Gap identified:** No shared UI `ResetPasswordPage` exists — if a MAUI user receives a password reset email, the link points to `/Account/ResetPassword` which only exists in WebApp.
 
 **Decision written to:** `.squad/decisions/inbox/kaylee-shared-ui-audit.md`
+
+### Mobile UX Wave 1 Fixes (2026-03-16)
+**Branch:** `squad/mobile-ux-fixes`  
+**Status:** Complete — All 5 issues fixed, committed, and pushed  
+
+Fixed 5 GitHub issues related to mobile user experience:
+
+**Issue #99 — CSS `--bs-spacer` undefined variable:**
+- Root cause: CSS used `calc(var(--bs-spacer) * N / 16)` but `--bs-spacer` was never defined
+- The multipliers were also wrong (120, 160, 100 instead of 12, 16, 10)
+- Fixed by replacing all calc expressions with concrete rem values:
+  - Page header margin: `1rem`
+  - Main content mobile padding: `0.75rem` (12px)
+  - Page header breakout margins: `-0.75rem` and padding: `0.75rem`
+  - Card padding on mobile: `0.5rem` (8px)
+  - Reading page negative margins: `-0.75rem`
+- These values align with existing CSS custom properties defined at lines 759-767 (--ss-layout-padding, --ss-card-padding)
+
+**Issue #100 — Resources page filter row overflow:**
+- Added `flex-wrap` to filter container
+- Search input uses `w-100 w-md-auto flex-md-grow-1` to take full width on mobile, auto width on desktop
+- Filter dropdowns now wrap gracefully on narrow screens
+
+**Issue #102 — Vocabulary page toolbar density:**
+- Stats badges now use `overflow-auto flex-nowrap` with `-webkit-overflow-scrolling: touch` for horizontal scrolling on mobile
+- Added `flex-shrink-0` to all badges and buttons to prevent squishing
+- Keeps all stats visible without overwhelming vertical space
+
+**Issue #103 — Conversation input lacks safe-area-bottom:**
+- Added `style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;"` to the input card
+- Matches the `.activity-input-bar` pattern used by other activity pages
+- Ensures input isn't obscured by iOS home indicator
+
+**Issue #110 — Dashboard excessive scroll with 12 activity cards:**
+- Added `showAllActivities` boolean field (default: false)
+- Activity cards beyond index 6 get `d-none d-md-block` class when collapsed
+- Added mobile-only "See All / Show Less" toggle button with Bootstrap icons (bi-chevron-up/down)
+- Desktop (md+) always shows all 12 cards unchanged
+- Implemented `ToggleActivitiesExpanded()` method
+
+**Build Verification:** 0 errors, 279 warnings (pre-existing)
+
+**Learnings:**
+- Bootstrap 5.3 CDN doesn't expose `--bs-spacer` as a CSS custom property — it's a Sass variable that compiles away
+- When calc expressions look unreasonable (7.5rem mobile padding), the multipliers are probably wrong, not the variable
+- Existing CSS custom properties (`--ss-layout-padding: 12px`) are the source of truth for mobile spacing
+- Horizontal scroll for stats/badges is better UX than wrapping when space is tight — use `overflow-auto flex-nowrap` with `-webkit-overflow-scrolling: touch`
+- Collapsing content on mobile requires both CSS (`d-none d-md-block`) and a toggle button — can't rely on CSS alone for user control
+
+### 2026-03-19 — Mobile UX Fixes Wave 2 (Issues #104, #109, #114, #116, #119, #120)
+
+**Issue #104 — Register page keyboard clipping:**
+- Replaced `vh-100` with `min-height: 100dvh` on wrapper div
+- Added `overflow-y: auto` to allow scrolling when iOS keyboard opens
+- Uses `dvh` (dynamic viewport height) which accounts for mobile browser chrome
+
+**Issue #109 — Cloze font too large for Korean:**
+- Added mobile media query override in app.css: `.ss-display { font-size: 1.5rem; }` inside `@media (max-width: 767.98px)`
+- Reduces from 42px (desktop) to 1.5rem (~24px) on mobile
+- Prevents Korean sentences from wrapping excessively on small screens
+
+**Issue #114 — Profile button groups break on mobile:**
+- Replaced `btn-group flex-wrap` with `d-flex flex-column flex-md-row gap-2`
+- Buttons now stack vertically on mobile, horizontal row on desktop
+- Applied to Session Duration and Target CEFR Level sections
+
+**Issue #116 — Settings exposes Database Migrations to end users:**
+- Wrapped Database Migrations card in `#if DEBUG` preprocessor directive
+- Card now only renders in Debug builds, hidden from Release/production
+- No code-behind changes needed — Blazor Razor supports preprocessor directives
+
+**Issue #119 — Vocabulary bulk edit toolbar overflows:**
+- Changed toolbar from `d-flex gap-2` to `d-flex flex-wrap gap-2`
+- Separated "Select All"/"Select None" buttons into `w-100 d-flex gap-2 d-md-inline-flex w-md-auto` wrapper
+- Buttons drop to new line on mobile, inline on desktop
+
+**Issue #120 — Writing input bar cramped:**
+- Made Grade button icon-only on mobile: `<i class="bi bi-send d-md-none"></i>`
+- Text label "Grade" uses `d-none d-md-inline` to hide on mobile, show on desktop
+- Saves ~60px horizontal space on mobile screens
+
+**Build Verification:** 0 errors, 279 warnings (pre-existing)
+
+**Learnings:**
+- `min-height: 100dvh` (dynamic viewport height) is better than `vh-100` for mobile forms — accounts for keyboard and browser chrome
+- Blazor Razor files support `#if DEBUG` preprocessor directives — no need for code-behind boolean flags
+- `d-flex flex-column flex-md-row gap-2` is the correct Bootstrap 5.3 pattern for responsive button groups — `btn-group flex-wrap` has poor mobile behavior
+- Icon-only buttons on mobile with `d-md-none` / `d-none d-md-inline` pattern saves horizontal space without losing desktop clarity
+- `flex-wrap` + strategic line-break wrappers (w-100 on mobile, w-md-auto on desktop) gives precise control over toolbar wrapping behavior
