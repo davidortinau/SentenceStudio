@@ -587,3 +587,44 @@ Fixed 5 GitHub issues related to mobile user experience:
 - Existing CSS custom properties (`--ss-layout-padding: 12px`) are the source of truth for mobile spacing
 - Horizontal scroll for stats/badges is better UX than wrapping when space is tight — use `overflow-auto flex-nowrap` with `-webkit-overflow-scrolling: touch`
 - Collapsing content on mobile requires both CSS (`d-none d-md-block`) and a toggle button — can't rely on CSS alone for user control
+
+### 2026-03-19 — Mobile UX Fixes Wave 2 (Issues #104, #109, #114, #116, #119, #120)
+
+**Issue #104 — Register page keyboard clipping:**
+- Replaced `vh-100` with `min-height: 100dvh` on wrapper div
+- Added `overflow-y: auto` to allow scrolling when iOS keyboard opens
+- Uses `dvh` (dynamic viewport height) which accounts for mobile browser chrome
+
+**Issue #109 — Cloze font too large for Korean:**
+- Added mobile media query override in app.css: `.ss-display { font-size: 1.5rem; }` inside `@media (max-width: 767.98px)`
+- Reduces from 42px (desktop) to 1.5rem (~24px) on mobile
+- Prevents Korean sentences from wrapping excessively on small screens
+
+**Issue #114 — Profile button groups break on mobile:**
+- Replaced `btn-group flex-wrap` with `d-flex flex-column flex-md-row gap-2`
+- Buttons now stack vertically on mobile, horizontal row on desktop
+- Applied to Session Duration and Target CEFR Level sections
+
+**Issue #116 — Settings exposes Database Migrations to end users:**
+- Wrapped Database Migrations card in `#if DEBUG` preprocessor directive
+- Card now only renders in Debug builds, hidden from Release/production
+- No code-behind changes needed — Blazor Razor supports preprocessor directives
+
+**Issue #119 — Vocabulary bulk edit toolbar overflows:**
+- Changed toolbar from `d-flex gap-2` to `d-flex flex-wrap gap-2`
+- Separated "Select All"/"Select None" buttons into `w-100 d-flex gap-2 d-md-inline-flex w-md-auto` wrapper
+- Buttons drop to new line on mobile, inline on desktop
+
+**Issue #120 — Writing input bar cramped:**
+- Made Grade button icon-only on mobile: `<i class="bi bi-send d-md-none"></i>`
+- Text label "Grade" uses `d-none d-md-inline` to hide on mobile, show on desktop
+- Saves ~60px horizontal space on mobile screens
+
+**Build Verification:** 0 errors, 279 warnings (pre-existing)
+
+**Learnings:**
+- `min-height: 100dvh` (dynamic viewport height) is better than `vh-100` for mobile forms — accounts for keyboard and browser chrome
+- Blazor Razor files support `#if DEBUG` preprocessor directives — no need for code-behind boolean flags
+- `d-flex flex-column flex-md-row gap-2` is the correct Bootstrap 5.3 pattern for responsive button groups — `btn-group flex-wrap` has poor mobile behavior
+- Icon-only buttons on mobile with `d-md-none` / `d-none d-md-inline` pattern saves horizontal space without losing desktop clarity
+- `flex-wrap` + strategic line-break wrappers (w-100 on mobile, w-md-auto on desktop) gives precise control over toolbar wrapping behavior
