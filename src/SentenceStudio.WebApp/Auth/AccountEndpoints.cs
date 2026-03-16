@@ -135,7 +135,8 @@ public static class AccountEndpoints
             [FromQuery] string? returnUrl,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            IPreferencesService preferences) =>
+            IPreferencesService preferences,
+            HttpContext httpContext) =>
         {
             var user = await userManager.FindByIdAsync(userId);
             if (user is null)
@@ -148,6 +149,25 @@ public static class AccountEndpoints
             if (!valid)
             {
                 return Results.Redirect("/Account/Login?error=InvalidLink");
+            }
+
+            // Auto-create profile if missing (accounts from before registration fix)
+            if (string.IsNullOrEmpty(user.UserProfileId))
+            {
+                var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var profile = new UserProfile
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = user.DisplayName ?? user.Email ?? "User",
+                    Email = user.Email ?? "",
+                    NativeLanguage = "English",
+                    TargetLanguage = "Korean",
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.UserProfiles.Add(profile);
+                await db.SaveChangesAsync();
+                user.UserProfileId = profile.Id;
+                await userManager.UpdateAsync(user);
             }
 
             await signInManager.SignInAsync(user, isPersistent: true);
