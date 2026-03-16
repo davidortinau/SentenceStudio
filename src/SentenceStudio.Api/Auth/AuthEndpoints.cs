@@ -110,7 +110,8 @@ public static class AuthEndpoints
         LoginRequest request,
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext db,
-        JwtTokenService tokenService)
+        JwtTokenService tokenService,
+        IWebHostEnvironment env)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
@@ -120,7 +121,19 @@ public static class AuthEndpoints
 
         if (!await userManager.IsEmailConfirmedAsync(user))
         {
-            return Results.Json(new { error = "Email not confirmed." }, statusCode: 401);
+            if (env.IsDevelopment())
+            {
+                // Auto-confirm in dev so mobile clients aren't blocked.
+                // WebApp's ServerAuthService never checks confirmation, so
+                // users registered on the web have unconfirmed emails that
+                // work on the web but fail here without this fallback.
+                var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                await userManager.ConfirmEmailAsync(user, confirmToken);
+            }
+            else
+            {
+                return Results.Json(new { error = "Email not confirmed." }, statusCode: 401);
+            }
         }
 
         if (!await userManager.CheckPasswordAsync(user, request.Password))

@@ -71,7 +71,8 @@ public sealed class IdentityAuthService : IAuthService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Login failed with status {Status}", response.StatusCode);
+                var body = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Login failed with status {Status}: {Body}", response.StatusCode, body);
                 return null;
             }
 
