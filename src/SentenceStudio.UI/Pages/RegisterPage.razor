@@ -1,7 +1,7 @@
 @page "/auth/register"
 @attribute [AllowAnonymous]
 
-<PageHeader Title="Create Account" />
+<PageHeader Title="Create Account" ShowHamburger="false" />
 
 <div class="container" style="max-width: 480px;">
     <div class="card card-ss p-4 mt-4">
@@ -45,8 +45,13 @@
 
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
-                <input type="password" id="password" class="form-control form-control-ss"
-                       @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                <div class="input-group">
+                    <input type="@(showPassword ? "text" : "password")" id="password" class="form-control form-control-ss"
+                           @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
+                        <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
                 @if (!string.IsNullOrEmpty(password))
                 {
                     <div class="mt-1">
@@ -68,8 +73,13 @@
 
             <div class="mb-3">
                 <label class="form-label ss-body2 text-secondary-ss" for="confirmPassword">Confirm Password</label>
-                <input type="password" id="confirmPassword" class="form-control form-control-ss"
-                       @bind="confirmPassword" @bind:event="oninput" placeholder="Confirm password" disabled="@isBusy" />
+                <div class="input-group">
+                    <input type="@(showConfirmPassword ? "text" : "password")" id="confirmPassword" class="form-control form-control-ss"
+                           @bind="confirmPassword" @bind:event="oninput" placeholder="Confirm password" disabled="@isBusy" />
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showConfirmPassword = !showConfirmPassword" disabled="@isBusy">
+                        <i class="bi @(showConfirmPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
             </div>
 
             @if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(confirmPassword) && password != confirmPassword)
@@ -119,6 +129,8 @@
     private string? errorMessage;
     private bool isBusy;
     private bool registrationComplete;
+    private bool showPassword;
+    private bool showConfirmPassword;
 
     private bool IsPasswordValid =>
         !string.IsNullOrEmpty(password)

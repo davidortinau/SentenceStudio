@@ -1,10 +1,13 @@
 @page "/auth/login"
 @attribute [AllowAnonymous]
 
-<PageHeader Title="Sign In" />
+<PageHeader Title="Sign In" ShowHamburger="false" />
 
 <div class="container" style="max-width: 480px;">
-    <div class="card card-ss p-4 mt-4">
+    <div class="text-center my-3">
+        <h2 class="ss-title1">SentenceStudio</h2>
+    </div>
+    <div class="card card-ss p-4 mt-2">
         <h1 class="ss-title1 mb-2">Sign In</h1>
         <p class="ss-body2 text-secondary-ss mb-4">
             Enter your email and password to continue.
@@ -25,8 +28,20 @@
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
-            <input type="password" id="password" class="form-control form-control-ss"
-                   @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+            <div class="input-group">
+                <input type="@(showPassword ? "text" : "password")" id="password" class="form-control form-control-ss"
+                       @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
+                    <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="rememberMe" @bind="rememberMe" disabled="@isBusy" />
+            <label class="form-check-label ss-body2 text-secondary-ss" for="rememberMe">
+                Remember me
+            </label>
         </div>
 
         <div class="d-grid gap-2 mb-3">
@@ -44,12 +59,15 @@
         </div>
 
         <div class="text-center">
+            <p class="ss-body2 text-secondary-ss mb-2">
+                <a href="/auth/forgot-password" class="text-secondary-ss">Forgot your password?</a>
+            </p>
             <p class="ss-body2 text-secondary-ss">
                 Don't have an account?
-                <a href="/auth/register" class="text-primary-ss">Register</a>
+                <a href="/auth/register" class="text-primary-ss">Create one</a>
             </p>
             <p class="ss-caption1">
-                <a href="/auth" class="text-secondary-ss">Back to user selection</a>
+                <a href="/auth" class="text-secondary-ss">Back to home</a>
             </p>
         </div>
     </div>
@@ -65,6 +83,8 @@
     private string password = "";
     private string? errorMessage;
     private bool isBusy;
+    private bool showPassword;
+    private bool rememberMe;
 
     private bool CanSubmit => !isBusy
         && !string.IsNullOrWhiteSpace(email)
@@ -87,6 +107,12 @@
                 Logger.LogInformation("Signed in as {User}", result.UserName);
 
                 Preferences.Set("app_is_authenticated", true);
+                
+                if (rememberMe)
+                {
+                    Preferences.Set("remember_me", true);
+                    Preferences.Set("remember_email", email.Trim());
+                }
 
                 // If the token contains a userId|token pair, redirect to HTTP sign-in endpoint
                 // (Blazor Server can't set cookies over WebSocket)

@@ -11,7 +11,7 @@
                     <i class="bi bi-chevron-left" style="font-size: 1.25rem;"></i>
                 </button>
             }
-            else
+            else if (ShowHamburger)
             {
                 <button class="btn btn-sm btn-icon d-md-none" type="button"
                         data-bs-toggle="offcanvas" data-bs-target="#mobileNav">
@@ -64,4 +64,5 @@
     [Parameter] public RenderFragment? SecondaryActions { get; set; }
     [Parameter] public bool ShowBack { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public bool ShowHamburger { get; set; } = true;
 }
