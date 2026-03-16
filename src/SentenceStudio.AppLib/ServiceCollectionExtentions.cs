@@ -71,16 +71,12 @@ public static class ServiceCollectionExtentions
         // Register a named HttpClient for auth endpoints (login, register, refresh).
         // Uses the same API base URL as other clients but without the auth handler
         // to avoid a circular dependency (auth client cannot require auth).
-        var apiBaseUrl = configuration.GetValue<string>("ApiBaseUrl");
-        var resolvedUri = !string.IsNullOrEmpty(apiBaseUrl)
-            ? new Uri(apiBaseUrl)
-            : apiBaseUri;
-
-        if (resolvedUri is not null)
+        // The URI (https+http://api) is resolved by Aspire service discovery.
+        if (apiBaseUri is not null)
         {
             services.AddHttpClient("AuthClient", client =>
             {
-                client.BaseAddress = resolvedUri;
+                client.BaseAddress = apiBaseUri;
             });
         }
 

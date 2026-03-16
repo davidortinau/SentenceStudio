@@ -49,16 +49,14 @@ public static class SentenceStudioAppBuilder
         var dbPath = Constants.DatabasePath;
         builder.Services.AddDataServices(dbPath);
 
-        var syncHost = DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost";
-        var syncServerUrl = Environment.GetEnvironmentVariable("services__web__http__0")
-            ?? builder.Configuration.GetValue<string>("SyncServerUrl")
-            ?? $"http://{syncHost}:5240";
-        builder.Services.AddSyncServices(dbPath, new Uri(syncServerUrl));
+        // Use Aspire service discovery: "https+http://servicename" is resolved by
+        // MauiServiceDefaults → AddServiceDiscovery(). When launched from Aspire,
+        // env vars (services__api__https__0 etc.) override the config. When launched
+        // manually, the Services section in appsettings.json provides fallback URLs.
+        var syncServerUri = new Uri("https+http://web");
+        builder.Services.AddSyncServices(dbPath, syncServerUri);
 
-        var apiBaseUrl = Environment.GetEnvironmentVariable("services__api__https__0")
-            ?? builder.Configuration.GetValue<string>("ApiBaseUrl")
-            ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5081";
-        var apiBaseUri = new Uri(apiBaseUrl);
+        var apiBaseUri = new Uri("https+http://api");
 
         // Auth services — pass resolved API URI so AuthClient always has a BaseAddress
         builder.Services.AddAuthServices(builder.Configuration, apiBaseUri);
