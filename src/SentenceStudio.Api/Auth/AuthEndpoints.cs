@@ -34,7 +34,8 @@ public static class AuthEndpoints
         IAppEmailSender emailSender,
         IWebHostEnvironment env,
         JwtTokenService tokenService,
-        HttpContext httpContext)
+        HttpContext httpContext,
+        ILogger<AuthEndpoints> logger)
     {
         var user = new ApplicationUser
         {
@@ -70,6 +71,14 @@ public static class AuthEndpoints
         {
             // Auto-confirm email in development so devs aren't blocked
             var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            var encodedConfirmToken = Uri.EscapeDataString(confirmToken);
+            var devBaseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+            var devConfirmUrl = $"{devBaseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedConfirmToken}";
+
+            logger.LogInformation(
+                "--- EMAIL CONFIRMATION LINK (dev auto-confirmed) ---\nFor: {Email}\nConfirm URL: {ConfirmUrl}\n--- END ---",
+                request.Email, devConfirmUrl);
+
             await userManager.ConfirmEmailAsync(user, confirmToken);
 
             // Issue tokens so the client auto-logs in
@@ -111,7 +120,9 @@ public static class AuthEndpoints
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext db,
         JwtTokenService tokenService,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        ILogger<AuthEndpoints> logger,
+        HttpContext httpContext)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
@@ -124,10 +135,15 @@ public static class AuthEndpoints
             if (env.IsDevelopment())
             {
                 // Auto-confirm in dev so mobile clients aren't blocked.
-                // WebApp's ServerAuthService never checks confirmation, so
-                // users registered on the web have unconfirmed emails that
-                // work on the web but fail here without this fallback.
                 var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                var encodedConfirmToken = Uri.EscapeDataString(confirmToken);
+                var loginBaseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+                var loginConfirmUrl = $"{loginBaseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedConfirmToken}";
+
+                logger.LogInformation(
+                    "--- EMAIL CONFIRMATION LINK (dev auto-confirmed on login) ---\nFor: {Email}\nConfirm URL: {ConfirmUrl}\n--- END ---",
+                    request.Email, loginConfirmUrl);
+
                 await userManager.ConfirmEmailAsync(user, confirmToken);
             }
             else
