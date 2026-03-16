@@ -79,6 +79,13 @@ public class UserProfileRepository
 
     private static async Task BackfillUserProfileIdsAsync(ApplicationDbContext db)
     {
+        // Check if UserProfileId column exists before attempting backfill.
+        // On fresh installs, the column may not exist until MigrateAsync() runs.
+        var cols = await db.Database.SqlQueryRaw<string>(
+            "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
+        if (cols.Count == 0)
+            return; // Column doesn't exist yet — skip backfill
+
         // Assign unowned SkillProfiles by matching Language → UserProfile.TargetLanguage
         await db.Database.ExecuteSqlRawAsync(@"
             UPDATE SkillProfile SET UserProfileId = (
