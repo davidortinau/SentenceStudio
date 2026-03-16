@@ -31,9 +31,6 @@ public static class SentenceStudioAppBuilder
 
         RegisterServices(builder.Services);
 
-        // Auth services (MSAL or DevAuth based on configuration)
-        builder.Services.AddAuthServices(builder.Configuration);
-
         var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
             ? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
             : builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
@@ -58,9 +55,15 @@ public static class SentenceStudioAppBuilder
             ?? $"http://{syncHost}:5240";
         builder.Services.AddSyncServices(dbPath, new Uri(syncServerUrl));
 
-        var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl")
+        var apiBaseUrl = Environment.GetEnvironmentVariable("services__api__https__0")
+            ?? builder.Configuration.GetValue<string>("ApiBaseUrl")
             ?? $"http://{(DeviceInfo.Current.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost")}:5001";
-        builder.Services.AddApiClients(new Uri(apiBaseUrl));
+        var apiBaseUri = new Uri(apiBaseUrl);
+
+        // Auth services — pass resolved API URI so AuthClient always has a BaseAddress
+        builder.Services.AddAuthServices(builder.Configuration, apiBaseUri);
+
+        builder.Services.AddApiClients(apiBaseUri);
         builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
 
         // Register Multi-Agent Conversation Services

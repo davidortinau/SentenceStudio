@@ -20,13 +20,13 @@
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss" for="email">Email</label>
             <input type="email" id="email" class="form-control form-control-ss"
-                   @bind="email" placeholder="you@example.com" disabled="@isBusy" />
+                   @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
         </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss" for="password">Password</label>
             <input type="password" id="password" class="form-control form-control-ss"
-                   @bind="password" placeholder="Password" disabled="@isBusy" />
+                   @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
         </div>
 
         <div class="d-grid gap-2 mb-3">

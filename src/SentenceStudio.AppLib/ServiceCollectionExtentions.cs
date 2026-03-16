@@ -62,7 +62,7 @@ public static class ServiceCollectionExtentions
         });
     }
 
-    public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration, Uri? apiBaseUri = null)
     {
         services.AddSingleton<IAuthService, IdentityAuthService>();
         services.AddAuthorizationCore();
@@ -72,11 +72,15 @@ public static class ServiceCollectionExtentions
         // Uses the same API base URL as other clients but without the auth handler
         // to avoid a circular dependency (auth client cannot require auth).
         var apiBaseUrl = configuration.GetValue<string>("ApiBaseUrl");
-        if (!string.IsNullOrEmpty(apiBaseUrl))
+        var resolvedUri = !string.IsNullOrEmpty(apiBaseUrl)
+            ? new Uri(apiBaseUrl)
+            : apiBaseUri;
+
+        if (resolvedUri is not null)
         {
             services.AddHttpClient("AuthClient", client =>
             {
-                client.BaseAddress = new Uri(apiBaseUrl);
+                client.BaseAddress = resolvedUri;
             });
         }
 
