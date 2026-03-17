@@ -3,6 +3,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
+@inject UserProfileRepository ProfileRepo
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -76,8 +77,18 @@
         // Only redirect to onboarding when authenticated but not yet onboarded
         if (isAuthenticated && !Preferences.Get("is_onboarded", false) && !isOnboardingPath)
         {
-            isOnboarding = true;
-            NavigationManager.NavigateTo("/onboarding");
+            // Check if this is a returning user with existing profile data
+            // (e.g., fresh deploy/rebuild cleared device-local preferences)
+            var existingProfile = await ProfileRepo.GetAsync();
+            if (existingProfile is not null && !string.IsNullOrEmpty(existingProfile.TargetLanguage) && !string.IsNullOrEmpty(existingProfile.Name))
+            {
+                Preferences.Set("is_onboarded", true);
+            }
+            else
+            {
+                isOnboarding = true;
+                NavigationManager.NavigateTo("/onboarding");
+            }
         }
 
         isOnboarding = isOnboardingPath || isOnboarding;

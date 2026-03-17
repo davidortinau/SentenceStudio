@@ -60,6 +60,14 @@ public static class AccountEndpoints
                     if (user.UserProfileId is not null)
                     {
                         preferences.Set("active_profile_id", user.UserProfileId);
+
+                        // Auto-mark returning users as onboarded so they skip the onboarding flow
+                        var profileDb = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                        var existingProfile = await profileDb.UserProfiles.FindAsync(user.UserProfileId);
+                        if (existingProfile is not null && !string.IsNullOrEmpty(existingProfile.TargetLanguage) && !string.IsNullOrEmpty(existingProfile.Name))
+                        {
+                            preferences.Set("is_onboarded", true);
+                        }
                     }
                 }
                 return Results.LocalRedirect(returnUrl);
@@ -176,6 +184,14 @@ public static class AccountEndpoints
             if (!string.IsNullOrEmpty(user.UserProfileId))
             {
                 preferences.Set("active_profile_id", user.UserProfileId);
+
+                // Auto-mark returning users as onboarded so they skip the onboarding flow
+                var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var profile = await db.UserProfiles.FindAsync(user.UserProfileId);
+                if (profile is not null && !string.IsNullOrEmpty(profile.TargetLanguage) && !string.IsNullOrEmpty(profile.Name))
+                {
+                    preferences.Set("is_onboarded", true);
+                }
             }
 
             return Results.LocalRedirect(returnUrl ?? "/");
