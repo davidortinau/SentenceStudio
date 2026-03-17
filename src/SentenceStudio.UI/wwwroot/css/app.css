@@ -683,6 +683,13 @@ h3:focus,
     color: var(--ss-on-primary, #fff);
 }
 
+/* Vertically center text in btn-group radio toggles */
+.btn-group > .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 [data-bs-theme="dark"] .btn-outline-danger {
     color: var(--bs-danger);
     border-color: var(--bs-danger);
