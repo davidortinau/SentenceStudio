@@ -186,7 +186,7 @@ else
             </select>
         }
 
-        @if (availableLanguages.Count > 1)
+        @if (availableLanguages.Count > 0)
         {
             <select class="form-select form-control-ss" style="max-width: 160px;"
                     value="@CurrentLanguage" @onchange="OnLanguageDropdown">
@@ -290,7 +290,7 @@ else
                     </div>
                 }
 
-                @if (availableLanguages.Count > 1)
+                @if (availableLanguages.Count > 0)
                 {
                     <div>
                         <label class="form-label fw-semibold">Language</label>
@@ -633,9 +633,10 @@ else
                 .ToList();
 
             availableLanguages = allWords
-                .SelectMany(w => w.AssociatedResources)
-                .Where(r => !string.IsNullOrWhiteSpace(r.Language))
-                .Select(r => r.Language!)
+                .Select(w => w.Word.Language
+                    ?? w.AssociatedResources.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Language))?.Language)
+                .Where(lang => !string.IsNullOrWhiteSpace(lang))
+                .Select(lang => lang!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(l => l)
                 .ToList();
@@ -805,8 +806,9 @@ else
                         v.Word.Lemma != null &&
                         v.Word.Lemma.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
                     "language" => filtered.Where(v =>
-                        v.AssociatedResources.Any(r =>
-                            r.Language != null && r.Language.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))),
+                        (v.Word.Language != null && v.Word.Language.Equals(filter.Value, StringComparison.OrdinalIgnoreCase))
+                        || (v.Word.Language == null && v.AssociatedResources.Any(r =>
+                            r.Language != null && r.Language.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)))),
                     "encoding" => filtered.Where(v =>
                         v.EncodingLabel.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
                     _ => filtered
@@ -1043,10 +1045,28 @@ else
 
         try
         {
-            // TODO: Implement duplicate detection (#future)
+            // Group by case-insensitive TargetLanguageTerm to find exact duplicates
+            var groups = allWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.Word.TargetLanguageTerm))
+                .GroupBy(w => w.Word.TargetLanguageTerm!.Trim().ToLowerInvariant())
+                .Where(g => g.Count() > 1)
+                .ToList();
+
             duplicateGroups = new List<DuplicateGroup>();
-            cleanupStatus = "Duplicate detection not yet implemented.";
-            await Task.CompletedTask;
+            foreach (var group in groups)
+            {
+                var words = group.Select(w => new DuplicateWordInfo(
+                    w.Word,
+                    w.Word.LearningResources?.Count ?? 0,
+                    w.Word.EncodingStrength
+                )).ToList();
+
+                duplicateGroups.Add(new DuplicateGroup(group.Key, words));
+            }
+
+            cleanupStatus = duplicateGroups.Count > 0
+                ? $"Found {duplicateGroups.Count} groups of duplicates."
+                : "No duplicates found.";
         }
         catch (Exception ex)
         {
@@ -1076,7 +1096,7 @@ else
             var keeper = sorted.First();
             var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-            int deleted = 0; // TODO: Implement MergeVocabularyWordsAsync (#future)
+            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
             cleanupResults.Add($"Merged '{group.NormalizedTerm}': kept 1, removed {deleted}");
 
             duplicateGroups.Remove(group);
@@ -1119,7 +1139,7 @@ else
                 var keeper = sorted.First();
                 var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-                int deleted = 0; // TODO: Implement MergeVocabularyWordsAsync (#future)
+                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
                 totalMerged += deleted;
             }
             catch (Exception ex)
@@ -1223,7 +1243,7 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
                         if (lemmaUpdates.Any())
                         {
-                            int batchUpdated = 0; // TODO: Implement BulkUpdateLemmasAsync (#future)
+                            int batchUpdated = await ResourceRepo.BulkUpdateLemmasAsync(lemmaUpdates);
                             updated += batchUpdated;
                         }
                     }

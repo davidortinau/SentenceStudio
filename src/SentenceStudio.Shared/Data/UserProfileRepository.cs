@@ -98,11 +98,32 @@ public class UserProfileRepository
                 SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = LearningResource.Language LIMIT 1
             ) WHERE UserProfileId IS NULL");
 
+        // Fall back: assign any remaining unowned LearningResources to first profile
+        await db.Database.ExecuteSqlRawAsync(@"
+            UPDATE LearningResource SET UserProfileId = (
+                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1
+            ) WHERE UserProfileId IS NULL");
+
         // Assign unowned UserActivities to first profile
         await db.Database.ExecuteSqlRawAsync(@"
             UPDATE UserActivity SET UserProfileId = (
                 SELECT Id FROM UserProfile ORDER BY Id LIMIT 1
             ) WHERE UserProfileId IS NULL");
+
+        // Backfill VocabularyWord.Language from associated LearningResources
+        var langCol = await db.Database.SqlQueryRaw<string>(
+            "SELECT name FROM pragma_table_info('VocabularyWord') WHERE name = 'Language'").ToListAsync();
+        if (langCol.Count > 0)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                UPDATE VocabularyWord SET Language = (
+                    SELECT LR.Language FROM ResourceVocabularyMapping RVM
+                    JOIN LearningResource LR ON LR.Id = RVM.ResourceId
+                    WHERE RVM.VocabularyWordId = VocabularyWord.Id
+                    AND LR.Language IS NOT NULL AND LR.Language != ''
+                    LIMIT 1
+                ) WHERE Language IS NULL OR Language = ''");
+        }
     }
 
     /// <summary>

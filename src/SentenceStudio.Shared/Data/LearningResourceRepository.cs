@@ -940,21 +940,87 @@ public class LearningResourceRepository
     }
 
     /// <summary>
-    /// Check if a learning resource exists with a similar title
+    /// Bulk update lemma values for vocabulary words.
     /// </summary>
-    public async Task<LearningResource?> FindDuplicateByTitleAsync(string title)
+    public async Task<int> BulkUpdateLemmasAsync(Dictionary<string, string> wordIdToLemma)
     {
-        if (string.IsNullOrWhiteSpace(title))
-            return null;
+        if (wordIdToLemma == null || !wordIdToLemma.Any())
+            return 0;
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var normalizedTitle = title.Trim().ToLower();
+        int updated = 0;
+        foreach (var (wordId, lemma) in wordIdToLemma)
+        {
+            var word = await db.VocabularyWords.FindAsync(wordId);
+            if (word != null)
+            {
+                word.Lemma = lemma;
+                word.UpdatedAt = DateTime.UtcNow;
+                updated++;
+            }
+        }
 
-        return await db.LearningResources
-            .FirstOrDefaultAsync(lr =>
-                lr.Title != null &&
-                lr.Title.Trim().ToLower() == normalizedTitle);
+        if (updated > 0)
+            await db.SaveChangesAsync();
+
+        return updated;
+    }
+
+    /// <summary>
+    /// Merge duplicate vocabulary words: reassign all resource mappings from source words
+    /// to the keeper word, then delete the source words.
+    /// </summary>
+    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds)
+    {
+        if (string.IsNullOrWhiteSpace(keeperWordId) || deleteWordIds == null || !deleteWordIds.Any())
+            return 0;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        int deleted = 0;
+
+        // Get existing mappings for the keeper to avoid duplicates
+        var keeperResourceIds = await db.ResourceVocabularyMappings
+            .Where(m => m.VocabularyWordId == keeperWordId)
+            .Select(m => m.ResourceId)
+            .ToListAsync();
+
+        foreach (var deleteId in deleteWordIds)
+        {
+            // Reassign resource mappings from the duplicate to the keeper
+            var mappingsToReassign = await db.ResourceVocabularyMappings
+                .Where(m => m.VocabularyWordId == deleteId)
+                .ToListAsync();
+
+            foreach (var mapping in mappingsToReassign)
+            {
+                if (!keeperResourceIds.Contains(mapping.ResourceId))
+                {
+                    db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                    {
+                        ResourceId = mapping.ResourceId,
+                        VocabularyWordId = keeperWordId
+                    });
+                    keeperResourceIds.Add(mapping.ResourceId);
+                }
+                db.ResourceVocabularyMappings.Remove(mapping);
+            }
+
+            // Delete the duplicate word
+            var word = await db.VocabularyWords.FindAsync(deleteId);
+            if (word != null)
+            {
+                db.VocabularyWords.Remove(word);
+                deleted++;
+            }
+        }
+
+        if (deleted > 0)
+            await db.SaveChangesAsync();
+
+        return deleted;
     }
 }

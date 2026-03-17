@@ -28,6 +28,10 @@ public partial class VocabularyWord : ObservableObject
     [Description("The dictionary form or lemma of the word, for grouping inflected forms")]
     [ObservableProperty]
     private string? lemma;
+
+    [Description("The language of this vocabulary word, e.g. Korean, English, Spanish")]
+    [ObservableProperty]
+    private string? language;
     
     [Description("Comma-separated tags for categorizing vocabulary words")]
     [ObservableProperty]

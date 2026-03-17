@@ -155,3 +155,122 @@ Implemented JWT Bearer token authentication for the API:
 - API's AuthEndpoints.Login now auto-confirms email in development mode to match WebApp behavior; production still requires email confirmation
 - IdentityAuthService (MAUI client) logs response body on login failure for better debugging
 
+
+### 2026-03-16 — Vocabulary Hierarchy Schema Design
+
+**Status:** PROPOSED  
+**Decision Doc:** `.squad/decisions/inbox/wash-vocabulary-hierarchy-proposal.md`
+
+**Problem:** Current flat vocabulary model causes duplication when AI extracts related terms (root word → phrase → idiom). Users must prove mastery redundantly for linguistically connected vocabulary.
+
+**Analysis Completed:**
+- Examined current schema: `VocabularyWord` (flat pairs), `VocabularyProgress` (per-word mastery), `ResourceVocabularyMapping` (junction), `VocabularyLearningContext` (practice attempts)
+- Evaluated two architectural options:
+  - **Option A (Recommended):** Self-referential FK — add `ParentVocabularyWordId` + `RelationType` enum to `VocabularyWord`
+  - **Option B:** Separate `VocabularyRelationship` junction table for many-to-many relationships
+
+**Key Technical Decisions:**
+1. **Keep separate VocabularyProgress per word** — hierarchy is metadata, NOT for aggregating mastery scores. Phrases are distinct learning targets.
+2. **Option A simpler for CoreSync** — single table sync, no new junction table, NULLable FK preserves existing data
+3. **Migration risk: LOW** — additive changes only, no data loss, no destructive schema alterations
+4. **AI extraction contract change needed** — must return parent-child relationships, not flat list (River's domain)
+
+**VocabularyWordRelationType Enum Proposed:**
+- `Inflection` — verb conjugations, noun declensions
+- `Phrase` — word + particle/modifier
+- `Idiom` — fixed multi-word expressions
+- `Compound` — merged words
+- `Synonym` / `Antonym` — semantic relationships
+
+**CoreSync Implications:**
+- Option A: Single table, existing FK handling works, validate against circular refs
+- Option B: New sync table, relationship conflicts independent of word conflicts, cascade deletes
+
+**Migration Phases:**
+1. Schema extension (EF Core migration — 2 new columns)
+2. Data backfill (optional — AI analysis of existing vocab)
+3. CoreSync validation (conflict resolution, cascading deletes)
+4. API + UI updates (hierarchy extraction, related words display)
+
+**Team Coordination Required:**
+- **Captain:** UX decision — show hierarchy to users immediately or backend-only?
+- **River:** AI prompt engineering for parent-child extraction
+- **Kaylee:** UI design for hierarchy display (tree view, chips, expandable sections)
+- **Jayne:** E2E test scenarios for cross-device sync validation
+- **Zoe:** Architecture alignment with multi-tenancy plans
+
+**Recommendation:** Adopt Option A (self-referential) for Phase 1. Revisit Option B if multi-parent expressions become common.
+
+
+---
+
+## VOCABULARY HIERARCHY TEAM ANALYSIS — SCHEMA FINALIZED (2026-03-17)
+
+**Session:** Vocabulary Hierarchy Analysis & Team Consensus  
+**Role:** Backend Developer  
+**Status:** PROPOSED — Awaiting Captain Approval
+
+**Schema Decision: Option A (Self-Referential FK) — FINAL**
+
+### Recommended Implementation
+
+**Add to VocabularyWord entity:**
+```csharp
+// Linguistic hierarchy
+public string? ParentVocabularyWordId { get; set; }
+public VocabularyWordRelationType? RelationType { get; set; }
+
+// Navigation properties
+[JsonIgnore]
+public VocabularyWord? ParentWord { get; set; }
+
+[JsonIgnore]
+public List<VocabularyWord> ChildWords { get; set; } = new();
+
+public enum VocabularyWordRelationType
+{
+    Inflection,  // 주문 → 주문하다
+    Phrase,      // 대학교 → 대학교 때
+    Idiom,       // 주문하다 → 피자를 주문하는 게 어때요
+    Compound,    // Two words merged
+    Synonym,     // Alternative
+    Antonym      // Opposite
+}
+```
+
+**EF Core Migration (next step):**
+```sql
+ALTER TABLE VocabularyWord ADD COLUMN ParentVocabularyWordId TEXT NULL;
+ALTER TABLE VocabularyWord ADD COLUMN RelationType INTEGER NULL;
+CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
+```
+
+### Why Option A?
+- **CoreSync compatibility:** Single table sync, no junction table, NULLable FK preserves existing data
+- **Query simplicity:** Direct FK traversal, fast parent/child queries
+- **Migration safety:** Additive changes only, zero data loss
+- **Future-proof:** Can evolve to Option B (junction table) if multi-parent needed
+
+### Team Validation
+- ✅ Zoe (Architecture): Aligns with design pillars, conservative MVP approach
+- ✅ River (AI): Prompt design ready to populate relatedTerms array
+- ✅ SLA Expert: Independent mastery tracking preserves SRS spacing effect
+- ✅ Learning Design: Supports hierarchy visualization without cognitive overload
+
+### Migration Risk: LOW
+- No destructive changes
+- Existing vocabulary unaffected (NULLable columns)
+- FK reference to same table (standard pattern)
+- Cascade deletes optional (recommend ON DELETE SET NULL for safety)
+
+### Immediate Next Steps
+1. Captain approval
+2. Generate EF Core migration file
+3. Write integration tests (FK integrity, cascade rules)
+4. CoreSync validation (bi-directional sync with new FK)
+5. Repository methods: `GetChildWordsAsync()`, `GetRootWordAsync()`, `GetWordHierarchyAsync()`
+
+### Future Expansion (Phase 2)
+- If multi-parent relationships become common (rare), migrate to Option B (junction table)
+- Option A→B migration path documented
+- Low risk to defer this decision

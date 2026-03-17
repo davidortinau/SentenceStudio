@@ -28,13 +28,10 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     //   .WithEnvironment("Email__Username", "<smtp-user>")       // user-secrets
     //   .WithEnvironment("Email__Password", "<smtp-password>")   // user-secrets
 
-var web = builder.AddProject<SentenceStudio_Web>("web");
-
 var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
-    .WithReference(web)
     .WithReference(redis);
 
 builder.AddProject<SentenceStudio_Marketing>("marketing");

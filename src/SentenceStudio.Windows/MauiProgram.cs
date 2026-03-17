@@ -24,7 +24,7 @@ public static class MauiProgram
         builder.AddAudio();
 
         builder.Services.AddMauiBlazorWebView();
-        RegisterBlazorServices(builder.Services);
+        builder.Services.AddBlazorUIServices();
 
 #if DEBUG
         builder.Logging
@@ -40,13 +40,4 @@ public static class MauiProgram
         return SentenceStudioAppBuilder.InitializeApp(app);
     }
 
-    private static void RegisterBlazorServices(IServiceCollection services)
-    {
-        services.AddSingleton<ToastService>();
-        services.AddSingleton<ModalService>();
-        services.AddSingleton<BlazorLocalizationService>();
-        services.AddSingleton<BlazorNavigationService>();
-        services.AddScoped<NavigationMemoryService>();
-        services.AddScoped<JsInteropService>();
-    }
 }

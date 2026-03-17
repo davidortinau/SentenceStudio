@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using OpenAI;
 using ElevenLabs;
 using SentenceStudio.Abstractions;
-using SentenceStudio.Services.LanguageSegmentation;
 
 namespace SentenceStudio;
 
@@ -148,6 +147,7 @@ public static class SentenceStudioAppBuilder
 
     private static void RegisterServices(IServiceCollection services)
     {
+        // Platform-specific abstractions (MAUI implementations)
         services.AddSingleton<IFileSystemService, MauiFileSystemService>();
         services.AddSingleton<IPreferencesService, MauiPreferencesService>();
         services.AddSingleton<ISecureStorageService, MauiSecureStorageService>();
@@ -155,80 +155,11 @@ public static class SentenceStudioAppBuilder
         services.AddSingleton<IAudioPlaybackService, MauiAudioPlaybackService>();
         services.AddSingleton<IConnectivityService, MauiConnectivityService>();
 
-        services.AddSingleton<ThemeService>();
+        // Shared core services
+        services.AddSentenceStudioCoreServices();
 
-        services.AddSingleton<TeacherService>();
-        services.AddSingleton<ConversationService>();
-        services.AddSingleton<AiService>();
-        services.AddSingleton<SceneImageService>();
-        services.AddSingleton<ClozureService>();
-        services.AddSingleton<WordAssociationService>();
-        services.AddSingleton<StorytellerService>();
-        services.AddSingleton<TranslationService>();
-        services.AddSingleton<ShadowingService>();
-        services.AddSingleton<VideoWatchingService>();
-        services.AddSingleton<AudioAnalyzer>();
-        services.AddSingleton<YouTubeImportService>();
-        services.AddSingleton<ElevenLabsSpeechService>();
-        services.AddSingleton<DataExportService>();
-        services.AddSingleton<NameGenerationService>();
-        services.AddSingleton<VocabularyQuizPreferences>();
-        services.AddSingleton<SpeechVoicePreferences>();
-        services.AddSingleton<Services.Speech.IVoiceDiscoveryService, Services.Speech.VoiceDiscoveryService>();
-
-        services.AddSingleton<KoreanLanguageSegmenter>();
-        services.AddSingleton<GenericLatinSegmenter>();
-        services.AddSingleton<FrenchLanguageSegmenter>();
-        services.AddSingleton<GermanLanguageSegmenter>();
-        services.AddSingleton<SpanishLanguageSegmenter>();
-
-        services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
-            new List<ILanguageSegmenter>
-            {
-                provider.GetRequiredService<KoreanLanguageSegmenter>(),
-                provider.GetRequiredService<GenericLatinSegmenter>(),
-                provider.GetRequiredService<FrenchLanguageSegmenter>(),
-                provider.GetRequiredService<GermanLanguageSegmenter>(),
-                provider.GetRequiredService<SpanishLanguageSegmenter>()
-            });
-
-        services.AddSingleton<LanguageSegmenterFactory>();
-        services.AddSingleton<TranscriptFormattingService>();
-        services.AddSingleton<TranscriptSentenceExtractor>();
-
-        services.AddSingleton<StoryRepository>();
-        services.AddSingleton<UserProfileRepository>();
-        services.AddSingleton<UserActivityRepository>();
-        services.AddSingleton<SkillProfileRepository>();
-        services.AddSingleton<LearningResourceRepository>();
-        services.AddSingleton<StreamHistoryRepository>();
-        services.AddSingleton<VocabularyProgressRepository>();
-        services.AddSingleton<VocabularyLearningContextRepository>();
-        services.AddSingleton<VocabularyProgressService>();
-        services.AddSingleton<IVocabularyProgressService>(provider => provider.GetRequiredService<VocabularyProgressService>());
-        services.AddSingleton<SmartResourceService>();
-
-        services.AddSingleton<ScenarioRepository>();
-        services.AddSingleton<IScenarioService, ScenarioService>();
-
-        services.AddSingleton<EncodingStrengthCalculator>();
-        services.AddSingleton<ExampleSentenceRepository>();
-        services.AddSingleton<VocabularyEncodingRepository>();
-        services.AddSingleton<VocabularyFilterService>();
-
-        services.AddSingleton<ISearchQueryParser, SearchQueryParser>();
-
-        services.AddSingleton<SentenceStudio.Services.Progress.ProgressCacheService>();
-        services.AddSingleton<SentenceStudio.Services.Progress.IProgressService, SentenceStudio.Services.Progress.ProgressService>();
-        services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
-
-        services.AddSingleton<SentenceStudio.Services.PlanGeneration.DeterministicPlanBuilder>();
-        services.AddSingleton<SentenceStudio.Services.PlanGeneration.ILlmPlanGenerationService, SentenceStudio.Services.Api.ApiPlanGenerationService>();
-        services.AddSingleton<VocabularyExampleGenerationService>();
-
+        // MAUI-only services
         services.AddSingleton<ISpeechToText>(SpeechToText.Default);
         services.AddSingleton<IFileSaver>(FileSaver.Default);
-
-        services.AddSingleton<IAppState, AppState>();
     }
 }

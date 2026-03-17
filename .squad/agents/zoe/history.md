@@ -189,3 +189,95 @@ Now SSR renders with the correct theme from the start (ThemeService reads from p
 - Theme attributes on `<html>` must match user preference from first render to avoid SSR→interactive flash
 - No CSS `prefers-color-scheme` media queries were found — all theme control is via JS and CSS variables
 
+
+### 2026-03-15 — Vocabulary Relationship Architecture Framing
+
+**Status:** PROPOSED  
+**Location:** `.squad/decisions/inbox/zoe-vocab-relationships-architecture.md`
+
+Framed the architecture question for vocabulary relationship tracking after Captain reported overlap/duplication issue: users master root words (e.g., Korean `자주` - "often") but must re-prove mastery for derived forms (`자주 마시는` - "often drinks").
+
+**Key Architecture Questions Identified:**
+
+1. **Relationship Model**: Three schema options analyzed
+   - Option A (ParentWordId FK): Simple, fast, can't handle multi-word relationships
+   - Option B (Junction Table): Flexible graph model, handles complex relationships, more queries
+   - Option C (Lemma Group): Linguistically accurate, requires AI lemma assignment
+
+2. **Mastery Propagation**: Four approaches evaluated
+   - Full Credit (optimistic) — root mastery grants 70% to derived
+   - Partial Credit (weighted) — 40-60% transfer
+   - Separate Mastery with Hints (conservative) — current behavior + UI hints
+   - Context-Based Mastery (advanced) — track per-context (standalone vs. phrase)
+
+3. **AI Import Enhancement**: Three strategies
+   - Relationship-Aware Prompt — AI flags relationships during generation
+   - Lemma Grouping Prompt — AI assigns lemma groups
+   - Hybrid (AI suggests + user confirms) — accuracy vs. friction tradeoff
+
+4. **SRS Impact**: Three scheduling options
+   - Clustered Review — batch root + derived forms
+   - Weighted Intervals — derived forms reviewed less often
+   - Independent Scheduling — status quo (SM-2 per word)
+
+**Recommendation (Phase 1 MVP):**
+- Schema: ParentWordId FK (Option A) — minimal risk, additive
+- Mastery: Separate tracking with UI hints (Option C) — transparent, no shortcuts
+- AI Import: Relationship-aware prompt (Option A) — capture relationships during import
+- SRS: Independent scheduling (Option C) — don't refactor proven SM-2 yet
+
+**Cross-Team Questions Identified:**
+- **River (AI)**: Accuracy of relationship detection, lemma assignment reliability
+- **Wash (Backend)**: Schema preference, migration complexity, query performance
+- **Kaylee (UI)**: Relationship visualization, import preview UX, mastery feedback patterns
+- **Language Tutor Agents**: Cognitive load, review frequency, SLA research validation
+
+**Key Files Referenced:**
+- `src/SentenceStudio.Shared/Models/VocabularyWord.cs` — current data model
+- `src/SentenceStudio.Shared/Models/VocabularyProgress.cs` — mastery tracking
+- `src/SentenceStudio.UI/Pages/ResourceEdit.razor` — AI import flow
+- `docs/vocabulary-deduplication-enhancement.md` — current AI deduplication strategy
+
+**Next:** Captain approval on MVP vs. ambitious path, then team input from River/Wash/Kaylee/language tutors.
+
+---
+
+## VOCABULARY HIERARCHY TEAM ANALYSIS — TEAM CONSENSUS (2026-03-17)
+
+**Session:** Vocabulary Hierarchy Analysis & Consensus Building  
+**Team:** Zoe (Lead), River (AI), Wash (Backend), SLA Expert, Learning Design Expert  
+**Status:** PROPOSED — Awaiting Captain Approval
+
+**Consensus Reached on MVP Approach:**
+
+### Recommendation Summary
+- **Data Model:** Self-referential FK (ParentWordId) — Option A approved by all stakeholders
+- **Mastery Propagation:** Independent mastery tracking with UI hints (Option C) — transparent, no shortcuts
+- **AI Import:** Hierarchical prompts with relationship detection — River implemented full schema
+- **SRS Scheduling:** Independent scheduling (preserve SM-2) — no refactoring in MVP
+- **Learning Design:** Progressive disclosure with engagement tracking — supports transfer of learning data
+
+### Why This Consensus?
+- **Wash validated:** Option A is simplest for CoreSync (single table, NULLable FK, no cascade complexity)
+- **River designed:** Hierarchical JSON schema with relationshipType, relatedTerms, linguisticMetadata
+- **SLA Expert confirmed:** Independent mastery aligns with morphological awareness research + spacing effect
+- **Learning Design:** Progressive hints prevent cognitive overload, preserve challenge
+- **Captain's Request Met:** "More nuanced" without committing to complex mastery transfer or graph models
+
+### Team Outputs
+- `docs/zoe-vocab-relationships-architecture.md` — Architecture framework & design pillars
+- `docs/wash-vocabulary-hierarchy-proposal.md` — Data model analysis + EF Core implementation
+- `docs/vocabulary-hierarchy-prompt-design.md` — Hierarchical JSON schema + multi-pass prompt strategy
+- `docs/vocabulary-hierarchy-learning-design.md` — UX flow, engagement metrics, confidence building
+- `docs/vocabulary-hierarchy-consensus-plan.md` — Integrated consensus plan (synthesis of all)
+
+### Critical Path (After Captain Approval)
+1. Wash: Generate EF Core migration (ParentWordId, RelationType)
+2. River: Implement hierarchical prompt endpoint
+3. Kaylee: Vocabulary detail page redesign (show parent + siblings)
+4. All: E2E testing on 5 real Korean transcripts
+
+### Awaiting
+- Captain approval on MVP approach
+- Decision: Migrate old vocabulary or only new imports?
+- Decision: Mastery inheritance enablement timeline (Phase 1 MVP vs. future)

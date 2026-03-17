@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
 using OpenAI;
+using SentenceStudio;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
@@ -141,17 +142,7 @@ builder.Services.AddSingleton<ISyncProvider>(sp =>
 {
     var connectionString = $"Data Source={databasePath}";
     var configurationBuilder = new SqliteSyncConfigurationBuilder(connectionString)
-        .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<VocabularyWord>("VocabularyWord", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
-        .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
+        .ConfigureSyncTables();
     return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
 

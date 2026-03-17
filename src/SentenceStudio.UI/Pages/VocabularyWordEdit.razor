@@ -90,6 +90,17 @@ else
         </div>
 
         <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Language</label>
+            <select class="form-select form-control-ss" @bind="wordLanguage">
+                <option value="">— Not set —</option>
+                @foreach (var lang in languages)
+                {
+                    <option value="@lang">@lang</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Tags (comma-separated)</label>
             <input type="text" class="form-control form-control-ss" @bind="tags"
                    placeholder="e.g., nature, season, visual" />
@@ -250,6 +261,8 @@ else
     private string tags = "";
     private string mnemonicText = "";
     private string mnemonicImageUri = "";
+    private string wordLanguage = "";
+    private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
 
     // Resources
     private List<LearningResource> availableResources = new();
@@ -294,6 +307,7 @@ else
                 nativeLanguageTerm = word.NativeLanguageTerm ?? "";
                 lemma = word.Lemma ?? "";
                 tags = word.Tags ?? "";
+                wordLanguage = word.Language ?? "";
                 mnemonicText = word.MnemonicText ?? "";
                 mnemonicImageUri = word.MnemonicImageUri ?? "";
 
@@ -421,6 +435,7 @@ else
             word.NativeLanguageTerm = native;
             word.Lemma = lemma.Trim();
             word.Tags = tags.Trim();
+            word.Language = string.IsNullOrWhiteSpace(wordLanguage) ? null : wordLanguage.Trim();
             word.MnemonicText = mnemonicText.Trim();
             word.MnemonicImageUri = mnemonicImageUri.Trim();
             word.UpdatedAt = DateTime.UtcNow;

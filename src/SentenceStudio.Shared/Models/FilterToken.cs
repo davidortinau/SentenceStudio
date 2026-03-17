@@ -8,7 +8,9 @@ public sealed record FilterToken(string Type, string Value)
         "resource",
         "lemma",
         "status",
-        "association"
+        "association",
+        "language",
+        "encoding"
     };
 
     public bool IsValid =>

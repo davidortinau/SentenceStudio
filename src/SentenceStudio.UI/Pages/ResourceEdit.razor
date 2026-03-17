@@ -362,29 +362,14 @@ else
                 : profile?.TargetLanguage ?? "Korean";
             var nativeLanguage = profile?.NativeLanguage ?? "English";
 
-            string prompt = $@"
-You are a language learning assistant. Analyze this {targetLanguage} transcript and extract ALL vocabulary words that would be useful for a learner.
+            string prompt = $@"Extract all {targetLanguage} vocabulary from this transcript for a language learner.
+Return a JSON array where each object has:
+- ""TargetLanguageTerm"" ({targetLanguage}, dictionary form)
+- ""NativeLanguageTerm"" ({nativeLanguage} translation)
+- ""Lemma"" (the dictionary root form in {targetLanguage}, e.g. 주문하다 → 주문, 대학교 때 → 대학교)
+- ""Language"" (the language of the term, usually ""{targetLanguage}"" but use the actual language if a term is borrowed or mixed)
 
-CRITICAL: Pay close attention to which field is which:
-- TargetLanguageTerm = The word in {targetLanguage} (the language being learned, NOT {nativeLanguage})
-- NativeLanguageTerm = The {nativeLanguage} translation
-
-For EACH word or phrase you find in the transcript, provide:
-1. TargetLanguageTerm: The word in {targetLanguage} - use dictionary/base form when appropriate
-2. NativeLanguageTerm: The {nativeLanguage} translation
-
-Include:
-- Nouns, verbs, adjectives, adverbs
-- Common expressions and phrases
-- Grammar patterns if useful
-- ALL words that appear in the transcript, even if they seem basic
-
-IMPORTANT:
-- TargetLanguageTerm MUST be in {targetLanguage}
-- NativeLanguageTerm MUST be in {nativeLanguage}
-- Do NOT swap these fields
-
-Format your response as a valid JSON array of objects with TargetLanguageTerm and NativeLanguageTerm properties.
+Include nouns, verbs, adjectives, adverbs, and useful expressions.
 
 Transcript:
 {resource.Transcript}
@@ -439,7 +424,7 @@ Transcript:
 
                 try
                 {
-                    var word = await GetOrCreateWordAsync(targetTerm, nativeTerm);
+                    var word = await GetOrCreateWordAsync(targetTerm, nativeTerm, wordData.Lemma?.Trim(), wordData.Language?.Trim() ?? targetLanguage);
                     resource.Vocabulary.Add(word);
 
                     if ((DateTime.UtcNow - word.CreatedAt).TotalSeconds < 5)
@@ -472,16 +457,38 @@ Transcript:
         }
     }
 
-    private async Task<VocabularyWord> GetOrCreateWordAsync(string targetTerm, string nativeTerm)
+    private async Task<VocabularyWord> GetOrCreateWordAsync(string targetTerm, string nativeTerm, string? lemma = null, string? language = null)
     {
         var existing = await ResourceRepo.GetWordByTargetTermAsync(targetTerm);
         if (existing != null)
+        {
+            bool changed = false;
+            // Backfill lemma if the existing word doesn't have one
+            if (!string.IsNullOrWhiteSpace(lemma) && string.IsNullOrWhiteSpace(existing.Lemma))
+            {
+                existing.Lemma = lemma;
+                changed = true;
+            }
+            // Backfill language if the existing word doesn't have one
+            if (!string.IsNullOrWhiteSpace(language) && string.IsNullOrWhiteSpace(existing.Language))
+            {
+                existing.Language = language;
+                changed = true;
+            }
+            if (changed)
+            {
+                existing.UpdatedAt = DateTime.UtcNow;
+                await ResourceRepo.SaveWordAsync(existing);
+            }
             return existing;
+        }
 
         var word = new VocabularyWord
         {
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = nativeTerm,
+            Lemma = lemma,
+            Language = language,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
