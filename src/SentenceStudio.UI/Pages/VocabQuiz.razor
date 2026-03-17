@@ -504,8 +504,14 @@ else
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
-        // Clear browser focus so the previously selected button doesn't stay highlighted
-        try { await JS.InvokeVoidAsync("eval", "document.activeElement?.blur()"); } catch { }
+        // iOS WebView applies :focus to tapped coordinates after a delay — blur repeatedly to catch it
+        try {
+            await JS.InvokeVoidAsync("eval",
+                "document.activeElement?.blur();" +
+                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},300);" +
+                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},800);" +
+                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},1500);");
+        } catch { }
         await LoadCurrentItem();
     }
 

@@ -691,12 +691,18 @@ h3:focus,
 }
 
 /* Prevent iOS WebView :focus/:active from overriding quiz button state */
-.quiz-choice-btn:focus,
-.quiz-choice-btn:active,
-.quiz-choice-btn:focus-visible {
+button.quiz-choice-btn {
+    -webkit-tap-highlight-color: transparent !important;
+}
+button.quiz-choice-btn:focus,
+button.quiz-choice-btn:active,
+button.quiz-choice-btn:focus:active,
+button.quiz-choice-btn:focus-visible {
     background-color: transparent !important;
-    color: inherit !important;
+    color: var(--bs-btn-color) !important;
+    border-color: var(--bs-btn-border-color) !important;
     box-shadow: none !important;
+    outline: none !important;
 }
 
 [data-bs-theme="dark"] .btn-outline-danger {
