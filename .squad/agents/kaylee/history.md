@@ -9,6 +9,10 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- PageHeader `ToolbarActions` slot renders icon buttons in the header toolbar on ALL screen sizes — use `d-md-none` to restrict to mobile
+- Bootstrap `offcanvas-bottom` with `d-md-none` is the pattern for mobile-only slide-up filter panels
+- Vocabulary page filter dropdowns reuse the same `@onchange` handlers in both inline row and offcanvas — single source of truth via search query parsing
+- `ActiveFilterCount` computed property: `parsedQuery?.Filters.Count ?? 0` — use for badge counts
 - `SentenceStudio.AppLib` has `ImplicitUsings>disable` — must add explicit `using` for System.Net.Http, etc.
 - `Auth:UseEntraId` config flag pattern works across Api, WebApp, and now MAUI clients
 - MSAL.NET `WithBroker(BrokerOptions)` overload removed in v4.x — just omit it when not using a broker
@@ -628,3 +632,21 @@ Fixed 5 GitHub issues related to mobile user experience:
 - `d-flex flex-column flex-md-row gap-2` is the correct Bootstrap 5.3 pattern for responsive button groups — `btn-group flex-wrap` has poor mobile behavior
 - Icon-only buttons on mobile with `d-md-none` / `d-none d-md-inline` pattern saves horizontal space without losing desktop clarity
 - `flex-wrap` + strategic line-break wrappers (w-100 on mobile, w-md-auto on desktop) gives precise control over toolbar wrapping behavior
+
+### 2026-07-22 — Onboarding Gate Fix for Returning Users
+
+**Status:** Complete
+**Bug:** Returning users (dave@ortinau.com) with extensive data (2472 vocab words) were forced through onboarding after every app rebuild/redeploy because `is_onboarded` is a device-local preference that gets wiped.
+
+**Root Cause:** `MainLayout.razor` line 77 checked only `Preferences.Get("is_onboarded", false)` with no fallback for existing users. `AccountEndpoints.cs` AutoSignIn/Login never set `is_onboarded = true`.
+
+**Fix (3 touch points):**
+1. **MainLayout.razor** — Injected `UserProfileRepository`, added profile data check before onboarding redirect. If user has a profile with Name + TargetLanguage set, auto-sets `is_onboarded = true` and skips onboarding.
+2. **AccountEndpoints.cs (AutoSignIn)** — After setting `active_profile_id`, checks profile data and sets `is_onboarded = true` for returning users.
+3. **AccountEndpoints.cs (Login)** — Same returning-user check added to the password login flow.
+
+**Key Design Decisions:**
+- Profile check is lightweight (single DB lookup) and only runs when `is_onboarded` is false
+- Once set to true, subsequent page loads skip the check entirely
+- No schema changes needed — purely logic/preferences fix
+- Criteria for "onboarded": profile exists with non-empty Name AND non-empty TargetLanguage
