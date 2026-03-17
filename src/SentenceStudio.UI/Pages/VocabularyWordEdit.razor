@@ -130,30 +130,19 @@ else
                     }
                     else
                     {
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button"
-                                    class="btn @(currentLearningStatus == LearningStatus.Unknown ? "btn-secondary" : "btn-outline-secondary")"
+                        <div class="d-flex align-items-center gap-2">
+                            <select class="form-select form-select-sm" style="max-width: 200px;"
                                     disabled="@isSettingStatus"
-                                    @onclick="() => SetStatus(LearningStatus.Unknown)">
-                                <i class="bi bi-question-circle me-1"></i>Unknown
-                            </button>
-                            <button type="button"
-                                    class="btn @(currentLearningStatus == LearningStatus.Learning ? "btn-primary" : "btn-outline-primary")"
-                                    disabled="@isSettingStatus"
-                                    @onclick="() => SetStatus(LearningStatus.Learning)">
-                                <i class="bi bi-book me-1"></i>Learning
-                            </button>
-                            <button type="button"
-                                    class="btn @(currentLearningStatus == LearningStatus.Familiar ? "btn-warning text-dark" : "btn-outline-warning")"
-                                    disabled="@isSettingStatus"
-                                    @onclick="() => SetStatus(LearningStatus.Familiar)">
-                                <i class="bi bi-star me-1"></i>Familiar
-                            </button>
+                                    @onchange="OnStatusSelectChanged">
+                                <option value="Unknown" selected="@(currentLearningStatus == LearningStatus.Unknown)">Unknown</option>
+                                <option value="Learning" selected="@(currentLearningStatus == LearningStatus.Learning)">Learning</option>
+                                <option value="Familiar" selected="@(currentLearningStatus == LearningStatus.Familiar)">Familiar</option>
+                            </select>
+                            @if (isSettingStatus)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
                         </div>
-                        @if (isSettingStatus)
-                        {
-                            <span class="spinner-border spinner-border-sm ms-2"></span>
-                        }
                     }
                 </div>
                 <div class="col-4 col-md-2"><strong class="ss-body2">Details</strong></div>
@@ -178,7 +167,7 @@ else
         }
         else
         {
-            <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+            <div class="list-group list-group-flush resource-associations-list" style="max-height: 400px; overflow-y: auto;">
                 @foreach (var resource in availableResources)
                 {
                     var isSelected = selectedResourceIds.Contains(resource.Id);
@@ -186,12 +175,8 @@ else
                            style="cursor: pointer;">
                         <input class="form-check-input mt-0" type="checkbox" checked="@isSelected"
                                @onchange="() => ToggleResource(resource.Id)" />
-                        <div>
+                        <div class="resource-title-truncate">
                             <strong class="ss-body1">@(resource.Title ?? "Unknown Resource")</strong>
-                            @if (!string.IsNullOrEmpty(resource.Description))
-                            {
-                                <br /><small class="text-secondary-ss">@resource.Description</small>
-                            }
                         </div>
                     </label>
                 }
@@ -529,6 +514,14 @@ else
         finally
         {
             isSettingStatus = false;
+        }
+    }
+
+    private async Task OnStatusSelectChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string statusStr && Enum.TryParse<SentenceStudio.Shared.Models.LearningStatus>(statusStr, out var status))
+        {
+            await SetStatus(status);
         }
     }
 

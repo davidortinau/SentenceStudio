@@ -37,8 +37,8 @@
 }
 else
 {
-    @* Stats bar — horizontal scroll on mobile *@
-    <div class="d-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;">
+    @* Stats bar — hidden on mobile *@
+    <div class="d-none d-md-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;">
         <span class="badge bg-dark rounded-pill flex-shrink-0">@filteredWords.Count of @statTotal</span>
         <span class="badge bg-secondary rounded-pill flex-shrink-0">Unknown: @statUnknown</span>
         <span class="badge bg-primary rounded-pill flex-shrink-0">Learning: @statLearning</span>
@@ -115,10 +115,10 @@ else
         }
     </div>
 
-    @* Active filter chips *@
+    @* Active filter chips — hidden on mobile *@
     @if (parsedQuery?.Filters.Count > 0)
     {
-        <div class="d-flex gap-2 mb-3 flex-wrap">
+        <div class="d-none d-md-flex gap-2 mb-3 flex-wrap">
             @foreach (var filter in parsedQuery.Filters)
             {
                 <span class="badge @GetFilterTypeBadgeClass(filter.Type) d-flex align-items-center gap-1 py-2 px-3"

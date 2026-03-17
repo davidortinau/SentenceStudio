@@ -1507,3 +1507,23 @@ h3:focus,
         flex: 1;
     }
 }
+
+/* ============================================
+   VOCABULARY PAGE MOBILE IMPROVEMENTS
+   ============================================ */
+
+/* Resource associations - truncate titles at 2 lines */
+.resource-title-truncate {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    max-height: calc(1.4em * 2);
+}
+
+/* Resource associations list - vertical scroll only, no horizontal */
+.resource-associations-list {
+    overflow-x: hidden;
+}

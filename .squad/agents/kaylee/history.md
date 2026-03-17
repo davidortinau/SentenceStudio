@@ -650,3 +650,8 @@ Fixed 5 GitHub issues related to mobile user experience:
 - Once set to true, subsequent page loads skip the check entirely
 - No schema changes needed — purely logic/preferences fix
 - Criteria for "onboarded": profile exists with non-empty Name AND non-empty TargetLanguage
+- Bootstrap responsive display utilities: use `d-none d-md-flex` to hide elements on mobile (<768px) and show on md+ screens
+- Vocabulary page stats bar and filter chips now hidden on mobile to reduce clutter — offcanvas already shows active filters
+- Learning progress status: converted from icon button group to dropdown select for cleaner mobile UX and reduced vertical space
+- Resource associations: removed horizontal scroll, removed descriptions, added CSS truncation at 2 lines max for titles
+- CSS pattern: `-webkit-line-clamp: 2` with `-webkit-box-orient: vertical` for multi-line text truncation
