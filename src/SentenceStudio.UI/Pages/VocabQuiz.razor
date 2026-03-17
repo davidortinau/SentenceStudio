@@ -133,7 +133,8 @@ else if (currentItem != null)
                     bgClass = "bg-opacity-10";
                 }
 
-                <button class="btn btn-outline-secondary py-3 ss-title3 @bgClass"
+                <button @key="@($"{currentTurnInRound}-{optCopy}")"
+                        class="btn btn-outline-secondary py-3 ss-title3 @bgClass"
                         style="@borderStyle"
                         disabled="@showAnswer"
                         @onclick="() => SelectMultipleChoice(optCopy)">
@@ -503,6 +504,8 @@ else
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
+        // Clear browser focus so the previously selected button doesn't stay highlighted
+        try { await JS.InvokeVoidAsync("eval", "document.activeElement?.blur()"); } catch { }
         await LoadCurrentItem();
     }
 
