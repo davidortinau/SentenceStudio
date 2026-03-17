@@ -158,7 +158,7 @@ else if (currentItem != null)
     @if (showAnswer && !requireCorrectTyping)
     {
         <div class="text-center mt-4">
-            <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+            <button id="quiz-next-btn" class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
         </div>
     }
 }
@@ -484,14 +484,17 @@ else
                 try
                 {
                     await Task.Delay(QuizPrefs.AutoAdvanceDuration, token);
-                    await InvokeAsync(async () =>
+                    if (!token.IsCancellationRequested)
                     {
-                        if (!token.IsCancellationRequested)
+                        // Simulate clicking the Next button so the advance goes through
+                        // Blazor's normal event handler flow (avoids iOS WebView focus issues
+                        // caused by InvokeAsync + StateHasChanged DOM patching)
+                        await InvokeAsync(async () =>
                         {
-                            await NextItem();
-                            StateHasChanged();
-                        }
-                    });
+                            await JS.InvokeVoidAsync("eval",
+                                "document.getElementById('quiz-next-btn')?.click()");
+                        });
+                    }
                 }
                 catch (TaskCanceledException) { }
             });
@@ -504,14 +507,6 @@ else
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
-        // iOS WebView applies :focus to tapped coordinates after a delay — blur repeatedly to catch it
-        try {
-            await JS.InvokeVoidAsync("eval",
-                "document.activeElement?.blur();" +
-                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},300);" +
-                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},800);" +
-                "setTimeout(function(){document.querySelectorAll('.quiz-choice-btn').forEach(function(b){b.blur()})},1500);");
-        } catch { }
         await LoadCurrentItem();
     }
 
