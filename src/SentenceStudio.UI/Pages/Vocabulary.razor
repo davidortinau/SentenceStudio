@@ -6,6 +6,12 @@
 @using SentenceStudio.Services
 
 <PageHeader Title="Vocabulary">
+    <ToolbarActions>
+        <button class="btn btn-sm btn-icon text-primary-ss d-md-none"
+                data-bs-toggle="offcanvas" data-bs-target="#vocabFilterPanel">
+            <i class="bi @(HasActiveFilters ? "bi-funnel-fill" : "bi-funnel")" style="font-size: 1.25rem;"></i>
+        </button>
+    </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddWord">
             <i class="bi bi-plus-lg me-1"></i> Add Word
@@ -126,8 +132,8 @@ else
         </div>
     }
 
-    @* Dropdown filter shortcuts — selecting writes into the search query *@
-    <div class="d-flex gap-2 mb-4 flex-wrap">
+    @* Dropdown filter shortcuts — selecting writes into the search query (hidden on mobile, shown md+) *@
+    <div class="d-none d-md-flex gap-2 mb-4 flex-wrap">
         <select class="form-select form-control-ss" style="max-width: 160px;"
                 value="@CurrentAssociation" @onchange="OnAssociationDropdown">
             <option value="">All Words</option>
@@ -199,6 +205,127 @@ else
             <option value="good">Good</option>
             <option value="basic">Basic</option>
         </select>
+    </div>
+
+    @* Mobile filter offcanvas — slides up from bottom on small screens *@
+    <div class="offcanvas offcanvas-bottom offcanvas-ss d-md-none" tabindex="-1"
+         id="vocabFilterPanel" aria-labelledby="vocabFilterPanelLabel"
+         style="height: auto; max-height: 85vh; border-radius: 1rem 1rem 0 0;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title" id="vocabFilterPanelLabel">
+                <i class="bi bi-funnel me-2"></i>Filters
+                @if (ActiveFilterCount > 0)
+                {
+                    <span class="badge bg-primary ms-2">@ActiveFilterCount</span>
+                }
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div class="d-flex flex-column gap-3">
+                <div>
+                    <label class="form-label fw-semibold">Association</label>
+                    <select class="form-select form-control-ss"
+                            value="@CurrentAssociation" @onchange="OnAssociationDropdown">
+                        <option value="">All Words</option>
+                        <option value="associated">Associated</option>
+                        <option value="orphaned">Orphaned</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Status</label>
+                    <select class="form-select form-control-ss"
+                            value="@CurrentStatus" @onchange="OnStatusDropdown">
+                        <option value="">All Status</option>
+                        <option value="known">Known</option>
+                        <option value="familiar">Familiar</option>
+                        <option value="learning">Learning</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                </div>
+
+                @if (availableResources.Count > 0)
+                {
+                    <div>
+                        <label class="form-label fw-semibold">Resource</label>
+                        <select class="form-select form-control-ss"
+                                value="@CurrentResource" @onchange="OnResourceDropdown">
+                            <option value="">All Resources</option>
+                            @foreach (var r in availableResources)
+                            {
+                                <option value="@r.Title">@TruncateTitle(r.Title, 40)</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (availableTags.Count > 0)
+                {
+                    <div>
+                        <label class="form-label fw-semibold">Tag</label>
+                        <select class="form-select form-control-ss"
+                                value="@CurrentTag" @onchange="OnTagDropdown">
+                            <option value="">All Tags</option>
+                            @foreach (var tag in availableTags)
+                            {
+                                <option value="@tag">@tag</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (availableLemmas.Count > 0)
+                {
+                    <div>
+                        <label class="form-label fw-semibold">Lemma</label>
+                        <select class="form-select form-control-ss"
+                                value="@CurrentLemma" @onchange="OnLemmaDropdown">
+                            <option value="">All Lemmas</option>
+                            @foreach (var lemma in availableLemmas)
+                            {
+                                <option value="@lemma">@lemma</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (availableLanguages.Count > 1)
+                {
+                    <div>
+                        <label class="form-label fw-semibold">Language</label>
+                        <select class="form-select form-control-ss"
+                                value="@CurrentLanguage" @onchange="OnLanguageDropdown">
+                            <option value="">All Languages</option>
+                            @foreach (var lang in availableLanguages)
+                            {
+                                <option value="@lang">@lang</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <div>
+                    <label class="form-label fw-semibold">Encoding Strength</label>
+                    <select class="form-select form-control-ss"
+                            value="@CurrentEncoding" @onchange="OnEncodingDropdown">
+                        <option value="">All Encoding</option>
+                        <option value="strong">Strong</option>
+                        <option value="good">Good</option>
+                        <option value="basic">Basic</option>
+                    </select>
+                </div>
+            </div>
+
+            @if (HasActiveFilters)
+            {
+                <div class="mt-4 pt-3 border-top">
+                    <button class="btn btn-ss-secondary w-100" @onclick="ClearFilters">
+                        <i class="bi bi-x-lg me-1"></i> Clear All Filters
+                    </button>
+                </div>
+            }
+        </div>
     </div>
 
     @if (showCleanupPanel)
@@ -430,6 +557,7 @@ else
     private List<string> cleanupResults = new();
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
+    private int ActiveFilterCount => parsedQuery?.Filters.Count ?? 0;
 
     // Computed dropdown values — read from the parsed search query
     private string CurrentAssociation => GetFilterValue("association");

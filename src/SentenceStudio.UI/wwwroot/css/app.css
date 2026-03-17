@@ -912,6 +912,11 @@ h3:focus,
     color: var(--bs-body-color) !important;
 }
 
+/* Vocabulary filter offcanvas — bottom sheet with safe area padding */
+#vocabFilterPanel .offcanvas-body {
+    padding-bottom: calc(1rem + var(--safe-area-bottom, 0px));
+}
+
 /* ============================================
    MOBILE / RESPONSIVE
    ============================================ */
