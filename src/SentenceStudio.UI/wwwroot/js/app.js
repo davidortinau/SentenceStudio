@@ -153,7 +153,7 @@ export function applyTheme(theme, mode) {
     const link = document.getElementById('bootstrap-theme');
     if (link) {
         if (BOOTSWATCH_THEMES.includes(theme)) {
-            link.href = `css/themes/${theme}.min.css`;
+            link.href = `_content/SentenceStudio.UI/css/themes/${theme}.min.css`;
         } else {
             link.href = BOOTSTRAP_CDN;
         }
