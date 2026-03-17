@@ -693,7 +693,9 @@ h3:focus,
 /* Suppress browser-reapplied :hover/:active/:focus on quiz buttons after auto-advance.
    Button visual state is managed by Blazor (bgClass/borderStyle), so CSS pseudo-class
    highlights are redundant and cause ghost highlights when DOM gets replaced.
-   Direct property overrides with !important to beat all theme specificity. */
+   Must use the same variables as the Seoul Pop theme's .btn-outline-secondary base rule
+   (--bs-secondary-color for text, --bs-border-color for border), NOT Bootstrap's
+   default --bs-btn-color/#6c757d which produces visible mismatch. */
 .btn.btn-outline-secondary.quiz-choice-btn {
     -webkit-tap-highlight-color: transparent !important;
     -webkit-touch-callout: none;
@@ -705,8 +707,8 @@ h3:focus,
 .btn.btn-outline-secondary.quiz-choice-btn:focus-visible,
 .btn.btn-outline-secondary.quiz-choice-btn.active {
     background-color: transparent !important;
-    border-color: var(--bs-btn-border-color) !important;
-    color: var(--bs-btn-color) !important;
+    border-color: var(--bs-border-color) !important;
+    color: var(--bs-secondary-color) !important;
     box-shadow: none !important;
     outline: none !important;
 }
