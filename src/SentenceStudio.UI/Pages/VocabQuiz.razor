@@ -134,7 +134,7 @@ else if (currentItem != null)
                 }
 
                 <button @key="@($"{currentTurnInRound}-{optCopy}")"
-                        class="btn btn-outline-secondary py-3 ss-title3 @bgClass"
+                        class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
                         style="@borderStyle"
                         disabled="@showAnswer"
                         @onclick="() => SelectMultipleChoice(optCopy)">

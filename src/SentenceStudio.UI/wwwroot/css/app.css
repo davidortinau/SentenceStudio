@@ -690,6 +690,15 @@ h3:focus,
     justify-content: center;
 }
 
+/* Prevent iOS WebView :focus/:active from overriding quiz button state */
+.quiz-choice-btn:focus,
+.quiz-choice-btn:active,
+.quiz-choice-btn:focus-visible {
+    background-color: transparent !important;
+    color: inherit !important;
+    box-shadow: none !important;
+}
+
 [data-bs-theme="dark"] .btn-outline-danger {
     color: var(--bs-danger);
     border-color: var(--bs-danger);
