@@ -690,17 +690,23 @@ h3:focus,
     justify-content: center;
 }
 
-/* Prevent iOS WebView :focus/:active from overriding quiz button state */
-button.quiz-choice-btn {
+/* Suppress browser-reapplied :hover/:active/:focus on quiz buttons after auto-advance.
+   Button visual state is managed by Blazor (bgClass/borderStyle), so CSS pseudo-class
+   highlights are redundant and cause ghost highlights when DOM gets replaced.
+   Direct property overrides with !important to beat all theme specificity. */
+.btn.btn-outline-secondary.quiz-choice-btn {
     -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
 }
-button.quiz-choice-btn:focus,
-button.quiz-choice-btn:active,
-button.quiz-choice-btn:focus:active,
-button.quiz-choice-btn:focus-visible {
+
+.btn.btn-outline-secondary.quiz-choice-btn:hover,
+.btn.btn-outline-secondary.quiz-choice-btn:active,
+.btn.btn-outline-secondary.quiz-choice-btn:focus,
+.btn.btn-outline-secondary.quiz-choice-btn:focus-visible,
+.btn.btn-outline-secondary.quiz-choice-btn.active {
     background-color: transparent !important;
-    color: var(--bs-btn-color) !important;
     border-color: var(--bs-btn-border-color) !important;
+    color: var(--bs-btn-color) !important;
     box-shadow: none !important;
     outline: none !important;
 }

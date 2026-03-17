@@ -107,7 +107,9 @@ else if (currentItem != null)
     @* Input section *@
     @if (userMode == "MultipleChoice")
     {
-        <div class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
+        @* @key on wrapper forces Blazor to destroy+recreate the entire container on turn change,
+           preventing iOS WebView from carrying touch-highlight state to new buttons *@
+        <div @key="@($"mc-turn-{currentTurnInRound}")" class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
             @foreach (var option in choiceOptions)
             {
                 var optCopy = option;
@@ -133,8 +135,7 @@ else if (currentItem != null)
                     bgClass = "bg-opacity-10";
                 }
 
-                <button @key="@($"{currentTurnInRound}-{optCopy}")"
-                        class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
+                <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
                         style="@borderStyle"
                         disabled="@showAnswer"
                         @onclick="() => SelectMultipleChoice(optCopy)">
@@ -158,7 +159,7 @@ else if (currentItem != null)
     @if (showAnswer && !requireCorrectTyping)
     {
         <div class="text-center mt-4">
-            <button id="quiz-next-btn" class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+            <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
         </div>
     }
 }
@@ -479,21 +480,15 @@ else
             autoAdvanceCts?.Cancel();
             autoAdvanceCts = new CancellationTokenSource();
             var token = autoAdvanceCts.Token;
-            _ = Task.Run(async () =>
+            _ = InvokeAsync(async () =>
             {
                 try
                 {
                     await Task.Delay(QuizPrefs.AutoAdvanceDuration, token);
                     if (!token.IsCancellationRequested)
                     {
-                        // Simulate clicking the Next button so the advance goes through
-                        // Blazor's normal event handler flow (avoids iOS WebView focus issues
-                        // caused by InvokeAsync + StateHasChanged DOM patching)
-                        await InvokeAsync(async () =>
-                        {
-                            await JS.InvokeVoidAsync("eval",
-                                "document.getElementById('quiz-next-btn')?.click()");
-                        });
+                        await NextItem();
+                        StateHasChanged();
                     }
                 }
                 catch (TaskCanceledException) { }
