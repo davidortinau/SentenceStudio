@@ -65,11 +65,14 @@ else
             </div>
         }
 
-        @* Progress bar *@
+        @* Progress summary *@
         <div class="card card-ss p-3 mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="ss-body1 fw-semibold">Today's Progress</span>
-                <span class="text-secondary-ss small">@todaysPlan.CompletedCount / @todaysPlan.TotalCount</span>
+                <span class="text-secondary-ss small">
+                    @todaysPlan.CompletedCount / @todaysPlan.TotalCount activities
+                    &middot; @(todaysPlan.Items.Sum(i => i.MinutesSpent)) / @todaysPlan.EstimatedTotalMinutes min
+                </span>
             </div>
             <div class="progress" style="height: 8px;">
                 <div class="progress-bar bg-success" role="progressbar"
@@ -77,9 +80,22 @@ else
                      aria-valuenow="@todaysPlan.CompletionPercentage"
                      aria-valuemin="0" aria-valuemax="100"></div>
             </div>
+            @{
+                var resourceNames = todaysPlan.Items
+                    .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
+                    .Select(i => i.ResourceTitle!)
+                    .Distinct()
+                    .ToList();
+            }
+            @if (resourceNames.Any())
+            {
+                <div class="text-secondary-ss small mt-2 mb-0">
+                    <i class="bi bi-book me-1"></i>@string.Join(", ", resourceNames)
+                </div>
+            }
             @if (!string.IsNullOrEmpty(todaysPlan.Rationale))
             {
-                <p class="text-secondary-ss small mt-2 mb-0">@todaysPlan.Rationale</p>
+                <p class="text-secondary-ss small mt-1 mb-0">@todaysPlan.Rationale</p>
             }
         </div>
 
@@ -111,13 +127,27 @@ else
                                     <span>@item.ResourceTitle</span>
                                     <span class="mx-1">&middot;</span>
                                 }
-                                <span>~@(item.EstimatedMinutes) min</span>
+                                @if (item.MinutesSpent > 0)
+                                {
+                                    <span class="@(item.IsCompleted ? "text-success" : "")">@item.MinutesSpent / @item.EstimatedMinutes min</span>
+                                }
+                                else
+                                {
+                                    <span>~@(item.EstimatedMinutes) min</span>
+                                }
                                 @if (item.VocabDueCount.HasValue && item.VocabDueCount > 0)
                                 {
                                     <span class="mx-1">&middot;</span>
                                     <span>@item.VocabDueCount words</span>
                                 }
                             </div>
+                            @if (item.MinutesSpent > 0 && !item.IsCompleted)
+                            {
+                                <div class="progress mt-1" style="height: 4px;">
+                                    <div class="progress-bar bg-primary" role="progressbar"
+                                         style="width: @(Math.Min(100, item.EstimatedMinutes > 0 ? (int)((double)item.MinutesSpent / item.EstimatedMinutes * 100) : 0))%"></div>
+                                </div>
+                            }
                         </div>
                         <i class="bi bi-chevron-right text-secondary-ss"></i>
                     </div>
@@ -346,7 +376,7 @@ else
         StateHasChanged();
         try
         {
-            todaysPlan = await ProgressService.GetCachedPlanAsync(DateTime.Today);
+            todaysPlan = await ProgressService.GetCachedPlanAsync(DateTime.UtcNow.Date);
             todaysPlan ??= await ProgressService.GenerateTodaysPlanAsync();
         }
         catch (Exception ex)

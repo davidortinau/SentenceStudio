@@ -288,8 +288,24 @@ public class ProgressService : IProgressService
         var planItems = new List<DailyPlanItem>();
         var vocabDueCount = await GetVocabDueCountAsync(today, ct);
 
+        // Try to find a resource with vocabulary for the quiz
+        string? fallbackResourceId = null;
         if (vocabDueCount >= 5)
         {
+            var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+            // Pick resource with most vocabulary
+            if (resources.Any())
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var topResource = await db.ResourceVocabularyMappings
+                    .GroupBy(m => m.ResourceId)
+                    .OrderByDescending(g => g.Count())
+                    .Select(g => g.Key)
+                    .FirstOrDefaultAsync(ct);
+                fallbackResourceId = topResource;
+            }
+
             planItems.Add(new DailyPlanItem(
                 Id: GeneratePlanItemId(today, PlanActivityType.VocabularyReview),
                 TitleKey: "plan_item_vocab_review_title",
@@ -301,7 +317,7 @@ public class ProgressService : IProgressService
                 CompletedAt: null,
                 Route: "/vocabulary-quiz",
                 RouteParameters: new() { ["Mode"] = "SRS", ["DueOnly"] = true },
-                ResourceId: null,
+                ResourceId: fallbackResourceId,
                 ResourceTitle: null,
                 SkillId: null,
                 SkillName: null,

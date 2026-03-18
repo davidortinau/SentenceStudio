@@ -6,7 +6,7 @@
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="reading-page">
     @* ── Fixed header ── *@
@@ -204,6 +204,9 @@
     [SupplyParameterFromQuery(Name = "targetMinutes")]
     public int? TargetMinutesParam { get; set; }
 
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public string? PlanItemId { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
@@ -216,9 +219,13 @@
     [Inject] private IActivityTimerService TimerService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
     // Content state
     private bool isBusy;
+    private System.Diagnostics.Stopwatch _activityTimer = new();
+    private string? _capturedPlanItemId;
+    private bool _progressReported;
     private bool fromPlan;
     private int targetMinutes;
     private string errorMessage = "";
@@ -255,6 +262,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _capturedPlanItemId = PlanItemId;
+        Logger.LogInformation("🎯 Reading initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
+        _activityTimer.Start();
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -766,6 +776,9 @@
             TimerService.Pause();
         }
 
+        // Report plan progress
+        await ReportPlanProgressAsync();
+
         // Record reading session
         if (resource is not null)
         {
@@ -792,8 +805,34 @@
         return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
     }
 
-    public void Dispose()
+    private async Task ReportPlanProgressAsync()
     {
+        if (_progressReported) return;
+        var planId = _capturedPlanItemId;
+        if (string.IsNullOrEmpty(planId))
+        {
+            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
+            return;
+        }
+        var elapsed = _activityTimer.Elapsed;
+        _activityTimer.Stop();
+        _progressReported = true;
+        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
+        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
+        try
+        {
+            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
+            Logger.LogInformation("✅ Plan progress reported successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReportPlanProgressAsync();
         if (_audioManager is not null)
         {
             _audioManager.SentenceChanged -= OnSentenceChanged;

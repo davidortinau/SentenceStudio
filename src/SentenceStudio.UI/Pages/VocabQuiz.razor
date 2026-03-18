@@ -1,7 +1,7 @@
 @page "/vocab-quiz"
 @attribute [Authorize]
 @using Plugin.Maui.Audio
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
 
@@ -155,11 +155,19 @@ else if (currentItem != null)
         </form>
     }
 
-    @* Next button *@
+    @* Next / Override buttons *@
     @if (showAnswer && !requireCorrectTyping)
     {
         <div class="text-center mt-4">
             <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+        </div>
+    }
+    else if (showAnswer && requireCorrectTyping)
+    {
+        <div class="text-center mt-3">
+            <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
+                <i class="bi bi-check2 me-1"></i>I was correct
+            </button>
         </div>
     }
 }
@@ -189,6 +197,9 @@ else
     [SupplyParameterFromQuery(Name = "skillId")]
     public string? SkillIdParam { get; set; }
 
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public string? PlanItemId { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -204,6 +215,7 @@ else
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -240,9 +252,15 @@ else
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
+    private System.Diagnostics.Stopwatch activityTimer = new();
+    private string? _capturedPlanItemId; // captured at init, survives Blazor parameter clearing during disposal
+    private bool _progressReported;
 
     protected override async Task OnInitializedAsync()
     {
+        _capturedPlanItemId = PlanItemId;
+        Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
+        activityTimer.Start();
         await LoadVocabulary();
     }
 
@@ -252,14 +270,22 @@ else
         try
         {
             var resourceIds = ParseResourceIds();
-            if (resourceIds.Length == 0) { isBusy = false; return; }
-
             var allWords = new List<VocabularyWord>();
-            foreach (var id in resourceIds)
+
+            if (resourceIds.Length > 0)
             {
-                var resource = await ResourceRepo.GetResourceAsync(id);
-                if (resource?.Vocabulary?.Any() == true)
-                    allWords.AddRange(resource.Vocabulary);
+                foreach (var id in resourceIds)
+                {
+                    var resource = await ResourceRepo.GetResourceAsync(id);
+                    if (resource?.Vocabulary?.Any() == true)
+                        allWords.AddRange(resource.Vocabulary);
+                }
+            }
+            else
+            {
+                // No specific resources — load all user vocabulary (e.g. from daily plan fallback)
+                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                allWords.AddRange(words);
             }
 
             if (!allWords.Any())
@@ -330,7 +356,7 @@ else
         if (!vocabItems.Any())
         {
             Toast.ShowSuccess("All words mastered! Session complete.");
-            GoBack();
+            await GoBack();
             return;
         }
 
@@ -505,6 +531,64 @@ else
         await LoadCurrentItem();
     }
 
+    private async Task OverrideAsCorrect()
+    {
+        autoAdvanceCts?.Cancel();
+        isCorrect = true;
+        requireCorrectTyping = false;
+        feedbackMessage = "Marked correct ✓";
+
+        // Fix streaks
+        if (userMode == "MultipleChoice")
+            currentItem.QuizRecognitionStreak++;
+        else
+            currentItem.QuizProductionStreak++;
+
+        // Re-record as correct
+        try
+        {
+            var activeUserId = Preferences.Get("active_profile_id", "");
+            await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+            {
+                VocabularyWordId = currentItem.Word.Id,
+                UserId = activeUserId,
+                Activity = "VocabularyQuiz",
+                InputMode = userMode,
+                WasCorrect = true,
+                DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
+                ContextType = "Isolated",
+                UserInput = userMode == "MultipleChoice" ? userGuess : userInput,
+                ExpectedAnswer = correctAnswer,
+                ResponseTimeMs = 0
+            });
+            CacheService.InvalidateVocabSummary();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to record override attempt");
+        }
+
+        correctCount++;
+        StateHasChanged();
+
+        // Auto-advance after override
+        autoAdvanceCts = new CancellationTokenSource();
+        var token = autoAdvanceCts.Token;
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await Task.Delay(QuizPrefs.AutoAdvanceDuration, token);
+                if (!token.IsCancellationRequested)
+                {
+                    await NextItem();
+                    StateHasChanged();
+                }
+            }
+            catch (TaskCanceledException) { }
+        });
+    }
+
     private async Task HandleMasteredWords()
     {
         var mastered = vocabItems.Where(i => i.ReadyToRotateOut).ToList();
@@ -522,7 +606,11 @@ else
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
-    private void GoBack() => NavManager.NavigateTo("/");
+    private async Task GoBack()
+    {
+        await ReportPlanProgressAsync();
+        NavManager.NavigateTo("/");
+    }
 
     private void ToggleMnemonicImage() => showMnemonicImage = !showMnemonicImage;
 
@@ -594,8 +682,34 @@ else
         }
     }
 
-    public void Dispose()
+    private async Task ReportPlanProgressAsync()
     {
+        if (_progressReported) return;
+        var planId = _capturedPlanItemId;
+        if (string.IsNullOrEmpty(planId))
+        {
+            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
+            return;
+        }
+        var elapsed = activityTimer.Elapsed;
+        activityTimer.Stop();
+        _progressReported = true;
+        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
+        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
+        try
+        {
+            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
+            Logger.LogInformation("✅ Plan progress reported successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReportPlanProgressAsync();
         autoAdvanceCts?.Cancel();
         autoAdvanceCts?.Dispose();
         audioPlayer?.Stop();

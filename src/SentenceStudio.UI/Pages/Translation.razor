@@ -1,5 +1,6 @@
 @page "/translation"
 @attribute [Authorize]
+@implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
 
@@ -129,6 +130,9 @@ else
     [SupplyParameterFromQuery(Name = "skillId")]
     public string? SkillIdParam { get; set; }
 
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public string? PlanItemId { get; set; }
+
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
     [Inject] private AiService AiSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
@@ -136,7 +140,11 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Translation> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
+    private System.Diagnostics.Stopwatch _activityTimer = new();
+    private string? _capturedPlanItemId;
+    private bool _progressReported;
     private bool isBusy;
     private bool isGrading;
     private bool showFeedback;
@@ -159,6 +167,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _capturedPlanItemId = PlanItemId;
+        Logger.LogInformation("🎯 Translation initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
+        _activityTimer.Start();
         await LoadSentences();
     }
 
@@ -341,5 +352,39 @@ else
         _ => "var(--bs-secondary)"
     };
 
-    private void GoBack() => NavManager.NavigateTo("/");
+    private async Task ReportPlanProgressAsync()
+    {
+        if (_progressReported) return;
+        var planId = _capturedPlanItemId;
+        if (string.IsNullOrEmpty(planId))
+        {
+            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
+            return;
+        }
+        var elapsed = _activityTimer.Elapsed;
+        _activityTimer.Stop();
+        _progressReported = true;
+        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
+        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
+        try
+        {
+            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
+            Logger.LogInformation("✅ Plan progress reported successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
+        }
+    }
+
+    private async Task GoBack()
+    {
+        await ReportPlanProgressAsync();
+        NavManager.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReportPlanProgressAsync();
+    }
 }

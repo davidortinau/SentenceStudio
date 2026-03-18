@@ -6,7 +6,7 @@
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
 
@@ -114,6 +114,9 @@ else
     [SupplyParameterFromQuery(Name = "targetMinutes")]
     public int? TargetMinutesParam { get; set; }
 
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public string? PlanItemId { get; set; }
+
     [Inject] private ShadowingService ShadowingSvc { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
@@ -124,7 +127,11 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Shadowing> Logger { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
+    private System.Diagnostics.Stopwatch _activityTimer = new();
+    private string? _capturedPlanItemId;
+    private bool _progressReported;
     private bool isBusy;
     private bool isBuffering;
     private bool isAudioPlaying;
@@ -145,6 +152,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _capturedPlanItemId = PlanItemId;
+        Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
+        _activityTimer.Start();
         _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
@@ -367,10 +377,40 @@ else
         isAudioPlaying = false;
     }
 
-    private void GoBack() => NavManager.NavigateTo("/");
-
-    public void Dispose()
+    private async Task ReportPlanProgressAsync()
     {
+        if (_progressReported) return;
+        var planId = _capturedPlanItemId;
+        if (string.IsNullOrEmpty(planId))
+        {
+            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
+            return;
+        }
+        var elapsed = _activityTimer.Elapsed;
+        _activityTimer.Stop();
+        _progressReported = true;
+        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
+        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
+        try
+        {
+            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
+            Logger.LogInformation("✅ Plan progress reported successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
+        }
+    }
+
+    private async Task GoBack()
+    {
+        await ReportPlanProgressAsync();
+        NavManager.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReportPlanProgressAsync();
         StopAudio();
     }
 }

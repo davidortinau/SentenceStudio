@@ -1,6 +1,7 @@
 @page "/vocab-matching"
 @attribute [Authorize]
 @using SentenceStudio.Pages.VocabularyMatching
+@implements IAsyncDisposable
 
 <PageHeader Title="Vocabulary Matching" ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
@@ -91,6 +92,9 @@ else
     [SupplyParameterFromQuery(Name = "resourceIds")]
     public string? ResourceIdsParam { get; set; }
 
+    [SupplyParameterFromQuery(Name = "planItemId")]
+    public string? PlanItemId { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -99,7 +103,11 @@ else
     [Inject] private ILogger<VocabMatching> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
+    private System.Diagnostics.Stopwatch _activityTimer = new();
+    private string? _capturedPlanItemId;
+    private bool _progressReported;
     private bool isBusy;
     private bool isGameComplete;
     private bool hideNativeWordsMode = true;
@@ -114,6 +122,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _capturedPlanItemId = PlanItemId;
+        Logger.LogInformation("🎯 VocabMatching initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
+        _activityTimer.Start();
         await LoadVocabulary();
     }
 
@@ -421,5 +432,39 @@ else
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
-    private void GoBack() => NavManager.NavigateTo("/");
+    private async Task ReportPlanProgressAsync()
+    {
+        if (_progressReported) return;
+        var planId = _capturedPlanItemId;
+        if (string.IsNullOrEmpty(planId))
+        {
+            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
+            return;
+        }
+        var elapsed = _activityTimer.Elapsed;
+        _activityTimer.Stop();
+        _progressReported = true;
+        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
+        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
+        try
+        {
+            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
+            Logger.LogInformation("✅ Plan progress reported successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
+        }
+    }
+
+    private async Task GoBack()
+    {
+        await ReportPlanProgressAsync();
+        NavManager.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReportPlanProgressAsync();
+    }
 }
