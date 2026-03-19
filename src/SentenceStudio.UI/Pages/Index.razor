@@ -431,7 +431,6 @@ else
 
     private void LaunchPlanItem(DailyPlanItem item)
     {
-        if (item.IsCompleted) return;
         var route = MapActivityRoute(item.ActivityType);
         // Pass resource/skill via query params when available
         var query = new List<string>();

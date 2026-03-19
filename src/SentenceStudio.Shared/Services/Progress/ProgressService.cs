@@ -454,6 +454,14 @@ public class ProgressService : IProgressService
 
         _logger.LogDebug("✅ Found plan item: {TitleKey}", item.TitleKey);
 
+        // Accumulate time from previous sessions
+        var totalMinutesForItem = item.MinutesSpent + minutesSpent;
+
+        // Only mark complete when accumulated time meets the estimated duration
+        var isNowComplete = totalMinutesForItem >= item.EstimatedMinutes;
+        _logger.LogDebug("⏱️ Time: previous={Previous} + this={This} = {Total} / {Estimated} min → complete={Complete}",
+            item.MinutesSpent, minutesSpent, totalMinutesForItem, item.EstimatedMinutes, isNowComplete);
+
         // Mark in database
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -465,10 +473,13 @@ public class ProgressService : IProgressService
         if (existing != null)
         {
             _logger.LogDebug("💾 Updating existing completion record in database");
-            existing.IsCompleted = true;
-            existing.CompletedAt = DateTime.UtcNow;
-            existing.MinutesSpent = minutesSpent;
+            existing.MinutesSpent = totalMinutesForItem;
             existing.UpdatedAt = DateTime.UtcNow;
+            if (isNowComplete && !existing.IsCompleted)
+            {
+                existing.IsCompleted = true;
+                existing.CompletedAt = DateTime.UtcNow;
+            }
         }
         else
         {
@@ -480,9 +491,14 @@ public class ProgressService : IProgressService
                 ActivityType = item.ActivityType.ToString(),
                 ResourceId = item.ResourceId,
                 SkillId = item.SkillId,
-                IsCompleted = true,
-                CompletedAt = DateTime.UtcNow,
-                MinutesSpent = minutesSpent,
+                IsCompleted = isNowComplete,
+                CompletedAt = isNowComplete ? DateTime.UtcNow : null,
+                MinutesSpent = totalMinutesForItem,
+                EstimatedMinutes = item.EstimatedMinutes,
+                Priority = item.Priority,
+                TitleKey = item.TitleKey,
+                DescriptionKey = item.DescriptionKey,
+                Rationale = "",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -492,12 +508,12 @@ public class ProgressService : IProgressService
         await db.SaveChangesAsync(ct);
         _logger.LogDebug("✅ Database updated");
 
-        // Update cache - create new record with updated completion status
+        // Update cache
         var updatedItem = item with
         {
-            IsCompleted = true,
-            CompletedAt = DateTime.UtcNow,
-            MinutesSpent = minutesSpent
+            IsCompleted = isNowComplete,
+            CompletedAt = isNowComplete ? (item.CompletedAt ?? DateTime.UtcNow) : null,
+            MinutesSpent = totalMinutesForItem
         };
 
         var itemIndex = plan.Items.IndexOf(item);
