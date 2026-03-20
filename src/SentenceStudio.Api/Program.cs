@@ -427,6 +427,7 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
+
 static GeneratePlanResponse BuildPlanResponse(GeneratePlanRequest request)
 {
     var totalMinutes = Math.Clamp(request.Minutes ?? 30, 10, 90);
