@@ -1,5 +1,8 @@
 using CoreSync;
 using CoreSync.Sqlite;
+#if !IOS && !ANDROID && !MACCATALYST
+using CoreSync.PostgreSQL;
+#endif
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio;
@@ -24,4 +27,22 @@ public static class SharedSyncRegistration
             .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
     }
+
+#if !IOS && !ANDROID && !MACCATALYST
+    public static PostgreSQLSyncConfigurationBuilder ConfigureSyncTables(this PostgreSQLSyncConfigurationBuilder builder)
+    {
+        return builder
+            .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VocabularyWord>("VocabularyWord", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ResourceVocabularyMapping>("ResourceVocabularyMapping", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
+    }
+#endif
 }

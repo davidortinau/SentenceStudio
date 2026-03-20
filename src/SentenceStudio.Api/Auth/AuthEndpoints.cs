@@ -133,24 +133,11 @@ public static class AuthEndpoints
 
         if (!await userManager.IsEmailConfirmedAsync(user))
         {
-            if (env.IsDevelopment())
-            {
-                // Auto-confirm in dev so mobile clients aren't blocked.
-                var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
-                var encodedConfirmToken = Uri.EscapeDataString(confirmToken);
-                var loginBaseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
-                var loginConfirmUrl = $"{loginBaseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedConfirmToken}";
-
-                logger.LogInformation(
-                    "--- EMAIL CONFIRMATION LINK (dev auto-confirmed on login) ---\nFor: {Email}\nConfirm URL: {ConfirmUrl}\n--- END ---",
-                    request.Email, loginConfirmUrl);
-
-                await userManager.ConfirmEmailAsync(user, confirmToken);
-            }
-            else
-            {
-                return Results.Json(new { error = "Email not confirmed." }, statusCode: 401);
-            }
+            // Auto-confirm migrated accounts (they had no email confirmation requirement before)
+            // and dev-mode accounts
+            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            await userManager.ConfirmEmailAsync(user, confirmToken);
+            logger.LogInformation("Auto-confirmed email for {Email} (migrated or unconfirmed account)", request.Email);
         }
 
         if (!await userManager.CheckPasswordAsync(user, request.Password))
@@ -158,27 +145,37 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
-        // Auto-create a UserProfile if one doesn't exist (accounts created before
-        // the registration flow was fixed may have NULL UserProfileId).
+        // Link or create a UserProfile if one doesn't exist (accounts from before registration fix, or migrated data)
         if (string.IsNullOrEmpty(user.UserProfileId))
         {
-            var profile = new UserProfile
+            // First, try to find an existing profile matching this user's email (e.g., migrated data)
+            var existing = await db.UserProfiles
+                .FirstOrDefaultAsync(p => p.Email == (user.Email ?? request.Email));
+            if (existing is not null)
             {
-                Id = Guid.NewGuid().ToString(),
-                Name = user.DisplayName ?? user.Email ?? request.Email,
-                Email = user.Email ?? request.Email,
-                NativeLanguage = "English",
-                TargetLanguage = "Korean",
-                CreatedAt = DateTime.UtcNow
-            };
-            db.UserProfiles.Add(profile);
-            await db.SaveChangesAsync();
+                user.UserProfileId = existing.Id;
+                logger.LogInformation("Linked existing UserProfile {ProfileId} to user {Email}",
+                    existing.Id, request.Email);
+            }
+            else
+            {
+                var profile = new UserProfile
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = user.DisplayName ?? user.Email ?? request.Email,
+                    Email = user.Email ?? request.Email,
+                    NativeLanguage = "English",
+                    TargetLanguage = "Korean",
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.UserProfiles.Add(profile);
+                await db.SaveChangesAsync();
+                user.UserProfileId = profile.Id;
 
-            user.UserProfileId = profile.Id;
+                logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
+                    profile.Id, request.Email);
+            }
             await userManager.UpdateAsync(user);
-
-            logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
-                profile.Id, request.Email);
         }
 
         var jwt = tokenService.GenerateToken(user);

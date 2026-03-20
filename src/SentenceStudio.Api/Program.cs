@@ -4,8 +4,9 @@ using System.Text;
 using System.Text.Json;
 using CoreSync;
 using CoreSync.Http.Server;
-using CoreSync.Sqlite;
+using CoreSync.PostgreSQL;
 using ElevenLabs;
+using Microsoft.EntityFrameworkCore;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
@@ -31,6 +32,9 @@ using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+
+// PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -126,24 +130,22 @@ builder.Services.AddHsts(options =>
     options.Preload = true;
 });
 
-// Database - shared with WebApp server instance
-var serverDbFolder = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "sentencestudio",
-    "server");
-Directory.CreateDirectory(serverDbFolder);
-var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
-builder.Services.AddDataServices(databasePath);
+// Database - Aspire-managed PostgreSQL
+builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbContextOptions: options =>
+{
+    options.ConfigureWarnings(w =>
+        w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // CoreSync server — allows mobile clients to sync through the API endpoint
 // (mobile devices can't reach the separate 'web' service directly)
 builder.Services.AddCoreSyncHttpServer();
 builder.Services.AddSingleton<ISyncProvider>(sp =>
 {
-    var connectionString = $"Data Source={databasePath}";
-    var configurationBuilder = new SqliteSyncConfigurationBuilder(connectionString)
+    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("sentencestudio")!;
+    var configurationBuilder = new PostgreSQLSyncConfigurationBuilder(connectionString)
         .ConfigureSyncTables();
-    return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
+    return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
 
 // Vocabulary progress services
@@ -167,6 +169,13 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 }
 
 var app = builder.Build();
+
+// Apply EF Core migrations (creates tables if missing)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 // Apply CoreSync provisioning (creates change-tracking tables if missing)
 var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
@@ -417,6 +426,7 @@ app.MapGet("/weatherforecast", () =>
     return forecast;
 })
 .WithName("GetWeatherForecast");
+
 
 static GeneratePlanResponse BuildPlanResponse(GeneratePlanRequest request)
 {

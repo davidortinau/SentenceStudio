@@ -22,24 +22,30 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         if (!optionsBuilder.IsConfigured)
         {
+#if IOS || ANDROID || MACCATALYST
             optionsBuilder.UseSqlite("Data Source=dummy.db");
-        }
+#else
+            optionsBuilder.UseNpgsql("Host=localhost;Database=sentencestudio_design;Username=postgres;Password=postgres");
+#endif
 
-        // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
-        // without throwing when the compiled model is ahead of the last recorded migration.
-        optionsBuilder.ConfigureWarnings(w =>
-            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
+            // without throwing when the compiled model is ahead of the last recorded migration.
+            optionsBuilder.ConfigureWarnings(w =>
+                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        }
 
         base.OnConfiguring(optionsBuilder);
     }
 
     /// <summary>
     /// Enables WAL journal mode for concurrent read access across multiple processes.
-    /// Call once after database creation/migration.
+    /// Call once after database creation/migration. SQLite-only.
     /// </summary>
     public void EnableWalMode()
     {
+#if IOS || ANDROID || MACCATALYST
         Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+#endif
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

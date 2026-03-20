@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26163.4" />
     <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.3.0-preview.1.26163.4" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
   </ItemGroup>
@@ -23,6 +24,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>33f95f89-d495-4311-b6cb-53a47b5c34e6</UserSecretsId>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
 </Project>

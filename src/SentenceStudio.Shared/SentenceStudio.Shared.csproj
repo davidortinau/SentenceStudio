@@ -4,23 +4,27 @@
 		<TargetFrameworks>net10.0;net10.0-ios;net10.0-android;net10.0-maccatalyst</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<PublishSelfContained>false</PublishSelfContained>
 	</PropertyGroup>
 
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
+		<PackageReference Include="CoreSync.PostgreSQL" Version="0.1.128-local" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 	</ItemGroup>
 
-	<!-- EF Core migrations reference Identity types — exclude on mobile -->
+	<!-- EF Core migrations and design-time factory reference server-only types — exclude on mobile -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != ''">
 		<Compile Remove="Migrations\**" />
+		<Compile Remove="Data\DesignTimeDbContextFactory.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CoreSync.Http.Client" Version="0.1.122" />
-		<PackageReference Include="CoreSync.Sqlite" Version="0.1.122" />
+		<PackageReference Include="CoreSync.Http.Client" Version="0.1.128-local" />
+		<PackageReference Include="CoreSync.Sqlite" Version="0.1.128-local" />
 		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
 		<PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
 		<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />

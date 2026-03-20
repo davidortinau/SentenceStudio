@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-SentenceStudio.Workers-8ded0183-d135-40b2-b2d4-b49b096922b8</UserSecretsId>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -38,22 +39,32 @@ public static class AccountEndpoints
                 var user = await userManager.FindByEmailAsync(email);
                 if (user is not null)
                 {
-                    // Auto-create profile if missing (accounts from before registration fix)
+                    // Link or create profile if missing (accounts from before registration fix, or migrated data)
                     if (string.IsNullOrEmpty(user.UserProfileId))
                     {
                         var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                        var profile = new UserProfile
+                        // First, try to find an existing profile matching this user's email (e.g., migrated data)
+                        var existing = await db.UserProfiles
+                            .FirstOrDefaultAsync(p => p.Email == (user.Email ?? email));
+                        if (existing is not null)
                         {
-                            Id = Guid.NewGuid().ToString(),
-                            Name = user.DisplayName ?? user.Email ?? email,
-                            Email = user.Email ?? email,
-                            NativeLanguage = "English",
-                            TargetLanguage = "Korean",
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        db.UserProfiles.Add(profile);
-                        await db.SaveChangesAsync();
-                        user.UserProfileId = profile.Id;
+                            user.UserProfileId = existing.Id;
+                        }
+                        else
+                        {
+                            var profile = new UserProfile
+                            {
+                                Id = Guid.NewGuid().ToString(),
+                                Name = user.DisplayName ?? user.Email ?? email,
+                                Email = user.Email ?? email,
+                                NativeLanguage = "English",
+                                TargetLanguage = "Korean",
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            db.UserProfiles.Add(profile);
+                            await db.SaveChangesAsync();
+                            user.UserProfileId = profile.Id;
+                        }
                         await userManager.UpdateAsync(user);
                     }
 
@@ -159,22 +170,54 @@ public static class AccountEndpoints
                 return Results.Redirect("/Account/Login?error=InvalidLink");
             }
 
-            // Auto-create profile if missing (accounts from before registration fix)
+            // Link or create profile if missing (accounts from before registration fix, or migrated data)
             if (string.IsNullOrEmpty(user.UserProfileId))
             {
                 var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                var profile = new UserProfile
+                var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AutoSignIn");
+                
+                // Try to find an existing profile: by email first, then by display name, then first available
+                var userEmail = user.Email ?? "";
+                var userName = user.DisplayName ?? user.UserName ?? "";
+                
+                var existing = await db.UserProfiles
+                    .FirstOrDefaultAsync(p => p.Email == userEmail && userEmail != "");
+                if (existing is null && !string.IsNullOrEmpty(userName))
                 {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = user.DisplayName ?? user.Email ?? "User",
-                    Email = user.Email ?? "",
-                    NativeLanguage = "English",
-                    TargetLanguage = "Korean",
-                    CreatedAt = DateTime.UtcNow
-                };
-                db.UserProfiles.Add(profile);
-                await db.SaveChangesAsync();
-                user.UserProfileId = profile.Id;
+                    existing = await db.UserProfiles
+                        .FirstOrDefaultAsync(p => p.Name == userName);
+                }
+                // Last resort: if only one profile exists, it's almost certainly this user's
+                if (existing is null)
+                {
+                    var allProfiles = await db.UserProfiles.Take(2).ToListAsync();
+                    if (allProfiles.Count == 1)
+                        existing = allProfiles[0];
+                }
+
+                if (existing is not null)
+                {
+                    logger.LogInformation("Linked existing UserProfile {ProfileId} (Name={Name}, Email={PEmail}) to user {Email}",
+                        existing.Id, existing.Name, existing.Email, userEmail);
+                    user.UserProfileId = existing.Id;
+                }
+                else
+                {
+                    var profile = new UserProfile
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = user.DisplayName ?? user.Email ?? "User",
+                        Email = user.Email ?? "",
+                        NativeLanguage = "English",
+                        TargetLanguage = "Korean",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.UserProfiles.Add(profile);
+                    await db.SaveChangesAsync();
+                    user.UserProfileId = profile.Id;
+                    logger.LogInformation("Created new UserProfile {ProfileId} for user {Email} (no match found among {Count} profiles)",
+                        profile.Id, userEmail, await db.UserProfiles.CountAsync());
+                }
                 await userManager.UpdateAsync(user);
             }
 
@@ -186,8 +229,8 @@ public static class AccountEndpoints
                 preferences.Set("active_profile_id", user.UserProfileId);
 
                 // Auto-mark returning users as onboarded so they skip the onboarding flow
-                var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                var profile = await db.UserProfiles.FindAsync(user.UserProfileId);
+                var db2 = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var profile = await db2.UserProfiles.FindAsync(user.UserProfileId);
                 if (profile is not null && !string.IsNullOrEmpty(profile.TargetLanguage) && !string.IsNullOrEmpty(profile.Name))
                 {
                     preferences.Set("is_onboarded", true);

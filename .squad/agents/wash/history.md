@@ -274,3 +274,54 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 - If multi-parent relationships become common (rare), migrate to Option B (junction table)
 - Option A→B migration path documented
 - Low risk to defer this decision
+
+### 2026-03-19 — PostgreSQL Migration Research (#55)
+
+**Status:** PROPOSED  
+**Decision Doc:** `.squad/decisions/inbox/wash-postgres-migration-map.md`
+
+**Key Findings:**
+- `CoreSync.PostgreSQL` v0.1.126 exists and is a drop-in API replacement for `CoreSync.Sqlite`
+- `PostgreSqlSyncConfigurationBuilder` mirrors `SqliteSyncConfigurationBuilder` exactly (same `.Table<T>()` API, same `ProviderMode` enum)
+- Mixed-provider sync (SQLite mobile ↔ PostgreSQL server) is explicitly supported by CoreSync
+- Aspire AppHost already declares `AddPostgres("db")` — just needs `WithReference(postgres)` on API and WebApp
+- Aspire's `AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio")` replaces our manual `AddDataServices(databasePath)` for server projects
+- EF Core migrations must be regenerated for PostgreSQL (existing SQLite migrations won't run on PG)
+- Mobile already excludes `Migrations/**` via `.csproj` condition — safe to regenerate
+- Current database: 5.4MB, ~12K rows across 11 synced tables + Identity tables — small enough for pgloader migration
+- Recommended: fresh CoreSync provision on PG + full re-sync from mobile clients (safest approach)
+- `sqlite-net-pcl` and `SQLiteNetExtensions` packages in Shared.csproj need investigation — may be unused
+
+**Learnings:**
+- CoreSync.PostgreSQL NuGet: v0.1.126, author adospace, 1,389 downloads, netstandard2.0
+- CoreSync tracking tables: `__CORE_SYNC_CT`, `__CORE_SYNC_LOCAL_ID`, `__CORE_SYNC_REMOTE_ANCHOR`
+- Aspire `WithReference(postgres)` injects `ConnectionStrings__sentencestudio` env var automatically
+- Aspire `AddNpgsqlDbContext<T>("name")` reads from `ConnectionStrings` section by convention
+- `WithLifetime(ContainerLifetime.Persistent)` on Aspire PostgreSQL keeps data between restarts
+- Effort: 2-3 days estimated (packages + code + migrations + data migration + testing)
+
+### 2026-03-20 — PostgreSQL Migration Execution: Phases 1-3 (#55)
+
+**Status:** COMPLETED (Phases 1-3)  
+**Branch:** `feature/55-postgres-migration`
+
+**Changes Made:**
+- Replaced `CoreSync.Sqlite` with `CoreSync.PostgreSQL` v0.1.126 in API csproj
+- Added `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` v13.3.0-preview.1.26163.4 to API and WebApp
+- Added `CoreSync.PostgreSQL` and `Npgsql.EntityFrameworkCore.PostgreSQL` to Shared (server-only, MSBuild condition)
+- Added PostgreSQL overload to `SharedSyncRegistration.cs` with `#if !IOS && !ANDROID && !MACCATALYST` guard
+- Changed `ApplicationDbContext.OnConfiguring` fallback: `UseSqlite` (mobile) / `UseNpgsql` (server) via `#if` directives
+- Guarded `EnableWalMode()` with `#if IOS || ANDROID || MACCATALYST` (SQLite-only)
+- Changed `DesignTimeDbContextFactory` to `UseNpgsql` with design-time connection string
+- Added `.WithLifetime(ContainerLifetime.Persistent)` and `.WithReference(postgres)` to AppHost for API and WebApp
+- Replaced `AddDataServices(databasePath)` with `builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio")` in both API and WebApp
+- Replaced `SqliteSyncProvider`/`SqliteSyncConfigurationBuilder` with `PostgreSQLSyncProvider`/`PostgreSQLSyncConfigurationBuilder` in API
+- Deleted all old SQLite migrations, generated fresh `InitialPostgreSQL` migration
+
+**Key Learnings:**
+- CoreSync.PostgreSQL types use uppercase "SQL": `PostgreSQLSyncProvider`, `PostgreSQLSyncConfigurationBuilder` (not `PostgreSql`)
+- EF Core tools `dotnet ef` fail with `ResolvePackageAssets` target error on multi-TFM projects in .NET 10 SDK 10.0.101
+- Workaround: temporarily change `<TargetFrameworks>` (plural) to `<TargetFramework>` (singular) for migration generation
+- The `UseNpgsql` extension method lives in the `Microsoft.EntityFrameworkCore` namespace — no extra using needed
+- Aspire preview packages (13.3.0-preview.1.26163.4) are resolvable from nuget.org for client integrations too
+- Mobile MAUI code paths untouched — CoreSync mixed-provider sync (SQLite client ↔ PostgreSQL server) is the target architecture

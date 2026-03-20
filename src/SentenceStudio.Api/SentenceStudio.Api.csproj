@@ -5,11 +5,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>9ae3953f-a490-41b3-a2b8-a8e2555b4615</UserSecretsId>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CoreSync.Http.Server" Version="0.1.122" />
-    <PackageReference Include="CoreSync.Sqlite" Version="0.1.122" />
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26163.4" />
+    <PackageReference Include="CoreSync.Http.Server" Version="0.1.128-local" />
+    <PackageReference Include="CoreSync.PostgreSQL" Version="0.1.128-local" />
     <PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.2.0-preview.1.26063.2" />
