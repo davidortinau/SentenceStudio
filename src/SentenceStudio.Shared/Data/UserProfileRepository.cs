@@ -50,9 +50,10 @@ public class UserProfileRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Ensure performance indexes exist (CREATE IF NOT EXISTS is idempotent)
-        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_TargetLanguageTerm ON VocabularyWord(TargetLanguageTerm)");
-        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_VocabularyWord_NativeLanguageTerm ON VocabularyWord(NativeLanguageTerm)");
-        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ResourceVocabularyMapping_VocabularyWordId ON ResourceVocabularyMapping(VocabularyWordId)");
+        // PostgreSQL requires quoted identifiers for PascalCase table/column names
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS \"IX_VocabularyWord_TargetLanguageTerm\" ON \"VocabularyWord\"(\"TargetLanguageTerm\")");
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS \"IX_VocabularyWord_NativeLanguageTerm\" ON \"VocabularyWord\"(\"NativeLanguageTerm\")");
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS \"IX_ResourceVocabularyMapping_VocabularyWordId\" ON \"ResourceVocabularyMapping\"(\"VocabularyWordId\")");
 
         // Backfill UserProfileId for existing data (idempotent, runs once per session)
         await EnsureMultiUserBackfillAsync();
@@ -79,50 +80,75 @@ public class UserProfileRepository
 
     private static async Task BackfillUserProfileIdsAsync(ApplicationDbContext db)
     {
+        bool isSqlite = db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+        // Quote identifiers for PostgreSQL (PascalCase requires quoting); SQLite is case-insensitive
+        string q(string id) => isSqlite ? id : $"\"{id}\"";
+
         // Check if UserProfileId column exists before attempting backfill.
-        // On fresh installs, the column may not exist until MigrateAsync() runs.
-        var cols = await db.Database.SqlQueryRaw<string>(
-            "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
-        if (cols.Count == 0)
+        bool hasColumn;
+        if (isSqlite)
+        {
+            var cols = await db.Database.SqlQueryRaw<string>(
+                "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
+            hasColumn = cols.Count > 0;
+        }
+        else
+        {
+            var cols = await db.Database.SqlQueryRaw<string>(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'SkillProfile' AND column_name = 'UserProfileId'").ToListAsync();
+            hasColumn = cols.Count > 0;
+        }
+        if (!hasColumn)
             return; // Column doesn't exist yet — skip backfill
 
         // Assign unowned SkillProfiles by matching Language → UserProfile.TargetLanguage
-        await db.Database.ExecuteSqlRawAsync(@"
-            UPDATE SkillProfile SET UserProfileId = (
-                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = SkillProfile.Language LIMIT 1
-            ) WHERE UserProfileId IS NULL");
+        await db.Database.ExecuteSqlRawAsync($@"
+            UPDATE {q("SkillProfile")} SET {q("UserProfileId")} = (
+                SELECT UP.{q("Id")} FROM {q("UserProfile")} UP WHERE UP.{q("TargetLanguage")} = {q("SkillProfile")}.{q("Language")} LIMIT 1
+            ) WHERE {q("UserProfileId")} IS NULL");
 
         // Assign unowned LearningResources by matching Language → UserProfile.TargetLanguage
-        await db.Database.ExecuteSqlRawAsync(@"
-            UPDATE LearningResource SET UserProfileId = (
-                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = LearningResource.Language LIMIT 1
-            ) WHERE UserProfileId IS NULL");
+        await db.Database.ExecuteSqlRawAsync($@"
+            UPDATE {q("LearningResource")} SET {q("UserProfileId")} = (
+                SELECT UP.{q("Id")} FROM {q("UserProfile")} UP WHERE UP.{q("TargetLanguage")} = {q("LearningResource")}.{q("Language")} LIMIT 1
+            ) WHERE {q("UserProfileId")} IS NULL");
 
         // Fall back: assign any remaining unowned LearningResources to first profile
-        await db.Database.ExecuteSqlRawAsync(@"
-            UPDATE LearningResource SET UserProfileId = (
-                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1
-            ) WHERE UserProfileId IS NULL");
+        await db.Database.ExecuteSqlRawAsync($@"
+            UPDATE {q("LearningResource")} SET {q("UserProfileId")} = (
+                SELECT {q("Id")} FROM {q("UserProfile")} ORDER BY {q("Id")} LIMIT 1
+            ) WHERE {q("UserProfileId")} IS NULL");
 
         // Assign unowned UserActivities to first profile
-        await db.Database.ExecuteSqlRawAsync(@"
-            UPDATE UserActivity SET UserProfileId = (
-                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1
-            ) WHERE UserProfileId IS NULL");
+        await db.Database.ExecuteSqlRawAsync($@"
+            UPDATE {q("UserActivity")} SET {q("UserProfileId")} = (
+                SELECT {q("Id")} FROM {q("UserProfile")} ORDER BY {q("Id")} LIMIT 1
+            ) WHERE {q("UserProfileId")} IS NULL");
 
         // Backfill VocabularyWord.Language from associated LearningResources
-        var langCol = await db.Database.SqlQueryRaw<string>(
-            "SELECT name FROM pragma_table_info('VocabularyWord') WHERE name = 'Language'").ToListAsync();
-        if (langCol.Count > 0)
+        bool hasLangCol;
+        if (isSqlite)
         {
-            await db.Database.ExecuteSqlRawAsync(@"
-                UPDATE VocabularyWord SET Language = (
-                    SELECT LR.Language FROM ResourceVocabularyMapping RVM
-                    JOIN LearningResource LR ON LR.Id = RVM.ResourceId
-                    WHERE RVM.VocabularyWordId = VocabularyWord.Id
-                    AND LR.Language IS NOT NULL AND LR.Language != ''
+            var langCol = await db.Database.SqlQueryRaw<string>(
+                "SELECT name FROM pragma_table_info('VocabularyWord') WHERE name = 'Language'").ToListAsync();
+            hasLangCol = langCol.Count > 0;
+        }
+        else
+        {
+            var langCol = await db.Database.SqlQueryRaw<string>(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'VocabularyWord' AND column_name = 'Language'").ToListAsync();
+            hasLangCol = langCol.Count > 0;
+        }
+        if (hasLangCol)
+        {
+            await db.Database.ExecuteSqlRawAsync($@"
+                UPDATE {q("VocabularyWord")} SET {q("Language")} = (
+                    SELECT LR.{q("Language")} FROM {q("ResourceVocabularyMapping")} RVM
+                    JOIN {q("LearningResource")} LR ON LR.{q("Id")} = RVM.{q("ResourceId")}
+                    WHERE RVM.{q("VocabularyWordId")} = {q("VocabularyWord")}.{q("Id")}
+                    AND LR.{q("Language")} IS NOT NULL AND LR.{q("Language")} != ''
                     LIMIT 1
-                ) WHERE Language IS NULL OR Language = ''");
+                ) WHERE {q("Language")} IS NULL OR {q("Language")} = ''");
         }
     }
 
@@ -139,19 +165,33 @@ public class UserProfileRepository
         const string migrationId = "20260302040632_AddUserProfileIdToEntities";
         try
         {
+            bool isSqlite = db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
             // Check if the column already exists but the migration hasn't been recorded
-            var cols = await db.Database.SqlQueryRaw<string>(
-                "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
-            if (cols.Count > 0)
+            bool hasColumn;
+            if (isSqlite)
+            {
+                var cols = await db.Database.SqlQueryRaw<string>(
+                    "SELECT name FROM pragma_table_info('SkillProfile') WHERE name = 'UserProfileId'").ToListAsync();
+                hasColumn = cols.Count > 0;
+            }
+            else
+            {
+                var cols = await db.Database.SqlQueryRaw<string>(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'SkillProfile' AND column_name = 'UserProfileId'").ToListAsync();
+                hasColumn = cols.Count > 0;
+            }
+            if (hasColumn)
             {
                 // Column exists — check if migration is already recorded
+                string q(string id) => isSqlite ? id : $"\"{id}\"";
                 var applied = await db.Database.SqlQueryRaw<string>(
-                    $"SELECT MigrationId FROM __EFMigrationsHistory WHERE MigrationId = '{migrationId}'").ToListAsync();
+                    $"SELECT {q("MigrationId")} FROM {q("__EFMigrationsHistory")} WHERE {q("MigrationId")} = '{migrationId}'").ToListAsync();
                 if (applied.Count == 0)
                 {
                     // Column exists but migration not recorded — mark it as applied
                     await db.Database.ExecuteSqlRawAsync(
-                        $"INSERT INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ('{migrationId}', '10.0.2')");
+                        $"INSERT INTO {q("__EFMigrationsHistory")} ({q("MigrationId")}, {q("ProductVersion")}) VALUES ('{migrationId}', '10.0.2')");
                 }
             }
         }
