@@ -141,6 +141,25 @@ else
             </button>
         </div>
 
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Or import from a file (.txt, .csv)</label>
+            <div class="d-flex align-items-center gap-2">
+                <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i>Choose File
+                </label>
+                <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
+                @if (isImportingFile)
+                {
+                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                    <span class="ss-body2 text-secondary-ss">Importing...</span>
+                }
+                @if (!string.IsNullOrEmpty(fileImportStatus))
+                {
+                    <span class="ss-body2 text-secondary-ss">@fileImportStatus</span>
+                }
+            </div>
+        </div>
+
         @if (resource.Vocabulary?.Count > 0)
         {
             <div class="list-group list-group-flush">
@@ -210,6 +229,8 @@ else
     private string vocabList = "";
     private string delimiter = "comma";
     private bool showDeleteConfirm;
+    private bool isImportingFile;
+    private string fileImportStatus = "";
     private string deleteConfirmMessage = "";
     private bool isDeleting;
 
@@ -340,6 +361,68 @@ else
         {
             Logger.LogError(ex, "ImportVocabulary error");
             Toast.ShowError($"Import failed: {ex.Message}");
+        }
+    }
+
+    private async Task HandleFileImport(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null) return;
+
+        isImportingFile = true;
+        fileImportStatus = "";
+        StateHasChanged();
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 1_048_576);
+            using var reader = new System.IO.StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                Toast.ShowError("File is empty.");
+                return;
+            }
+
+            var newWords = VocabularyWord.ParseVocabularyWords(content, delimiter);
+            resource.Vocabulary ??= new List<VocabularyWord>();
+
+            int added = 0;
+            foreach (var word in newWords)
+            {
+                bool isDuplicate = resource.Vocabulary.Any(existing =>
+                    existing.TargetLanguageTerm?.Trim().Equals(word.TargetLanguageTerm?.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+
+                if (!isDuplicate)
+                {
+                    var dbWord = await GetOrCreateWordAsync(
+                        word.TargetLanguageTerm?.Trim() ?? "",
+                        word.NativeLanguageTerm?.Trim() ?? "");
+                    resource.Vocabulary.Add(dbWord);
+                    added++;
+                }
+            }
+
+            if (added > 0)
+            {
+                await ResourceRepo.SaveResourceAsync(resource);
+                fileImportStatus = $"{added} words from {file.Name}";
+                Toast.ShowSuccess($"Imported {added} vocabulary words from file.");
+            }
+            else
+            {
+                Toast.ShowInfo("No new vocabulary words found in file (may be duplicates or wrong format).");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "HandleFileImport error");
+            Toast.ShowError($"File import failed: {ex.Message}");
+        }
+        finally
+        {
+            isImportingFile = false;
         }
     }
 
