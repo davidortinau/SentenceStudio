@@ -95,6 +95,38 @@ else
         <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile">Save Profile</button>
     </div>
 
+    @* Change Password *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3"><i class="bi bi-key me-2"></i>Change Password</h5>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Current Password</label>
+            <input type="password" class="form-control form-control-ss" @bind="currentPassword"
+                   @bind:event="oninput" placeholder="Enter current password" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">New Password</label>
+            <input type="password" class="form-control form-control-ss" @bind="newPassword"
+                   @bind:event="oninput" placeholder="Enter new password" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Confirm New Password</label>
+            <input type="password" class="form-control form-control-ss" @bind="confirmNewPassword"
+                   @bind:event="oninput" placeholder="Confirm new password" />
+        </div>
+
+        <button class="btn btn-ss-primary w-100" @onclick="ChangePassword"
+                disabled="@(isChangingPassword || !CanChangePassword)">
+            @if (isChangingPassword)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <i class="bi bi-lock me-1"></i>Change Password
+        </button>
+    </div>
+
     @* Export *@
     <div class="card card-ss p-4 mb-3">
         <h5 class="ss-title3 mb-3">Data Export</h5>
@@ -158,6 +190,7 @@ else
     [Inject] private IJSRuntime JS { get; set; }
     [Inject] private IAppState AppState { get; set; }
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.IAuthService AuthService { get; set; } = default!;
     [Inject] private ILogger<Profile> Logger { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
 
@@ -174,6 +207,16 @@ else
     private bool showDeleteConfirm;
     private string deleteConfirmMessage = "";
     private bool isDeleting;
+
+    private string currentPassword = "";
+    private string newPassword = "";
+    private string confirmNewPassword = "";
+    private bool isChangingPassword;
+
+    private bool CanChangePassword =>
+        !string.IsNullOrWhiteSpace(currentPassword)
+        && !string.IsNullOrWhiteSpace(newPassword)
+        && !string.IsNullOrWhiteSpace(confirmNewPassword);
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
     private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
@@ -257,6 +300,47 @@ else
         {
             isExporting = false;
             exportProgressMessage = "";
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        if (newPassword != confirmNewPassword)
+        {
+            Toast.ShowError("New passwords do not match.");
+            return;
+        }
+
+        if (newPassword.Length < 8)
+        {
+            Toast.ShowError("New password must be at least 8 characters.");
+            return;
+        }
+
+        isChangingPassword = true;
+        try
+        {
+            var success = await AuthService.ChangePasswordAsync(currentPassword, newPassword);
+            if (success)
+            {
+                currentPassword = "";
+                newPassword = "";
+                confirmNewPassword = "";
+                Toast.ShowSuccess("Password changed successfully.");
+            }
+            else
+            {
+                Toast.ShowError("Password change failed. Check your current password and try again.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Password change failed");
+            Toast.ShowError($"Password change failed: {ex.Message}");
+        }
+        finally
+        {
+            isChangingPassword = false;
         }
     }
 

@@ -33,251 +33,71 @@
 **Cross-Team Impact:**
 - **Kaylee:** 8 issues assigned (#44–45, #56–59, #60)
 - **Captain:** 1 issue assigned (#42)
-- Issues propagated to respective agent history files
 
-See `.squad/decisions.md` for full decision record.
+## Core Context (Current)
 
-### 2026-03-14 — CRUD Feedback Audit & Standard
+**Role:** Lead / Architecture & Infrastructure  
+**Focus Areas:** Aspire, EF Core, databases, architecture decisions, team coordination
 
-**Status:** Complete (PROPOSED decision)  
-**Location:** `.squad/decisions/inbox/zoe-crud-feedback-standard.md`  
+**Current Phase:**
+- Phase 2 (Secrets) & Phase 1 (Auth): Complete
+- Phase 3-5 active: Infrastructure (Postgres migration), CI/deploy, hardening
 
-Audited all CRUD pages (Resources, Skills, Vocabulary, Minimal Pairs, Profile, Settings) for user feedback consistency. Found mostly good patterns with toasts, but inconsistencies exist:
+**Recent Completions (2026-03-13 to 2026-03-20):**
+- Architecture plan for Azure deployment + Entra ID (5-phase roadmap)
+- 27 GitHub issues created (decomposed plan into actionable work, Dependencies linked)
+- Phase 1 & 2 auth architecture decisions (WebApp OIDC, MAUI MSAL, Bearer API)
+- Phase 2 completion (user-secrets workflow, security headers, HTTPS)
+- Getting-started dashboard for new users (feature/getting-started-dashboard, commit 0636f06, 190 lines)
+  - Detection: lightweight queries for resources/vocabulary/skills
+  - Quick Start: Creates skill profile, 20 vocab words, pre-built resource
+  - Styling: Bootstrap icons only (no emojis)
 
-**Gaps Found:**
-1. **JS confirm dialogs** in 5 pages (ResourceEdit, SkillEdit, VocabularyWordEdit, MinimalPairs, Profile) — should be Bootstrap modals for accessibility
-2. **Profile.razor** has silent load errors, uses modal for save errors (should be toast), missing delete success feedback
+**Key Tech Learnings:**
+- CoreSync SQLite→PostgreSQL migration is critical path (Phase 3.7, XL complexity)
+- Aspire.StackExchange.Redis provides distributed token cache (match preview package versions)
+- LocalDev auth: DevAuthHandler as fallback when Entra ID is disabled
+- New-user onboarding: detect empty state (resources/vocab/skills), show guided flow, transition in-place (no redirect)
 
-**Decision Written:**
-- Success operations → Toast (auto-dismiss, 3s)
-- Errors → Toast (longer, 5s)
-- Warnings → Toast (medium, 4s)
-- Destructive ops → Bootstrap modal confirmation BEFORE + Toast AFTER
-- Information → Toast (short, 3s)
+**Blockers:** None current
 
-**Code patterns documented** for Kaylee: save operation, Bootstrap delete modal (markup + C#), load/list with errors.
+**Next:** Phase 3 infrastructure work (Postgres setup, CoreSync migration) and Phase 4 CI/deploy pipeline
 
-**Next:** Captain approval, then Kaylee implements fixes.
+### 2026-03-18 — Getting Started Dashboard Experience
 
-### 2026-03-14 — Auth E2E Test Plan Created for iOS
+**Status:** Complete (feature branch `feature/getting-started-dashboard`)  
+**File Changed:** `src/SentenceStudio.UI/Pages/Index.razor`
 
-**Status:** Complete  
-**Location:** `.squad/skills/auth-e2e-testing/SKILL.md`  
-**Executed by:** Jayne (Tester) — uses this plan to verify auth flow
+**What:**
+Added a getting-started flow to the Dashboard for new users who have no learning resources, no vocabulary, or no skill profile. When any of these are missing, the normal dashboard is replaced with a welcoming two-option card layout:
 
-Designed a comprehensive E2E test plan covering complete authentication flow on iOS with dev tunnel, local Aspire, and simulator. Plan includes 11 test suites with 45+ individual test cases:
+1. **Quick Start** — Creates a "Korean Starter Pack" resource with 20 common Korean vocabulary words and a "Korean Basics" skill profile, then transitions to the normal dashboard.
+2. **Create Your Own** — Links to `/resources/add` for manual resource creation.
 
-**Coverage:**
-- Registration (happy path, duplicate email, weak password)
-- Login (happy path, wrong password, non-existent email)
-- Onboarding (first-time, returning user skips)
-- Token persistence (SecureStorage, kill/relaunch, logout clears)
-- Token refresh & expiry (auto-refresh, 7-day boundary)
-- Logout (UI flow, token cleanup)
-- Profile operations (view, edit, delete account)
-- Data isolation (User A not seeing User B's data, JWT claims)
-- Error handling (API down, network timeout, malformed responses)
-- Webapp regression (login, logout, registration still work)
-- Load testing (optional, concurrent logins)
-
-**Key Details:**
-- Test infrastructure setup verified (Aspire dashboard, simulator, dev tunnel health)
-- 11 test suites, 45+ individual test cases
-- Each case includes: preconditions, steps, verification, expected outcome, screenshots
-- Database queries for validation (SQLite)
-- Aspire structured logs for error checking
-- Tools: Playwright (webapp), maui-devflow (iOS), xcrun simctl (simulator management)
-- Checklist for tracking execution
-- Known issues & workarounds documented
-
-**Dependencies:**
-- Aspire running locally with all services (Api, WebApp, Workers, Redis, SqliteDb)
-- iOS simulator booted (iPhone 17 Pro, iOS 26.2)
-- Dev tunnel active: `https://c60qm31n-7012.use.devtunnels.ms`
-
-**Next:** Jayne executes plan to verify mobile auth flow before feature freeze.
-
-### 2026-03-15 — Blazor Hybrid Auth Architecture Research
-
-**Status:** Complete  
-**Location:** `docs/blazor-hybrid-auth-research.md`, `.squad/decisions.md` (Decision #12)  
-**Decision:** PROPOSED (awaiting Captain approval)
-
-Conducted deep architectural research into Microsoft's official Blazor Hybrid authentication patterns after persistent issues with auth gate in MainLayout.razor. Identified fundamental gap: we're not using Blazor's authentication system at all.
-
-**Key Findings:**
-
-1. **Microsoft prescribes AuthenticationStateProvider** — the official abstraction for auth in Blazor, NOT custom boolean preferences or IAuthService alone
-2. **Router must use AuthorizeRouteView** — NOT plain RouteView. Declarative auth via `[Authorize]` attributes, inline rendering in `<NotAuthorized>` slot
-3. **No NavigateTo() for auth redirects** — Router handles gating declaratively during component lifecycle, eliminating timing issues
-4. **Reactive state changes** — NotifyAuthenticationStateChanged() updates all components automatically
-5. **ClaimsPrincipal is the security boundary** — not boolean preferences
-
-**Gaps in Our Implementation:**
-
-| Component | Microsoft Pattern | Our Implementation | Severity |
-|-----------|-------------------|--------------------| ---------|
-| Auth Abstraction | AuthenticationStateProvider | IAuthService only | HIGH |
-| Router | AuthorizeRouteView | RouteView | HIGH |
-| Auth Gate | Router `<NotAuthorized>` slot | MainLayout boolean logic | HIGH |
-| Page Protection | `[Authorize]` attributes | None | MEDIUM |
-| State Change | NotifyAuthenticationStateChanged() | Manual preference writes | HIGH |
-| DI Registration | AddAuthorizationCore() | Missing | HIGH |
-
-**Root Cause of NavigateTo() Issues:**
-
-NavigateTo() during OnInitializedAsync in Blazor Hybrid WebView is unreliable due to WebView lifecycle timing and race conditions with router initialization. Microsoft's pattern avoids this entirely via declarative routing.
-
-**Proposed Architecture:**
-
-1. Create `SentenceStudioAuthStateProvider : AuthenticationStateProvider` (wraps existing IAuthService)
-2. Replace `<RouteView>` with `<AuthorizeRouteView>` in Routes.razor
-3. Remove manual auth gate logic from MainLayout.razor (~60 lines deleted)
-4. Add `[Authorize]` attributes to protected pages
-5. Keep IAuthService unchanged (well-designed for token management)
-
-**4-Phase Migration Path:**
-- Phase 1: Add auth infrastructure (no breaking changes)
-- Phase 2: Router replacement
-- Phase 3: MainLayout simplification
-- Phase 4: Page attributes
-
-**Estimated effort:** 1-2 days (Phases 1-4)
-
-**Documentation Sources:**
-- [ASP.NET Core Blazor Hybrid authentication and authorization](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/?view=aspnetcore-10.0&pivots=maui)
-- [MAUI Blazor Hybrid and Web App with ASP.NET Core Identity sample](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/maui-blazor-web-identity?view=aspnetcore-10.0)
-- [Blazor Hybrid security considerations](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/security/security-considerations?view=aspnetcore-10.0)
+**Architecture Decisions:**
+- Check runs in `OnInitializedAsync` via lightweight queries (no eager loading of vocab on resources)
+- `isNewUser` flag gates the entire dashboard markup — no partial empty-state handling
+- Starter resource uses `SaveResourceAsync` which handles vocab association through skip navigation
+- Skill profile created only if none exist — won't duplicate on retry
+- After creation, the page transitions in-place (no redirect) by flipping `isNewUser = false` and loading dashboard data
 
 **Key Learnings:**
-- AuthenticationStateProvider is the official auth abstraction in Blazor — custom gate logic bypasses the framework
-- AuthorizeRouteView handles auth declaratively via `[Authorize]` attributes and `<NotAuthorized>` inline rendering
-- NavigateTo() during component init in Blazor Hybrid is unreliable — use router-based declarative auth instead
-- ClaimsPrincipal with ClaimsIdentity is the security boundary, not boolean preferences
-- NotifyAuthenticationStateChanged() enables reactive auth state updates across components
-- Microsoft sample uses inline component rendering in `<NotAuthorized>` slot, NOT NavigateTo() redirects
-- IAuthService pattern (token management, API calls) is complementary to AuthenticationStateProvider, not a replacement
-- AddAuthorizationCore() registration is required for `[Authorize]` attributes and auth components to work
-
-**Next:** Captain approval, then 4-phase implementation.
-
-### 2026-03-15 — Fixed Theme Flickering (Issue #96)
-
-**Status:** Complete  
-**Root Cause:** SSR-to-interactive hydration race condition  
-**Files Changed:** `src/SentenceStudio.WebApp/Components/App.razor`
-
-**Problem:**
-WebApp was flickering between light and dark mode during page load. Investigation revealed:
-1. App.razor had hardcoded `data-bs-theme="dark" data-ss-theme="seoul-pop"` in the HTML element
-2. SSR rendered the page with these hardcoded values first
-3. After interactive hydration, MainLayout.razor's `OnAfterRenderAsync` called `applyTheme()` with the user's saved preference from ThemeService
-4. If user preference was different (e.g., light mode), JS changed the attributes → visible flicker
-
-**Solution:**
-Injected `ThemeService` into App.razor and replaced hardcoded theme attributes with dynamic Razor expressions:
-```razor
-@inject ThemeService ThemeService
-<html lang="en" data-bs-theme="@ThemeService.CurrentMode" data-ss-theme="@ThemeService.CurrentTheme">
-```
-
-Now SSR renders with the correct theme from the start (ThemeService reads from persisted preferences), eliminating the flicker. The MainLayout's `applyTheme()` call becomes a no-op if the theme is already correct.
-
-**Key Learnings:**
-- Blazor SSR hydration can cause theme flicker if theme attributes are hardcoded in App.razor
-- ThemeService correctly reads from IPreferencesService (persisted JSON) during SSR, making it safe to inject into App.razor
-- Theme attributes on `<html>` must match user preference from first render to avoid SSR→interactive flash
-- No CSS `prefers-color-scheme` media queries were found — all theme control is via JS and CSS variables
-
-
-### 2026-03-15 — Vocabulary Relationship Architecture Framing
-
-**Status:** PROPOSED  
-**Location:** `.squad/decisions/inbox/zoe-vocab-relationships-architecture.md`
-
-Framed the architecture question for vocabulary relationship tracking after Captain reported overlap/duplication issue: users master root words (e.g., Korean `자주` - "often") but must re-prove mastery for derived forms (`자주 마시는` - "often drinks").
-
-**Key Architecture Questions Identified:**
-
-1. **Relationship Model**: Three schema options analyzed
-   - Option A (ParentWordId FK): Simple, fast, can't handle multi-word relationships
-   - Option B (Junction Table): Flexible graph model, handles complex relationships, more queries
-   - Option C (Lemma Group): Linguistically accurate, requires AI lemma assignment
-
-2. **Mastery Propagation**: Four approaches evaluated
-   - Full Credit (optimistic) — root mastery grants 70% to derived
-   - Partial Credit (weighted) — 40-60% transfer
-   - Separate Mastery with Hints (conservative) — current behavior + UI hints
-   - Context-Based Mastery (advanced) — track per-context (standalone vs. phrase)
-
-3. **AI Import Enhancement**: Three strategies
-   - Relationship-Aware Prompt — AI flags relationships during generation
-   - Lemma Grouping Prompt — AI assigns lemma groups
-   - Hybrid (AI suggests + user confirms) — accuracy vs. friction tradeoff
-
-4. **SRS Impact**: Three scheduling options
-   - Clustered Review — batch root + derived forms
-   - Weighted Intervals — derived forms reviewed less often
-   - Independent Scheduling — status quo (SM-2 per word)
-
-**Recommendation (Phase 1 MVP):**
-- Schema: ParentWordId FK (Option A) — minimal risk, additive
-- Mastery: Separate tracking with UI hints (Option C) — transparent, no shortcuts
-- AI Import: Relationship-aware prompt (Option A) — capture relationships during import
-- SRS: Independent scheduling (Option C) — don't refactor proven SM-2 yet
-
-**Cross-Team Questions Identified:**
-- **River (AI)**: Accuracy of relationship detection, lemma assignment reliability
-- **Wash (Backend)**: Schema preference, migration complexity, query performance
-- **Kaylee (UI)**: Relationship visualization, import preview UX, mastery feedback patterns
-- **Language Tutor Agents**: Cognitive load, review frequency, SLA research validation
-
-**Key Files Referenced:**
-- `src/SentenceStudio.Shared/Models/VocabularyWord.cs` — current data model
-- `src/SentenceStudio.Shared/Models/VocabularyProgress.cs` — mastery tracking
-- `src/SentenceStudio.UI/Pages/ResourceEdit.razor` — AI import flow
-- `docs/vocabulary-deduplication-enhancement.md` — current AI deduplication strategy
-
-**Next:** Captain approval on MVP vs. ambitious path, then team input from River/Wash/Kaylee/language tutors.
+- `GetAllResourcesLightweightAsync()` is the fast path for existence checks (no Include)
+- `SaveResourceAsync` handles both new-resource creation and vocabulary word association in a single call
+- `SaveWordAsync` does upsert by checking DB existence — safe for retries
+- SkillProfile model defaults `Language = "Korean"` which aligns with Captain's target language
 
 ---
 
-## VOCABULARY HIERARCHY TEAM ANALYSIS — TEAM CONSENSUS (2026-03-17)
+## 2026-03-20 — Team Sync: Kaylee's File-Import Feature
 
-**Session:** Vocabulary Hierarchy Analysis & Consensus Building  
-**Team:** Zoe (Lead), River (AI), Wash (Backend), SLA Expert, Learning Design Expert  
-**Status:** PROPOSED — Awaiting Captain Approval
+**Impact on Zoe's Work:**
+- Kaylee implemented file-based vocabulary import (ResourceAdd/ResourceEdit, feature/file-vocab-import)
+- Uses Blazor `InputFile` component for cross-platform (web + MAUI Blazor Hybrid) file picking
+- Commit: fe312d6 | 183 lines | Build: clean
+- No changes required to Zoe's getting-started flow — the file-import feature is orthogonal
 
-**Consensus Reached on MVP Approach:**
+**Cross-Agent Notes:**
+- When users click "Create Your Own" in Zoe's getting-started flow, they land on Kaylee's ResourceAdd page which now has file-import capability
+- Both features are non-blocking and can be merged in any order
 
-### Recommendation Summary
-- **Data Model:** Self-referential FK (ParentWordId) — Option A approved by all stakeholders
-- **Mastery Propagation:** Independent mastery tracking with UI hints (Option C) — transparent, no shortcuts
-- **AI Import:** Hierarchical prompts with relationship detection — River implemented full schema
-- **SRS Scheduling:** Independent scheduling (preserve SM-2) — no refactoring in MVP
-- **Learning Design:** Progressive disclosure with engagement tracking — supports transfer of learning data
-
-### Why This Consensus?
-- **Wash validated:** Option A is simplest for CoreSync (single table, NULLable FK, no cascade complexity)
-- **River designed:** Hierarchical JSON schema with relationshipType, relatedTerms, linguisticMetadata
-- **SLA Expert confirmed:** Independent mastery aligns with morphological awareness research + spacing effect
-- **Learning Design:** Progressive hints prevent cognitive overload, preserve challenge
-- **Captain's Request Met:** "More nuanced" without committing to complex mastery transfer or graph models
-
-### Team Outputs
-- `docs/zoe-vocab-relationships-architecture.md` — Architecture framework & design pillars
-- `docs/wash-vocabulary-hierarchy-proposal.md` — Data model analysis + EF Core implementation
-- `docs/vocabulary-hierarchy-prompt-design.md` — Hierarchical JSON schema + multi-pass prompt strategy
-- `docs/vocabulary-hierarchy-learning-design.md` — UX flow, engagement metrics, confidence building
-- `docs/vocabulary-hierarchy-consensus-plan.md` — Integrated consensus plan (synthesis of all)
-
-### Critical Path (After Captain Approval)
-1. Wash: Generate EF Core migration (ParentWordId, RelationType)
-2. River: Implement hierarchical prompt endpoint
-3. Kaylee: Vocabulary detail page redesign (show parent + siblings)
-4. All: E2E testing on 5 real Korean transcripts
-
-### Awaiting
-- Captain approval on MVP approach
-- Decision: Migrate old vocabulary or only new imports?
-- Decision: Mastery inheritance enablement timeline (Phase 1 MVP vs. future)

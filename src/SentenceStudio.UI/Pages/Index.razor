@@ -4,7 +4,11 @@
 @using SentenceStudio.Data
 @implements IAsyncDisposable
 
-@if (isTodaysPlanMode)
+@if (isNewUser)
+{
+    <PageHeader Title="Welcome" />
+}
+else if (isTodaysPlanMode)
 {
     <PageHeader Title="Dashboard">
         <SecondaryActions>
@@ -18,6 +22,67 @@ else
 {
     <PageHeader Title="Dashboard" />
 }
+
+@* ============ GETTING STARTED (new user) ============ *@
+@if (isNewUser)
+{
+    <div class="d-flex flex-column align-items-center text-center px-3" style="max-width: 640px; margin: 0 auto;">
+        <i class="bi bi-translate fs-1 mb-3" style="color: var(--bs-primary);"></i>
+        <h1 class="ss-title1 mb-2">Start Your Language Journey</h1>
+        <p class="ss-body1 text-secondary-ss mb-4">
+            Set up your first learning resource and vocabulary so you can dive into
+            activities like quizzes, conversation practice, and writing exercises.
+        </p>
+
+        @if (!string.IsNullOrEmpty(starterError))
+        {
+            <div class="alert alert-danger w-100 mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>@starterError
+            </div>
+        }
+
+        <div class="row g-3 w-100 mb-4">
+            <div class="col-12 col-md-6">
+                <div class="card card-ss p-4 h-100 text-center">
+                    <i class="bi bi-rocket-takeoff fs-2 mb-2" style="color: var(--bs-primary);"></i>
+                    <h2 class="ss-title3 mb-2">Quick Start</h2>
+                    <p class="text-secondary-ss small mb-3">
+                        Create a starter Korean resource with 20 common vocabulary words
+                        so you can begin practicing immediately.
+                    </p>
+                    <button class="btn btn-ss-primary mt-auto" @onclick="CreateStarterResourceAsync" disabled="@isCreatingStarter">
+                        @if (isCreatingStarter)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Setting up...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-plus-circle me-1"></i>
+                            <span>Create Starter Resource</span>
+                        }
+                    </button>
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <div class="card card-ss p-4 h-100 text-center">
+                    <i class="bi bi-pencil-square fs-2 mb-2" style="color: var(--bs-primary);"></i>
+                    <h2 class="ss-title3 mb-2">Create Your Own</h2>
+                    <p class="text-secondary-ss small mb-3">
+                        Choose your own language, add custom vocabulary, or import from
+                        a podcast transcript or article.
+                    </p>
+                    <a class="btn btn-outline-secondary mt-auto" href="/resources/add">
+                        <i class="bi bi-arrow-right me-1"></i>
+                        <span>Add a Resource</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
 
 @if (AppState?.CurrentUserProfile?.Name is { Length: > 0 })
 {
@@ -272,6 +337,8 @@ else
     </div>
 }
 
+} @* end of isNewUser else *@
+
 @code {
     private const string PREF_DASHBOARD_MODE = "DashboardMode";
     private const string PREF_SELECTED_RESOURCE_IDS = "SelectedResourceIds";
@@ -295,6 +362,10 @@ else
     private bool showAllActivities = false;
     private VocabProgressSummary? vocabSummary;
     private TodaysPlan? todaysPlan;
+
+    private bool isNewUser;
+    private bool isCreatingStarter;
+    private string? starterError;
 
     private List<LearningResource>? allResources;
     private List<SkillProfile>? allSkills;
@@ -326,6 +397,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await CheckNewUserAsync();
+        if (isNewUser) return;
+
         var savedMode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
         isTodaysPlanMode = savedMode == "TodaysPlan";
 
@@ -366,6 +440,120 @@ else
             await Task.Delay(50);
             await InitChooseOwnSelectorsAsync();
         }
+    }
+
+    // ---- New User Check ----
+
+    private async Task CheckNewUserAsync()
+    {
+        try
+        {
+            var resources = await ResourceRepo.GetAllResourcesLightweightAsync();
+            var skills = await SkillRepo.ListAsync();
+            var vocab = await ResourceRepo.GetAllVocabularyWordsAsync();
+
+            isNewUser = resources.Count == 0 || vocab.Count == 0 || skills.Count == 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to check new-user status");
+            isNewUser = false;
+        }
+    }
+
+    private async Task CreateStarterResourceAsync()
+    {
+        isCreatingStarter = true;
+        starterError = null;
+        StateHasChanged();
+
+        try
+        {
+            // 1. Ensure a skill profile exists
+            var skills = await SkillRepo.ListAsync();
+            if (skills.Count == 0)
+            {
+                var skill = new SkillProfile
+                {
+                    Title = "Korean Basics",
+                    Description = "Foundational Korean vocabulary and grammar",
+                    Language = "Korean"
+                };
+                await SkillRepo.SaveAsync(skill);
+            }
+
+            // 2. Create vocabulary words
+            var starterWords = GetStarterVocabulary();
+            foreach (var word in starterWords)
+            {
+                await ResourceRepo.SaveWordAsync(word);
+            }
+
+            // 3. Create the learning resource and associate vocab
+            var resource = new LearningResource
+            {
+                Title = "Korean Starter Pack",
+                Description = "Common everyday Korean words to get you started",
+                MediaType = "Vocabulary List",
+                Language = "Korean",
+                Tags = "starter,beginner,korean",
+                Vocabulary = starterWords
+            };
+
+            var savedId = await ResourceRepo.SaveResourceAsync(resource);
+            if (string.IsNullOrEmpty(savedId))
+            {
+                starterError = "Failed to create the starter resource. Please try again.";
+                return;
+            }
+
+            // Re-check — transition to normal dashboard
+            isNewUser = false;
+
+            // Load normal dashboard data
+            var savedMode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
+            isTodaysPlanMode = savedMode == "TodaysPlan";
+            await LoadVocabStatsAsync();
+            if (isTodaysPlanMode)
+                await LoadPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create starter resource");
+            starterError = "Something went wrong creating the starter resource. Please try again.";
+        }
+        finally
+        {
+            isCreatingStarter = false;
+            StateHasChanged();
+        }
+    }
+
+    private static List<VocabularyWord> GetStarterVocabulary()
+    {
+        return new List<VocabularyWord>
+        {
+            new() { TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "Hello", Language = "Korean", Tags = "greeting" },
+            new() { TargetLanguageTerm = "감사합니다", NativeLanguageTerm = "Thank you", Language = "Korean", Tags = "greeting" },
+            new() { TargetLanguageTerm = "네", NativeLanguageTerm = "Yes", Language = "Korean", Tags = "basic" },
+            new() { TargetLanguageTerm = "아니요", NativeLanguageTerm = "No", Language = "Korean", Tags = "basic" },
+            new() { TargetLanguageTerm = "물", NativeLanguageTerm = "Water", Language = "Korean", Tags = "food" },
+            new() { TargetLanguageTerm = "밥", NativeLanguageTerm = "Rice / Meal", Language = "Korean", Tags = "food" },
+            new() { TargetLanguageTerm = "사람", NativeLanguageTerm = "Person", Language = "Korean", Tags = "people" },
+            new() { TargetLanguageTerm = "친구", NativeLanguageTerm = "Friend", Language = "Korean", Tags = "people" },
+            new() { TargetLanguageTerm = "학교", NativeLanguageTerm = "School", Language = "Korean", Tags = "places" },
+            new() { TargetLanguageTerm = "집", NativeLanguageTerm = "House / Home", Language = "Korean", Tags = "places" },
+            new() { TargetLanguageTerm = "좋아요", NativeLanguageTerm = "Good / I like it", Language = "Korean", Tags = "adjective" },
+            new() { TargetLanguageTerm = "많이", NativeLanguageTerm = "A lot / Much", Language = "Korean", Tags = "adverb" },
+            new() { TargetLanguageTerm = "지금", NativeLanguageTerm = "Now", Language = "Korean", Tags = "time" },
+            new() { TargetLanguageTerm = "오늘", NativeLanguageTerm = "Today", Language = "Korean", Tags = "time" },
+            new() { TargetLanguageTerm = "내일", NativeLanguageTerm = "Tomorrow", Language = "Korean", Tags = "time" },
+            new() { TargetLanguageTerm = "먹다", NativeLanguageTerm = "To eat", Language = "Korean", Tags = "verb" },
+            new() { TargetLanguageTerm = "가다", NativeLanguageTerm = "To go", Language = "Korean", Tags = "verb" },
+            new() { TargetLanguageTerm = "오다", NativeLanguageTerm = "To come", Language = "Korean", Tags = "verb" },
+            new() { TargetLanguageTerm = "하다", NativeLanguageTerm = "To do", Language = "Korean", Tags = "verb" },
+            new() { TargetLanguageTerm = "보다", NativeLanguageTerm = "To see / To watch", Language = "Korean", Tags = "verb" },
+        };
     }
 
     // ---- Today's Plan ----
