@@ -281,3 +281,42 @@ Framed the architecture question for vocabulary relationship tracking after Capt
 - Captain approval on MVP approach
 - Decision: Migrate old vocabulary or only new imports?
 - Decision: Mastery inheritance enablement timeline (Phase 1 MVP vs. future)
+
+### 2026-03-18 — Getting Started Dashboard Experience
+
+**Status:** Complete (feature branch `feature/getting-started-dashboard`)  
+**File Changed:** `src/SentenceStudio.UI/Pages/Index.razor`
+
+**What:**
+Added a getting-started flow to the Dashboard for new users who have no learning resources, no vocabulary, or no skill profile. When any of these are missing, the normal dashboard is replaced with a welcoming two-option card layout:
+
+1. **Quick Start** — Creates a "Korean Starter Pack" resource with 20 common Korean vocabulary words and a "Korean Basics" skill profile, then transitions to the normal dashboard.
+2. **Create Your Own** — Links to `/resources/add` for manual resource creation.
+
+**Architecture Decisions:**
+- Check runs in `OnInitializedAsync` via lightweight queries (no eager loading of vocab on resources)
+- `isNewUser` flag gates the entire dashboard markup — no partial empty-state handling
+- Starter resource uses `SaveResourceAsync` which handles vocab association through skip navigation
+- Skill profile created only if none exist — won't duplicate on retry
+- After creation, the page transitions in-place (no redirect) by flipping `isNewUser = false` and loading dashboard data
+
+**Key Learnings:**
+- `GetAllResourcesLightweightAsync()` is the fast path for existence checks (no Include)
+- `SaveResourceAsync` handles both new-resource creation and vocabulary word association in a single call
+- `SaveWordAsync` does upsert by checking DB existence — safe for retries
+- SkillProfile model defaults `Language = "Korean"` which aligns with Captain's target language
+
+---
+
+## 2026-03-20 — Team Sync: Kaylee's File-Import Feature
+
+**Impact on Zoe's Work:**
+- Kaylee implemented file-based vocabulary import (ResourceAdd/ResourceEdit, feature/file-vocab-import)
+- Uses Blazor `InputFile` component for cross-platform (web + MAUI Blazor Hybrid) file picking
+- Commit: fe312d6 | 183 lines | Build: clean
+- No changes required to Zoe's getting-started flow — the file-import feature is orthogonal
+
+**Cross-Agent Notes:**
+- When users click "Create Your Own" in Zoe's getting-started flow, they land on Kaylee's ResourceAdd page which now has file-import capability
+- Both features are non-blocking and can be merged in any order
+

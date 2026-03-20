@@ -655,3 +655,37 @@ Fixed 5 GitHub issues related to mobile user experience:
 - Learning progress status: converted from icon button group to dropdown select for cleaner mobile UX and reduced vertical space
 - Resource associations: removed horizontal scroll, removed descriptions, added CSS truncation at 2 lines max for titles
 - CSS pattern: `-webkit-line-clamp: 2` with `-webkit-box-orient: vertical` for multi-line text truncation
+
+### 2026-07-22 — File-Based Vocabulary Import on Resource Pages
+
+**Status:** Complete  
+**Branch:** `feature/file-vocab-import`  
+
+Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.razor for importing vocabulary from .txt/.csv files. Works cross-platform (web + MAUI Blazor Hybrid) without needing platform-specific file pickers.
+
+**Key Decisions:**
+- Used standard Blazor `InputFile` (not WebFilePickerService/MauiFilePickerService) — works everywhere
+- Hidden `<input>` with styled `<label>` button for consistent Bootstrap look
+- Reuses `ParseVocabularyWords()` and `GetOrCreateWordAsync()` — no new parsing logic
+- ResourceAdd uses in-memory dedup only; ResourceEdit persists via repository (matching existing patterns)
+- 1 MB file size cap via `OpenReadStream(maxAllowedSize:)`
+
+**Learnings:**
+- Blazor `InputFile` with hidden `class="d-none"` + label-as-button is the cross-platform file picker pattern
+- `InputFileChangeEventArgs.File.OpenReadStream()` needs explicit `maxAllowedSize` param (default is 500 KB)
+- ResourceAdd and ResourceEdit have different persistence patterns: Add defers to save, Edit persists immediately
+
+---
+
+## 2026-03-20 — Team Sync: Zoe's Getting-Started Dashboard
+
+**Impact on Kaylee's Work:**
+- Zoe implemented getting-started onboarding flow (Dashboard, feature/getting-started-dashboard)
+- Creates "Korean Basics" skill profile + 20 vocab words + "Korean Starter Pack" resource for new users
+- Uses existing Kaylee UI patterns (Bootstrap icons, in-place state transitions)
+- No changes required to Kaylee's current work — the file-import feature remains independent
+
+**Cross-Agent Notes:**
+- Kaylee's file-vocab-import feature (InputFile on ResourceAdd/ResourceEdit) works seamlessly with Zoe's getting-started flow
+- Both features are non-blocking and can be merged in any order
+

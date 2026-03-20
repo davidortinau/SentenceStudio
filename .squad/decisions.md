@@ -810,3 +810,59 @@ Applied SLA principles to validate vocabulary hierarchy design decisions.
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+---
+
+### Blazor InputFile for File-Based Vocab Import (2026-07-22)
+
+**Status:** IMPLEMENTED  
+**Author:** Kaylee  
+**Date:** 2026-07-22  
+
+## Context
+Resource pages needed file-based vocabulary import. Two platform-specific services existed (WebFilePickerService, MauiFilePickerService) but were incomplete/unimplemented for Blazor.
+
+## Decision
+Use standard Blazor `InputFile` component instead of platform-specific file picker services. This works identically on web (Blazor Server) and MAUI (Blazor Hybrid) with no conditional code.
+
+## Rationale
+- `InputFile` is a first-class Blazor component — no JS interop or platform APIs needed
+- WebFilePickerService throws `NotSupportedException` — would need full implementation
+- Single code path for both web and native targets
+- Hidden input + styled label gives consistent Bootstrap appearance
+
+## Impact
+- WebFilePickerService and MauiFilePickerService remain untouched (may be useful for non-Blazor contexts)
+- Pattern can be reused wherever file upload is needed in Blazor pages
+
+---
+
+### Getting-Started Dashboard Experience (2026-03-18)
+
+**Status:** IMPLEMENTED  
+**Author:** Zoe (Lead)  
+**Date:** 2026-03-18  
+
+## Context
+New users landing on the Dashboard with no resources, vocabulary, or skill profile see an empty dashboard that provides no guidance. The Captain requested a getting-started flow with two paths: quick start and manual creation.
+
+## Decision
+Gate the entire Dashboard behind an `isNewUser` check. When any of {resources, vocabulary, skill profiles} is empty, show a getting-started card layout instead of the normal dashboard. The Quick Start button creates a pre-built Korean resource with 20 common vocabulary words and a default skill profile.
+
+## Key Details
+- **Detection:** Three lightweight queries in `OnInitializedAsync` — resources, vocab, skills. Any count == 0 triggers the flow.
+- **Quick Start:** Creates skill profile ("Korean Basics"), 20 VocabularyWord entities, and a LearningResource ("Korean Starter Pack") with associations.
+- **Transition:** After creation, `isNewUser` flips to `false` in-place and normal dashboard data loads — no page redirect.
+- **Idempotent:** Skill profile only created if none exist. Vocab words use upsert via `SaveWordAsync`.
+- **Styling:** Bootstrap icons only (bi-rocket-takeoff, bi-pencil-square, bi-translate). No emojis.
+
+## Alternatives Considered
+1. **Separate /getting-started route** — Rejected. Extra routing complexity, and users would need to be redirected back. In-page gating is simpler.
+2. **Show empty dashboard with inline hints** — Rejected. Captain wanted a clear, dedicated flow, not scattered hints.
+3. **AI-generated starter content** — Deferred. Requires API key setup which a new user may not have. Static starter pack is reliable.
+
+## Impact
+- **Kaylee:** No action needed — uses existing Bootstrap patterns.
+- **Wash:** No schema changes — uses existing models and repositories.
+- **River:** No AI involvement — static vocabulary list.
+
