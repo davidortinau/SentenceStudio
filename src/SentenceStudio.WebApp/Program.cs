@@ -28,10 +28,10 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
 });
 
 // Preferences stay local to the webapp
-var appDataRoot = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "sentencestudio",
-    "webapp");
+var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+if (string.IsNullOrEmpty(localAppData))
+    localAppData = Path.GetTempPath();
+var appDataRoot = Path.Combine(localAppData, "sentencestudio", "webapp");
 Directory.CreateDirectory(appDataRoot);
 var preferencesPath = Path.Combine(appDataRoot, "preferences.json");
 
