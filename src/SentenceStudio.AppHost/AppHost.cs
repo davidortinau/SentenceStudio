@@ -21,7 +21,8 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
-    .WithReference(postgres);
+    .WithReference(postgres)
+    .WaitFor(postgres);
     // Email (production only -- dev mode uses ConsoleEmailSender automatically):
     //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
     //   .WithEnvironment("Email__SmtpPort", "587")
@@ -35,7 +36,8 @@ var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
     .WithReference(redis)
-    .WithReference(postgres);
+    .WithReference(postgres)
+    .WaitFor(postgres);
 
 builder.AddProject<SentenceStudio_Marketing>("marketing");
 

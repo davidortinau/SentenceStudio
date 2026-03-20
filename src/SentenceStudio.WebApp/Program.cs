@@ -17,8 +17,15 @@ using SentenceStudio.WebUI.Services;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
+// PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 // WebApp uses Aspire-managed PostgreSQL directly (no local sync needed)
-builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio");
+builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbContextOptions: options =>
+{
+    options.ConfigureWarnings(w =>
+        w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // Preferences stay local to the webapp
 var appDataRoot = Path.Combine(

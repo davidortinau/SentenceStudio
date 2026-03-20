@@ -6,6 +6,7 @@ using CoreSync;
 using CoreSync.Http.Server;
 using CoreSync.PostgreSQL;
 using ElevenLabs;
+using Microsoft.EntityFrameworkCore;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
@@ -31,6 +32,9 @@ using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+
+// PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -127,7 +131,11 @@ builder.Services.AddHsts(options =>
 });
 
 // Database - Aspire-managed PostgreSQL
-builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio");
+builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbContextOptions: options =>
+{
+    options.ConfigureWarnings(w =>
+        w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // CoreSync server — allows mobile clients to sync through the API endpoint
 // (mobile devices can't reach the separate 'web' service directly)
@@ -161,6 +169,13 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 }
 
 var app = builder.Build();
+
+// Apply EF Core migrations (creates tables if missing)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 // Apply CoreSync provisioning (creates change-tracking tables if missing)
 var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
