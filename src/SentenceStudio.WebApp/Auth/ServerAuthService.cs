@@ -157,6 +157,33 @@ public class ServerAuthService : IAuthService
         return result.Succeeded;
     }
 
+    public async Task<bool> ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        var userName = _httpContextAccessor.HttpContext?.User?.Identity?.Name;
+        if (string.IsNullOrEmpty(userName)) return false;
+
+        using var scope = _scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var user = await userManager.FindByNameAsync(userName);
+        if (user is null) return false;
+
+        var result = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+
+        if (result.Succeeded)
+        {
+            _logger.LogInformation("Password changed for {User}", userName);
+        }
+        else
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            _logger.LogWarning("Password change failed for {User}: {Errors}", userName, errors);
+            throw new InvalidOperationException(errors);
+        }
+
+        return result.Succeeded;
+    }
+
     public Task<string?> GetAccessTokenAsync(string[] scopes)
     {
         var signingKey = _configuration["Jwt:SigningKey"];

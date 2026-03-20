@@ -183,6 +183,29 @@ public sealed class IdentityAuthService : IAuthService
         }
     }
 
+    public async Task<bool> ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync("/api/auth/change-password",
+                new { CurrentPassword = currentPassword, NewPassword = newPassword });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Password changed successfully");
+                return true;
+            }
+
+            _logger.LogWarning("Password change failed: {Status}", response.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Password change failed");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Returns a valid JWT access token. If the cached token is expired,
     /// attempts a refresh. Returns null if no valid token is available.

@@ -23,6 +23,7 @@ public static class AuthEndpoints
         group.MapPost("/forgot-password", ForgotPassword);
         group.MapPost("/reset-password", ResetPassword);
         group.MapDelete("/account", DeleteAccount).RequireAuthorization();
+        group.MapPost("/change-password", ChangePassword).RequireAuthorization();
 
         return app;
     }
@@ -348,5 +349,28 @@ public static class AuthEndpoints
             return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
 
         return Results.Ok(new { message = "Account deleted." });
+    }
+
+    private static async Task<IResult> ChangePassword(
+        ChangePasswordRequest request,
+        HttpContext context,
+        UserManager<ApplicationUser> userManager)
+    {
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+            return Results.BadRequest(new { error = "Current password and new password are required." });
+
+        var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
+            return Results.NotFound(new { error = "Account not found." });
+
+        var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+        return Results.Ok(new { message = "Password changed successfully." });
     }
 }
