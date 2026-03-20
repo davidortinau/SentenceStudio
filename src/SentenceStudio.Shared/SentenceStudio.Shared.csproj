@@ -10,6 +10,8 @@
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
+		<PackageReference Include="CoreSync.PostgreSQL" Version="0.1.126" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 	</ItemGroup>
 
 	<!-- EF Core migrations reference Identity types — exclude on mobile -->

@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using CoreSync;
 using CoreSync.Http.Server;
-using CoreSync.Sqlite;
+using CoreSync.PostgreSQL;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
@@ -126,24 +126,18 @@ builder.Services.AddHsts(options =>
     options.Preload = true;
 });
 
-// Database - shared with WebApp server instance
-var serverDbFolder = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "sentencestudio",
-    "server");
-Directory.CreateDirectory(serverDbFolder);
-var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
-builder.Services.AddDataServices(databasePath);
+// Database - Aspire-managed PostgreSQL
+builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio");
 
 // CoreSync server — allows mobile clients to sync through the API endpoint
 // (mobile devices can't reach the separate 'web' service directly)
 builder.Services.AddCoreSyncHttpServer();
 builder.Services.AddSingleton<ISyncProvider>(sp =>
 {
-    var connectionString = $"Data Source={databasePath}";
-    var configurationBuilder = new SqliteSyncConfigurationBuilder(connectionString)
+    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("sentencestudio")!;
+    var configurationBuilder = new PostgreSQLSyncConfigurationBuilder(connectionString)
         .ConfigureSyncTables();
-    return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
+    return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
 
 // Vocabulary progress services

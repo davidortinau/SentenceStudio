@@ -17,13 +17,8 @@ using SentenceStudio.WebUI.Services;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
-// WebApp shares the server's database directly (no local sync needed)
-var serverDbFolder = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "sentencestudio",
-    "server");
-Directory.CreateDirectory(serverDbFolder);
-var databasePath = Path.Combine(serverDbFolder, "sentencestudio.db");
+// WebApp uses Aspire-managed PostgreSQL directly (no local sync needed)
+builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio");
 
 // Preferences stay local to the webapp
 var appDataRoot = Path.Combine(
@@ -82,8 +77,6 @@ builder.Services.AddSingleton<IFilePickerService, WebFilePickerService>();
 builder.Services.AddSingleton<IAudioPlaybackService, WebAudioPlaybackService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new WebFileSystemService(appDataRoot, appLibRawAssets));
 builder.Services.AddSingleton(WebAudioManagerProxy.Create());
-
-builder.Services.AddDataServices(databasePath);
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)

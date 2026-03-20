@@ -13,8 +13,8 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
         
-        // Use a temporary in-memory database path for design-time only
-        optionsBuilder.UseSqlite("Data Source=:memory:");
+        // Use PostgreSQL for design-time migrations (server target)
+        optionsBuilder.UseNpgsql("Host=localhost;Database=sentencestudio_design;Username=postgres;Password=postgres");
         
         return new ApplicationDbContext(optionsBuilder.Options);
     }

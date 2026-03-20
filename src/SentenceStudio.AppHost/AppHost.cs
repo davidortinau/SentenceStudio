@@ -8,6 +8,7 @@ var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 
 var postgres = builder.AddPostgres("db")
+    .WithLifetime(ContainerLifetime.Persistent)
     .AddDatabase("sentencestudio");
 
 var redis = builder.AddRedis("cache");
@@ -19,7 +20,8 @@ var storage = builder.AddAzureStorage("storage")
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithEnvironment("Jwt__SigningKey", jwtkey);
+    .WithEnvironment("Jwt__SigningKey", jwtkey)
+    .WithReference(postgres);
     // Email (production only -- dev mode uses ConsoleEmailSender automatically):
     //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
     //   .WithEnvironment("Email__SmtpPort", "587")
@@ -32,7 +34,8 @@ var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
-    .WithReference(redis);
+    .WithReference(redis)
+    .WithReference(postgres);
 
 builder.AddProject<SentenceStudio_Marketing>("marketing");
 
