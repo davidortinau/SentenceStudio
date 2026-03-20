@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26163.4" />
-    <PackageReference Include="CoreSync.Http.Server" Version="0.1.122" />
+    <PackageReference Include="CoreSync.Http.Server" Version="0.1.126" />
     <PackageReference Include="CoreSync.PostgreSQL" Version="0.1.126" />
     <PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
