@@ -170,22 +170,54 @@ public static class AccountEndpoints
                 return Results.Redirect("/Account/Login?error=InvalidLink");
             }
 
-            // Auto-create profile if missing (accounts from before registration fix)
+            // Link or create profile if missing (accounts from before registration fix, or migrated data)
             if (string.IsNullOrEmpty(user.UserProfileId))
             {
                 var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                var profile = new UserProfile
+                var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AutoSignIn");
+                
+                // Try to find an existing profile: by email first, then by display name, then first available
+                var userEmail = user.Email ?? "";
+                var userName = user.DisplayName ?? user.UserName ?? "";
+                
+                var existing = await db.UserProfiles
+                    .FirstOrDefaultAsync(p => p.Email == userEmail && userEmail != "");
+                if (existing is null && !string.IsNullOrEmpty(userName))
                 {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = user.DisplayName ?? user.Email ?? "User",
-                    Email = user.Email ?? "",
-                    NativeLanguage = "English",
-                    TargetLanguage = "Korean",
-                    CreatedAt = DateTime.UtcNow
-                };
-                db.UserProfiles.Add(profile);
-                await db.SaveChangesAsync();
-                user.UserProfileId = profile.Id;
+                    existing = await db.UserProfiles
+                        .FirstOrDefaultAsync(p => p.Name == userName);
+                }
+                // Last resort: if only one profile exists, it's almost certainly this user's
+                if (existing is null)
+                {
+                    var allProfiles = await db.UserProfiles.Take(2).ToListAsync();
+                    if (allProfiles.Count == 1)
+                        existing = allProfiles[0];
+                }
+
+                if (existing is not null)
+                {
+                    logger.LogInformation("Linked existing UserProfile {ProfileId} (Name={Name}, Email={PEmail}) to user {Email}",
+                        existing.Id, existing.Name, existing.Email, userEmail);
+                    user.UserProfileId = existing.Id;
+                }
+                else
+                {
+                    var profile = new UserProfile
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = user.DisplayName ?? user.Email ?? "User",
+                        Email = user.Email ?? "",
+                        NativeLanguage = "English",
+                        TargetLanguage = "Korean",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.UserProfiles.Add(profile);
+                    await db.SaveChangesAsync();
+                    user.UserProfileId = profile.Id;
+                    logger.LogInformation("Created new UserProfile {ProfileId} for user {Email} (no match found among {Count} profiles)",
+                        profile.Id, userEmail, await db.UserProfiles.CountAsync());
+                }
                 await userManager.UpdateAsync(user);
             }
 
@@ -194,12 +226,48 @@ public static class AccountEndpoints
             // Set the active profile so Profile page and other features find it
             if (!string.IsNullOrEmpty(user.UserProfileId))
             {
+                var db2 = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var currentProfile = await db2.UserProfiles.FindAsync(user.UserProfileId);
+                
+                // If the linked profile looks empty/auto-created, try to find a richer one (migrated data)
+                if (currentProfile is null || string.IsNullOrEmpty(currentProfile.TargetLanguage) || string.IsNullOrEmpty(currentProfile.Name)
+                    || currentProfile.Name == (user.DisplayName ?? user.Email ?? "User"))
+                {
+                    var userEmail = user.Email ?? "";
+                    var userName = user.DisplayName ?? user.UserName ?? "";
+                    var logger2 = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AutoSignIn");
+                    
+                    // Look for a richer profile (has vocabulary data, target language set, etc.)
+                    UserProfile? better = null;
+                    if (!string.IsNullOrEmpty(userEmail))
+                        better = await db2.UserProfiles.FirstOrDefaultAsync(p => p.Email == userEmail && p.Id != user.UserProfileId);
+                    if (better is null && !string.IsNullOrEmpty(userName))
+                        better = await db2.UserProfiles.FirstOrDefaultAsync(p => p.Name == userName && p.Id != user.UserProfileId);
+                    // If we still haven't found one, look for any profile with actual content
+                    if (better is null)
+                        better = await db2.UserProfiles.FirstOrDefaultAsync(p => 
+                            p.Id != user.UserProfileId && !string.IsNullOrEmpty(p.TargetLanguage) && !string.IsNullOrEmpty(p.Name));
+                    
+                    if (better is not null)
+                    {
+                        logger2.LogInformation("Re-linking user {Email} from empty profile {OldId} to richer profile {NewId} (Name={Name})",
+                            userEmail, user.UserProfileId, better.Id, better.Name);
+                        // Delete the auto-created empty profile
+                        if (currentProfile is not null)
+                        {
+                            db2.UserProfiles.Remove(currentProfile);
+                            await db2.SaveChangesAsync();
+                        }
+                        user.UserProfileId = better.Id;
+                        await userManager.UpdateAsync(user);
+                    }
+                }
+
                 preferences.Set("active_profile_id", user.UserProfileId);
 
                 // Auto-mark returning users as onboarded so they skip the onboarding flow
-                var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                var profile = await db.UserProfiles.FindAsync(user.UserProfileId);
-                if (profile is not null && !string.IsNullOrEmpty(profile.TargetLanguage) && !string.IsNullOrEmpty(profile.Name))
+                var finalProfile = await db2.UserProfiles.FindAsync(user.UserProfileId);
+                if (finalProfile is not null && !string.IsNullOrEmpty(finalProfile.TargetLanguage) && !string.IsNullOrEmpty(finalProfile.Name))
                 {
                     preferences.Set("is_onboarded", true);
                 }

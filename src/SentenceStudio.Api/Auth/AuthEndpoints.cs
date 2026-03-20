@@ -133,24 +133,11 @@ public static class AuthEndpoints
 
         if (!await userManager.IsEmailConfirmedAsync(user))
         {
-            if (env.IsDevelopment())
-            {
-                // Auto-confirm in dev so mobile clients aren't blocked.
-                var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
-                var encodedConfirmToken = Uri.EscapeDataString(confirmToken);
-                var loginBaseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
-                var loginConfirmUrl = $"{loginBaseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedConfirmToken}";
-
-                logger.LogInformation(
-                    "--- EMAIL CONFIRMATION LINK (dev auto-confirmed on login) ---\nFor: {Email}\nConfirm URL: {ConfirmUrl}\n--- END ---",
-                    request.Email, loginConfirmUrl);
-
-                await userManager.ConfirmEmailAsync(user, confirmToken);
-            }
-            else
-            {
-                return Results.Json(new { error = "Email not confirmed." }, statusCode: 401);
-            }
+            // Auto-confirm migrated accounts (they had no email confirmation requirement before)
+            // and dev-mode accounts
+            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            await userManager.ConfirmEmailAsync(user, confirmToken);
+            logger.LogInformation("Auto-confirmed email for {Email} (migrated or unconfirmed account)", request.Email);
         }
 
         if (!await userManager.CheckPasswordAsync(user, request.Password))
