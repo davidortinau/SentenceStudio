@@ -158,27 +158,37 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
-        // Auto-create a UserProfile if one doesn't exist (accounts created before
-        // the registration flow was fixed may have NULL UserProfileId).
+        // Link or create a UserProfile if one doesn't exist (accounts from before registration fix, or migrated data)
         if (string.IsNullOrEmpty(user.UserProfileId))
         {
-            var profile = new UserProfile
+            // First, try to find an existing profile matching this user's email (e.g., migrated data)
+            var existing = await db.UserProfiles
+                .FirstOrDefaultAsync(p => p.Email == (user.Email ?? request.Email));
+            if (existing is not null)
             {
-                Id = Guid.NewGuid().ToString(),
-                Name = user.DisplayName ?? user.Email ?? request.Email,
-                Email = user.Email ?? request.Email,
-                NativeLanguage = "English",
-                TargetLanguage = "Korean",
-                CreatedAt = DateTime.UtcNow
-            };
-            db.UserProfiles.Add(profile);
-            await db.SaveChangesAsync();
+                user.UserProfileId = existing.Id;
+                logger.LogInformation("Linked existing UserProfile {ProfileId} to user {Email}",
+                    existing.Id, request.Email);
+            }
+            else
+            {
+                var profile = new UserProfile
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = user.DisplayName ?? user.Email ?? request.Email,
+                    Email = user.Email ?? request.Email,
+                    NativeLanguage = "English",
+                    TargetLanguage = "Korean",
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.UserProfiles.Add(profile);
+                await db.SaveChangesAsync();
+                user.UserProfileId = profile.Id;
 
-            user.UserProfileId = profile.Id;
+                logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
+                    profile.Id, request.Email);
+            }
             await userManager.UpdateAsync(user);
-
-            logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
-                profile.Id, request.Email);
         }
 
         var jwt = tokenService.GenerateToken(user);

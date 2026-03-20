@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -38,22 +39,32 @@ public static class AccountEndpoints
                 var user = await userManager.FindByEmailAsync(email);
                 if (user is not null)
                 {
-                    // Auto-create profile if missing (accounts from before registration fix)
+                    // Link or create profile if missing (accounts from before registration fix, or migrated data)
                     if (string.IsNullOrEmpty(user.UserProfileId))
                     {
                         var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                        var profile = new UserProfile
+                        // First, try to find an existing profile matching this user's email (e.g., migrated data)
+                        var existing = await db.UserProfiles
+                            .FirstOrDefaultAsync(p => p.Email == (user.Email ?? email));
+                        if (existing is not null)
                         {
-                            Id = Guid.NewGuid().ToString(),
-                            Name = user.DisplayName ?? user.Email ?? email,
-                            Email = user.Email ?? email,
-                            NativeLanguage = "English",
-                            TargetLanguage = "Korean",
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        db.UserProfiles.Add(profile);
-                        await db.SaveChangesAsync();
-                        user.UserProfileId = profile.Id;
+                            user.UserProfileId = existing.Id;
+                        }
+                        else
+                        {
+                            var profile = new UserProfile
+                            {
+                                Id = Guid.NewGuid().ToString(),
+                                Name = user.DisplayName ?? user.Email ?? email,
+                                Email = user.Email ?? email,
+                                NativeLanguage = "English",
+                                TargetLanguage = "Korean",
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            db.UserProfiles.Add(profile);
+                            await db.SaveChangesAsync();
+                            user.UserProfileId = profile.Id;
+                        }
                         await userManager.UpdateAsync(user);
                     }
 
