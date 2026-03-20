@@ -4,6 +4,7 @@
 		<TargetFrameworks>net10.0;net10.0-ios;net10.0-android;net10.0-maccatalyst</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<PublishSelfContained>false</PublishSelfContained>
 	</PropertyGroup>
 
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->

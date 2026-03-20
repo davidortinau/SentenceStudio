@@ -3,7 +3,6 @@ using Projects;
 var builder = DistributedApplication.CreateBuilder(args);
 
 var openaikey = builder.AddParameter("openaikey", secret: true);
-var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 
@@ -49,46 +48,52 @@ builder.AddProject<SentenceStudio_Workers>("workers")
     .WithReference(redis)
     .WithReference(storage);
 
-var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");
+// MAUI clients and dev tunnels are local-dev only — excluded from Azure publish
+if (builder.ExecutionContext.IsRunMode)
+{
+    var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 
-maccatalyst.AddMacCatalystDevice()
-    .WithEnvironment("SyncfusionKey", syncfusionkey)
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithReference(api);
+    var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");
 
-var windows = builder.AddMauiProject("windows", "../SentenceStudio.Windows/SentenceStudio.Windows.csproj");
+    maccatalyst.AddMacCatalystDevice()
+        .WithEnvironment("SyncfusionKey", syncfusionkey)
+        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+        .WithEnvironment("ElevenLabsKey", elevenlabskey)
+        .WithReference(api);
 
-windows.AddWindowsDevice()
-    .WithEnvironment("SyncfusionKey", syncfusionkey)
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithReference(api);
+    var windows = builder.AddMauiProject("windows", "../SentenceStudio.Windows/SentenceStudio.Windows.csproj");
 
-// Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly)
-var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
-    .WithAnonymousAccess()
-    .WithReference(api.GetEndpoint("https"));
+    windows.AddWindowsDevice()
+        .WithEnvironment("SyncfusionKey", syncfusionkey)
+        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+        .WithEnvironment("ElevenLabsKey", elevenlabskey)
+        .WithReference(api);
 
-// Android
-var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
+    // Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly)
+    var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
+        .WithAnonymousAccess()
+        .WithReference(api.GetEndpoint("https"));
 
-android.AddAndroidEmulator()
-    .WithOtlpDevTunnel()
-    .WithEnvironment("SyncfusionKey", syncfusionkey)
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithReference(api, publicDevTunnel);
+    // Android
+    var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
 
-// iOS
-var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
+    android.AddAndroidEmulator()
+        .WithOtlpDevTunnel()
+        .WithEnvironment("SyncfusionKey", syncfusionkey)
+        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+        .WithEnvironment("ElevenLabsKey", elevenlabskey)
+        .WithReference(api, publicDevTunnel);
 
-ios.AddiOSSimulator()
-    .WithOtlpDevTunnel()
-    .WithEnvironment("SyncfusionKey", syncfusionkey)
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-    .WithEnvironment("ElevenLabsKey", elevenlabskey)
-    .WithReference(api, publicDevTunnel);
+    // iOS
+    var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
+
+    ios.AddiOSSimulator()
+        .WithOtlpDevTunnel()
+        .WithEnvironment("SyncfusionKey", syncfusionkey)
+        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+        .WithEnvironment("ElevenLabsKey", elevenlabskey)
+        .WithReference(api, publicDevTunnel);
+}
 
 builder.Build().Run();
 

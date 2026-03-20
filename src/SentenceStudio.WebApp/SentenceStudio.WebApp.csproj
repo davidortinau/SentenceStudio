@@ -24,6 +24,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>33f95f89-d495-4311-b6cb-53a47b5c34e6</UserSecretsId>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
 </Project>

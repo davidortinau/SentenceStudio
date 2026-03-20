@@ -12,6 +12,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
 </Project>
