@@ -181,27 +181,6 @@ else
 
                 try
                 {
-                    // Use YouTubeImportService to get channel metadata
-                    var videoUrl = ExtractVideoUrlFromChannel(channelUrl);
-                    var metadata = ImportSvc != null ? await ImportSvc.GetVideoMetadataAsync(videoUrl) : null;
-                    
-                    var newChannel = new MonitoredChannel
-                    {
-                        ChannelUrl = channelUrl,
-                        Language = language,
-                        CheckIntervalHours = checkIntervalHours,
-                        IsActive = isActive,
-                        ChannelHandle = ExtractChannelHandle(channelUrl),
-                        ChannelName = metadata?.Author?.ChannelTitle // Use video author as channel name if available
-                    };
-
-                    await ChannelMonitorSvc.AddAsync(newChannel);
-                    Toast.ShowSuccess("Channel added successfully!");
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Failed to resolve channel metadata");
-                    // Still try to save with partial data
                     var newChannel = new MonitoredChannel
                     {
                         ChannelUrl = channelUrl,
@@ -211,8 +190,18 @@ else
                         ChannelHandle = ExtractChannelHandle(channelUrl)
                     };
 
+                    // AddAsync resolves channel metadata via YoutubeExplode
                     await ChannelMonitorSvc.AddAsync(newChannel);
-                    Toast.ShowSuccess("Channel added (metadata resolution failed)");
+                    Toast.ShowSuccess($"Channel added: {newChannel.ChannelName ?? newChannel.ChannelHandle}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Failed to add channel");
+                    errorMessage = "Failed to add channel. Check the URL and try again.";
+                    isSaving = false;
+                    isResolving = false;
+                    StateHasChanged();
+                    return;
                 }
                 finally
                 {
