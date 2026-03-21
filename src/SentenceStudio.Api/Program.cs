@@ -123,6 +123,7 @@ builder.Services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
 builder.Services.AddSingleton<ChannelMonitorService>();
 builder.Services.AddSingleton<VideoImportPipelineService>();
 builder.Services.AddSingleton<YouTubeImportService>();
+builder.Services.AddSingleton<AudioAnalyzer>();
 builder.Services.AddSingleton<TranscriptFormattingService>();
 builder.Services.AddSingleton<AiService>();
 
