@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\Raw\*.scriban-txt" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SentenceStudio.Domain\SentenceStudio.Domain.csproj" />
     <ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
     <ProjectReference Include="..\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />

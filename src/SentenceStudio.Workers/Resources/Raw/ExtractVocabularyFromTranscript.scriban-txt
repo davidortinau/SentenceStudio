@@ -1,0 +1,55 @@
+You are a Korean language learning specialist. Extract vocabulary from this transcript for a {{ native_language }}-speaking learner studying {{ target_language }}.
+
+{{ if video_title }}**Source:** "{{ video_title }}"{{ end }}
+{{ if channel_name }} by {{ channel_name }}{{ end }}
+
+**TRANSCRIPT:**
+{{ transcript }}
+
+{{ if existing_terms }}
+**ALREADY KNOWN — DO NOT include these words:**
+{{ for term in existing_terms }}{{ term }}{{ if for.last == false }}, {{ end }}{{ end }}
+{{ end }}
+
+**EXTRACTION RULES:**
+1. Extract up to {{ max_words }} of the most useful {{ target_language }} vocabulary words/phrases for a language learner.
+2. **Extract ONLY {{ target_language }} words** — if the transcript contains English explanations mixed with Korean examples (common in Korean learning channels), extract vocabulary from the Korean portions only. The English context helps you understand meaning but should not appear as vocabulary items.
+3. Prioritize words that are:
+   - Frequently used in the transcript (appearing 2+ times)
+   - Practical for everyday conversation
+   - Not basic greetings (안녕하세요, 감사합니다) unless used in an unusual or noteworthy way
+   - Varied in part of speech (mix of nouns, verbs, adjectives, adverbs, expressions)
+4. For each word provide the **dictionary form** (기본형):
+   - Verbs/adjectives → -다 form (e.g. 먹었어요 → 먹다, 예뻤는데 → 예쁘다, 몰입하면 → 몰입하다)
+   - Nouns → base noun without particles (e.g. 학교에서 → 학교, 화장실에 → 화장실)
+   - Compound expressions → keep as a unit (e.g. 시원섭섭하다, 마음에 들다)
+5. Estimate difficulty using TOPIK levels: 1 (beginner), 2 (elementary), 3 (intermediate), 4 (upper-intermediate), 5 (advanced), 6 (expert).
+{{ if proficiency_level }}
+   Focus on words at or slightly above TOPIK level {{ proficiency_level }}.
+{{ end }}
+
+**RESPONSE FORMAT — Return a JSON object exactly like this:**
+{
+  "vocabulary": [
+    {
+      "targetLanguageTerm": "{{ target_language }} dictionary form",
+      "nativeLanguageTerm": "{{ native_language }} definition — clear, concise",
+      "romanization": "Revised Romanization (e.g. meokda, hakgyo)",
+      "lemma": "root morpheme if different from targetLanguageTerm, otherwise same value",
+      "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
+      "topikLevel": 2,
+      "frequencyInTranscript": 3,
+      "exampleSentence": "A complete sentence FROM the transcript containing this word",
+      "exampleSentenceTranslation": "{{ native_language }} translation of that sentence",
+      "tags": "comma-separated context tags from the video topic"
+    }
+  ]
+}
+
+**IMPORTANT:**
+- Return ONLY valid JSON. No markdown fences, no commentary before or after.
+- The "exampleSentence" MUST be an actual sentence from the provided transcript, not invented. Use the cleaned version if you can identify it.
+- If a word appears conjugated/inflected in the transcript, the "targetLanguageTerm" must still be the dictionary form.
+- Romanization must follow Revised Romanization of Korean (국어의 로마자 표기법), NOT McCune-Reischauer.
+- For compound expressions or 하다-verbs, include the full expression (e.g. "몰입하다" not just "몰입").
+- Do NOT include English loanwords written in Korean (e.g. 커피, 샐러드) unless they have cultural significance or are used differently than in English.
