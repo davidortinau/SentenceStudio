@@ -18,7 +18,10 @@ using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
 using OpenAI;
 using SentenceStudio;
+using SentenceStudio.Abstractions;
+using SentenceStudio.Api;
 using SentenceStudio.Api.Auth;
+using SentenceStudio.Api.Platform;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
 using SentenceStudio.Contracts.Plans;
@@ -28,6 +31,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Domain.Abstractions;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
+using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -93,6 +97,34 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+
+// Platform abstractions for API server
+var appDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "sentencestudio", "api");
+builder.Services.AddSingleton<IConnectivityService, ApiConnectivityService>();
+builder.Services.AddSingleton<IFileSystemService>(_ => new ApiFileSystemService(appDataDirectory));
+
+// Language segmenters
+builder.Services.AddSingleton<KoreanLanguageSegmenter>();
+builder.Services.AddSingleton<GenericLatinSegmenter>();
+builder.Services.AddSingleton<FrenchLanguageSegmenter>();
+builder.Services.AddSingleton<GermanLanguageSegmenter>();
+builder.Services.AddSingleton<SpanishLanguageSegmenter>();
+builder.Services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
+    new List<ILanguageSegmenter>
+    {
+        provider.GetRequiredService<KoreanLanguageSegmenter>(),
+        provider.GetRequiredService<GenericLatinSegmenter>(),
+        provider.GetRequiredService<FrenchLanguageSegmenter>(),
+        provider.GetRequiredService<GermanLanguageSegmenter>(),
+        provider.GetRequiredService<SpanishLanguageSegmenter>()
+    });
+
+// YouTube channel monitoring services
+builder.Services.AddSingleton<ChannelMonitorService>();
+builder.Services.AddSingleton<VideoImportPipelineService>();
+builder.Services.AddSingleton<YouTubeImportService>();
+builder.Services.AddSingleton<TranscriptFormattingService>();
+builder.Services.AddSingleton<AiService>();
 
 // CORS — basic policies for known callers.
 // Production fine-tuning is tracked in issue #62.
@@ -207,6 +239,10 @@ app.UseMiddleware<TenantContextMiddleware>();
 
 // Auth endpoints (anonymous — they handle login/register)
 app.MapAuthEndpoints();
+
+// YouTube channel monitoring endpoints
+app.MapChannelEndpoints();
+app.MapImportEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse

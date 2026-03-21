@@ -134,3 +134,31 @@ Captain asked if YouTube subscription monitoring + auto-import of transcripts/vo
 2. Google OAuth + subscription picker (1-2 sprints, the hard part)
 3. Background polling worker + auto-import (1 sprint, straightforward)
 
+### 2026-07-22 — YouTube Import Architecture + Issues Created
+
+**Status:** Complete (architecture + 5 GitHub issues)
+**Output:** `.squad/decisions/inbox/zoe-youtube-import-architecture.md`
+**Issues:** #126–#130
+
+**What:**
+Designed full architecture for YouTube channel monitoring + video import feature. Created 5 decomposed GitHub issues with dependency chains.
+
+**Issues Created:**
+- **#126** Data model + migration (MonitoredChannel, VideoImport) — Wash
+- **#127** AI pipeline — vocab extraction from transcripts — River
+- **#128** Background workers (VideoImportWorker, ChannelPollingWorker) — Wash
+- **#129** UI redesign — tabbed Import page + channel management — Kaylee
+- **#130** Long-running task UX — polling, status display, retry — Kaylee + Wash
+
+**Key Architecture Decisions:**
+- **Polling over SignalR** for long-running task UX — Blazor Hybrid on mobile kills WebSocket connections on backgrounding. Polling (5s on Import page) is simpler and equally effective for 15-60s operations.
+- **Job queue pattern** — User submits → VideoImport record created (Queued) → Worker processes in background → UI polls for status. Works on both MAUI and web.
+- **Simplified single-video import** — Reduced from 4-step inline editor to 1-click "Import" button. Transcript editing moves to ResourceEdit page after completion.
+- **No Google OAuth needed** — YoutubeExplode handles everything via scraping. Channel URLs pasted directly by user.
+- **Two separate BackgroundServices** — VideoImportWorker (processes queue) and ChannelPollingWorker (discovers new videos). Separation of concerns, independent scaling.
+
+**Learnings:**
+- Import pipeline takes 15-60 seconds (transcript fetch + AI polish + vocab extraction) — too long for synchronous UI, too short to justify SignalR complexity
+- YoutubeExplode can list channel uploads via `Channels.GetUploadsAsync()` — no API key needed
+- Mobile app backgrounding is the key constraint for UX design — anything that relies on persistent connections fails
+

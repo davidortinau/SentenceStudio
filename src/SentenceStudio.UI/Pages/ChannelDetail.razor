@@ -1,0 +1,274 @@
+@page "/import/channel/{Id?}"
+@attribute [Authorize]
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Services
+
+<PageHeader Title="@(IsNewChannel ? "Add Channel" : "Edit Channel")" 
+            ShowBack="true" 
+            OnBack="NavigateBack" />
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="card card-ss p-4">
+        <div class="mb-3">
+            <label class="form-label text-secondary-ss">Channel URL *</label>
+            <input type="text" class="form-control form-control-ss"
+                   @bind="channelUrl" @bind:event="oninput"
+                   placeholder="https://www.youtube.com/@@My_easykorean" />
+            <small class="text-secondary-ss">
+                Enter the full YouTube channel URL (e.g., https://www.youtube.com/@@channelname)
+            </small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label text-secondary-ss">Language *</label>
+            <select class="form-select form-control-ss" @bind="language">
+                <option value="">-- Select Language --</option>
+                @foreach (var lang in SentenceStudio.Common.Constants.Languages)
+                {
+                    <option value="@lang">@lang</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label text-secondary-ss">Check Interval</label>
+            <select class="form-select form-control-ss" @bind="checkIntervalHours">
+                <option value="6">Every 6 hours</option>
+                <option value="12">Every 12 hours</option>
+                <option value="24">Every 24 hours</option>
+                <option value="48">Every 48 hours</option>
+            </select>
+        </div>
+
+        <div class="mb-4">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="activeToggle" @bind="isActive" />
+                <label class="form-check-label ss-body2" for="activeToggle">
+                    Monitor this channel (check for new videos automatically)
+                </label>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger mb-3">
+                <i class="bi bi-exclamation-circle me-1"></i>@errorMessage
+            </div>
+        }
+
+        @if (isResolving)
+        {
+            <div class="alert alert-info d-flex align-items-center gap-2">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <span>Resolving channel information...</span>
+            </div>
+        }
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-ss-secondary" @onclick="NavigateBack" disabled="@isSaving">
+                Cancel
+            </button>
+            <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveChannel" 
+                    disabled="@(isSaving || isResolving || string.IsNullOrWhiteSpace(channelUrl) || string.IsNullOrWhiteSpace(language))">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                <i class="bi bi-save me-1"></i> Save Channel
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    
+    [Inject] private ChannelMonitorService? ChannelMonitorSvc { get; set; }
+    [Inject] private YouTubeImportService? ImportSvc { get; set; }
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<ChannelDetail> Logger { get; set; } = default!;
+
+    private bool IsNewChannel => string.IsNullOrEmpty(Id);
+    
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isResolving;
+    private string errorMessage = "";
+
+    // Form fields
+    private string channelUrl = "";
+    private string language = "";
+    private int checkIntervalHours = 24;
+    private bool isActive = true;
+
+    // Loaded channel (for edit)
+    private MonitoredChannel? channel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsNewChannel && ChannelMonitorSvc != null)
+        {
+            // Load existing channel
+            try
+            {
+                channel = await ChannelMonitorSvc.GetByIdAsync(Id!);
+                if (channel != null)
+                {
+                    channelUrl = channel.ChannelUrl ?? "";
+                    language = channel.Language ?? "";
+                    checkIntervalHours = channel.CheckIntervalHours;
+                    isActive = channel.IsActive;
+                }
+                else
+                {
+                    errorMessage = "Channel not found";
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to load channel");
+                errorMessage = "Failed to load channel";
+            }
+        }
+        else
+        {
+            // Pre-populate language from user profile
+            try
+            {
+                var profile = await ProfileRepo.GetAsync();
+                language = profile?.TargetLanguage ?? "";
+            }
+            catch { }
+        }
+
+        isLoading = false;
+    }
+
+    private async Task SaveChannel()
+    {
+        if (ChannelMonitorSvc == null)
+        {
+            Toast.ShowError("Channel monitoring service not available");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(channelUrl) || string.IsNullOrWhiteSpace(language))
+        {
+            errorMessage = "Channel URL and Language are required";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            // For new channels, resolve metadata
+            if (IsNewChannel)
+            {
+                isResolving = true;
+                StateHasChanged();
+
+                try
+                {
+                    // Use YouTubeImportService to get channel metadata
+                    var videoUrl = ExtractVideoUrlFromChannel(channelUrl);
+                    var metadata = ImportSvc != null ? await ImportSvc.GetVideoMetadataAsync(videoUrl) : null;
+                    
+                    var newChannel = new MonitoredChannel
+                    {
+                        ChannelUrl = channelUrl,
+                        Language = language,
+                        CheckIntervalHours = checkIntervalHours,
+                        IsActive = isActive,
+                        ChannelHandle = ExtractChannelHandle(channelUrl),
+                        ChannelName = metadata?.Author?.ChannelTitle // Use video author as channel name if available
+                    };
+
+                    await ChannelMonitorSvc.AddAsync(newChannel);
+                    Toast.ShowSuccess("Channel added successfully!");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Failed to resolve channel metadata");
+                    // Still try to save with partial data
+                    var newChannel = new MonitoredChannel
+                    {
+                        ChannelUrl = channelUrl,
+                        Language = language,
+                        CheckIntervalHours = checkIntervalHours,
+                        IsActive = isActive,
+                        ChannelHandle = ExtractChannelHandle(channelUrl)
+                    };
+
+                    await ChannelMonitorSvc.AddAsync(newChannel);
+                    Toast.ShowSuccess("Channel added (metadata resolution failed)");
+                }
+                finally
+                {
+                    isResolving = false;
+                }
+            }
+            else if (channel != null)
+            {
+                // Update existing channel
+                channel.ChannelUrl = channelUrl;
+                channel.Language = language;
+                channel.CheckIntervalHours = checkIntervalHours;
+                channel.IsActive = isActive;
+
+                await ChannelMonitorSvc.UpdateAsync(channel);
+                Toast.ShowSuccess("Channel updated successfully!");
+            }
+
+            NavManager.NavigateTo("/import");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save channel");
+            errorMessage = $"Failed to save channel: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        NavManager.NavigateTo("/import");
+    }
+
+    private static string ExtractChannelHandle(string url)
+    {
+        // Extract @handle from URL like https://www.youtube.com/@My_easykorean
+        if (url.Contains("/@"))
+        {
+            var parts = url.Split("/@");
+            if (parts.Length > 1)
+            {
+                var handle = parts[1].Split('/')[0].Split('?')[0];
+                return "@" + handle;
+            }
+        }
+        return "";
+    }
+
+    private static string ExtractVideoUrlFromChannel(string channelUrl)
+    {
+        // For now, return the channel URL as-is
+        // The service will need to handle channel URLs differently
+        // This is a placeholder - in reality, we'd need to fetch a video from the channel
+        return channelUrl;
+    }
+}

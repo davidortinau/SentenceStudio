@@ -1,0 +1,144 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Services;
+using SentenceStudio.Shared.Models;
+
+namespace SentenceStudio.Api;
+
+public static class ImportEndpoints
+{
+    public static WebApplication MapImportEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/imports").RequireAuthorization();
+
+        group.MapGet("/", GetImports);
+        group.MapGet("/{id}", GetImport);
+        group.MapPost("/", StartImport);
+        group.MapPost("/{id}/retry", RetryImport);
+
+        return app;
+    }
+
+    private static async Task<IResult> GetImports(
+        ClaimsPrincipal user,
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromQuery] int limit = 50)
+    {
+        var userProfileId = user.FindFirstValue("user_profile_id");
+        if (string.IsNullOrEmpty(userProfileId))
+            return Results.Unauthorized();
+
+        var imports = await pipelineService.GetImportHistoryAsync(userProfileId, limit);
+        return Results.Ok(imports);
+    }
+
+    private static async Task<IResult> GetImport(
+        string id,
+        ClaimsPrincipal user,
+        [FromServices] VideoImportPipelineService pipelineService)
+    {
+        var userProfileId = user.FindFirstValue("user_profile_id");
+        if (string.IsNullOrEmpty(userProfileId))
+            return Results.Unauthorized();
+
+        var import = await pipelineService.GetImportByIdAsync(id);
+        if (import == null)
+            return Results.NotFound();
+
+        // Verify ownership
+        if (import.UserProfileId != userProfileId)
+            return Results.Forbid();
+
+        return Results.Ok(import);
+    }
+
+    private static async Task<IResult> StartImport(
+        [FromBody] StartImportRequest request,
+        ClaimsPrincipal user,
+        [FromServices] VideoImportPipelineService pipelineService)
+    {
+        var userProfileId = user.FindFirstValue("user_profile_id");
+        if (string.IsNullOrEmpty(userProfileId))
+            return Results.Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(request.VideoUrl))
+            return Results.BadRequest("VideoUrl is required");
+
+        // Create the import record and return immediately
+        var import = new VideoImport
+        {
+            UserProfileId = userProfileId,
+            VideoUrl = request.VideoUrl,
+            Language = request.Language ?? "Korean",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Run pipeline in background (non-blocking)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await pipelineService.RunPipelineAsync(import);
+            }
+            catch (Exception ex)
+            {
+                // Logging happens inside the pipeline service
+            }
+        });
+
+        return Results.Accepted($"/api/imports/{import.Id}", new
+        {
+            import.Id,
+            import.Status,
+            Message = "Import started. Poll this endpoint for progress."
+        });
+    }
+
+    private static async Task<IResult> RetryImport(
+        string id,
+        ClaimsPrincipal user,
+        [FromServices] VideoImportPipelineService pipelineService)
+    {
+        var userProfileId = user.FindFirstValue("user_profile_id");
+        if (string.IsNullOrEmpty(userProfileId))
+            return Results.Unauthorized();
+
+        var import = await pipelineService.GetImportByIdAsync(id);
+        if (import == null)
+            return Results.NotFound();
+
+        // Verify ownership
+        if (import.UserProfileId != userProfileId)
+            return Results.Forbid();
+
+        // Only retry failed imports
+        if (import.Status != VideoImportStatus.Failed)
+            return Results.BadRequest("Only failed imports can be retried");
+
+        // Reset status and retry
+        import.Status = VideoImportStatus.Pending;
+        import.ErrorMessage = null;
+
+        // Run pipeline in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await pipelineService.RunPipelineAsync(import);
+            }
+            catch (Exception ex)
+            {
+                // Logging happens inside the pipeline service
+            }
+        });
+
+        return Results.Accepted($"/api/imports/{import.Id}", new
+        {
+            import.Id,
+            import.Status,
+            Message = "Import retry started."
+        });
+    }
+}
+
+public record StartImportRequest(string VideoUrl, string? Language);

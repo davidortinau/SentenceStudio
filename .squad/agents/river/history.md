@@ -96,3 +96,29 @@
 2. Prototype on 5 real Korean transcripts
 3. Manual accuracy verification (90%+ target)
 4. Implement Phase 1 (prompt + schema + basic import)
+
+### YouTube AI Pipeline Prompts (2025-07-17)
+- Created `CleanTranscript.scriban-txt` — cleans raw YouTube auto-captions into readable Korean text. Returns plain text via `SendPrompt<string>`. Handles: timing artifacts, fragmented words, spacing, punctuation, mixed-language code-switching.
+- Created `ExtractVocabularyFromTranscript.scriban-txt` — extracts structured vocab from cleaned transcript. Returns JSON via `SendPrompt<VocabularyExtractionResponse>`. Includes: romanization, TOPIK level, part of speech, frequency count, real example sentences from transcript.
+- Two-stage architecture (clean → extract) chosen over single-pass because: cleanup is plain text, extraction needs clean input, each stage retriable independently, keeps prompts under token limits.
+- Chunking strategy: 4,000 Korean chars per cleanup call with 200-char overlap. Vocab extraction on full cleaned text. Default 30 words per video.
+- `existing_terms` parameter in extraction prompt enables dedup at AI level (skip words user already knows).
+- Response models: `TranscriptCleanupResult` (metadata wrapper, not JSON-deserialized), `VocabularyExtractionResponse` + `ExtractedVocabularyItem` (JSON DTO with `ToVocabularyWord()` converter).
+- Open question: VocabularyWord model lacks `Romanization` field — currently returned by AI but not persisted. Needs Captain decision.
+
+### YouTube Pipeline Template Integration (2025-03-22)
+- **WIRED**: CleanTranscript.scriban-txt → `TranscriptFormattingService.PolishWithAiAsync()` replaces inline prompt. Added `IFileSystemService` dependency to load template.
+- **WIRED**: ExtractVocabularyFromTranscript.scriban-txt → `VideoImportPipelineService.ExtractVocabularyAsync()` replaces inline prompt. Upgraded from tab-separated string parsing to structured JSON with `VocabularyExtractionResponse`.
+- **JSON VERIFIED**: All `[JsonPropertyName]` attributes in `VocabularyExtractionResponse` match the template output spec exactly (targetLanguageTerm, nativeLanguageTerm, romanization, lemma, partOfSpeech, topikLevel, frequencyInTranscript, exampleSentence, exampleSentenceTranslation, tags).
+- **DI PATTERN**: Shared project services use `IFileSystemService.OpenAppPackageFileAsync()` to load Scriban templates from AppLib/Resources/Raw.
+- **CONVERTER**: `ExtractedVocabularyItem.ToVocabularyWord()` method converts AI response DTO to persistable VocabularyWord model — enriches with language param, defaults Lemma if not provided.
+- **BUILD**: Both SentenceStudio.Shared and SentenceStudio.AppLib build successfully (warnings only, no errors).
+
+### Real YouTube Caption Analysis (2025-07-17)
+- Tested 3 channels: @My_easykorean (beginner, pure Korean), @koreancheatcode (bilingual English+Korean), @KoreanwithSol (conversational podcast Korean)
+- YouTube ".이" artifact is the #1 cleanup issue — captioner merges sentence period with next word's first syllable. Must be explicitly called out in prompt.
+- koreancheatcode is ~44% English lines mixed with Korean — prompt must handle bilingual content, not strip English
+- Typical 10-20 min Korean learning video = 6-13KB raw caption text. Single API call is sufficient; chunking only needed for 30+ min videos.
+- Line fragmentation is severe: myeasykorean has 77/218 lines that are mid-sentence continuations
+- Auto-captioner struggles with English loanwords in Korean context: "be터스" (bittersweet), "호라이 펜" (frying pan)
+- Test fixtures saved: `tests/SentenceStudio.UnitTests/TestData/YouTubeTranscripts/` (3 raw transcripts from target channels)

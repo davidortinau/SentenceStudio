@@ -161,3 +161,64 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 - Kaylee's file-vocab-import feature (InputFile on ResourceAdd/ResourceEdit) works seamlessly with Zoe's getting-started flow
 - Both features are non-blocking and can be merged in any order
 
+
+### 2026-03-20 — YouTube Channel Monitoring Import Page Redesign
+
+**Status:** Complete  
+**Feature:** Redesigned Import page for channel monitoring + single video import + history  
+
+**Key Changes:**
+1. **Import.razor** — Transformed from single-purpose to three-tab hub:
+   - **My Channels tab:** Lists all monitored channels with status, recent imports, edit/pause controls
+   - **Single Video tab:** Original single-video import flow (preserved)
+   - **Import History tab:** All imports (manual + channel) with real-time status badges
+   
+2. **ChannelDetail.razor** — NEW page for add/edit channel:
+   - Route: `/import/channel/{Id?}`
+   - Form: Channel URL, Language dropdown, Check interval, Active toggle
+   - Auto-resolves channel metadata on save (name, handle)
+   - Pre-populates language from user profile on add
+
+3. **Real-time status polling:** 
+   - Timer polls every 5 seconds for in-progress imports
+   - Updates status badges live as pipeline progresses
+   - Solves Captain's concern: "What happens when user leaves during import?" → Status persists, UI reflects current state on return
+
+4. **Service integration:**
+   - `ChannelMonitorService` (DI) — CRUD for MonitoredChannel entities
+   - `VideoImportPipelineService` (DI) — Import history + status tracking
+   - Services registered by Wash in parallel — injected as nullable with null-checks
+
+**UI Patterns:**
+- Bootstrap icon usage: `bi-youtube`, `bi-plus-circle`, `bi-arrow-repeat`, `bi-check-circle`, `bi-x-circle`, `bi-hourglass-split`, `bi-toggle-on/off`, `bi-pencil`, `bi-clock-history`
+- Status badges: `badge bg-warning/info/success/danger` with spinners for in-progress states
+- Tab switcher: `btn-group` with conditional `btn-ss-primary` vs `btn-outline-secondary`
+- PageHeader with PrimaryActions (desktop "Add Channel" button) + SecondaryActions (overflow menu)
+
+**Status Badge Mapping (VideoImportStatus → UI):**
+- Pending (0) → Yellow badge, hourglass icon
+- FetchingTranscript (1) → Blue badge, download icon + spinner
+- CleaningTranscript (2) → Blue badge, stars icon + spinner
+- GeneratingVocabulary (3) → Blue badge, card-text icon + spinner
+- SavingResource (4) → Blue badge, save icon + spinner
+- Completed (10) → Green badge, check-circle icon
+- Failed (99) → Red badge, x-circle icon
+
+**Learnings:**
+- `System.Threading.Timer` for polling — must dispose in `IDisposable.Dispose()` to prevent memory leaks
+- `InvokeAsync(StateHasChanged)` required when updating UI from Timer callback (non-UI thread)
+- Nullable service injection pattern: `[Inject] private ChannelMonitorService? ChannelMonitorSvc { get; set; }` with null-checks before use
+- RenderFragment helper method for status badges: `private RenderFragment RenderStatusBadge(VideoImportStatus status) => __builder => { }`
+- Tab state management: enum + conditional rendering (`@if (currentTab == Tab.Channels)`)
+- `ShowBack="true"` on PageHeader triggers back chevron instead of hamburger menu
+- Channel handle extraction from YouTube URL pattern: `https://www.youtube.com/@handle` → split on `/@`
+
+**Data Flow:**
+1. User adds channel via ChannelDetail page → saves to MonitoredChannel table
+2. Background worker (not part of this PR) polls channels, creates VideoImport records
+3. Import page loads channels + imports on init, starts polling timer
+4. Timer refreshes import statuses every 5s, updates UI in real-time
+5. When import completes, user clicks "View Resource" → navigates to ResourceEdit page
+
+**No Breaking Changes:** Single video import flow unchanged, still works as before
+

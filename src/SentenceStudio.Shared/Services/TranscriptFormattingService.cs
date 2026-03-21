@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Scriban;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
@@ -13,12 +15,14 @@ public class TranscriptFormattingService
     private readonly IEnumerable<ILanguageSegmenter> _segmenters;
     private readonly Dictionary<string, string> _aiPolishCache = new();
     private readonly ILogger<TranscriptFormattingService> _logger;
+    private readonly IFileSystemService _fileSystem;
 
-    public TranscriptFormattingService(AiService aiService, IEnumerable<ILanguageSegmenter> segmenters, ILogger<TranscriptFormattingService> logger)
+    public TranscriptFormattingService(AiService aiService, IEnumerable<ILanguageSegmenter> segmenters, ILogger<TranscriptFormattingService> logger, IFileSystemService fileSystem)
     {
         _aiService = aiService;
         _segmenters = segmenters;
         _logger = logger;
+        _fileSystem = fileSystem;
 
         _logger.LogDebug("🏴‍☠️ TranscriptFormattingService initialized with {SegmenterCount} segmenters", _segmenters.Count());
         foreach (var seg in _segmenters)
@@ -154,51 +158,19 @@ public class TranscriptFormattingService
 
         try
         {
-            var languageText = !string.IsNullOrWhiteSpace(language) ? language : "the original language";
-
-            var prompt = $@"You are a text formatting assistant. Your job is to fix excessive line breaks in this {languageText} transcript.
-
-CRITICAL RULES:
-1. NEVER change, translate, or modify ANY words - keep ALL text exactly as written
-2. NEVER remove or add any words
-3. ONLY fix line breaks by merging lines that were incorrectly split
-4. Join incomplete sentences that were broken mid-sentence
-5. Group complete sentences into natural paragraphs (2-4 sentences per paragraph)
-6. Keep standalone lines separate (greetings like ""안녕하세요"", closings like ""감사합니다"", music notations like ""[음악]"")
-7. SPEAKER MARKERS: Lines starting with "">> "" indicate a new speaker - ALWAYS keep these on a new line, never merge them with previous text
-
-EXAMPLES:
-
-BAD (excessive line breaks):
-안녕하세요. 한국어 한조각의 정
-
-
-선생님입니다.
-
-
-한국어 한조각의 전문
-
-GOOD (properly formatted):
-안녕하세요. 한국어 한조각의 정 선생님입니다.
-
-한국어 한조각의 전문
-
-BAD (speaker marker merged):
-Hello everyone. >> Welcome to the show. >> Let's get started.
-
-GOOD (speaker markers on new lines):
-Hello everyone.
-
->> Welcome to the show.
-
->> Let's get started.
-
----
-
-Return ONLY the formatted text with no explanations, markdown, or additional commentary.
-
-Transcript to format:
-{transcript}";
+            // Load and render the CleanTranscript Scriban template
+            var prompt = string.Empty;
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("CleanTranscript.scriban-txt");
+            using (StreamReader reader = new StreamReader(templateStream))
+            {
+                var template = Template.Parse(await reader.ReadToEndAsync());
+                prompt = await template.RenderAsync(new
+                {
+                    video_title = (string?)null,  // Optional context (not available here)
+                    channel_name = (string?)null, // Optional context (not available here)
+                    raw_transcript = transcript
+                });
+            }
 
             _logger.LogDebug("🤖 Sending to AI...");
 

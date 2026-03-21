@@ -144,6 +144,35 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(cms => cms.ConversationId)
             .IsUnique();
 
+        // YouTube channel monitoring entities — string GUID PKs, synced
+        modelBuilder.Entity<MonitoredChannel>().ToTable("MonitoredChannel").HasKey(e => e.Id);
+        modelBuilder.Entity<MonitoredChannel>().Property(e => e.Id).ValueGeneratedNever();
+
+        modelBuilder.Entity<VideoImport>().ToTable("VideoImport").HasKey(e => e.Id);
+        modelBuilder.Entity<VideoImport>().Property(e => e.Id).ValueGeneratedNever();
+
+        // MonitoredChannel → VideoImport (one-to-many)
+        modelBuilder.Entity<VideoImport>()
+            .HasOne(vi => vi.MonitoredChannel)
+            .WithMany(mc => mc.VideoImports)
+            .HasForeignKey(vi => vi.MonitoredChannelId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // VideoImport → LearningResource (optional FK)
+        modelBuilder.Entity<VideoImport>()
+            .HasOne(vi => vi.LearningResource)
+            .WithMany()
+            .HasForeignKey(vi => vi.LearningResourceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Index for quick lookups: find imports by YouTube video ID
+        modelBuilder.Entity<VideoImport>()
+            .HasIndex(vi => vi.VideoId);
+
+        // Index for channel polling: find active channels due for check
+        modelBuilder.Entity<MonitoredChannel>()
+            .HasIndex(mc => new { mc.IsActive, mc.LastCheckedAt });
+
         // WordAssociationScore — string GUID PK, not synced but uses GUIDs for consistency
         modelBuilder.Entity<WordAssociationScore>().ToTable("WordAssociationScore").HasKey(e => e.Id);
         modelBuilder.Entity<WordAssociationScore>().Property(e => e.Id).ValueGeneratedNever();
@@ -274,5 +303,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
     public DbSet<WordAssociationScore> WordAssociationScores => Set<WordAssociationScore>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<MonitoredChannel> MonitoredChannels => Set<MonitoredChannel>();
+    public DbSet<VideoImport> VideoImports => Set<VideoImport>();
 
 }

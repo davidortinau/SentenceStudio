@@ -19,6 +19,14 @@
 - Server DB at: `/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db`
 - UserProfileId columns for multi-user data isolation — all repos filter by active_profile_id
 
+- YouTubeImportService (existing) handles transcript download + audio extraction — wrap it, don't modify it
+- TranscriptFormattingService has SmartCleanup (rules-based) + PolishWithAiAsync (AI) — two-stage cleanup
+- VocabularyWord.ParseVocabularyWords() parses tab or comma-delimited vocab lists into word objects
+- VideoImportPipelineService orchestrates: fetch transcript → clean → extract vocab → save LearningResource + VocabWords
+- MonitoredChannel + VideoImport entities use synced pattern (string GUID PKs, UserProfileId, singular table names)
+- VideoImportStatus enum tracks pipeline stages: Pending → FetchingTranscript → CleaningTranscript → GeneratingVocabulary → SavingResource → Completed/Failed
+- Workers project (SentenceStudio.Workers) has skeleton BackgroundService ready for ChannelPollingWorker
+
 - Microsoft.Identity.Web v3.8.2 added to API for Entra ID JWT Bearer auth
 - Conditional auth pattern: `Auth:UseEntraId` config flag switches between Entra ID and DevAuthHandler
 - TenantContextMiddleware maps both Entra ID claims (tid, oid, name) and DevAuthHandler claims (tenant_id, NameIdentifier, Name) — Entra ID claims take precedence
@@ -381,3 +389,70 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 - YoutubeExplode has no API quota — but rapid calls can trigger YouTube throttling; add 500ms delay between fetches
 - MonitoredChannel + VideoImport should be non-synced (int PK) server-only entities
 - Two-worker separation: polling is fast (metadata only), ingestion is slow (transcript + AI) — don't let slow work block checks
+
+### 2026-03-20 — YouTube Channel Monitoring Feature Implementation
+
+**Status:** COMPLETED  
+**Components:** API, Workers, Database Migration
+
+**What was done:**
+
+1. **DI Registration (Task 1):**
+   - Added `ChannelMonitorService` and `VideoImportPipelineService` to `CoreServiceExtensions.cs` as Singleton services
+   - Services use IServiceProvider internally for scoped DB access — registered as Singleton per existing pattern
+
+2. **EF Core Migration (Task 2):**
+   - Created migration `AddYouTubeChannelMonitoring` for `MonitoredChannel` and `VideoImport` entities
+   - Used local dotnet-ef tool (v10.0.5) from Shared project with `--framework net10.0`
+   - Migration includes proper indexes: `IX_MonitoredChannel_IsActive_LastCheckedAt`, `IX_VideoImport_VideoId`, foreign keys with SetNull on delete
+   - Tables follow singular naming convention (MonitoredChannel, VideoImport)
+
+3. **API Endpoints (Task 3):**
+   - Created `/api/channels` endpoints: GET (list), POST (add with metadata resolution), PUT (update), DELETE (remove), POST /{id}/check (manual trigger)
+   - Created `/api/imports` endpoints: GET (history), GET /{id} (status), POST (start import), POST /{id}/retry (retry failed)
+   - All endpoints enforce user ownership via `user_profile_id` claim filtering
+   - Pipeline runs in background (non-blocking) — returns import ID immediately for polling
+   - Added platform services: `ApiConnectivityService`, `ApiFileSystemService` in `Platform/` folder
+   - Registered all dependencies: language segmenters, AiService, YouTubeImportService, TranscriptFormattingService
+
+4. **Worker Implementation (Task 4):**
+   - Implemented `Worker.cs` as BackgroundService with 30-minute polling loop
+   - `CheckChannelsAsync()`: Gets channels due for check, fetches recent videos, creates VideoImport records, runs pipeline in background
+   - `CleanupStaleImportsAsync()`: Marks imports stuck in processing > 30 min as Failed
+   - Rate limiting: 500ms delay between video metadata fetches
+   - Created platform services: `WorkerConnectivityService`, `WorkerFileSystemService` in `Platform/` folder
+   - Registered all dependencies in `Program.cs`: DbContext, language segmenters, YouTube services, AiService, OpenAI client
+
+**Technical Decisions:**
+- Services use IServiceProvider for scoped ApplicationDbContext access (Singleton services with scoped DB operations)
+- Pipeline runs in Task.Run background fire-and-forget for non-blocking behavior
+- API endpoints return immediately with import ID; client polls GET /api/imports/{id} for progress
+- Worker uses separate scopes per channel check to avoid context lifetime issues
+- OpenAI client registered conditionally when API key present
+- Platform abstractions (IConnectivityService, IFileSystemService) implemented for API and Workers contexts
+
+**Build Results:**
+- ✅ API: Build succeeded (15 warnings, 0 errors)
+- ✅ Workers: Build succeeded (14 warnings, 0 errors)
+- ⚠️ WebApp: Build failed (UI errors in existing pages using YouTube services — not backend responsibility)
+
+**Migration Path:**
+- Migration created but not applied
+- API Program.cs already applies migrations at startup via `db.Database.MigrateAsync()`
+- Workers doesn't need to apply migrations (read-only for cleanup)
+
+**Dependencies Added:**
+- Workers project: Aspire.Npgsql.EntityFrameworkCore.PostgreSQL, Microsoft.EntityFrameworkCore, Microsoft.Extensions.AI.OpenAI, Npgsql.EntityFrameworkCore.PostgreSQL
+- Workers project: SentenceStudio.Shared project reference
+
+**Rate Limiting:**
+- 500ms delay between video metadata fetches (YouTube API throttling protection)
+- 200ms delay during channel video listing (already in ChannelMonitorService)
+
+**Learnings:**
+- Multi-targeted projects (net10.0 + iOS/Android) require `--framework net10.0` flag for EF migrations
+- Local dotnet-ef tool (`dotnet tool install --local dotnet-ef`) works better than global tool for multi-targeted projects
+- IServiceProvider pattern for Singleton services needing scoped DB contexts
+- Fire-and-forget Task.Run for background pipelines in API endpoints (non-blocking response)
+- Platform abstractions (IConnectivityService, IFileSystemService) need stub implementations for server contexts (API, Workers)
+- Workers need same Aspire PostgreSQL package version as API for compatibility (13.3.0-preview.1.26156.1)
