@@ -452,7 +452,7 @@ else
             var skills = await SkillRepo.ListAsync();
             var vocab = await ResourceRepo.GetAllVocabularyWordsAsync();
 
-            isNewUser = resources.Count == 0 || vocab.Count == 0 || skills.Count == 0;
+            isNewUser = resources.Count == 0 && vocab.Count == 0;
         }
         catch (Exception ex)
         {
