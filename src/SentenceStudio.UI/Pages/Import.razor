@@ -219,45 +219,39 @@
     }
     else
     {
-        <div class="row g-3">
-            @foreach (var import in imports)
+        <div class="d-flex align-items-center mb-3">
+            <small class="text-secondary-ss">Showing @displayedImports.Count of @imports.Count imports</small>
+        </div>
+
+        <div class="list-group">
+            @foreach (var import in displayedImports)
             {
-                <div class="col-12">
-                    <div class="card card-ss p-3">
-                        <div class="d-flex align-items-start gap-3">
-                            <i class="bi bi-youtube fs-4 text-danger"></i>
-                            <div class="flex-grow-1 overflow-hidden">
-                                <h6 class="ss-title3 mb-1 text-truncate">
-                                    @import.VideoTitle
-                                </h6>
-                                <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
-                                    @RenderStatusBadge(import.Status)
-                                    @if (import.Status == VideoImportStatus.Completed && !string.IsNullOrEmpty(import.LearningResourceId))
-                                    {
-                                        <button class="btn btn-sm btn-ss-primary" @onclick="() => ViewResource(import.LearningResourceId)">
-                                            <i class="bi bi-eye me-1"></i> View Resource
-                                        </button>
-                                    }
-                                </div>
-                                <small class="text-secondary-ss d-block">
-                                    @if (!string.IsNullOrEmpty(import.Language))
-                                    {
-                                        <span>@import.Language • </span>
-                                    }
-                                    @import.CreatedAt.ToString("g")
-                                </small>
-                                @if (import.Status == VideoImportStatus.Failed && !string.IsNullOrEmpty(import.ErrorMessage))
-                                {
-                                    <small class="text-danger d-block mt-1">
-                                        <i class="bi bi-exclamation-circle me-1"></i>@import.ErrorMessage
-                                    </small>
-                                }
-                            </div>
-                        </div>
+                var isClickable = import.Status == VideoImportStatus.Completed && !string.IsNullOrEmpty(import.LearningResourceId);
+                var isFailed = import.Status == VideoImportStatus.Failed;
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2 @(!isClickable && !isFailed ? "pe-none" : "")"
+                        @onclick="() => OnImportRowClick(import)">
+                    @RenderStatusBadge(import.Status)
+                    <span class="fw-semibold flex-grow-1 text-truncate">@(import.VideoTitle ?? "Untitled")</span>
+                    <span class="text-secondary-ss text-truncate d-none d-md-inline" style="max-width:160px;">@GetChannelName(import.MonitoredChannelId)</span>
+                    <small class="text-secondary-ss text-nowrap">@import.CreatedAt.ToString("d")</small>
+                </button>
+                @if (isFailed && !string.IsNullOrEmpty(import.ErrorMessage))
+                {
+                    <div class="list-group-item py-1 px-4 border-top-0">
+                        <small class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>@import.ErrorMessage</small>
                     </div>
-                </div>
+                }
             }
         </div>
+
+        @if (displayedImports.Count < imports.Count)
+        {
+            <div class="text-center mt-3">
+                <button class="btn btn-ss-secondary" @onclick="ShowMoreImports">
+                    <i class="bi bi-chevron-down me-1"></i> Show More
+                </button>
+            </div>
+        }
     }
 }
 
@@ -299,6 +293,9 @@
     // Import history state
     private List<VideoImport> imports = new();
     private bool isLoadingImports = true;
+    private int importsPageSize = 50;
+    private int importsDisplayCount = 50;
+    private List<VideoImport> displayedImports => imports.Take(importsDisplayCount).ToList();
     
     // Polling for active imports
     private System.Threading.Timer? pollTimer;
@@ -427,6 +424,30 @@
     private void ViewResource(string resourceId)
     {
         NavManager.NavigateTo($"/resources/edit/{resourceId}");
+    }
+
+    private string GetChannelName(string? monitoredChannelId)
+    {
+        if (string.IsNullOrEmpty(monitoredChannelId)) return "Manual import";
+        var ch = channels.FirstOrDefault(c => c.Id == monitoredChannelId);
+        return ch?.ChannelName ?? ch?.ChannelHandle ?? "Channel";
+    }
+
+    private void OnImportRowClick(VideoImport import)
+    {
+        if (import.Status == VideoImportStatus.Completed && !string.IsNullOrEmpty(import.LearningResourceId))
+        {
+            ViewResource(import.LearningResourceId);
+        }
+        else if (import.Status == VideoImportStatus.Failed && !string.IsNullOrEmpty(import.ErrorMessage))
+        {
+            Toast.ShowError(import.ErrorMessage);
+        }
+    }
+
+    private void ShowMoreImports()
+    {
+        importsDisplayCount += importsPageSize;
     }
 
     // ============ POLLING FOR ACTIVE IMPORTS ============

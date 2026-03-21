@@ -85,6 +85,93 @@ else
             </button>
         </div>
     </div>
+
+    @* ============ VIDEO DISCOVERY (edit mode only) ============ *@
+    @if (!IsNewChannel && channel != null)
+    {
+        <div class="card card-ss p-4 mt-4">
+            <h6 class="ss-title3 mb-3"><i class="bi bi-search me-1"></i> Discover Videos</h6>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-ss-secondary" @onclick="CheckForNewVideos"
+                        disabled="@(isCheckingVideos || string.IsNullOrEmpty(channel.YouTubeChannelId))">
+                    @if (isCheckingVideos)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Checking...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-repeat me-1"></i>
+                        <span>Check for New Videos</span>
+                    }
+                </button>
+
+                @if (discoveredVideos.Count > 0)
+                {
+                    var selectedCount = selectedVideoIds.Count;
+                    <button class="btn btn-ss-primary" @onclick="ImportSelectedVideos"
+                            disabled="@(isImportingVideos || selectedCount == 0)">
+                        @if (isImportingVideos)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Importing...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-download me-1"></i>
+                            <span>Import Selected (@selectedCount)</span>
+                        }
+                    </button>
+                }
+            </div>
+
+            @if (string.IsNullOrEmpty(channel.YouTubeChannelId))
+            {
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Save the channel first so its YouTube ID can be resolved.
+                </div>
+            }
+            else if (discoveredVideos.Count > 0)
+            {
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <small class="text-secondary-ss">@discoveredVideos.Count videos found</small>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSelectAll">
+                        @(selectedVideoIds.Count == discoveredVideos.Count(v => !v.AlreadyImported) ? "Select None" : "Select All New")
+                    </button>
+                </div>
+
+                <div class="list-group">
+                    @foreach (var video in discoveredVideos)
+                    {
+                        <label class="list-group-item d-flex align-items-center gap-3 py-2 @(video.AlreadyImported ? "opacity-50" : "")">
+                            <input class="form-check-input flex-shrink-0" type="checkbox"
+                                   checked="@selectedVideoIds.Contains(video.VideoId)"
+                                   disabled="@video.AlreadyImported"
+                                   @onchange="() => ToggleVideoSelection(video.VideoId)" />
+                            <span class="flex-grow-1 text-truncate">@video.Title</span>
+                            @if (video.AlreadyImported)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Imported</span>
+                            }
+                        </label>
+                    }
+                </div>
+            }
+            else if (hasCheckedVideos && !isCheckingVideos)
+            {
+                <p class="text-secondary-ss ss-body2 mb-0">No videos found. Try again later.</p>
+            }
+
+            @if (!string.IsNullOrEmpty(discoveryError))
+            {
+                <div class="alert alert-danger mt-2 mb-0">
+                    <i class="bi bi-exclamation-circle me-1"></i>@discoveryError
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
@@ -92,6 +179,7 @@ else
     
     [Inject] private ChannelMonitorService? ChannelMonitorSvc { get; set; }
     [Inject] private YouTubeImportService? ImportSvc { get; set; }
+    [Inject] private VideoImportPipelineService? VideoImportPipelineSvc { get; set; }
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -113,6 +201,15 @@ else
 
     // Loaded channel (for edit)
     private MonitoredChannel? channel;
+
+    // Video discovery state
+    private record DiscoveredVideo(string VideoId, string Title, string Url, bool AlreadyImported);
+    private List<DiscoveredVideo> discoveredVideos = new();
+    private HashSet<string> selectedVideoIds = new();
+    private bool isCheckingVideos;
+    private bool isImportingVideos;
+    private bool hasCheckedVideos;
+    private string discoveryError = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -258,9 +355,121 @@ else
 
     private static string ExtractVideoUrlFromChannel(string channelUrl)
     {
-        // For now, return the channel URL as-is
-        // The service will need to handle channel URLs differently
-        // This is a placeholder - in reality, we'd need to fetch a video from the channel
         return channelUrl;
+    }
+
+    // ============ VIDEO DISCOVERY ============
+
+    private async Task CheckForNewVideos()
+    {
+        if (ChannelMonitorSvc == null || channel == null) return;
+
+        isCheckingVideos = true;
+        discoveryError = "";
+        discoveredVideos.Clear();
+        selectedVideoIds.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var videos = await ChannelMonitorSvc.GetRecentVideosAsync(channel, maxResults: 20);
+            var userId = Preferences.Get("active_profile_id", "");
+
+            foreach (var (videoId, title, url) in videos)
+            {
+                var alreadyImported = await ChannelMonitorSvc.IsVideoAlreadyImportedAsync(videoId, userId);
+                discoveredVideos.Add(new DiscoveredVideo(videoId, title, url, alreadyImported));
+            }
+
+            // Auto-select all new (not yet imported) videos
+            foreach (var v in discoveredVideos.Where(v => !v.AlreadyImported))
+            {
+                selectedVideoIds.Add(v.VideoId);
+            }
+
+            hasCheckedVideos = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to check for new videos");
+            discoveryError = $"Failed to check for videos: {ex.Message}";
+        }
+        finally
+        {
+            isCheckingVideos = false;
+        }
+    }
+
+    private void ToggleVideoSelection(string videoId)
+    {
+        if (!selectedVideoIds.Remove(videoId))
+            selectedVideoIds.Add(videoId);
+    }
+
+    private void ToggleSelectAll()
+    {
+        var newVideoIds = discoveredVideos.Where(v => !v.AlreadyImported).Select(v => v.VideoId).ToList();
+        if (selectedVideoIds.Count == newVideoIds.Count)
+            selectedVideoIds.Clear();
+        else
+            selectedVideoIds = new HashSet<string>(newVideoIds);
+    }
+
+    private async Task ImportSelectedVideos()
+    {
+        if (VideoImportPipelineSvc == null || channel == null || selectedVideoIds.Count == 0) return;
+
+        isImportingVideos = true;
+        discoveryError = "";
+        StateHasChanged();
+
+        try
+        {
+            var userId = Preferences.Get("active_profile_id", "");
+            var importCount = 0;
+
+            foreach (var video in discoveredVideos.Where(v => selectedVideoIds.Contains(v.VideoId)))
+            {
+                var import = new VideoImport
+                {
+                    UserProfileId = userId,
+                    MonitoredChannelId = channel.Id,
+                    VideoId = video.VideoId,
+                    VideoTitle = video.Title,
+                    VideoUrl = video.Url,
+                    Language = channel.Language,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await VideoImportPipelineSvc.RunPipelineAsync(import);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Pipeline failed for video {Title}", video.Title);
+                    }
+                });
+
+                importCount++;
+            }
+
+            Toast.ShowSuccess($"Started import for {importCount} video(s). Check Import History for progress.");
+            selectedVideoIds.Clear();
+
+            // Refresh the discovery list to show newly-importing videos
+            await CheckForNewVideos();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to import selected videos");
+            discoveryError = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            isImportingVideos = false;
+        }
     }
 }

@@ -222,3 +222,42 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 
 **No Breaking Changes:** Single video import flow unchanged, still works as before
 
+### 2026-07-23 — UI Polish Wave: Import History, Resources Toggle, Channel Discovery, Pagination
+
+**Status:** Complete  
+**Tasks:** 4 UI improvements from Captain's feedback
+
+**Task 1 — Import History Tighter Layout:**
+- Replaced card layout with `list-group` / `list-group-item-action` pattern (matching Vocabulary list view)
+- Removed "View Resource" button — whole row is now clickable
+- Added channel name lookup via `GetChannelName()` using existing `channels` list
+- Status badge | title | channel name | date on each row
+- Failed imports show inline error below the row
+
+**Task 2 — Resources Page Grid/List Toggle:**
+- Added `btn-group` toggle (bi-grid-3x3-gap / bi-list-ul) in filter bar at `ms-auto`
+- Grid view = existing card layout, List view = `list-group` with media icon, title, type+lang, date
+- Persists preference via `IPreferencesService` (key: `resources-view-mode`)
+- Injected `IPreferencesService` (was not previously injected on Resources page)
+
+**Task 3 — Channel Detail Video Discovery:**
+- Added "Discover Videos" section below form for existing channels (edit mode only)
+- "Check for New Videos" calls `ChannelMonitorSvc.GetRecentVideosAsync(channel)`
+- Each video checked via `IsVideoAlreadyImportedAsync` — already-imported shown as disabled/greyed
+- Checkboxes for selection, "Select All New" toggle, "Import Selected" batch action
+- Creates `VideoImport` objects matching Worker.cs pattern, runs pipeline via `Task.Run()`
+- Injected `VideoImportPipelineService` into ChannelDetail
+
+**Task 4 — Pagination for Long Lists:**
+- Import History: `displayedImports` computed property, 50-item pages, "Show More" button
+- Resources: `displayedResources` computed property, 50-item pages, "Show More" button
+- Both show "Showing X of Y" count
+
+**Build Verification:** 0 errors, 298 warnings (all pre-existing)
+
+**Learnings:**
+- `list-group-item-action` with `@onclick` makes the whole row act as a button — cleaner than card+button
+- `pe-none` Bootstrap utility disables pointer events — useful for non-actionable rows in a clickable list
+- `record` types work in Blazor `@code` blocks for inline DTOs (e.g., `DiscoveredVideo`)
+- `IPreferencesService.Set<T>()` persists view mode — simpler than JS localStorage for Blazor Hybrid
+
