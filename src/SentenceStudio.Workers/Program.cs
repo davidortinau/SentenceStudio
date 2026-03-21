@@ -54,6 +54,8 @@ builder.Services.AddSingleton<AiService>();
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
+    // AiService reads from Settings:OpenAIKey — bridge the Aspire env var
+    builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
     builder.Services.AddSingleton<Microsoft.Extensions.AI.IChatClient>(_ =>
         new OpenAI.OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient());
 }
