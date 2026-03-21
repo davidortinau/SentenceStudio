@@ -228,14 +228,27 @@
             {
                 var isClickable = import.Status == VideoImportStatus.Completed && !string.IsNullOrEmpty(import.LearningResourceId);
                 var isFailed = import.Status == VideoImportStatus.Failed;
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2 @(!isClickable && !isFailed ? "pe-none" : "")"
-                        @onclick="() => OnImportRowClick(import)"
-                        title="@(isFailed && !string.IsNullOrEmpty(import.ErrorMessage) ? import.ErrorMessage : "")">
+                <div class="list-group-item d-flex align-items-center gap-3 py-2">
                     @RenderStatusBadge(import.Status)
-                    <span class="fw-semibold flex-grow-1 text-truncate">@(import.VideoTitle ?? "Untitled")</span>
+                    <span class="fw-semibold flex-grow-1 text-truncate @(isClickable ? "cursor-pointer" : "")"
+                          @onclick="() => OnImportRowClick(import)"
+                          title="@(isFailed && !string.IsNullOrEmpty(import.ErrorMessage) ? import.ErrorMessage : "")">
+                        @(import.VideoTitle ?? "Untitled")
+                    </span>
                     <span class="text-secondary-ss text-truncate d-none d-md-inline" style="max-width:160px;">@GetChannelName(import.MonitoredChannelId)</span>
                     <small class="text-secondary-ss text-nowrap">@import.CreatedAt.ToString("d")</small>
-                </button>
+                    @if (isFailed)
+                    {
+                        <button class="btn btn-sm btn-outline-warning flex-shrink-0" @onclick="() => RetryImport(import)" 
+                                @onclick:stopPropagation="true" disabled="@(retryingImportId == import.Id)">
+                            @if (retryingImportId == import.Id)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                        </button>
+                    }
+                </div>
             }
         </div>
 
@@ -295,6 +308,7 @@
     // Polling for active imports
     private System.Threading.Timer? pollTimer;
     private bool isPolling;
+    private string? retryingImportId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -443,6 +457,44 @@
     private void ShowMoreImports()
     {
         importsDisplayCount += importsPageSize;
+    }
+
+    private async Task RetryImport(VideoImport import)
+    {
+        if (VideoImportPipelineSvc == null) return;
+
+        retryingImportId = import.Id;
+        StateHasChanged();
+
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await VideoImportPipelineSvc.RetryImportAsync(import.Id);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Retry failed for import {Title}", import.VideoTitle);
+                }
+            });
+
+            // Update local state immediately for UI feedback
+            import.Status = VideoImportStatus.Pending;
+            import.ErrorMessage = null;
+            Toast.ShowSuccess($"Retrying \"{import.VideoTitle}\"...");
+            StartPolling();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to retry import {Id}", import.Id);
+            Toast.ShowError($"Retry failed: {ex.Message}");
+        }
+        finally
+        {
+            retryingImportId = null;
+        }
     }
 
     // ============ POLLING FOR ACTIVE IMPORTS ============

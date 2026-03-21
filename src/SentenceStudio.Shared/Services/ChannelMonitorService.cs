@@ -219,13 +219,26 @@ public class ChannelMonitorService
     }
 
     /// <summary>
-    /// Checks if a video has already been imported for this user.
+    /// Returns the import status for a video, or null if it hasn't been imported.
     /// </summary>
-    public async Task<bool> IsVideoAlreadyImportedAsync(string videoId, string userProfileId)
+    public async Task<VideoImportStatus?> GetVideoImportStatusAsync(string videoId, string userProfileId)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VideoImports
-            .AnyAsync(vi => vi.VideoId == videoId && vi.UserProfileId == userProfileId);
+        var import = await db.VideoImports
+            .Where(vi => vi.VideoId == videoId && vi.UserProfileId == userProfileId)
+            .OrderByDescending(vi => vi.CreatedAt)
+            .FirstOrDefaultAsync();
+        return import?.Status;
+    }
+
+    /// <summary>
+    /// Checks if a video has already been successfully imported for this user.
+    /// Only counts Completed imports — not Failed or in-progress.
+    /// </summary>
+    public async Task<bool> IsVideoAlreadyImportedAsync(string videoId, string userProfileId)
+    {
+        var status = await GetVideoImportStatusAsync(videoId, userProfileId);
+        return status == VideoImportStatus.Completed;
     }
 }

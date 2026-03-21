@@ -155,24 +155,39 @@ else
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <small class="text-secondary-ss">@discoveredVideos.Count videos found</small>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSelectAll">
-                        @(selectedVideoIds.Count == discoveredVideos.Count(v => !v.AlreadyImported) ? "Select None" : "Select All New")
+                        @(selectedVideoIds.Count == discoveredVideos.Count(v => v.CanSelect && !v.IsFailed) ? "Select None" : "Select All New")
                     </button>
                 </div>
 
                 <div class="list-group">
                     @foreach (var video in discoveredVideos)
                     {
-                        <label class="list-group-item d-flex align-items-center gap-3 py-2 @(video.AlreadyImported ? "opacity-50" : "")">
+                        <div class="list-group-item d-flex align-items-center gap-3 py-2 @(video.IsCompleted ? "opacity-50" : "")">
                             <input class="form-check-input flex-shrink-0" type="checkbox"
                                    checked="@selectedVideoIds.Contains(video.VideoId)"
-                                   disabled="@video.AlreadyImported"
+                                   disabled="@(!video.CanSelect)"
                                    @onchange="() => ToggleVideoSelection(video.VideoId)" />
                             <span class="flex-grow-1 text-truncate">@video.Title</span>
-                            @if (video.AlreadyImported)
+                            @if (video.IsCompleted)
                             {
                                 <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Imported</span>
                             }
-                        </label>
+                            else if (video.IsFailed)
+                            {
+                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => RetryFailedVideo(video)" disabled="@isRetryingImport">
+                                    @if (retryingVideoId == video.VideoId)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                                </button>
+                            }
+                            else if (video.IsInProgress)
+                            {
+                                <span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i>Importing...</span>
+                            }
+                        </div>
                     }
                 </div>
             }
@@ -220,7 +235,15 @@ else
     private MonitoredChannel? channel;
 
     // Video discovery state
-    private record DiscoveredVideo(string VideoId, string Title, string Url, bool AlreadyImported);
+    private record DiscoveredVideo(string VideoId, string Title, string Url, VideoImportStatus? ImportStatus)
+    {
+        public bool IsCompleted => ImportStatus == VideoImportStatus.Completed;
+        public bool IsFailed => ImportStatus == VideoImportStatus.Failed;
+        public bool IsInProgress => ImportStatus.HasValue
+            && ImportStatus != VideoImportStatus.Completed
+            && ImportStatus != VideoImportStatus.Failed;
+        public bool CanSelect => !IsCompleted && !IsInProgress;
+    };
     private List<DiscoveredVideo> discoveredVideos = new();
     private HashSet<string> selectedVideoIds = new();
     private bool isCheckingVideos;
@@ -229,6 +252,8 @@ else
     private string discoveryError = "";
     private string resolutionError = "";
     private bool isRetryingResolve;
+    private bool isRetryingImport;
+    private string? retryingVideoId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -424,12 +449,12 @@ else
 
             foreach (var (videoId, title, url) in videos)
             {
-                var alreadyImported = await ChannelMonitorSvc.IsVideoAlreadyImportedAsync(videoId, userId);
-                discoveredVideos.Add(new DiscoveredVideo(videoId, title, url, alreadyImported));
+                var importStatus = await ChannelMonitorSvc.GetVideoImportStatusAsync(videoId, userId);
+                discoveredVideos.Add(new DiscoveredVideo(videoId, title, url, importStatus));
             }
 
             // Auto-select all new (not yet imported) videos
-            foreach (var v in discoveredVideos.Where(v => !v.AlreadyImported))
+            foreach (var v in discoveredVideos.Where(v => v.CanSelect && !v.IsFailed))
             {
                 selectedVideoIds.Add(v.VideoId);
             }
@@ -455,7 +480,7 @@ else
 
     private void ToggleSelectAll()
     {
-        var newVideoIds = discoveredVideos.Where(v => !v.AlreadyImported).Select(v => v.VideoId).ToList();
+        var newVideoIds = discoveredVideos.Where(v => v.CanSelect).Select(v => v.VideoId).ToList();
         if (selectedVideoIds.Count == newVideoIds.Count)
             selectedVideoIds.Clear();
         else
@@ -556,6 +581,56 @@ else
         finally
         {
             isRetryingResolve = false;
+        }
+    }
+
+    private async Task RetryFailedVideo(DiscoveredVideo video)
+    {
+        if (VideoImportPipelineSvc == null) return;
+
+        isRetryingImport = true;
+        retryingVideoId = video.VideoId;
+        StateHasChanged();
+
+        try
+        {
+            var userId = Preferences.Get("active_profile_id", "");
+            var failedImport = await VideoImportPipelineSvc.GetFailedImportForVideoAsync(video.VideoId, userId);
+
+            if (failedImport != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await VideoImportPipelineSvc.RetryImportAsync(failedImport.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Retry failed for video {Title}", video.Title);
+                    }
+                });
+
+                Toast.ShowSuccess($"Retrying import for \"{video.Title}\". Check Import History for progress.");
+
+                // Refresh discovery list to update status
+                await Task.Delay(1000);
+                await CheckForNewVideos();
+            }
+            else
+            {
+                Toast.ShowError("Could not find the failed import to retry.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Retry failed for video {Title}", video.Title);
+            Toast.ShowError($"Retry failed: {ex.Message}");
+        }
+        finally
+        {
+            isRetryingImport = false;
+            retryingVideoId = null;
         }
     }
 }

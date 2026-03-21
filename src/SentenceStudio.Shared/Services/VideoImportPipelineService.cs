@@ -60,6 +60,40 @@ public class VideoImportPipelineService
             .FirstOrDefaultAsync(vi => vi.Id == id);
     }
 
+    /// <summary>
+    /// Retry a failed import by resetting its status and re-running the pipeline.
+    /// </summary>
+    public async Task RetryImportAsync(string importId)
+    {
+        var import = await GetImportByIdAsync(importId);
+        if (import == null)
+            throw new InvalidOperationException($"Import {importId} not found");
+        if (import.Status != VideoImportStatus.Failed)
+            throw new InvalidOperationException($"Import {importId} is not in Failed state");
+
+        import.Status = VideoImportStatus.Pending;
+        import.ErrorMessage = null;
+        import.CompletedAt = null;
+        await SaveImportAsync(import);
+
+        await RunPipelineAsync(import);
+    }
+
+    /// <summary>
+    /// Gets the most recent failed import for a video, if any.
+    /// </summary>
+    public async Task<VideoImport?> GetFailedImportForVideoAsync(string videoId, string userProfileId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.VideoImports
+            .Where(vi => vi.VideoId == videoId
+                      && vi.UserProfileId == userProfileId
+                      && vi.Status == VideoImportStatus.Failed)
+            .OrderByDescending(vi => vi.CreatedAt)
+            .FirstOrDefaultAsync();
+    }
+
     // ────────────────────────── Pipeline ──────────────────────────
 
     /// <summary>
