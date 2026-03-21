@@ -45,12 +45,20 @@ public class ChannelMonitorService
         return await db.MonitoredChannels.FindAsync(id);
     }
 
-    public async Task<MonitoredChannel> AddAsync(MonitoredChannel channel)
+    /// <summary>
+    /// Add a channel. Returns (channel, metadataResolved, errorMessage).
+    /// The channel is always saved even if metadata resolution fails,
+    /// so the user can retry later.
+    /// </summary>
+    public async Task<(MonitoredChannel Channel, bool MetadataResolved, string? Error)> AddAsync(MonitoredChannel channel)
     {
+        bool resolved = false;
+        string? error = null;
+
         // Resolve channel metadata from YouTube if we have a URL
         if (!string.IsNullOrWhiteSpace(channel.ChannelUrl))
         {
-            await ResolveChannelMetadataAsync(channel);
+            (resolved, error) = await ResolveChannelMetadataAsync(channel);
         }
 
         channel.CreatedAt = DateTime.UtcNow;
@@ -61,8 +69,9 @@ public class ChannelMonitorService
         db.MonitoredChannels.Add(channel);
         await db.SaveChangesAsync();
 
-        _logger.LogInformation("Added monitored channel {Name} ({Handle})", channel.ChannelName, channel.ChannelHandle);
-        return channel;
+        _logger.LogInformation("Added monitored channel {Name} ({Handle}), metadata resolved: {Resolved}",
+            channel.ChannelName, channel.ChannelHandle, resolved);
+        return (channel, resolved, error);
     }
 
     public async Task UpdateAsync(MonitoredChannel channel)
@@ -92,8 +101,9 @@ public class ChannelMonitorService
 
     /// <summary>
     /// Resolve a channel URL/handle into full metadata via YoutubeExplode.
+    /// Returns (success, errorMessage) so callers can surface failures.
     /// </summary>
-    public async Task ResolveChannelMetadataAsync(MonitoredChannel channel)
+    public async Task<(bool Success, string? Error)> ResolveChannelMetadataAsync(MonitoredChannel channel)
     {
         try
         {
@@ -127,10 +137,12 @@ public class ChannelMonitorService
             channel.ChannelUrl = ytChannel.Url;
 
             _logger.LogInformation("Resolved channel: {Name} ({Id})", ytChannel.Title, ytChannel.Id);
+            return (true, null);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not resolve channel metadata for {Url}", channel.ChannelUrl);
+            return (false, ex.Message);
         }
     }
 

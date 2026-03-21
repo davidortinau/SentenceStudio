@@ -128,10 +128,27 @@ else
 
             @if (string.IsNullOrEmpty(channel.YouTubeChannelId))
             {
-                <div class="alert alert-warning mb-0">
+                <div class="alert alert-warning mb-3">
                     <i class="bi bi-exclamation-triangle me-1"></i>
-                    Save the channel first so its YouTube ID can be resolved.
+                    YouTube channel ID could not be resolved. Video discovery requires a valid channel ID.
+                    @if (!string.IsNullOrEmpty(resolutionError))
+                    {
+                        <br /><small class="text-muted">Error: @resolutionError</small>
+                    }
                 </div>
+                <button class="btn btn-ss-secondary" @onclick="RetryResolveMetadata"
+                        disabled="@isRetryingResolve">
+                    @if (isRetryingResolve)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Resolving...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-repeat me-1"></i>
+                        <span>Retry Resolve Channel</span>
+                    }
+                </button>
             }
             else if (discoveredVideos.Count > 0)
             {
@@ -210,6 +227,8 @@ else
     private bool isImportingVideos;
     private bool hasCheckedVideos;
     private string discoveryError = "";
+    private string resolutionError = "";
+    private bool isRetryingResolve;
 
     protected override async Task OnInitializedAsync()
     {
@@ -291,8 +310,18 @@ else
                     };
 
                     // AddAsync resolves channel metadata via YoutubeExplode
-                    await ChannelMonitorSvc.AddAsync(newChannel);
-                    Toast.ShowSuccess($"Channel added: {newChannel.ChannelName ?? newChannel.ChannelHandle}");
+                    var (saved, metadataResolved, resolveError) = await ChannelMonitorSvc.AddAsync(newChannel);
+                    
+                    if (!metadataResolved)
+                    {
+                        // Channel saved but YouTube ID wasn't resolved — go to edit page
+                        resolutionError = resolveError ?? "Unknown error";
+                        Toast.ShowError($"Channel saved but YouTube ID couldn't be resolved: {resolutionError}");
+                        NavManager.NavigateTo($"/import/channel/{saved.Id}");
+                        return;
+                    }
+                    
+                    Toast.ShowSuccess($"Channel added: {saved.ChannelName ?? saved.ChannelHandle}");
                 }
                 catch (Exception ex)
                 {
@@ -315,6 +344,24 @@ else
                 channel.Language = language;
                 channel.CheckIntervalHours = checkIntervalHours;
                 channel.IsActive = isActive;
+
+                // Re-attempt resolution if YouTubeChannelId is still null
+                if (string.IsNullOrEmpty(channel.YouTubeChannelId) && !string.IsNullOrWhiteSpace(channelUrl))
+                {
+                    isResolving = true;
+                    StateHasChanged();
+                    var (resolved, resolveError) = await ChannelMonitorSvc.ResolveChannelMetadataAsync(channel);
+                    isResolving = false;
+                    
+                    if (!resolved)
+                    {
+                        resolutionError = resolveError ?? "Unknown error";
+                        Toast.ShowError($"Channel updated but YouTube ID still couldn't be resolved: {resolutionError}");
+                        await ChannelMonitorSvc.UpdateAsync(channel);
+                        StateHasChanged();
+                        return;
+                    }
+                }
 
                 await ChannelMonitorSvc.UpdateAsync(channel);
                 Toast.ShowSuccess("Channel updated successfully!");
@@ -470,6 +517,45 @@ else
         finally
         {
             isImportingVideos = false;
+        }
+    }
+
+    private async Task RetryResolveMetadata()
+    {
+        if (ChannelMonitorSvc == null || channel == null) return;
+
+        isRetryingResolve = true;
+        resolutionError = "";
+        StateHasChanged();
+
+        try
+        {
+            // Update URL in case user changed it
+            channel.ChannelUrl = channelUrl;
+            
+            var (resolved, error) = await ChannelMonitorSvc.ResolveChannelMetadataAsync(channel);
+
+            if (resolved)
+            {
+                await ChannelMonitorSvc.UpdateAsync(channel);
+                Toast.ShowSuccess($"Resolved! Channel: {channel.ChannelName} ({channel.YouTubeChannelId})");
+                resolutionError = "";
+            }
+            else
+            {
+                resolutionError = error ?? "Unknown error resolving channel";
+                Toast.ShowError($"Resolution failed: {resolutionError}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Retry resolve failed");
+            resolutionError = ex.Message;
+            Toast.ShowError($"Resolution failed: {ex.Message}");
+        }
+        finally
+        {
+            isRetryingResolve = false;
         }
     }
 }

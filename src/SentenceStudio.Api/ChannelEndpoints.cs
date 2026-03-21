@@ -42,7 +42,25 @@ public static class ChannelEndpoints
             return Results.Unauthorized();
 
         request.UserProfileId = userProfileId;
-        var channel = await channelService.AddAsync(request);
+        var (channel, resolved, error) = await channelService.AddAsync(request);
+        
+        if (!resolved)
+        {
+            // Channel was saved but metadata resolution failed
+            return Results.Created($"/api/channels/{channel.Id}", new
+            {
+                channel.Id,
+                channel.ChannelUrl,
+                channel.ChannelName,
+                channel.ChannelHandle,
+                channel.YouTubeChannelId,
+                channel.Language,
+                channel.IsActive,
+                MetadataResolved = false,
+                ResolutionError = error ?? "Could not resolve YouTube channel metadata"
+            });
+        }
+        
         return Results.Created($"/api/channels/{channel.Id}", channel);
     }
 
