@@ -22,7 +22,33 @@ public class Worker : BackgroundService
         _logger.LogInformation("YouTube Channel Monitor Worker starting...");
 
         // Wait a bit before first check to let services initialize
-        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+
+        // Reset failed imports and channel check times so they retry after a restart
+        try
+        {
+            using var resetScope = _serviceProvider.CreateScope();
+            var db = resetScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var failedImports = await db.VideoImports
+                .Where(v => v.Status == VideoImportStatus.Failed)
+                .ToListAsync(stoppingToken);
+            if (failedImports.Any())
+            {
+                db.VideoImports.RemoveRange(failedImports);
+                await db.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("Cleared {Count} failed imports for retry", failedImports.Count);
+            }
+            // Reset LastCheckedAt so channels get rechecked
+            var channels = await db.MonitoredChannels.Where(c => c.IsActive).ToListAsync(stoppingToken);
+            foreach (var ch in channels)
+                ch.LastCheckedAt = null;
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Reset {Count} channels for recheck", channels.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reset state on startup");
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -104,7 +130,11 @@ public class Worker : BackgroundService
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Pipeline failed for video {Title}", title);
+                            _logger.LogError("Pipeline failed for video {Title}: {ExType}: {ExMsg}", 
+                                title, ex.GetType().Name, ex.Message);
+                            if (ex.InnerException != null)
+                                _logger.LogError("  Inner: {InnerType}: {InnerMsg}", 
+                                    ex.InnerException.GetType().Name, ex.InnerException.Message);
                         }
                     }, cancellationToken);
 

@@ -202,13 +202,25 @@ public class VideoImportPipelineService
     /// </summary>
     private async Task<List<VocabularyWord>> ExtractVocabularyAsync(string transcript, string language)
     {
-        // Get user profile for language context
-        using var scope = _serviceProvider.CreateScope();
-        var userProfileRepo = scope.ServiceProvider.GetRequiredService<UserProfileRepository>();
-        var userProfile = await userProfileRepo.GetAsync();
+        // Try to get user profile for language context (may not be available in Worker)
+        string nativeLanguage = "English";
+        string targetLanguage = language ?? "Korean";
         
-        var nativeLanguage = userProfile?.NativeLanguage ?? "English";
-        var targetLanguage = language ?? userProfile?.TargetLanguage ?? "Korean";
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userProfileRepo = scope.ServiceProvider.GetRequiredService<UserProfileRepository>();
+            var userProfile = await userProfileRepo.GetAsync();
+            if (userProfile != null)
+            {
+                nativeLanguage = userProfile.NativeLanguage ?? nativeLanguage;
+                targetLanguage = language ?? userProfile.TargetLanguage ?? targetLanguage;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("UserProfileRepository not available, using defaults: {Msg}", ex.Message);
+        }
 
         // Load and render the ExtractVocabularyFromTranscript Scriban template
         var prompt = string.Empty;
@@ -317,7 +329,13 @@ public class VideoImportPipelineService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.VideoImports.Update(import);
+        
+        var exists = await db.VideoImports.AnyAsync(v => v.Id == import.Id);
+        if (exists)
+            db.VideoImports.Update(import);
+        else
+            db.VideoImports.Add(import);
+        
         await db.SaveChangesAsync();
     }
 }
