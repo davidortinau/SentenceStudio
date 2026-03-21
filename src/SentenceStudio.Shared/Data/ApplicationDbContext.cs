@@ -27,12 +27,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 #else
             optionsBuilder.UseNpgsql("Host=localhost;Database=sentencestudio_design;Username=postgres;Password=postgres");
 #endif
-
-            // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
-            // without throwing when the compiled model is ahead of the last recorded migration.
-            optionsBuilder.ConfigureWarnings(w =>
-                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         }
+
+        // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
+        // without throwing when the compiled model is ahead of the last recorded migration.
+        // Must be outside IsConfigured check — DI-configured contexts skip that block.
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 
         base.OnConfiguring(optionsBuilder);
     }

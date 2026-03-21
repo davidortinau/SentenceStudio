@@ -17,6 +17,11 @@ public static class ServiceCollectionExtensions
         {
             options.UseSqlite($"Data Source={databasePath}");
             
+            // Suppress PendingModelChangesWarning so MigrateAsync() can apply
+            // pending migrations without throwing on model/snapshot mismatch.
+            options.ConfigureWarnings(w =>
+                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+
             // Reduce EF query logging noise during development
 #if DEBUG
             options.LogTo(message => System.Diagnostics.Debug.WriteLine(message), LogLevel.Warning);

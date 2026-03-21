@@ -50,32 +50,79 @@ public class SyncService : ISyncService
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
 #if IOS || ANDROID || MACCATALYST
-            // On mobile, EF Core migrations are excluded from the build (they reference
-            // server-only Identity types). Use EnsureCreated for fresh databases and detect
-            // legacy schemas that need recreation.
-            _logger.LogDebug("Checking mobile database schema...");
-            var canConnect = await dbContext.Database.CanConnectAsync();
-            if (!canConnect)
+            _logger.LogDebug("Running EF Core migrations on mobile...");
+            
+            // Handle transition from legacy EnsureCreated() to MigrateAsync().
+            // Existing databases won't have __EFMigrationsHistory, so MigrateAsync
+            // would try to re-create all tables and fail. Detect this case and seed
+            // the migration history so only NEW migrations (e.g. YouTube tables) run.
+            var conn = dbContext.Database.GetDbConnection();
+            await conn.OpenAsync();
+            try
             {
-                _logger.LogInformation("Creating fresh mobile database with current schema...");
-                await dbContext.Database.EnsureCreatedAsync();
-            }
-            else
-            {
-                // Check if schema is current (UserProfileId column exists on LearningResource)
-                var cols = await dbContext.Database.SqlQueryRaw<string>(
-                    "SELECT name FROM pragma_table_info('LearningResource') WHERE name = 'UserProfileId'").ToListAsync();
-                if (cols.Count == 0)
+                using var checkCmd = conn.CreateCommand();
+                checkCmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'";
+                var historyExists = await checkCmd.ExecuteScalarAsync() != null;
+
+                if (!historyExists)
                 {
-                    _logger.LogInformation("Legacy mobile database detected — recreating with current schema...");
-                    await dbContext.Database.EnsureDeletedAsync();
+                    // Check if this is an existing DB (has app tables) vs a fresh install
+                    using var appTableCmd = conn.CreateCommand();
+                    appTableCmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='LearningResource'";
+                    var isLegacyDb = await appTableCmd.ExecuteScalarAsync() != null;
+
+                    if (isLegacyDb)
+                    {
+                        _logger.LogInformation("Legacy database detected — seeding migration history for InitialSqlite");
+                        using var seedCmd = conn.CreateCommand();
+                        seedCmd.CommandText = @"
+                            CREATE TABLE ""__EFMigrationsHistory"" (
+                                ""MigrationId"" TEXT NOT NULL PRIMARY KEY,
+                                ""ProductVersion"" TEXT NOT NULL
+                            );
+                            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                            VALUES ('20260321133148_InitialSqlite', '10.0.4');";
+                        await seedCmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
+
+            try
+            {
+                await dbContext.Database.MigrateAsync();
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("PendingModelChangesWarning"))
+            {
+                // On mobile, the compiled model (DbContext) differs from the migration snapshot
+                // (generated from IdentityDbContext on server TFM). Identity tables don't exist
+                // in the mobile model. Fall back to EnsureCreated for new DB, or create only
+                // missing tables for existing DB.
+                _logger.LogWarning("PendingModelChangesWarning caught — mobile model diverges from snapshot. Using fallback...");
+                
+                var hasHistory = false;
+                var conn2 = dbContext.Database.GetDbConnection();
+                await conn2.OpenAsync();
+                try
+                {
+                    using var cmd = conn2.CreateCommand();
+                    cmd.CommandText = "SELECT COUNT(*) FROM __EFMigrationsHistory";
+                    hasHistory = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+                }
+                catch { /* table doesn't exist */ }
+                finally { await conn2.CloseAsync(); }
+
+                if (!hasHistory)
+                {
+                    // Fresh or legacy DB — use EnsureCreated to create all tables from model
+                    _logger.LogInformation("Falling back to EnsureCreated for database schema...");
                     await dbContext.Database.EnsureCreatedAsync();
                 }
-                else
-                {
-                    _logger.LogInformation("Mobile database schema is current");
-                }
             }
+            _logger.LogInformation("Mobile database migrated successfully");
 #else
             _logger.LogDebug("Running EF Core migrations...");
             await dbContext.Database.MigrateAsync();

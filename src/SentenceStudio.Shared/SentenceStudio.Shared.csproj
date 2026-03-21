@@ -15,10 +15,15 @@
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 	</ItemGroup>
 
-	<!-- EF Core migrations and design-time factory reference server-only types — exclude on mobile -->
+	<!-- EF Core migrations: server uses PostgreSQL, mobile uses SQLite -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != ''">
-		<Compile Remove="Migrations\**" />
+		<!-- Mobile: exclude PostgreSQL migrations and design-time factory -->
+		<Compile Remove="Migrations\*.cs" />
 		<Compile Remove="Data\DesignTimeDbContextFactory.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
+		<!-- Server: exclude SQLite migrations -->
+		<Compile Remove="Migrations\Sqlite\**" />
 	</ItemGroup>
 
 	<ItemGroup>
