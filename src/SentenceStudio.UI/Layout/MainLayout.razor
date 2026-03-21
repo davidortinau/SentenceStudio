@@ -4,6 +4,7 @@
 @inject NavigationManager NavigationManager
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
 @inject UserProfileRepository ProfileRepo
+@inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -50,6 +51,13 @@
     }
 
     <ToastContainer />
+    
+    <WhatsNewModal 
+        IsVisible="@showWhatsNew" 
+        Title="@whatsNewTitle"
+        Version="@whatsNewVersion"
+        Content="@whatsNewContent"
+        OnDismissed="@DismissWhatsNew" />
 </div>
 
 @code {
@@ -60,6 +68,10 @@
     private bool sidebarCollapsed;
     private bool isOnboarding;
     private bool isAuthenticated;
+    private bool showWhatsNew;
+    private string whatsNewTitle = "What's New";
+    private string whatsNewVersion = "";
+    private string whatsNewContent = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -104,7 +116,94 @@
             await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
             await jsModule.InvokeVoidAsync("setFontScale", ThemeService.FontScale);
             ThemeService.ThemeChanged += OnThemeChanged;
+
+            // Check for version updates and show What's New if needed
+            if (isAuthenticated)
+            {
+                await CheckVersionAndShowWhatsNew();
+            }
         }
+    }
+
+    private async Task CheckVersionAndShowWhatsNew()
+    {
+        try
+        {
+            var currentVersion = typeof(MainLayout).Assembly.GetName().Version?.ToString(2) ?? "1.0";
+            var lastSeenVersion = Preferences.Get("last_seen_version", "");
+
+            if (lastSeenVersion != currentVersion)
+            {
+                var releaseNote = await ReleaseNotesService.GetNotesForVersionAsync(currentVersion);
+                if (releaseNote != null)
+                {
+                    whatsNewVersion = releaseNote.Version;
+                    whatsNewTitle = "What's New";
+                    whatsNewContent = ConvertMarkdownToHtml(releaseNote.MarkdownContent);
+                    showWhatsNew = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch
+        {
+            // Silently fail if release notes service is unavailable
+        }
+    }
+
+    private async Task DismissWhatsNew()
+    {
+        showWhatsNew = false;
+        var currentVersion = typeof(MainLayout).Assembly.GetName().Version?.ToString(2) ?? "1.0";
+        Preferences.Set("last_seen_version", currentVersion);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string ConvertMarkdownToHtml(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+
+        var html = markdown
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;");
+
+        // Headers
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^### (.+)$", "<h5>$1</h5>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^## (.+)$", "<h4>$1</h4>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^# (.+)$", "<h3>$1</h3>", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // Bold and italic
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
+
+        // Links
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\[(.+?)\]\((.+?)\)", "<a href=\"$2\">$1</a>");
+
+        // Lists
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^- (.+)$", "<li>$1</li>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"(<li>.*</li>\n?)+", "<ul class=\"ss-body2 mb-3\">$0</ul>", System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Paragraphs
+        var lines = html.Split('\n');
+        var result = new System.Text.StringBuilder();
+        var inList = false;
+
+        foreach (var line in lines)
+        {
+            if (line.Trim().StartsWith("<ul"))
+                inList = true;
+            else if (line.Trim().StartsWith("</ul>"))
+                inList = false;
+
+            if (!string.IsNullOrWhiteSpace(line) && !line.Trim().StartsWith("<h") && !line.Trim().StartsWith("<li") && !line.Trim().StartsWith("<ul") && !line.Trim().StartsWith("</ul>") && !inList)
+                result.AppendLine($"<p class=\"ss-body2 mb-2\">{line.Trim()}</p>");
+            else
+                result.AppendLine(line);
+        }
+
+        return result.ToString();
     }
 
     private void ToggleSidebar()

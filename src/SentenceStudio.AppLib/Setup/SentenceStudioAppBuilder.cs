@@ -161,5 +161,8 @@ public static class SentenceStudioAppBuilder
         // MAUI-only services
         services.AddSingleton<ISpeechToText>(SpeechToText.Default);
         services.AddSingleton<IFileSaver>(FileSaver.Default);
+        
+        // Release notes service (reads from embedded resources in Shared assembly)
+        services.AddSingleton<ReleaseNotesService>();
     }
 }

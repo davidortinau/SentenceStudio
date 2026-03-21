@@ -170,4 +170,7 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
 {
     services.AddSentenceStudioCoreServices();
     services.AddBlazorUIServices();
+    
+    // Release notes service (reads from embedded resources)
+    services.AddSingleton<ReleaseNotesService>();
 }

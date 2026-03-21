@@ -127,6 +127,9 @@ builder.Services.AddSingleton<AudioAnalyzer>();
 builder.Services.AddSingleton<TranscriptFormattingService>();
 builder.Services.AddSingleton<AiService>();
 
+// Release notes service
+builder.Services.AddSingleton<ReleaseNotesService>();
+
 // CORS — basic policies for known callers.
 // Production fine-tuning is tracked in issue #62.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
@@ -244,6 +247,9 @@ app.MapAuthEndpoints();
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
 app.MapImportEndpoints();
+
+// Version and release notes endpoints (public)
+app.MapVersionEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse

@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
+@inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
 
 <PageHeader Title="Settings" />
 
@@ -169,10 +170,20 @@
 #endif
 
 @* About *@
-<div class="card card-ss p-4">
+<div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-2">About</h5>
-    <p class="ss-caption1 text-muted-ss">SentenceStudio v1.0</p>
+    <p class="ss-caption1 text-muted-ss">SentenceStudio v@currentVersion</p>
+    <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="ShowReleaseNotes">
+        <i class="bi bi-megaphone me-1"></i> What's New
+    </button>
 </div>
+
+<WhatsNewModal 
+    IsVisible="@showWhatsNew" 
+    Title="@whatsNewTitle"
+    Version="@whatsNewVersion"
+    Content="@whatsNewContent"
+    OnDismissed="@DismissWhatsNew" />
 
 @code {
     [Inject] private IVocabularyProgressService VocabProgressService { get; set; }
@@ -197,6 +208,11 @@
     private bool isMigrating;
     private bool streakMigrationComplete;
     private string statusMessage = "";
+    private string currentVersion = "1.0";
+    private bool showWhatsNew;
+    private string whatsNewTitle = "What's New";
+    private string whatsNewVersion = "";
+    private string whatsNewContent = "";
 
     private record VoiceInfo(string Id, string Name);
 
@@ -204,6 +220,7 @@
     {
         jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
         fontScale = ThemeService.FontScale;
+        currentVersion = typeof(Settings).Assembly.GetName().Version?.ToString(2) ?? "1.0";
         LoadPreferences();
         await LoadVoicesAsync();
     }
@@ -322,5 +339,81 @@
         {
             isMigrating = false;
         }
+    }
+
+    private async Task ShowReleaseNotes()
+    {
+        try
+        {
+            var releaseNote = await ReleaseNotesService.GetNotesForVersionAsync(currentVersion);
+            if (releaseNote != null)
+            {
+                whatsNewVersion = releaseNote.Version;
+                whatsNewTitle = "What's New";
+                whatsNewContent = ConvertMarkdownToHtml(releaseNote.MarkdownContent);
+                showWhatsNew = true;
+            }
+            else
+            {
+                Toast.ShowInfo("No release notes available for this version");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load release notes: {ex.Message}");
+        }
+    }
+
+    private async Task DismissWhatsNew()
+    {
+        showWhatsNew = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string ConvertMarkdownToHtml(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+
+        var html = markdown
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;");
+
+        // Headers
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^### (.+)$", "<h5>$1</h5>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^## (.+)$", "<h4>$1</h4>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^# (.+)$", "<h3>$1</h3>", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // Bold and italic
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
+
+        // Links
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\[(.+?)\]\((.+?)\)", "<a href=\"$2\">$1</a>");
+
+        // Lists
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^- (.+)$", "<li>$1</li>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"(<li>.*</li>\n?)+", "<ul class=\"ss-body2 mb-3\">$0</ul>", System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Paragraphs
+        var lines = html.Split('\n');
+        var result = new System.Text.StringBuilder();
+        var inList = false;
+
+        foreach (var line in lines)
+        {
+            if (line.Trim().StartsWith("<ul"))
+                inList = true;
+            else if (line.Trim().StartsWith("</ul>"))
+                inList = false;
+
+            if (!string.IsNullOrWhiteSpace(line) && !line.Trim().StartsWith("<h") && !line.Trim().StartsWith("<li") && !line.Trim().StartsWith("<ul") && !line.Trim().StartsWith("</ul>") && !inList)
+                result.AppendLine($"<p class=\"ss-body2 mb-2\">{line.Trim()}</p>");
+            else
+                result.AppendLine(line);
+        }
+
+        return result.ToString();
     }
 }

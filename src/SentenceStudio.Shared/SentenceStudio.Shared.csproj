@@ -26,6 +26,11 @@
 		<Compile Remove="Migrations\Sqlite\**" />
 	</ItemGroup>
 
+	<!-- Release notes embedded for all platforms -->
+	<ItemGroup>
+		<EmbeddedResource Include="..\..\docs\release-notes\*.md" LinkBase="ReleaseNotes" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.128-local" />
