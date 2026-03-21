@@ -356,3 +356,28 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 - PubSubHubbub hub URL: https://pubsubhubbub.appspot.com/subscribe; topic format: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
 - Google.Apis.Auth.AspNetCore3 v1.73.0 provides IGoogleAuthProvider for incremental OAuth consent in ASP.NET Core
 - Google OAuth scopes for YouTube read-only: `https://www.googleapis.com/auth/youtube.readonly`
+
+### 2026-07-24 — Channel Monitoring Feasibility (No OAuth)
+
+**Status:** RESEARCH COMPLETE — READY TO BUILD  
+**Decision Doc:** `.squad/decisions/inbox/wash-channel-monitoring.md`
+
+**Captain's Simplified Approach:** Drop Google OAuth entirely. User pastes a YouTube channel URL, app monitors it for new videos, auto-ingests transcripts via AI pipeline.
+
+**Key Findings:**
+- YoutubeExplode v6.5.6 (already in project) handles everything: `Channels.GetByHandleAsync()` resolves @handles, `Channels.GetUploadsAsync()` lists uploads newest-first
+- `PlaylistVideo` (from GetUploadsAsync) lacks `UploadDate` — need `Videos.GetAsync()` per video for date filtering (negligible cost for small channels)
+- Korean auto-generated captions confirmed accessible via `ClosedCaptions.GetManifestAsync()` — existing `YouTubeImportService` already does this
+- Proposed 2 new entities: `MonitoredChannel` (tracking) + `VideoImport` (processing state) — both server-only, non-synced
+- Workers project (`SentenceStudio.Workers`) is the home: `ChannelPollingWorker` (6h interval) + `TranscriptIngestionWorker` (processes pending imports)
+- Dedup strategy: check `VideoImport.VideoId` before processing; `MonitoredChannel.LastSeenVideoId` for fast short-circuit
+- Zero new NuGet packages needed — just add YoutubeExplode reference to Workers project
+- Estimated effort: 2-3 days for core pipeline
+
+**Learnings Added:**
+- `youtube.Channels.GetByHandleAsync()` resolves @handle URLs to channel ID — no manual parsing needed
+- `GetUploadsAsync()` returns `PlaylistVideo` (lightweight) — `UploadDate` requires full `Videos.GetAsync()` call
+- Uploads are returned in reverse chronological order — iterate until hitting LastSeenVideoId or date cutoff
+- YoutubeExplode has no API quota — but rapid calls can trigger YouTube throttling; add 500ms delay between fetches
+- MonitoredChannel + VideoImport should be non-synced (int PK) server-only entities
+- Two-worker separation: polling is fast (metadata only), ingestion is slow (transcript + AI) — don't let slow work block checks
