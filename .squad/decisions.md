@@ -2047,3 +2047,291 @@ dotnet ef migrations add AddChannelMonitoring \
 - ✅ Zero new NuGet packages needed (just add YoutubeExplode ref to Workers project)
 
 **Estimated effort:** 2-3 days for the core pipeline (models + migration + workers + basic API endpoint). UI can be layered on separately.
+
+---
+
+### 3. YouTube Channel Monitoring — Data Model & Service Layer (2026-03-20)
+
+**Status:** IMPLEMENTED — migration + DI registration complete  
+**Date:** 2026-03-20  
+**Author:** Wash (Backend Dev)  
+
+Defined data model and service layer for YouTube channel monitoring. Two new entities (`MonitoredChannel`, `VideoImport`) with string GUID PKs following CoreSync convention. EF Core migration generated and applied. Services: `ChannelMonitorService` (CRUD + metadata resolution) and `VideoImportPipelineService` (orchestrates transcript fetch → cleanup → vocab extraction → save).
+
+**Key Decisions:**
+- String GUID PKs (CoreSync convention for multi-device sync)
+- Status enum: `Pending → FetchingTranscript → CleaningTranscript → GeneratingVocabulary → SavingResource → Completed | Failed`
+- Existing `YouTubeImportService` unchanged; wrapped by new pipeline service
+- YoutubeExplode v6.5.6 for channel metadata resolution + upload listing
+- FK constraints with SetNull (orphaned imports remain for audit)
+
+**Schema:**
+- `MonitoredChannel`: ChannelUrl, ChannelName, ChannelHandle, YouTubeChannelId, LastCheckedAt, IsActive, CheckIntervalHours, Language
+- `VideoImport`: VideoId, VideoTitle, VideoUrl, MonitoredChannelId (nullable), Status, RawTranscript, CleanedTranscript, LearningResourceId (nullable), ErrorMessage, CompletedAt
+- Indexes: `VideoImport.VideoId` for dedup, `MonitoredChannel(IsActive, LastCheckedAt)` for polling
+
+**Live Validation:** Tested against Captain's three channels (@My_easykorean, @koreancheatcode, @KoreanwithSol). All resolve correctly. Short detection added (rejects transcripts <100 chars).
+
+**Files Created:**
+- `src/SentenceStudio.Shared/Models/VideoImportStatus.cs`
+- `src/SentenceStudio.Shared/Models/MonitoredChannel.cs`
+- `src/SentenceStudio.Shared/Models/VideoImport.cs`
+- `src/SentenceStudio.Shared/Services/ChannelMonitorService.cs`
+- `src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`
+- Migration files applied to `ApplicationDbContext`
+
+**Blockers Resolved:**
+- Solved handle parsing bug (`/@handle` was retaining leading `/`)
+- Confirmed bilingual transcript handling (auto-generated Korean + manual English captions)
+
+---
+
+### 4. Architecture Decision: YouTube Channel Monitoring + Video Import (2026-03-20)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-20  
+**Author:** Zoe (Lead)  
+**Requested by:** Captain (David Ortinau)
+
+End-to-end architecture for channel monitoring + auto-import pipeline. Converts single-video import flow into full monitoring system with long-running task UX.
+
+**Key Decisions:**
+
+**1. Job Queue + Polling Pattern (not SignalR)**
+- Justification: Blazor Hybrid on mobile loses WebSocket on backgrounding. Polling is simpler, equally effective for 15-60s operations.
+- Poll interval: 5 seconds (Import page visible), 30 seconds (other pages)
+- Client-side timer in Blazor component, IDisposable cleanup
+
+**2. Page Flow (Two-Tab Import)**
+- Tab 1: Single Video (paste URL → one-click queue)
+- Tab 2: Monitored Channels (add/manage, list shows recent uploads)
+- Both tabs share Recent Imports section (status, progress, retry)
+
+**3. Background Workers (Two Services)**
+- `VideoImportWorker`: Processes individual import jobs (transcript → cleanup → vocab → save)
+- `ChannelPollingWorker`: Checks monitored channels every 15 minutes for new videos; creates VideoImport records for unseen uploads
+
+**4. API Endpoints**
+```
+POST   /api/import              — Queue single video
+GET    /api/import              — List imports (filterable)
+GET    /api/import/{id}         — Get import status
+POST   /api/import/{id}/retry   — Retry failed import
+DELETE /api/import/{id}         — Cancel/delete
+
+POST   /api/channels            — Add monitored channel
+GET    /api/channels            — List monitored channels
+GET    /api/channels/{id}       — Get channel details
+PUT    /api/channels/{id}       — Update settings
+DELETE /api/channels/{id}       — Remove channel
+POST   /api/channels/{id}/poll  — Force immediate poll
+```
+
+**5. Existing Assets Unchanged**
+- `YouTubeImportService`, `TranscriptFormattingService`, `LearningResourceRepository` all reused as-is
+- Pipeline service wraps existing services; no modifications needed
+
+**Alternatives Rejected:**
+- **SignalR real-time:** Overwrites mobile lifecycle handling
+- **Client-side processing:** Blocks UI on mobile, fails on backgrounding
+- **Google OAuth + YouTube Data API:** YoutubeExplode handles all needs with zero auth
+
+**Risks:**
+- YoutubeExplode breakage on YouTube API changes → pin version, wrap calls in try/catch
+- Rate limiting → add 500ms delay between video fetches
+- AI cost → ~$0.01/import, acceptable for personal use but monitor if channels grow
+
+---
+
+### 5. YouTube AI Pipeline — Prompt Design & Response Models (2026-03-20)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-20  
+**Author:** River (AI/Prompt Engineer)  
+
+Designed and validated two-stage prompt architecture for YouTube transcript processing: cleanup (removes YouTube captioning artifacts) + vocabulary extraction (structured JSON output with romanization, TOPIK levels, example sentences).
+
+**Key Decisions:**
+
+**1. Two-Stage Approach (not combined)**
+- Cleanup: Plain text output (`SendPrompt<string>`)
+- Vocabulary extraction: JSON DTO output (`SendPrompt<VocabularyExtractionResponse>`)
+- Rationale: Each stage retryable independently, focused scope, under token limits
+
+**2. Prompt Templates (Scriban format)**
+- `CleanTranscript.scriban-txt`: Removes `.이` boundary artifacts (unique to Korean YouTube captions), line fragmentation, loanword handling
+- `ExtractVocabularyFromTranscript.scriban-txt`: Extracts 30 words max (configurable) with romanization, part of speech, TOPIK level, example sentences
+
+**3. Chunking Strategy**
+- Cleanup: Single call for <20KB raw text (~30 min video); above 20KB chunk at ~8,000 Korean chars with 200-char overlap
+- Vocabulary: Run on full cleaned transcript; if still >15,000 chars, truncate with dedup flag
+- Real-data finding: Typical 10-20 min videos = 6-13KB raw text → chunking rarely needed
+
+**4. Deduplication**
+- Pass `existing_terms` list to extraction prompt (user's current vocabulary)
+- Mirrors ResourceEdit.razor dedup post-extraction, but reduces AI waste
+
+**5. Response Models**
+- `TranscriptCleanupResult`: Metadata wrapper (cleanup returns plain text, not JSON)
+- `VocabularyExtractionResponse`: Structured DTO with `ToVocabularyWord()` converter
+- JSON schema fields: targetLanguageTerm, nativeLanguageTerm, romanization, lemma, partOfSpeech, topikLevel, frequencyInTranscript, exampleSentence, exampleSentenceTranslation, tags
+
+**6. Real-Data Validation (Captain's Three Channels)**
+
+| Channel | Video | Raw Size | Artifacts Found | Resolved |
+|---------|-------|----------|---|---|
+| @My_easykorean | Daily Routine | 7.2KB | `.이` boundaries (3), line fragmentation | ✅ All |
+| @koreancheatcode | B2 Test | 6.6KB | Bilingual mixing (44% English), `.이` (5) | ✅ All |
+| @KoreanwithSol | Jobs Podcast | 12.5KB | Conversational, loanwords (bittersweet, frying pan) | ✅ Handled |
+
+**Refinements Applied:**
+- Explicit `.이` artifact handling (most impactful)
+- Bilingual content instruction (preserve English context)
+- Loanword handling rules for vocab extraction
+- Compound expression patterns from real data
+
+**Token Budget:**
+- Cleanup: ~2,500 input → ~2,000 output
+- Vocabulary: ~4,000 input → ~3,000 output
+- Cost per video: ~$0.01-0.03
+
+**Files Created:**
+- `src/SentenceStudio.AppLib/Resources/Raw/CleanTranscript.scriban-txt`
+- `src/SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromTranscript.scriban-txt`
+- `src/SentenceStudio.Shared/Models/TranscriptCleanupResponse.cs`
+- `src/SentenceStudio.Shared/Models/VocabularyExtractionResponse.cs`
+- Test fixtures: `tests/SentenceStudio.UnitTests/TestData/YouTubeTranscripts/`
+
+---
+
+### 6. YouTube Template Integration — Scriban Wiring Complete (2026-03-20)
+
+**Status:** COMPLETED  
+**Date:** 2026-03-20  
+**Author:** River (AI/Prompt Engineer)  
+
+Successfully integrated Scriban templates into `VideoImportPipelineService` and `TranscriptFormattingService`. All AI prompts now use structured templates instead of inline strings.
+
+**Key Changes:**
+
+**1. TranscriptFormattingService**
+- Loads `CleanTranscript.scriban-txt` via `IFileSystemService`
+- Added Scriban using statement, template dependency injection
+- Pattern matches existing AppLib services (ClozureService, TeacherService)
+
+**2. VideoImportPipelineService**
+- Loads `ExtractVocabularyFromTranscript.scriban-txt`
+- Upgraded from `SendPrompt<string>` + tab-separated parsing to `SendPrompt<VocabularyExtractionResponse>` + structured JSON
+- Added user profile lookup for native/target language context
+- Template variables: native_language, target_language, transcript, existing_terms, max_words (30), proficiency_level
+
+**3. JSON Schema Verification**
+All `[JsonPropertyName]` attributes in `VocabularyExtractionResponse` validated against template output spec. ✅
+
+**Build Status:** ✅ SentenceStudio.Shared + SentenceStudio.AppLib both compile (0 errors)
+
+**Benefits:**
+- Single source of truth for prompts
+- Explicit version control history
+- Independent template unit testing
+- Consistency with existing AI services
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Services/TranscriptFormattingService.cs`
+- `src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`
+
+---
+
+### 7. Client-Side Polling for Import Status Updates (2026-03-20)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-20  
+**Author:** Kaylee (Full-stack Dev)  
+
+Implemented `System.Threading.Timer` polling in Import.razor for real-time import status display. Addresses concern: "What happens when user leaves page during import?"
+
+**Key Design:**
+
+**1. Timer Mechanism**
+- Poll every 5 seconds for imports with `Status != Completed && Status != Failed`
+- Timer started in `OnInitializedAsync()`, disposed in `Dispose()`
+- Thread-safe UI updates via `InvokeAsync(StateHasChanged)`
+
+**2. Persistent State**
+- When user returns to Import page, `OnInitializedAsync` reloads current status
+- In-progress imports show correct stage immediately (no race conditions)
+
+**3. Thread Safety**
+- `isPolling` flag prevents overlapping concurrent poll requests
+- `InvokeAsync()` wraps timer callback (non-UI thread) for safe UI updates
+
+**4. Lightweight Polling**
+- Only fetches import history (not full resource data)
+- Query filters: `Status != Completed && Status != Failed` to skip finished imports
+- Minimal server overhead
+
+**Implementation (Import.razor snippet):**
+```csharp
+private System.Threading.Timer? pollTimer;
+private bool isPolling;
+
+private void StartPolling()
+{
+    pollTimer = new System.Threading.Timer(async _ =>
+    {
+        if (isPolling) return;
+        isPolling = true;
+        try
+        {
+            var activeImports = imports.Where(i => 
+                i.Status != VideoImportStatus.Completed && 
+                i.Status != VideoImportStatus.Failed).ToList();
+
+            if (activeImports.Any() && VideoImportPipelineSvc != null)
+            {
+                var updated = await VideoImportPipelineSvc.GetImportHistoryAsync();
+                foreach (var import in imports)
+                {
+                    var updatedImport = updated.FirstOrDefault(u => u.Id == import.Id);
+                    if (updatedImport != null)
+                    {
+                        import.Status = updatedImport.Status;
+                        import.ErrorMessage = updatedImport.ErrorMessage;
+                        import.LearningResourceId = updatedImport.LearningResourceId;
+                    }
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            isPolling = false;
+        }
+    }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+}
+
+public void Dispose()
+{
+    pollTimer?.Dispose();
+}
+```
+
+**Alternatives Rejected:**
+- **SignalR:** Overkill; adds complexity, requires persistent connection
+- **Server-sent events:** Poor Blazor Hybrid support
+- **Manual refresh only:** Poor UX — user must click to see progress
+
+**Tradeoffs:**
+- **Pros:** Simple, no dependencies, works seamlessly on return, minimal server load
+- **Cons:** 5-second polling lag (not true real-time), timer continues even with no active imports (mitigated by guard)
+
+**Future Improvements:**
+- Conditional polling (stop when no active imports, restart on new import)
+- Adaptive interval (2s during activity, 10s when idle)
+- SignalR upgrade if app adds real-time features
+
+---
+
+## Archived Decisions
+
+(None yet — all active decisions documented above)
