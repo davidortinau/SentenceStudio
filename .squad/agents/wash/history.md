@@ -325,3 +325,34 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 - The `UseNpgsql` extension method lives in the `Microsoft.EntityFrameworkCore` namespace — no extra using needed
 - Aspire preview packages (13.3.0-preview.1.26163.4) are resolvable from nuget.org for client integrations too
 - Mobile MAUI code paths untouched — CoreSync mixed-provider sync (SQLite client ↔ PostgreSQL server) is the target architecture
+
+### 2026-03-21 — YouTube API & Library Research
+
+**Status:** RESEARCH COMPLETE  
+**Decision Doc:** `.squad/decisions/inbox/wash-youtube-api-research.md`
+
+**Key Findings:**
+- YouTube official Captions API (`captions.download`) requires video ownership — CANNOT use it for third-party video transcripts (returns 403 Forbidden)
+- Two-library strategy: `Google.Apis.YouTube.v3` v1.73.0.4053 for OAuth subscription management + `YoutubeExplode` v6.5.7 for transcript extraction
+- YoutubeExplode reverse-engineers internal endpoints; can download auto-generated ASR captions from any public video without auth
+- `subscriptions.list(mine=true)` costs only 1 quota unit; default quota is 10K units/day — sufficient for small-scale use
+- PubSubHubbub push notifications eliminate polling entirely — YouTube pushes Atom XML to our webhook when channels upload new videos
+- Google OAuth for YouTube requires only `youtube.readonly` scope — separate from our JWT auth flow
+- Google refresh tokens are long-lived and must be encrypted at rest in server DB
+- PubSubHubbub subscriptions expire (5-10 days) — need auto-renewal background service
+- YoutubeExplode is LGPL-3.0 licensed — fine as unmodified NuGet dependency
+- YoutubeExplode explicitly supports net10.0 TFM
+- NuGet search for "youtube transcript" returns 0 packages — YoutubeExplode is the only .NET option
+- Existing `SentenceStudio.Workers` project has placeholder BackgroundService — ideal home for webhook renewal + transcript processing
+- Proposed 3 new entities: YouTubeConnection (OAuth tokens), YouTubeSubscription (channel monitoring), YouTubeVideoImport (processing state)
+- YouTubeConnection should NOT sync to mobile (contains refresh tokens) — server-only entity
+- LearningResource already has MediaType, MediaUrl, Transcript fields — YouTube imports fit naturally as MediaType="YouTube Video"
+
+**Learnings Added:**
+- YouTube Captions API requires video ownership for download — use YoutubeExplode for third-party transcripts
+- Google.Apis.YouTube.v3 latest: v1.73.0.4053, depends on Google.Apis.Auth ≥ 1.73.0
+- YoutubeExplode v6.5.7 supports net10.0, closed captions including auto-generated ASR tracks
+- YouTube Data API default quota: 10K units/day; subscriptions.list = 1 unit, captions.list = 50, captions.download = 200, search = 100
+- PubSubHubbub hub URL: https://pubsubhubbub.appspot.com/subscribe; topic format: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
+- Google.Apis.Auth.AspNetCore3 v1.73.0 provides IGoogleAuthProvider for incremental OAuth consent in ASP.NET Core
+- Google OAuth scopes for YouTube read-only: `https://www.googleapis.com/auth/youtube.readonly`

@@ -9,6 +9,15 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- YouTubeImportService already exists using YoutubeExplode (no API key needed) — handles transcript fetch, audio extraction, and caption track discovery for any public video
+- VideoWatchingService handles YouTube URL parsing and embed generation for LearningResources
+- TranscriptFormattingService + TranscriptSentenceExtractor provide full transcript cleanup and sentence extraction pipeline
+- Workers project (SentenceStudio.Workers) is a stub BackgroundService — ready for background job expansion (polling, processing queues)
+- No external OAuth providers exist yet (Google, Microsoft, etc.) — only ASP.NET Identity with email/password + JWT
+- YouTube Data API v3 daily quota is 10,000 units; subscriptions.list costs 100 units, playlistItems.list costs 1 unit — server-side shared polling is essential at scale
+- YoutubeExplode is a scraping library (not official API) — version-pin and handle breakage gracefully
+- Google OAuth for YouTube scopes should be handled server-side (API project) to avoid client secrets in mobile apps
+
 - Project uses MauiReactor for native pages: `VStart()` not `Top()`, `VEnd()` not `Bottom()`, `HStart()`/`HEnd()` not `Start()`/`End()`
 - NEVER use emojis in UI — use Bootstrap icons (bi-*) or text. Non-negotiable.
 - The user goes by "Captain" and prefers pirate talk
@@ -100,4 +109,28 @@ Added a getting-started flow to the Dashboard for new users who have no learning
 **Cross-Agent Notes:**
 - When users click "Create Your Own" in Zoe's getting-started flow, they land on Kaylee's ResourceAdd page which now has file-import capability
 - Both features are non-blocking and can be merged in any order
+
+---
+
+## 2026-07-22 — YouTube Integration Feasibility Research
+
+**Status:** Complete (research only — no code changes)  
+**Output:** `.squad/decisions/inbox/zoe-youtube-feasibility.md`
+
+**What:**
+Captain asked if YouTube subscription monitoring + auto-import of transcripts/vocabulary is feasible. Researched YouTube Data API v3, OAuth flows, and mapped it against the existing codebase.
+
+**Key Findings:**
+- **Feasible.** 2-3 sprint effort, phased approach recommended.
+- YouTubeImportService + YoutubeExplode already solve transcript extraction — no new work needed there
+- YouTube Data API v3 can list subscriptions (100 quota units) and channel videos (1 unit each)
+- Google OAuth is the critical path — no external OAuth exists in the project today
+- Recommended server-side OAuth (API project handles Google token, returns JWT to clients)
+- Workers project is a ready stub for polling + transcript processing background jobs
+- AI vocab extraction pipeline already exists — just needs wiring
+
+**Recommended Phases:**
+1. Manual YouTube URL import with auto-vocab (weekend project, no OAuth)
+2. Google OAuth + subscription picker (1-2 sprints, the hard part)
+3. Background polling worker + auto-import (1 sprint, straightforward)
 

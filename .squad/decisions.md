@@ -866,3 +866,793 @@ Gate the entire Dashboard behind an `isNewUser` check. When any of {resources, v
 - **Wash:** No schema changes — uses existing models and repositories.
 - **River:** No AI involvement — static vocabulary list.
 
+# YouTube Subscription Auto-Import: Feasibility Assessment
+
+**Author:** Zoe (Lead)  
+**Date:** 2026-07-22  
+**Status:** RESEARCH COMPLETE  
+**Requested by:** Captain  
+
+---
+
+## Executive Summary
+
+**Verdict: Feasible. Medium complexity. Not a weekend project, but not a multi-sprint beast either.**
+
+The Captain wants users to connect their YouTube account, pick subscribed channels, and auto-import transcripts + vocabulary from new videos. Here's the honest breakdown:
+
+- **Listing subscriptions:** Easy — YouTube Data API v3 supports this directly via OAuth.
+- **Getting transcripts:** Already solved — YoutubeExplode (already in the codebase) handles this for any public video without OAuth.
+- **Vocabulary extraction:** Already solved — the AI pipeline and SmartResourceService exist.
+- **OAuth in MAUI + Web:** Medium complexity — no external OAuth exists today, so this is new plumbing.
+- **Background polling for new videos:** Easy — Workers project is a stub ready for exactly this.
+
+**Estimated effort:** 2-3 focused sprints (3-5 weeks). The hardest part is OAuth, not YouTube.
+
+---
+
+## Detailed Findings
+
+### 1. YouTube Data API v3 — Subscriptions
+
+**Can we list subscriptions?** Yes.
+
+- **Endpoint:** `subscriptions.list()` with `mine=true`
+- **Scope:** `https://www.googleapis.com/auth/youtube.readonly`
+- **Quota cost:** 100 units per request (daily quota: 10,000 units)
+- **NuGet:** `Google.Apis.YouTube.v3`
+
+```csharp
+var request = service.Subscriptions.List("snippet,contentDetails");
+request.Mine = true;
+request.MaxResults = 50;
+var response = await request.ExecuteAsync();
+// Each item has: channel title, channel ID, thumbnail, description
+```
+
+**Quota math for our use case:**
+- 1 subscription list call = 100 units
+- Per-channel video check via `playlistItems.list()` = 1 unit each
+- With 20 monitored channels, a daily poll costs ~120 units (100 + 20)
+- That's 1.2% of daily quota — very comfortable
+- Even 100 users polling daily = 12,000 units — needs a quota increase ($0/day for moderate usage, or request via Google Cloud Console)
+
+**Risk:** Quota is per-project, not per-user. If we scale to many users, we need server-side polling with caching (not per-user API calls).
+
+### 2. Transcript/Caption Access
+
+**Already solved.** The codebase uses YoutubeExplode, which:
+
+- Gets captions from **any public video** (no API key, no OAuth)
+- Supports auto-generated captions (Korean, English, etc.)
+- Returns timed caption segments
+- Is already integrated in `YouTubeImportService.cs`
+
+The official YouTube Captions API (`captions.download()`) only works for videos you own — useless for subscriptions. YoutubeExplode is the right tool here.
+
+**One caveat:** YoutubeExplode scrapes YouTube's internal APIs. If YouTube changes their internals, it breaks. The library is actively maintained and popular (30M+ downloads), but it's a dependency risk. Mitigation: pin the version, have a fallback error message, and monitor for breakage.
+
+### 3. OAuth Flow — The Hard Part
+
+**Current state:** Zero external OAuth. The app uses ASP.NET Identity with email/password + JWT. No Google, Microsoft, or social logins.
+
+**What's needed:**
+
+#### Web App (Blazor Server)
+- Standard OAuth 2.0 Authorization Code flow
+- Add `Google.Apis.Auth.AspNetCore3` to WebApp
+- Register Google OAuth client in Google Cloud Console
+- Configure redirect URI (e.g., `https://app.sentencestudio.com/signin-google`)
+- Store refresh token in database (for server-side background polling)
+
+#### MAUI App
+- Two options:
+  1. **WebAuthenticator** (MAUI built-in) — opens system browser for Google login, receives token via deep link callback
+  2. **MSAL (already installed)** — `Microsoft.Identity.Client` v4.83.1 is in the project, but it's for Microsoft identity, not Google
+- For Google specifically: use `WebAuthenticator` with Google's OAuth endpoint
+- Redirect URI: custom scheme like `sentencestudio://auth/google`
+- Must be registered in Google Cloud Console as iOS/Android/Desktop client
+
+#### Architecture Decision
+**Recommendation:** Handle Google OAuth on the **server side** (API project), not in MAUI directly.
+
+- MAUI opens a browser to `{API}/api/auth/google/login`
+- API handles the OAuth dance with Google
+- API stores the Google refresh token server-side
+- API returns a JWT to the MAUI client (same as current auth flow)
+- Background polling uses the server-stored Google token
+
+This avoids putting Google client secrets in mobile apps and centralizes token management.
+
+### 4. Architecture Sketch
+
+Here's how it fits into the existing Aspire stack:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        AppHost                               │
+│                                                              │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐               │
+│  │  WebApp   │    │   API    │    │ Workers  │               │
+│  │ (Blazor)  │───▶│(Minimal) │◀───│(Background│               │
+│  │           │    │          │    │  Service) │               │
+│  └──────────┘    └────┬─────┘    └────┬──────┘               │
+│                       │               │                      │
+│                       ▼               ▼                      │
+│              ┌────────────────────────────┐                  │
+│              │     PostgreSQL Database     │                  │
+│              │  ┌──────────────────────┐  │                  │
+│              │  │ YouTubeSubscriptions │  │                  │
+│              │  │ MonitoredChannels    │  │                  │
+│              │  │ GoogleOAuthTokens    │  │                  │
+│              │  └──────────────────────┘  │                  │
+│              └────────────────────────────┘                  │
+│                       │               │                      │
+│              ┌────────┘               └────────┐             │
+│              ▼                                 ▼             │
+│     ┌─────────────┐                  ┌──────────────┐       │
+│     │    Redis     │                  │Azure Storage │       │
+│     │(token cache) │                  │  (media)     │       │
+│     └─────────────┘                  └──────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**New components:**
+
+| Component | Where | What |
+|-----------|-------|------|
+| **Google OAuth endpoints** | API project | `/api/auth/google/login`, `/api/auth/google/callback` |
+| **YouTube subscription endpoints** | API project | `/api/v1/youtube/subscriptions`, `/api/v1/youtube/channels/monitor` |
+| **YouTubePollingWorker** | Workers project | BackgroundService that polls monitored channels for new videos |
+| **YouTubeTranscriptWorker** | Workers project | Processes new videos: fetches transcript, extracts vocab via AI |
+| **New DB tables** | Shared/Domain | `GoogleOAuthTokens`, `MonitoredChannels`, `YouTubeVideoImports` |
+| **Subscription picker UI** | WebApp + MAUI | Channel list with toggle to enable/disable monitoring |
+
+**Data flow for auto-import:**
+
+1. User connects Google account → API stores OAuth refresh token
+2. User picks channels to monitor → saved to `MonitoredChannels` table
+3. `YouTubePollingWorker` runs every 30-60 min:
+   - For each monitored channel, calls `playlistItems.list()` (1 quota unit each)
+   - Compares against `YouTubeVideoImports` table to find new videos
+   - Queues new videos for processing
+4. `YouTubeTranscriptWorker` picks up queued videos:
+   - Uses YoutubeExplode to fetch transcript (no API quota!)
+   - Runs `TranscriptFormattingService.SmartCleanup()` (already exists)
+   - Runs AI vocab extraction via `AiService.SendPrompt<T>()` (already exists)
+   - Creates `LearningResource` with transcript + `VocabularyWord` associations
+   - Sets `MediaType = "YouTube Video"`, `MediaUrl = video URL`
+5. User sees new resources in their dashboard
+
+### 5. Cost/Complexity Assessment
+
+| Component | Effort | Risk | Notes |
+|-----------|--------|------|-------|
+| Google OAuth (server-side) | **L** | Medium | New plumbing, security-sensitive |
+| Google OAuth (MAUI client) | **M** | Low | WebAuthenticator → API redirect |
+| Subscription list API | **S** | Low | Straightforward Google API call |
+| Channel picker UI | **M** | Low | Standard list with toggles |
+| DB schema (3 new tables) | **S** | Low | EF Core migration |
+| Polling worker | **M** | Low | Workers project is ready for this |
+| Transcript worker | **S** | Low | All services already exist |
+| Vocab extraction pipeline | **0** | None | Already built — just wire it up |
+| Quota management | **S** | Medium | Need server-side caching + rate limiting |
+| Error handling / resilience | **M** | Medium | API failures, token expiry, missing captions |
+
+**Total: 2-3 sprints** (assuming 1-week sprints with focused effort)
+
+### Biggest Risks
+
+1. **Google OAuth is the critical path.** No external OAuth exists today. This touches auth infrastructure, token storage, and security. Get this right first — everything else is easy.
+
+2. **YoutubeExplode fragility.** It's a scraping library, not an official API. YouTube could break it at any time. Mitigation: version pin, error handling, fallback to "transcript unavailable" state.
+
+3. **Google API quota at scale.** 10,000 units/day is fine for single-user or small scale. At 100+ users, we need server-side polling with shared caching (poll each channel once, share results across all users who monitor it). This is a design decision, not a blocker.
+
+4. **Not all videos have captions.** Auto-generated captions exist for most Korean/English content but not all. The UI needs to gracefully handle "no transcript available" for some videos.
+
+---
+
+## Recommendation
+
+**Do it. Phase it.**
+
+### Phase 1: Manual YouTube Import Enhancement (1 sprint)
+- Add a "Import from YouTube URL" flow that fetches transcript + auto-generates vocabulary
+- This uses 100% existing infrastructure (YoutubeExplode + AI pipeline)
+- No OAuth needed. User pastes a URL, system does the rest.
+- **Delivers value immediately** while Phase 2 is built.
+
+### Phase 2: Google Account Connection (1-2 sprints)
+- Implement Google OAuth on the API (server-side)
+- Add subscription listing endpoint
+- Build channel picker UI (WebApp first, then MAUI)
+- Store user's selected channels in DB
+
+### Phase 3: Auto-Import Worker (1 sprint)
+- Implement `YouTubePollingWorker` in Workers project
+- Implement `YouTubeTranscriptWorker` for processing
+- Add notification when new resources are auto-created
+- Dashboard shows "New from YouTube" section
+
+**Phase 1 is a weekend project. Phase 2 is the real work. Phase 3 is straightforward once Phase 2 exists.**
+
+---
+
+## Key Technical Decisions Needed
+
+1. **OAuth strategy:** Server-side (recommended) vs. client-side per-platform?
+2. **Polling frequency:** Every 30 min? Every hour? User-configurable?
+3. **Auto-import scope:** All new videos from monitored channels, or let user approve each?
+4. **Quota strategy:** Per-user API calls vs. shared server-side polling?
+
+---
+
+*Filed by Zoe. Ready for Captain's review.*
+# YouTube Integration — API & Library Research
+
+**Author:** Wash (Backend Dev)  
+**Date:** 2026-03-21  
+**Status:** RESEARCH COMPLETE — Awaiting Captain Approval  
+**Related Feature:** YouTube subscription monitoring + transcript auto-import
+
+---
+
+## Executive Summary
+
+YouTube integration is feasible with a two-library strategy: **Google.Apis.YouTube.v3** for authenticated subscription/channel management via official OAuth, and **YoutubeExplode** for transcript extraction from any public video without owner permission. The official Captions API is a dead end for our use case (requires video ownership). Background polling can be eliminated entirely using YouTube's **PubSubHubbub** push notifications.
+
+---
+
+## 1. YouTube Data API v3 for .NET
+
+### Package: `Google.Apis.YouTube.v3`
+- **Latest version:** 1.73.0.4053 (Feb 2026)
+- **TFM support:** netstandard2.0, net6.0, net10.0 (computed compatible)
+- **Dependencies:** Google.Apis (≥ 1.73.0), Google.Apis.Auth (≥ 1.73.0)
+- **Actively maintained:** Yes — 4 releases in the last 3 months
+- **NuGet:** https://www.nuget.org/packages/Google.Apis.YouTube.v3
+
+### What It Supports (Relevant to Us)
+
+| API Endpoint | Quota Cost | Auth Required | Use Case |
+|---|---|---|---|
+| `subscriptions.list(mine=true)` | **1 unit** | Yes (OAuth) | List user's subscribed channels |
+| `channels.list` | **1 unit** | No (API key) | Get channel metadata |
+| `videos.list` | **1 unit** | No (API key) | Get video metadata, duration, publish date |
+| `search.list` | **100 units** | No (API key) | Search for videos (expensive!) |
+| `captions.list` | **50 units** | Yes (OAuth) | List caption tracks for a video |
+| `captions.download` | **200 units** | Yes (OAuth) | Download caption track content |
+
+### ⚠️ Captions API Limitation — CRITICAL
+
+The official Captions API (`captions.list`, `captions.download`) requires the **`youtube.force-ssl`** scope and **only works for videos the authenticated user owns or is a content partner for.** Third-party video captions return `403 Forbidden`.
+
+> **This means the official API CANNOT be used to download captions/transcripts from Korean YouTube channels the user subscribes to.**
+
+The `captions.list` call *does* return metadata (track language, auto-generated status) for any video, but `captions.download` requires ownership. This is by design — Google treats caption files as content owned by the video creator.
+
+### What We'd Use It For
+- ✅ Listing the user's YouTube subscriptions
+- ✅ Getting channel metadata (name, thumbnail, upload playlist ID)
+- ✅ Getting video metadata (title, duration, publish date, thumbnail)
+- ✅ Monitoring upload playlists for new videos
+- ❌ **NOT** for downloading transcripts (see Section 2)
+
+---
+
+## 2. Transcript/Caption Extraction — The Real Solution
+
+### The Problem
+YouTube auto-generates captions (ASR tracks) for most videos, and viewers can see them. But the API locks download behind video ownership. We need another way.
+
+### Solution: `YoutubeExplode`
+
+**Package:** `YoutubeExplode` by Tyrrrz  
+- **Latest version:** 6.5.7 (Feb 2026)  
+- **NuGet downloads:** ~600K+ cumulative  
+- **TFM support:** netstandard2.0, net6.0, net7.0, **net10.0** ✅  
+- **GitHub stars:** 14.5K+ (YoutubeDownloader)  
+- **Status:** Maintenance mode (stable, bug fixes only)  
+- **NuGet:** https://www.nuget.org/packages/YoutubeExplode  
+- **License:** LGPL-3.0 (important — see Legal section)
+
+### How It Works
+YoutubeExplode reverse-engineers YouTube's internal/private endpoints (not the official API). It scrapes page data to extract metadata, streams, and **closed captions** — including auto-generated ASR tracks.
+
+### Closed Caption API (No Auth Required)
+
+```csharp
+using YoutubeExplode;
+
+var youtube = new YoutubeClient();
+var videoUrl = "https://youtube.com/watch?v=VIDEO_ID";
+
+// Get available caption tracks (including auto-generated)
+var trackManifest = await youtube.Videos.ClosedCaptions.GetManifestAsync(videoUrl);
+
+// Find Korean auto-generated captions
+var trackInfo = trackManifest.GetByLanguage("ko");
+
+// Get full caption text with timestamps
+var track = await youtube.Videos.ClosedCaptions.GetAsync(trackInfo);
+
+foreach (var caption in track.Captions)
+{
+    Console.WriteLine($"[{caption.Offset}] {caption.Text}");
+}
+
+// Or download as SRT file
+await youtube.Videos.ClosedCaptions.DownloadAsync(trackInfo, "captions.srt");
+```
+
+### Also Provides (Bonus)
+- Video metadata (title, author, duration, thumbnails)
+- Channel metadata and upload listings
+- Playlist enumeration
+- Video stream downloads (not needed for our use case)
+
+### YoutubeExplode vs Official API Comparison
+
+| Capability | Official API | YoutubeExplode |
+|---|---|---|
+| Subscriptions list | ✅ (OAuth) | ❌ |
+| Video metadata | ✅ | ✅ |
+| Channel uploads | ✅ | ✅ |
+| Caption tracks list | ✅ (50 units) | ✅ (free) |
+| Caption download (own videos) | ✅ (200 units) | ✅ (free) |
+| Caption download (others' videos) | ❌ 403 | ✅ (free) |
+| Auto-generated ASR captions | ❌ (list only) | ✅ (download) |
+| Rate limits | 10K units/day | None (IP-based) |
+| Auth required | OAuth + API key | None |
+| Stability | Stable (official) | Breakable (scraping) |
+
+### ⚠️ Risks & Mitigations
+
+1. **Scraping fragility:** YouTube changes internal APIs periodically. YoutubeExplode needs updates to keep working. Mitigation: The library is actively maintained and widely used. Pin version, test monthly.
+
+2. **Terms of Service:** Scraping may violate YouTube ToS (Section 5.1.H). Mitigation: This is a personal learning tool, not a commercial content aggregation service. Same approach as youtube-transcript-api (Python) which is widely used.
+
+3. **LGPL-3.0 License:** Requires disclosure if we modify the library source. Using it as a NuGet dependency (unmodified) is fine for any license type. No concerns for our use case.
+
+4. **No .NET-native alternative:** NuGet search for "youtube transcript" returns **0 packages**. YoutubeExplode is the only viable .NET option. The Python `youtube-transcript-api` library has no .NET port.
+
+### Recommendation
+**Use both libraries together:**
+- `Google.Apis.YouTube.v3` — For OAuth-authenticated subscription management (what channels the user follows)
+- `YoutubeExplode` — For transcript extraction from any public video (the actual content import)
+
+---
+
+## 3. OAuth 2.0 for Google in .NET
+
+### Current Auth Stack
+The API currently uses:
+- **JWT Bearer** authentication (SymmetricSecurityKey, HmacSha256)
+- **DevAuthHandler** fallback for local development
+- **ASP.NET Identity** for user management (ApplicationUser)
+- No external OAuth providers configured
+
+### Adding Google OAuth
+
+**Required Packages:**
+| Package | Version | Purpose |
+|---|---|---|
+| `Microsoft.AspNetCore.Authentication.Google` | 10.0.x | Google sign-in for ASP.NET Core |
+| `Google.Apis.Auth` | 1.73.0 | Google OAuth token handling |
+| `Google.Apis.Auth.AspNetCore3` | 1.73.0 | ASP.NET Core OIDC integration + `IGoogleAuthProvider` |
+| `Google.Apis.YouTube.v3` | 1.73.0.4053 | YouTube API client |
+
+### Architecture: Two Distinct Auth Concerns
+
+**Concern A: User Login (Optional — Could Skip)**
+Adding Google as an external login provider to ASP.NET Identity:
+```csharp
+builder.Services.AddAuthentication()
+    .AddGoogle(options =>
+    {
+        options.ClientId = config["Google:ClientId"];
+        options.ClientSecret = config["Google:ClientSecret"];
+    });
+```
+This lets users *sign in* with Google. **We may not need this** — users already have SentenceStudio accounts.
+
+**Concern B: YouTube API Access (Required)**
+This is what we actually need. The user must grant our app permission to read their YouTube subscriptions. This requires:
+1. OAuth 2.0 consent flow with `youtube.readonly` scope
+2. Storing the Google refresh token alongside the user's SentenceStudio account
+3. Using the refresh token to make YouTube API calls server-side
+
+### Recommended Auth Flow
+
+```
+User clicks "Connect YouTube" in app
+  → MAUI WebAuthenticator opens Google consent screen
+  → User grants youtube.readonly scope
+  → Google redirects to our API callback with auth code
+  → API exchanges auth code for access + refresh tokens
+  → API stores encrypted refresh token in DB (linked to UserProfile)
+  → API can now call YouTube API on behalf of user
+```
+
+### Integration with Existing JWT Auth
+The Google OAuth flow is **separate from** our JWT auth. The user authenticates to our API with their existing JWT, then initiates a Google OAuth consent flow to link their YouTube account. The Google tokens are stored server-side and used exclusively for YouTube API calls — they never replace the user's SentenceStudio JWT.
+
+### Google Cloud Console Setup Required
+1. Create OAuth 2.0 Client ID (Web Application type)
+2. Enable YouTube Data API v3
+3. Configure authorized redirect URIs (API callback endpoint)
+4. Configure OAuth consent screen (youtube.readonly scope)
+
+### Scopes Needed
+| Scope | Purpose |
+|---|---|
+| `https://www.googleapis.com/auth/youtube.readonly` | Read subscriptions, playlists, video metadata |
+
+We do NOT need:
+- `youtube.force-ssl` (only needed for captions API, which we're using YoutubeExplode for)
+- `youtube.upload` or `youtube` (full write access)
+
+---
+
+## 4. Background Polling Architecture
+
+### Option A: Polling (Simple but Quota-Hungry)
+
+**How it works:**
+- Periodic background job checks each subscribed channel's uploads playlist
+- `playlistItems.list` with `maxResults=5` ordered by date → 1 unit per channel
+- Compare against last-known video IDs
+
+**Quota math (10,000 units/day default):**
+| User count | Channels per user | Poll interval | Daily cost |
+|---|---|---|---|
+| 1 user | 20 channels | Every 6 hours | 80 units |
+| 1 user | 20 channels | Every 1 hour | 480 units |
+| 10 users | 20 channels each | Every 6 hours | 800 units |
+| 100 users | 20 channels each | Every 6 hours | 8,000 units |
+
+**Verdict:** Fine for single-user or small-scale use. Breaks at 100+ users.
+
+### Option B: PubSubHubbub Push Notifications (Recommended)
+
+**How it works:**
+YouTube supports PubSubHubbub (WebSub) push notifications. When a subscribed channel uploads or updates a video, YouTube pushes an Atom feed notification to our webhook endpoint. **Zero polling. Zero quota usage.**
+
+**Subscribe to channel notifications:**
+```
+POST https://pubsubhubbub.appspot.com/subscribe
+  hub.mode=subscribe
+  hub.callback=https://our-api.com/api/youtube/webhook
+  hub.topic=https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
+```
+
+**Notification payload (Atom XML):**
+```xml
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <entry>
+    <yt:videoId>VIDEO_ID</yt:videoId>
+    <yt:channelId>CHANNEL_ID</yt:channelId>
+    <title>Video title</title>
+    <published>2026-03-21T12:00:00+00:00</published>
+  </entry>
+</feed>
+```
+
+**Events we receive:**
+- ✅ Channel uploads a new video
+- ✅ Channel updates a video's title
+- ✅ Channel updates a video's description
+
+**Requirements:**
+- Public HTTPS callback URL (Aspire + reverse proxy or Azure deployment)
+- Callback must respond to GET verification requests (hub.challenge echo)
+- Subscriptions expire (typically 5-10 days) — must auto-renew
+
+### Recommended Hybrid Architecture
+
+```
+┌─────────────────┐    ┌──────────────────────────┐
+│  User connects   │───▶│  Google OAuth consent     │
+│  YouTube account │    │  (youtube.readonly scope) │
+└─────────────────┘    └──────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────┐    ┌──────────────────────────┐
+│  API fetches     │◀───│  Store refresh token in   │
+│  subscriptions   │    │  YouTubeConnection table  │
+└─────────────────┘    └──────────────────────────┘
+         │
+         ▼
+┌─────────────────┐    ┌──────────────────────────┐
+│  For each channel│───▶│  Subscribe to PubSubHub   │
+│  register webhook│    │  push notifications       │
+└─────────────────┘    └──────────────────────────┘
+                                    │
+                                    ▼ (when new video detected)
+┌─────────────────┐    ┌──────────────────────────┐
+│  YoutubeExplode  │───▶│  Extract transcript       │
+│  fetch captions  │    │  (auto-generated Korean)  │
+└─────────────────┘    └──────────────────────────┘
+         │
+         ▼
+┌─────────────────┐    ┌──────────────────────────┐
+│  AI vocabulary   │───▶│  Create LearningResource  │
+│  extraction      │    │  + VocabularyWord records  │
+└─────────────────┘    └──────────────────────────┘
+```
+
+### Workers Project
+The existing `SentenceStudio.Workers` project has a placeholder `BackgroundService`. This is the ideal home for:
+- **WebhookRenewalService** — Periodically renews PubSubHubbub subscriptions (every 4 days)
+- **TranscriptProcessingService** — Queued processing of new video notifications → transcript extraction → vocabulary extraction
+- **SubscriptionSyncService** — Periodic sync of user's YouTube subscriptions (daily, low quota cost)
+
+---
+
+## 5. Data Model Proposal
+
+### Existing Models (No Changes Needed)
+- `LearningResource` — Already has `MediaType`, `MediaUrl`, `Transcript`, `Language`, `Tags`, `UserProfileId` — perfect for storing imported YouTube videos
+- `VocabularyWord` — Already supports `NativeLanguageTerm`, `TargetLanguageTerm`, `Language`, `Tags`
+- `ResourceVocabularyMapping` — Already provides LearningResource ↔ VocabularyWord junction
+
+### New Entities Required
+
+#### YouTubeConnection (1 per user)
+Stores the OAuth connection between a SentenceStudio user and their Google/YouTube account.
+
+```csharp
+[Table("YouTubeConnection")]
+public class YouTubeConnection
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    
+    // FK to UserProfile
+    public string UserProfileId { get; set; } = string.Empty;
+    
+    // Google account info
+    public string GoogleAccountId { get; set; } = string.Empty; // Google sub claim
+    public string GoogleEmail { get; set; } = string.Empty;
+    public string YouTubeChannelId { get; set; } = string.Empty;
+    
+    // OAuth tokens (encrypted at rest)
+    public string EncryptedRefreshToken { get; set; } = string.Empty;
+    public DateTime TokenExpiresAt { get; set; }
+    
+    // Connection state
+    public bool IsActive { get; set; } = true;
+    public DateTime ConnectedAt { get; set; }
+    public DateTime? DisconnectedAt { get; set; }
+    
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+```
+
+#### YouTubeSubscription (tracks which channels user follows)
+```csharp
+[Table("YouTubeSubscription")]
+public class YouTubeSubscription
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    
+    public string UserProfileId { get; set; } = string.Empty;
+    public string YouTubeConnectionId { get; set; } = string.Empty;
+    
+    // Channel info (denormalized for display)
+    public string ChannelId { get; set; } = string.Empty;
+    public string ChannelTitle { get; set; } = string.Empty;
+    public string? ChannelThumbnailUrl { get; set; }
+    public string? UploadPlaylistId { get; set; } // "UU" + channelId[2:]
+    
+    // Monitoring config
+    public bool IsMonitored { get; set; } = false; // User opted in
+    public bool AutoImportTranscripts { get; set; } = false;
+    public string? TargetLanguage { get; set; } // e.g., "ko" — filter for Korean content
+    
+    // PubSubHubbub subscription
+    public string? WebhookSubscriptionId { get; set; }
+    public DateTime? WebhookExpiresAt { get; set; }
+    
+    // Tracking
+    public string? LastKnownVideoId { get; set; }
+    public DateTime? LastCheckedAt { get; set; }
+    
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+```
+
+#### YouTubeVideoImport (tracks individual video processing)
+```csharp
+[Table("YouTubeVideoImport")]
+public class YouTubeVideoImport
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    
+    public string UserProfileId { get; set; } = string.Empty;
+    public string YouTubeSubscriptionId { get; set; } = string.Empty;
+    
+    // Video info
+    public string VideoId { get; set; } = string.Empty;
+    public string VideoTitle { get; set; } = string.Empty;
+    public string ChannelTitle { get; set; } = string.Empty;
+    public string? ThumbnailUrl { get; set; }
+    public TimeSpan? Duration { get; set; }
+    public DateTime PublishedAt { get; set; }
+    
+    // Processing state
+    public YouTubeImportStatus Status { get; set; } = YouTubeImportStatus.Pending;
+    public string? ErrorMessage { get; set; }
+    
+    // Link to created LearningResource (when complete)
+    public string? LearningResourceId { get; set; }
+    
+    // Caption info
+    public string? CaptionLanguage { get; set; }
+    public bool IsAutoGenerated { get; set; }
+    public int? WordCount { get; set; }
+    public int? VocabularyExtracted { get; set; }
+    
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public enum YouTubeImportStatus
+{
+    Pending,            // Detected, not yet processed
+    FetchingTranscript, // Downloading captions via YoutubeExplode
+    ExtractingVocab,    // AI processing transcript for vocabulary
+    Complete,           // LearningResource created with vocab
+    Failed,             // Error during processing
+    Skipped,            // No captions available or user skipped
+    NoCaptions          // Video has no caption tracks
+}
+```
+
+### Entity Relationship Diagram
+
+```
+UserProfile (existing)
+    │
+    ├──1:1── YouTubeConnection
+    │            │
+    │            └──1:N── YouTubeSubscription
+    │                        │
+    │                        └──1:N── YouTubeVideoImport
+    │                                    │
+    │                                    └──1:1── LearningResource (existing)
+    │                                                │
+    │                                                └──N:M── VocabularyWord (existing)
+    │                                                          (via ResourceVocabularyMapping)
+```
+
+### CoreSync Considerations
+- **YouTubeConnection:** Server-only. Refresh tokens should NOT sync to mobile devices. Store exclusively in server DB.
+- **YouTubeSubscription:** Could sync to mobile for display purposes (channel list, monitoring status). No sensitive data.
+- **YouTubeVideoImport:** Could sync to mobile for import history display. Links to synced LearningResource.
+- **LearningResource:** Already synced. YouTube-imported resources would have `MediaType = "YouTube Video"` and `MediaUrl = "https://youtube.com/watch?v=VIDEO_ID"`.
+
+### Migration Approach
+Standard EF Core migration — all additive, no existing table changes:
+```bash
+dotnet ef migrations add AddYouTubeIntegration \
+  --project src/SentenceStudio.Shared \
+  --startup-project src/SentenceStudio.Shared
+```
+
+---
+
+## 6. NuGet Package Summary
+
+### Required Packages (API/Server)
+
+| Package | Version | Project | Purpose |
+|---|---|---|---|
+| `Google.Apis.YouTube.v3` | 1.73.0.4053 | API | YouTube Data API client |
+| `Google.Apis.Auth` | 1.73.0 | API | OAuth token management |
+| `Google.Apis.Auth.AspNetCore3` | 1.73.0 | API | ASP.NET Core OIDC integration |
+| `YoutubeExplode` | 6.5.7 | Workers | Transcript extraction |
+
+### Optional Packages
+
+| Package | Version | Purpose |
+|---|---|---|
+| `Microsoft.AspNetCore.Authentication.Google` | 10.0.x | If adding Google as login provider (not strictly needed) |
+
+### Package Compatibility Notes
+- All packages target netstandard2.0 or net6.0+ → compatible with our net10.0 targets
+- YoutubeExplode explicitly lists net10.0 as compatible TFM
+- Google.Apis packages are net10.0 computed-compatible via netstandard2.0
+
+---
+
+## 7. API Endpoint Sketch
+
+```
+POST   /api/youtube/connect          → Initiate OAuth flow (returns Google consent URL)
+GET    /api/youtube/callback          → OAuth callback (exchange code for tokens)
+DELETE /api/youtube/disconnect        → Revoke Google access, delete connection
+GET    /api/youtube/subscriptions     → List user's YouTube subscriptions
+PUT    /api/youtube/subscriptions/{id}/monitor  → Toggle monitoring for a channel
+GET    /api/youtube/imports           → List video import history
+POST   /api/youtube/imports/{videoId} → Manually trigger import for a specific video
+POST   /api/youtube/webhook           → PubSubHubbub callback (receives push notifications)
+GET    /api/youtube/webhook           → PubSubHubbub verification (hub.challenge echo)
+```
+
+---
+
+## 8. Risks & Open Questions
+
+### Risks
+1. **YoutubeExplode breakage:** YouTube internal API changes could temporarily break transcript extraction. Mitigation: Version pinning + monthly smoke test.
+2. **Quota limits at scale:** 10K units/day is sufficient for 1-10 users. Beyond that, need quota extension request to Google.
+3. **PubSubHubbub requires public URL:** Dev/local testing needs ngrok or similar tunnel. Production needs public-facing API.
+4. **Token security:** Google refresh tokens are long-lived credentials. Must encrypt at rest in DB.
+5. **Auto-generated captions quality:** ASR captions have errors, especially for Korean. Mitigation: AI vocab extraction can handle noisy input.
+
+### Open Questions for Captain
+1. **Login integration?** — Should "Connect YouTube" also allow Google login to SentenceStudio? Or just YouTube API access?
+2. **Monitoring granularity?** — Per-channel or all-or-nothing? Proposed: per-channel toggle.
+3. **Auto-import vs. manual?** — Auto-import all new videos from monitored channels? Or present a list for user to pick?
+4. **Language filter?** — Only import videos with Korean captions? Or all languages?
+5. **Workers deployment?** — PubSubHubbub needs a publicly accessible webhook. Is this tied to the Azure deployment work?
+
+---
+
+## 9. Implementation Phases (Suggested)
+
+### Phase 1: OAuth + Subscription Listing
+- Google Cloud Console setup
+- OAuth flow endpoints
+- YouTubeConnection + YouTubeSubscription entities
+- Fetch and display user's subscriptions
+- **Effort:** 2-3 days
+
+### Phase 2: Transcript Import (Manual)
+- YoutubeExplode integration in Workers
+- Manual "Import this video" button
+- Transcript extraction → LearningResource creation
+- AI vocabulary extraction from transcript
+- **Effort:** 2-3 days
+
+### Phase 3: Push Notification Monitoring
+- PubSubHubbub webhook endpoint
+- Subscription registration/renewal background service
+- Auto-import pipeline for monitored channels
+- **Effort:** 2-3 days
+
+### Phase 4: UI (Kaylee's domain)
+- YouTube connection settings page
+- Subscription browser with monitoring toggles
+- Import history and status display
+- **Effort:** 3-4 days
+
+**Total estimated effort:** 9-13 days across backend + frontend
+
+---
+
+*Wash out. The course is plotted, Captain. Two libraries, one webhook, and we're hauling transcripts like cargo.* 🍂
+# Decision: Change Password Full-Stack Pattern
+
+**Date:** 2026-07-22  
+**Author:** Kaylee  
+**Status:** IMPLEMENTED  
+
+## Context
+Captain needed password change on the Profile page. The app has a 3-layer auth pattern: IAuthService interface → ServerAuthService (direct Identity) for web, IdentityAuthService (API calls) for mobile.
+
+## Decision
+Followed the established DeleteAccount pattern: new method on IAuthService, direct UserManager call in ServerAuthService, POST to API in IdentityAuthService, no-op in DevAuthService.
+
+## Key Details
+- API endpoint: `POST /api/auth/change-password` (requires auth)
+- ServerAuthService throws `InvalidOperationException` with Identity errors (matches RegisterAsync pattern)
+- IdentityAuthService returns bool (error details not surfaced to client — future improvement if needed)
+- Profile UI validates match + min length client-side before calling service
+
+## Impact
+- New method on IAuthService — any future implementations must include `ChangePasswordAsync`
+- API endpoint is protected by `RequireAuthorization()` — JWT required
