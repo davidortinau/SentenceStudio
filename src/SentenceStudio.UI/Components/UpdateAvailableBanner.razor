@@ -1,0 +1,36 @@
+@inject SentenceStudio.Abstractions.IPreferencesService Preferences
+
+@if (isVisible)
+{
+    <div class="alert alert-info d-flex align-items-center justify-content-between m-2 mb-0 py-2 px-3" 
+         role="alert" style="font-size: 0.85rem;">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-arrow-up-circle"></i>
+            <span>Version @LatestVersion is available.</span>
+        </div>
+        <button type="button" class="btn-close btn-close-sm ms-2" 
+                @onclick="Dismiss" aria-label="Close"
+                style="font-size: 0.65rem;"></button>
+    </div>
+}
+
+@code {
+    [Parameter] public string LatestVersion { get; set; } = "";
+    [Parameter] public bool IsUpdateAvailable { get; set; }
+
+    private bool isVisible;
+    private bool isDismissed;
+
+    protected override void OnParametersSet()
+    {
+        var dismissedVersion = Preferences.Get("dismissed_update_version", "");
+        isDismissed = dismissedVersion == LatestVersion;
+        isVisible = IsUpdateAvailable && !isDismissed;
+    }
+
+    private void Dismiss()
+    {
+        Preferences.Set("dismissed_update_version", LatestVersion);
+        isVisible = false;
+    }
+}

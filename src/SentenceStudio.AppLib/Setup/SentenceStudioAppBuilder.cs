@@ -164,5 +164,11 @@ public static class SentenceStudioAppBuilder
         
         // Release notes service (reads from embedded resources in Shared assembly)
         services.AddSingleton<ReleaseNotesService>();
+
+        // Version check service — calls API to detect available updates (mobile only)
+        services.AddHttpClient<VersionCheckService>(client =>
+        {
+            client.BaseAddress = new Uri("https+http://api");
+        });
     }
 }

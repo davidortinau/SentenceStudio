@@ -1,10 +1,12 @@
 @inherits LayoutComponentBase
+@using Microsoft.Extensions.DependencyInjection
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
 @inject UserProfileRepository ProfileRepo
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
+@inject IServiceProvider ServiceProvider
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -28,6 +30,10 @@
     }
 
     <div class="d-flex flex-column flex-grow-1 overflow-hidden">
+        @if (isUpdateAvailable)
+        {
+            <UpdateAvailableBanner LatestVersion="@latestVersion" IsUpdateAvailable="true" />
+        }
         @* Main content — PageHeader renders as sticky mobile navbar inside here *@
         <main class="flex-grow-1 overflow-auto p-3 main-content">
             @Body
@@ -72,6 +78,8 @@
     private string whatsNewTitle = "What's New";
     private string whatsNewVersion = "";
     private string whatsNewContent = "";
+    private bool isUpdateAvailable;
+    private string latestVersion = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,6 +129,7 @@
             if (isAuthenticated)
             {
                 await CheckVersionAndShowWhatsNew();
+                await CheckForAppUpdate();
             }
         }
     }
@@ -157,6 +166,31 @@
         var currentVersion = typeof(MainLayout).Assembly.GetName().Version?.ToString(2) ?? "1.0";
         Preferences.Set("last_seen_version", currentVersion);
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CheckForAppUpdate()
+    {
+        try
+        {
+            // VersionCheckService is only registered on mobile (via AppLib)
+            // Use service provider to optionally resolve — not available on web
+            var versionCheck = ServiceProvider.GetService<SentenceStudio.Services.VersionCheckService>();
+            if (versionCheck == null) return;
+
+            var currentVersion = typeof(MainLayout).Assembly.GetName().Version?.ToString(2) ?? "1.0";
+            await versionCheck.CheckForUpdateAsync(currentVersion);
+            
+            if (versionCheck.IsUpdateAvailable)
+            {
+                isUpdateAvailable = true;
+                latestVersion = versionCheck.LatestVersion;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Version check is non-critical — fail silently
+        }
     }
 
     private string ConvertMarkdownToHtml(string markdown)
