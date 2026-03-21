@@ -93,6 +93,7 @@ else
     [Inject] private ChannelMonitorService? ChannelMonitorSvc { get; set; }
     [Inject] private YouTubeImportService? ImportSvc { get; set; }
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<ChannelDetail> Logger { get; set; } = default!;
@@ -181,13 +182,15 @@ else
 
                 try
                 {
+                    var userId = Preferences.Get("active_profile_id", "");
                     var newChannel = new MonitoredChannel
                     {
                         ChannelUrl = channelUrl,
                         Language = language,
                         CheckIntervalHours = checkIntervalHours,
                         IsActive = isActive,
-                        ChannelHandle = ExtractChannelHandle(channelUrl)
+                        ChannelHandle = ExtractChannelHandle(channelUrl),
+                        UserProfileId = userId
                     };
 
                     // AddAsync resolves channel metadata via YoutubeExplode
