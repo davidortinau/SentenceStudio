@@ -1557,3 +1557,41 @@ h3:focus,
 .resource-associations-list {
     overflow-x: hidden;
 }
+
+/* ============================================
+   ENVIRONMENT BADGE
+   ============================================ */
+
+.env-badge {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 10000;
+    padding: 2px 24px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fff;
+    transform: rotate(45deg) translate(22%, -40%);
+    transform-origin: top right;
+    pointer-events: none;
+    opacity: 0.9;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.env-badge-dev {
+    background: #e67e22;
+}
+
+.env-badge-local {
+    background: #3498db;
+}
+
+/* Safe area adjustment for iOS notch */
+@supports (padding-top: env(safe-area-inset-top)) {
+    .env-badge {
+        top: env(safe-area-inset-top, 0px);
+    }
+}

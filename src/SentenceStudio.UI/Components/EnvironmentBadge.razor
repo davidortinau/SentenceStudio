@@ -1,0 +1,67 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
+@if (!string.IsNullOrEmpty(envLabel))
+{
+    <div class="env-badge env-badge-@envClass" title="@envDetail">
+        @envLabel
+    </div>
+}
+
+@code {
+    private string envLabel = "";
+    private string envClass = "";
+    private string envDetail = "";
+
+    protected override void OnInitialized()
+    {
+        // Check Aspire service discovery env vars (set when launched from Aspire)
+        var aspireApiUrl = Environment.GetEnvironmentVariable("services__api__https__0")
+                        ?? Environment.GetEnvironmentVariable("services__api__http__0");
+
+        // Check config-based API URL
+        var configApiUrl = Configuration["ApiBaseUrl"] ?? "";
+
+        // Check Services fallback section
+        var fallbackUrl = Configuration["Services:api:https:0"] ?? "";
+
+        if (!string.IsNullOrEmpty(aspireApiUrl))
+        {
+            // Aspire is running — dev tunnels or localhost
+            if (aspireApiUrl.Contains("devtunnels.ms"))
+            {
+                envLabel = "DEV TUNNEL";
+                envClass = "dev";
+                envDetail = $"API: {aspireApiUrl}";
+            }
+            else
+            {
+                envLabel = "LOCAL";
+                envClass = "local";
+                envDetail = $"API: {aspireApiUrl}";
+            }
+        }
+        else if (fallbackUrl.Contains("azurecontainerapps.io") || configApiUrl.Contains("azurecontainerapps.io"))
+        {
+            // Production Azure — no badge needed
+            envLabel = "";
+        }
+        else if (configApiUrl.Contains("localhost") || fallbackUrl.Contains("localhost"))
+        {
+            envLabel = "LOCAL";
+            envClass = "local";
+            envDetail = $"API: {(string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl)}";
+        }
+        else
+        {
+            // Fallback: check ASPNETCORE_ENVIRONMENT / DOTNET_ENVIRONMENT
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                   ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+            if (string.Equals(env, "Development", StringComparison.OrdinalIgnoreCase))
+            {
+                envLabel = "DEV";
+                envClass = "dev";
+                envDetail = $"Environment: {env}";
+            }
+        }
+    }
+}
