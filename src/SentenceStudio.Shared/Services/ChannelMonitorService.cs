@@ -150,6 +150,13 @@ public class ChannelMonitorService
 
             await foreach (var video in _youtube.Channels.GetUploadsAsync(channelId))
             {
+                // Skip Shorts (≤60s duration) — they're unsupported (no transcripts)
+                if (video.Duration.HasValue && video.Duration.Value.TotalSeconds <= 60)
+                {
+                    _logger.LogDebug("Skipping Short: {Title} ({Duration}s)", video.Title, video.Duration.Value.TotalSeconds);
+                    continue;
+                }
+
                 results.Add((video.Id.Value, video.Title, video.Url));
 
                 if (results.Count >= maxResults)
