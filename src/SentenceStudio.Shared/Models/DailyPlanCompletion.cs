@@ -6,7 +6,8 @@ namespace SentenceStudio.Shared.Models;
 [Table("DailyPlanCompletions")]
 public class DailyPlanCompletion
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string UserProfileId { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string PlanItemId { get; set; } = string.Empty;
     public string ActivityType { get; set; } = string.Empty;

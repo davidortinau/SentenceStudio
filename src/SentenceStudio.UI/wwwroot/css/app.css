@@ -1595,3 +1595,20 @@ h3:focus,
         top: env(safe-area-inset-top, 0px);
     }
 }
+
+/* ============================================
+   SPIN ANIMATION FOR REFRESH ICON
+   ============================================ */
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}

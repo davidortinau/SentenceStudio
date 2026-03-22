@@ -16,6 +16,8 @@ public class ProgressService : IProgressService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILlmPlanGenerationService _llmPlanService;
     private readonly ILogger<ProgressService> _logger;
+    private readonly UserProfileRepository _userProfileRepo;
+    private readonly ISyncService _syncService;
 
     public ProgressService(
         LearningResourceRepository resourceRepo,
@@ -26,7 +28,9 @@ public class ProgressService : IProgressService
         ProgressCacheService cache,
         IServiceProvider serviceProvider,
         ILlmPlanGenerationService llmPlanService,
-        ILogger<ProgressService> logger)
+        ILogger<ProgressService> logger,
+        UserProfileRepository userProfileRepo,
+        ISyncService syncService)
     {
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
@@ -37,6 +41,8 @@ public class ProgressService : IProgressService
         _serviceProvider = serviceProvider;
         _llmPlanService = llmPlanService;
         _logger = logger;
+        _userProfileRepo = userProfileRepo;
+        _syncService = syncService;
     }
 
     public async Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default)
@@ -403,6 +409,13 @@ public class ProgressService : IProgressService
     {
         _logger.LogDebug("🗑️ ClearCachedPlanAsync for {Date:yyyy-MM-dd}", date);
 
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot clear plan");
+            return;
+        }
+
         // Clear from memory cache
         _cache.InvalidateTodaysPlan();
         _logger.LogDebug("✅ Cleared memory cache");
@@ -413,13 +426,14 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completionsToDelete = await db.DailyPlanCompletions
-            .Where(c => c.Date == date.Date)
+            .Where(c => c.Date == date.Date && c.UserProfileId == userProfile.Id)
             .ToListAsync(ct);
 
         if (completionsToDelete.Any())
         {
             db.DailyPlanCompletions.RemoveRange(completionsToDelete);
             await db.SaveChangesAsync(ct);
+            await _syncService.TriggerSyncAsync();
             _logger.LogDebug("🗑️ Deleted {Count} DailyPlanCompletion records from database", completionsToDelete.Count);
         }
 
@@ -429,6 +443,14 @@ public class ProgressService : IProgressService
     public async Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
     {
         _logger.LogDebug("📊 MarkPlanItemCompleteAsync - planItemId={PlanItemId}, minutesSpent={MinutesSpent}", planItemId, minutesSpent);
+
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot mark plan item complete");
+            return;
+        }
 
         // CRITICAL: Use UTC date to match plan generation
         var today = DateTime.UtcNow.Date;
@@ -468,7 +490,7 @@ public class ProgressService : IProgressService
 
         // Check if record already exists
         var existing = await db.DailyPlanCompletions
-            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId, ct);
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId && c.UserProfileId == userProfile.Id, ct);
 
         if (existing != null)
         {
@@ -486,6 +508,8 @@ public class ProgressService : IProgressService
             _logger.LogDebug("💾 Creating new completion record in database");
             var completion = new DailyPlanCompletion
             {
+                Id = Guid.NewGuid().ToString(),
+                UserProfileId = userProfile.Id,
                 Date = today,
                 PlanItemId = planItemId,
                 ActivityType = item.ActivityType.ToString(),
@@ -506,7 +530,8 @@ public class ProgressService : IProgressService
         }
 
         await db.SaveChangesAsync(ct);
-        _logger.LogDebug("✅ Database updated");
+        await _syncService.TriggerSyncAsync();
+        _logger.LogDebug("✅ Database updated and sync triggered");
 
         // Update cache
         var updatedItem = item with
@@ -543,6 +568,14 @@ public class ProgressService : IProgressService
     {
         _logger.LogDebug("📊 UpdatePlanItemProgressAsync - planItemId={PlanItemId}, minutesSpent={MinutesSpent}", planItemId, minutesSpent);
 
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot update plan item progress");
+            return;
+        }
+
         // CRITICAL: Use UTC date to match plan generation
         var today = DateTime.UtcNow.Date;
         _logger.LogDebug("📅 Using UTC date: {Today:yyyy-MM-dd}", today);
@@ -552,14 +585,15 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var existing = await db.DailyPlanCompletions
-            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId, ct);
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId && c.UserProfileId == userProfile.Id, ct);
 
         if (existing != null)
         {
             existing.MinutesSpent = minutesSpent;
             existing.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes (cache-independent)", minutesSpent);
+            await _syncService.TriggerSyncAsync();
+            _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes and synced", minutesSpent);
         }
         else
         {
@@ -610,12 +644,20 @@ public class ProgressService : IProgressService
     {
         _logger.LogDebug("🔧 Enriching plan with completion data for {Date:yyyy-MM-dd}", plan.GeneratedForDate);
 
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot enrich plan");
+            return plan;
+        }
+
         // Load completion data from database
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completions = await db.DailyPlanCompletions
-            .Where(c => c.Date == plan.GeneratedForDate.Date)
+            .Where(c => c.Date == plan.GeneratedForDate.Date && c.UserProfileId == userProfile.Id)
             .ToListAsync(ct);
 
         _logger.LogDebug("📊 Found {Count} completion records", completions.Count);
@@ -783,6 +825,14 @@ public class ProgressService : IProgressService
     {
         _logger.LogDebug("🏭️ Initializing DailyPlanCompletion records for {Count} plan items", plan.Items.Count);
 
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot initialize plan completion records");
+            return;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -790,12 +840,14 @@ public class ProgressService : IProgressService
         {
             // Check if record already exists
             var existing = await db.DailyPlanCompletions
-                .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id, ct);
+                .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id && c.UserProfileId == userProfile.Id, ct);
 
             if (existing == null)
             {
                 var completion = new DailyPlanCompletion
                 {
+                    Id = Guid.NewGuid().ToString(),
+                    UserProfileId = userProfile.Id,
                     Date = plan.GeneratedForDate.Date,
                     PlanItemId = item.Id,
                     ActivityType = item.ActivityType.ToString(),
@@ -821,7 +873,8 @@ public class ProgressService : IProgressService
         }
 
         await db.SaveChangesAsync(ct);
-        _logger.LogDebug("💾 Initialized {Count} DailyPlanCompletion records", plan.Items.Count);
+        await _syncService.TriggerSyncAsync();
+        _logger.LogDebug("💾 Initialized {Count} DailyPlanCompletion records and synced", plan.Items.Count);
     }
 
     /// <summary>
@@ -832,11 +885,19 @@ public class ProgressService : IProgressService
     {
         _logger.LogDebug("🔨 Attempting to reconstruct plan from database for {Date:yyyy-MM-dd}", date);
 
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot reconstruct plan");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completions = await db.DailyPlanCompletions
-            .Where(c => c.Date == date.Date)
+            .Where(c => c.Date == date.Date && c.UserProfileId == userProfile.Id)
             .OrderBy(c => c.Priority)
             .ToListAsync(ct);
 

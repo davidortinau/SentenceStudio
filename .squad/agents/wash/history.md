@@ -480,3 +480,79 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 
 **Key Decision:** Multi-platform service with constructor-based dependency injection for asset loading. Server and MAUI use different constructors to provide filesystem or MauiAsset access without conditional compilation headaches in the service itself.
 
+
+## 2026-03-22: Fixed CoreSync Data Gaps (DailyPlanCompletion & UserActivity)
+
+### Problem
+Captain reported 4 data sync issues between mobile (iOS) and web (same account `dave@ortinau.com`):
+1. Today's Plan progress not syncing (minutes spent differ)
+2. Streak badge inconsistency (mobile: 1 day, web: none)
+3. Vocabulary count mismatch (mobile: 2805, web: 2798)
+4. Import history not syncing (2 video imports on mobile missing on web)
+
+### Root Causes Identified
+1. **`DailyPlanCompletion` missing `UserProfileId`** - All users' plan progress was stored in same table with no isolation
+2. **`DailyPlanCompletion` used int PK** - CoreSync requires string GUID PKs for conflict-free sync
+3. **`DailyPlanCompletion` NOT registered in `SharedSyncRegistration`** - Even with correct PK, wouldn't sync
+4. **`UserActivity` used int PK and nullable `UserProfileId`** - Streak calculation affected (mixes users' activity)
+5. **No `TriggerSyncAsync()` calls** - Even after `SaveChangesAsync()` in ProgressService
+6. **VideoImport/MonitoredChannel** - Already added to sync registration recently, but needed verification
+
+### Solution Implemented
+1. **Updated Models:**
+   - `DailyPlanCompletion`: Changed `Id` from `int` to `string`, added required `UserProfileId` field
+   - `UserActivity`: Changed `Id` from `int` to `string`, made `UserProfileId` required (was nullable)
+
+2. **Updated ApplicationDbContext:**
+   - Moved `DailyPlanCompletion` and `UserActivity` from "Non-synced entities" to "Synced entities" section
+   - Configured both with `ValueGeneratedNever()` for string GUID PKs
+
+3. **Updated SharedSyncRegistration:**
+   - Added `DailyPlanCompletion` to both SQLite and PostgreSQL sync configurations
+   - Added `UserActivity` to both SQLite and PostgreSQL sync configurations
+
+4. **Updated ProgressService:**
+   - Injected `UserProfileRepository` and `ISyncService` dependencies
+   - Added `UserProfileId` filtering in ALL queries: `ClearCachedPlanAsync`, `MarkPlanItemCompleteAsync`, `UpdatePlanItemProgressAsync`, `EnrichPlanWithCompletionDataAsync`, `InitializePlanCompletionRecordsAsync`, `ReconstructPlanFromDatabase`
+   - Added `TriggerSyncAsync()` calls after every `SaveChangesAsync()` in:
+     - `ClearCachedPlanAsync`
+     - `MarkPlanItemCompleteAsync`
+     - `UpdatePlanItemProgressAsync`
+     - `InitializePlanCompletionRecordsAsync`
+   - Set `Id = Guid.NewGuid().ToString()` and `UserProfileId = userProfile.Id` for new records
+
+5. **Updated UserActivityRepository:**
+   - Fixed `SaveAsync()` to check `!string.IsNullOrEmpty(item.Id)` instead of `item.Id != 0`
+   - Added GUID generation for new records: `if (string.IsNullOrEmpty(item.Id)) item.Id = Guid.NewGuid().ToString();`
+   - Already had `TriggerSyncAsync()` call - retained
+
+6. **Created EF Core Migrations:**
+   - PostgreSQL: `20260322012812_SyncDailyPlanAndUserActivity.cs` - AlterColumn for both tables
+   - SQLite: `20260322012812_SyncDailyPlanAndUserActivity.cs` - Recreate tables with data migration (SQLite doesn't support ALTER COLUMN type changes)
+   - Both migrations convert int PKs → string GUID PKs and add/fix `UserProfileId`
+
+### Impact
+- **DailyPlanCompletion now syncs** → Today's Plan progress will sync between mobile and web
+- **UserActivity now syncs** → Streak badges will be consistent (calculated from synced activities)
+- **UserProfileId isolation** → Multi-user data won't mix
+- **Existing data preserved** → Migrations backfill UserProfileId to first profile and generate GUIDs
+- **VideoImport/MonitoredChannel** → Already registered, sync should work
+
+### Next Steps for Testing
+1. Run migrations on both platforms (mobile will auto-migrate on next launch, web needs manual `dotnet ef database update`)
+2. Test scenario: Make progress on Today's Plan on mobile → sync → verify same progress on web
+3. Test scenario: Complete activity on web → sync → verify streak updates on mobile
+4. Monitor CoreSync logs during testing
+
+### Migration Challenges
+- Multi-TFM projects (`TargetFrameworks`) don't work with `dotnet ef migrations add` - had to create temp single-TFM `.csproj` files
+- SQLite doesn't support `ALTER COLUMN` type changes - had to recreate tables with data copy
+- Workaround: Created `SentenceStudio.Shared.Migrations.csproj` and `SentenceStudio.UI.Migrations.csproj` temporarily
+
+### Key Learnings
+- **Always add UserProfileId to synced entities** - Multi-user support requires explicit user isolation
+- **CoreSync requires string GUID PKs** - int auto-increment doesn't work for distributed sync
+- **TriggerSyncAsync() is not automatic** - Must be called explicitly after SaveChangesAsync()
+- **SharedSyncRegistration is the source of truth** - Both SQLite and PostgreSQL configs must match
+- **Streak calculation depends on synced data** - If UserActivity doesn't sync, streaks diverge
+

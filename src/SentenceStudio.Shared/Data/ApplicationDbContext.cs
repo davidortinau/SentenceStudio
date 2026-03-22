@@ -87,14 +87,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyLearningContext>().Property(e => e.Id).ValueGeneratedNever();
 
+        // Synced entities (string GUID PKs)
+        modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
+        modelBuilder.Entity<DailyPlanCompletion>().Property(e => e.Id).ValueGeneratedNever();
+        
+        modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
+        modelBuilder.Entity<UserActivity>().Property(e => e.Id).ValueGeneratedNever();
+        
         // Non-synced entities (keep int auto-increment PKs)
         modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
         modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
         modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.Id);
-        modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationScenario>().ToTable("ConversationScenario").HasKey(e => e.Id);
-        modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairSession>().ToTable("MinimalPairSession").HasKey(e => e.Id);

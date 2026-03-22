@@ -11,6 +11,11 @@
 else if (isTodaysPlanMode)
 {
     <PageHeader Title="Dashboard">
+        <ToolbarActions>
+            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title="Refresh">
+                <i class="bi bi-arrow-clockwise @(isRefreshing ? "spin" : "")" style="font-size: 1.25rem;"></i>
+            </button>
+        </ToolbarActions>
         <SecondaryActions>
             <button class="dropdown-item" @onclick="RegeneratePlanAsync">
                 <i class="bi bi-arrow-clockwise me-2"></i>Regenerate Plan
@@ -20,7 +25,13 @@ else if (isTodaysPlanMode)
 }
 else
 {
-    <PageHeader Title="Dashboard" />
+    <PageHeader Title="Dashboard">
+        <ToolbarActions>
+            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title="Refresh">
+                <i class="bi bi-arrow-clockwise @(isRefreshing ? "spin" : "")" style="font-size: 1.25rem;"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
 }
 
 @* ============ GETTING STARTED (new user) ============ *@
@@ -352,12 +363,14 @@ else
     [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.ISyncService? SyncService { get; set; }
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
 
     private bool isLoading;
     private bool isPlanLoading;
+    private bool isRefreshing;
     private bool isTodaysPlanMode = true;
     private bool showAllActivities = false;
     private VocabProgressSummary? vocabSummary;
@@ -613,6 +626,40 @@ else
         finally
         {
             isPlanLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshDashboardAsync()
+    {
+        isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+#if IOS || ANDROID || MACCATALYST
+            // On mobile: trigger sync first
+            if (SyncService != null)
+            {
+                Logger.LogInformation("Triggering CoreSync from dashboard refresh");
+                await SyncService.TriggerSyncAsync();
+            }
+#endif
+            // Reload dashboard data
+            await LoadVocabStatsAsync();
+            if (isTodaysPlanMode)
+            {
+                await LoadPlanAsync();
+            }
+            
+            Logger.LogInformation("Dashboard refresh complete");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh dashboard");
+        }
+        finally
+        {
+            isRefreshing = false;
             StateHasChanged();
         }
     }

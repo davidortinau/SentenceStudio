@@ -128,6 +128,47 @@
 - Resource associations: removed horizontal scroll, removed descriptions, added CSS truncation at 2 lines max for titles
 - CSS pattern: `-webkit-line-clamp: 2` with `-webkit-box-orient: vertical` for multi-line text truncation
 
+### 2026-07-23 — Dashboard Refresh Feature (Captain Request)
+
+**Status:** Complete  
+**Feature:** Manual refresh button on dashboard for both mobile and web
+
+**Key Changes:**
+1. **PageHeader ToolbarActions** — Added refresh icon button (`bi-arrow-clockwise`) visible on all screen sizes
+   - Button placed in `<ToolbarActions>` slot to render in header toolbar (mobile + desktop)
+   - Spinning animation while refreshing via CSS `.spin` class
+   - Disabled state during refresh to prevent multiple concurrent refreshes
+
+2. **RefreshDashboardAsync() method:**
+   - On mobile (IOS/ANDROID/MACCATALYST): Triggers `SyncService.TriggerSyncAsync()` first, then reloads data
+   - On web: Just reloads dashboard data from PostgreSQL
+   - Reloads vocabulary stats via `LoadVocabStatsAsync()`
+   - Conditionally reloads plan via `LoadPlanAsync()` if in Today's Plan mode
+   - Uses `isRefreshing` boolean flag + `StateHasChanged()` for UI feedback
+
+3. **CSS animation:**
+   - Added `@keyframes spin` + `.spin` class to `app.css`
+   - Simple 360deg rotation, 1s linear infinite
+   - Applied conditionally to icon: `@(isRefreshing ? "spin" : "")`
+
+4. **Service injection:**
+   - `ISyncService` injected as nullable (`ISyncService?`) since it's only registered on mobile clients
+   - WebApp doesn't have SyncService (uses PostgreSQL directly), so null-check before calling
+
+**UI Pattern Notes:**
+- `ToolbarActions` slot renders icon buttons in PageHeader at all screen sizes — perfect for mobile refresh button
+- Refresh in "Today's Plan" mode keeps existing "Regenerate Plan" dropdown option (different UX: refresh = reload current, regenerate = AI generates new plan)
+- Refresh in "Choose My Own" mode just reloads stats (no plan to refresh)
+
+**Learnings:**
+- `PageHeader` ToolbarActions slot is the correct place for icon-only actions that should appear on mobile + desktop
+- Nullable service injection pattern: `[Inject] private ISyncService? SyncService { get; set; }` — services that don't exist in all contexts (WebApp vs MAUI)
+- Preprocessor directives in Blazor: `#if IOS || ANDROID || MACCATALYST` isolates mobile-specific code paths
+- CSS `@keyframes` + conditional class binding for loading spinners: `@(isRefreshing ? "spin" : "")`
+- Dashboard data reload pattern: trigger sync (mobile only) → reload stats → reload plan if applicable
+
+**Build Status:** Clean build (0 errors, pre-existing warnings in Shared project only)
+
 ### 2026-07-22 — File-Based Vocabulary Import on Resource Pages
 
 **Status:** Complete  

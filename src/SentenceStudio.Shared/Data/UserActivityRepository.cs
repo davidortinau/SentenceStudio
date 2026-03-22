@@ -65,12 +65,20 @@ public class UserActivityRepository
             if (string.IsNullOrEmpty(item.UserProfileId) && !string.IsNullOrEmpty(ActiveUserId))
                 item.UserProfileId = ActiveUserId;
 
-            if (item.Id != 0)
+            // With GUID PKs, Id is always pre-set. Check DB existence to determine Add vs Update.
+            var exists = !string.IsNullOrEmpty(item.Id)
+                && await db.UserActivities.AnyAsync(a => a.Id == item.Id);
+
+            if (exists)
             {
                 db.UserActivities.Update(item);
             }
             else
             {
+                // Ensure new records have a GUID
+                if (string.IsNullOrEmpty(item.Id))
+                    item.Id = Guid.NewGuid().ToString();
+                
                 db.UserActivities.Add(item);
             }
 
@@ -88,10 +96,6 @@ public class UserActivityRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            if (item.Id == 0)
-            {
-                // UXDivers popup removed - error already logged above
-            }
             return -1;
         }
     }
