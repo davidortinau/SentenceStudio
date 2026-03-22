@@ -236,7 +236,17 @@ else
         <div class="card card-ss p-4 mb-4 text-center">
             <i class="bi bi-calendar-plus fs-1 text-secondary-ss mb-2"></i>
             <p class="ss-body1 mb-3">No plan for today yet.</p>
-            <button class="btn btn-ss-primary mx-auto" style="max-width: 200px;" @onclick="GeneratePlanAsync">
+            @if (!string.IsNullOrEmpty(planError))
+            {
+                <div class="alert alert-warning mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@planError
+                </div>
+            }
+            <button class="btn btn-ss-primary mx-auto" style="max-width: 200px;" @onclick="GeneratePlanAsync" disabled="@isPlanLoading">
+                @if (isPlanLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                }
                 <i class="bi bi-magic me-1"></i>Generate Plan
             </button>
         </div>
@@ -379,6 +389,7 @@ else
     private bool isNewUser;
     private bool isCreatingStarter;
     private string? starterError;
+    private string? planError;
 
     private List<LearningResource>? allResources;
     private List<SkillProfile>? allSkills;
@@ -574,15 +585,22 @@ else
     private async Task LoadPlanAsync()
     {
         isPlanLoading = true;
+        planError = null;
         StateHasChanged();
         try
         {
             todaysPlan = await ProgressService.GetCachedPlanAsync(DateTime.UtcNow.Date);
             todaysPlan ??= await ProgressService.GenerateTodaysPlanAsync();
         }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load today's plan - network error");
+            planError = "Network error. Please check your connection.";
+        }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to load today's plan");
+            planError = "Unable to load plan. Please try refreshing.";
         }
         finally
         {
@@ -594,14 +612,25 @@ else
     private async Task GeneratePlanAsync()
     {
         isPlanLoading = true;
+        planError = null;
         StateHasChanged();
         try
         {
             todaysPlan = await ProgressService.GenerateTodaysPlanAsync();
+            if (todaysPlan == null)
+            {
+                planError = "Unable to generate plan. Please try again.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Failed to generate plan - network error");
+            planError = "Network error. Please check your connection and try again.";
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to generate plan");
+            planError = "Unable to generate plan. Please try again later.";
         }
         finally
         {
@@ -636,15 +665,18 @@ else
         StateHasChanged();
         try
         {
-#if IOS || ANDROID || MACCATALYST
             // On mobile: trigger sync first
-            if (SyncService != null)
+            // Use runtime detection instead of compile-time since shared Razor components
+            // don't get platform-specific preprocessor symbols
+            if (SyncService != null && DeviceInfo.Platform != DevicePlatform.Unknown)
             {
-                Logger.LogInformation("Triggering CoreSync from dashboard refresh");
+                Logger.LogInformation("Triggering CoreSync from dashboard refresh (Platform: {Platform})", DeviceInfo.Platform);
                 await SyncService.TriggerSyncAsync();
+                Logger.LogInformation("CoreSync completed");
             }
-#endif
+            
             // Reload dashboard data
+            Logger.LogInformation("Reloading dashboard data...");
             await LoadVocabStatsAsync();
             if (isTodaysPlanMode)
             {
@@ -655,7 +687,7 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to refresh dashboard");
+            Logger.LogError(ex, "Failed to refresh dashboard");
         }
         finally
         {

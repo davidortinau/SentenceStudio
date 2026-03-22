@@ -343,3 +343,37 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 
 **Build Status:** Clean build (0 errors, pre-existing warnings only)
 
+### 2026-03-20 — Dashboard Refresh Button Fix
+
+**Issue:** Dashboard refresh button didn't work on mobile — the sync wasn't triggering and data wasn't reloading.
+
+**Root Cause:** Preprocessor directive bug in shared Blazor Razor component
+- `Index.razor` used `#if IOS || ANDROID || MACCATALYST` to conditionally trigger sync
+- **Blazor Razor files (.razor) in shared libraries don't inherit platform-specific preprocessor symbols from head projects**
+- The `#if` block was NEVER compiled into the component, so `SyncService.TriggerSyncAsync()` never ran
+- This is a common gotcha: preprocessor directives work in .cs files but not reliably in shared .razor components
+
+**Fix:** Runtime platform detection instead of compile-time
+- Changed from `#if IOS || ANDROID || MACCATALYST` to `if (SyncService != null && DeviceInfo.Platform != DevicePlatform.Unknown)`
+- This ensures sync triggers on all mobile platforms (iOS, Android, Mac Catalyst, Windows) while web uses NoOpSyncService
+- Added better logging: "Triggering CoreSync from dashboard refresh (Platform: {Platform})"
+- Changed LogWarning to LogError for failed refreshes
+
+**Pull-to-Refresh Research:**
+- **Native RefreshView does NOT work with BlazorWebView** 
+- RefreshView requires child to be a scrollable MAUI control (ScrollView, CollectionView, ListView)
+- BlazorWebView is a WebView wrapper — scrolling happens inside web content, not at MAUI level
+- Native gesture doesn't propagate into the WebView
+- **Alternative:** Implement at Blazor level with JavaScript touch events (complex) or use refresh button (simpler)
+- **Decision:** Keep refresh button as primary solution since native pull-to-refresh isn't feasible with Blazor Hybrid
+
+**Key Learning:** 
+- **CRITICAL:** Shared Blazor Razor components (.razor) in class libraries don't get platform-specific preprocessor symbols
+- Always use runtime detection (`DeviceInfo.Platform`, `DeviceInfo.Idiom`) in .razor files instead of `#if` directives
+- Only use preprocessor directives in platform-specific head projects or in .cs code-behind files
+
+**Files Modified:**
+- `src/SentenceStudio.UI/Pages/Index.razor` — RefreshDashboardAsync() method
+
+**Build Status:** Both WebApp and iOS build clean (0 errors, pre-existing warnings only)
+

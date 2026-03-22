@@ -21,6 +21,7 @@ public sealed class IdentityAuthService : IAuthService
     private readonly ISecureStorageService _secureStorage;
     private readonly IPreferencesService _preferences;
     private readonly ILogger<IdentityAuthService> _logger;
+    private readonly ISyncService? _syncService;
 
     private string? _cachedToken;
     private DateTimeOffset _cachedExpires;
@@ -30,12 +31,14 @@ public sealed class IdentityAuthService : IAuthService
         IHttpClientFactory httpClientFactory,
         ISecureStorageService secureStorage,
         IPreferencesService preferences,
-        ILogger<IdentityAuthService> logger)
+        ILogger<IdentityAuthService> logger,
+        ISyncService? syncService = null)
     {
         _http = httpClientFactory.CreateClient("AuthClient");
         _secureStorage = secureStorage;
         _preferences = preferences;
         _logger = logger;
+        _syncService = syncService;
     }
 
     public bool IsSignedIn => _cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow;
@@ -278,6 +281,30 @@ public sealed class IdentityAuthService : IAuthService
         }
 
         _logger.LogInformation("Tokens stored, expires at {Expires}", _cachedExpires);
+
+        // Trigger sync after successful login to pull down server data
+        if (_syncService != null)
+        {
+            try
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _syncService.TriggerSyncAsync();
+                        _logger.LogInformation("[CoreSync] Post-login sync completed");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[CoreSync] Post-login sync failed");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[CoreSync] Failed to start post-login sync");
+            }
+        }
     }
 
     private AuthResult ToAuthResult(AuthResponseDto response)

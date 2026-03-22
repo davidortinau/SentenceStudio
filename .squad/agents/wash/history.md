@@ -77,6 +77,32 @@
 
 **Key Dependencies:** Zoe coordinates Phase 1-3 decisions; Kaylee implements CI/deploy automation; Captain provides Azure portal access.
 
+### 2026-03-15 — Mobile Plan Sync Fix
+
+**Status:** Complete  
+**Problem:** Mobile showed "No plan for today yet" even though webapp had a plan for the same user (dave@ortinau.com). Generate Plan button did nothing visible on mobile.
+
+**Root Cause:**
+1. **Missing post-login sync**: After user logged into mobile, app didn't trigger CoreSync to pull down server data (including DailyPlanCompletion records created by webapp)
+2. **Silent error swallowing**: GeneratePlanAsync errors were logged but not shown to user, hiding API failures
+
+**Solution:**
+1. **Added post-login sync trigger** in `IdentityAuthService.StoreTokens()` — after successful login, triggers CoreSync in background to pull server data (DailyPlanCompletion, UserProfile, etc.)
+2. **Improved error handling** in `Index.razor` — added `planError` state variable and user-friendly error messages for network/API failures, plus loading spinner on Generate Plan button
+
+**Files Modified:**
+- `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs` — injected `ISyncService`, added sync trigger in `StoreTokens()`
+- `src/SentenceStudio.UI/Pages/Index.razor` — added error display, loading state, better exception handling
+
+**Testing:** Both WebApp and iOS builds passed successfully.
+
+**Learnings:**
+- CoreSync requires explicit trigger after login to sync server-created data to mobile
+- Mobile needs sync triggers at: startup (done), connectivity change (done), post-login (NOW FIXED)
+- Error messages must be visible to users — silent logging isn't enough for mobile UX
+- DailyPlanCompletion records are properly registered for CoreSync bidirectional sync
+- UserProfile sync ensures consistent UserProfileId across webapp and mobile clients
+
 ### 2026-03-14 — API JWT Bearer Authentication (#43)
 
 **Status:** Complete  
