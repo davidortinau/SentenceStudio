@@ -216,6 +216,7 @@ else
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
@@ -252,15 +253,13 @@ else
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
-    private System.Diagnostics.Stopwatch activityTimer = new();
-    private string? _capturedPlanItemId; // captured at init, survives Blazor parameter clearing during disposal
-    private bool _progressReported;
+
 
     protected override async Task OnInitializedAsync()
     {
-        _capturedPlanItemId = PlanItemId;
-        Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
-        activityTimer.Start();
+        Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        if (!string.IsNullOrEmpty(PlanItemId))
+            ActivityTimer.StartSession("VocabularyReview", PlanItemId);
         await LoadVocabulary();
     }
 
@@ -356,7 +355,7 @@ else
         if (!vocabItems.Any())
         {
             Toast.ShowSuccess("All words mastered! Session complete.");
-            await GoBack();
+            GoBack();
             return;
         }
 
@@ -606,9 +605,9 @@ else
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
-    private async Task GoBack()
+    private void GoBack()
     {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         NavManager.NavigateTo("/");
     }
 
@@ -682,38 +681,14 @@ else
         }
     }
 
-    private async Task ReportPlanProgressAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_progressReported) return;
-        var planId = _capturedPlanItemId;
-        if (string.IsNullOrEmpty(planId))
-        {
-            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
-            return;
-        }
-        var elapsed = activityTimer.Elapsed;
-        activityTimer.Stop();
-        _progressReported = true;
-        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
-        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
-        try
-        {
-            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
-            Logger.LogInformation("✅ Plan progress reported successfully");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         autoAdvanceCts?.Cancel();
         autoAdvanceCts?.Dispose();
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
+        return ValueTask.CompletedTask;
     }
 }

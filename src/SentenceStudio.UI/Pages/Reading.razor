@@ -216,16 +216,13 @@
     [Inject] private ILogger<Reading> Logger { get; set; } = default!;
     [Inject] private ILogger<TimestampedAudioManager> AudioManagerLogger { get; set; } = default!;
     [Inject] private ILogger<SentenceTimingCalculator> TimingCalcLogger { get; set; } = default!;
-    [Inject] private IActivityTimerService TimerService { get; set; } = default!;
+    [Inject] private IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
 
     // Content state
     private bool isBusy;
-    private System.Diagnostics.Stopwatch _activityTimer = new();
-    private string? _capturedPlanItemId;
-    private bool _progressReported;
     private bool fromPlan;
     private int targetMinutes;
     private string errorMessage = "";
@@ -262,9 +259,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _capturedPlanItemId = PlanItemId;
-        Logger.LogInformation("🎯 Reading initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
-        _activityTimer.Start();
+        Logger.LogInformation("🎯 Reading initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        if (!string.IsNullOrEmpty(PlanItemId))
+            ActivityTimer.StartSession("Reading", PlanItemId);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -272,11 +269,6 @@
         fontSize = (int)Preferences.Get("ReadingActivity_FontSize", 20.0);
         playbackSpeed = Preferences.Get("ReadingActivity_PlaybackSpeed", 1.0f);
         hasShownJumpHint = Preferences.Get("ReadingActivity_HasShownJumpHint", false);
-
-        if (fromPlan)
-        {
-            TimerService.StartSession("Reading", null);
-        }
 
         await LoadResource();
     }
@@ -771,13 +763,13 @@
         }
 
         // Pause timer
-        if (fromPlan && TimerService.IsActive)
+        if (fromPlan && ActivityTimer.IsActive)
         {
-            TimerService.Pause();
+            ActivityTimer.Pause();
         }
 
         // Report plan progress
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
 
         // Record reading session
         if (resource is not null)
@@ -805,34 +797,9 @@
         return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
     }
 
-    private async Task ReportPlanProgressAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_progressReported) return;
-        var planId = _capturedPlanItemId;
-        if (string.IsNullOrEmpty(planId))
-        {
-            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
-            return;
-        }
-        var elapsed = _activityTimer.Elapsed;
-        _activityTimer.Stop();
-        _progressReported = true;
-        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
-        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
-        try
-        {
-            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
-            Logger.LogInformation("✅ Plan progress reported successfully");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         if (_audioManager is not null)
         {
             _audioManager.SentenceChanged -= OnSentenceChanged;
@@ -841,5 +808,6 @@
             _audioManager.Dispose();
         }
         _dotNetRef?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

@@ -190,10 +190,8 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Conversation> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
-    private System.Diagnostics.Stopwatch _activityTimer = new();
-    private string? _capturedPlanItemId;
-    private bool _progressReported;
     private bool isBusy;
     private bool isWaitingForReply;
     private bool isPlayingAudio;
@@ -233,9 +231,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _capturedPlanItemId = PlanItemId;
-        Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
-        _activityTimer.Start();
+        Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        if (!string.IsNullOrEmpty(PlanItemId))
+            ActivityTimer.StartSession("Conversation", PlanItemId);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -415,40 +413,16 @@ else
         isPlayingAudio = false;
     }
 
-    private async Task ReportPlanProgressAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_progressReported) return;
-        var planId = _capturedPlanItemId;
-        if (string.IsNullOrEmpty(planId))
-        {
-            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
-            return;
-        }
-        var elapsed = _activityTimer.Elapsed;
-        _activityTimer.Stop();
-        _progressReported = true;
-        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
-        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
-        try
-        {
-            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
-            Logger.LogInformation("✅ Plan progress reported successfully");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         StopAudio();
+        return ValueTask.CompletedTask;
     }
 
-    private async Task GoBack()
+    private void GoBack()
     {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         NavManager.NavigateTo("/");
     }
 }

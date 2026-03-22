@@ -104,10 +104,8 @@ else
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
-    private System.Diagnostics.Stopwatch _activityTimer = new();
-    private string? _capturedPlanItemId;
-    private bool _progressReported;
     private bool isBusy;
     private bool isGameComplete;
     private bool hideNativeWordsMode = true;
@@ -122,9 +120,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _capturedPlanItemId = PlanItemId;
-        Logger.LogInformation("🎯 VocabMatching initialized — planItemId={PlanItemId}", _capturedPlanItemId ?? "(none)");
-        _activityTimer.Start();
+        Logger.LogInformation("🎯 VocabMatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        if (!string.IsNullOrEmpty(PlanItemId))
+            ActivityTimer.StartSession("VocabularyMatching", PlanItemId);
         await LoadVocabulary();
     }
 
@@ -432,39 +430,15 @@ else
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
-    private async Task ReportPlanProgressAsync()
+    private void GoBack()
     {
-        if (_progressReported) return;
-        var planId = _capturedPlanItemId;
-        if (string.IsNullOrEmpty(planId))
-        {
-            Logger.LogDebug("⏭️ No planItemId — skipping plan progress report");
-            return;
-        }
-        var elapsed = _activityTimer.Elapsed;
-        _activityTimer.Stop();
-        _progressReported = true;
-        var minutesSpent = Math.Max(1, (int)Math.Ceiling(elapsed.TotalMinutes));
-        Logger.LogInformation("📊 Reporting plan progress: planItemId={PlanItemId}, elapsed={Elapsed}, minutesSpent={Minutes}", planId, elapsed, minutesSpent);
-        try
-        {
-            await PlanProgressService.MarkPlanItemCompleteAsync(planId, minutesSpent);
-            Logger.LogInformation("✅ Plan progress reported successfully");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "❌ Failed to report plan progress for {PlanItemId}", planId);
-        }
-    }
-
-    private async Task GoBack()
-    {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         NavManager.NavigateTo("/");
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await ReportPlanProgressAsync();
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        return ValueTask.CompletedTask;
     }
 }
