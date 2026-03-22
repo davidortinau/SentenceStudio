@@ -2335,3 +2335,242 @@ public void Dispose()
 ## Archived Decisions
 
 (None yet — all active decisions documented above)
+
+
+### 2026-03-21: User directive — YouTube Shorts unsupported
+**By:** David (Captain) (via Copilot)
+**What:** YouTube Shorts should be considered unsupported. Filter them out before trying to import. Don't waste pipeline cycles on them.
+**Why:** User request — Shorts don't have transcripts and just create noise in the import history with "No Korean transcript available" failures.
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+# Decision: CoreSync Entity Requirements
+
+**Date:** 2026-03-22  
+**Author:** Wash (Backend Dev)  
+**Status:** Implemented  
+**Impact:** Data sync integrity, multi-user support
+
+## Context
+
+Captain reported multiple data sync issues between mobile and web (same account). Investigation revealed that two critical tables (`DailyPlanCompletion` and `UserActivity`) were NOT configured for CoreSync, leading to:
+- Today's Plan progress diverging between devices
+- Streak calculations inconsistent
+- Multi-user data mixing in the same tables
+
+## Decision
+
+**All entities that need to sync between mobile and web MUST meet these requirements:**
+
+1. **String GUID Primary Key**
+   ```csharp
+   public string Id { get; set; } = string.Empty;
+   ```
+   - In `OnModelCreating`: `.Property(e => e.Id).ValueGeneratedNever();`
+   - New records: `Id = Guid.NewGuid().ToString()`
+
+2. **Required UserProfileId for Multi-User Data**
+   ```csharp
+   public string UserProfileId { get; set; } = string.Empty;
+   ```
+   - ALL queries MUST filter by `UserProfileId`
+   - New records MUST set `UserProfileId` from `UserProfileRepository.GetAsync()`
+
+3. **Registered in SharedSyncRegistration**
+   ```csharp
+   // In BOTH ConfigureSyncTables methods (SQLite AND PostgreSQL)
+   .Table<EntityName>("EntityName", syncDirection: SyncDirection.UploadAndDownload)
+   ```
+
+4. **TriggerSyncAsync After SaveChanges**
+   ```csharp
+   await db.SaveChangesAsync(ct);
+   await _syncService.TriggerSyncAsync();
+   ```
+
+5. **Singular Table Name**
+   ```csharp
+   modelBuilder.Entity<EntityName>().ToTable("EntityName");
+   ```
+
+## Rationale
+
+- **GUID PKs:** CoreSync uses distributed conflict resolution that requires globally unique IDs
+- **UserProfileId:** Multi-user support requires explicit data isolation at the database level
+- **Registration:** CoreSync only syncs tables explicitly registered in `SharedSyncRegistration`
+- **TriggerSyncAsync:** Sync doesn't happen automatically - must be called after saves
+- **Singular Names:** CoreSync convention for table name consistency
+
+## Migration Strategy
+
+When converting existing int PK entities to synced entities:
+- **PostgreSQL:** Use `AlterColumn` migrations (supported)
+- **SQLite:** Recreate table with data copy (doesn't support ALTER COLUMN type changes)
+- **Backfill UserProfileId:** Assign existing records to first profile or infer from related data
+
+## Affected Entities (as of 2026-03-22)
+
+**Synced (string GUID PK):**
+- LearningResource
+- VocabularyWord  
+- ResourceVocabularyMapping
+- Challenge
+- Conversation
+- ConversationChunk
+- UserProfile
+- SkillProfile
+- VocabularyList
+- VocabularyProgress
+- VocabularyLearningContext
+- MonitoredChannel
+- VideoImport
+- **DailyPlanCompletion** ← NEW
+- **UserActivity** ← NEW
+
+**NOT Synced (int PK):**
+- StreamHistory (device-specific)
+- Story (generated content)
+- GradeResponse (session data)
+- SceneImage (generated content)
+- ConversationScenario (templates)
+- ExampleSentence (generated content)
+- MinimalPair, MinimalPairSession, MinimalPairAttempt (practice data)
+- ConversationMemoryState (session data)
+- WordAssociationScore (computed data)
+- RefreshToken (server-only, security)
+
+## Checklist for New Synced Entities
+
+Before marking an entity as "synced":
+- [ ] Change PK from `int Id` to `string Id = string.Empty`
+- [ ] Add `public string UserProfileId { get; set; } = string.Empty`
+- [ ] Update `OnModelCreating`: move from "non-synced" to "synced" section
+- [ ] Add `.Property(e => e.Id).ValueGeneratedNever()`
+- [ ] Add to `SharedSyncRegistration.cs` in BOTH methods
+- [ ] Update repository: Generate GUID for new records
+- [ ] Update repository: Filter ALL queries by `UserProfileId`
+- [ ] Update repository: Call `TriggerSyncAsync()` after `SaveChangesAsync()`
+- [ ] Create EF Core migrations (PostgreSQL + SQLite)
+- [ ] Test sync: Create on mobile → verify on web, vice versa
+
+## Related Issues
+
+This decision resolves:
+- Today's Plan progress not syncing
+- Streak badge inconsistency
+- Vocabulary count mismatches (via synced VocabularyProgress)
+- Import history not syncing (VideoImport already synced, but verified)
+
+## Next Steps
+
+- Monitor CoreSync logs for sync latency and conflicts
+- Document expected sync behavior in user-facing docs
+- Consider adding sync status indicators in UI
+
+---
+
+# Decision: Dashboard Refresh UI Pattern
+
+**Date:** 2026-03-22  
+**Author:** Kaylee (Full-stack Dev)  
+**Status:** Implemented  
+
+## Decision
+
+Established a unified refresh pattern for the dashboard that works across both mobile (MAUI) and web (Blazor Server) with platform-appropriate behavior.
+
+## Implementation
+
+**UI Component:**
+- Refresh icon button (`bi-arrow-clockwise`) in PageHeader `ToolbarActions` slot
+- Visible on all screen sizes (mobile + desktop)
+- Spinning animation during refresh via CSS `.spin` class
+- Disabled state prevents concurrent refresh operations
+
+**Refresh Behavior:**
+- **Mobile (iOS/Android/MacCatalyst):** Triggers `SyncService.TriggerSyncAsync()` to pull latest data from server, then reloads dashboard UI
+- **Web:** Directly reloads dashboard data from PostgreSQL (no sync needed)
+- Both platforms reload vocabulary stats + today's plan (if in Today's Plan mode)
+
+**Code Pattern:**
+```csharp
+private async Task RefreshDashboardAsync()
+{
+    isRefreshing = true;
+    StateHasChanged();
+    try
+    {
+#if IOS || ANDROID || MACCATALYST
+        if (SyncService != null)
+        {
+            await SyncService.TriggerSyncAsync();
+        }
+#endif
+        await LoadVocabStatsAsync();
+        if (isTodaysPlanMode)
+        {
+            await LoadPlanAsync();
+        }
+    }
+    finally
+    {
+        isRefreshing = false;
+        StateHasChanged();
+    }
+}
+```
+
+## Rationale
+
+**Why PageHeader ToolbarActions:**
+- ToolbarActions slot renders at all screen sizes (unlike PrimaryActions which is desktop-only)
+- Icon buttons in the header toolbar are the standard mobile pattern for persistent actions
+- Consistent with mobile platform conventions (toolbar refresh buttons)
+
+**Why Conditional Sync:**
+- Mobile clients use CoreSync with SQLite — need explicit sync to pull server changes
+- WebApp reads directly from PostgreSQL — no sync layer, just re-query the DB
+- Nullable `ISyncService?` injection handles the service not being registered on WebApp
+
+**Why Spinning Icon:**
+- Visual feedback that refresh is in progress
+- Disabled state prevents accidental double-taps
+- No toast/modal needed — inline indicator is sufficient for fast operations (<2s typical)
+
+## Alternative Considered
+
+**Pull-to-refresh gesture:**
+- Pros: Native mobile pattern, no UI chrome needed
+- Cons: Requires JavaScript interop for Blazor Hybrid, complex to detect gesture vs scroll
+- Decision: Icon button is simpler, works on all platforms, and is immediately discoverable
+
+## Impact
+
+- Dashboard now has manual refresh on mobile + web
+- Pattern established for other pages needing refresh (Resources, Vocabulary, etc.)
+- SyncService injection pattern documented for future Blazor Hybrid + WebApp shared pages
+
+## Related
+
+- PageHeader component: `src/SentenceStudio.UI/Shared/PageHeader.razor`
+- SyncService: `src/SentenceStudio.Shared/Services/SyncService.cs`
+- Dashboard: `src/SentenceStudio.UI/Pages/Index.razor`
+- Spin animation: `src/SentenceStudio.UI/wwwroot/css/app.css`
