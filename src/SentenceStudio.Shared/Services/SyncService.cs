@@ -12,6 +12,12 @@ public interface ISyncService
     Task TriggerSyncAsync();
 }
 
+public class NoOpSyncService : ISyncService
+{
+    public Task InitializeDatabaseAsync() => Task.CompletedTask;
+    public Task TriggerSyncAsync() => Task.CompletedTask;
+}
+
 public class SyncService : ISyncService
 {
     private readonly ISyncProvider _localSyncProvider;

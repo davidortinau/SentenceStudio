@@ -89,6 +89,9 @@ builder.Services.AddSingleton<IFilePickerService, WebFilePickerService>();
 builder.Services.AddSingleton<IAudioPlaybackService, WebAudioPlaybackService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new WebFileSystemService(appDataRoot, appLibRawAssets));
 builder.Services.AddSingleton(WebAudioManagerProxy.Create());
+// No-op sync service — server doesn't sync to itself, but Blazor [Inject] requires registration
+builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(
+    new SentenceStudio.Services.NoOpSyncService());
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)

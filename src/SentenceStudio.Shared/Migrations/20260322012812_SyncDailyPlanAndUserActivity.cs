@@ -11,6 +11,16 @@ namespace SentenceStudio.Shared.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // PostgreSQL requires dropping IDENTITY before changing column type to text.
+            // Use raw SQL to: drop identity, convert int IDs to GUIDs, set type to text.
+
+            // 1. UserActivity: make UserProfileId non-nullable, assign first profile to nulls
+            migrationBuilder.Sql(@"
+                UPDATE ""UserActivity""
+                SET ""UserProfileId"" = (SELECT ""Id"" FROM ""UserProfile"" LIMIT 1)
+                WHERE ""UserProfileId"" IS NULL OR ""UserProfileId"" = '';
+            ");
+
             migrationBuilder.AlterColumn<string>(
                 name: "UserProfileId",
                 table: "UserActivity",
@@ -21,30 +31,31 @@ namespace SentenceStudio.Shared.Migrations
                 oldType: "text",
                 oldNullable: true);
 
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "UserActivity",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(int),
-                oldType: "integer")
-                .OldAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+            // 2. UserActivity.Id: drop identity, convert int to GUID text
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""UserActivity"" ALTER COLUMN ""Id"" DROP IDENTITY IF EXISTS;
+                ALTER TABLE ""UserActivity"" ALTER COLUMN ""Id"" SET DATA TYPE text USING gen_random_uuid()::text;
+            ");
 
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "DailyPlanCompletion",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(int),
-                oldType: "integer")
-                .OldAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+            // 3. DailyPlanCompletion.Id: drop identity, convert int to GUID text
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""DailyPlanCompletion"" ALTER COLUMN ""Id"" DROP IDENTITY IF EXISTS;
+                ALTER TABLE ""DailyPlanCompletion"" ALTER COLUMN ""Id"" SET DATA TYPE text USING gen_random_uuid()::text;
+            ");
 
+            // 4. DailyPlanCompletion: add UserProfileId column, assign first profile
             migrationBuilder.AddColumn<string>(
                 name: "UserProfileId",
                 table: "DailyPlanCompletion",
                 type: "text",
                 nullable: false,
                 defaultValue: "");
+
+            migrationBuilder.Sql(@"
+                UPDATE ""DailyPlanCompletion""
+                SET ""UserProfileId"" = (SELECT ""Id"" FROM ""UserProfile"" LIMIT 1)
+                WHERE ""UserProfileId"" = '';
+            ");
         }
 
         /// <inheritdoc />

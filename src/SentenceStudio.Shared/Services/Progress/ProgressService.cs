@@ -17,7 +17,7 @@ public class ProgressService : IProgressService
     private readonly ILlmPlanGenerationService _llmPlanService;
     private readonly ILogger<ProgressService> _logger;
     private readonly UserProfileRepository _userProfileRepo;
-    private readonly ISyncService _syncService;
+    private readonly ISyncService? _syncService;
 
     public ProgressService(
         LearningResourceRepository resourceRepo,
@@ -30,7 +30,7 @@ public class ProgressService : IProgressService
         ILlmPlanGenerationService llmPlanService,
         ILogger<ProgressService> logger,
         UserProfileRepository userProfileRepo,
-        ISyncService syncService)
+        ISyncService? syncService = null)
     {
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
@@ -433,7 +433,7 @@ public class ProgressService : IProgressService
         {
             db.DailyPlanCompletions.RemoveRange(completionsToDelete);
             await db.SaveChangesAsync(ct);
-            await _syncService.TriggerSyncAsync();
+            if (_syncService != null) await _syncService.TriggerSyncAsync();
             _logger.LogDebug("🗑️ Deleted {Count} DailyPlanCompletion records from database", completionsToDelete.Count);
         }
 
@@ -530,7 +530,7 @@ public class ProgressService : IProgressService
         }
 
         await db.SaveChangesAsync(ct);
-        await _syncService.TriggerSyncAsync();
+        if (_syncService != null) await _syncService.TriggerSyncAsync();
         _logger.LogDebug("✅ Database updated and sync triggered");
 
         // Update cache
@@ -592,7 +592,7 @@ public class ProgressService : IProgressService
             existing.MinutesSpent = minutesSpent;
             existing.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            await _syncService.TriggerSyncAsync();
+            if (_syncService != null) await _syncService.TriggerSyncAsync();
             _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes and synced", minutesSpent);
         }
         else
@@ -873,7 +873,7 @@ public class ProgressService : IProgressService
         }
 
         await db.SaveChangesAsync(ct);
-        await _syncService.TriggerSyncAsync();
+        if (_syncService != null) await _syncService.TriggerSyncAsync();
         _logger.LogDebug("💾 Initialized {Count} DailyPlanCompletion records and synced", plan.Items.Count);
     }
 
