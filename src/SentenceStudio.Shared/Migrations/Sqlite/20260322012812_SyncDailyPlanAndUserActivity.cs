@@ -31,7 +31,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     table.PrimaryKey("PK_UserActivity_new", x => x.Id);
                 });
 
-            // Copy data with GUID conversion - assign first user profile to all records
+            // Copy data with GUID conversion - use COALESCE to handle empty UserProfile table
+            // (migration may run before sync pulls user profiles from server)
             migrationBuilder.Sql(@"
                 INSERT INTO UserActivity_new (Id, Activity, Input, Fluency, Accuracy, UserProfileId, CreatedAt, UpdatedAt)
                 SELECT 
@@ -40,7 +41,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     Input, 
                     Fluency, 
                     Accuracy, 
-                    COALESCE(UserProfileId, (SELECT Id FROM UserProfile LIMIT 1)) as UserProfileId,
+                    COALESCE(UserProfileId, (SELECT Id FROM UserProfile LIMIT 1), '00000000-0000-0000-0000-000000000000') as UserProfileId,
                     CreatedAt, 
                     UpdatedAt
                 FROM UserActivity;
@@ -77,12 +78,13 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     table.PrimaryKey("PK_DailyPlanCompletion_new", x => x.Id);
                 });
 
-            // Copy data with GUID conversion - assign first user profile to all records
+            // Copy data with GUID conversion - use COALESCE to handle empty UserProfile table
+            // (migration may run before sync pulls user profiles from server)
             migrationBuilder.Sql(@"
                 INSERT INTO DailyPlanCompletion_new (Id, UserProfileId, Date, PlanItemId, ActivityType, ResourceId, SkillId, IsCompleted, CompletedAt, MinutesSpent, EstimatedMinutes, Priority, TitleKey, DescriptionKey, Rationale, CreatedAt, UpdatedAt)
                 SELECT 
                     lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))) as Id,
-                    (SELECT Id FROM UserProfile LIMIT 1) as UserProfileId,
+                    COALESCE((SELECT Id FROM UserProfile LIMIT 1), '00000000-0000-0000-0000-000000000000') as UserProfileId,
                     Date, 
                     PlanItemId, 
                     ActivityType, 
