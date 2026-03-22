@@ -599,8 +599,8 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to load today's plan");
-            planError = "Unable to load plan. Please try refreshing.";
+            Logger.LogWarning(ex, "Failed to load today's plan: {Message}", ex.Message);
+            planError = $"Unable to load plan: {ex.Message}";
         }
         finally
         {

@@ -361,13 +361,20 @@ public class ProgressService : IProgressService
         {
             _logger.LogDebug("⚠️ No plan in memory cache - checking database...");
 
-            // Try to reconstruct from database
-            var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
-            if (reconstructedPlan != null)
+            // Try to reconstruct from database (resilient to schema mismatches on mobile)
+            try
             {
-                _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
-                _cache.SetTodaysPlan(reconstructedPlan);
-                return reconstructedPlan;
+                var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+                if (reconstructedPlan != null)
+                {
+                    _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
+                    _cache.SetTodaysPlan(reconstructedPlan);
+                    return reconstructedPlan;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to reconstruct plan from database — schema may be outdated");
             }
 
             _logger.LogDebug("⚠️ No plan in database either - need to generate new one");
@@ -382,13 +389,20 @@ public class ProgressService : IProgressService
             _logger.LogDebug("❌ Cache date mismatch: requested={RequestedDate:yyyy-MM-dd}, cached={CachedDate:yyyy-MM-dd}", date.Date, cachedPlan.GeneratedForDate.Date);
             _cache.InvalidateTodaysPlan();
 
-            // Try database before giving up
-            var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
-            if (reconstructedPlan != null)
+            // Try database before giving up (resilient to schema mismatches)
+            try
             {
-                _logger.LogDebug("✅ Found plan in database for correct date");
-                _cache.SetTodaysPlan(reconstructedPlan);
-                return reconstructedPlan;
+                var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+                if (reconstructedPlan != null)
+                {
+                    _logger.LogDebug("✅ Found plan in database for correct date");
+                    _cache.SetTodaysPlan(reconstructedPlan);
+                    return reconstructedPlan;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to reconstruct plan from database — schema may be outdated");
             }
 
             return null;

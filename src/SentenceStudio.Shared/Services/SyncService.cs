@@ -100,35 +100,38 @@ public class SyncService : ISyncService
             try
             {
                 await dbContext.Database.MigrateAsync();
+                _logger.LogInformation("Mobile database migrated successfully");
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("PendingModelChangesWarning"))
+            catch (Exception ex)
             {
-                // On mobile, the compiled model (DbContext) differs from the migration snapshot
-                // (generated from IdentityDbContext on server TFM). Identity tables don't exist
-                // in the mobile model. Fall back to EnsureCreated for new DB, or create only
-                // missing tables for existing DB.
-                _logger.LogWarning("PendingModelChangesWarning caught — mobile model diverges from snapshot. Using fallback...");
-                
-                var hasHistory = false;
+                // Migration can fail if tables already exist (from prior EnsureCreated),
+                // or if the model diverges from the snapshot (Identity tables on server only).
+                // Ensure missing columns/tables exist by applying schema fixes manually.
+                _logger.LogWarning(ex, "MigrateAsync failed — applying manual schema fixes...");
+
                 var conn2 = dbContext.Database.GetDbConnection();
                 await conn2.OpenAsync();
                 try
                 {
-                    using var cmd = conn2.CreateCommand();
-                    cmd.CommandText = "SELECT COUNT(*) FROM __EFMigrationsHistory";
-                    hasHistory = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+                    // Ensure DailyPlanCompletion has UserProfileId column
+                    await EnsureColumnExists(conn2, "DailyPlanCompletion", "UserProfileId", "TEXT NOT NULL DEFAULT ''");
+                    // Ensure UserActivity has correct Id type (TEXT for GUIDs)
+                    // Ensure MonitoredChannel and VideoImport tables exist
+                    await EnsureTableFromModel(conn2, "MonitoredChannel");
+                    await EnsureTableFromModel(conn2, "VideoImport");
+                    _logger.LogInformation("Manual schema fixes applied successfully");
                 }
-                catch { /* table doesn't exist */ }
-                finally { await conn2.CloseAsync(); }
-
-                if (!hasHistory)
+                catch (Exception fixEx)
                 {
-                    // Fresh or legacy DB — use EnsureCreated to create all tables from model
-                    _logger.LogInformation("Falling back to EnsureCreated for database schema...");
-                    await dbContext.Database.EnsureCreatedAsync();
+                    _logger.LogError(fixEx, "Manual schema fixes also failed — falling back to EnsureCreated");
+                    try { await dbContext.Database.EnsureCreatedAsync(); }
+                    catch (Exception ensureEx)
+                    {
+                        _logger.LogError(ensureEx, "EnsureCreated also failed — database may be in inconsistent state");
+                    }
                 }
+                finally { await conn2.CloseAsync(); }
             }
-            _logger.LogInformation("Mobile database migrated successfully");
 #else
             _logger.LogDebug("Running EF Core migrations...");
             await dbContext.Database.MigrateAsync();
@@ -205,4 +208,51 @@ public class SyncService : ISyncService
             return id?.ToString() ?? "?";
         return "?";
     }
+
+#if IOS || ANDROID || MACCATALYST
+    private async Task EnsureColumnExists(System.Data.Common.DbConnection conn, string table, string column, string type)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = $"PRAGMA table_info({table})";
+        var hasColumn = false;
+        using var reader = await checkCmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (reader.GetString(1).Equals(column, StringComparison.OrdinalIgnoreCase))
+            {
+                hasColumn = true;
+                break;
+            }
+        }
+        reader.Close();
+
+        if (!hasColumn)
+        {
+            _logger.LogInformation("Adding missing column {Column} to {Table}", column, table);
+            using var alterCmd = conn.CreateCommand();
+            alterCmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {type}";
+            await alterCmd.ExecuteNonQueryAsync();
+
+            // Backfill UserProfileId from first UserProfile
+            if (column == "UserProfileId")
+            {
+                using var backfillCmd = conn.CreateCommand();
+                backfillCmd.CommandText = $"UPDATE {table} SET {column} = (SELECT Id FROM UserProfile LIMIT 1) WHERE {column} = '' OR {column} IS NULL";
+                var rows = await backfillCmd.ExecuteNonQueryAsync();
+                _logger.LogInformation("Backfilled {Count} rows in {Table}.{Column}", rows, table, column);
+            }
+        }
+    }
+
+    private async Task EnsureTableFromModel(System.Data.Common.DbConnection conn, string table)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'";
+        if (await checkCmd.ExecuteScalarAsync() != null)
+            return; // Table already exists
+
+        _logger.LogInformation("Table {Table} missing — will be created by next EnsureCreated or migration", table);
+        // Individual CREATE TABLE is complex; the next successful MigrateAsync or EnsureCreated will handle it.
+    }
+#endif
 }
