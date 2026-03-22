@@ -75,8 +75,13 @@
         Preferences.Remove("active_profile_id");
         AppState.CurrentUserProfile = null;
 
-        // Navigate to auth page with full reload to reset layout state
-        Nav.NavigateTo("/auth", forceLoad: true);
+        // On web, navigate to server sign-out endpoint to clear the auth cookie.
+        // On mobile (MAUI), no server endpoint exists — navigate to /auth directly.
+        // forceLoad:true ensures a full HTTP request on web (hits the server endpoint)
+        // and a full webview reload on mobile (resets Blazor circuit).
+        var baseUri = Nav.BaseUri;
+        var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+        Nav.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth", forceLoad: true);
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

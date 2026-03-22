@@ -17,7 +17,7 @@ public static class AccountEndpoints
 
     public static void MapAccountEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/account-action");
+        var group = app.MapGroup("/account-action").AllowAnonymous();
 
         group.MapPost("/Login", async (
             [FromForm] string email,
@@ -101,6 +101,14 @@ public static class AccountEndpoints
             return Results.Redirect("/");
         })
         .DisableAntiforgery();
+
+        // GET sign-out for Blazor NavigateTo(forceLoad:true) — clears server cookie
+        group.MapGet("/SignOut", async (
+            SignInManager<ApplicationUser> signInManager) =>
+        {
+            await signInManager.SignOutAsync();
+            return Results.Redirect("/Account/Login");
+        });
 
         group.MapPost("/Register", async (
             [FromForm] string email,

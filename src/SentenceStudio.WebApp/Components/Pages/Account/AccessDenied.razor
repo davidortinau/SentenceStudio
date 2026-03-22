@@ -1,4 +1,6 @@
 @page "/Account/AccessDenied"
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
 @layout SentenceStudio.WebApp.Components.Layout.AuthLayout
 
 <PageTitle>Access Denied - Sentence Studio</PageTitle>

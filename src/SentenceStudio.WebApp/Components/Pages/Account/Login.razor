@@ -1,5 +1,7 @@
 @page "/Account/Login"
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@attribute [AllowAnonymous]
 @layout SentenceStudio.WebApp.Components.Layout.AuthLayout
 
 <PageTitle>Sign In - Sentence Studio</PageTitle>
