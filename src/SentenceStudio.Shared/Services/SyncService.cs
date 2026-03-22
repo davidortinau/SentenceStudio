@@ -97,6 +97,23 @@ public class SyncService : ISyncService
                 await conn.CloseAsync();
             }
 
+            // PRE-MIGRATION: Ensure critical columns exist BEFORE MigrateAsync.
+            // MigrateAsync may "succeed" without actually applying all migrations
+            // (e.g., when migration history is seeded but schema is from old EnsureCreated).
+            var connFix = dbContext.Database.GetDbConnection();
+            await connFix.OpenAsync();
+            try
+            {
+                await EnsureColumnExists(connFix, "DailyPlanCompletion", "UserProfileId", "TEXT NOT NULL DEFAULT ''");
+                await EnsureColumnExists(connFix, "UserActivity", "UserProfileId", "TEXT DEFAULT ''");
+            }
+            catch (Exception fixEx)
+            {
+                // Table might not exist yet (fresh install) — that's fine, MigrateAsync will create it
+                _logger.LogDebug(fixEx, "Pre-migration column check skipped (table may not exist yet)");
+            }
+            finally { await connFix.CloseAsync(); }
+
             try
             {
                 await dbContext.Database.MigrateAsync();
@@ -104,21 +121,14 @@ public class SyncService : ISyncService
             }
             catch (Exception ex)
             {
-                // Migration can fail if tables already exist (from prior EnsureCreated),
-                // or if the model diverges from the snapshot (Identity tables on server only).
-                // Ensure missing columns/tables exist by applying schema fixes manually.
                 _logger.LogWarning(ex, "MigrateAsync failed — applying manual schema fixes...");
 
                 var conn2 = dbContext.Database.GetDbConnection();
                 await conn2.OpenAsync();
                 try
                 {
-                    // Ensure DailyPlanCompletion has UserProfileId column
                     await EnsureColumnExists(conn2, "DailyPlanCompletion", "UserProfileId", "TEXT NOT NULL DEFAULT ''");
-                    // Ensure UserActivity has correct Id type (TEXT for GUIDs)
-                    // Ensure MonitoredChannel and VideoImport tables exist
-                    await EnsureTableFromModel(conn2, "MonitoredChannel");
-                    await EnsureTableFromModel(conn2, "VideoImport");
+                    await EnsureColumnExists(conn2, "UserActivity", "UserProfileId", "TEXT DEFAULT ''");
                     _logger.LogInformation("Manual schema fixes applied successfully");
                 }
                 catch (Exception fixEx)
@@ -213,9 +223,17 @@ public class SyncService : ISyncService
     private async Task EnsureColumnExists(System.Data.Common.DbConnection conn, string table, string column, string type)
     {
         using var checkCmd = conn.CreateCommand();
-        checkCmd.CommandText = $"PRAGMA table_info({table})";
+        checkCmd.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'";
+        if (await checkCmd.ExecuteScalarAsync() == null)
+        {
+            _logger.LogDebug("Table {Table} does not exist yet — skipping column check", table);
+            return;
+        }
+
+        using var pragmaCmd = conn.CreateCommand();
+        pragmaCmd.CommandText = $"PRAGMA table_info({table})";
         var hasColumn = false;
-        using var reader = await checkCmd.ExecuteReaderAsync();
+        using var reader = await pragmaCmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             if (reader.GetString(1).Equals(column, StringComparison.OrdinalIgnoreCase))
@@ -242,17 +260,6 @@ public class SyncService : ISyncService
                 _logger.LogInformation("Backfilled {Count} rows in {Table}.{Column}", rows, table, column);
             }
         }
-    }
-
-    private async Task EnsureTableFromModel(System.Data.Common.DbConnection conn, string table)
-    {
-        using var checkCmd = conn.CreateCommand();
-        checkCmd.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'";
-        if (await checkCmd.ExecuteScalarAsync() != null)
-            return; // Table already exists
-
-        _logger.LogInformation("Table {Table} missing — will be created by next EnsureCreated or migration", table);
-        // Individual CREATE TABLE is complex; the next successful MigrateAsync or EnsureCreated will handle it.
     }
 #endif
 }
