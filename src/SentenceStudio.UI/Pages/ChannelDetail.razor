@@ -159,36 +159,37 @@ else
                     </button>
                 </div>
 
-                <div class="list-group">
-                    @foreach (var video in discoveredVideos)
-                    {
-                        <div class="list-group-item d-flex align-items-center gap-3 py-2 @(video.IsCompleted ? "opacity-50" : "")">
-                            <input class="form-check-input flex-shrink-0" type="checkbox"
-                                   checked="@selectedVideoIds.Contains(video.VideoId)"
-                                   disabled="@(!video.CanSelect)"
-                                   @onchange="() => ToggleVideoSelection(video.VideoId)" />
-                            <span class="flex-grow-1 text-truncate">@video.Title</span>
-                            @if (video.IsCompleted)
-                            {
-                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Imported</span>
-                            }
-                            else if (video.IsFailed)
-                            {
-                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
-                                <button class="btn btn-sm btn-outline-warning" @onclick="() => RetryFailedVideo(video)" disabled="@isRetryingImport">
-                                    @if (retryingVideoId == video.VideoId)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-1"></span>
-                                    }
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
-                                </button>
-                            }
-                            else if (video.IsInProgress)
-                            {
-                                <span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i>Importing...</span>
-                            }
-                        </div>
-                    }
+                <div style="height: 50vh; overflow-y: auto;">
+                    <div class="list-group">
+                        <Virtualize Items="discoveredVideos" Context="video">
+                            <div class="list-group-item d-flex align-items-center gap-3 py-2 @(video.IsCompleted ? "opacity-50" : "")">
+                                <input class="form-check-input flex-shrink-0" type="checkbox"
+                                       checked="@selectedVideoIds.Contains(video.VideoId)"
+                                       disabled="@(!video.CanSelect)"
+                                       @onchange="() => ToggleVideoSelection(video.VideoId)" />
+                                <span class="flex-grow-1 text-truncate">@video.Title</span>
+                                @if (video.IsCompleted)
+                                {
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Imported</span>
+                                }
+                                else if (video.IsFailed)
+                                {
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                                    <button class="btn btn-sm btn-outline-warning" @onclick="() => RetryFailedVideo(video)" disabled="@isRetryingImport">
+                                        @if (retryingVideoId == video.VideoId)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                                    </button>
+                                }
+                                else if (video.IsInProgress)
+                                {
+                                    <span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i>Importing...</span>
+                                }
+                            </div>
+                        </Virtualize>
+                    </div>
                 </div>
             }
             else if (hasCheckedVideos && !isCheckingVideos)
