@@ -21,6 +21,7 @@ public class VideoImportPipelineService
     private readonly TranscriptFormattingService _formatting;
     private readonly AiService _aiService;
     private readonly IFileSystemService _fileSystem;
+    private readonly SyncService? _syncService;
 
     public VideoImportPipelineService(
         IServiceProvider serviceProvider,
@@ -28,7 +29,8 @@ public class VideoImportPipelineService
         YouTubeImportService youtubeImport,
         TranscriptFormattingService formatting,
         AiService aiService,
-        IFileSystemService fileSystem)
+        IFileSystemService fileSystem,
+        SyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -36,6 +38,7 @@ public class VideoImportPipelineService
         _formatting = formatting;
         _aiService = aiService;
         _fileSystem = fileSystem;
+        _syncService = syncService;
     }
 
     // ────────────────────────── Queries ──────────────────────────
@@ -371,5 +374,7 @@ public class VideoImportPipelineService
             db.VideoImports.Add(import);
         
         await db.SaveChangesAsync();
+
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
     }
 }

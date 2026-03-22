@@ -16,14 +16,17 @@ public class ChannelMonitorService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ChannelMonitorService> _logger;
+    private readonly SyncService? _syncService;
     private readonly YoutubeClient _youtube = new();
 
     public ChannelMonitorService(
         IServiceProvider serviceProvider,
-        ILogger<ChannelMonitorService> logger)
+        ILogger<ChannelMonitorService> logger,
+        SyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _syncService = syncService;
     }
 
     // ────────────────────────── CRUD ──────────────────────────
@@ -69,6 +72,8 @@ public class ChannelMonitorService
         db.MonitoredChannels.Add(channel);
         await db.SaveChangesAsync();
 
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
         _logger.LogInformation("Added monitored channel {Name} ({Handle}), metadata resolved: {Resolved}",
             channel.ChannelName, channel.ChannelHandle, resolved);
         return (channel, resolved, error);
@@ -82,6 +87,8 @@ public class ChannelMonitorService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.MonitoredChannels.Update(channel);
         await db.SaveChangesAsync();
+
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
     }
 
     public async Task DeleteAsync(string id)
@@ -93,6 +100,9 @@ public class ChannelMonitorService
         {
             db.MonitoredChannels.Remove(channel);
             await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
             _logger.LogInformation("Deleted monitored channel {Id}", id);
         }
     }
@@ -215,6 +225,8 @@ public class ChannelMonitorService
             channel.LastCheckedAt = DateTime.UtcNow;
             channel.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
     }
 
