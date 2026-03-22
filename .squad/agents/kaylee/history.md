@@ -377,3 +377,53 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 
 **Build Status:** Both WebApp and iOS build clean (0 errors, pre-existing warnings only)
 
+
+### 2026-03-20 — Mobile UX Research (Research Task)
+
+**Deliverable:** `docs/mobile-ux-research.md` — comprehensive research on mobile-native UX patterns for Blazor Hybrid
+
+**Key Findings:**
+
+1. **Blazor Virtualize Component:**
+   - Works in Blazor Hybrid, built-in, handles variable-height items
+   - Recommended approach: Load full dataset into memory, filter it, pass to `<Virtualize Items="filteredList">`
+   - For 2000-5000 vocabulary words, this is efficient and enables full-dataset search/filter
+   - Pattern: Replace `@foreach` with `<Virtualize>`, set `ItemSize` estimate, use scrollable container with fixed height
+   - Alternative: `ItemsProvider` delegate for true infinite scroll with database pagination (for 10,000+ items)
+
+2. **Pull-to-Refresh:**
+   - **Native RefreshView CANNOT wrap BlazorWebView** (confirmed in research + prior experience)
+   - BlazorWebView is the scroll container; RefreshView needs to be ancestor of scrollable content
+   - JavaScript-based pull-to-refresh is possible but complex (touch events + CSS overscroll-behavior)
+   - **Recommendation:** Use refresh button in toolbar instead of pull-to-refresh for MVP
+   - Already established pattern: toolbar actions in PageHeader component
+
+3. **Mobile Touch Patterns:**
+   - **Swipe actions:** Require JS interop (detect touch events, animate reveal). Alternative: long-press + action sheet (simpler)
+   - **Bottom sheets:** Already using Bootstrap `offcanvas-bottom` with `d-md-none` (established pattern)
+   - **Haptic feedback:** Available via `HapticFeedback.Default.Perform()` — wrap in service, inject into components
+   - **Skeleton loading:** Pure CSS solution, better than spinners for perceived performance
+
+4. **Platform Detection:**
+   - Use `DeviceInfo.Platform` for runtime checks (not preprocessor directives in .razor files)
+   - Pattern: Create `IPlatformService` wrapper with `IsMobile`, `IsWeb` properties
+   - Prefer CSS media queries (`d-md-none`, `d-none d-md-block`) for layout differences
+   - Use C# platform checks only for functional differences (e.g., Virtualize vs pagination, enable haptics)
+
+**Priority Roadmap:**
+1. **Phase 1 (Immediate):** Replace `@foreach` with `<Virtualize>` in Vocabulary and Resources pages
+2. **Phase 2 (High):** Add skeleton loading placeholders during data load
+3. **Phase 3 (Medium):** Implement haptic feedback service for quiz grading and key actions
+4. **Phase 4 (Low):** Add long-press action sheets for list item actions
+5. **Phase 5 (Low):** Defer pull-to-refresh unless user feedback demands it
+
+**Technical Learnings:**
+- Blazor `<Virtualize>` handles variable-height items automatically (uses `ItemSize` as estimate, measures actuals)
+- Search/filter with virtualization: Maintain full dataset in memory, filter it, pass filtered list to Virtualize
+- Platform-conditional rendering: Hybrid approach (CSS for layout, C# for behavior)
+- MAUI HapticFeedback API: Two types (Click, LongPress), check `IsSupported` first
+
+**Next Steps:**
+- Review research with Captain
+- Create GitHub issues for Phase 1 and 2
+- Prototype Virtualize in Vocabulary.razor to validate approach
