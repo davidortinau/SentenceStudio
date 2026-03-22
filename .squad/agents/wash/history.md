@@ -456,3 +456,27 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 - Fire-and-forget Task.Run for background pipelines in API endpoints (non-blocking response)
 - Platform abstractions (IConnectivityService, IFileSystemService) need stub implementations for server contexts (API, Workers)
 - Workers need same Aspire PostgreSQL package version as API for compatibility (13.3.0-preview.1.26156.1)
+
+### 2026-03-22 — Release Notes Infrastructure
+
+- Created `docs/release-notes/v1.0.md` and `v1.1.md` with YAML frontmatter (version, date, title)
+- Built `ReleaseNotesService` in `SentenceStudio.Shared/Services/` with multi-platform support
+  - Server/Desktop: reads from `docs/release-notes/` filesystem path
+  - Mobile: reads from MauiAsset via `FileSystem.OpenAppPackageFileAsync()` lambda
+  - Parses frontmatter using Regex to extract metadata
+  - Returns sorted list (latest first) with caching
+- Added `/api/version` endpoints (public, no auth):
+  - `GET /api/version/info` — current version + release notes
+  - `GET /api/version/latest` — latest available version
+  - `GET /api/version/notes/{version}` — specific version notes
+  - `GET /api/version/notes` — all release notes
+- Registered `ReleaseNotesService` in DI:
+  - API: `new ReleaseNotesService("docs/release-notes")` (filesystem)
+  - WebApp: `new ReleaseNotesService("docs/release-notes")` (filesystem)
+  - AppLib: `new ReleaseNotesService(fileName => FileSystem.OpenAppPackageFileAsync(fileName))` (MauiAsset)
+- Added release notes `.md` files as `<MauiAsset>` in AppLib.csproj with `LogicalName="%(Filename)%(Extension)"`
+- Fixed namespace reference in `Settings.razor` and `MainLayout.razor` from `SentenceStudio.Shared.Services` → `SentenceStudio.Services`
+- Version info read from `Assembly.GetExecutingAssembly().GetName().Version` (server) or `AppInfo.Current.Version` (MAUI)
+
+**Key Decision:** Multi-platform service with constructor-based dependency injection for asset loading. Server and MAUI use different constructors to provide filesystem or MauiAsset access without conditional compilation headaches in the service itself.
+

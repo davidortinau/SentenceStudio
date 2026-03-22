@@ -24,9 +24,16 @@
         // Check Services fallback section
         var fallbackUrl = Configuration["Services:api:https:0"] ?? "";
 
-        if (!string.IsNullOrEmpty(aspireApiUrl))
+        // Collect all known URLs to check for production indicators
+        var allUrls = $"{aspireApiUrl} {configApiUrl} {fallbackUrl}";
+
+        if (allUrls.Contains("azurecontainerapps.io"))
         {
-            // Aspire is running — dev tunnels or localhost
+            // Production Azure — no badge
+            envLabel = "";
+        }
+        else if (!string.IsNullOrEmpty(aspireApiUrl))
+        {
             if (aspireApiUrl.Contains("devtunnels.ms"))
             {
                 envLabel = "DEV TUNNEL";
@@ -39,11 +46,6 @@
                 envClass = "local";
                 envDetail = $"API: {aspireApiUrl}";
             }
-        }
-        else if (fallbackUrl.Contains("azurecontainerapps.io") || configApiUrl.Contains("azurecontainerapps.io"))
-        {
-            // Production Azure — no badge needed
-            envLabel = "";
         }
         else if (configApiUrl.Contains("localhost") || fallbackUrl.Contains("localhost"))
         {

@@ -25,7 +25,9 @@ public static class SharedSyncRegistration
             .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MonitoredChannel>("MonitoredChannel", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VideoImport>("VideoImport", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST
@@ -42,7 +44,9 @@ public static class SharedSyncRegistration
             .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<VocabularyLearningContext>("VocabularyLearningContext", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MonitoredChannel>("MonitoredChannel", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<VideoImport>("VideoImport", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

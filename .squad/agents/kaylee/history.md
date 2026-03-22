@@ -261,3 +261,44 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 - `record` types work in Blazor `@code` blocks for inline DTOs (e.g., `DiscoveredVideo`)
 - `IPreferencesService.Set<T>()` persists view mode — simpler than JS localStorage for Blazor Hybrid
 
+
+### 2026-03-21 — What's New Modal Feature (Issue #XX)
+
+**WhatsNewModal Component (Shared/WhatsNewModal.razor):**
+- Bootstrap 5 modal with centered, scrollable dialog
+- Parameters: IsVisible, OnDismissed, Title, Version, Content (HTML)
+- Uses bi-megaphone icon (no emojis, per project rules)
+- Modal overlay via `d-block` + backdrop RGBA
+- Modal content renders as MarkupString (accepts pre-rendered HTML)
+- "Got it!" button with bi-check-circle icon
+
+**MainLayout Version Check:**
+- Injected ReleaseNotesService
+- OnAfterRenderAsync calls CheckVersionAndShowWhatsNew() after auth confirmed
+- Reads "last_seen_version" from Preferences
+- Gets current version via Assembly.GetName().Version.ToString(2) (major.minor format)
+- Shows modal on first run or after version bump
+- DismissWhatsNew() saves current version to Preferences
+- Includes ConvertMarkdownToHtml() helper: headers, bold, italic, links, lists, paragraphs
+
+**Settings Page Updates:**
+- Dynamic version in About section: "SentenceStudio v@currentVersion"
+- "What's New" button with bi-megaphone icon
+- ShowReleaseNotes() fetches notes for current version via ReleaseNotesService
+- Reuses WhatsNewModal component (same instance as MainLayout)
+- ConvertMarkdownToHtml() duplicated (could be extracted to utility class)
+
+**Key Patterns:**
+- Assembly version format: `.ToString(2)` → "1.0" (major.minor)
+- Simple markdown-to-HTML: Regex replacements for common patterns (headers, bold, italic, lists)
+- No Markdig dependency — lightweight inline conversion
+- Bootstrap 5 modal classes: `modal-dialog-centered`, `modal-dialog-scrollable`
+- State management: boolean + EventCallback pattern for modal visibility
+
+**Decision Trade-offs:**
+- Duplicated ConvertMarkdownToHtml() in MainLayout + Settings → could extract to shared utility
+- Simple markdown parser sufficient for release notes (no complex nested lists or code blocks)
+- WhatsNewModal is stateless — parent controls visibility and content
+
+**Build Status:** Clean build (0 errors, pre-existing warnings only)
+
