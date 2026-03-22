@@ -92,7 +92,6 @@ public static class CoreServiceExtensions
         // Progress & timing
         services.AddSingleton<ProgressCacheService>();
         services.AddSingleton<IProgressService, ProgressService>();
-        services.AddSingleton<Timer.IActivityTimerService, Timer.ActivityTimerService>();
 
         // Plan generation
         services.AddSingleton<DeterministicPlanBuilder>();

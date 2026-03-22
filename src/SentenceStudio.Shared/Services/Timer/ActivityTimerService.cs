@@ -43,9 +43,10 @@ public class ActivityTimerService : IActivityTimerService
     {
         _logger.LogDebug("⏱️ ActivityTimerService.StartSession - activityType={ActivityType}, activityId={ActivityId}", activityType, activityId);
 
-        // Stop any existing session
+        // Save and stop any existing session (Pause saves unsaved progress before clearing)
         if (IsActive)
         {
+            if (IsRunning) Pause();
             StopSession();
         }
 

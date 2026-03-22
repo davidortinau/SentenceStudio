@@ -15,6 +15,7 @@ public static class BlazorUIServiceExtensions
         services.AddSingleton<BlazorNavigationService>();
         services.AddScoped<NavigationMemoryService>();
         services.AddScoped<JsInteropService>();
+        services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
         return services;
     }
 }
