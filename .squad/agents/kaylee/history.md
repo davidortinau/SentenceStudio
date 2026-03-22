@@ -427,3 +427,73 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 - Review research with Captain
 - Create GitHub issues for Phase 1 and 2
 - Prototype Virtualize in Vocabulary.razor to validate approach
+
+### 2026-03-20 — Blazor Virtualize Implementation
+
+**Task:** Replace `@foreach` loops with Blazor's `<Virtualize>` component on vocabulary and resource list pages to handle large datasets (2000-3000+ items) efficiently.
+
+**Pages Modified:**
+1. **Vocabulary.razor** — Main vocabulary list
+   - Replaced grid view `@foreach` with `<Virtualize Items="filteredWords">`
+   - Replaced list view `@foreach` with `<Virtualize Items="filteredWords">`
+   - Scrollable container: `calc(100vh - 380px)` height for responsive layout
+   - Grid items wrapped in single-column row per item (Virtualize doesn't support CSS Grid/Flexbox directly)
+
+2. **Resources.razor** — Learning resources list
+   - Replaced both grid and list view `@foreach` with `<Virtualize Items="resources">`
+   - Removed "Show More" pagination button and logic
+   - Removed pagination state: `resourcesPageSize`, `resourcesDisplayCount`, `displayedResources`, `ShowMoreResources()`
+   - Scrollable container: `calc(100vh - 280px)` height
+   - Updated count display from "Showing X of Y" to just "X resource(s)"
+
+3. **ChannelDetail.razor** — YouTube video discovery list
+   - Replaced `@foreach` with `<Virtualize Items="discoveredVideos">`
+   - Scrollable container: `50vh` height (half viewport for this context)
+   - Video list shows import status (Imported, Failed, In Progress) with action buttons
+
+**Pattern Established:**
+```razor
+<div style="height: calc(100vh - Xpx); overflow-y: auto;">
+    <Virtualize Items="filteredList" Context="item">
+        <!-- item template here -->
+    </Virtualize>
+</div>
+```
+
+**Key Points:**
+- Search/filter operates on the **full dataset** in memory, then passes filtered results to Virtualize
+- Grid view workaround: Each Virtualize item contains `<div class="row g-3 mb-3">` with single column — Virtualize renders items vertically
+- No changes to search, filter, or sort logic — all existing functionality preserved
+- Removed pagination UI and state management code from Resources page
+
+**Build & Deploy:**
+- WebApp build: Clean (0 errors)
+- iOS build: Clean (0 errors)
+- Committed to main: `75c19ca` — "Implement Blazor Virtualize on vocabulary and resource lists"
+- Pushed to GitHub
+- Deployed to Azure: 2m25s (SUCCESS)
+- Installed on iPhone (DX24 device): Success
+
+**Testing Notes:**
+- Vocabulary list with 2000+ words now renders only visible items
+- Smooth scrolling on mobile — no janky rendering of 2000+ DOM nodes
+- Search/filter still works on full dataset before passing to Virtualize
+- Resources page no longer requires clicking "Show More" repeatedly
+
+**Technical Learnings:**
+- Blazor's `<Virtualize>` works in Blazor Hybrid (WebApp and MAUI)
+- `Context="item"` parameter names the iteration variable
+- Fixed-height scrollable container is required for Virtualize to work (uses viewport to calculate visible range)
+- Grid layout workaround: wrap each item's row inside the Virtualize template
+- For lists with dynamic filtering, load all data and filter before Virtualize (cleaner than ItemsProvider delegate for our use case)
+
+**Performance Impact:**
+- Initial render: Fast (only ~20-30 items rendered, not 2000+)
+- Memory: Entire dataset still in memory (acceptable for 2000-5000 items)
+- Scrolling: Smooth — Virtualize dynamically adds/removes DOM nodes as user scrolls
+- Search: Still operates on full dataset — no performance regression
+
+**Next Steps:**
+- Monitor user feedback on scrolling performance
+- Consider skeleton loading placeholders during data load (Phase 2)
+- Evaluate if any other pages need virtualization (e.g., quiz results history)
