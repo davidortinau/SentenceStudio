@@ -37,6 +37,9 @@ public class VocabularyProgressRepository
 
     public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(string vocabularyWordId, string userId)
     {
+        if (string.IsNullOrEmpty(userId))
+            userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.VocabularyProgresses
