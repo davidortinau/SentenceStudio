@@ -1667,6 +1667,23 @@ h3:focus,
 }
 
 /* ============================================
+   SWITCH CONTROL — NATURAL MOBILE SIZE
+   ============================================ */
+
+/* Bootstrap's form-switch renders tiny in Blazor Hybrid WebView.
+   Enforce a comfortable touch-target matching native mobile toggles. */
+.form-switch .form-check-input {
+    width: 3rem;
+    height: 1.625rem;
+    border-radius: 1rem;
+    cursor: pointer;
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* ============================================
    LIST PAGE LAYOUT (vocabulary, resources)
    Lets <main> handle scrolling as one unit —
    search/filters scroll with the list content.
