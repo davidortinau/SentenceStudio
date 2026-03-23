@@ -848,8 +848,15 @@ else
     private static string TruncateTitle(string? title, int maxLen) =>
         title == null ? "" : title.Length <= maxLen ? title : title[..maxLen] + "…";
 
-    private void AddWord() => NavManager.NavigateTo("/vocabulary/edit/0");
-    private void EditWord(string id) => NavManager.NavigateTo($"/vocabulary/edit/{id}");
+    private void AddWord() => NavManager.NavigateTo(BuildEditUrl("0"));
+    private void EditWord(string id) => NavManager.NavigateTo(BuildEditUrl(id));
+
+    private string BuildEditUrl(string id)
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            return $"/vocabulary/edit/{id}";
+        return $"/vocabulary/edit/{id}?returnQuery={Uri.EscapeDataString(searchQuery)}";
+    }
 
     private void OnCardClick(VocabularyCardItem item)
     {
