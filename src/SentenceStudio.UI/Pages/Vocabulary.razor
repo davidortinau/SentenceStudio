@@ -29,6 +29,7 @@
     </SecondaryActions>
 </PageHeader>
 
+<div class="list-page">
 @if (isLoading)
 {
     <div class="d-flex justify-content-center p-5">
@@ -424,55 +425,53 @@ else
     {
         @if (viewMode == "grid")
         {
-        <div style="height: calc(100vh - 380px); overflow-y: auto;">
+        <div class="row g-3">
             <Virtualize Items="filteredWords" Context="item">
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <div class="card card-ss p-3" role="button" @onclick="() => OnCardClick(item)">
-                            @if (isBulkEditMode)
-                            {
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" checked="@(selectedWordIds.Contains(item.Word.Id))" @onclick:stopPropagation="true" @onchange="() => ToggleWordSelection(item.Word.Id)" />
-                                </div>
-                            }
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1 overflow-hidden">
-                                    <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
-                                    <span class="ss-body2 text-secondary-ss">@(item.Word.NativeLanguageTerm ?? "")</span>
-                                </div>
-                                <div class="d-flex gap-1 flex-shrink-0 align-items-center">
-                                    <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
-                                    @if (item.IsKnown)
-                                    {
-                                        <span class="badge bg-success" title="Mastered through practice and verified">Known</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge @GetStatusBadgeClass(item)" title="@GetStatusTooltip(item)">@item.StatusText</span>
-                                    }
-                                </div>
+                <div class="col-12 col-md-6 col-lg-4 mb-3">
+                    <div class="card card-ss p-3" role="button" @onclick="() => OnCardClick(item)">
+                        @if (isBulkEditMode)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" checked="@(selectedWordIds.Contains(item.Word.Id))" @onclick:stopPropagation="true" @onchange="() => ToggleWordSelection(item.Word.Id)" />
                             </div>
-                            <div class="mt-2 d-flex gap-2 flex-wrap">
-                                @if (item.IsOrphaned)
+                        }
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1 overflow-hidden">
+                                <h6 class="ss-title3 mb-1">@(item.Word.TargetLanguageTerm ?? "")</h6>
+                                <span class="ss-body2 text-secondary-ss">@(item.Word.NativeLanguageTerm ?? "")</span>
+                            </div>
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center">
+                                <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
+                                @if (item.IsKnown)
                                 {
-                                    <small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Orphaned</small>
+                                    <span class="badge bg-success" title="Mastered through practice and verified">Known</span>
                                 }
                                 else
                                 {
-                                    <small class="text-secondary-ss"><i class="bi bi-book me-1"></i>@item.AssociatedResources.Count resource(s)</small>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(item.Word.Lemma))
-                                {
-                                    <small class="text-secondary-ss"><i class="bi bi-braces me-1"></i>@item.Word.Lemma</small>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(item.Word.Tags))
-                                {
-                                    @foreach (var tag in item.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(3))
-                                    {
-                                        <span class="badge bg-secondary bg-opacity-50 fw-normal">@tag</span>
-                                    }
+                                    <span class="badge @GetStatusBadgeClass(item)" title="@GetStatusTooltip(item)">@item.StatusText</span>
                                 }
                             </div>
+                        </div>
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            @if (item.IsOrphaned)
+                            {
+                                <small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Orphaned</small>
+                            }
+                            else
+                            {
+                                <small class="text-secondary-ss"><i class="bi bi-book me-1"></i>@item.AssociatedResources.Count resource(s)</small>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Word.Lemma))
+                            {
+                                <small class="text-secondary-ss"><i class="bi bi-braces me-1"></i>@item.Word.Lemma</small>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Word.Tags))
+                            {
+                                @foreach (var tag in item.Word.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(3))
+                                {
+                                    <span class="badge bg-secondary bg-opacity-50 fw-normal">@tag</span>
+                                }
+                            }
                         </div>
                     </div>
                 </div>
@@ -481,10 +480,9 @@ else
         }
         else
         {
-        <div style="height: calc(100vh - 380px); overflow-y: auto;">
-            <div class="list-group">
-                <Virtualize Items="filteredWords" Context="item">
-                    <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => OnCardClick(item)">
+        <div class="list-group">
+            <Virtualize Items="filteredWords" Context="item">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => OnCardClick(item)">
                         @if (isBulkEditMode)
                         {
                             <input class="form-check-input me-1 flex-shrink-0" type="checkbox" checked="@(selectedWordIds.Contains(item.Word.Id))" @onclick:stopPropagation="true" @onchange="() => ToggleWordSelection(item.Word.Id)" />
@@ -501,12 +499,12 @@ else
                             <span class="badge @GetStatusBadgeClass(item)">@item.StatusText</span>
                         }
                     </button>
-                </Virtualize>
-            </div>
+            </Virtualize>
         </div>
         }
     }
 }
+</div>
 
 @code {
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;

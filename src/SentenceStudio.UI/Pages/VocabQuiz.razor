@@ -218,6 +218,7 @@ else
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
+    private const int BatchSize = 20;
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
 
@@ -239,9 +240,9 @@ else
     private string feedbackMessage = "";
     private string[] choiceOptions = Array.Empty<string>();
 
+    private List<VocabularyQuizItem> batchPool = new();
     private List<VocabularyQuizItem> vocabItems = new();
     private List<VocabularyQuizItem> sessionItems = new();
-    private List<VocabularyQuizItem> pendingReplacements = new();
     private List<VocabularyQuizItem> roundWordOrder = new();
     private VocabularyQuizItem? currentItem;
 
@@ -303,7 +304,7 @@ else
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
 
-            vocabItems = allWords.Select(word =>
+            batchPool = allWords.Select(word =>
             {
                 var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
                     : new SentenceStudio.Shared.Models.VocabularyProgress
@@ -317,10 +318,10 @@ else
             .Where(i => !(i.Progress?.IsInGracePeriod ?? false))
             .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
             .ThenBy(_ => Guid.NewGuid())
-            .Take(ActiveWordCount)
+            .Take(BatchSize)
             .ToList();
 
-            if (!vocabItems.Any())
+            if (!batchPool.Any())
             {
                 Toast.ShowInfo("All vocabulary in this resource is mastered!");
                 isBusy = false;
@@ -344,22 +345,23 @@ else
     {
         showSessionSummary = false;
 
-        // Add pending replacements
-        foreach (var item in pendingReplacements)
-        {
-            if (vocabItems.Count < ActiveWordCount)
-                vocabItems.Add(item);
-        }
-        pendingReplacements.Clear();
+        // Remove mastered words from the batch pool
+        batchPool.RemoveAll(i => i.ReadyToRotateOut);
 
-        if (!vocabItems.Any())
+        if (!batchPool.Any())
         {
             Toast.ShowSuccess("All words mastered! Session complete.");
             GoBack();
             return;
         }
 
-        // Shuffle for round
+        // Each round: randomly select up to ActiveWordCount from the full batch pool
+        vocabItems = batchPool
+            .OrderBy(_ => Guid.NewGuid())
+            .Take(ActiveWordCount)
+            .ToList();
+
+        // Shuffle for round presentation order
         roundWordOrder = vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
         currentTurnInRound = 0;
         await LoadCurrentItem();
@@ -594,6 +596,7 @@ else
         foreach (var item in mastered)
         {
             vocabItems.Remove(item);
+            batchPool.Remove(item);
             wordsMastered++;
         }
     }
