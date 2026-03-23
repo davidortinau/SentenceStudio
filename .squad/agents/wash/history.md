@@ -582,3 +582,28 @@ Captain reported 4 data sync issues between mobile (iOS) and web (same account `
 - **SharedSyncRegistration is the source of truth** - Both SQLite and PostgreSQL configs must match
 - **Streak calculation depends on synced data** - If UserActivity doesn't sync, streaks diverge
 
+
+### 2026-03-22 — Fix: Vocabulary Detail Mastery Status (#135)
+
+**Status:** Complete
+**Branch:** `squad/135-vocab-detail-status`
+**Issue:** #135
+
+**Root Cause:**
+`VocabularyProgressRepository.GetByWordIdAndUserIdAsync()` was the only repo method missing the `ActiveUserId` fallback. When VocabularyWordEdit.razor called `GetProgressAsync(wordId)` with no userId, the method searched for `UserId==""`, found nothing, and `GetOrCreateProgressAsync` created a new blank VocabularyProgress record (MasteryScore=0 → "Unknown"). This also caused duplicate VocabularyProgress records per word.
+
+Meanwhile the list page used `GetAllProgressDictionaryAsync()` → `GetAllForUserAsync()` which DID fall back to ActiveUserId and found the real records correctly.
+
+**Fix:** Added the same `ActiveUserId` fallback to `GetByWordIdAndUserIdAsync` that every other repo method already has (3-line change).
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Data/VocabularyProgressRepository.cs` — added ActiveUserId fallback in `GetByWordIdAndUserIdAsync`
+
+## Learnings
+
+- VocabularyProgress mastery status is a computed `[NotMapped]` property on the entity — uses MasteryScore, IsUserDeclared, and VerificationState
+- VocabularyWordEdit.razor (detail page) is at `src/SentenceStudio.UI/Pages/VocabularyWordEdit.razor` — route `/vocabulary/edit/{Id}`
+- Vocabulary list page at `src/SentenceStudio.UI/Pages/Vocabulary.razor` uses `GetAllProgressDictionaryAsync` for batch loading
+- Detail page uses `GetProgressAsync(wordId)` → `GetOrCreateProgressAsync` which auto-creates records if missing
+- ALL VocabularyProgressRepository methods must resolve `ActiveUserId` when `userId` is empty — inconsistency causes silent data bugs
+- `VocabularyCardItem` inner class in Vocabulary.razor maps `Progress?.Status` to display text via switch expression
