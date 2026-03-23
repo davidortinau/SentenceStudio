@@ -16,12 +16,13 @@ public class ActivityTimerService : IActivityTimerService
     private string? _activityId;
     private TimeSpan _pausedElapsed = TimeSpan.Zero;
     private int _lastSavedMinutes = 0;
+    private volatile bool _previousProgressLoaded;
     private readonly Services.Progress.IProgressService? _progressService;
     private readonly ILogger<ActivityTimerService> _logger;
 
     public bool IsActive => _activityType != null;
     public bool IsRunning => _stopwatch.IsRunning;
-    public TimeSpan ElapsedTime => _pausedElapsed + _stopwatch.Elapsed;
+    public TimeSpan ElapsedTime => _pausedElapsed + (_stopwatch.IsRunning ? _stopwatch.Elapsed : TimeSpan.Zero);
     public string? CurrentActivityType => _activityType;
     public string? CurrentActivityId => _activityId;
 
@@ -52,15 +53,35 @@ public class ActivityTimerService : IActivityTimerService
 
         _activityType = activityType;
         _activityId = activityId;
+        _previousProgressLoaded = false;
 
-        // Load existing progress from database to support resume
-        _ = LoadExistingProgressAsync();
+        // Load existing progress, then start the stopwatch once loaded.
+        // This prevents a race where saves could overwrite prior progress
+        // if the user leaves before loading completes.
+        _ = LoadThenStartAsync();
 
+        TimerStateChanged?.Invoke(this, EventArgs.Empty);
+        _logger.LogDebug("✅ Timer session starting (loading previous progress)");
+    }
+
+    /// <summary>
+    /// Loads previous progress from the database, then starts the stopwatch.
+    /// Ensures the stopwatch never runs until _pausedElapsed and _lastSavedMinutes
+    /// are populated with previously-persisted values.
+    /// </summary>
+    private async Task LoadThenStartAsync()
+    {
+        await LoadExistingProgressAsync();
+
+        // Guard: session may have been stopped while we were loading
+        if (!IsActive) return;
+
+        _previousProgressLoaded = true;
         _stopwatch.Restart();
         _tickTimer?.Start();
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
-        _logger.LogDebug("✅ Timer session started");
+        _logger.LogDebug("✅ Stopwatch started after loading previous progress");
     }
 
     public void Pause()
@@ -69,8 +90,10 @@ public class ActivityTimerService : IActivityTimerService
 
         _logger.LogDebug("⏱️ Pausing timer - current elapsed: {ElapsedTime}", ElapsedTime);
 
+        // Accumulate the running segment then RESET the stopwatch so
+        // ElapsedTime doesn't double-count (it adds _pausedElapsed + stopwatch).
         _pausedElapsed += _stopwatch.Elapsed;
-        _stopwatch.Stop();
+        _stopwatch.Reset();
         _tickTimer?.Stop();
 
         // Save progress when pausing
@@ -99,18 +122,18 @@ public class ActivityTimerService : IActivityTimerService
 
         _logger.LogDebug("⏱️ Stopping timer session - total time: {TotalTime}", totalTime);
 
-        _stopwatch.Stop();
+        _stopwatch.Reset();
         _tickTimer?.Stop();
 
-        // DON'T save here - Pause() already saved the progress
-        // Saving here would cause double-counting if Pause was called right before Stop
-        // The proper flow is: Pause() saves → navigation completes → StopSession() clears state
+        // DON'T save here - Pause() already saved the progress.
+        // The proper flow is: Pause() saves -> navigation completes -> StopSession() clears state.
 
         // Clear state
         _activityType = null;
         _activityId = null;
         _pausedElapsed = TimeSpan.Zero;
         _lastSavedMinutes = 0;
+        _previousProgressLoaded = false;
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
 
@@ -123,13 +146,14 @@ public class ActivityTimerService : IActivityTimerService
 
         _logger.LogDebug("⏱️ Canceling timer session");
 
-        _stopwatch.Stop();
+        _stopwatch.Reset();
         _tickTimer?.Stop();
 
         _activityType = null;
         _activityId = null;
         _pausedElapsed = TimeSpan.Zero;
         _lastSavedMinutes = 0;
+        _previousProgressLoaded = false;
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -151,7 +175,14 @@ public class ActivityTimerService : IActivityTimerService
 
     private async Task SaveProgressAsync()
     {
-        _logger.LogDebug("🚀 SaveProgressAsync ENTRY - IsActive={IsActive}, activityId={ActivityId}", IsActive, _activityId);
+        _logger.LogDebug("🚀 SaveProgressAsync ENTRY - IsActive={IsActive}, activityId={ActivityId}, loaded={Loaded}",
+            IsActive, _activityId, _previousProgressLoaded);
+
+        if (!_previousProgressLoaded)
+        {
+            _logger.LogWarning("⏭️ Skipping save — previous progress has not been loaded yet");
+            return;
+        }
 
         if (_progressService == null || string.IsNullOrEmpty(_activityId))
         {
