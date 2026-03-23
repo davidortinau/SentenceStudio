@@ -229,6 +229,9 @@ else
 @code {
     [Parameter] public string Id { get; set; } = "";
 
+    [SupplyParameterFromQuery(Name = "returnQuery")]
+    public string? ReturnQuery { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -503,7 +506,13 @@ else
         }
     }
 
-    private void GoBack() => NavManager.NavigateTo("/vocabulary");
+    private void GoBack()
+    {
+        var url = string.IsNullOrWhiteSpace(ReturnQuery)
+            ? "/vocabulary"
+            : $"/vocabulary?q={Uri.EscapeDataString(ReturnQuery)}";
+        NavManager.NavigateTo(url);
+    }
 
     private async Task SetStatus(SentenceStudio.Shared.Models.LearningStatus status)
     {

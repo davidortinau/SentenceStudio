@@ -45,23 +45,20 @@ else if (isBusy)
 }
 else if (tiles.Any())
 {
-    @* Status bar *@
-    <p class="ss-body1 text-center mb-3">
-        Matched: @matchedPairs / @totalPairs &nbsp;|&nbsp; Misses: @incorrectGuesses
-        @if (!string.IsNullOrEmpty(gameMessage))
-        {
-            <br /><small class="text-secondary-ss">@gameMessage</small>
-        }
-    </p>
+    @* Compact status — single line, no wrapping *@
+    <div class="matching-status-bar">
+        <span><i class="bi bi-check-circle-fill text-success"></i> @matchedPairs/@totalPairs</span>
+        <span><i class="bi bi-x-circle-fill text-danger"></i> @incorrectGuesses</span>
+    </div>
 
-    @* Tile grid — fills remaining height *@
+    @* Tile grid — uniform boxes, fills remaining height, no scroll *@
     <div class="matching-tile-grid flex-grow-1">
         @foreach (var tile in tiles)
         {
             var t = tile;
             if (!t.IsVisible && !t.IsMatched)
             {
-                <div></div>
+                <div class="matching-tile-placeholder"></div>
                 continue;
             }
 
@@ -70,10 +67,10 @@ else if (tiles.Any())
             var opacity = t.IsMatched ? "0.3" : "1.0";
             var cursor = t.IsMatched ? "default" : "pointer";
 
-            <div class="card card-ss clickable text-center @bgClass"
-                 style="cursor: @cursor; opacity: @opacity; border-width: 2px !important; display: flex; align-items: center; justify-content: center;"
+            <div class="matching-tile @bgClass"
+                 style="cursor: @cursor; opacity: @opacity;"
                  @onclick="() => OnTileTapped(t)">
-                <span class="ss-title3 @textClass">@t.Text</span>
+                <span class="@textClass">@t.Text</span>
             </div>
         }
     </div>
@@ -109,7 +106,6 @@ else
     private bool isBusy;
     private bool isGameComplete;
     private bool hideNativeWordsMode = true;
-    private string gameMessage = "";
     private int matchedPairs;
     private int totalPairs;
     private int incorrectGuesses;
@@ -129,7 +125,6 @@ else
     private async Task LoadVocabulary()
     {
         isBusy = true;
-        gameMessage = "";
         try
         {
             var resourceIds = ParseResourceIds();
@@ -150,7 +145,7 @@ else
 
             if (!allWords.Any())
             {
-                gameMessage = "No vocabulary available.";
+                Toast.ShowWarning("No vocabulary available.");
                 isBusy = false;
                 return;
             }
@@ -215,7 +210,8 @@ else
             incorrectGuesses = 0;
             isGameComplete = false;
             selectedTiles.Clear();
-            gameMessage = hideNativeWordsMode ? "Tap a target word to reveal native words" : "Match the pairs!";
+            var hint = hideNativeWordsMode ? "Tap a target word to reveal native words" : "Match the pairs!";
+            Toast.ShowInfo(hint, 2000);
         }
         catch (Exception ex)
         {
@@ -258,10 +254,9 @@ else
         }
 
         if (selectedTiles.Count == 1)
-            gameMessage = "Select another tile";
+            Toast.ShowInfo("Now pick the match", 1500);
         else if (selectedTiles.Count == 2)
         {
-            gameMessage = "Checking...";
             _ = CheckMatchWithDelay();
         }
     }
@@ -275,11 +270,9 @@ else
         {
             foreach (var t in tiles.Where(t => t.Language == "native" && !t.IsMatched))
                 t.IsVisible = false;
-            gameMessage = "Tap a target word to reveal native words";
         }
         else
         {
-            gameMessage = "Match the pairs!";
         }
     }
 
@@ -348,7 +341,7 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             matchedPairs++;
-            gameMessage = "Great match!";
+            Toast.ShowSuccess("Great match!", 1500);
 
             if (hideNativeWordsMode)
             {
@@ -359,7 +352,6 @@ else
             if (matchedPairs >= totalPairs)
             {
                 isGameComplete = true;
-                gameMessage = "";
                 foreach (var t in tiles) t.IsVisible = true;
                 Toast.ShowSuccess("All pairs matched!");
             }
@@ -370,7 +362,7 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             incorrectGuesses++;
-            gameMessage = "Not a match. Try again!";
+            Toast.ShowWarning("Not a match — try again!", 1500);
 
             if (hideNativeWordsMode)
             {
@@ -388,7 +380,6 @@ else
         totalPairs = 0;
         incorrectGuesses = 0;
         isGameComplete = false;
-        gameMessage = "";
         await LoadVocabulary();
     }
 

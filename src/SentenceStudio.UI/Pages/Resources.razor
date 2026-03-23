@@ -12,6 +12,7 @@
     </SecondaryActions>
 </PageHeader>
 
+<div class="list-page">
 @if (isLoading)
 {
     <div class="d-flex justify-content-center p-5">
@@ -78,21 +79,19 @@ else
 
         @if (viewMode == "grid")
         {
-        <div style="height: calc(100vh - 280px); overflow-y: auto;">
+        <div class="row g-3">
             <Virtualize Items="resources" Context="resource">
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)">
-                            <div class="d-flex align-items-start gap-3">
-                                <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-4"></i>
-                                <div class="flex-grow-1 overflow-hidden">
-                                    <h6 class="ss-title3 mb-1 text-truncate">@resource.Title</h6>
-                                    <small class="text-secondary-ss">
-                                        @resource.MediaType • @resource.Language
-                                    </small>
-                                </div>
-                                <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
+                <div class="col-12 col-md-6 col-lg-4 mb-3">
+                    <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)">
+                        <div class="d-flex align-items-start gap-3">
+                            <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-4"></i>
+                            <div class="flex-grow-1 overflow-hidden">
+                                <h6 class="ss-title3 mb-1 text-truncate">@resource.Title</h6>
+                                <small class="text-secondary-ss">
+                                    @resource.MediaType • @resource.Language
+                                </small>
                             </div>
+                            <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
                         </div>
                     </div>
                 </div>
@@ -101,21 +100,20 @@ else
         }
         else
         {
-        <div style="height: calc(100vh - 280px); overflow-y: auto;">
-            <div class="list-group">
-                <Virtualize Items="resources" Context="resource">
-                    <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => EditResource(resource.Id)">
-                        <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-5"></i>
-                        <span class="fw-semibold flex-grow-1 text-truncate">@resource.Title</span>
-                        <span class="text-secondary-ss d-none d-md-inline text-nowrap">@resource.MediaType • @resource.Language</span>
-                        <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
-                    </button>
-                </Virtualize>
-            </div>
+        <div class="list-group">
+            <Virtualize Items="resources" Context="resource">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => EditResource(resource.Id)">
+                    <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-5"></i>
+                    <span class="fw-semibold flex-grow-1 text-truncate">@resource.Title</span>
+                    <span class="text-secondary-ss d-none d-md-inline text-nowrap">@resource.MediaType • @resource.Language</span>
+                    <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
+                </button>
+            </Virtualize>
         </div>
         }
     }
 }
+</div>
 
 @if (isCreatingStarter)
 {

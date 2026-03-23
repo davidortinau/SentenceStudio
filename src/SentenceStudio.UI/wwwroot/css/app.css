@@ -1417,17 +1417,70 @@ h3:focus,
 }
 
 /* ─── Vocabulary Matching tile grid ─── */
+/* ─── Vocabulary Matching — uniform tiles, no scroll ─── */
+
+.matching-status-bar {
+    display: flex;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
 .matching-tile-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 0.75rem;
-    align-content: stretch;
+    gap: 0.5rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.matching-tile,
+.matching-tile-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+    padding: 0.25rem;
+    overflow: hidden;
+    text-align: center;
+    font-size: clamp(0.7rem, 2vw, 1rem);
+    line-height: 1.2;
+    word-break: break-word;
+    min-width: 0;
     min-height: 0;
 }
+
+.matching-tile-placeholder {
+    border-color: transparent;
+    background: transparent;
+}
+
 @media (max-width: 768px) {
     .matching-tile-grid {
         grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+        gap: 0.375rem;
+    }
+
+    .matching-tile {
+        font-size: clamp(0.75rem, 3.5vw, 1rem);
+    }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    .matching-tile-grid {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(4, 1fr);
+        gap: 0.25rem;
+    }
+
+    .matching-tile {
+        font-size: clamp(0.65rem, 2vw, 0.85rem);
     }
 }
 
@@ -1628,4 +1681,15 @@ h3:focus,
 
 .form-switch .form-check-input:focus {
     box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* ============================================
+   LIST PAGE LAYOUT (vocabulary, resources)
+   Lets <main> handle scrolling as one unit —
+   search/filters scroll with the list content.
+   ============================================ */
+
+.list-page {
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
