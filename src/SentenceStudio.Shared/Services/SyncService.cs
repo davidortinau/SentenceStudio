@@ -78,7 +78,7 @@ public class SyncService : ISyncService
 
                     if (isLegacyDb)
                     {
-                        _logger.LogInformation("Legacy database detected — seeding migration history for InitialSqlite");
+                        _logger.LogInformation("Legacy database detected (no history table) — seeding migration history for InitialSqlite");
                         using var seedCmd = conn.CreateCommand();
                         seedCmd.CommandText = @"
                             CREATE TABLE ""__EFMigrationsHistory"" (
@@ -88,6 +88,70 @@ public class SyncService : ISyncService
                             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
                             VALUES ('20260321133148_InitialSqlite', '10.0.4');";
                         await seedCmd.ExecuteNonQueryAsync();
+                    }
+                }
+                else
+                {
+                    // Detect databases with old integer-PK schema that can't work with
+                    // the new GUID-based model and CoreSync. Check if LearningResource
+                    // still uses INTEGER PK (old schema) vs TEXT PK (new schema).
+                    using var pkCheckCmd = conn.CreateCommand();
+                    pkCheckCmd.CommandText = @"
+                        SELECT type FROM pragma_table_info('LearningResource') WHERE name='Id'";
+                    var pkType = (await pkCheckCmd.ExecuteScalarAsync())?.ToString() ?? "";
+                    
+                    var hasOldSchema = pkType.Equals("INTEGER", StringComparison.OrdinalIgnoreCase);
+
+                    if (hasOldSchema)
+                    {
+                        _logger.LogWarning("Old integer-PK schema detected — recreating database with GUID schema. Server sync will restore all data.");
+
+                        // Drop all app tables so InitialSqlite can recreate them cleanly.
+                        // User data is safe on the server — CoreSync will pull it back.
+                        using var dropCmd = conn.CreateCommand();
+                        dropCmd.CommandText = @"
+                            PRAGMA foreign_keys = OFF;
+                            DROP TABLE IF EXISTS ""__CORE_SYNC_CT"";
+                            DROP TABLE IF EXISTS ""__CORE_SYNC_LOCAL_ID"";
+                            DROP TABLE IF EXISTS ""__CORE_SYNC_REMOTE_ANCHOR"";
+                            DROP TABLE IF EXISTS ""ResourceVocabularyMapping"";
+                            DROP TABLE IF EXISTS ""ExampleSentence"";
+                            DROP TABLE IF EXISTS ""VocabularyLearningContext"";
+                            DROP TABLE IF EXISTS ""GradeResponse"";
+                            DROP TABLE IF EXISTS ""SceneImage"";
+                            DROP TABLE IF EXISTS ""MinimalPairAttempt"";
+                            DROP TABLE IF EXISTS ""MinimalPairSession"";
+                            DROP TABLE IF EXISTS ""MinimalPair"";
+                            DROP TABLE IF EXISTS ""ConversationChunk"";
+                            DROP TABLE IF EXISTS ""ConversationMemoryState"";
+                            DROP TABLE IF EXISTS ""Conversation"";
+                            DROP TABLE IF EXISTS ""ConversationScenario"";
+                            DROP TABLE IF EXISTS ""StreamHistory"";
+                            DROP TABLE IF EXISTS ""Story"";
+                            DROP TABLE IF EXISTS ""Challenge"";
+                            DROP TABLE IF EXISTS ""VocabularyProgress"";
+                            DROP TABLE IF EXISTS ""VocabularyWord"";
+                            DROP TABLE IF EXISTS ""VocabularyList"";
+                            DROP TABLE IF EXISTS ""LearningResource"";
+                            DROP TABLE IF EXISTS ""SkillProfile"";
+                            DROP TABLE IF EXISTS ""DailyPlanCompletion"";
+                            DROP TABLE IF EXISTS ""UserActivity"";
+                            DROP TABLE IF EXISTS ""UserProfile"";
+                            DROP TABLE IF EXISTS ""WordAssociationScore"";
+                            DROP TABLE IF EXISTS ""VideoImport"";
+                            DROP TABLE IF EXISTS ""MonitoredChannel"";
+                            DROP TABLE IF EXISTS ""AspNetUserTokens"";
+                            DROP TABLE IF EXISTS ""AspNetUserRoles"";
+                            DROP TABLE IF EXISTS ""AspNetUserLogins"";
+                            DROP TABLE IF EXISTS ""AspNetUserClaims"";
+                            DROP TABLE IF EXISTS ""AspNetRoleClaims"";
+                            DROP TABLE IF EXISTS ""AspNetUsers"";
+                            DROP TABLE IF EXISTS ""AspNetRoles"";
+                            DROP TABLE IF EXISTS ""__EFMigrationsHistory"";
+                            DROP TABLE IF EXISTS ""__EFMigrationsLock"";
+                            PRAGMA foreign_keys = ON;";
+                        await dropCmd.ExecuteNonQueryAsync();
+                        _logger.LogInformation("Old schema tables dropped — MigrateAsync will create fresh GUID-based schema");
                     }
                 }
 
