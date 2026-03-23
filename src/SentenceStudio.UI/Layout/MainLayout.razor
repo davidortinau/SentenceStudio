@@ -7,6 +7,7 @@
 @inject UserProfileRepository ProfileRepo
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
 @inject IServiceProvider ServiceProvider
+@inject SentenceStudio.Services.ISyncService SyncService
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -64,6 +65,19 @@
         Version="@whatsNewVersion"
         Content="@whatsNewContent"
         OnDismissed="@DismissWhatsNew" />
+
+    @if (isSyncing)
+    {
+        <div class="sync-overlay">
+            <div class="text-center">
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">Syncing...</span>
+                </div>
+                <h4 class="text-white mb-2">Syncing Your Profile</h4>
+                <p class="text-white-50 mb-0">Downloading your vocabulary, resources, and progress.<br/>This may take a moment.</p>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -80,10 +94,14 @@
     private string whatsNewContent = "";
     private bool isUpdateAvailable;
     private string latestVersion = "";
+    private bool isSyncing;
 
     protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+        
+        isSyncing = SyncService.IsInitialSyncInProgress;
+        SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
 
         // Resolve authentication state from CascadingAuthenticationState
         if (AuthStateTask is not null)
@@ -276,6 +294,13 @@
     {
         ThemeService.ThemeChanged -= OnThemeChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
+        SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
         jsModule?.DisposeAsync();
+    }
+
+    private void OnInitialSyncCompleted()
+    {
+        isSyncing = false;
+        InvokeAsync(StateHasChanged);
     }
 }

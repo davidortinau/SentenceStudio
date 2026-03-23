@@ -1693,3 +1693,21 @@ h3:focus,
     overflow-x: hidden;
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ============================================
+   SYNC OVERLAY — blocks UI during initial sync
+   ============================================ */
+
+.sync-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}

@@ -10,12 +10,16 @@ public interface ISyncService
 {
     Task InitializeDatabaseAsync();
     Task TriggerSyncAsync();
+    bool IsInitialSyncInProgress { get; }
+    event Action? InitialSyncCompleted;
 }
 
 public class NoOpSyncService : ISyncService
 {
     public Task InitializeDatabaseAsync() => Task.CompletedTask;
     public Task TriggerSyncAsync() => Task.CompletedTask;
+    public bool IsInitialSyncInProgress => false;
+    public event Action? InitialSyncCompleted;
 }
 
 public class SyncService : ISyncService
@@ -26,6 +30,9 @@ public class SyncService : ISyncService
     private readonly IServiceProvider _serviceProvider;
     private readonly SemaphoreSlim _syncSemaphore = new(1, 1);
     private bool _isInitialized = false;
+    
+    public bool IsInitialSyncInProgress { get; private set; }
+    public event Action? InitialSyncCompleted;
 
     public SyncService(
         ISyncProvider localSyncProvider,
@@ -105,6 +112,7 @@ public class SyncService : ISyncService
                     if (hasOldSchema)
                     {
                         _logger.LogWarning("Old integer-PK schema detected — recreating database with GUID schema. Server sync will restore all data.");
+                        IsInitialSyncInProgress = true;
 
                         // Drop all app tables so InitialSqlite can recreate them cleanly.
                         // User data is safe on the server — CoreSync will pull it back.
@@ -231,10 +239,24 @@ public class SyncService : ISyncService
                 });
             
             _logger.LogInformation("Sync completed successfully");
+            
+            if (IsInitialSyncInProgress)
+            {
+                IsInitialSyncInProgress = false;
+                _logger.LogInformation("Initial sync completed — notifying UI");
+                InitialSyncCompleted?.Invoke();
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Sync failed: {Message}", ex.Message);
+            
+            if (IsInitialSyncInProgress)
+            {
+                IsInitialSyncInProgress = false;
+                _logger.LogWarning("Initial sync failed — clearing overlay so user can proceed");
+                InitialSyncCompleted?.Invoke();
+            }
         }
         finally
         {
