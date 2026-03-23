@@ -1612,3 +1612,14 @@ h3:focus,
 .spin {
     animation: spin 1s linear infinite;
 }
+
+/* ============================================
+   LIST PAGE LAYOUT (vocabulary, resources)
+   Lets <main> handle scrolling as one unit —
+   search/filters scroll with the list content.
+   ============================================ */
+
+.list-page {
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
