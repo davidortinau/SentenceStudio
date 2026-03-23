@@ -1612,3 +1612,20 @@ h3:focus,
 .spin {
     animation: spin 1s linear infinite;
 }
+
+/* ============================================
+   SWITCH CONTROL — NATURAL MOBILE SIZE
+   ============================================ */
+
+/* Bootstrap's form-switch renders tiny in Blazor Hybrid WebView.
+   Enforce a comfortable touch-target matching native mobile toggles. */
+.form-switch .form-check-input {
+    width: 3rem;
+    height: 1.625rem;
+    border-radius: 1rem;
+    cursor: pointer;
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}
