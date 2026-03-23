@@ -368,6 +368,7 @@ public class ProgressService : IProgressService
                 if (reconstructedPlan != null)
                 {
                     _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
+                    reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
                     _cache.SetTodaysPlan(reconstructedPlan);
                     return reconstructedPlan;
                 }
@@ -396,6 +397,7 @@ public class ProgressService : IProgressService
                 if (reconstructedPlan != null)
                 {
                     _logger.LogDebug("✅ Found plan in database for correct date");
+                    reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
                     _cache.SetTodaysPlan(reconstructedPlan);
                     return reconstructedPlan;
                 }
@@ -412,6 +414,9 @@ public class ProgressService : IProgressService
 
         // Enrich with latest completion data from database
         var enrichedPlan = await EnrichPlanWithCompletionDataAsync(cachedPlan, ct);
+
+        // Validate activities against current resource state (e.g., Reading without transcript)
+        enrichedPlan = await ValidatePlanActivitiesAsync(enrichedPlan, ct);
 
         // Update cache with enriched data
         _cache.UpdateTodaysPlan(enrichedPlan);
@@ -712,6 +717,56 @@ public class ProgressService : IProgressService
         _logger.LogDebug("📊 Plan enriched: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
 
         return enrichedPlan;
+    }
+
+    /// <summary>
+    /// Validates plan activities against current resource state.
+    /// Removes activities whose prerequisites are no longer met (e.g., Reading without transcript).
+    /// </summary>
+    private async Task<TodaysPlan> ValidatePlanActivitiesAsync(TodaysPlan plan, CancellationToken ct)
+    {
+        var resourceIds = plan.Items
+            .Where(i => !string.IsNullOrEmpty(i.ResourceId))
+            .Select(i => i.ResourceId!)
+            .Distinct()
+            .ToList();
+
+        if (!resourceIds.Any())
+            return plan;
+
+        var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+        var resourceLookup = resources.ToDictionary(r => r.Id);
+
+        var validItems = plan.Items.Where(item =>
+        {
+            if (string.IsNullOrEmpty(item.ResourceId))
+                return true;
+
+            if (!resourceLookup.TryGetValue(item.ResourceId, out var resource))
+                return true; // keep items for unknown resources (might be server-side)
+
+            return item.ActivityType switch
+            {
+                PlanActivityType.Reading => !string.IsNullOrWhiteSpace(resource.Transcript),
+                PlanActivityType.VideoWatching => !string.IsNullOrEmpty(resource.MediaUrl),
+                _ => true
+            };
+        }).ToList();
+
+        if (validItems.Count == plan.Items.Count)
+            return plan;
+
+        _logger.LogInformation("🔧 Filtered {Removed} infeasible plan items (e.g., Reading without transcript)",
+            plan.Items.Count - validItems.Count);
+
+        return plan with
+        {
+            Items = validItems,
+            TotalCount = validItems.Count,
+            CompletionPercentage = validItems.Count > 0
+                ? validItems.Count(i => i.IsCompleted) / (double)validItems.Count * 100
+                : 0
+        };
     }
 
     private Task<List<UserActivity>> GetRecentActivityHistoryAsync(int days, CancellationToken ct)
