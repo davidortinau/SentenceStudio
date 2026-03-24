@@ -1462,17 +1462,32 @@ h3:focus,
 }
 
 @media (max-width: 768px) {
+    /* Lock the matching page to exactly the viewport — no scroll possible */
+    .matching-page-wrapper {
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
     .matching-tile-grid {
         grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(8, minmax(0, 1fr));
-        gap: 0.25rem;
+        grid-template-rows: repeat(8, 1fr);
+        gap: 0.2rem;
+        flex: 1 1 0;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
     }
 
     .matching-tile,
     .matching-tile-placeholder {
-        font-size: clamp(0.75rem, 3.5vw, 1rem);
-        padding: 0.125rem;
-        border-width: 1.5px;
+        font-size: clamp(0.65rem, 3vw, 0.9rem);
+        padding: 0.1rem;
+        border-width: 1px;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
     }
 }
 
