@@ -1,7 +1,7 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
-using MauiDevFlow.Agent;
-using MauiDevFlow.Blazor;
+using Microsoft.Maui.DevFlow.Agent;
+using Microsoft.Maui.DevFlow.Blazor;
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Maui.Essentials.MacOS;
 using Microsoft.Extensions.Logging;

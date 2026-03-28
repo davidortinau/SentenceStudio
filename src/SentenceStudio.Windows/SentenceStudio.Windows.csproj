@@ -23,8 +23,8 @@
 		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
-		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(Configuration)'=='Debug'" />
-		<PackageReference Include="Redth.MauiDevFlow.Blazor" Version="*" Condition="'$(Configuration)'=='Debug'" />
+		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.24.0-dev" Condition="'$(Configuration)'=='Debug'" />
+		<PackageReference Include="Microsoft.Maui.DevFlow.Blazor" Version="0.24.0-dev" Condition="'$(Configuration)'=='Debug'" />
 	</ItemGroup>
 
 	<ItemGroup>
