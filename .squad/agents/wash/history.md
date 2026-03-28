@@ -607,3 +607,14 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` → `GetAllForUse
 - Detail page uses `GetProgressAsync(wordId)` → `GetOrCreateProgressAsync` which auto-creates records if missing
 - ALL VocabularyProgressRepository methods must resolve `ActiveUserId` when `userId` is empty — inconsistency causes silent data bugs
 - `VocabularyCardItem` inner class in Vocabulary.razor maps `Progress?.Status` to display text via switch expression
+
+### Auth Persistence Architecture (2026-xx-xx)
+- JWT access tokens: configurable via `Jwt:ExpiryMinutes`, default 120 min (was 60)
+- Refresh tokens: configurable via `RefreshToken:LifetimeDays`, default 90 days (was 7)
+- WebApp cookie: 90 days with sliding expiration (was 14 days)
+- Mobile client: `IdentityAuthService` restores JWT from SecureStorage before network refresh
+- `MauiAuthenticationStateProvider` uses 10s timeout for silent refresh (was 3s)
+- `ServerAuthService.GetAccessTokenAsync()` reads `Jwt:ExpiryMinutes` config (was hardcoded 1h)
+- Auth endpoints: `AuthEndpoints.cs` (API), `AccountEndpoints.cs` (WebApp), `JwtTokenService.cs`
+- Key file: `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs` — mobile token storage/refresh
+- Captain's preference: never show login unless user explicitly logged out

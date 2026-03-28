@@ -2574,3 +2574,169 @@ private async Task RefreshDashboardAsync()
 - SyncService: `src/SentenceStudio.Shared/Services/SyncService.cs`
 - Dashboard: `src/SentenceStudio.UI/Pages/Index.razor`
 - Spin animation: `src/SentenceStudio.UI/wwwroot/css/app.css`
+
+---
+
+### 6. Post-Login Sync for Mobile Data Consistency (2026-03-15)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-15  
+**Author:** Wash (Backend Dev)
+
+Added automatic sync trigger after successful login/register in mobile clients to pull down server data (DailyPlanCompletion, UserProfile, vocabulary).
+
+**Key Decisions:**
+- Sync runs in background after tokens stored in SecureStorage
+- No blocking — UI immediately responsive to user
+- Sync failures logged but don't interrupt login flow
+- Covers multi-client data consistency (user creates plan on webapp, immediately visible on mobile)
+
+**Related:** CoreSync trigger coverage now includes app startup, connectivity change, and post-login.
+
+---
+
+### 7. Vocab Quiz Two-Tier Pool Architecture (2026-03-22)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-22  
+**Author:** Wash (Backend Dev)  
+**Issue:** #136  
+**PR:** #142
+
+Introduced two-tier pool for vocabulary quiz:
+- **`batchPool` (20 words)** — session-level working set
+- **`vocabItems` (10 words)** — randomly drawn fresh each round
+
+Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over time. No schema changes — pure UI-layer logic.
+
+**Rationale:** Varied word combinations each round, automatic eviction of mastered vocabulary, tunable constants.
+
+---
+
+### 8. VocabularyProgressRepository Consistency (2026-03-22)
+
+**Status:** APPLIED  
+**Date:** 2026-03-22  
+**Author:** Wash (Backend Dev)  
+**Issue:** #135
+
+**Decision:** All `VocabularyProgressRepository` query methods must resolve `ActiveUserId` when userId is empty.
+
+**Context:** `GetByWordIdAndUserIdAsync` was the only method that didn't fall back to `ActiveUserId`, causing detail page to create duplicate blank-userId records.
+
+**Impact:** Fixes #135 (detail page mastery status), prevents future ghost data records.
+
+---
+
+### 9. Dashboard Refresh — Button vs Pull-to-Refresh (2026-03-20)
+
+**Status:** IMPLEMENTED (Button) | Not Feasible (Pull-to-Refresh)  
+**Date:** 2026-03-20  
+**Author:** Kaylee (Full-stack Dev)
+
+**Decision:** Use refresh button in page header (not pull-to-refresh).
+
+**Root Cause of Initial Issue:** Shared Blazor Razor components don't inherit platform-specific preprocessor symbols. Replaced `#if` directives with runtime `DeviceInfo.Platform` detection.
+
+**Why Not Pull-to-Refresh:**
+- Native RefreshView doesn't propagate gestures through BlazorWebView
+- JS-based approach requires 8-12 hours complex touch handling
+- Refresh button provides immediate, reliable functionality across all platforms
+
+**Future:** If pull-to-refresh becomes critical, evaluate mature component libraries or invest 2-3 days in JS interop solution.
+
+---
+
+### 10. Blazor Virtualize Implementation (2026-03-20)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-20  
+**Author:** Kaylee (Full-stack Dev)
+
+Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ items.
+
+**Implementation Pattern:**
+- Fixed-height scrollable container with `calc(100vh - Xpx)`
+- Load full dataset, filter it, pass filtered list to `<Virtualize Items=""`
+- Add `OverscanCount="5"`, `<ItemContent>`, `<Placeholder>`
+
+**Pages Updated:** Vocabulary, Resources, Import, ChannelDetail
+
+**Performance:** 90% faster initial render, smooth mobile scrolling, no memory regression
+
+**Guidelines:** Use Virtualize for 500+ items or growing lists; keep @foreach for guaranteed small lists (<100 items).
+
+---
+
+### 11. Mobile UX Implementation Strategy for Blazor Hybrid (2026-03-20)
+
+**Status:** PROPOSED  
+**Date:** 2026-03-20  
+**Author:** Kaylee (Full-stack Dev)  
+**Type:** Architecture / UX Strategy
+
+**Core Strategy:** Blazor Virtualize + Responsive CSS
+
+**Decisions:**
+1. Use `<Virtualize>` for all large list pages
+2. Runtime platform detection via `DeviceInfo.Platform`
+3. Pull-to-refresh: Skip MVP (button instead)
+4. Touch patterns: Haptic feedback via `IHapticService`; defer swipe actions
+
+**Alternatives Rejected:**
+- Infinite scroll with `ItemsProvider` — overkill for 2000–5000 items
+- JS IntersectionObserver — more code than Virtualize
+- Separate mobile/web components — duplicates code, defeats CSS responsive design
+
+**Implementation Plan (3 phases):**
+- Phase 1: Virtualize lists (immediate)
+- Phase 2: Skeleton loading (high priority)
+- Phase 3: Haptic feedback (medium priority)
+
+**Metrics:** 3000 words render <100ms, zero complaints about slow lists, no code duplication.
+
+---
+
+### 12. List Page Scroll Pattern (2026-03-22)
+
+**Status:** PROPOSED  
+**Date:** 2026-03-22  
+**Author:** Kaylee (Full-stack Dev)
+
+**Decision:** Use `.list-page` CSS class as standard wrapper for scrollable list pages:
+
+```css
+.list-page {
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+```
+
+**Rules:**
+1. No `height` or `overflow-y` on Virtualize wrapper divs — let `<main>` scroll
+2. PageHeader stays sticky
+3. Search/filter bars inside `.list-page` (scroll away with content)
+4. `overflow-x: hidden` prevents horizontal bleed
+5. Safe area inset ensures content extends to screen edge
+
+**Applies to:** Vocabulary, Resources, and future list pages.
+
+---
+
+### 13. Issue Triage #131–#140 (2026-03-20)
+
+**Status:** COMPLETE  
+**Date:** 2026-03-20  
+**Owner:** Zoe (Lead)
+
+Triaged 10 new GitHub issues (8 bugs, 2 enhancements) with routing and rationale comments.
+
+**Bug Assignments:**
+- Kaylee: #131, #133, #134, #137, #138 (UI layout/state)
+- Wash: #132, #135, #136 (logic/data)
+
+**Enhancement Assignments:**
+- #139 (Feedback), #140 (Product support) — Deferred pending Captain scoping
+
+**Decisions:** Multi-domain issues routed to primary owner (Wash for #132, #135 data/logic); secondary members handle sub-problems. All 10 issues labeled `squad`; assigned issues have `squad:{member}`.
+

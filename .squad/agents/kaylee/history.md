@@ -497,3 +497,23 @@ Added Blazor `InputFile` component to both ResourceAdd.razor and ResourceEdit.ra
 - Monitor user feedback on scrolling performance
 - Consider skeleton loading placeholders during data load (Phase 2)
 - Evaluate if any other pages need virtualization (e.g., quiz results history)
+
+## 2026-03-28T01:15: Cross-Agent Update: Auth Token Lifetime
+
+**Source:** Wash (Backend Dev) — auth token lifetime work  
+**Impact on Kaylee:** WebApp authentication cookie now 90 days
+
+**What Changed:**
+- WebApp (Blazor Server) authentication cookie lifetime extended to 90 days
+- JWT Bearer token (API) extended to 120 minutes
+- Mobile instant JWT restore from SecureStorage (no unnecessary OAuth flow)
+- Silent refresh timeout: 10 seconds
+
+**For Kaylee's Awareness:**
+- Users will stay signed in for 90 days on web (per device)
+- WebApp doesn't need to refresh token unless explicitly testing refresh logic
+- No UI changes required — authentication flow remains same
+- If WebApp tests token expiry/refresh, test with 120-min JWT window + silent refresh fallback
+
+**Related:** Squad decision #6 (auth token lifetime) — see `.squad/decisions.md`
+
