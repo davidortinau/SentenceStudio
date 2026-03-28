@@ -95,6 +95,12 @@ public class SyncService : ISyncService
                             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
                             VALUES ('20260321133148_InitialSqlite', '10.0.4');";
                         await seedCmd.ExecuteNonQueryAsync();
+
+                        // Patch any columns that InitialSqlite would have created
+                        // but that the legacy schema is missing. The seeded history
+                        // tells EF "InitialSqlite already ran", so MigrateAsync will
+                        // never create them. We must add them here.
+                        await PatchMissingColumnsAsync(conn);
                     }
                 }
                 else
@@ -270,6 +276,38 @@ public class SyncService : ISyncService
             return id?.ToString() ?? "?";
         return "?";
     }
+
+#if IOS || ANDROID || MACCATALYST
+    /// <summary>
+    /// Adds any columns that InitialSqlite would have created but that are
+    /// missing from a legacy database whose migration history was seeded.
+    /// Each entry is checked via pragma_table_info before ALTER TABLE runs,
+    /// so this is safe to call on databases that already have the columns.
+    /// </summary>
+    private async Task PatchMissingColumnsAsync(System.Data.Common.DbConnection conn)
+    {
+        // (table, column, SQLite type, nullable)
+        var expectedColumns = new (string Table, string Column, string SqlType)[]
+        {
+            ("VocabularyWord", "Language", "TEXT"),
+        };
+
+        foreach (var (table, column, sqlType) in expectedColumns)
+        {
+            using var checkCmd = conn.CreateCommand();
+            checkCmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='{column}'";
+            var exists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync()) > 0;
+
+            if (!exists)
+            {
+                _logger.LogWarning("Legacy schema patch: adding missing column {Table}.{Column}", table, column);
+                using var alterCmd = conn.CreateCommand();
+                alterCmd.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {sqlType}";
+                await alterCmd.ExecuteNonQueryAsync();
+            }
+        }
+    }
+#endif
 
 
 }
