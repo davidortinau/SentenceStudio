@@ -2832,3 +2832,289 @@ Triaged 10 new GitHub issues (8 bugs, 2 enhancements) with routing and rationale
 
 **Guidelines:** Always manage EF Core navigation properties explicitly on Add(); use guard clauses for unique constraints.
 
+
+---
+
+## Decision: DevFlow Package Migration (Redth → Microsoft.Maui)
+
+**Date:** 2026-03-28  
+**Decider:** Wash (Backend Dev)  
+**Status:** ✅ Implemented  
+**Context:** DevFlow debugging infrastructure for .NET MAUI
+
+### Problem Statement
+
+All 5 platform projects (iOS, Android, MacCatalyst, MacOS, Windows) were using `Redth.MauiDevFlow.*` NuGet packages that lacked a critical broker registration fix required for MauiDevFlow tool integration.
+
+Custom-built packages from the dotnet/maui-labs source were already built and available in ~/work/LocalNuGets/, but the project still referenced the old Redth packages.
+
+### Decision
+
+**Migrate all 5 platform projects from `Redth.MauiDevFlow.*` to custom `Microsoft.Maui.DevFlow.*` packages (v0.24.0-dev).**
+
+#### Rationale
+1. **Critical bug fix** — The custom Microsoft.Maui.DevFlow.* packages include a broker registration fix not present in the Redth versions
+2. **Local control** — Custom builds give us control over versioning and hotfixes without waiting for upstream releases
+3. **Consistent versioning** — Replaced wildcard versions (`*`) with explicit `0.24.0-dev` across all platforms
+4. **Debug condition consistency** — MacOS Blazor package was missing the Debug condition; now all platforms are uniform
+
+#### Packages Affected
+- `Redth.MauiDevFlow.Agent` → `Microsoft.Maui.DevFlow.Agent` v0.24.0-dev
+- `Redth.MauiDevFlow.Blazor` → `Microsoft.Maui.DevFlow.Blazor` v0.24.0-dev
+
+#### Files Changed (10 total)
+
+**Platform .csproj Files (5):**
+- `src/SentenceStudio.iOS/SentenceStudio.iOS.csproj` (lines 26-27)
+- `src/SentenceStudio.Android/SentenceStudio.Android.csproj` (lines 25-26)
+- `src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj` (lines 25-26)
+- `src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj` (lines 26-27) — also added Debug condition to Blazor package
+- `src/SentenceStudio.Windows/SentenceStudio.Windows.csproj` (lines 26-27)
+
+**MauiProgram Files (5):**
+- `src/SentenceStudio.iOS/MauiProgram.cs` (lines 3-4)
+- `src/SentenceStudio.Android/MauiProgram.cs` (lines 3-4)
+- `src/SentenceStudio.MacCatalyst/MauiProgram.cs` (lines 3-4)
+- `src/SentenceStudio.MacOS/MacOSMauiProgram.cs` (lines 3-4)
+- `src/SentenceStudio.Windows/MauiProgram.cs` (lines 3-4)
+
+#### NuGet Source Configuration
+- Custom packages stored in: `~/work/LocalNuGets/`
+- Local source name: `localnugets`
+- Source already configured in NuGet.config (verified via `dotnet nuget list source`)
+
+#### Method Call Compatibility
+No changes required to:
+- `builder.AddMauiDevFlowAgent()` calls
+- `builder.AddMauiBlazorDevFlowTools()` calls
+
+API surface remains identical between Redth and Microsoft packages.
+
+### Implementation
+
+#### Steps Executed
+1. Updated all 5 csproj files (2 PackageReference lines each = 10 lines)
+2. Updated all 5 MauiProgram.cs files (2 using statements each = 10 lines)
+3. Verified local NuGet source exists: `dotnet nuget list source | grep -i local`
+4. Verified package resolution: `dotnet restore src/SentenceStudio.iOS/SentenceStudio.iOS.csproj` (succeeded)
+
+### Verification Results
+- ✅ Restore succeeded on iOS project
+- ✅ All Microsoft.Maui.DevFlow.* packages resolved from localnugets source
+- ✅ No build errors introduced
+- ✅ Debug condition now consistent across all platforms (including MacOS Blazor)
+
+### Consequences
+
+**Positive:**
+- Critical broker registration fix now deployed to all platforms
+- Explicit version pinning (0.24.0-dev) prevents accidental upgrades
+- Local NuGet source gives full control over package updates
+- MacOS Blazor package now properly conditioned on Debug configuration (matches other platforms)
+
+**Negative:**
+- Manual package management — we own updates/hotfixes (no automatic upstream updates)
+- Must rebuild custom packages if upstream dotnet/maui-labs changes
+
+**Neutral:**
+- No API surface changes — existing DevFlow integration code remains unchanged
+- Wildcard versions removed — future updates require explicit version bumps
+
+### Alternatives Considered
+
+**Alternative 1: Stay with Redth Packages**
+- ❌ Rejected — Missing critical broker registration fix
+- ❌ No control over release timing for fixes
+
+**Alternative 2: Wait for Upstream Fix**
+- ❌ Rejected — Unacceptable delay; DevFlow debugging is critical for development velocity
+- ⚠️ Upstream timeline uncertain
+
+### Future Work
+- Monitor dotnet/maui-labs for new releases
+- Update custom builds when breaking changes or new features land
+- Consider upstreaming broker registration fix if not already merged
+
+---
+
+## Decision: Safe Service URL Defaults
+
+**Date:** 2026-03-28  
+**Author:** Wash (Backend Dev)  
+**Status:** IMPLEMENTED  
+**Requested by:** Captain (David Ortinau)
+
+### Context
+
+Standalone debug builds (e.g., `dotnet build -t:Run -f net10.0-ios`) were silently hitting production Azure APIs because `appsettings.json` had production HTTPS URLs as defaults. Aspire service discovery was working correctly, but without Aspire env vars, the fallback config pointed at production.
+
+### Decision
+
+1. **appsettings.json** (gitignored, local-only) now has **localhost-only** service URLs — no HTTPS, no Azure
+2. **appsettings.Production.json** (tracked) contains the Azure Container Apps URLs — only loaded for release/production builds
+3. **EnvironmentBadge** now shows a **red pulsing "⚠ PRODUCTION" banner** when production URLs are detected, instead of hiding
+4. Badge colors: GREEN = LOCAL, ORANGE = DEV TUNNEL, RED = PRODUCTION
+
+### Rationale
+
+"Dev debug builds must NEVER talk to production servers." — Captain directive. The safest default is localhost. Production URLs require explicit opt-in via environment-specific config.
+
+### Impact
+
+- All standalone debug builds now safely target localhost
+- Aspire-launched builds unaffected (env vars still override config)
+- Web app unaffected (already uses Aspire service discovery)
+- appsettings.template.json already had safe defaults
+
+### Files Changed
+
+- `src/SentenceStudio.AppLib/appsettings.json` — removed Azure HTTPS URLs
+- `src/SentenceStudio.AppLib/appsettings.Production.json` — NEW, Azure URLs
+- `src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj` — added Production config to MauiAsset + EmbeddedResource
+- `src/SentenceStudio.UI/Components/EnvironmentBadge.razor` — shows production warning, improved URL detection
+- `src/SentenceStudio.UI/wwwroot/css/app.css` — added `.env-badge-production` style (red, pulsing)
+
+---
+
+## Decision: Auth Route Consolidation + Secure Storage Encryption
+
+**Date:** 2026-03-28  
+**Author:** Wash (Backend Dev)  
+**Status:** IMPLEMENTED
+
+### Auth Routes
+
+The WebApp had duplicate auth pages: server-rendered `/Account/*` forms AND shared Blazor `/auth/*` pages. The shared pages already worked — `ServerAuthService` returns a userId|token pair and redirects to `/account-action/AutoSignIn` to set the cookie.
+
+**Changes:**
+- Cookie auth paths now point to `/auth/login` and `/account-action/SignOut`
+- `Account/Login.razor`, `Register.razor`, `ForgotPassword.razor` now redirect to `/auth/*` counterparts
+- **Kept as-is:** `ResetPassword.razor`, `ConfirmEmail.razor`, `AccessDenied.razor` (they receive tokens from email links)
+- Removed `/account-action/Login` POST and `/account-action/Register` POST (dead endpoints — shared pages use AutoSignIn)
+- All `/Account/Login` redirects in endpoints updated to `/auth/login`
+
+**Bug fix:** Added `NativeLanguage` to the `is_onboarded` check in AutoSignIn handler, matching Kaylee's earlier fix in the Blazor UI.
+
+### Secure Storage
+
+`WebSecureStorageService` previously stored sensitive values (auth tokens) in plain text JSON. Now uses ASP.NET Core Data Protection API to encrypt/decrypt values before writing to the preferences file. Gracefully handles key rotation — returns null and logs a warning if decryption fails.
+
+**Impact:** All team members — any code that calls `ISecureStorageService` on web now gets encrypted storage. No interface changes.
+
+---
+
+## Decision: Legacy SQLite Schema Patching in SyncService
+
+**Author:** Wash  
+**Date:** 2026-03-28  
+**Status:** Implemented
+
+### Context
+
+The SyncService legacy database detection path (line 86-97) seeds `__EFMigrationsHistory` with `InitialSqlite` as "already applied" when it finds a database without migration history. This tells EF Core "InitialSqlite already ran" — but legacy tables may be missing columns that were added to the model after the original schema was created.
+
+### Decision
+
+After seeding migration history for legacy databases, SyncService now calls `PatchMissingColumnsAsync()` which checks `pragma_table_info` for each expected column and runs `ALTER TABLE ADD COLUMN` for any that are missing.
+
+New columns that might be missing from legacy schemas should be added to the `expectedColumns` array in `PatchMissingColumnsAsync()`.
+
+### Impact
+
+- **All team members:** If you add a new column to a model that's included in `InitialSqlite`, you MUST also add it to the `expectedColumns` array in `SyncService.PatchMissingColumnsAsync()` — otherwise legacy databases will be missing the column.
+- **Kaylee/River:** The `VocabularyWord.Language` query error on iOS simulator is now fixed.
+
+---
+
+## Decision: Onboarding Gate Requires All Three Profile Fields
+
+**Author:** Kaylee (Full-stack Dev)  
+**Date:** 2025-07-15  
+**Status:** Implemented
+
+### Context
+The `is_onboarded` preference controls whether users are redirected to `/onboarding`. Multiple code paths were setting this flag too eagerly — before the user's profile had all required fields (TargetLanguage, NativeLanguage, Name).
+
+### Decision
+Any code path that sets `is_onboarded = true` MUST first verify the profile has all three fields populated:
+- `TargetLanguage`
+- `NativeLanguage`  
+- `Name`
+
+If any are missing, the user should be redirected to `/onboarding` rather than granted dashboard access.
+
+### Affected Files
+- `Layout/MainLayout.razor` — existing-profile bypass check
+- `Pages/Auth.razor` — local profile login
+- `Pages/LoginPage.razor` — post-login redirect
+- `Pages/Index.razor` — starter content creation uses user's language
+
+### Rationale
+Onboarding collects these three fields in a guided flow. Bypassing it with incomplete data leads to broken language selection, hardcoded defaults, and a confusing UX.
+
+---
+
+## Decision: WebFilePickerService Uses JS Interop with Scoped DI
+
+**Date:** 2025-07-18  
+**Author:** Kaylee (Full-stack Dev)  
+**Status:** Implemented
+
+### Context
+
+`WebFilePickerService` threw `NotSupportedException`. The `IFilePickerService` interface needed a working implementation for any code that calls it programmatically in the WebApp.
+
+### Decision
+
+- Implemented via JS interop (`filePickerInterop.pickFile`) that creates a hidden `<input type="file">`, reads the selected file as a byte array, and returns it to C#.
+- Changed DI registration from `AddSingleton` to `AddScoped` because `IJSRuntime` is circuit-scoped in Blazor Server — a singleton cannot hold a scoped dependency.
+- Follows the existing `window.*` global object pattern used by `audioInterop.js`.
+
+### Files Changed
+
+- `src/SentenceStudio.WebApp/wwwroot/js/filePicker.js` — new JS interop module
+- `src/SentenceStudio.WebApp/Platform/WebFilePickerService.cs` — injects IJSRuntime, calls JS
+- `src/SentenceStudio.WebApp/Program.cs` — `AddSingleton` → `AddScoped`
+- `src/SentenceStudio.WebApp/Components/App.razor` — added `<script>` tag
+
+### Impact
+
+Any service or page that injects `IFilePickerService` will now get a working implementation on web. Existing Blazor pages using `InputFile` directly are unaffected.
+
+---
+
+## Directive: Dev/Production Separation
+
+**Date:** 2026-03-28T19:04:00Z  
+**By:** David Ortinau (Captain)  
+**Scope:** All team members  
+**Priority:** CRITICAL
+
+### Directive
+
+> **Dev debug builds must NEVER talk to production servers. Always, always, always keep dev and production separate.**
+> 
+> Default configuration (appsettings.json) must point to local/dev endpoints. Production URLs should only be injected via environment variables or production-specific config overlays.
+
+### Why
+
+Safety-critical principle: Prevents accidental data contamination, API abuse, and costs from unintended production calls during development. A developer running a local build for testing should never touch production systems unless explicitly deploying.
+
+### Application
+
+This directive informed the design of:
+- `wash-safe-service-url-defaults` — localhost defaults, production config overlays
+- Service discovery architecture — Aspire provides dev URLs; production deploys use env vars
+
+### For New Code
+
+When adding a new service endpoint or configurable URL:
+1. **Default:** localhost or 127.0.0.1 (no HTTPS, no external hosts)
+2. **Override:** Environment variable or environment-specific config file (appsettings.Production.json, etc.)
+3. **UI Indication:** Show environment badge (EnvironmentBadge.razor) — GREEN for local, ORANGE for dev tunnel, RED for production
+4. **Testing:** Always test debug builds against localhost, never against production
+
+### References
+- `appsettings.json` — gitignored, local defaults
+- `appsettings.Production.json` — tracked, production URLs
+- `EnvironmentBadge.razor` — visual indicator of environment

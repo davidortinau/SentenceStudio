@@ -277,3 +277,38 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` which DID fall ba
 - SQLite has no conditional DDL (no `IF NOT EXISTS` for ALTER TABLE ADD COLUMN) — use pragma_table_info check in C# code before executing ALTER TABLE
 - When `dotnet ef` generates migrations for a snapshot that already has the column, it produces empty/unrelated operations — must manually replace the migration body
 - DANGER: `dotnet ef` with temp csproj config can corrupt the PostgreSQL `Migrations/ApplicationDbContextModelSnapshot.cs` — always `git checkout` it after SQLite migration generation
+
+## 2026-03-28: DevFlow Package Migration (Redth → Microsoft.Maui)
+
+**Status:** Complete  
+**Issue:** Migrate all projects from `Redth.MauiDevFlow.*` packages to custom-built `Microsoft.Maui.DevFlow.*` packages with broker registration fix
+
+**Packages Migrated:**
+- `Redth.MauiDevFlow.Agent` → `Microsoft.Maui.DevFlow.Agent` v0.24.0-dev
+- `Redth.MauiDevFlow.Blazor` → `Microsoft.Maui.DevFlow.Blazor` v0.24.0-dev
+
+**Platform Projects Updated (5):**
+1. iOS: SentenceStudio.iOS.csproj + MauiProgram.cs
+2. Android: SentenceStudio.Android.csproj + MauiProgram.cs
+3. MacCatalyst: SentenceStudio.MacCatalyst.csproj + MauiProgram.cs
+4. MacOS: SentenceStudio.MacOS.csproj + MacOSMauiProgram.cs
+5. Windows: SentenceStudio.Windows.csproj + MauiProgram.cs
+
+**Changes Made:**
+- Updated PackageReference in all 5 csproj files (lines 26-27) to use Microsoft.Maui.DevFlow.* v0.24.0-dev
+- Updated using statements in all 5 MauiProgram.cs files (lines 3-4) from `MauiDevFlow.*` to `Microsoft.Maui.DevFlow.*`
+- Added Debug condition to MacOS Blazor package (previously missing, now consistent with other platforms)
+- All version wildcards (`*`) replaced with explicit `0.24.0-dev`
+
+**NuGet Source:**
+- Custom packages built from dotnet/maui-labs source
+- Stored in ~/work/LocalNuGets/
+- Local NuGet source "localnugets" already configured in NuGet.config
+
+**Verification:**
+- `dotnet restore` succeeded on iOS project
+- All package references resolve correctly from local source
+- No breaking changes to method calls (AddMauiDevFlowAgent, AddMauiBlazorDevFlowTools remain identical)
+
+**Critical Fix Included:**
+These custom packages include a broker registration fix not present in the Redth packages — required for MauiDevFlow tool integration in this project.
