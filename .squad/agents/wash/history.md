@@ -272,3 +272,8 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` which DID fall ba
 - WebSecureStorageService now encrypts values via ASP.NET Core Data Protection API (purpose: "SentenceStudio.SecureStorage")
 - CryptographicException on decrypt → graceful null return + warning log + stale key removal
 - Data Protection keys managed by ASP.NET Core runtime (machine-level by default) — no extra NuGet needed
+- SyncService legacy DB detection (seeding InitialSqlite) does NOT verify schema parity — must patch missing columns via `PatchMissingColumnsAsync` before MigrateAsync
+- `dotnet ef migrations add` for SQLite requires temp single-TFM csproj + updated DesignTimeDbContextFactory to accept `--provider Sqlite` — restore originals after generation
+- SQLite has no conditional DDL (no `IF NOT EXISTS` for ALTER TABLE ADD COLUMN) — use pragma_table_info check in C# code before executing ALTER TABLE
+- When `dotnet ef` generates migrations for a snapshot that already has the column, it produces empty/unrelated operations — must manually replace the migration body
+- DANGER: `dotnet ef` with temp csproj config can corrupt the PostgreSQL `Migrations/ApplicationDbContextModelSnapshot.cs` — always `git checkout` it after SQLite migration generation
