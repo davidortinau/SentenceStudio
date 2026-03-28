@@ -91,3 +91,20 @@ Key findings during testing:
 - The API's `Auth:UseEntraId` config flag exists in appsettings.json but isn't yet wired in Program.cs code — Wash's #43 needs to implement the conditional switch
 - No scope-based authorization policies exist yet — can't test EnforcesAuthorizationPolicies until policies are added
 - TenantContextMiddleware correctly extracts claims from both DevAuthHandler and JWT Bearer tokens
+
+## Learnings — DevFlow Package Migration Verification (2025-07-04)
+
+### Task
+E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.DevFlow.* v0.24.0-dev packages (migrated from Redth.MauiDevFlow.*), and that the agent registers with the broker.
+
+### Results — ALL PASS ✅
+- ✅ **Build succeeded**: Clean build (bin/obj deleted) completed in ~32s with 0 errors, 505 warnings (all pre-existing: Scriban vulns, IL2026 trimming, EF1002 SQL injection)
+- ✅ **App launched on iOS simulator**: iPhone 17 Pro (iOS 26.2, UDID 95EC018A)
+- ✅ **Agent registered with broker**: `maui-devflow list` shows SentenceStudio on port 9224
+- ✅ **Version 0.24.0-dev confirmed**: Proves we're running the custom build with broker registration fix
+- ✅ **Broker log confirmed**: `Agent connected: SentenceStudio|net10.0-ios → port 9224 (id: 47ff557ef8f8)`
+
+### Gotchas Discovered
+1. **Two-step build required after clean**: `dotnet build -f net10.0-ios -t:Run` fails with "The app must be built before the arguments to launch the app using mlaunch can be computed" when bin/obj are empty. Must run `dotnet build -f net10.0-ios` first, THEN `dotnet build -f net10.0-ios -t:Run -p:_DeviceName=...`.
+2. **Two sims already booted**: iPhone 17 Pro and iPhone 11 both on iOS 26.2. Used iPhone 17 Pro to avoid conflicts with Comet apps on the other sim.
+3. **Existing agents on broker**: Two Comet apps (v0.18.0) were already registered. SentenceStudio correctly registered alongside them at v0.24.0-dev.
