@@ -22,7 +22,7 @@
 		<PackageReference Include="Platform.Maui.MacOS" Version="0.2.0-beta.7" />
 		<PackageReference Include="Platform.Maui.MacOS.BlazorWebView" Version="0.2.0-beta.7" />
 		<PackageReference Include="Platform.Maui.Essentials.MacOS" Version="0.2.0-beta.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
 		<PackageReference Include="Redth.MauiDevFlow.Agent" Version="*" Condition="'$(Configuration)'=='Debug'" />
 		<PackageReference Include="Redth.MauiDevFlow.Blazor" Version="0.9.0" />
 	</ItemGroup>
