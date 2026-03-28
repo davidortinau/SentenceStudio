@@ -95,12 +95,6 @@ public class SyncService : ISyncService
                             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
                             VALUES ('20260321133148_InitialSqlite', '10.0.4');";
                         await seedCmd.ExecuteNonQueryAsync();
-
-                        // Patch any columns that InitialSqlite would have created
-                        // but that the legacy schema is missing. The seeded history
-                        // tells EF "InitialSqlite already ran", so MigrateAsync will
-                        // never create them. We must add them here.
-                        await PatchMissingColumnsAsync(conn);
                     }
                 }
                 else
@@ -178,6 +172,12 @@ public class SyncService : ISyncService
                 lockCmd.CommandText = "DROP TABLE IF EXISTS \"__EFMigrationsLock\"";
                 await lockCmd.ExecuteNonQueryAsync();
                 _logger.LogDebug("Cleared any stale __EFMigrationsLock table");
+
+                // Always patch missing columns before MigrateAsync — safe on DBs
+                // that already have them (pragma_table_info check skips existing).
+                // This covers databases where the migration history was seeded in a
+                // previous run but PatchMissingColumnsAsync wasn't called at that time.
+                await PatchMissingColumnsAsync(conn);
             }
             finally
             {
@@ -290,6 +290,11 @@ public class SyncService : ISyncService
         var expectedColumns = new (string Table, string Column, string SqlType)[]
         {
             ("VocabularyWord", "Language", "TEXT"),
+            ("VocabularyWord", "Lemma", "TEXT"),
+            ("VocabularyWord", "Tags", "TEXT"),
+            ("VocabularyWord", "MnemonicText", "TEXT"),
+            ("VocabularyWord", "MnemonicImageUri", "TEXT"),
+            ("VocabularyWord", "AudioPronunciationUri", "TEXT"),
         };
 
         foreach (var (table, column, sqlType) in expectedColumns)
