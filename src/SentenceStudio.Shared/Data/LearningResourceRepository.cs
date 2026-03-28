@@ -255,17 +255,21 @@ public class LearningResourceRepository
                 // New resource — set user ownership
                 resource.UserProfileId ??= !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
 
+                // Clear navigation collection before Add to prevent EF Core
+                // from cascade-inserting already-saved VocabularyWord entities
+                resource.Vocabulary?.Clear();
+
                 db.LearningResources.Add(resource);
                 await db.SaveChangesAsync();
 
-                // Now associate vocabulary words
+                // Now associate vocabulary words that already exist in the DB
                 if (vocabularyWordIds.Any())
                 {
                     var dbVocabularyWords = await db.VocabularyWords
                         .Where(v => vocabularyWordIds.Contains(v.Id))
                         .ToListAsync();
 
-                    resource.Vocabulary.Clear();
+                    resource.Vocabulary ??= new List<VocabularyWord>();
                     foreach (var word in dbVocabularyWords)
                     {
                         resource.Vocabulary.Add(word);
@@ -454,8 +458,33 @@ public class LearningResourceRepository
         }
     }
 
+    public async Task<bool> StarterResourceExistsAsync(string? targetLanguage = null)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userId = ActiveUserId;
+
+        var query = db.LearningResources
+            .Where(r => r.Tags != null && r.Tags.Contains("starter"));
+
+        if (!string.IsNullOrEmpty(userId))
+            query = query.Where(r => r.UserProfileId == userId);
+
+        if (!string.IsNullOrEmpty(targetLanguage))
+            query = query.Where(r => r.Language == targetLanguage);
+
+        return await query.AnyAsync();
+    }
+
     public async Task GetStarterVocabulary(string nativeLanguage, string targetLanguage)
     {
+        // Guard: don't create duplicates
+        if (await StarterResourceExistsAsync(targetLanguage))
+        {
+            _logger.LogInformation("Starter resource already exists for {Language}, skipping creation", targetLanguage);
+            return;
+        }
+
         var prompt = string.Empty;
         using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetStarterVocabulary.scriban-txt");
         using (StreamReader reader = new StreamReader(templateStream))

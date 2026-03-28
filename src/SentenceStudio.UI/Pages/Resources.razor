@@ -230,6 +230,14 @@ else
             // Default to target language or first available
             var targetLang = profile.TargetLanguage ?? languages.FirstOrDefault() ?? "Korean";
 
+            // Guard: don't create duplicates
+            if (await ResourceRepo.StarterResourceExistsAsync(targetLang))
+            {
+                Toast.ShowSuccess("Starter resource already exists! Loading your resources…");
+                await LoadResources();
+                return;
+            }
+
             isCreatingStarter = true;
             StateHasChanged();
 
