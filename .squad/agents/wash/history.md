@@ -258,3 +258,11 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` which DID fall ba
 
 **Key Learning:** Always manage EF Core navigation properties explicitly on Add(); use guard clauses for unique constraints to prevent database-level violations.
 
+
+- Auth route consolidation: Cookie LoginPath → `/auth/login`, LogoutPath → `/account-action/SignOut`, shared Blazor pages are now canonical
+- Removed `/account-action/Login` POST and `/account-action/Register` POST endpoints — shared LoginPage/RegisterPage use AutoSignIn flow instead
+- Account/Login.razor, Account/Register.razor, Account/ForgotPassword.razor now redirect to shared `/auth/*` pages
+- NativeLanguage added to is_onboarded check in AutoSignIn handler — matches Kaylee's MainLayout/LoginPage fix
+- WebSecureStorageService now encrypts values via ASP.NET Core Data Protection API (purpose: "SentenceStudio.SecureStorage")
+- CryptographicException on decrypt → graceful null return + warning log + stale key removal
+- Data Protection keys managed by ASP.NET Core runtime (machine-level by default) — no extra NuGet needed

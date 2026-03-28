@@ -1,93 +1,17 @@
 @page "/Account/Login"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
 @attribute [AllowAnonymous]
-@layout SentenceStudio.WebApp.Components.Layout.AuthLayout
-
-<PageTitle>Sign In - Sentence Studio</PageTitle>
-
-<div class="card shadow-sm border-0">
-    <div class="card-body p-4">
-        <h2 class="card-title text-center mb-4">Sign In</h2>
-
-        @if (!string.IsNullOrEmpty(ErrorMessage))
-        {
-            <div class="alert alert-danger" role="alert">@ErrorMessage</div>
-        }
-        @if (!string.IsNullOrEmpty(SuccessMessage))
-        {
-            <div class="alert alert-success" role="alert">@SuccessMessage</div>
-        }
-
-        <form method="post" action="/account-action/Login">
-            <AntiforgeryToken />
-            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
-
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email"
-                       required autocomplete="username" />
-            </div>
-
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <div class="input-group">
-                    <input type="password" class="form-control" id="password" name="password"
-                           required autocomplete="current-password" />
-                    <button class="btn btn-outline-secondary" type="button"
-                            onclick="var p=document.getElementById('password');var i=this.querySelector('i');if(p.type==='password'){p.type='text';i.className='bi bi-eye-slash';}else{p.type='password';i.className='bi bi-eye';}">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="mb-3 form-check">
-                <input type="checkbox" class="form-check-input" id="rememberMe" name="rememberMe" value="true" />
-                <label class="form-check-label" for="rememberMe">Remember me</label>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Sign In</button>
-        </form>
-
-        <hr />
-
-        <div class="text-center">
-            <p class="mb-1">
-                <a href="/Account/ForgotPassword">Forgot your password?</a>
-            </p>
-            <p class="mb-0">
-                Don't have an account? <a href="/Account/Register">Create one</a>
-            </p>
-        </div>
-    </div>
-</div>
+@inject NavigationManager Navigation
 
 @code {
     [SupplyParameterFromQuery]
-    private string? error { get; set; }
-
-    [SupplyParameterFromQuery]
-    private string? message { get; set; }
-
-    [SupplyParameterFromQuery]
     private string? returnUrl { get; set; }
 
-    private string ReturnUrl => returnUrl ?? "/";
-
-    private string? ErrorMessage => error switch
+    protected override void OnInitialized()
     {
-        "InvalidCredentials" => "Invalid email or password.",
-        "AccountLocked" => "This account has been locked. Please try again later.",
-        "NotAllowed" => "Sign in is not allowed. Please confirm your email first.",
-        "InvalidLink" => "The link is invalid or has expired.",
-        "ConfirmFailed" => "Email confirmation failed. Please request a new link.",
-        _ => null
-    };
-
-    private string? SuccessMessage => message switch
-    {
-        "EmailConfirmed" => "Your email has been confirmed. You can now sign in.",
-        "PasswordReset" => "Your password has been reset. You can now sign in.",
-        _ => null
-    };
+        var target = "/auth/login";
+        if (!string.IsNullOrEmpty(returnUrl))
+            target += $"?returnUrl={Uri.EscapeDataString(returnUrl)}";
+        Navigation.NavigateTo(target, forceLoad: true);
+    }
 }

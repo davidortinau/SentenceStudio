@@ -1,96 +1,11 @@
 @page "/Account/Register"
 @using Microsoft.AspNetCore.Authorization
 @attribute [AllowAnonymous]
-@layout SentenceStudio.WebApp.Components.Layout.AuthLayout
-
-<PageTitle>Create Account - Sentence Studio</PageTitle>
-
-<div class="card shadow-sm border-0">
-    <div class="card-body p-4">
-        <h2 class="card-title text-center mb-4">Create Account</h2>
-
-        @if (ErrorMessages.Any())
-        {
-            <div class="alert alert-danger" role="alert">
-                <ul class="mb-0">
-                    @foreach (var msg in ErrorMessages)
-                    {
-                        <li>@msg</li>
-                    }
-                </ul>
-            </div>
-        }
-
-        <form method="post" action="/account-action/Register">
-            <AntiforgeryToken />
-            <div class="mb-3">
-                <label for="displayName" class="form-label">Display Name</label>
-                <input type="text" class="form-control" id="displayName" name="displayName"
-                       autocomplete="name" />
-            </div>
-
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email"
-                       required autocomplete="username" />
-            </div>
-
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <div class="input-group">
-                    <input type="password" class="form-control" id="password" name="password"
-                           required minlength="8" autocomplete="new-password" />
-                    <button class="btn btn-outline-secondary" type="button"
-                            onclick="var p=document.getElementById('password');var i=this.querySelector('i');if(p.type==='password'){p.type='text';i.className='bi bi-eye-slash';}else{p.type='password';i.className='bi bi-eye';}">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </div>
-                <div class="form-text">
-                    At least 8 characters, with an uppercase letter and a digit.
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <label for="confirmPassword" class="form-label">Confirm Password</label>
-                <div class="input-group">
-                    <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
-                           required minlength="8" autocomplete="new-password" />
-                    <button class="btn btn-outline-secondary" type="button"
-                            onclick="var p=document.getElementById('confirmPassword');var i=this.querySelector('i');if(p.type==='password'){p.type='text';i.className='bi bi-eye-slash';}else{p.type='password';i.className='bi bi-eye';}">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Create Account</button>
-        </form>
-
-        <hr />
-
-        <div class="text-center">
-            <p class="mb-0">
-                Already have an account? <a href="/Account/Login">Sign in</a>
-            </p>
-        </div>
-    </div>
-</div>
+@inject NavigationManager Navigation
 
 @code {
-    [SupplyParameterFromQuery]
-    private string? errors { get; set; }
-
-    private IReadOnlyList<string> ErrorMessages => string.IsNullOrEmpty(errors)
-        ? Array.Empty<string>()
-        : errors.Split(',').Select(FormatError).ToList();
-
-    private static string FormatError(string code) => code switch
+    protected override void OnInitialized()
     {
-        "DuplicateEmail" => "An account with this email already exists.",
-        "DuplicateUserName" => "An account with this email already exists.",
-        "PasswordTooShort" => "Password must be at least 8 characters.",
-        "PasswordRequiresUpper" => "Password must contain an uppercase letter.",
-        "PasswordRequiresDigit" => "Password must contain a digit.",
-        "PasswordRequiresNonAlphanumeric" => "Password must contain a special character.",
-        _ => $"An error occurred ({code})."
-    };
+        Navigation.NavigateTo("/auth/register", forceLoad: true);
+    }
 }

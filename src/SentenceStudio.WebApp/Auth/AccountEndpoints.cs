@@ -19,81 +19,6 @@ public static class AccountEndpoints
     {
         var group = app.MapGroup("/account-action").AllowAnonymous();
 
-        group.MapPost("/Login", async (
-            [FromForm] string email,
-            [FromForm] string password,
-            [FromForm] bool? rememberMe,
-            [FromForm] string? returnUrl,
-            SignInManager<ApplicationUser> signInManager,
-            UserManager<ApplicationUser> userManager,
-            IPreferencesService preferences,
-            HttpContext httpContext) =>
-        {
-            returnUrl ??= "/";
-
-            var result = await signInManager.PasswordSignInAsync(
-                email, password, rememberMe ?? false, lockoutOnFailure: false);
-
-            if (result.Succeeded)
-            {
-                var user = await userManager.FindByEmailAsync(email);
-                if (user is not null)
-                {
-                    // Link or create profile if missing (accounts from before registration fix, or migrated data)
-                    if (string.IsNullOrEmpty(user.UserProfileId))
-                    {
-                        var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                        // First, try to find an existing profile matching this user's email (e.g., migrated data)
-                        var existing = await db.UserProfiles
-                            .FirstOrDefaultAsync(p => p.Email == (user.Email ?? email));
-                        if (existing is not null)
-                        {
-                            user.UserProfileId = existing.Id;
-                        }
-                        else
-                        {
-                            var profile = new UserProfile
-                            {
-                                Id = Guid.NewGuid().ToString(),
-                                Name = user.DisplayName ?? user.Email ?? email,
-                                Email = user.Email ?? email,
-                                NativeLanguage = "English",
-                                TargetLanguage = "Korean",
-                                CreatedAt = DateTime.UtcNow
-                            };
-                            db.UserProfiles.Add(profile);
-                            await db.SaveChangesAsync();
-                            user.UserProfileId = profile.Id;
-                        }
-                        await userManager.UpdateAsync(user);
-                    }
-
-                    if (user.UserProfileId is not null)
-                    {
-                        preferences.Set("active_profile_id", user.UserProfileId);
-
-                        // Auto-mark returning users as onboarded so they skip the onboarding flow
-                        var profileDb = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                        var existingProfile = await profileDb.UserProfiles.FindAsync(user.UserProfileId);
-                        if (existingProfile is not null && !string.IsNullOrEmpty(existingProfile.TargetLanguage) && !string.IsNullOrEmpty(existingProfile.Name))
-                        {
-                            preferences.Set("is_onboarded", true);
-                        }
-                    }
-                }
-                return Results.LocalRedirect(returnUrl);
-            }
-
-            var errorMsg = result.IsLockedOut
-                ? "AccountLocked"
-                : result.IsNotAllowed
-                    ? "NotAllowed"
-                    : "InvalidCredentials";
-
-            return Results.Redirect($"/Account/Login?error={errorMsg}&returnUrl={Uri.EscapeDataString(returnUrl)}");
-        })
-        .DisableAntiforgery();
-
         group.MapPost("/Logout", async (
             SignInManager<ApplicationUser> signInManager) =>
         {
@@ -107,52 +32,8 @@ public static class AccountEndpoints
             SignInManager<ApplicationUser> signInManager) =>
         {
             await signInManager.SignOutAsync();
-            return Results.Redirect("/Account/Login");
+            return Results.Redirect("/auth/login");
         });
-
-        group.MapPost("/Register", async (
-            [FromForm] string email,
-            [FromForm] string password,
-            [FromForm] string? displayName,
-            UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager,
-            ApplicationDbContext db) =>
-        {
-            var user = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                DisplayName = displayName
-            };
-
-            var result = await userManager.CreateAsync(user, password);
-            if (result.Succeeded)
-            {
-                // Create linked UserProfile
-                var profile = new UserProfile
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = displayName ?? email,
-                    Email = email,
-                    NativeLanguage = "English",
-                    TargetLanguage = "Korean",
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                db.UserProfiles.Add(profile);
-                await db.SaveChangesAsync();
-
-                user.UserProfileId = profile.Id;
-                await userManager.UpdateAsync(user);
-
-                await signInManager.SignInAsync(user, isPersistent: false);
-                return Results.Redirect("/");
-            }
-
-            var errors = string.Join(",", result.Errors.Select(e => e.Code));
-            return Results.Redirect($"/Account/Register?errors={Uri.EscapeDataString(errors)}");
-        })
-        .DisableAntiforgery();
 
         // One-time auto-sign-in via token (used by Blazor Server interactive pages
         // that can't set cookies directly over WebSocket)
@@ -168,14 +49,14 @@ public static class AccountEndpoints
             var user = await userManager.FindByIdAsync(userId);
             if (user is null)
             {
-                return Results.Redirect("/Account/Login?error=InvalidLink");
+                return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
             var valid = await userManager.VerifyUserTokenAsync(
                 user, TokenOptions.DefaultProvider, "AutoSignIn", token);
             if (!valid)
             {
-                return Results.Redirect("/Account/Login?error=InvalidLink");
+                return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
             // Link or create profile if missing (accounts from before registration fix, or migrated data)
@@ -239,7 +120,10 @@ public static class AccountEndpoints
                 // Auto-mark returning users as onboarded so they skip the onboarding flow
                 var db2 = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 var profile = await db2.UserProfiles.FindAsync(user.UserProfileId);
-                if (profile is not null && !string.IsNullOrEmpty(profile.TargetLanguage) && !string.IsNullOrEmpty(profile.Name))
+                if (profile is not null
+                    && !string.IsNullOrEmpty(profile.TargetLanguage)
+                    && !string.IsNullOrEmpty(profile.Name)
+                    && !string.IsNullOrEmpty(profile.NativeLanguage))
                 {
                     preferences.Set("is_onboarded", true);
                 }
@@ -256,13 +140,13 @@ public static class AccountEndpoints
             var user = await userManager.FindByIdAsync(userId);
             if (user is null)
             {
-                return Results.Redirect("/Account/Login?error=InvalidLink");
+                return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
             var result = await userManager.ConfirmEmailAsync(user, code);
             return result.Succeeded
-                ? Results.Redirect("/Account/Login?message=EmailConfirmed")
-                : Results.Redirect("/Account/Login?error=ConfirmFailed");
+                ? Results.Redirect("/auth/login?message=EmailConfirmed")
+                : Results.Redirect("/auth/login?error=ConfirmFailed");
         });
 
         group.MapPost("/ForgotPassword", async (
@@ -292,7 +176,7 @@ public static class AccountEndpoints
             }
 
             // Always redirect to avoid email enumeration
-            return Results.Redirect("/Account/ForgotPassword?message=ResetSent");
+            return Results.Redirect("/auth/forgot-password?message=ResetSent");
         })
         .DisableAntiforgery();
 
@@ -305,12 +189,12 @@ public static class AccountEndpoints
             var user = await userManager.FindByEmailAsync(email);
             if (user is null)
             {
-                return Results.Redirect("/Account/Login?error=InvalidLink");
+                return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
             var result = await userManager.ResetPasswordAsync(user, token, newPassword);
             return result.Succeeded
-                ? Results.Redirect("/Account/Login?message=PasswordReset")
+                ? Results.Redirect("/auth/login?message=PasswordReset")
                 : Results.Redirect($"/Account/ResetPassword?error=ResetFailed&email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}");
         })
         .DisableAntiforgery();
