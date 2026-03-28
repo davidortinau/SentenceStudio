@@ -97,22 +97,34 @@
 
 ## Archived Context (Pre-2026-03-20)
 
-**Summary:** File-vocab-import feature, CI workflow setup, MSAL/Entra ID OIDC integration, mobile UX fixes wave.  
-**Files Modified:** 50+  
-**Lines Changed:** 2000+  
+**2026-03-07 to 2026-03-19: Phase 1 (Auth) & Phase 2 (Secrets) — COMPLETE**
 
-**Phase 1 & 2 Auth Work (2026-03-14 to 2026-03-19):**
-- WebApp OIDC: Microsoft.Identity.Web integration, DelegatingHandler, Redis token cache  
-- MAUI MSAL: WebAuthenticator, SecureStorage, Bearer token injection  
-- CI Workflow: GitHub Actions multi-platform matrix, artifact publishing  
+**Auth Implementation (WebApp + MAUI):**
+- WebApp OIDC: Microsoft.Identity.Web + DelegatingHandler + Redis distributed cache
+- MAUI MSAL: WebAuthenticator + SecureStorage + Bearer token injection  
 - Mobile auth gate fix: MainLayout async verification logic  
+- CI Workflow: GitHub Actions multi-platform matrix + artifact publishing  
 
-**Phase 3 Infrastructure & UX Research (2026-03-19-20):**
-- Mobile UX research deliverable: docs/mobile-ux-research.md  
-- File-import feature: InputFile component for CSV/Excel import (cross-platform)  
-- Mobile UX fixes: Register page keyboard, cloze font sizing, button groups, settings debug UI, bulk toolbar  
+**Mobile UX Fixes & Features:**
+- Register page: 100dvh + overflow-y fix for iOS keyboard
+- Cloze font sizing: Mobile media query (24px vs 42px desktop)
+- Button groups: Responsive flex-column/row layout  
+- Settings page: Wrapped debug DB migrations in #if DEBUG  
+- Bulk toolbar: Added flex-wrap for responsive wrapping  
+- Writing input: Icon-only Grade button on mobile  
+- File-import feature: InputFile component for CSV/Excel (cross-platform Blazor)  
 
-**2026-03-20 — Team Sync: Zoe's Getting-Started Dashboard**
+**Mobile UX Research Deliverable:** docs/mobile-ux-research.md  
+
+**Key Tech Learnings:**
+- Shared Blazor Razor components (.razor) in class libraries DON'T inherit platform-specific preprocessor symbols — use runtime detection only
+- MSAL.NET: no `WithBroker()` in v4.x; uses PKCE with system browser  
+- Blazor InputFile works cross-platform (web + MAUI Hybrid) — standard Blazor  
+- Microsoft.Identity.Web requires `AddControllersWithViews()` + `MapControllers()` for OIDC endpoints  
+- PageHeader `ToolbarActions` slot renders on ALL screen sizes — use `d-md-none` for mobile-only  
+- Bootstrap `offcanvas-bottom` + `d-md-none` pattern for mobile slide-up filter panels  
+
+---
 
 **Impact on Kaylee's Work:**
 - Zoe implemented getting-started onboarding flow (Dashboard, feature/getting-started-dashboard)
@@ -123,7 +135,6 @@
 **Cross-Agent Notes:**
 - Kaylee's file-vocab-import feature (InputFile on ResourceAdd/ResourceEdit) works seamlessly with Zoe's getting-started flow
 - Both features are non-blocking and can be merged in any order
-
 
 ### 2026-03-20 — YouTube Channel Monitoring Import Page Redesign
 
@@ -387,3 +398,19 @@
 - If WebApp tests token expiry/refresh, test with 120-min JWT window + silent refresh fallback
 
 **Related:** Squad decision #6 (auth token lifetime) — see `.squad/decisions.md`
+
+### Onboarding Routing Fixes (2025-07-15)
+
+Fixed four bugs preventing new users from reaching the Onboarding.razor flow:
+
+1. **MainLayout.razor** — onboarding bypass check now requires `TargetLanguage` AND `NativeLanguage` AND `Name` (previously missing `NativeLanguage`)
+2. **LoginPage.razor** — post-login redirect now checks `is_onboarded` pref; sends un-onboarded users to `/onboarding` instead of `/`
+3. **Auth.razor** — local profile selection no longer unconditionally sets `is_onboarded = true`; only does so when profile has all three fields
+4. **Index.razor** — "Quick Start" starter content no longer hardcodes "Korean"; reads user's `TargetLanguage` from profile; redirects to `/onboarding` if language is missing
+
+## Learnings (continued)
+
+- The `is_onboarded` preference is the routing gate for onboarding — MainLayout checks it on every page load
+- `ProfileRepo.GetAsync()` returns the active user's profile (or null) — use it for language checks
+- `AppState.CurrentUserProfile` may be null at dashboard load; always fall back to `ProfileRepo.GetAsync()`
+- Onboarding.razor sets `is_onboarded = true` only at the end of its own `FinishOnboarding()` — don't set it elsewhere unless profile is provably complete
