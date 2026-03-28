@@ -119,7 +119,10 @@
             // Check if this is a returning user with existing profile data
             // (e.g., fresh deploy/rebuild cleared device-local preferences)
             var existingProfile = await ProfileRepo.GetAsync();
-            if (existingProfile is not null && !string.IsNullOrEmpty(existingProfile.TargetLanguage) && !string.IsNullOrEmpty(existingProfile.Name))
+            if (existingProfile is not null
+                && !string.IsNullOrEmpty(existingProfile.TargetLanguage)
+                && !string.IsNullOrEmpty(existingProfile.NativeLanguage)
+                && !string.IsNullOrEmpty(existingProfile.Name))
             {
                 Preferences.Set("is_onboarded", true);
             }

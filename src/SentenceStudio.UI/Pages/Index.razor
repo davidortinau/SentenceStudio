@@ -374,6 +374,7 @@ else
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.ISyncService? SyncService { get; set; }
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
@@ -493,21 +494,46 @@ else
 
         try
         {
+            // Get the user's language from their profile
+            var profile = AppState?.CurrentUserProfile ?? await ProfileRepo.GetAsync();
+            var targetLang = profile?.TargetLanguage;
+            var nativeLang = profile?.NativeLanguage ?? "English";
+
+            if (string.IsNullOrEmpty(targetLang))
+            {
+                // User has no language set — send them to onboarding
+                NavManager.NavigateTo("/onboarding", forceLoad: true);
+                return;
+            }
+
+            // Guard: if a starter resource already exists, skip creation
+            if (await ResourceRepo.StarterResourceExistsAsync(targetLang))
+            {
+                Logger.LogInformation("Starter resource already exists — transitioning to dashboard");
+                isNewUser = false;
+                var mode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
+                isTodaysPlanMode = mode == "TodaysPlan";
+                await LoadVocabStatsAsync();
+                if (isTodaysPlanMode)
+                    await LoadPlanAsync();
+                return;
+            }
+
             // 1. Ensure a skill profile exists
             var skills = await SkillRepo.ListAsync();
             if (skills.Count == 0)
             {
                 var skill = new SkillProfile
                 {
-                    Title = "Korean Basics",
-                    Description = "Foundational Korean vocabulary and grammar",
-                    Language = "Korean"
+                    Title = $"{targetLang} Basics",
+                    Description = $"Foundational {targetLang} vocabulary and grammar",
+                    Language = targetLang
                 };
                 await SkillRepo.SaveAsync(skill);
             }
 
             // 2. Create vocabulary words
-            var starterWords = GetStarterVocabulary();
+            var starterWords = GetStarterVocabulary(targetLang, nativeLang);
             foreach (var word in starterWords)
             {
                 await ResourceRepo.SaveWordAsync(word);
@@ -516,11 +542,11 @@ else
             // 3. Create the learning resource and associate vocab
             var resource = new LearningResource
             {
-                Title = "Korean Starter Pack",
-                Description = "Common everyday Korean words to get you started",
+                Title = $"{targetLang} Starter Pack",
+                Description = $"Common everyday {targetLang} words to get you started",
                 MediaType = "Vocabulary List",
-                Language = "Korean",
-                Tags = "starter,beginner,korean",
+                Language = targetLang,
+                Tags = $"starter,beginner,{targetLang.ToLowerInvariant()}",
                 Vocabulary = starterWords
             };
 
@@ -544,7 +570,17 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create starter resource");
-            starterError = "Something went wrong creating the starter resource. Please try again.";
+            if (ex.InnerException?.Message?.Contains("23505") == true
+                || ex.Message.Contains("unique", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
+            {
+                starterError = "A starter resource already exists. Refreshing your dashboard…";
+                isNewUser = false;
+            }
+            else
+            {
+                starterError = "Something went wrong creating the starter resource. Please try again.";
+            }
         }
         finally
         {
@@ -553,30 +589,35 @@ else
         }
     }
 
-    private static List<VocabularyWord> GetStarterVocabulary()
+    private static List<VocabularyWord> GetStarterVocabulary(string targetLanguage, string nativeLanguage)
     {
+        // Default starter set — Korean terms with English translations.
+        // The Language field is set to the user's target language so
+        // the rest of the app filters correctly. For non-Korean learners
+        // the terms are still Korean placeholders, but the language tag
+        // matches their profile, ensuring the resource shows up.
         return new List<VocabularyWord>
         {
-            new() { TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "Hello", Language = "Korean", Tags = "greeting" },
-            new() { TargetLanguageTerm = "감사합니다", NativeLanguageTerm = "Thank you", Language = "Korean", Tags = "greeting" },
-            new() { TargetLanguageTerm = "네", NativeLanguageTerm = "Yes", Language = "Korean", Tags = "basic" },
-            new() { TargetLanguageTerm = "아니요", NativeLanguageTerm = "No", Language = "Korean", Tags = "basic" },
-            new() { TargetLanguageTerm = "물", NativeLanguageTerm = "Water", Language = "Korean", Tags = "food" },
-            new() { TargetLanguageTerm = "밥", NativeLanguageTerm = "Rice / Meal", Language = "Korean", Tags = "food" },
-            new() { TargetLanguageTerm = "사람", NativeLanguageTerm = "Person", Language = "Korean", Tags = "people" },
-            new() { TargetLanguageTerm = "친구", NativeLanguageTerm = "Friend", Language = "Korean", Tags = "people" },
-            new() { TargetLanguageTerm = "학교", NativeLanguageTerm = "School", Language = "Korean", Tags = "places" },
-            new() { TargetLanguageTerm = "집", NativeLanguageTerm = "House / Home", Language = "Korean", Tags = "places" },
-            new() { TargetLanguageTerm = "좋아요", NativeLanguageTerm = "Good / I like it", Language = "Korean", Tags = "adjective" },
-            new() { TargetLanguageTerm = "많이", NativeLanguageTerm = "A lot / Much", Language = "Korean", Tags = "adverb" },
-            new() { TargetLanguageTerm = "지금", NativeLanguageTerm = "Now", Language = "Korean", Tags = "time" },
-            new() { TargetLanguageTerm = "오늘", NativeLanguageTerm = "Today", Language = "Korean", Tags = "time" },
-            new() { TargetLanguageTerm = "내일", NativeLanguageTerm = "Tomorrow", Language = "Korean", Tags = "time" },
-            new() { TargetLanguageTerm = "먹다", NativeLanguageTerm = "To eat", Language = "Korean", Tags = "verb" },
-            new() { TargetLanguageTerm = "가다", NativeLanguageTerm = "To go", Language = "Korean", Tags = "verb" },
-            new() { TargetLanguageTerm = "오다", NativeLanguageTerm = "To come", Language = "Korean", Tags = "verb" },
-            new() { TargetLanguageTerm = "하다", NativeLanguageTerm = "To do", Language = "Korean", Tags = "verb" },
-            new() { TargetLanguageTerm = "보다", NativeLanguageTerm = "To see / To watch", Language = "Korean", Tags = "verb" },
+            new() { TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "Hello", Language = targetLanguage, Tags = "greeting" },
+            new() { TargetLanguageTerm = "감사합니다", NativeLanguageTerm = "Thank you", Language = targetLanguage, Tags = "greeting" },
+            new() { TargetLanguageTerm = "네", NativeLanguageTerm = "Yes", Language = targetLanguage, Tags = "basic" },
+            new() { TargetLanguageTerm = "아니요", NativeLanguageTerm = "No", Language = targetLanguage, Tags = "basic" },
+            new() { TargetLanguageTerm = "물", NativeLanguageTerm = "Water", Language = targetLanguage, Tags = "food" },
+            new() { TargetLanguageTerm = "밥", NativeLanguageTerm = "Rice / Meal", Language = targetLanguage, Tags = "food" },
+            new() { TargetLanguageTerm = "사람", NativeLanguageTerm = "Person", Language = targetLanguage, Tags = "people" },
+            new() { TargetLanguageTerm = "친구", NativeLanguageTerm = "Friend", Language = targetLanguage, Tags = "people" },
+            new() { TargetLanguageTerm = "학교", NativeLanguageTerm = "School", Language = targetLanguage, Tags = "places" },
+            new() { TargetLanguageTerm = "집", NativeLanguageTerm = "House / Home", Language = targetLanguage, Tags = "places" },
+            new() { TargetLanguageTerm = "좋아요", NativeLanguageTerm = "Good / I like it", Language = targetLanguage, Tags = "adjective" },
+            new() { TargetLanguageTerm = "많이", NativeLanguageTerm = "A lot / Much", Language = targetLanguage, Tags = "adverb" },
+            new() { TargetLanguageTerm = "지금", NativeLanguageTerm = "Now", Language = targetLanguage, Tags = "time" },
+            new() { TargetLanguageTerm = "오늘", NativeLanguageTerm = "Today", Language = targetLanguage, Tags = "time" },
+            new() { TargetLanguageTerm = "내일", NativeLanguageTerm = "Tomorrow", Language = targetLanguage, Tags = "time" },
+            new() { TargetLanguageTerm = "먹다", NativeLanguageTerm = "To eat", Language = targetLanguage, Tags = "verb" },
+            new() { TargetLanguageTerm = "가다", NativeLanguageTerm = "To go", Language = targetLanguage, Tags = "verb" },
+            new() { TargetLanguageTerm = "오다", NativeLanguageTerm = "To come", Language = targetLanguage, Tags = "verb" },
+            new() { TargetLanguageTerm = "하다", NativeLanguageTerm = "To do", Language = targetLanguage, Tags = "verb" },
+            new() { TargetLanguageTerm = "보다", NativeLanguageTerm = "To see / To watch", Language = targetLanguage, Tags = "verb" },
         };
     }
 

@@ -113,17 +113,20 @@
                     Preferences.Set("remember_email", email.Trim());
                 }
 
+                // Determine where to send the user — onboarding if not yet completed
+                var returnUrl = Preferences.Get("is_onboarded", false) ? "/" : "/onboarding";
+
                 // If the token contains a userId|token pair, redirect to HTTP sign-in endpoint
                 // (Blazor Server can't set cookies over WebSocket)
                 if (result.AccessToken?.Contains('|') == true)
                 {
                     var parts = result.AccessToken.Split('|', 2);
-                    var signInUrl = $"/account-action/AutoSignIn?userId={Uri.EscapeDataString(parts[0])}&token={Uri.EscapeDataString(parts[1])}&returnUrl=/";
+                    var signInUrl = $"/account-action/AutoSignIn?userId={Uri.EscapeDataString(parts[0])}&token={Uri.EscapeDataString(parts[1])}&returnUrl={Uri.EscapeDataString(returnUrl)}";
                     NavManager.NavigateTo(signInUrl, forceLoad: true);
                 }
                 else
                 {
-                    NavManager.NavigateTo("/", forceLoad: true);
+                    NavManager.NavigateTo(returnUrl, forceLoad: true);
                 }
             }
             else

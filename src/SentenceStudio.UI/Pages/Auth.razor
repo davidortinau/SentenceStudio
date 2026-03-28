@@ -143,8 +143,20 @@
         if (AuthService.IsSignedIn)
         {
             Preferences.Set(AuthenticatedPreferenceKey, true);
-            Preferences.Set("is_onboarded", true);
-            NavManager.NavigateTo("/", forceLoad: true);
+
+            // Only mark as onboarded if profile has all required language preferences
+            var isComplete = !string.IsNullOrEmpty(profile.TargetLanguage)
+                          && !string.IsNullOrEmpty(profile.NativeLanguage)
+                          && !string.IsNullOrEmpty(profile.Name);
+            if (isComplete)
+            {
+                Preferences.Set("is_onboarded", true);
+                NavManager.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                NavManager.NavigateTo("/onboarding", forceLoad: true);
+            }
         }
         else
         {
