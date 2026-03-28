@@ -40,6 +40,8 @@
 
 ---
 
+### ---
+
 ### 2. Architecture Plan: Azure Deployment with Entra ID Authentication (2026-03-13)
 
 **Status:** REFERENCE  
@@ -103,6 +105,8 @@ Added Microsoft.Identity.Web OIDC authentication to the Blazor WebApp with the s
 
 ---
 
+### ---
+
 ### 4. MAUI MSAL Authentication (#45) (2026-03-14)
 
 **Status:** IMPLEMENTED  
@@ -127,6 +131,8 @@ Implemented MSAL.NET authentication for MAUI native clients (mobile + desktop) w
 **Dependencies:** #42 (Entra ID app registration with MSAL configuration), #43 (API JWT Bearer), Kaylee #44 (UX consistency)
 
 ---
+
+### ---
 
 ### 5. CI Workflow Setup (#56) (2026-03-14)
 
@@ -183,6 +189,8 @@ Established .NET user-secrets pattern for secure local development across all se
 **No Data Impact:** No database changes, no secret migrations, AppHost user-secrets remain intact.
 
 ---
+
+### ---
 
 ### 4. Security Headers and HTTPS Enforcement (2026-03-14)
 
@@ -241,6 +249,8 @@ Added real JWT Bearer authentication via Microsoft Entra ID while keeping DevAut
 
 ---
 
+### ---
+
 ### 7. Auth Integration Test Infrastructure (#47) (2026-03-13)
 
 **Status:** IMPLEMENTED  
@@ -267,6 +277,8 @@ Created `tests/SentenceStudio.Api.Tests/` — integration test infrastructure fo
 
 ---
 
+### ---
+
 ### 8. CoreSync Auth — Bearer Token on Sync Client (#46) (2026-03-14)
 
 **Status:** IMPLEMENTED  
@@ -287,6 +299,8 @@ Added Bearer token authentication to CoreSync HTTP sync channel (MAUI clients �
 **Dependencies:** Merges `feature/43-api-jwt-bearer` + `feature/45-maui-msal`
 
 ---
+
+### ---
 
 ### 9. CI Workflow Setup (#56) (2026-03-14)
 
@@ -317,6 +331,8 @@ GitHub Actions CI workflow for automated testing and multi-platform builds.
 
 ---
 
+### ---
+
 ### 10. Mobile Auth Guard — Validate Tokens, Not Preferences (#2026-03-15)
 
 **Status:** IMPLEMENTED  
@@ -346,6 +362,8 @@ Fixed critical mobile authentication bypass vulnerability where auth gate only c
 - **Jayne (QA):** Auth gate tests required
 
 ---
+
+### ---
 
 ### 11. CRUD Feedback Standard (2026-03-14)
 
@@ -385,6 +403,8 @@ Uniform CRUD feedback pattern across all pages (Resources, Skills, Vocabulary, P
 3. Zoe: Code review for pattern adherence
 
 ---
+
+### ---
 
 ### 12. Adopt Official Blazor Hybrid Authentication Pattern (2026-03-15)
 
@@ -434,6 +454,8 @@ We've been fighting NavigateTo() timing issues in MainLayout.razor that stem fro
 **Estimated Effort:** 1-2 days (Phases 1-4)  
 
 ---
+
+### ---
 
 ### 13. Refactor to Official Blazor Hybrid Auth Pattern (2026-03-15)
 
@@ -493,6 +515,8 @@ MainLayout.razor should NOT be an auth gate. The Router (Routes.razor) is the of
 
 ---
 
+### ---
+
 ### 14. Vocabulary Hierarchy Tracking — Architecture Framework (2026-03-17)
 
 **Status:** PROPOSED  
@@ -533,6 +557,8 @@ Comprehensive analysis of vocabulary relationship tracking, identifying four des
 **Full Analysis:** See `docs/zoe-vocab-relationships-architecture.md` for schema options (Option A, B, C), mastery strategies, and SRS impact assessment.
 
 ---
+
+### ---
 
 ### 15. Vocabulary Hierarchy — Data Model & Schema Design (2026-03-17)
 
@@ -608,6 +634,8 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 4. CoreSync validation
 
 ---
+
+### ---
 
 ### 16. Vocabulary Hierarchy — AI Prompt Design & Import Strategy (2026-03-17)
 
@@ -693,6 +721,8 @@ Start with Phase 1 only. Prove the AI can detect relationships accurately (90%+ 
 
 ---
 
+### ---
+
 ### 17. Vocabulary Hierarchy — Learning Design & UX (2026-03-17)
 
 **Status:** PROPOSED  
@@ -756,6 +786,8 @@ UX and motivational analysis of vocabulary hierarchy with progressive disclosure
 
 ---
 
+### ---
+
 ### 18. Second-Language Acquisition (SLA) Research Integration (2026-03-17)
 
 **Status:** PROPOSED  
@@ -813,6 +845,8 @@ Applied SLA principles to validate vocabulary hierarchy design decisions.
 
 ---
 
+### ---
+
 ### Blazor InputFile for File-Based Vocab Import (2026-07-22)
 
 **Status:** IMPLEMENTED  
@@ -836,6 +870,8 @@ Use standard Blazor `InputFile` component instead of platform-specific file pick
 - Pattern can be reused wherever file upload is needed in Blazor pages
 
 ---
+
+### ---
 
 ### Getting-Started Dashboard Experience (2026-03-18)
 
@@ -2050,6 +2086,8 @@ dotnet ef migrations add AddChannelMonitoring \
 
 ---
 
+### ---
+
 ### 3. YouTube Channel Monitoring — Data Model & Service Layer (2026-03-20)
 
 **Status:** IMPLEMENTED — migration + DI registration complete  
@@ -2085,6 +2123,8 @@ Defined data model and service layer for YouTube channel monitoring. Two new ent
 - Confirmed bilingual transcript handling (auto-generated Korean + manual English captions)
 
 ---
+
+### ---
 
 ### 4. Architecture Decision: YouTube Channel Monitoring + Video Import (2026-03-20)
 
@@ -2142,6 +2182,8 @@ POST   /api/channels/{id}/poll  — Force immediate poll
 - AI cost → ~$0.01/import, acceptable for personal use but monitor if channels grow
 
 ---
+
+### ---
 
 ### 5. YouTube AI Pipeline — Prompt Design & Response Models (2026-03-20)
 
@@ -2204,6 +2246,8 @@ Designed and validated two-stage prompt architecture for YouTube transcript proc
 
 ---
 
+### ---
+
 ### 6. YouTube Template Integration — Scriban Wiring Complete (2026-03-20)
 
 **Status:** COMPLETED  
@@ -2241,6 +2285,8 @@ All `[JsonPropertyName]` attributes in `VocabularyExtractionResponse` validated 
 - `src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`
 
 ---
+
+### ---
 
 ### 7. Client-Side Polling for Import Status Updates (2026-03-20)
 
@@ -2577,6 +2623,8 @@ private async Task RefreshDashboardAsync()
 
 ---
 
+### ---
+
 ### 6. Post-Login Sync for Mobile Data Consistency (2026-03-15)
 
 **Status:** IMPLEMENTED  
@@ -2594,6 +2642,8 @@ Added automatic sync trigger after successful login/register in mobile clients t
 **Related:** CoreSync trigger coverage now includes app startup, connectivity change, and post-login.
 
 ---
+
+### ---
 
 ### 7. Vocab Quiz Two-Tier Pool Architecture (2026-03-22)
 
@@ -2613,6 +2663,8 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 
 ---
 
+### ---
+
 ### 8. VocabularyProgressRepository Consistency (2026-03-22)
 
 **Status:** APPLIED  
@@ -2627,6 +2679,8 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 **Impact:** Fixes #135 (detail page mastery status), prevents future ghost data records.
 
 ---
+
+### ---
 
 ### 9. Dashboard Refresh — Button vs Pull-to-Refresh (2026-03-20)
 
@@ -2646,6 +2700,8 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 **Future:** If pull-to-refresh becomes critical, evaluate mature component libraries or invest 2-3 days in JS interop solution.
 
 ---
+
+### ---
 
 ### 10. Blazor Virtualize Implementation (2026-03-20)
 
@@ -2667,6 +2723,8 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 **Guidelines:** Use Virtualize for 500+ items or growing lists; keep @foreach for guaranteed small lists (<100 items).
 
 ---
+
+### ---
 
 ### 11. Mobile UX Implementation Strategy for Blazor Hybrid (2026-03-20)
 
@@ -2697,6 +2755,8 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 
 ---
 
+### ---
+
 ### 12. List Page Scroll Pattern (2026-03-22)
 
 **Status:** PROPOSED  
@@ -2723,6 +2783,8 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 
 ---
 
+### ---
+
 ### 13. Issue Triage #131–#140 (2026-03-20)
 
 **Status:** COMPLETE  
@@ -2739,4 +2801,34 @@ Triaged 10 new GitHub issues (8 bugs, 2 enhancements) with routing and rationale
 - #139 (Feedback), #140 (Product support) — Deferred pending Captain scoping
 
 **Decisions:** Multi-domain issues routed to primary owner (Wash for #132, #135 data/logic); secondary members handle sub-problems. All 10 issues labeled `squad`; assigned issues have `squad:{member}`.
+
+
+---
+
+### ---
+
+### 14. Starter Resource Duplicate ID Crash Fix (2026-03-28)
+
+**Status:** FIXED  
+**Date:** 2026-03-28  
+**Author:** Wash (Backend Dev)  
+**Issue:** PostgreSQL 23505 unique_violation when saving starter resources
+
+**Root Cause:** 
+- SaveResourceAsync cascade-insert bug: navigation property (Vocabulary) not cleared before Add()
+- Missing duplicate ID guard to prevent re-insertion
+
+**Solution:**
+1. Clear Vocabulary nav property before Add() in SaveResourceAsync
+2. Add StarterResourceExistsAsync duplicate guard
+3. Improve error messages for clarity
+
+**Files Modified:**
+- src/SentenceStudio.Shared/Data/LearningResourceRepository.cs
+- src/SentenceStudio.UI/Pages/Index.razor
+- src/SentenceStudio.UI/Pages/Resources.razor
+
+**Outcome:** ✅ Build passes clean. Unique constraint enforced. EF Core cascade behavior fixed.
+
+**Guidelines:** Always manage EF Core navigation properties explicitly on Add(); use guard clauses for unique constraints.
 

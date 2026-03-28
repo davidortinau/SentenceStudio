@@ -56,6 +56,9 @@
 - **Streak calculation depends on synced data** - If UserActivity doesn't sync, streaks diverge
 - VocabularyProgress mastery status is a computed `[NotMapped]` property — uses MasteryScore, IsUserDeclared, VerificationState
 - **ALL VocabularyProgressRepository methods must resolve `ActiveUserId` when `userId` is empty** — inconsistency causes silent data bugs
+- **SaveResourceAsync cascade insertion bug** — When `db.LearningResources.Add(resource)` is called with pre-saved VocabularyWords in `resource.Vocabulary`, EF Core cascade-inserts them in the new DbContext scope → PG 23505. Fix: clear Vocabulary before Add, re-associate after SaveChanges.
+- **Starter resource creation needs duplicate guard** — `StarterResourceExistsAsync(targetLanguage)` checks by "starter" tag + language + user. Both Index.razor and Resources.razor call it before creating.
+- **LearningResource and VocabularyWord auto-generate GUIDs** in property initializers (`= Guid.NewGuid().ToString()`) — IDs are NOT hardcoded, but cascade insertion re-uses objects across DbContext scopes
 
 ## Core Context (Current)
 
@@ -230,4 +233,28 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` which DID fall ba
 - Configuration centralized for easy tuning per environment (dev vs production)
 
 **Related Issues:** Addresses persistent login requirement for mobile offline workflows
+
+
+## 2026-03-28T02:25: Starter Resource Duplicate ID Crash Fix
+
+**Issue:** PostgreSQL 23505 unique_violation when saving duplicate starter resource IDs  
+**Status:** ✅ FIXED
+
+**Root Cause:**
+- SaveResourceAsync cascade-insert bug: Vocabulary nav property not cleared before Add()
+- Missing duplicate ID guard to prevent re-insertion
+
+**Solution:**
+1. Clear Vocabulary nav property before Add() in SaveResourceAsync
+2. Add StarterResourceExistsAsync duplicate guard
+3. Improve error messages for clarity
+
+**Files Modified:**
+- src/SentenceStudio.Shared/Data/LearningResourceRepository.cs
+- src/SentenceStudio.UI/Pages/Index.razor
+- src/SentenceStudio.UI/Pages/Resources.razor
+
+**Build Status:** ✅ Clean build. Unique constraint now enforced.
+
+**Key Learning:** Always manage EF Core navigation properties explicitly on Add(); use guard clauses for unique constraints to prevent database-level violations.
 

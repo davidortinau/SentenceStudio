@@ -93,7 +93,26 @@
 
 ---
 
-## 2026-03-20 — Team Sync: Zoe's Getting-Started Dashboard
+---
+
+## Archived Context (Pre-2026-03-20)
+
+**Summary:** File-vocab-import feature, CI workflow setup, MSAL/Entra ID OIDC integration, mobile UX fixes wave.  
+**Files Modified:** 50+  
+**Lines Changed:** 2000+  
+
+**Phase 1 & 2 Auth Work (2026-03-14 to 2026-03-19):**
+- WebApp OIDC: Microsoft.Identity.Web integration, DelegatingHandler, Redis token cache  
+- MAUI MSAL: WebAuthenticator, SecureStorage, Bearer token injection  
+- CI Workflow: GitHub Actions multi-platform matrix, artifact publishing  
+- Mobile auth gate fix: MainLayout async verification logic  
+
+**Phase 3 Infrastructure & UX Research (2026-03-19-20):**
+- Mobile UX research deliverable: docs/mobile-ux-research.md  
+- File-import feature: InputFile component for CSV/Excel import (cross-platform)  
+- Mobile UX fixes: Register page keyboard, cloze font sizing, button groups, settings debug UI, bulk toolbar  
+
+**2026-03-20 — Team Sync: Zoe's Getting-Started Dashboard**
 
 **Impact on Kaylee's Work:**
 - Zoe implemented getting-started onboarding flow (Dashboard, feature/getting-started-dashboard)
