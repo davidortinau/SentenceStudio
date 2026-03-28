@@ -21,16 +21,20 @@
         // Check config-based API URL
         var configApiUrl = Configuration["ApiBaseUrl"] ?? "";
 
-        // Check Services fallback section
-        var fallbackUrl = Configuration["Services:api:https:0"] ?? "";
+        // Check Services fallback section (check both https and http)
+        var fallbackUrl = Configuration["Services:api:https:0"]
+                       ?? Configuration["Services:api:http:0"]
+                       ?? "";
 
         // Collect all known URLs to check for production indicators
         var allUrls = $"{aspireApiUrl} {configApiUrl} {fallbackUrl}";
 
         if (allUrls.Contains("azurecontainerapps.io"))
         {
-            // Production Azure — no badge
-            envLabel = "";
+            // Production Azure — prominent RED warning
+            envLabel = "⚠ PRODUCTION";
+            envClass = "production";
+            envDetail = "Connected to production Azure services!";
         }
         else if (!string.IsNullOrEmpty(aspireApiUrl))
         {
@@ -51,6 +55,12 @@
         {
             envLabel = "LOCAL";
             envClass = "local";
+            envDetail = $"API: {(string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl)}";
+        }
+        else if (configApiUrl.Contains("devtunnels.ms") || fallbackUrl.Contains("devtunnels.ms"))
+        {
+            envLabel = "DEV TUNNEL";
+            envClass = "dev";
             envDetail = $"API: {(string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl)}";
         }
         else

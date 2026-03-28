@@ -1653,12 +1653,22 @@ h3:focus,
     white-space: nowrap;
 }
 
+.env-badge-production {
+    background: #e74c3c;
+    animation: pulse-production 2s ease-in-out infinite;
+}
+
+@keyframes pulse-production {
+    0%, 100% { opacity: 0.95; }
+    50% { opacity: 0.7; }
+}
+
 .env-badge-dev {
     background: #e67e22;
 }
 
 .env-badge-local {
-    background: #3498db;
+    background: #27ae60;
 }
 
 /* Safe area adjustment for iOS notch */

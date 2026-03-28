@@ -87,10 +87,12 @@
 	<ItemGroup>
 		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
 		<MauiAsset Include="appsettings.Development.json" LogicalName="appsettings.Development.json" />
+		<MauiAsset Include="appsettings.Production.json" LogicalName="appsettings.Production.json" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<EmbeddedResource Include="appsettings.json" />
 		<EmbeddedResource Include="appsettings.Development.json" />
+		<EmbeddedResource Include="appsettings.Production.json" />
 	</ItemGroup>
 </Project>

@@ -9,6 +9,12 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- appsettings.json is gitignored and local-only; appsettings.Production.json + appsettings.Development.json are tracked
+- Default service URLs in appsettings.json MUST be localhost-only; production Azure URLs live ONLY in appsettings.Production.json
+- EnvironmentBadge shows RED pulsing "⚠ PRODUCTION" when azurecontainerapps.io URLs detected; GREEN "LOCAL" for localhost; ORANGE for dev tunnels
+- `appsettings.Production.json` registered in csproj as both MauiAsset and EmbeddedResource
+- Service discovery `https+http://api` URI resolves via Aspire env vars first, then falls back to config Services section
+
 - EF Core migrations: `dotnet ef migrations add <Name> --project src/SentenceStudio.Shared --startup-project src/SentenceStudio.Shared`
 - NEVER delete database files or user data — fix migrations, not data
 - SQLite table names are SINGULAR in ApplicationDbContext.OnModelCreating
