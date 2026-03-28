@@ -8,6 +8,7 @@ var jwtkey = builder.AddParameter("jwtkey", secret: true);
 
 var postgres = builder.AddPostgres("db")
     .WithLifetime(ContainerLifetime.Persistent)
+    .WithDataVolume()
     .AddDatabase("sentencestudio");
 
 var redis = builder.AddRedis("cache");
