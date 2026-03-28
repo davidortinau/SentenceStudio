@@ -210,11 +210,13 @@ public class ServerAuthService : IAuthService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 120;
+
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"] ?? "SentenceStudio",
             audience: _configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
             signingCredentials: creds);
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);

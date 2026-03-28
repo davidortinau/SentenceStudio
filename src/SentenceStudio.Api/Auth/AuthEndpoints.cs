@@ -91,7 +91,7 @@ public static class AuthEndpoints
             {
                 UserId = user.Id,
                 Token = refreshTokenValue,
-                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                ExpiresAt = DateTime.UtcNow.AddDays(tokenService.GetRefreshTokenLifetimeDays()),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -187,7 +187,7 @@ public static class AuthEndpoints
         {
             UserId = user.Id,
             Token = refreshTokenValue,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = DateTime.UtcNow.AddDays(tokenService.GetRefreshTokenLifetimeDays()),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -237,7 +237,7 @@ public static class AuthEndpoints
         {
             UserId = user.Id,
             Token = newRefreshTokenValue,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = DateTime.UtcNow.AddDays(tokenService.GetRefreshTokenLifetimeDays()),
             CreatedAt = DateTime.UtcNow
         };
 

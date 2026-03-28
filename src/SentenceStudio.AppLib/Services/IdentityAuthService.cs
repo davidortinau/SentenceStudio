@@ -46,13 +46,33 @@ public sealed class IdentityAuthService : IAuthService
     public string? UserName => _cachedUserName;
 
     /// <summary>
-    /// Silent sign-in: tries to restore a session from stored refresh token.
-    /// Returns null if no stored token or refresh fails (UI should show login).
+    /// Silent sign-in: first tries to restore a valid JWT from SecureStorage (no network),
+    /// then falls back to refresh token if the JWT is expired or expiring soon.
+    /// Returns null if no stored tokens or refresh fails (UI should show login).
     /// </summary>
     public async Task<AuthResult?> SignInAsync()
     {
         try
         {
+            // First, try to restore from stored JWT without a network call
+            var storedJwt = await _secureStorage.GetAsync(JwtKey);
+            var storedExpiresStr = await _secureStorage.GetAsync(ExpiresKey);
+
+            if (!string.IsNullOrEmpty(storedJwt) && !string.IsNullOrEmpty(storedExpiresStr)
+                && DateTimeOffset.TryParse(storedExpiresStr, out var storedExpires)
+                && storedExpires > DateTimeOffset.UtcNow.AddMinutes(2))
+            {
+                // Stored JWT is still valid with comfortable margin — restore without network
+                _cachedToken = storedJwt;
+                _cachedExpires = storedExpires;
+                _cachedUserName = ExtractUserNameFromJwt(storedJwt);
+
+                // Restore active profile from preferences if available
+                _logger.LogInformation("Restored session from stored JWT, expires {Expires}", storedExpires);
+                return new AuthResult(storedJwt, _cachedUserName, storedExpires);
+            }
+
+            // JWT missing or expiring soon — try refresh token
             var refreshToken = await _secureStorage.GetAsync(RefreshKey);
             if (string.IsNullOrEmpty(refreshToken))
                 return null;

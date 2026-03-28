@@ -62,6 +62,15 @@ public sealed class JwtTokenService
 
     public int GetExpiryMinutes()
     {
-        return int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 60;
+        return int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 120;
+    }
+
+    /// <summary>
+    /// Refresh token lifetime in days. Configurable via "RefreshToken:LifetimeDays".
+    /// Defaults to 90 days so users stay signed in for months.
+    /// </summary>
+    public int GetRefreshTokenLifetimeDays()
+    {
+        return int.TryParse(_configuration["RefreshToken:LifetimeDays"], out var days) ? days : 90;
     }
 }
