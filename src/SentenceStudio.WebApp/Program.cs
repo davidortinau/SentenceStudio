@@ -174,7 +174,8 @@ app.MapAccountEndpoints();
 
 app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(SentenceStudio.WebUI.Routes).Assembly)
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AllowAnonymous();
 
 app.Run();
 
