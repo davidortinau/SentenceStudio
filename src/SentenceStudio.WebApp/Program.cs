@@ -62,8 +62,8 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath = "/Account/Login";
-    options.LogoutPath = "/Account/Logout";
+    options.LoginPath = "/auth/login";
+    options.LogoutPath = "/account-action/SignOut";
     options.AccessDeniedPath = "/Account/AccessDenied";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
@@ -83,9 +83,13 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
 builder.Services.AddSingleton<IPreferencesService>(_ => new WebPreferencesService(preferencesPath));
-builder.Services.AddSingleton<ISecureStorageService, WebSecureStorageService>();
+builder.Services.AddSingleton<ISecureStorageService>(sp =>
+    new WebSecureStorageService(
+        sp.GetRequiredService<IPreferencesService>(),
+        sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<WebSecureStorageService>()));
 builder.Services.AddSingleton<IConnectivityService, WebConnectivityService>();
-builder.Services.AddSingleton<IFilePickerService, WebFilePickerService>();
+builder.Services.AddScoped<IFilePickerService, WebFilePickerService>();
 builder.Services.AddSingleton<IAudioPlaybackService, WebAudioPlaybackService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new WebFileSystemService(appDataRoot, appLibRawAssets));
 builder.Services.AddSingleton(WebAudioManagerProxy.Create());

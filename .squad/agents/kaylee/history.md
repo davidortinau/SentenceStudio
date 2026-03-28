@@ -25,6 +25,9 @@
 - Microsoft.Identity.Web.UI requires `AddControllersWithViews()` + `MapControllers()` for sign-in/sign-out endpoints
 - `appsettings.json` is gitignored — config changes there are local-only, use `appsettings.Development.json` for tracked dev config
 - Client secrets go in user-secrets, never in tracked config files
+- `WebFilePickerService` uses JS interop (`filePickerInterop.pickFile`) — registered as `AddScoped` because `IJSRuntime` is circuit-scoped in Blazor Server
+- JS interop pattern: global `window.*` objects in `wwwroot/js/`, loaded via `<script>` tags in `App.razor`
+- Pre-existing build error: `WebSecureStorageService` constructor mismatch (line 87 of Program.cs) — unrelated to file picker work
 
 - Blazor pages in `src/SentenceStudio.UI/Pages/` — follow `activity-page-wrapper` layout pattern
 - MauiReactor conventions: `VStart()` not `Top()`, `VEnd()` not `Bottom()`, `HStart()`/`HEnd()` not `Start()`/`End()`
