@@ -1,9 +1,11 @@
 @using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Nav
 @inject NavigationMemoryService NavMemory
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
 @inject IAppState AppState
 @inject SentenceStudio.Services.Progress.ProgressCacheService CacheService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -65,23 +67,26 @@
         await CloseOffcanvas();
     }
 
-    private void Logout()
+    private async Task Logout()
     {
         // Clear all caches to prevent stale cross-user data
         CacheService.InvalidateAll();
 
-        // Clear auth state
+        // Clear auth state via the provider (clears JWT, refresh token, notifies Blazor)
+        if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
+        {
+            await mauiAuth.LogOutAsync();
+        }
+
+        // Clear preferences
         Preferences.Set("app_is_authenticated", false);
         Preferences.Remove("active_profile_id");
         AppState.CurrentUserProfile = null;
 
-        // On web, navigate to server sign-out endpoint to clear the auth cookie.
-        // On mobile (MAUI), no server endpoint exists — navigate to /auth directly.
-        // forceLoad:true ensures a full HTTP request on web (hits the server endpoint)
-        // and a full webview reload on mobile (resets Blazor circuit).
+        // Navigate to auth page
         var baseUri = Nav.BaseUri;
         var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
-        Nav.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth", forceLoad: true);
+        Nav.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth/login", forceLoad: isWeb);
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

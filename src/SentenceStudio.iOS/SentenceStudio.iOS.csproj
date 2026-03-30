@@ -10,9 +10,16 @@
 		<MauiVersion>10.0.31</MauiVersion>
 		<ApplicationTitle>SentenceStudio</ApplicationTitle>
 		<ApplicationId>com.simplyprofound.sentencestudio</ApplicationId>
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>3</ApplicationVersion>
 		<SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<!-- Enable Mono interpreter for Release builds so EF Core can build its model dynamically.
+	     Without this, Mono Full AOT sets RuntimeFeature.IsDynamicCodeSupported=false and
+	     EF Core 10 throws "Model building is not supported when publishing with NativeAOT." -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<UseInterpreter>true</UseInterpreter>
 	</PropertyGroup>
 
 	<ItemGroup>

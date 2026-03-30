@@ -66,6 +66,7 @@ public static class ServiceCollectionExtentions
             services.AddHttpClient("AuthClient", client =>
             {
                 client.BaseAddress = apiBaseUri;
+                client.Timeout = TimeSpan.FromSeconds(15);
             });
         }
 

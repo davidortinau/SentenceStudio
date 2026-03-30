@@ -31,11 +31,11 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
         // to avoid blocking the UI while the API is unreachable.
         if (!_authService.IsSignedIn)
         {
-            _logger.LogInformation("Not signed in, attempting silent refresh (10s timeout)");
+            _logger.LogInformation("Not signed in, attempting silent refresh (5s timeout)");
             try
             {
                 var signInTask = _authService.SignInAsync(); // Parameterless = silent refresh
-                if (await Task.WhenAny(signInTask, Task.Delay(10_000)) != signInTask)
+                if (await Task.WhenAny(signInTask, Task.Delay(5_000)) != signInTask)
                 {
                     _logger.LogWarning("Silent sign-in timed out after 10s, proceeding as unauthenticated");
                 }

@@ -31,10 +31,7 @@
 
         if (allUrls.Contains("azurecontainerapps.io"))
         {
-            // Production Azure — prominent RED warning
-            envLabel = "⚠ PRODUCTION";
-            envClass = "production";
-            envDetail = "Connected to production Azure services!";
+            // Production Azure — no badge needed, this is the normal state
         }
         else if (!string.IsNullOrEmpty(aspireApiUrl))
         {

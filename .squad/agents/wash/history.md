@@ -312,3 +312,25 @@ Meanwhile the list page used `GetAllProgressDictionaryAsync()` which DID fall ba
 
 **Critical Fix Included:**
 These custom packages include a broker registration fix not present in the Redth packages — required for MauiDevFlow tool integration in this project.
+
+## 2026-03-28: Fix VocabularyWord.Language Missing Column on Mobile (SQLite)
+
+**Status:** ✅ FIXED
+**Error:** `SQLite Error 1: 'no such column: v.Language'` — Vocabulary page crashes on iOS
+
+**Root Cause:**
+`PatchMissingColumnsAsync()` only ran inside the `!historyExists && isLegacyDb` branch of `InitializeDatabaseAsync()`. Devices that had already transitioned to managed migrations in a previous app version (before PatchMissingColumnsAsync existed) had:
+1. Migration history with `AddMissingVocabularyWordLanguageColumn` recorded as applied
+2. But that migration is a no-op (empty Up())
+3. PatchMissingColumnsAsync never executed on subsequent runs because `historyExists == true`
+4. Result: Language column never added, EF Core queries fail
+
+**Fix:**
+1. Moved `PatchMissingColumnsAsync(conn)` to run in ALL mobile code paths (after lock cleanup, before MigrateAsync), not just the legacy-detection branch
+2. Expanded patch list to cover all VocabularyWord encoding columns: Language, Lemma, Tags, MnemonicText, MnemonicImageUri, AudioPronunciationUri
+3. Safe: pragma_table_info check skips columns that already exist
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Services/SyncService.cs` — moved PatchMissingColumnsAsync to universal path, expanded column list
+
+**Key Learning:** Schema patches that run via raw SQL (outside EF migrations) must execute unconditionally on every startup, not just during one-time transition detection. The pragma_table_info guard makes them idempotent and safe.

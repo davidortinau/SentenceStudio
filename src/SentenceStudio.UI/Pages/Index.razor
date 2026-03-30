@@ -423,6 +423,24 @@ else
     protected override async Task OnInitializedAsync()
     {
         await CheckNewUserAsync();
+
+        // If authenticated but no local data, sync from server first.
+        // This handles the common case where the user just logged in but the
+        // initial startup sync failed (no JWT at that point).
+        if (isNewUser && SyncService != null)
+        {
+            try
+            {
+                Logger.LogInformation("No local data after login — triggering sync from server");
+                await SyncService.TriggerSyncAsync();
+                await CheckNewUserAsync(); // re-check after sync
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Post-login sync failed");
+            }
+        }
+
         if (isNewUser) return;
 
         var savedMode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");

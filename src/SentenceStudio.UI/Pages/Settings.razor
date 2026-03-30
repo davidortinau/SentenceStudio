@@ -1,5 +1,6 @@
 @page "/settings"
 @attribute [Authorize]
+@using System.Reflection
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
@@ -142,37 +143,38 @@
     </button>
 </div>
 
-#if DEBUG
-@* Database Migrations - Dev Only *@
-<div class="card card-ss p-4 mb-3">
-    <h5 class="ss-title3 mb-3">Database Migrations</h5>
+@if (isDebugBuild)
+{
+    @* Database Migrations - Dev Only *@
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">Database Migrations</h5>
 
-    @if (streakMigrationComplete)
-    {
-        <div class="alert alert-success ss-body2">Streak migration complete</div>
-    }
-    else
-    {
-        <button class="btn btn-ss-secondary w-100" @onclick="RunStreakMigration" disabled="@isMigrating">
-            @if (isMigrating)
-            {
-                <span class="spinner-border spinner-border-sm me-2"></span>
-            }
-            Run Streak Migration
-        </button>
-    }
+        @if (streakMigrationComplete)
+        {
+            <div class="alert alert-success ss-body2">Streak migration complete</div>
+        }
+        else
+        {
+            <button class="btn btn-ss-secondary w-100" @onclick="RunStreakMigration" disabled="@isMigrating">
+                @if (isMigrating)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                }
+                Run Streak Migration
+            </button>
+        }
 
-    @if (!string.IsNullOrEmpty(statusMessage))
-    {
-        <p class="ss-caption1 mt-2">@statusMessage</p>
-    }
-</div>
-#endif
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <p class="ss-caption1 mt-2">@statusMessage</p>
+        }
+    </div>
+}
 
 @* About *@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-2">About</h5>
-    <p class="ss-caption1 text-muted-ss">SentenceStudio v@currentVersion</p>
+    <p class="ss-caption1 text-muted-ss">SentenceStudio v@(currentVersion)</p>
     <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="ShowReleaseNotes">
         <i class="bi bi-megaphone me-1"></i> What's New
     </button>
@@ -209,6 +211,7 @@
     private bool streakMigrationComplete;
     private string statusMessage = "";
     private string currentVersion = "1.0";
+    private bool isDebugBuild;
     private bool showWhatsNew;
     private string whatsNewTitle = "What's New";
     private string whatsNewVersion = "";
@@ -220,7 +223,12 @@
     {
         jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
         fontScale = ThemeService.FontScale;
-        currentVersion = typeof(Settings).Assembly.GetName().Version?.ToString(2) ?? "1.0";
+        var asm = typeof(Settings).Assembly;
+        var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        currentVersion = infoVersion ?? asm.GetName().Version?.ToString() ?? "1.0";
+#if DEBUG
+        isDebugBuild = true;
+#endif
         LoadPreferences();
         await LoadVoicesAsync();
     }

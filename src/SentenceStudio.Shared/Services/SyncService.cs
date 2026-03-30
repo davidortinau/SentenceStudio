@@ -299,6 +299,13 @@ public class SyncService : ISyncService
 
         foreach (var (table, column, sqlType) in expectedColumns)
         {
+            // On a fresh database the table won't exist yet — skip patching;
+            // MigrateAsync() will create it with all columns.
+            using var tableCmd = conn.CreateCommand();
+            tableCmd.CommandText = $"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{table}'";
+            if (Convert.ToInt64(await tableCmd.ExecuteScalarAsync()) == 0)
+                continue;
+
             using var checkCmd = conn.CreateCommand();
             checkCmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='{column}'";
             var exists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync()) > 0;
