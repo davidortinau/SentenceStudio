@@ -93,9 +93,9 @@ public static class CoreServiceExtensions
         services.AddSingleton<ProgressCacheService>();
         services.AddSingleton<IProgressService, ProgressService>();
 
-        // Plan generation
+        // Plan generation — use local DeterministicPlanBuilder for rich narratives
         services.AddSingleton<DeterministicPlanBuilder>();
-        services.AddSingleton<ILlmPlanGenerationService, Api.ApiPlanGenerationService>();
+        services.AddSingleton<ILlmPlanGenerationService, LlmPlanGenerationService>();
         services.AddSingleton<VocabularyExampleGenerationService>();
 
         // App state
