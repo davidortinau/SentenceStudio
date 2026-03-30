@@ -156,24 +156,126 @@ else
                      aria-valuenow="@todaysPlan.CompletionPercentage"
                      aria-valuemin="0" aria-valuemax="100"></div>
             </div>
-            @{
-                var resourceNames = todaysPlan.Items
-                    .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
-                    .Select(i => i.ResourceTitle!)
-                    .Distinct()
-                    .ToList();
-            }
-            @if (resourceNames.Any())
-            {
-                <div class="text-secondary-ss small mt-2 mb-0">
-                    <i class="bi bi-book me-1"></i>@string.Join(", ", resourceNames)
-                </div>
-            }
-            @if (!string.IsNullOrEmpty(todaysPlan.Rationale))
-            {
-                <p class="text-secondary-ss small mt-1 mb-0">@todaysPlan.Rationale</p>
-            }
         </div>
+
+        @* Plan Narrative *@
+        @if (todaysPlan.Narrative is not null)
+        {
+            <div class="card card-ss p-3 mb-3">
+                @* Story and Resources *@
+                <div class="ss-body2 mb-3">@todaysPlan.Narrative.Story</div>
+                
+                @if (todaysPlan.Narrative.Resources.Any())
+                {
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach (var resource in todaysPlan.Narrative.Resources)
+                        {
+                            <div class="d-flex flex-column">
+                                <a href="/resources/@resource.Id" class="d-inline-flex align-items-center gap-1 text-decoration-none mb-1">
+                                    <i class="bi @GetMediaTypeIcon(resource.MediaType)"></i>
+                                    <span class="fw-semibold">@resource.Title</span>
+                                </a>
+                                <span class="text-secondary-ss small ps-4">@resource.SelectionReason</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* Vocab Insight *@
+                @if (todaysPlan.Narrative.VocabInsight is { } insight)
+                {
+                    <div class="border-top pt-3 mb-3">
+                        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                            <span class="d-flex align-items-center gap-1">
+                                <i class="bi bi-star text-warning"></i>
+                                <span class="small fw-semibold">@insight.NewCount new</span>
+                            </span>
+                            <span class="d-flex align-items-center gap-1">
+                                <i class="bi bi-arrow-repeat text-primary"></i>
+                                <span class="small fw-semibold">@insight.ReviewCount review</span>
+                            </span>
+                            <span class="d-flex align-items-center gap-1">
+                                <i class="bi bi-card-checklist"></i>
+                                <span class="small fw-semibold">@insight.TotalDue total due</span>
+                            </span>
+                            @if (insight.AverageMastery > 0)
+                            {
+                                <span class="d-flex align-items-center gap-1">
+                                    <i class="bi bi-graph-up text-success"></i>
+                                    <span class="small">@((insight.AverageMastery * 100).ToString("F0"))% mastery</span>
+                                </span>
+                            }
+                        </div>
+
+                        @if (insight.StrugglingCategories.Any())
+                        {
+                            <div class="mb-2">
+                                <span class="text-secondary-ss small me-2">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Struggling with:
+                                </span>
+                                @foreach (var tag in insight.StrugglingCategories)
+                                {
+                                    <span class="badge bg-warning text-dark me-1">
+                                        @tag.Tag (@((tag.AverageAccuracy * 100).ToString("F0"))%)
+                                    </span>
+                                }
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(insight.PatternInsight))
+                        {
+                            <div class="alert alert-info py-2 px-3 mb-2 small">
+                                <i class="bi bi-lightbulb me-1"></i>@insight.PatternInsight
+                            </div>
+                        }
+
+                        @if (insight.SampleStrugglingWords.Any())
+                        {
+                            <div class="text-secondary-ss small">
+                                <i class="bi bi-arrow-return-right me-1"></i>
+                                <span>Focus on: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* Focus Areas *@
+                @if (todaysPlan.Narrative.FocusAreas.Any())
+                {
+                    <div class="border-top pt-3">
+                        <div class="ss-body2 fw-semibold mb-2">
+                            <i class="bi bi-bullseye me-1"></i>Focus Areas
+                        </div>
+                        <ul class="mb-0 ps-3">
+                            @foreach (var focus in todaysPlan.Narrative.FocusAreas)
+                            {
+                                <li class="small mb-1">@focus</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(todaysPlan.Rationale))
+        {
+            @* Fallback: old rationale for backward compat *@
+            <div class="card card-ss p-3 mb-3">
+                @{
+                    var resourceNames = todaysPlan.Items
+                        .Where(i => !string.IsNullOrEmpty(i.ResourceTitle))
+                        .Select(i => i.ResourceTitle!)
+                        .Distinct()
+                        .ToList();
+                }
+                @if (resourceNames.Any())
+                {
+                    <div class="text-secondary-ss small mb-2">
+                        <i class="bi bi-book me-1"></i>@string.Join(", ", resourceNames)
+                    </div>
+                }
+                <p class="text-secondary-ss small mb-0">@todaysPlan.Rationale</p>
+            </div>
+        }
 
         @* Plan items *@
         <div class="d-flex flex-column gap-2 mb-4">
@@ -932,6 +1034,15 @@ else
         PlanActivityType.VocabularyGame => "Vocabulary Matching",
         PlanActivityType.VideoWatching => "Video Watching",
         _ => "Activity"
+    };
+
+    private static string GetMediaTypeIcon(string mediaType) => mediaType switch
+    {
+        "Video" => "bi-camera-video",
+        "Podcast" => "bi-mic",
+        "Text" => "bi-journal-text",
+        "Vocabulary List" => "bi-card-list",
+        _ => "bi-book"
     };
 
     public async ValueTask DisposeAsync()

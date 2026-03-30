@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using SentenceStudio.Services.Progress;
 
 namespace SentenceStudio.Shared.Models.DailyPlanGeneration;
 
@@ -9,6 +10,8 @@ public class DailyPlanResponse
 
     [Description("Brief explanation of why these activities were chosen (optional, for debugging)")]
     public string Rationale { get; set; } = string.Empty;
+
+    public PlanNarrative? Narrative { get; set; }
 }
 
 public class PlanActivity

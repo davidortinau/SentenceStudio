@@ -241,7 +241,8 @@ public class ProgressService : IProgressService
                 today,
                 resourceTitles,
                 skillNames,
-                vocabDueCount
+                vocabDueCount,
+                llmResponse.Narrative
             );
 
             // Add streak info
@@ -266,7 +267,8 @@ public class ProgressService : IProgressService
                 Streak: streak,
                 ResourceTitles: uniqueResourceTitles.Any() ? string.Join(", ", uniqueResourceTitles) : null,
                 SkillTitle: skillTitle,
-                Rationale: plan.Rationale
+                Rationale: plan.Rationale,
+                Narrative: plan.Narrative
             );
 
             // Enrich with any existing completion data from database (resume support)
@@ -913,6 +915,13 @@ public class ProgressService : IProgressService
 
             if (existing == null)
             {
+                // Serialize narrative to JSON
+                string? narrativeJson = null;
+                if (plan.Narrative != null)
+                {
+                    narrativeJson = System.Text.Json.JsonSerializer.Serialize(plan.Narrative);
+                }
+
                 var completion = new DailyPlanCompletion
                 {
                     Id = Guid.NewGuid().ToString(),
@@ -929,6 +938,7 @@ public class ProgressService : IProgressService
                     TitleKey = item.TitleKey,
                     DescriptionKey = item.DescriptionKey,
                     Rationale = plan.Rationale ?? string.Empty,
+                    NarrativeJson = narrativeJson,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -980,6 +990,21 @@ public class ProgressService : IProgressService
 
         // Extract rationale from first record (stored redundantly in all records for same date)
         var rationale = completions.FirstOrDefault()?.Rationale ?? string.Empty;
+
+        // Deserialize narrative from first record (stored redundantly)
+        PlanNarrative? narrative = null;
+        var firstNarrativeJson = completions.FirstOrDefault()?.NarrativeJson;
+        if (!string.IsNullOrEmpty(firstNarrativeJson))
+        {
+            try
+            {
+                narrative = System.Text.Json.JsonSerializer.Deserialize<PlanNarrative>(firstNarrativeJson);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to deserialize narrative JSON - plan will have no narrative");
+            }
+        }
 
         // Convert DailyPlanCompletion records back to PlanItems
         var planItems = new List<DailyPlanItem>();
@@ -1035,7 +1060,8 @@ public class ProgressService : IProgressService
             Streak: streak,
             ResourceTitles: null, // Will be enriched later if needed
             SkillTitle: null,
-            Rationale: rationale
+            Rationale: rationale,
+            Narrative: narrative
         );
 
         _logger.LogDebug("✅ Reconstructed plan: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);

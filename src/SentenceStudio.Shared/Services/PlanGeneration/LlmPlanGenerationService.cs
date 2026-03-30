@@ -81,7 +81,8 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
                     SkillId = a.SkillId,
                     VocabWordCount = a.ActivityType == "VocabularyReview" ? planSkeleton.VocabularyReview?.WordCount : null
                 }).ToList(),
-                Rationale = BuildRationale(planSkeleton)
+                Rationale = BuildRationale(planSkeleton),
+                Narrative = planSkeleton.Narrative
             };
 
             _logger.LogInformation("✅ Plan ready with {ActivityCount} activities", response.Activities.Count);

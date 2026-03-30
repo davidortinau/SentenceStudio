@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
+using SentenceStudio.Services.Progress;
 
 namespace SentenceStudio.Services.PlanGeneration;
 
@@ -69,22 +70,28 @@ public class DeterministicPlanBuilder
             // Fallback: vocab review only if available
             if (vocabReview != null)
             {
+                var fallbackActivities = new List<PlannedActivity>
+                {
+                    new PlannedActivity
+                    {
+                        ActivityType = "VocabularyReview",
+                        ResourceId = vocabReview.ResourceId,
+                        SkillId = vocabReview.SkillId,
+                        EstimatedMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
+                        Priority = 1
+                    }
+                };
+
+                // Build narrative for vocab-only plan
+                var fallbackNarrative = BuildNarrative(null, vocabReview, fallbackActivities);
+
                 return new PlanSkeleton
                 {
-                    Activities = new List<PlannedActivity>
-                    {
-                        new PlannedActivity
-                        {
-                            ActivityType = "VocabularyReview",
-                            ResourceId = vocabReview.ResourceId,
-                            SkillId = vocabReview.SkillId,
-                            EstimatedMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
-                            Priority = 1
-                        }
-                    },
+                    Activities = fallbackActivities,
                     PrimaryResource = null,
                     VocabularyReview = vocabReview,
-                    TotalMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes)
+                    TotalMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
+                    Narrative = fallbackNarrative
                 };
             }
             return null;
@@ -110,6 +117,9 @@ public class DeterministicPlanBuilder
         _logger.LogInformation("✅ Generated plan: {ActivityCount} activities, {TotalMinutes}min total",
             activities.Count, totalMinutes);
 
+        // Build narrative for the plan
+        var narrative = BuildNarrative(primaryResource, vocabReview, activities);
+
         return new PlanSkeleton
         {
             Activities = activities,
@@ -117,7 +127,8 @@ public class DeterministicPlanBuilder
             PrimarySkill = skill,
             VocabularyReview = vocabReview,
             TotalMinutes = totalMinutes,
-            ResourceSelectionReason = primaryResource.SelectionReason
+            ResourceSelectionReason = primaryResource.SelectionReason,
+            Narrative = narrative
         };
     }
 
@@ -189,7 +200,8 @@ public class DeterministicPlanBuilder
             ResourceId = resourceId,
             SkillId = skillId,
             EstimatedMinutes = estimatedMinutes,
-            IsContextual = !string.IsNullOrEmpty(resourceId)
+            IsContextual = !string.IsNullOrEmpty(resourceId),
+            DueWords = dueWords
         };
     }
 
@@ -513,6 +525,126 @@ public class DeterministicPlanBuilder
         return activities;
     }
 
+    private PlanNarrative BuildNarrative(
+        SelectedResource? primaryResource,
+        VocabularyReviewBlock? vocabReview,
+        List<PlannedActivity> activities)
+    {
+        var resources = new List<PlanResourceSummary>();
+        VocabInsight? vocabInsight = null;
+        var focusAreas = new List<string>();
+        var storyParts = new List<string>();
+
+        // 1. Resource summary
+        if (primaryResource != null)
+        {
+            resources.Add(new PlanResourceSummary(
+                primaryResource.Id,
+                primaryResource.Title,
+                primaryResource.MediaType,
+                primaryResource.SelectionReason));
+            
+            storyParts.Add($"Today you'll be working with \"{primaryResource.Title}\"");
+            
+            if (primaryResource.DaysSinceLastUse >= 5)
+                storyParts.Add($"It's been {primaryResource.DaysSinceLastUse} days since you last studied this — a good time to revisit");
+            else if (primaryResource.DaysSinceLastUse == 999)
+                storyParts.Add("This is new content you haven't explored yet");
+        }
+
+        // 2. Vocab insight analysis
+        if (vocabReview != null && vocabReview.DueWords.Any())
+        {
+            var dueWords = vocabReview.DueWords;
+            var newWords = dueWords.Where(w => w.TotalAttempts == 0).ToList();
+            var reviewWords = dueWords.Where(w => w.TotalAttempts > 0).ToList();
+            var avgMastery = reviewWords.Any() ? reviewWords.Average(w => w.MasteryScore) : 0f;
+
+            // Analyze struggling categories from Tags
+            var tagGroups = dueWords
+                .Where(w => w.VocabularyWord?.Tags != null)
+                .SelectMany(w => w.VocabularyWord.Tags
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(tag => new { Tag = tag, Progress = w }))
+                .GroupBy(x => x.Tag)
+                .Where(g => g.Count() >= 2) // Only show categories with 2+ words
+                .Select(g => new TagInsight(
+                    g.Key,
+                    g.Count(),
+                    g.Average(x => x.Progress.Accuracy)))
+                .OrderBy(t => t.AverageAccuracy) // Lowest accuracy first = most struggling
+                .Take(3)
+                .ToList();
+
+            var strugglingWords = dueWords
+                .Where(w => w.TotalAttempts > 0 && w.Accuracy < 0.6f)
+                .OrderBy(w => w.Accuracy)
+                .Take(5)
+                .Select(w => w.VocabularyWord?.TargetLanguageTerm ?? "?")
+                .ToList();
+
+            string? patternInsight = null;
+            if (tagGroups.Any(t => t.AverageAccuracy < 0.5f))
+            {
+                var worstTag = tagGroups.First();
+                patternInsight = $"You're finding {worstTag.Tag.ToLower()} vocabulary challenging — {worstTag.WordCount} words in this category need more practice (avg {worstTag.AverageAccuracy:P0} accuracy)";
+            }
+
+            vocabInsight = new VocabInsight(
+                vocabReview.TotalDue,
+                reviewWords.Count,
+                newWords.Count,
+                avgMastery,
+                tagGroups,
+                strugglingWords,
+                patternInsight);
+
+            // Build the story for vocab
+            if (newWords.Count > 0 && reviewWords.Count > 0)
+            {
+                storyParts.Add($"Your vocabulary work today is a mix: {reviewWords.Count} words you've seen before and {newWords.Count} new ones");
+                focusAreas.Add($"Review {reviewWords.Count} familiar words + learn {newWords.Count} new");
+            }
+            else if (newWords.Count > 0)
+            {
+                storyParts.Add($"All {newWords.Count} vocabulary words today are brand new — take your time with them");
+                focusAreas.Add($"Learn {newWords.Count} new vocabulary words");
+            }
+            else
+            {
+                storyParts.Add($"You're reviewing {reviewWords.Count} words you've studied before");
+                if (avgMastery < 0.5f)
+                {
+                    storyParts.Add("Many of these are still in early stages — focus on recognition first");
+                    focusAreas.Add("Strengthen recognition of vocabulary still being learned");
+                }
+                else
+                {
+                    storyParts.Add("Most of these are coming along well — push for recall and production");
+                    focusAreas.Add("Practice active recall and production of familiar words");
+                }
+            }
+
+            if (patternInsight != null)
+                focusAreas.Add(patternInsight);
+        }
+
+        // 3. Activity focus
+        var inputActivities = activities.Where(a => a.ActivityType is "Reading" or "Listening" or "VideoWatching").ToList();
+        var outputActivities = activities.Where(a => a.ActivityType is "Translation" or "Cloze" or "Writing" or "Shadowing").ToList();
+        
+        if (inputActivities.Any() && outputActivities.Any())
+        {
+            var inputLabel = inputActivities.First().ActivityType.ToLower();
+            var outputLabel = outputActivities.First().ActivityType.ToLower();
+            storyParts.Add($"You'll start with {inputLabel} for comprehension, then move to {outputLabel} to practice producing the language");
+        }
+
+        var story = string.Join(". ", storyParts) + ".";
+
+        return new PlanNarrative(resources, vocabInsight, story, focusAreas);
+    }
+
     private string SelectInputActivity(
         SelectedResource resource,
         HashSet<string> yesterdayActivities,
@@ -611,6 +743,7 @@ public class VocabularyReviewBlock
     public string? SkillId { get; set; }
     public int EstimatedMinutes { get; set; }
     public bool IsContextual { get; set; }
+    public List<VocabularyProgress> DueWords { get; set; } = new(); // The actual due words for analysis
 }
 
 /// <summary>
@@ -651,6 +784,7 @@ public class PlanSkeleton
     public VocabularyReviewBlock? VocabularyReview { get; set; }
     public int TotalMinutes { get; set; }
     public string ResourceSelectionReason { get; set; }
+    public PlanNarrative? Narrative { get; set; }
 }
 
 /// <summary>

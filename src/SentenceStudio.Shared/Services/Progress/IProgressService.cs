@@ -82,7 +82,38 @@ public record TodaysPlan
     StreakInfo Streak,
     string? ResourceTitles = null,
     string? SkillTitle = null,
-    string? Rationale = null
+    string? Rationale = null,
+    PlanNarrative? Narrative = null
+);
+
+public record PlanNarrative(
+    List<PlanResourceSummary> Resources,
+    VocabInsight? VocabInsight,
+    string Story,
+    List<string> FocusAreas
+);
+
+public record PlanResourceSummary(
+    string Id,
+    string Title,
+    string MediaType,
+    string SelectionReason
+);
+
+public record VocabInsight(
+    int TotalDue,
+    int ReviewCount,      // Words the user has practiced before (TotalAttempts > 0)
+    int NewCount,          // Words never practiced (TotalAttempts == 0)
+    float AverageMastery,  // Average MasteryScore of due words
+    List<TagInsight> StrugglingCategories, // Tags where accuracy is low
+    List<string> SampleStrugglingWords,    // Example words (TargetLanguageTerm) for display
+    string? PatternInsight  // e.g. "You're having trouble with time-related vocabulary"
+);
+
+public record TagInsight(
+    string Tag,
+    int WordCount,
+    float AverageAccuracy
 );
 
 public record StreakInfo

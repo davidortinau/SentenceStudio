@@ -13,7 +13,8 @@ public static class PlanConverter
         DateTime date,
         Dictionary<string, string> resourceTitles,
         Dictionary<string, string> skillNames,
-        int vocabDueCount)
+        int vocabDueCount,
+        PlanNarrative? narrative = null)
     {
         var planItems = new List<DailyPlanItem>();
 
@@ -63,7 +64,8 @@ public static class PlanConverter
             Streak: new StreakInfo(0, 0, null),
             ResourceTitles: null,
             SkillTitle: null,
-            Rationale: llmResponse.Rationale
+            Rationale: llmResponse.Rationale,
+            Narrative: narrative
         );
     }
 

@@ -33,6 +33,12 @@ public class DailyPlanCompletion
     /// Stored redundantly in all items for the same date for easy reconstruction.
     /// </summary>
     public string Rationale { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The narrative data model serialized as JSON.
+    /// Stored redundantly in all items for the same date for easy reconstruction.
+    /// </summary>
+    public string? NarrativeJson { get; set; }
     
     // NOTE: Route and RouteParameters are NOT stored - they're derived from ActivityType, 
     // ResourceId, and SkillId during reconstruction using PlanConverter logic.
