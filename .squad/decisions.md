@@ -3118,3 +3118,173 @@ When adding a new service endpoint or configurable URL:
 - `appsettings.json` — gitignored, local defaults
 - `appsettings.Production.json` — tracked, production URLs
 - `EnvironmentBadge.razor` — visual indicator of environment
+
+---
+
+### 3. Plan Narrative Data Model Architecture (2026-03-30)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-30  
+**Decider:** Wash (Backend Dev)
+
+**Context**
+
+The daily study plan previously showed users a simple list of activities with a short LLM-generated rationale. Captain wanted to enrich this with a "story" that explains:
+- Which resources and vocabulary are being used
+- Why that content was chosen
+- SRS insights (new/review mix, struggling categories, mastery patterns)
+- Focus recommendations
+
+**Decision**
+
+**Structured Narrative Model:** Created a hierarchical data model (`PlanNarrative` → `PlanResourceSummary`, `VocabInsight`, `TagInsight`) that:
+- Captures resource selection metadata (ID, title, media type, selection reason)
+- Analyzes vocabulary SRS data (new vs review counts, average mastery, struggling tags)
+- Generates pattern insights from VocabularyWord.Tags (comma-separated categories)
+- Provides actionable focus areas
+
+**Deterministic Generation:** Narrative is built in `DeterministicPlanBuilder.BuildNarrative()` from the same pedagogical data used to select activities. It's NOT an LLM embellishment — it's a structured summary of the plan builder's logic.
+
+**Persistence Strategy:**
+- Added `NarrativeJson` field to `DailyPlanCompletion` (no migration — field is null for existing rows)
+- Serialize/deserialize with System.Text.Json
+- Store redundantly in all plan items for the same date (same pattern as Rationale)
+- Gracefully handles missing data (null narrative if deserialization fails or field is null)
+
+**Backward Compatibility:**
+- Kept existing `Rationale` string on `TodaysPlan` (old code still works)
+- Added optional `Narrative` property (new code can opt in)
+- UI can choose to render either or both
+
+**Rationale**
+
+**Why structured data vs LLM-generated prose?**
+- Faster (no LLM call needed)
+- Deterministic and testable
+- Localizable (UI renders from structured data)
+- More actionable (focus areas are machine-readable)
+
+**Why no database migration for NarrativeJson?**
+- Field is optional (nullable)
+- Existing rows gracefully return null narrative (no breaking change)
+- Avoids migration complexity for a new feature
+- Can add migration later if needed
+
+**Why store as JSON string vs normalized tables?**
+- Narrative is ephemeral (generated daily, tied to specific plan)
+- Read-only after creation (no partial updates)
+- Simpler schema (no join complexity)
+- Already using JSON for route parameters (consistent pattern)
+
+**Consequences**
+
+**Positive:**
+- Rich, explainable plan narrative without LLM cost/latency
+- SRS insights surface patterns (e.g., "struggling with time vocabulary")
+- Resource links enable UI to render clickable resource cards
+- Pattern analysis scales with vocabulary growth (tag-based categorization)
+
+**Negative:**
+- Narrative data not queryable in SQL (JSON field, not normalized)
+- Requires deserialization on plan reconstruction (small perf cost)
+- No migration means we can't rely on the field existing in all DB rows (must handle null)
+
+**Alternatives Considered**
+
+- **LLM-generated narrative:** Rejected — too slow, non-deterministic, harder to test; would require caching to avoid repeated generation
+- **Normalized narrative tables:** Rejected — over-engineered for ephemeral daily data; would complicate plan reconstruction logic
+- **Store in plan cache only (not DB):** Rejected — cache can be cleared, losing narrative; plan reconstruction from DB wouldn't include narrative
+
+**Files Modified**
+- `src/SentenceStudio.Shared/Data/PlanNarrative.cs`
+- `src/SentenceStudio.Shared/Services/DeterministicPlanBuilder.cs`
+- `src/SentenceStudio.Shared/Services/LlmPlanGenerationService.cs`
+- `src/SentenceStudio.Shared/Services/ProgressService.cs`
+- `src/SentenceStudio.Shared/Data/DailyPlanResponse.cs`
+- `src/SentenceStudio.Shared/Data/DailyPlanCompletion.cs`
+
+---
+
+### 4. Plan Narrative UI Structure (2026-03-30)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-30  
+**Authored by:** Kaylee (Full-stack Dev)
+
+**Context**
+
+The backend team added `PlanNarrative` to `TodaysPlan` to provide richer coaching context for daily learning plans. This includes:
+- Story text explaining the plan's rationale
+- Resource summaries with selection reasons
+- Vocabulary insights (new/review mix, struggling categories, pattern insights)
+- Focus areas for the session
+
+We needed to surface this data on the dashboard without overwhelming the UI or burying the primary interaction (plan items list).
+
+**Decision**
+
+Split the old progress summary card into two separate cards:
+
+1. **Progress Stats Card** — completion count, time spent, and progress bar only
+2. **Plan Narrative Card** (new) — story, resource links, vocab insights, and focus areas
+
+**Layout Structure:**
+- Progress Stats Card: X / Y activities • Z / W min + progress bar
+- Plan Narrative Card (only if narrative exists):
+  - Story text (main narrative)
+  - Resource links (clickable, with media type icons)
+  - Vocab Insight section: new/review/total badges, struggling categories, pattern insight, sample words
+  - Focus Areas: bulleted list with bi-bullseye icons
+- Plan Items List: existing interactive list
+
+**Key Design Choices:**
+
+1. **Backward Compatibility:** If `todaysPlan.Narrative` is null (old cached plans), fall back to displaying the old `Rationale` text in a simple card.
+2. **Resource Links:** Clickable links navigate to `/resources/{id}` for drill-down. Each shows media type icon, title, and selection reason.
+3. **Vocab Insight Compact Display:** Horizontal badges for new/review/total counts + mastery %; warning badges for struggling categories; info alert for pattern insights; comma-separated list for sample words
+4. **Focus Areas:** Simple bulleted list with bi-bullseye icon header. No fancy cards or badges — keeps visual weight low.
+5. **Bootstrap Icons Only:** All iconography uses `bi-*` classes (bi-star, bi-arrow-repeat, bi-graph-up, bi-bullseye, etc.) — zero emojis.
+
+**Alternatives Considered**
+
+- **Single Card Layout:** Rejected because it made the narrative section too dominant and pushed plan items down.
+- **Tabs/Accordions:** Rejected because it hides critical coaching context that should be immediately visible.
+- **Modal/Popover for Insights:** Rejected because users need to see struggling areas at a glance without clicking.
+
+**Team Impact**
+
+- **Backend (Wash):** No changes needed. The existing `PlanNarrative` structure works perfectly.
+- **Testing (Mal/Zoe):** Should verify narrative displays correctly when present; fallback to old `Rationale` works for null narratives; resource links navigate correctly; vocab insight badges render with accurate percentages; responsive layout works on mobile and desktop
+- **UX:** This surfaces *why* the plan was built (story + resource selection reasons), which improves user trust and engagement.
+
+**Files Modified**
+- `src/SentenceStudio.UI/Pages/Index.razor` (Lines 144-176: split progress card; added `GetMediaTypeIcon()` helper)
+
+---
+
+### 5. PatchMissingColumnsAsync Must Run Unconditionally (2026-03-28)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-03-28  
+**Author:** Wash (Backend Dev)
+
+**Context**
+
+The Vocabulary page crashed on iOS with `SQLite Error 1: 'no such column: v.Language'`. The `PatchMissingColumnsAsync()` method — which adds missing columns via ALTER TABLE — was only called during legacy database detection (first-time migration transition). Devices that had already transitioned skipped the patch entirely, and the corresponding EF migration (`AddMissingVocabularyWordLanguageColumn`) was an empty no-op.
+
+**Decision**
+
+`PatchMissingColumnsAsync()` now runs on **every** mobile startup, regardless of database state. It executes after the migration lock cleanup and before `MigrateAsync()`. The pragma_table_info guard makes it idempotent — existing columns are silently skipped.
+
+Also expanded the patch list from just `Language` to all VocabularyWord encoding columns (Lemma, Tags, MnemonicText, MnemonicImageUri, AudioPronunciationUri) for resilience against similar gaps.
+
+**Rule for Future**
+
+Any raw-SQL schema patch that compensates for a no-op EF migration **must** run unconditionally on every startup, not just during one-time transition detection. If it's guarded by `pragma_table_info` or equivalent, it's safe to run always.
+
+**Impact**
+
+- **Kaylee/UI:** Vocabulary page will load correctly on all devices
+- **Zoe/Architecture:** No migration changes needed — the existing no-op migration stays as-is
+- **All:** No data loss risk — ALTER TABLE ADD COLUMN is additive
+

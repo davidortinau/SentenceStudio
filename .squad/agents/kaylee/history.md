@@ -417,3 +417,60 @@ Fixed four bugs preventing new users from reaching the Onboarding.razor flow:
 - `ProfileRepo.GetAsync()` returns the active user's profile (or null) — use it for language checks
 - `AppState.CurrentUserProfile` may be null at dashboard load; always fall back to `ProfileRepo.GetAsync()`
 - Onboarding.razor sets `is_onboarded = true` only at the end of its own `FinishOnboarding()` — don't set it elsewhere unless profile is provably complete
+
+### Plan Narrative UI Build (2025-07-16)
+
+Built the UI for displaying `PlanNarrative` data on the dashboard (Index.razor):
+
+**Changes:**
+- Split the old progress summary card into two cards:
+  1. Progress stats only (completion, time, progress bar)
+  2. New narrative section with story, resources, vocab insights, and focus areas
+- Added `GetMediaTypeIcon()` helper method for resource media type icons (Video → bi-camera-video, Podcast → bi-mic, Text → bi-journal-text, Vocabulary List → bi-card-list)
+- Implemented vocab insight display with new/review/total badges, struggling categories, pattern insights, and sample words
+- Added focus areas list with bi-bullseye icons
+- Maintained backward compatibility fallback for old plans with just `Rationale` text
+
+**Design Decisions:**
+- Resource links navigate to `/resources/{id}` for drill-down
+- Vocab insight section uses warning badges for struggling categories and info alert for pattern insights
+- Focus areas shown as a simple bulleted list to keep visual weight low
+- Null-safe checks for `todaysPlan.Narrative`, `VocabInsight`, and all list properties
+- Used existing CSS classes (`card-ss`, `ss-body2`, `text-secondary-ss`) for consistency
+
+## Learnings (continued)
+
+- `todaysPlan.Narrative` may be null for older cached plans — always check before rendering
+- Bootstrap icon rule is non-negotiable: use `bi-*` classes, never emojis
+- When displaying coach-style narratives, keep them compact — the plan items list is the primary UI element
+- Resource selection reasons help users understand *why* their plan was built this way
+
+### Plan Narrative Feature — Full UI Implementation (2026-03-30)
+
+Completed full-stack UI implementation of Plan Narrative feature and coordinated with Wash on backend data model.
+
+**What Happened:**
+- Designed and implemented two-card layout on dashboard (Progress Stats + Plan Narrative)
+- Built resource links with media type icons (bi-book, bi-camera-video, bi-mic, bi-card-list)
+- Implemented vocab insight display with new/review/total count badges
+- Added struggling category warning badges with tag names
+- Built pattern insight info alert callout
+- Implemented focus areas list with bi-bullseye icon header
+- Maintained backward compatibility fallback to old Rationale field for null narratives
+- Integrated Bootstrap theme styling throughout
+
+**Cross-Agent Impact:**
+- **Wash (Backend):** Narrative data structure from `PlanNarrative` entity consumption; backend validation of UI requirements
+- **Testing (future):** Narrative display accuracy, resource link navigation, vocab badge percentages, responsive layout
+
+**Bootstrap Compliance:**
+- All icons use `bi-*` classes (zero emojis)
+- Card styling uses Bootstrap utilities (bg-light, p-3, mb-3)
+- Badge colors use `badge bg-info`, `badge bg-warning`
+- Progress bar uses Bootstrap progress component
+
+**Follow-ups:**
+- Testing team should verify dashboard narrative rendering and responsive behavior
+- Monitor narrative engagement once feature is live
+- May add truncation + "show more" link if narrative text becomes too long
+

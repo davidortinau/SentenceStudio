@@ -334,3 +334,69 @@ These custom packages include a broker registration fix not present in the Redth
 - `src/SentenceStudio.Shared/Services/SyncService.cs` — moved PatchMissingColumnsAsync to universal path, expanded column list
 
 **Key Learning:** Schema patches that run via raw SQL (outside EF migrations) must execute unconditionally on every startup, not just during one-time transition detection. The pragma_table_info guard makes them idempotent and safe.
+
+---
+
+## Session: 2025-01-XX — Added PlanNarrative Data Model
+
+**Task:** Add rich narrative storytelling to daily plan generation
+
+**What Changed:**
+- Added `PlanNarrative`, `PlanResourceSummary`, `VocabInsight`, and `TagInsight` records to IProgressService.cs
+- Extended `TodaysPlan` with optional `Narrative` property (kept `Rationale` for backward compatibility)
+- Added `Narrative` to `DailyPlanResponse` and `PlanSkeleton`
+- Enhanced `VocabularyReviewBlock` with `DueWords` list for narrative analysis
+- Created `BuildNarrative()` method in DeterministicPlanBuilder that:
+  - Summarizes selected resources with selection reasons
+  - Analyzes vocabulary mix (new vs review, mastery levels)
+  - Identifies struggling categories from VocabularyWord.Tags (comma-separated)
+  - Generates pattern insights (e.g., "You're finding time-related vocabulary challenging")
+  - Creates focus recommendations based on SRS data and activity types
+- Wired narrative through the pipeline: DeterministicPlanBuilder → LlmPlanGenerationService → PlanConverter → ProgressService
+- Added `NarrativeJson` field to DailyPlanCompletion for persistence (serialized as JSON)
+- Implemented serialization on plan creation and deserialization on plan reconstruction
+
+**Files Modified:**
+1. `src/SentenceStudio.Shared/Services/Progress/IProgressService.cs` — Added narrative record types
+2. `src/SentenceStudio.Shared/Models/DailyPlanGeneration/DailyPlanResponse.cs` — Added Narrative property
+3. `src/SentenceStudio.Shared/Services/PlanGeneration/DeterministicPlanBuilder.cs` — BuildNarrative() method, DueWords tracking
+4. `src/SentenceStudio.Shared/Services/PlanGeneration/LlmPlanGenerationService.cs` — Pass narrative through
+5. `src/SentenceStudio.Shared/Services/PlanGeneration/PlanConverter.cs` — Accept narrative parameter
+6. `src/SentenceStudio.Shared/Services/Progress/ProgressService.cs` — Serialize/deserialize narrative, pass through pipeline
+7. `src/SentenceStudio.Shared/Models/DailyPlanCompletion.cs` — Added NarrativeJson field
+
+**Key Learnings:**
+- VocabularyWord.Tags is a comma-separated string — split on commas to analyze category patterns
+- VocabularyProgress includes .VocabularyWord navigation (loaded via Include in GetDueVocabularyAsync)
+- TotalAttempts == 0 means brand new word, TotalAttempts > 0 means review word
+- MasteryScore and Accuracy are separate metrics (mastery = long-term retention, accuracy = recent performance)
+- Pattern analysis requires minimum 2 words per tag category to be meaningful
+- BuildNarrative runs deterministically (no async) — all data is already loaded in VocabularyReviewBlock.DueWords
+- Backward compatibility maintained: old code still uses Rationale, new code can use Narrative
+- NarrativeJson field added without migration — will be null for existing DB rows (gracefully handled)
+
+**Design Decision:**
+Narrative is built deterministically from the same data used to select activities. It's not an LLM embellishment, but a structured summary of the pedagogical decisions the plan builder made. This keeps it fast, consistent, and explainable.
+
+
+### Plan Narrative Feature — Full Integration (2026-03-30)
+
+Completed full-stack backend implementation of Plan Narrative feature and coordinated with Kaylee on UI layer.
+
+**What Happened:**
+- Finalized `PlanNarrative` data model with complete resource, vocab, and pattern insight structures
+- Implemented deterministic narrative generation in `DeterministicPlanBuilder.BuildNarrative()`
+- Integrated narrative through entire plan pipeline (DeterministicPlanBuilder → LlmPlanGenerationService → PlanConverter → ProgressService)
+- Added `NarrativeJson` persistence field to `DailyPlanCompletion`
+- Validated backward compatibility (null narrative handled gracefully; old Rationale still works)
+- Coordinated with Kaylee to ensure UI layer could consume narrative data structure
+
+**Cross-Agent Impact:**
+- **Kaylee (UI):** Narrative structure supports Bootstrap-themed dashboard display with resource links, vocab badges, and focus areas
+- **Testing (future):** Narrative display, resource navigation, and vocab insight accuracy need validation
+
+**Follow-ups:**
+- UI now renders narrative on dashboard (Kaylee completed)
+- Testing team should verify badge accuracy and responsive layout
+- Analytics can measure narrative engagement once UI visible to users
+
