@@ -111,9 +111,13 @@ public static class ImportEndpoints
         if (import.UserProfileId != userProfileId)
             return Results.Forbid();
 
-        // Only retry failed imports
-        if (import.Status != VideoImportStatus.Failed)
-            return Results.BadRequest("Only failed imports can be retried");
+        // Only retry failed or stuck imports
+        var isStuck = import.Status != VideoImportStatus.Failed
+                   && import.Status != VideoImportStatus.Completed
+                   && import.CreatedAt < DateTime.UtcNow.AddMinutes(-10);
+
+        if (import.Status != VideoImportStatus.Failed && !isStuck)
+            return Results.BadRequest("Only failed or stuck imports can be retried. In-progress imports must be older than 10 minutes.");
 
         // Reset status and retry
         import.Status = VideoImportStatus.Pending;

@@ -64,15 +64,25 @@ public class VideoImportPipelineService
     }
 
     /// <summary>
-    /// Retry a failed import by resetting its status and re-running the pipeline.
+    /// Retry a failed or stuck import by resetting its status and re-running the pipeline.
+    /// Accepts Failed imports and any in-progress import older than the stale threshold.
     /// </summary>
     public async Task RetryImportAsync(string importId)
     {
         var import = await GetImportByIdAsync(importId);
         if (import == null)
             throw new InvalidOperationException($"Import {importId} not found");
-        if (import.Status != VideoImportStatus.Failed)
-            throw new InvalidOperationException($"Import {importId} is not in Failed state");
+
+        if (import.Status == VideoImportStatus.Completed)
+            throw new InvalidOperationException($"Import {importId} is already completed");
+
+        // Allow retry for Failed, or any in-progress import older than 10 minutes (stuck)
+        var isStuck = import.Status != VideoImportStatus.Failed
+                   && import.Status != VideoImportStatus.Completed
+                   && import.CreatedAt < DateTime.UtcNow.AddMinutes(-10);
+
+        if (import.Status != VideoImportStatus.Failed && !isStuck)
+            throw new InvalidOperationException($"Import {importId} is still in progress. Wait or retry after 10 minutes.");
 
         import.Status = VideoImportStatus.Pending;
         import.ErrorMessage = null;
@@ -80,6 +90,39 @@ public class VideoImportPipelineService
         await SaveImportAsync(import);
 
         await RunPipelineAsync(import);
+    }
+
+    /// <summary>
+    /// Marks in-progress imports older than the threshold as Failed.
+    /// Call on page load or startup to recover from orphaned pipeline tasks.
+    /// </summary>
+    public async Task<int> CleanupStaleImportsAsync(TimeSpan? staleThreshold = null)
+    {
+        var threshold = staleThreshold ?? TimeSpan.FromMinutes(10);
+        var cutoff = DateTime.UtcNow - threshold;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var staleImports = await db.VideoImports
+            .Where(vi => vi.Status != VideoImportStatus.Completed
+                      && vi.Status != VideoImportStatus.Failed
+                      && vi.CreatedAt < cutoff)
+            .ToListAsync();
+
+        if (staleImports.Count == 0) return 0;
+
+        foreach (var import in staleImports)
+        {
+            import.Status = VideoImportStatus.Failed;
+            import.ErrorMessage = $"Import timed out — stuck in {import.Status} for over {threshold.TotalMinutes:0} minutes.";
+            import.CompletedAt = DateTime.UtcNow;
+            _logger.LogWarning("Marking stale import {Id} ({Title}) as failed — was {Status} since {CreatedAt}",
+                import.Id, import.VideoTitle, import.Status, import.CreatedAt);
+        }
+
+        await db.SaveChangesAsync();
+        return staleImports.Count;
     }
 
     /// <summary>

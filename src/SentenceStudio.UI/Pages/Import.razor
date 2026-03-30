@@ -228,16 +228,20 @@
             {
                 var isClickable = import.Status == VideoImportStatus.Completed && !string.IsNullOrEmpty(import.LearningResourceId);
                 var isFailed = import.Status == VideoImportStatus.Failed;
+                var isStuck = !isFailed
+                           && import.Status != VideoImportStatus.Completed
+                           && import.CreatedAt < DateTime.UtcNow.AddMinutes(-10);
+                var canRetry = isFailed || isStuck;
                 <div class="list-group-item d-flex align-items-center gap-3 py-2">
                     @RenderStatusBadge(import.Status)
                     <span class="fw-semibold flex-grow-1 text-truncate @(isClickable ? "cursor-pointer" : "")"
                           @onclick="() => OnImportRowClick(import)"
-                          title="@(isFailed && !string.IsNullOrEmpty(import.ErrorMessage) ? import.ErrorMessage : "")">
+                          title="@(isFailed && !string.IsNullOrEmpty(import.ErrorMessage) ? import.ErrorMessage : isStuck ? "Stuck — click Retry to restart" : "")">
                         @(import.VideoTitle ?? "Untitled")
                     </span>
                     <span class="text-secondary-ss text-truncate d-none d-md-inline" style="max-width:160px;">@GetChannelName(import.MonitoredChannelId)</span>
                     <small class="text-secondary-ss text-nowrap">@import.CreatedAt.ToString("d")</small>
-                    @if (isFailed)
+                    @if (canRetry)
                     {
                         <button class="btn btn-sm btn-outline-warning flex-shrink-0" @onclick="() => RetryImport(import)" 
                                 @onclick:stopPropagation="true" disabled="@(retryingImportId == import.Id)">
@@ -331,6 +335,24 @@
 
         // Load channels and imports
         await Task.WhenAll(LoadChannels(), LoadImports());
+
+        // Cleanup stale imports (stuck in-progress for >10 min) so they show retry buttons
+        try
+        {
+            if (VideoImportPipelineSvc != null)
+            {
+                var cleaned = await VideoImportPipelineSvc.CleanupStaleImportsAsync();
+                if (cleaned > 0)
+                {
+                    Logger.LogInformation("Cleaned up {Count} stale imports on page load", cleaned);
+                    await LoadImports(); // Refresh to show updated statuses
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Stale import cleanup failed");
+        }
         
         // Start polling for active imports
         StartPolling();
@@ -472,6 +494,7 @@
             {
                 try
                 {
+                    // RetryImportAsync now handles both Failed and stuck imports
                     await VideoImportPipelineSvc.RetryImportAsync(import.Id);
                 }
                 catch (Exception ex)
