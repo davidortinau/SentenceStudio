@@ -560,8 +560,8 @@ public class DeterministicPlanBuilder
             var reviewWords = dueWords.Where(w => w.TotalAttempts > 0).ToList();
             var avgMastery = reviewWords.Any() ? reviewWords.Average(w => w.MasteryScore) : 0f;
 
-            // Analyze struggling categories from Tags
-            var tagGroups = dueWords
+            // Analyze categories from Tags — separate untested from genuinely struggling
+            var allTagInsights = dueWords
                 .Where(w => w.VocabularyWord?.Tags != null)
                 .SelectMany(w => w.VocabularyWord.Tags
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -571,23 +571,76 @@ public class DeterministicPlanBuilder
                 .Select(g => new TagInsight(
                     g.Key,
                     g.Count(),
-                    g.Average(x => x.Progress.Accuracy)))
-                .OrderBy(t => t.AverageAccuracy) // Lowest accuracy first = most struggling
+                    g.Average(x => x.Progress.Accuracy),
+                    g.Sum(x => x.Progress.TotalAttempts)))
+                .ToList();
+
+            // Struggling = attempted but low accuracy; Untested = never attempted
+            var strugglingTags = allTagInsights
+                .Where(t => t.TotalAttempts > 0 && t.AverageAccuracy < 0.6f)
+                .OrderBy(t => t.AverageAccuracy)
                 .Take(3)
                 .ToList();
 
-            var strugglingWords = dueWords
-                .Where(w => w.TotalAttempts > 0 && w.Accuracy < 0.6f)
-                .OrderBy(w => w.Accuracy)
-                .Take(5)
-                .Select(w => w.VocabularyWord?.TargetLanguageTerm ?? "?")
+            var untestedTags = allTagInsights
+                .Where(t => t.TotalAttempts == 0)
+                .OrderByDescending(t => t.WordCount)
+                .Take(3)
                 .ToList();
 
-            string? patternInsight = null;
-            if (tagGroups.Any(t => t.AverageAccuracy < 0.5f))
+            // Combine for VocabInsight: struggling first, then untested
+            var tagGroups = strugglingTags.Concat(untestedTags).Take(3).ToList();
+
+            // Pick sample focus words FROM the highlighted categories, not globally
+            var highlightedTagNames = new HashSet<string>(
+                tagGroups.Select(t => t.Tag),
+                StringComparer.OrdinalIgnoreCase);
+
+            List<string> focusWords;
+            if (strugglingTags.Any())
             {
-                var worstTag = tagGroups.First();
-                patternInsight = $"You're finding {worstTag.Tag.ToLower()} vocabulary challenging — {worstTag.WordCount} words in this category need more practice (avg {worstTag.AverageAccuracy:P0} accuracy)";
+                // Words from struggling categories that the user has actually attempted
+                focusWords = dueWords
+                    .Where(w => w.TotalAttempts > 0 && w.Accuracy < 0.6f
+                        && w.VocabularyWord?.Tags != null
+                        && w.VocabularyWord.Tags
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Any(tag => highlightedTagNames.Contains(tag)))
+                    .OrderBy(w => w.Accuracy)
+                    .Take(5)
+                    .Select(w => w.VocabularyWord?.TargetLanguageTerm ?? "?")
+                    .ToList();
+            }
+            else if (untestedTags.Any())
+            {
+                // Words from the top untested category — they're new, not struggling
+                var topUntestedTag = untestedTags.First().Tag;
+                focusWords = dueWords
+                    .Where(w => w.TotalAttempts == 0
+                        && w.VocabularyWord?.Tags != null
+                        && w.VocabularyWord.Tags
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Any(tag => string.Equals(tag, topUntestedTag, StringComparison.OrdinalIgnoreCase)))
+                    .Take(5)
+                    .Select(w => w.VocabularyWord?.TargetLanguageTerm ?? "?")
+                    .ToList();
+            }
+            else
+            {
+                focusWords = new List<string>();
+            }
+
+            // Build pattern insight with correct framing: untested vs struggling
+            string? patternInsight = null;
+            if (strugglingTags.Any())
+            {
+                var worstTag = strugglingTags.First();
+                patternInsight = $"You're finding {worstTag.Tag.ToLower()} vocabulary challenging — {worstTag.WordCount} words need more practice (avg {worstTag.AverageAccuracy:P0} accuracy)";
+            }
+            else if (untestedTags.Any())
+            {
+                var topNewTag = untestedTags.First();
+                patternInsight = $"Today's plan includes {topNewTag.Tag.ToLower()} vocabulary that's new to you — {topNewTag.WordCount} words you haven't practiced yet";
             }
 
             vocabInsight = new VocabInsight(
@@ -596,7 +649,7 @@ public class DeterministicPlanBuilder
                 newWords.Count,
                 avgMastery,
                 tagGroups,
-                strugglingWords,
+                focusWords,
                 patternInsight);
 
             // Build the story for vocab

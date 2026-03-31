@@ -113,7 +113,8 @@ public record VocabInsight(
 public record TagInsight(
     string Tag,
     int WordCount,
-    float AverageAccuracy
+    float AverageAccuracy,
+    int TotalAttempts = 0
 );
 
 public record StreakInfo

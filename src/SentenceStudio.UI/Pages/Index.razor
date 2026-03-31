@@ -158,100 +158,161 @@ else
             </div>
         </div>
 
-        @* Plan Narrative *@
+        @* Plan Narrative — collapsible panel *@
         @if (todaysPlan.Narrative is not null)
         {
             <div class="card card-ss p-3 mb-3">
-                @* Story and Resources *@
-                <div class="ss-body2 mb-3">@todaysPlan.Narrative.Story</div>
-                
-                @if (todaysPlan.Narrative.Resources.Any())
-                {
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        @foreach (var resource in todaysPlan.Narrative.Resources)
-                        {
-                            <div class="d-flex flex-column">
-                                <a href="/resources/@resource.Id" class="d-inline-flex align-items-center gap-1 text-decoration-none mb-1">
-                                    <i class="bi @GetMediaTypeIcon(resource.MediaType)"></i>
-                                    <span class="fw-semibold">@resource.Title</span>
-                                </a>
-                                <span class="text-secondary-ss small ps-4">@resource.SelectionReason</span>
-                            </div>
-                        }
+                <div class="d-flex justify-content-between align-items-center"
+                     role="button" @onclick="() => isNarrativeExpanded = !isNarrativeExpanded">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-lightbulb text-primary"></i>
+                        <span class="ss-body2">Today's Study Insight</span>
                     </div>
-                }
+                    <i class="bi @(isNarrativeExpanded ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                </div>
 
-                @* Vocab Insight *@
-                @if (todaysPlan.Narrative.VocabInsight is { } insight)
+                @if (isNarrativeExpanded)
                 {
-                    <div class="border-top pt-3 mb-3">
-                        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
-                            <span class="d-flex align-items-center gap-1">
-                                <i class="bi bi-star text-warning"></i>
-                                <span class="small fw-semibold">@insight.NewCount new</span>
-                            </span>
-                            <span class="d-flex align-items-center gap-1">
-                                <i class="bi bi-arrow-repeat text-primary"></i>
-                                <span class="small fw-semibold">@insight.ReviewCount review</span>
-                            </span>
-                            <span class="d-flex align-items-center gap-1">
-                                <i class="bi bi-card-checklist"></i>
-                                <span class="small fw-semibold">@insight.TotalDue total due</span>
-                            </span>
-                            @if (insight.AverageMastery > 0)
-                            {
-                                <span class="d-flex align-items-center gap-1">
-                                    <i class="bi bi-graph-up text-success"></i>
-                                    <span class="small">@((insight.AverageMastery * 100).ToString("F0"))% mastery</span>
-                                </span>
-                            }
-                        </div>
+                    <div class="mt-3">
+                        @* Story and Resources *@
+                        <div class="ss-body2 mb-3">@todaysPlan.Narrative.Story</div>
 
-                        @if (insight.StrugglingCategories.Any())
+                        @if (todaysPlan.Narrative.Resources.Any())
                         {
-                            <div class="mb-2">
-                                <span class="text-secondary-ss small me-2">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>Struggling with:
-                                </span>
-                                @foreach (var tag in insight.StrugglingCategories)
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @foreach (var resource in todaysPlan.Narrative.Resources)
                                 {
-                                    <span class="badge bg-warning text-dark me-1">
-                                        @tag.Tag (@((tag.AverageAccuracy * 100).ToString("F0"))%)
-                                    </span>
+                                    <div class="d-flex flex-column">
+                                        <a href="/resources/@resource.Id" class="d-inline-flex align-items-center gap-1 text-decoration-none mb-1">
+                                            <i class="bi @GetMediaTypeIcon(resource.MediaType)"></i>
+                                            <span class="fw-semibold">@resource.Title</span>
+                                        </a>
+                                        <span class="text-secondary-ss small ps-4">@resource.SelectionReason</span>
+                                    </div>
                                 }
                             </div>
                         }
 
-                        @if (!string.IsNullOrEmpty(insight.PatternInsight))
+                        @* Vocab Insight *@
+                        @if (todaysPlan.Narrative.VocabInsight is { } insight)
                         {
-                            <div class="alert alert-info py-2 px-3 mb-2 small">
-                                <i class="bi bi-lightbulb me-1"></i>@insight.PatternInsight
+                            <div class="border-top pt-3 mb-3">
+                                <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                                    <span class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-star text-warning"></i>
+                                        <span class="small fw-semibold">@insight.NewCount new</span>
+                                    </span>
+                                    <span class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-arrow-repeat text-primary"></i>
+                                        <span class="small fw-semibold">@insight.ReviewCount review</span>
+                                    </span>
+                                    <span class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-card-checklist"></i>
+                                        <span class="small fw-semibold">@insight.TotalDue total due</span>
+                                    </span>
+                                    @if (insight.AverageMastery > 0)
+                                    {
+                                        <span class="d-flex align-items-center gap-1">
+                                            <i class="bi bi-graph-up text-success"></i>
+                                            <span class="small">@((insight.AverageMastery * 100).ToString("F0"))% mastery</span>
+                                        </span>
+                                    }
+                                </div>
+
+                                @if (insight.StrugglingCategories.Any())
+                                {
+                                    var newCategories = insight.StrugglingCategories
+                                        .Where(t => t.TotalAttempts == 0).ToList();
+                                    var strugglingCategories = insight.StrugglingCategories
+                                        .Where(t => t.TotalAttempts > 0 && t.AverageAccuracy < 0.6f).ToList();
+                                    var okCategories = insight.StrugglingCategories
+                                        .Where(t => t.TotalAttempts > 0 && t.AverageAccuracy >= 0.6f).ToList();
+
+                                    @if (strugglingCategories.Any())
+                                    {
+                                        <div class="mb-2">
+                                            <span class="text-secondary-ss small me-2">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>Struggling with:
+                                            </span>
+                                            @foreach (var tag in strugglingCategories)
+                                            {
+                                                <span class="badge bg-warning text-dark me-1">
+                                                    @tag.Tag (@((tag.AverageAccuracy * 100).ToString("F0"))%)
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (newCategories.Any())
+                                    {
+                                        <div class="mb-2">
+                                            <span class="text-secondary-ss small me-2">
+                                                <i class="bi bi-stars me-1"></i>New to you:
+                                            </span>
+                                            @foreach (var tag in newCategories)
+                                            {
+                                                <span class="badge bg-secondary me-1">
+                                                    @tag.Tag
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (okCategories.Any())
+                                    {
+                                        <div class="mb-2">
+                                            @foreach (var tag in okCategories)
+                                            {
+                                                <span class="badge bg-success me-1">
+                                                    @tag.Tag (@((tag.AverageAccuracy * 100).ToString("F0"))%)
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                }
+
+                                @if (!string.IsNullOrEmpty(insight.PatternInsight))
+                                {
+                                    <div class="alert alert-info py-2 px-3 mb-2 small">
+                                        <i class="bi bi-lightbulb me-1"></i>@insight.PatternInsight
+                                    </div>
+                                }
+
+                                @if (insight.SampleStrugglingWords.Any())
+                                {
+                                    var hasStruggling = insight.StrugglingCategories
+                                        .Any(t => t.TotalAttempts > 0 && t.AverageAccuracy < 0.6f);
+                                    <div class="text-secondary-ss small">
+                                        @if (hasStruggling)
+                                        {
+                                            <i class="bi bi-arrow-return-right me-1"></i>
+                                            <span>Words to review: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-stars me-1"></i>
+                                            <span>Words to discover: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                                        }
+                                    </div>
+                                }
                             </div>
                         }
 
-                        @if (insight.SampleStrugglingWords.Any())
+                        @* Focus Areas *@
+                        @if (todaysPlan.Narrative.FocusAreas.Any())
                         {
-                            <div class="text-secondary-ss small">
-                                <i class="bi bi-arrow-return-right me-1"></i>
-                                <span>Focus on: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                            <div class="border-top pt-3">
+                                <div class="ss-body2 fw-semibold mb-2">
+                                    <i class="bi bi-bullseye me-1"></i>Focus Areas
+                                </div>
+                                <ul class="mb-0 ps-3">
+                                    @foreach (var focus in todaysPlan.Narrative.FocusAreas)
+                                    {
+                                        <li class="small mb-1">@focus</li>
+                                    }
+                                </ul>
                             </div>
                         }
-                    </div>
-                }
-
-                @* Focus Areas *@
-                @if (todaysPlan.Narrative.FocusAreas.Any())
-                {
-                    <div class="border-top pt-3">
-                        <div class="ss-body2 fw-semibold mb-2">
-                            <i class="bi bi-bullseye me-1"></i>Focus Areas
-                        </div>
-                        <ul class="mb-0 ps-3">
-                            @foreach (var focus in todaysPlan.Narrative.FocusAreas)
-                            {
-                                <li class="small mb-1">@focus</li>
-                            }
-                        </ul>
                     </div>
                 }
             </div>
@@ -486,6 +547,7 @@ else
     private bool isRefreshing;
     private bool isTodaysPlanMode = true;
     private bool showAllActivities = false;
+    private bool isNarrativeExpanded = false;
     private VocabProgressSummary? vocabSummary;
     private TodaysPlan? todaysPlan;
 
