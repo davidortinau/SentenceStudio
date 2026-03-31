@@ -186,6 +186,19 @@ public class SyncService : ISyncService
 
             await dbContext.Database.MigrateAsync();
             _logger.LogInformation("Mobile database migrated successfully");
+
+            // Run patch AGAIN after MigrateAsync — on fresh installs, the table didn't
+            // exist before MigrateAsync, so the pre-migration patch skipped it. Now the
+            // table exists but may be missing columns not yet in a migration file.
+            try
+            {
+                await conn.OpenAsync();
+                await PatchMissingColumnsAsync(conn);
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
 #else
             _logger.LogDebug("Running EF Core migrations...");
             await dbContext.Database.MigrateAsync();
