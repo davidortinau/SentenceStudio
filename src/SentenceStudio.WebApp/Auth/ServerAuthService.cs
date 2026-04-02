@@ -222,4 +222,7 @@ public class ServerAuthService : IAuthService
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
         return Task.FromResult<string?>(jwt);
     }
+
+    public Task<bool> HasStoredSessionAsync() =>
+        Task.FromResult(IsSignedIn);
 }

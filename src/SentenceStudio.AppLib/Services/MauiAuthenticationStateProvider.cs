@@ -10,12 +10,19 @@ namespace SentenceStudio.Services;
 /// <summary>
 /// Bridges the MAUI IAuthService with Blazor's AuthenticationStateProvider framework.
 /// Wraps IdentityAuthService — does NOT modify or replace it.
+///
+/// Key design: if a refresh token exists in SecureStorage, the user is treated as
+/// authenticated optimistically while the token refresh happens in the background.
+/// This prevents login-screen flashes on app resume.
 /// </summary>
 public class MauiAuthenticationStateProvider : AuthenticationStateProvider
 {
     private readonly IAuthService _authService;
     private readonly ILogger<MauiAuthenticationStateProvider> _logger;
     private ClaimsPrincipal _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+
+    // Track whether we've ever successfully authenticated in this app session
+    private string? _lastKnownUserName;
 
     public MauiAuthenticationStateProvider(
         IAuthService authService,
@@ -27,41 +34,98 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        // On app startup, attempt silent sign-in from SecureStorage with a short timeout
-        // to avoid blocking the UI while the API is unreachable.
-        if (!_authService.IsSignedIn)
-        {
-            _logger.LogInformation("Not signed in, attempting silent refresh (5s timeout)");
-            try
-            {
-                var signInTask = _authService.SignInAsync(); // Parameterless = silent refresh
-                if (await Task.WhenAny(signInTask, Task.Delay(5_000)) != signInTask)
-                {
-                    _logger.LogWarning("Silent sign-in timed out after 10s, proceeding as unauthenticated");
-                }
-                else
-                {
-                    await signInTask; // propagate any exceptions
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Silent sign-in failed");
-            }
-        }
-
+        // Fast path: already signed in with a valid cached token
         if (_authService.IsSignedIn)
         {
             _currentUser = CreateClaimsPrincipalFromToken(
                 await _authService.GetAccessTokenAsync(Array.Empty<string>())
             );
-        }
-        else
-        {
-            _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+            _lastKnownUserName = _authService.UserName;
+            return new AuthenticationState(_currentUser);
         }
 
+        // Check if we have a stored session (refresh token exists)
+        var hasSession = false;
+        try
+        {
+            hasSession = await _authService.HasStoredSessionAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check for stored session");
+        }
+
+        if (!hasSession)
+        {
+            // No stored session at all — user must log in
+            _logger.LogInformation("No stored session found, user must log in");
+            _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+            _lastKnownUserName = null;
+            return new AuthenticationState(_currentUser);
+        }
+
+        // We have a refresh token — return an optimistic authenticated state
+        // immediately so the user isn't bounced to login, then refresh in background
+        _logger.LogInformation("Stored session found, returning optimistic auth state while refreshing");
+
+        // Create a minimal authenticated principal so AuthorizeRouteView doesn't redirect
+        var optimisticPrincipal = CreateOptimisticPrincipal();
+        _currentUser = optimisticPrincipal;
+
+        // Kick off the actual refresh in the background
+        _ = RefreshInBackgroundAsync();
+
         return new AuthenticationState(_currentUser);
+    }
+
+    /// <summary>
+    /// Refreshes tokens in the background without blocking the UI.
+    /// On success, notifies Blazor of the updated auth state.
+    /// On failure, keeps the current optimistic state — only an explicit
+    /// server rejection (401) will clear the session and force re-login.
+    /// </summary>
+    private async Task RefreshInBackgroundAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting background token refresh");
+            var result = await _authService.SignInAsync(); // Parameterless = silent refresh
+
+            if (result is not null)
+            {
+                _logger.LogInformation("Background token refresh succeeded");
+                _lastKnownUserName = _authService.UserName;
+                var updatedPrincipal = CreateClaimsPrincipalFromToken(result.AccessToken);
+                _currentUser = updatedPrincipal;
+                NotifyAuthenticationStateChanged(
+                    Task.FromResult(new AuthenticationState(updatedPrincipal))
+                );
+            }
+            else
+            {
+                // Refresh returned null — check if it was a hard rejection or transient
+                var stillHasSession = await _authService.HasStoredSessionAsync();
+                if (!stillHasSession)
+                {
+                    // Refresh token was explicitly rejected (401) — force re-login
+                    _logger.LogWarning("Refresh token was rejected by server — forcing re-login");
+                    _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+                    _lastKnownUserName = null;
+                    NotifyAuthenticationStateChanged(
+                        Task.FromResult(new AuthenticationState(_currentUser))
+                    );
+                }
+                else
+                {
+                    // Transient failure — keep optimistic state, will retry next time
+                    _logger.LogWarning("Token refresh failed transiently — keeping optimistic auth state");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Background token refresh failed — keeping optimistic auth state");
+        }
     }
 
     public async Task LogInAsync(string email, string password)
@@ -78,6 +142,7 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
         if (result is not null)
         {
             _currentUser = CreateClaimsPrincipalFromToken(result.AccessToken);
+            _lastKnownUserName = _authService.UserName;
         }
         else
         {
@@ -102,16 +167,24 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
             if (result is not null)
             {
                 _currentUser = CreateClaimsPrincipalFromToken(result.AccessToken);
+                _lastKnownUserName = _authService.UserName;
             }
             else
             {
-                _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+                // Check if we still have a session before clearing state
+                var stillHasSession = await _authService.HasStoredSessionAsync();
+                if (!stillHasSession)
+                {
+                    _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+                    _lastKnownUserName = null;
+                }
+                // else: keep current optimistic state
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Silent sign-in failed during LogInSilentlyAsync");
-            _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+            // Don't clear state on exceptions — could be transient
         }
 
         return new AuthenticationState(_currentUser);
@@ -121,9 +194,31 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
     {
         await _authService.SignOutAsync();
         _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+        _lastKnownUserName = null;
         NotifyAuthenticationStateChanged(
             Task.FromResult(new AuthenticationState(_currentUser))
         );
+    }
+
+    /// <summary>
+    /// Creates a minimal authenticated ClaimsPrincipal for optimistic auth state
+    /// when we know a refresh token exists but haven't refreshed yet.
+    /// </summary>
+    private ClaimsPrincipal CreateOptimisticPrincipal()
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.AuthenticationMethod, "refresh_token_pending")
+        };
+
+        if (!string.IsNullOrEmpty(_lastKnownUserName))
+        {
+            claims.Add(new Claim(ClaimTypes.Name, _lastKnownUserName));
+            claims.Add(new Claim(ClaimTypes.Email, _lastKnownUserName));
+        }
+
+        var identity = new ClaimsIdentity(claims, "optimistic");
+        return new ClaimsPrincipal(identity);
     }
 
     private ClaimsPrincipal CreateClaimsPrincipalFromToken(string? token)

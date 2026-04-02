@@ -45,6 +45,15 @@ public sealed class IdentityAuthService : IAuthService
 
     public string? UserName => _cachedUserName;
 
+    /// <inheritdoc/>
+    public async Task<bool> HasStoredSessionAsync()
+    {
+        if (IsSignedIn)
+            return true;
+        var refreshToken = await _secureStorage.GetAsync(RefreshKey);
+        return !string.IsNullOrEmpty(refreshToken);
+    }
+
     /// <summary>
     /// Silent sign-in: first tries to restore a valid JWT from SecureStorage (no network),
     /// then falls back to refresh token if the JWT is expired or expiring soon.
@@ -258,16 +267,38 @@ public sealed class IdentityAuthService : IAuthService
 
     private async Task<AuthResult?> RefreshTokenAsync(string refreshToken)
     {
-        var response = await _http.PostAsJsonAsync("/api/auth/refresh", new { RefreshToken = refreshToken });
+        HttpResponseMessage response;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            response = await _http.PostAsJsonAsync("/api/auth/refresh",
+                new { RefreshToken = refreshToken }, cts.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            // Transient failure (network error, timeout) — keep the refresh token
+            // so the next attempt can try again. Do NOT destroy the session.
+            _logger.LogWarning(ex, "Token refresh failed due to transient error — keeping refresh token for retry");
+            return null;
+        }
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Token refresh returned {Status}", response.StatusCode);
-            // Clear invalid refresh token
-            _secureStorage.Remove(RefreshKey);
-            _cachedToken = null;
-            _cachedExpires = DateTimeOffset.MinValue;
-            _cachedUserName = null;
+            var statusCode = (int)response.StatusCode;
+            if (statusCode == 401 || statusCode == 403)
+            {
+                // Server explicitly rejected the refresh token — it's invalid/revoked
+                _logger.LogWarning("Token refresh rejected with {Status} — clearing refresh token", response.StatusCode);
+                _secureStorage.Remove(RefreshKey);
+                _cachedToken = null;
+                _cachedExpires = DateTimeOffset.MinValue;
+                _cachedUserName = null;
+            }
+            else
+            {
+                // Server error (5xx) or other non-auth failure — keep the refresh token
+                _logger.LogWarning("Token refresh returned {Status} — keeping refresh token for retry", response.StatusCode);
+            }
             return null;
         }
 

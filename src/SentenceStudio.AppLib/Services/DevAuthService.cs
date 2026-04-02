@@ -19,4 +19,5 @@ public class DevAuthService : IAuthService
     public Task<bool> DeleteAccountAsync() => Task.FromResult(true);
     public Task<bool> ChangePasswordAsync(string currentPassword, string newPassword) => Task.FromResult(true);
     public Task<string?> GetAccessTokenAsync(string[] scopes) => Task.FromResult<string?>(null);
+    public Task<bool> HasStoredSessionAsync() => Task.FromResult(true);
 }
