@@ -38,6 +38,10 @@
 - Dashboard activities listed in `src/SentenceStudio.UI/Pages/Index.razor`
 - `.list-page` CSS class is the standard wrapper for scrollable list pages (overflow-x: hidden, safe-area-inset-bottom)
 - Blazor `<Virtualize>` is the pattern for rendering 500+ items efficiently — load full dataset, filter it, pass filtered list to Virtualize
+- `FuzzyMatcher` (SentenceStudio.Shared.Services) handles answer validation — parenthetical stripping, "to " prefix removal, word-boundary matching, Levenshtein typo tolerance, and slash-separated alternatives
+- VocabQuiz uses `FuzzyMatcher.Evaluate()` for text input mode; multiple-choice keeps exact match (options are pre-set)
+- VocabQuiz turn counter displays `roundWordOrder.Count` (actual words in round), NOT the constant `TurnsPerRound`
+- `SearchQueryParserTests.cs` has pre-existing build errors (wrong namespace + missing model properties) — blocks running full unit test suite
 
 ## Core Context (Current)
 
@@ -474,3 +478,17 @@ Completed full-stack UI implementation of Plan Narrative feature and coordinated
 - Monitor narrative engagement once feature is live
 - May add truncation + "show more" link if narrative text becomes too long
 
+
+---
+
+## 2026-04-03: Text Validation & Turn Counter Fixes (Cross-Agent Summary)
+
+**Contribution:** Fixed #150 and #149:
+- #150: Text input validation too strict — integrated FuzzyMatcher for phrase-level validation + slash-separated alternatives
+- #149: Turn counter miscounted words — replaced with proper word tokenization (Regex `[\p{L}\p{N}]+`)
+
+**Related Work by Teammates:**
+- **Wash:** Fixed #151 (scoring override expiration). Added `ExpiresAt` timestamp; overrides now expire cleanly.
+- **Jayne:** Currently end-to-end verification of all three fixes in running app.
+
+**Team Sync:** All three bug fixes are interlinked. Interdependencies verified; no conflicts. FuzzyMatcher now core validation component.

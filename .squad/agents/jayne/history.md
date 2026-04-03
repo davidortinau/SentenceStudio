@@ -108,3 +108,16 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 1. **Two-step build required after clean**: `dotnet build -f net10.0-ios -t:Run` fails with "The app must be built before the arguments to launch the app using mlaunch can be computed" when bin/obj are empty. Must run `dotnet build -f net10.0-ios` first, THEN `dotnet build -f net10.0-ios -t:Run -p:_DeviceName=...`.
 2. **Two sims already booted**: iPhone 17 Pro and iPhone 11 both on iOS 26.2. Used iPhone 17 Pro to avoid conflicts with Comet apps on the other sim.
 3. **Existing agents on broker**: Two Comet apps (v0.18.0) were already registered. SentenceStudio correctly registered alongside them at v0.24.0-dev.
+
+---
+
+## 2026-04-03: Vocabulary Quiz Fixes Verification (In Progress)
+
+**Team:** Wash fixed #151 (scoring override expiration), Kaylee fixed #150 + #149 (text validation + turn counting). Scribe logging orchestration.
+
+**Verification In Progress:**
+- #151: Override window expiration works; expired overrides fall back to base score
+- #150: FuzzyMatcher validates multi-word phrases; slash-separated alternatives work
+- #149: Turn counter accuracy with contractions, hyphenation, punctuation
+
+**Status:** Verifying all three fixes in running app end-to-end.

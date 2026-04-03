@@ -1,6 +1,154 @@
 # Squad Decisions
 
 ## Active Decisions
+## Active Decisions
+
+### 6. Scoring Override Window Expiration (#151) (2026-04-03)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-04-03  
+**Author:** Wash (Backend Dev)  
+**Issue:** #151
+
+**Context**
+
+When users override vocabulary scores (e.g., for learning review or mastery validation), the override is meant to be temporary — valid for a limited window. However, the `OverriddenScoringDto` entity lacked an `ExpiresAt` timestamp, so override checks only verified existence, not expiration. This caused overridden scores to persist indefinitely beyond their intended window.
+
+**Decision**
+
+1. **Add ExpiresAt Timestamp:** `OverriddenScoringDto` now includes `ExpiresAt` property (DateTime).
+2. **Expiration Validation on Read:** `GetVocabularyScoresAsync()` now validates expiration before returning overridden score; expired overrides are silently disregarded, falling back to the base score.
+3. **Lazy Cleanup:** Overrides remain in the database until after expiration window closes. No aggressive cleanup task — idempotent expiration check on read is sufficient and cleaner.
+
+**Implementation**
+
+- New EF Core migration: Added `ExpiresAt` column to `OverriddenScoring` table
+- Updated `VocabularyScoreService.GetVocabularyScoresAsync()` — checks `override.ExpiresAt > DateTime.UtcNow` before using override
+- Backward compatible: Null `ExpiresAt` is treated as perpetual override (existing data migrates without loss)
+
+**Rule for Future**
+
+Any override or temporary data with expiration semantics must have an explicit timestamp. Existence-only checks lead to unbounded state growth and stale data.
+
+**Files Modified**
+- `src/SentenceStudio.Database/Entities/OverriddenScoring.cs`
+- `src/SentenceStudio.Database/Migrations/` (new migration)
+- `src/SentenceStudio.Entities/Dtos/OverriddenScoringDto.cs`
+- `src/SentenceStudio.Services/VocabularyScoreService.cs`
+
+**Commits**
+- Wash: `58a8364`
+
+**Impact**
+- Users: Scoring overrides now correctly expire
+- API: No breaking changes; backward compatible
+- No data loss risk
+
+---
+
+
+### 7. Text Input Validation with FuzzyMatcher (#150) (2026-04-03)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-04-03  
+**Author:** Kaylee (Full-Stack Dev)  
+**Issue:** #150
+
+**Context**
+
+Text input validation was too strict. Simple character-count validation rejected valid multi-word phrases. For example, "I am here" failed because "I" is 1 character. This forced users to manually reword their answers or skip exercises.
+
+**Decision**
+
+Integrate `FuzzyMatcher` for phrase-level validation with support for slash-separated alternatives:
+1. **Phrase Validation:** Accepts multi-word input; validates semantic meaning, not raw character count.
+2. **Alternative Phrases:** Users can define alternatives as `"word1/word2/word3"` — any match succeeds.
+3. **Natural Language Input:** Supports natural phrasing without forcing exact character-length compliance.
+
+**Implementation**
+
+- `FuzzyMatcher` instantiated in `ActivityPage.razor` for text input validation
+- Validation now operates on phrase semantics using `FuzzyMatcher.Match()` logic
+- Users can enter natural phrases; acceptable answer variants are auto-detected
+
+**Files Modified**
+- `src/SentenceStudio.UI/Pages/ActivityPage.razor` — validation wiring
+- `src/SentenceStudio.Services/Matching/FuzzyMatcher.cs` — text input integration
+
+**Impact**
+- Users: Can enter multi-word phrases naturally without rejection
+- UI: Validation feedback clearer; FuzzyMatcher surfaces match details
+- No breaking changes
+
+---
+
+
+### 8. Accurate Turn Counting with Word Tokenization (#149) (2026-04-03)
+
+**Status:** IMPLEMENTED  
+**Date:** 2026-04-03  
+**Author:** Kaylee (Full-Stack Dev)  
+**Issue:** #149
+
+**Context**
+
+The turn counter miscalculated word count using `string.Split(' ').Length`. This counts spaces + 1, not actual words. Contractions, hyphenated words, and punctuation weren't parsed correctly, leading to inaccurate activity timing.
+
+**Decision**
+
+Replace simple split with proper word tokenization:
+1. **Word Tokenization:** Uses `Regex.Matches()` to count actual words: `[\p{L}\p{N}]+` (letters + numbers).
+2. **Handles Edge Cases:** Correctly counts contractions, hyphenated words, and punctuation as single/multiple words as appropriate.
+3. **Accurate Activity Timing:** Turn counter now displays accurate word count, improving plan estimation.
+
+**Implementation**
+
+- Updated `ActivityService.CalculateTurnCount()` to use regex-based word tokenization
+- Idempotent: Existing test data remains valid; no breaking changes
+
+**Files Modified**
+- `src/SentenceStudio.Services/ActivityService.cs` — `CalculateTurnCount()` method
+- Tests: Added test cases for contractions, hyphenation, punctuation
+
+**Impact**
+- Users: Turn counter now displays accurate word count
+- Activity timing: More reliable plan estimates
+- No breaking changes
+
+---
+
+
+### 9. Narrative Framing Rules for User Trust (2026-03-31)
+
+**Status:** DOCUMENTED  
+**Date:** 2026-03-31  
+**Author:** David (via Copilot)
+
+**Context**
+
+User feedback revealed that the narrative framing for untested vocabulary was offensive: labeling words the user hasn't attempted as "struggling" is inaccurate and erodes trust. The narrative must feel like a knowledgeable coach, not a clueless critic.
+
+**Decision**
+
+1. **Never say "struggling" for 0% accuracy** — that means untested, not struggling. Only use "struggling" when user has demonstrated failures (attempts > 0, accuracy < threshold).
+2. **Focus words must be relevant** to the highlighted categories, not arbitrary.
+3. **Frame untested vocab as "unproven" or "new to you"**, not as a weakness.
+4. **Narrative in collapsible panel** — don't fill up the home page with coaching text.
+5. **App must demonstrate it understands the user** — misframing hurts trust and undermines engagement.
+
+**Implementation Pattern**
+
+When rendering vocabulary narratives:
+- Check `attempts > 0` before using "struggling" language
+- Use "new to you" or "unproven" for untested words (attempts == 0)
+- Only apply focus words that align with detected patterns
+- Ensure narrative tone matches the user's demonstrated proficiency
+
+**Impact**
+- Users: Narratives feel accurate and supportive, not judgmental
+- Trust: App demonstrates understanding of user progress, not false criticism
+- Engagement: Positive coaching tone encourages continued learning
+
 
 ### 1. GitHub Issues Created for Azure + Entra ID Plan (2026-03-13)
 
@@ -40,7 +188,9 @@
 
 ---
 
+
 ### ---
+
 
 ### 2. Architecture Plan: Azure Deployment with Entra ID Authentication (2026-03-13)
 
@@ -69,6 +219,7 @@ Comprehensive architecture plan for transitioning SentenceStudio from local-dev-
 - `api://sentencestudio/sync.readwrite` — CoreSync bi-directional sync
 
 **Estimated Monthly Cost (Production):** ~$107-252
+
 
 ### 3. WebApp OIDC Authentication (#44) (2026-03-14)
 
@@ -105,7 +256,9 @@ Added Microsoft.Identity.Web OIDC authentication to the Blazor WebApp with the s
 
 ---
 
+
 ### ---
+
 
 ### 4. MAUI MSAL Authentication (#45) (2026-03-14)
 
@@ -132,7 +285,9 @@ Implemented MSAL.NET authentication for MAUI native clients (mobile + desktop) w
 
 ---
 
+
 ### ---
+
 
 ### 5. CI Workflow Setup (#56) (2026-03-14)
 
@@ -153,6 +308,7 @@ Set up GitHub Actions CI workflow for automated testing and multi-platform build
 - Workflow references `IntegrationTests` project — verify project exists or adjust workflow before merge
 
 ---
+
 ### 3. User-Secrets Workflow for Local Development (2026-03-14)
 
 **Status:** IMPLEMENTED  
@@ -190,7 +346,9 @@ Established .NET user-secrets pattern for secure local development across all se
 
 ---
 
+
 ### ---
+
 
 ### 4. Security Headers and HTTPS Enforcement (2026-03-14)
 
@@ -221,6 +379,7 @@ Added security hardening across API, WebApp, and Marketing services. _(Moved fro
 
 **Deferred:** Production CORS fine-tuning (#62), CSP header (Blazor inline scripts), production auth (still DevAuthHandler).
 
+
 ### 6. JWT Bearer Authentication for API (#43) (2026-03-13)
 
 **Status:** IMPLEMENTED  
@@ -249,7 +408,9 @@ Added real JWT Bearer authentication via Microsoft Entra ID while keeping DevAut
 
 ---
 
+
 ### ---
+
 
 ### 7. Auth Integration Test Infrastructure (#47) (2026-03-13)
 
@@ -277,7 +438,9 @@ Created `tests/SentenceStudio.Api.Tests/` — integration test infrastructure fo
 
 ---
 
+
 ### ---
+
 
 ### 8. CoreSync Auth — Bearer Token on Sync Client (#46) (2026-03-14)
 
@@ -300,7 +463,9 @@ Added Bearer token authentication to CoreSync HTTP sync channel (MAUI clients �
 
 ---
 
+
 ### ---
+
 
 ### 9. CI Workflow Setup (#56) (2026-03-14)
 
@@ -331,7 +496,9 @@ GitHub Actions CI workflow for automated testing and multi-platform builds.
 
 ---
 
+
 ### ---
+
 
 ### 10. Mobile Auth Guard — Validate Tokens, Not Preferences (#2026-03-15)
 
@@ -363,7 +530,9 @@ Fixed critical mobile authentication bypass vulnerability where auth gate only c
 
 ---
 
+
 ### ---
+
 
 ### 11. CRUD Feedback Standard (2026-03-14)
 
@@ -404,7 +573,9 @@ Uniform CRUD feedback pattern across all pages (Resources, Skills, Vocabulary, P
 
 ---
 
+
 ### ---
+
 
 ### 12. Adopt Official Blazor Hybrid Authentication Pattern (2026-03-15)
 
@@ -455,7 +626,9 @@ We've been fighting NavigateTo() timing issues in MainLayout.razor that stem fro
 
 ---
 
+
 ### ---
+
 
 ### 13. Refactor to Official Blazor Hybrid Auth Pattern (2026-03-15)
 
@@ -515,7 +688,9 @@ MainLayout.razor should NOT be an auth gate. The Router (Routes.razor) is the of
 
 ---
 
+
 ### ---
+
 
 ### 14. Vocabulary Hierarchy Tracking — Architecture Framework (2026-03-17)
 
@@ -558,7 +733,9 @@ Comprehensive analysis of vocabulary relationship tracking, identifying four des
 
 ---
 
+
 ### ---
+
 
 ### 15. Vocabulary Hierarchy — Data Model & Schema Design (2026-03-17)
 
@@ -635,7 +812,9 @@ CREATE INDEX IX_VocabularyWord_Parent ON VocabularyWord(ParentVocabularyWordId);
 
 ---
 
+
 ### ---
+
 
 ### 16. Vocabulary Hierarchy — AI Prompt Design & Import Strategy (2026-03-17)
 
@@ -721,7 +900,9 @@ Start with Phase 1 only. Prove the AI can detect relationships accurately (90%+ 
 
 ---
 
+
 ### ---
+
 
 ### 17. Vocabulary Hierarchy — Learning Design & UX (2026-03-17)
 
@@ -786,7 +967,9 @@ UX and motivational analysis of vocabulary hierarchy with progressive disclosure
 
 ---
 
+
 ### ---
+
 
 ### 18. Second-Language Acquisition (SLA) Research Integration (2026-03-17)
 
@@ -845,7 +1028,9 @@ Applied SLA principles to validate vocabulary hierarchy design decisions.
 
 ---
 
+
 ### ---
+
 
 ### Blazor InputFile for File-Based Vocab Import (2026-07-22)
 
@@ -871,7 +1056,9 @@ Use standard Blazor `InputFile` component instead of platform-specific file pick
 
 ---
 
+
 ### ---
+
 
 ### Getting-Started Dashboard Experience (2026-03-18)
 
@@ -929,6 +1116,7 @@ The Captain wants users to connect their YouTube account, pick subscribed channe
 
 ## Detailed Findings
 
+
 ### 1. YouTube Data API v3 — Subscriptions
 
 **Can we list subscriptions?** Yes.
@@ -955,6 +1143,7 @@ var response = await request.ExecuteAsync();
 
 **Risk:** Quota is per-project, not per-user. If we scale to many users, we need server-side polling with caching (not per-user API calls).
 
+
 ### 2. Transcript/Caption Access
 
 **Already solved.** The codebase uses YoutubeExplode, which:
@@ -968,20 +1157,23 @@ The official YouTube Captions API (`captions.download()`) only works for videos 
 
 **One caveat:** YoutubeExplode scrapes YouTube's internal APIs. If YouTube changes their internals, it breaks. The library is actively maintained and popular (30M+ downloads), but it's a dependency risk. Mitigation: pin the version, have a fallback error message, and monitor for breakage.
 
+
 ### 3. OAuth Flow — The Hard Part
 
 **Current state:** Zero external OAuth. The app uses ASP.NET Identity with email/password + JWT. No Google, Microsoft, or social logins.
 
 **What's needed:**
 
-#### Web App (Blazor Server)
+#
+### Web App (Blazor Server)
 - Standard OAuth 2.0 Authorization Code flow
 - Add `Google.Apis.Auth.AspNetCore3` to WebApp
 - Register Google OAuth client in Google Cloud Console
 - Configure redirect URI (e.g., `https://app.sentencestudio.com/signin-google`)
 - Store refresh token in database (for server-side background polling)
 
-#### MAUI App
+#
+### MAUI App
 - Two options:
   1. **WebAuthenticator** (MAUI built-in) — opens system browser for Google login, receives token via deep link callback
   2. **MSAL (already installed)** — `Microsoft.Identity.Client` v4.83.1 is in the project, but it's for Microsoft identity, not Google
@@ -989,7 +1181,8 @@ The official YouTube Captions API (`captions.download()`) only works for videos 
 - Redirect URI: custom scheme like `sentencestudio://auth/google`
 - Must be registered in Google Cloud Console as iOS/Android/Desktop client
 
-#### Architecture Decision
+#
+### Architecture Decision
 **Recommendation:** Handle Google OAuth on the **server side** (API project), not in MAUI directly.
 
 - MAUI opens a browser to `{API}/api/auth/google/login`
@@ -999,6 +1192,7 @@ The official YouTube Captions API (`captions.download()`) only works for videos 
 - Background polling uses the server-stored Google token
 
 This avoids putting Google client secrets in mobile apps and centralizes token management.
+
 
 ### 4. Architecture Sketch
 
@@ -1060,6 +1254,7 @@ Here's how it fits into the existing Aspire stack:
    - Sets `MediaType = "YouTube Video"`, `MediaUrl = video URL`
 5. User sees new resources in their dashboard
 
+
 ### 5. Cost/Complexity Assessment
 
 | Component | Effort | Risk | Notes |
@@ -1077,6 +1272,7 @@ Here's how it fits into the existing Aspire stack:
 
 **Total: 2-3 sprints** (assuming 1-week sprints with focused effort)
 
+
 ### Biggest Risks
 
 1. **Google OAuth is the critical path.** No external OAuth exists today. This touches auth infrastructure, token storage, and security. Get this right first — everything else is easy.
@@ -1093,17 +1289,20 @@ Here's how it fits into the existing Aspire stack:
 
 **Do it. Phase it.**
 
+
 ### Phase 1: Manual YouTube Import Enhancement (1 sprint)
 - Add a "Import from YouTube URL" flow that fetches transcript + auto-generates vocabulary
 - This uses 100% existing infrastructure (YoutubeExplode + AI pipeline)
 - No OAuth needed. User pastes a URL, system does the rest.
 - **Delivers value immediately** while Phase 2 is built.
 
+
 ### Phase 2: Google Account Connection (1-2 sprints)
 - Implement Google OAuth on the API (server-side)
 - Add subscription listing endpoint
 - Build channel picker UI (WebApp first, then MAUI)
 - Store user's selected channels in DB
+
 
 ### Phase 3: Auto-Import Worker (1 sprint)
 - Implement `YouTubePollingWorker` in Workers project
@@ -1142,12 +1341,14 @@ YouTube integration is feasible with a two-library strategy: **Google.Apis.YouTu
 
 ## 1. YouTube Data API v3 for .NET
 
+
 ### Package: `Google.Apis.YouTube.v3`
 - **Latest version:** 1.73.0.4053 (Feb 2026)
 - **TFM support:** netstandard2.0, net6.0, net10.0 (computed compatible)
 - **Dependencies:** Google.Apis (≥ 1.73.0), Google.Apis.Auth (≥ 1.73.0)
 - **Actively maintained:** Yes — 4 releases in the last 3 months
 - **NuGet:** https://www.nuget.org/packages/Google.Apis.YouTube.v3
+
 
 ### What It Supports (Relevant to Us)
 
@@ -1160,6 +1361,7 @@ YouTube integration is feasible with a two-library strategy: **Google.Apis.YouTu
 | `captions.list` | **50 units** | Yes (OAuth) | List caption tracks for a video |
 | `captions.download` | **200 units** | Yes (OAuth) | Download caption track content |
 
+
 ### ⚠️ Captions API Limitation — CRITICAL
 
 The official Captions API (`captions.list`, `captions.download`) requires the **`youtube.force-ssl`** scope and **only works for videos the authenticated user owns or is a content partner for.** Third-party video captions return `403 Forbidden`.
@@ -1167,6 +1369,7 @@ The official Captions API (`captions.list`, `captions.download`) requires the **
 > **This means the official API CANNOT be used to download captions/transcripts from Korean YouTube channels the user subscribes to.**
 
 The `captions.list` call *does* return metadata (track language, auto-generated status) for any video, but `captions.download` requires ownership. This is by design — Google treats caption files as content owned by the video creator.
+
 
 ### What We'd Use It For
 - ✅ Listing the user's YouTube subscriptions
@@ -1179,8 +1382,10 @@ The `captions.list` call *does* return metadata (track language, auto-generated 
 
 ## 2. Transcript/Caption Extraction — The Real Solution
 
+
 ### The Problem
 YouTube auto-generates captions (ASR tracks) for most videos, and viewers can see them. But the API locks download behind video ownership. We need another way.
+
 
 ### Solution: `YoutubeExplode`
 
@@ -1193,8 +1398,10 @@ YouTube auto-generates captions (ASR tracks) for most videos, and viewers can se
 - **NuGet:** https://www.nuget.org/packages/YoutubeExplode  
 - **License:** LGPL-3.0 (important — see Legal section)
 
+
 ### How It Works
 YoutubeExplode reverse-engineers YouTube's internal/private endpoints (not the official API). It scrapes page data to extract metadata, streams, and **closed captions** — including auto-generated ASR tracks.
+
 
 ### Closed Caption API (No Auth Required)
 
@@ -1222,11 +1429,13 @@ foreach (var caption in track.Captions)
 await youtube.Videos.ClosedCaptions.DownloadAsync(trackInfo, "captions.srt");
 ```
 
+
 ### Also Provides (Bonus)
 - Video metadata (title, author, duration, thumbnails)
 - Channel metadata and upload listings
 - Playlist enumeration
 - Video stream downloads (not needed for our use case)
+
 
 ### YoutubeExplode vs Official API Comparison
 
@@ -1243,6 +1452,7 @@ await youtube.Videos.ClosedCaptions.DownloadAsync(trackInfo, "captions.srt");
 | Auth required | OAuth + API key | None |
 | Stability | Stable (official) | Breakable (scraping) |
 
+
 ### ⚠️ Risks & Mitigations
 
 1. **Scraping fragility:** YouTube changes internal APIs periodically. YoutubeExplode needs updates to keep working. Mitigation: The library is actively maintained and widely used. Pin version, test monthly.
@@ -1253,6 +1463,7 @@ await youtube.Videos.ClosedCaptions.DownloadAsync(trackInfo, "captions.srt");
 
 4. **No .NET-native alternative:** NuGet search for "youtube transcript" returns **0 packages**. YoutubeExplode is the only viable .NET option. The Python `youtube-transcript-api` library has no .NET port.
 
+
 ### Recommendation
 **Use both libraries together:**
 - `Google.Apis.YouTube.v3` — For OAuth-authenticated subscription management (what channels the user follows)
@@ -1262,12 +1473,14 @@ await youtube.Videos.ClosedCaptions.DownloadAsync(trackInfo, "captions.srt");
 
 ## 3. OAuth 2.0 for Google in .NET
 
+
 ### Current Auth Stack
 The API currently uses:
 - **JWT Bearer** authentication (SymmetricSecurityKey, HmacSha256)
 - **DevAuthHandler** fallback for local development
 - **ASP.NET Identity** for user management (ApplicationUser)
 - No external OAuth providers configured
+
 
 ### Adding Google OAuth
 
@@ -1278,6 +1491,7 @@ The API currently uses:
 | `Google.Apis.Auth` | 1.73.0 | Google OAuth token handling |
 | `Google.Apis.Auth.AspNetCore3` | 1.73.0 | ASP.NET Core OIDC integration + `IGoogleAuthProvider` |
 | `Google.Apis.YouTube.v3` | 1.73.0.4053 | YouTube API client |
+
 
 ### Architecture: Two Distinct Auth Concerns
 
@@ -1299,6 +1513,7 @@ This is what we actually need. The user must grant our app permission to read th
 2. Storing the Google refresh token alongside the user's SentenceStudio account
 3. Using the refresh token to make YouTube API calls server-side
 
+
 ### Recommended Auth Flow
 
 ```
@@ -1311,14 +1526,17 @@ User clicks "Connect YouTube" in app
   → API can now call YouTube API on behalf of user
 ```
 
+
 ### Integration with Existing JWT Auth
 The Google OAuth flow is **separate from** our JWT auth. The user authenticates to our API with their existing JWT, then initiates a Google OAuth consent flow to link their YouTube account. The Google tokens are stored server-side and used exclusively for YouTube API calls — they never replace the user's SentenceStudio JWT.
+
 
 ### Google Cloud Console Setup Required
 1. Create OAuth 2.0 Client ID (Web Application type)
 2. Enable YouTube Data API v3
 3. Configure authorized redirect URIs (API callback endpoint)
 4. Configure OAuth consent screen (youtube.readonly scope)
+
 
 ### Scopes Needed
 | Scope | Purpose |
@@ -1332,6 +1550,7 @@ We do NOT need:
 ---
 
 ## 4. Background Polling Architecture
+
 
 ### Option A: Polling (Simple but Quota-Hungry)
 
@@ -1349,6 +1568,7 @@ We do NOT need:
 | 100 users | 20 channels each | Every 6 hours | 8,000 units |
 
 **Verdict:** Fine for single-user or small-scale use. Breaks at 100+ users.
+
 
 ### Option B: PubSubHubbub Push Notifications (Recommended)
 
@@ -1385,6 +1605,7 @@ POST https://pubsubhubbub.appspot.com/subscribe
 - Callback must respond to GET verification requests (hub.challenge echo)
 - Subscriptions expire (typically 5-10 days) — must auto-renew
 
+
 ### Recommended Hybrid Architecture
 
 ```
@@ -1418,6 +1639,7 @@ POST https://pubsubhubbub.appspot.com/subscribe
 └─────────────────┘    └──────────────────────────┘
 ```
 
+
 ### Workers Project
 The existing `SentenceStudio.Workers` project has a placeholder `BackgroundService`. This is the ideal home for:
 - **WebhookRenewalService** — Periodically renews PubSubHubbub subscriptions (every 4 days)
@@ -1428,14 +1650,17 @@ The existing `SentenceStudio.Workers` project has a placeholder `BackgroundServi
 
 ## 5. Data Model Proposal
 
+
 ### Existing Models (No Changes Needed)
 - `LearningResource` — Already has `MediaType`, `MediaUrl`, `Transcript`, `Language`, `Tags`, `UserProfileId` — perfect for storing imported YouTube videos
 - `VocabularyWord` — Already supports `NativeLanguageTerm`, `TargetLanguageTerm`, `Language`, `Tags`
 - `ResourceVocabularyMapping` — Already provides LearningResource ↔ VocabularyWord junction
 
+
 ### New Entities Required
 
-#### YouTubeConnection (1 per user)
+#
+### YouTubeConnection (1 per user)
 Stores the OAuth connection between a SentenceStudio user and their Google/YouTube account.
 
 ```csharp
@@ -1466,7 +1691,8 @@ public class YouTubeConnection
 }
 ```
 
-#### YouTubeSubscription (tracks which channels user follows)
+#
+### YouTubeSubscription (tracks which channels user follows)
 ```csharp
 [Table("YouTubeSubscription")]
 public class YouTubeSubscription
@@ -1500,7 +1726,8 @@ public class YouTubeSubscription
 }
 ```
 
-#### YouTubeVideoImport (tracks individual video processing)
+#
+### YouTubeVideoImport (tracks individual video processing)
 ```csharp
 [Table("YouTubeVideoImport")]
 public class YouTubeVideoImport
@@ -1547,6 +1774,7 @@ public enum YouTubeImportStatus
 }
 ```
 
+
 ### Entity Relationship Diagram
 
 ```
@@ -1564,11 +1792,13 @@ UserProfile (existing)
     │                                                          (via ResourceVocabularyMapping)
 ```
 
+
 ### CoreSync Considerations
 - **YouTubeConnection:** Server-only. Refresh tokens should NOT sync to mobile devices. Store exclusively in server DB.
 - **YouTubeSubscription:** Could sync to mobile for display purposes (channel list, monitoring status). No sensitive data.
 - **YouTubeVideoImport:** Could sync to mobile for import history display. Links to synced LearningResource.
 - **LearningResource:** Already synced. YouTube-imported resources would have `MediaType = "YouTube Video"` and `MediaUrl = "https://youtube.com/watch?v=VIDEO_ID"`.
+
 
 ### Migration Approach
 Standard EF Core migration — all additive, no existing table changes:
@@ -1582,6 +1812,7 @@ dotnet ef migrations add AddYouTubeIntegration \
 
 ## 6. NuGet Package Summary
 
+
 ### Required Packages (API/Server)
 
 | Package | Version | Project | Purpose |
@@ -1591,11 +1822,13 @@ dotnet ef migrations add AddYouTubeIntegration \
 | `Google.Apis.Auth.AspNetCore3` | 1.73.0 | API | ASP.NET Core OIDC integration |
 | `YoutubeExplode` | 6.5.7 | Workers | Transcript extraction |
 
+
 ### Optional Packages
 
 | Package | Version | Purpose |
 |---|---|---|
 | `Microsoft.AspNetCore.Authentication.Google` | 10.0.x | If adding Google as login provider (not strictly needed) |
+
 
 ### Package Compatibility Notes
 - All packages target netstandard2.0 or net6.0+ → compatible with our net10.0 targets
@@ -1622,12 +1855,14 @@ GET    /api/youtube/webhook           → PubSubHubbub verification (hub.challen
 
 ## 8. Risks & Open Questions
 
+
 ### Risks
 1. **YoutubeExplode breakage:** YouTube internal API changes could temporarily break transcript extraction. Mitigation: Version pinning + monthly smoke test.
 2. **Quota limits at scale:** 10K units/day is sufficient for 1-10 users. Beyond that, need quota extension request to Google.
 3. **PubSubHubbub requires public URL:** Dev/local testing needs ngrok or similar tunnel. Production needs public-facing API.
 4. **Token security:** Google refresh tokens are long-lived credentials. Must encrypt at rest in DB.
 5. **Auto-generated captions quality:** ASR captions have errors, especially for Korean. Mitigation: AI vocab extraction can handle noisy input.
+
 
 ### Open Questions for Captain
 1. **Login integration?** — Should "Connect YouTube" also allow Google login to SentenceStudio? Or just YouTube API access?
@@ -1640,12 +1875,14 @@ GET    /api/youtube/webhook           → PubSubHubbub verification (hub.challen
 
 ## 9. Implementation Phases (Suggested)
 
+
 ### Phase 1: OAuth + Subscription Listing
 - Google Cloud Console setup
 - OAuth flow endpoints
 - YouTubeConnection + YouTubeSubscription entities
 - Fetch and display user's subscriptions
 - **Effort:** 2-3 days
+
 
 ### Phase 2: Transcript Import (Manual)
 - YoutubeExplode integration in Workers
@@ -1654,11 +1891,13 @@ GET    /api/youtube/webhook           → PubSubHubbub verification (hub.challen
 - AI vocabulary extraction from transcript
 - **Effort:** 2-3 days
 
+
 ### Phase 3: Push Notification Monitoring
 - PubSubHubbub webhook endpoint
 - Subscription registration/renewal background service
 - Auto-import pipeline for monitored channels
 - **Effort:** 2-3 days
+
 
 ### Phase 4: UI (Kaylee's domain)
 - YouTube connection settings page
@@ -1788,6 +2027,7 @@ var transcript = string.Join("\n", track.Captions.Select(c => c.Text));
 
 Two new tables, both server-only (non-synced), in `ApplicationDbContext`:
 
+
 ### MonitoredChannel
 
 ```csharp
@@ -1805,6 +2045,7 @@ public class MonitoredChannel
     public string? UserProfileId { get; set; }                 // Who added this channel
 }
 ```
+
 
 ### VideoImport
 
@@ -1835,6 +2076,7 @@ public class VideoImport
 ## 5. Architecture — Where Does Polling Run?
 
 **Home:** `src/SentenceStudio.Workers/` — the existing worker project with placeholder `BackgroundService`.
+
 
 ### Flow
 
@@ -1872,6 +2114,7 @@ TranscriptIngestionWorker (BackgroundService, processes pending imports):
 
 **Separation of concerns:** Two workers because polling is fast (HTTP metadata only) but ingestion is slow (transcript download + AI processing). This prevents a slow AI call from delaying channel checks.
 
+
 ### Dependencies for Workers Project
 
 Add to `SentenceStudio.Workers.csproj`:
@@ -1883,6 +2126,7 @@ Add to `SentenceStudio.Workers.csproj`:
 Plus a project reference to `SentenceStudio.Shared` (for `YouTubeImportService`, models, and `ApplicationDbContext`).
 
 ## 6. Proof-of-Concept Code
+
 
 ### ChannelPollingWorker.cs
 
@@ -2006,6 +2250,7 @@ public class ChannelPollingWorker(
 }
 ```
 
+
 ### Quick Channel Resolution Test
 
 ```csharp
@@ -2086,7 +2331,9 @@ dotnet ef migrations add AddChannelMonitoring \
 
 ---
 
+
 ### ---
+
 
 ### 3. YouTube Channel Monitoring — Data Model & Service Layer (2026-03-20)
 
@@ -2124,7 +2371,9 @@ Defined data model and service layer for YouTube channel monitoring. Two new ent
 
 ---
 
+
 ### ---
+
 
 ### 4. Architecture Decision: YouTube Channel Monitoring + Video Import (2026-03-20)
 
@@ -2183,7 +2432,9 @@ POST   /api/channels/{id}/poll  — Force immediate poll
 
 ---
 
+
 ### ---
+
 
 ### 5. YouTube AI Pipeline — Prompt Design & Response Models (2026-03-20)
 
@@ -2246,7 +2497,9 @@ Designed and validated two-stage prompt architecture for YouTube transcript proc
 
 ---
 
+
 ### ---
+
 
 ### 6. YouTube Template Integration — Scriban Wiring Complete (2026-03-20)
 
@@ -2286,7 +2539,9 @@ All `[JsonPropertyName]` attributes in `VocabularyExtractionResponse` validated 
 
 ---
 
+
 ### ---
+
 
 ### 7. Client-Side Polling for Import Status Updates (2026-03-20)
 
@@ -2381,6 +2636,7 @@ public void Dispose()
 ## Archived Decisions
 
 (None yet — all active decisions documented above)
+
 
 
 ### 2026-03-21: User directive — YouTube Shorts unsupported
@@ -2623,7 +2879,9 @@ private async Task RefreshDashboardAsync()
 
 ---
 
+
 ### ---
+
 
 ### 6. Post-Login Sync for Mobile Data Consistency (2026-03-15)
 
@@ -2643,7 +2901,9 @@ Added automatic sync trigger after successful login/register in mobile clients t
 
 ---
 
+
 ### ---
+
 
 ### 7. Vocab Quiz Two-Tier Pool Architecture (2026-03-22)
 
@@ -2663,7 +2923,9 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 
 ---
 
+
 ### ---
+
 
 ### 8. VocabularyProgressRepository Consistency (2026-03-22)
 
@@ -2680,7 +2942,9 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 
 ---
 
+
 ### ---
+
 
 ### 9. Dashboard Refresh — Button vs Pull-to-Refresh (2026-03-20)
 
@@ -2701,7 +2965,9 @@ Mastered words (`ReadyToRotateOut`) evicted from `batchPool`, shrinking over tim
 
 ---
 
+
 ### ---
+
 
 ### 10. Blazor Virtualize Implementation (2026-03-20)
 
@@ -2724,7 +2990,9 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 
 ---
 
+
 ### ---
+
 
 ### 11. Mobile UX Implementation Strategy for Blazor Hybrid (2026-03-20)
 
@@ -2755,7 +3023,9 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 
 ---
 
+
 ### ---
+
 
 ### 12. List Page Scroll Pattern (2026-03-22)
 
@@ -2783,7 +3053,9 @@ Applied Blazor `<Virtualize>` component to list pages rendering 2000–3000+ ite
 
 ---
 
+
 ### ---
+
 
 ### 13. Issue Triage #131–#140 (2026-03-20)
 
@@ -2805,7 +3077,9 @@ Triaged 10 new GitHub issues (8 bugs, 2 enhancements) with routing and rationale
 
 ---
 
+
 ### ---
+
 
 ### 14. Starter Resource Duplicate ID Crash Fix (2026-03-28)
 
@@ -2842,27 +3116,32 @@ Triaged 10 new GitHub issues (8 bugs, 2 enhancements) with routing and rationale
 **Status:** ✅ Implemented  
 **Context:** DevFlow debugging infrastructure for .NET MAUI
 
+
 ### Problem Statement
 
 All 5 platform projects (iOS, Android, MacCatalyst, MacOS, Windows) were using `Redth.MauiDevFlow.*` NuGet packages that lacked a critical broker registration fix required for MauiDevFlow tool integration.
 
 Custom-built packages from the dotnet/maui-labs source were already built and available in ~/work/LocalNuGets/, but the project still referenced the old Redth packages.
 
+
 ### Decision
 
 **Migrate all 5 platform projects from `Redth.MauiDevFlow.*` to custom `Microsoft.Maui.DevFlow.*` packages (v0.24.0-dev).**
 
-#### Rationale
+#
+### Rationale
 1. **Critical bug fix** — The custom Microsoft.Maui.DevFlow.* packages include a broker registration fix not present in the Redth versions
 2. **Local control** — Custom builds give us control over versioning and hotfixes without waiting for upstream releases
 3. **Consistent versioning** — Replaced wildcard versions (`*`) with explicit `0.24.0-dev` across all platforms
 4. **Debug condition consistency** — MacOS Blazor package was missing the Debug condition; now all platforms are uniform
 
-#### Packages Affected
+#
+### Packages Affected
 - `Redth.MauiDevFlow.Agent` → `Microsoft.Maui.DevFlow.Agent` v0.24.0-dev
 - `Redth.MauiDevFlow.Blazor` → `Microsoft.Maui.DevFlow.Blazor` v0.24.0-dev
 
-#### Files Changed (10 total)
+#
+### Files Changed (10 total)
 
 **Platform .csproj Files (5):**
 - `src/SentenceStudio.iOS/SentenceStudio.iOS.csproj` (lines 26-27)
@@ -2878,31 +3157,37 @@ Custom-built packages from the dotnet/maui-labs source were already built and av
 - `src/SentenceStudio.MacOS/MacOSMauiProgram.cs` (lines 3-4)
 - `src/SentenceStudio.Windows/MauiProgram.cs` (lines 3-4)
 
-#### NuGet Source Configuration
+#
+### NuGet Source Configuration
 - Custom packages stored in: `~/work/LocalNuGets/`
 - Local source name: `localnugets`
 - Source already configured in NuGet.config (verified via `dotnet nuget list source`)
 
-#### Method Call Compatibility
+#
+### Method Call Compatibility
 No changes required to:
 - `builder.AddMauiDevFlowAgent()` calls
 - `builder.AddMauiBlazorDevFlowTools()` calls
 
 API surface remains identical between Redth and Microsoft packages.
 
+
 ### Implementation
 
-#### Steps Executed
+#
+### Steps Executed
 1. Updated all 5 csproj files (2 PackageReference lines each = 10 lines)
 2. Updated all 5 MauiProgram.cs files (2 using statements each = 10 lines)
 3. Verified local NuGet source exists: `dotnet nuget list source | grep -i local`
 4. Verified package resolution: `dotnet restore src/SentenceStudio.iOS/SentenceStudio.iOS.csproj` (succeeded)
+
 
 ### Verification Results
 - ✅ Restore succeeded on iOS project
 - ✅ All Microsoft.Maui.DevFlow.* packages resolved from localnugets source
 - ✅ No build errors introduced
 - ✅ Debug condition now consistent across all platforms (including MacOS Blazor)
+
 
 ### Consequences
 
@@ -2920,6 +3205,7 @@ API surface remains identical between Redth and Microsoft packages.
 - No API surface changes — existing DevFlow integration code remains unchanged
 - Wildcard versions removed — future updates require explicit version bumps
 
+
 ### Alternatives Considered
 
 **Alternative 1: Stay with Redth Packages**
@@ -2929,6 +3215,7 @@ API surface remains identical between Redth and Microsoft packages.
 **Alternative 2: Wait for Upstream Fix**
 - ❌ Rejected — Unacceptable delay; DevFlow debugging is critical for development velocity
 - ⚠️ Upstream timeline uncertain
+
 
 ### Future Work
 - Monitor dotnet/maui-labs for new releases
@@ -2944,9 +3231,11 @@ API surface remains identical between Redth and Microsoft packages.
 **Status:** IMPLEMENTED  
 **Requested by:** Captain (David Ortinau)
 
+
 ### Context
 
 Standalone debug builds (e.g., `dotnet build -t:Run -f net10.0-ios`) were silently hitting production Azure APIs because `appsettings.json` had production HTTPS URLs as defaults. Aspire service discovery was working correctly, but without Aspire env vars, the fallback config pointed at production.
+
 
 ### Decision
 
@@ -2955,9 +3244,11 @@ Standalone debug builds (e.g., `dotnet build -t:Run -f net10.0-ios`) were silent
 3. **EnvironmentBadge** now shows a **red pulsing "⚠ PRODUCTION" banner** when production URLs are detected, instead of hiding
 4. Badge colors: GREEN = LOCAL, ORANGE = DEV TUNNEL, RED = PRODUCTION
 
+
 ### Rationale
 
 "Dev debug builds must NEVER talk to production servers." — Captain directive. The safest default is localhost. Production URLs require explicit opt-in via environment-specific config.
+
 
 ### Impact
 
@@ -2965,6 +3256,7 @@ Standalone debug builds (e.g., `dotnet build -t:Run -f net10.0-ios`) were silent
 - Aspire-launched builds unaffected (env vars still override config)
 - Web app unaffected (already uses Aspire service discovery)
 - appsettings.template.json already had safe defaults
+
 
 ### Files Changed
 
@@ -2982,6 +3274,7 @@ Standalone debug builds (e.g., `dotnet build -t:Run -f net10.0-ios`) were silent
 **Author:** Wash (Backend Dev)  
 **Status:** IMPLEMENTED
 
+
 ### Auth Routes
 
 The WebApp had duplicate auth pages: server-rendered `/Account/*` forms AND shared Blazor `/auth/*` pages. The shared pages already worked — `ServerAuthService` returns a userId|token pair and redirects to `/account-action/AutoSignIn` to set the cookie.
@@ -2994,6 +3287,7 @@ The WebApp had duplicate auth pages: server-rendered `/Account/*` forms AND shar
 - All `/Account/Login` redirects in endpoints updated to `/auth/login`
 
 **Bug fix:** Added `NativeLanguage` to the `is_onboarded` check in AutoSignIn handler, matching Kaylee's earlier fix in the Blazor UI.
+
 
 ### Secure Storage
 
@@ -3009,15 +3303,18 @@ The WebApp had duplicate auth pages: server-rendered `/Account/*` forms AND shar
 **Date:** 2026-03-28  
 **Status:** Implemented
 
+
 ### Context
 
 The SyncService legacy database detection path (line 86-97) seeds `__EFMigrationsHistory` with `InitialSqlite` as "already applied" when it finds a database without migration history. This tells EF Core "InitialSqlite already ran" — but legacy tables may be missing columns that were added to the model after the original schema was created.
+
 
 ### Decision
 
 After seeding migration history for legacy databases, SyncService now calls `PatchMissingColumnsAsync()` which checks `pragma_table_info` for each expected column and runs `ALTER TABLE ADD COLUMN` for any that are missing.
 
 New columns that might be missing from legacy schemas should be added to the `expectedColumns` array in `PatchMissingColumnsAsync()`.
+
 
 ### Impact
 
@@ -3032,8 +3329,10 @@ New columns that might be missing from legacy schemas should be added to the `ex
 **Date:** 2025-07-15  
 **Status:** Implemented
 
+
 ### Context
 The `is_onboarded` preference controls whether users are redirected to `/onboarding`. Multiple code paths were setting this flag too eagerly — before the user's profile had all required fields (TargetLanguage, NativeLanguage, Name).
+
 
 ### Decision
 Any code path that sets `is_onboarded = true` MUST first verify the profile has all three fields populated:
@@ -3043,11 +3342,13 @@ Any code path that sets `is_onboarded = true` MUST first verify the profile has 
 
 If any are missing, the user should be redirected to `/onboarding` rather than granted dashboard access.
 
+
 ### Affected Files
 - `Layout/MainLayout.razor` — existing-profile bypass check
 - `Pages/Auth.razor` — local profile login
 - `Pages/LoginPage.razor` — post-login redirect
 - `Pages/Index.razor` — starter content creation uses user's language
+
 
 ### Rationale
 Onboarding collects these three fields in a guided flow. Bypassing it with incomplete data leads to broken language selection, hardcoded defaults, and a confusing UX.
@@ -3060,9 +3361,11 @@ Onboarding collects these three fields in a guided flow. Bypassing it with incom
 **Author:** Kaylee (Full-stack Dev)  
 **Status:** Implemented
 
+
 ### Context
 
 `WebFilePickerService` threw `NotSupportedException`. The `IFilePickerService` interface needed a working implementation for any code that calls it programmatically in the WebApp.
+
 
 ### Decision
 
@@ -3070,12 +3373,14 @@ Onboarding collects these three fields in a guided flow. Bypassing it with incom
 - Changed DI registration from `AddSingleton` to `AddScoped` because `IJSRuntime` is circuit-scoped in Blazor Server — a singleton cannot hold a scoped dependency.
 - Follows the existing `window.*` global object pattern used by `audioInterop.js`.
 
+
 ### Files Changed
 
 - `src/SentenceStudio.WebApp/wwwroot/js/filePicker.js` — new JS interop module
 - `src/SentenceStudio.WebApp/Platform/WebFilePickerService.cs` — injects IJSRuntime, calls JS
 - `src/SentenceStudio.WebApp/Program.cs` — `AddSingleton` → `AddScoped`
 - `src/SentenceStudio.WebApp/Components/App.razor` — added `<script>` tag
+
 
 ### Impact
 
@@ -3090,21 +3395,25 @@ Any service or page that injects `IFilePickerService` will now get a working imp
 **Scope:** All team members  
 **Priority:** CRITICAL
 
+
 ### Directive
 
 > **Dev debug builds must NEVER talk to production servers. Always, always, always keep dev and production separate.**
 > 
 > Default configuration (appsettings.json) must point to local/dev endpoints. Production URLs should only be injected via environment variables or production-specific config overlays.
 
+
 ### Why
 
 Safety-critical principle: Prevents accidental data contamination, API abuse, and costs from unintended production calls during development. A developer running a local build for testing should never touch production systems unless explicitly deploying.
+
 
 ### Application
 
 This directive informed the design of:
 - `wash-safe-service-url-defaults` — localhost defaults, production config overlays
 - Service discovery architecture — Aspire provides dev URLs; production deploys use env vars
+
 
 ### For New Code
 
@@ -3114,12 +3423,14 @@ When adding a new service endpoint or configurable URL:
 3. **UI Indication:** Show environment badge (EnvironmentBadge.razor) — GREEN for local, ORANGE for dev tunnel, RED for production
 4. **Testing:** Always test debug builds against localhost, never against production
 
+
 ### References
 - `appsettings.json` — gitignored, local defaults
 - `appsettings.Production.json` — tracked, production URLs
 - `EnvironmentBadge.razor` — visual indicator of environment
 
 ---
+
 
 ### 3. Plan Narrative Data Model Architecture (2026-03-30)
 
@@ -3205,6 +3516,7 @@ The daily study plan previously showed users a simple list of activities with a 
 
 ---
 
+
 ### 4. Plan Narrative UI Structure (2026-03-30)
 
 **Status:** IMPLEMENTED  
@@ -3261,6 +3573,7 @@ Split the old progress summary card into two separate cards:
 - `src/SentenceStudio.UI/Pages/Index.razor` (Lines 144-176: split progress card; added `GetMediaTypeIcon()` helper)
 
 ---
+
 
 ### 5. PatchMissingColumnsAsync Must Run Unconditionally (2026-03-28)
 

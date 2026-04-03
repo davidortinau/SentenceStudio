@@ -400,3 +400,27 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 - Testing team should verify badge accuracy and responsive layout
 - Analytics can measure narrative engagement once UI visible to users
 
+### Issue #151: Incorrect responses NOT reverted on user override (2026-07-08)
+
+**Problem:** VocabQuiz double-recorded when user clicked "I was correct" after an incorrect answer. `CheckAnswer()` immediately persisted the incorrect attempt, then `OverrideAsCorrect()` called `RecordAttemptAsync` a second time with correct. Result: TotalAttempts double-counted, two VocabularyLearningContext records, mastery score permanently damaged (40% penalty not reversed), streak lost.
+
+**Fix:** Deferred recording pattern — `CheckAnswer()` creates a `pendingAttempt` field but does NOT call the service. `OverrideAsCorrect()` flips `pendingAttempt.WasCorrect = true`. Recording only happens when `NextItem()` or `DisposeAsync()` flushes via `RecordPendingAttemptAsync()`. Result: exactly one attempt per question, reflecting the user's final determination.
+
+**Key files:**
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` — deferred recording pattern in CheckAnswer/OverrideAsCorrect/NextItem/DisposeAsync
+- `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs` — RecordAttemptAsync unchanged (correct as-is)
+
+**Pattern:** When UI allows user correction after initial scoring, defer persistence until the correction window closes. Never record twice for the same question.
+
+
+---
+
+## 2026-04-03: Scoring Override Expiration Fix (Cross-Agent Summary)
+
+**Contribution:** Fixed #151 — Scoring override window expiration wasn't working. Added `ExpiresAt` timestamp; overrides now expire cleanly.
+
+**Related Work by Teammates:**
+- **Kaylee:** Fixed #150 (text validation too strict) + #149 (turn counter wrong). Both integrated FuzzyMatcher for natural phrase input and proper word tokenization.
+- **Jayne:** Currently end-to-end verification of all three fixes in running app.
+
+**Team Sync:** All three bug fixes are interlinked — vocabulary scoring, activity validation, and turn timing. Interdependencies verified; no conflicts.
