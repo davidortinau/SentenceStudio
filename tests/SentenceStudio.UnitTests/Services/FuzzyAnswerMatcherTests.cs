@@ -217,4 +217,44 @@ public class FuzzyMatcherTests
     {
         Assert.False(FuzzyMatcher.Evaluate(userAnswer!, expectedAnswer!).IsCorrect);
     }
+
+    // Tests for slash-separated alternatives (Issue #150)
+    [Theory]
+    [InlineData("remaining", "remaining/leftover", true, "First slash alternative")]
+    [InlineData("leftover", "remaining/leftover", true, "Second slash alternative")]
+    [InlineData("gone", "remaining/leftover", false, "Neither slash alternative")]
+    [InlineData("remaining leftover", "remaining/leftover", false, "Both words together not accepted")]
+    [InlineData("a", "a/b/c", true, "First of three alternatives")]
+    [InlineData("b", "a/b/c", true, "Middle of three alternatives")]
+    [InlineData("c", "a/b/c", true, "Last of three alternatives")]
+    public void Evaluate_ShouldHandleSlashSeparatedAlternatives(string userAnswer, string expectedAnswer, bool shouldMatch, string reason)
+    {
+        var result = FuzzyMatcher.Evaluate(userAnswer, expectedAnswer);
+        Assert.Equal(shouldMatch, result.IsCorrect);
+    }
+
+    // Captain's real-world examples from Issue #150
+    [Fact]
+    public void Issue150_ToBeHigh_ShouldMatchHigh()
+    {
+        // "to be high" = "high" when the word is a verb/adjective '높다'
+        Assert.True(FuzzyMatcher.Evaluate("high", "to be high").IsCorrect);
+        Assert.True(FuzzyMatcher.Evaluate("to be high", "high").IsCorrect);
+    }
+
+    [Fact]
+    public void Issue150_Remaining_ShouldMatchSlashAlternative()
+    {
+        // "remaining" = "remaining/leftover" when the answer contains at least one of them
+        Assert.True(FuzzyMatcher.Evaluate("remaining", "remaining/leftover").IsCorrect);
+        Assert.True(FuzzyMatcher.Evaluate("leftover", "remaining/leftover").IsCorrect);
+    }
+
+    [Fact]
+    public void Issue150_ToTake_ShouldMatchToTakeAPhoto()
+    {
+        // "to take" = "to take (a photo)" when the parenthetical is excluded
+        Assert.True(FuzzyMatcher.Evaluate("to take", "to take (a photo)").IsCorrect);
+        Assert.True(FuzzyMatcher.Evaluate("take", "to take (a photo)").IsCorrect);
+    }
 }

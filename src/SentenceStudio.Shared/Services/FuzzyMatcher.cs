@@ -36,6 +36,30 @@ public static class FuzzyMatcher
             return new FuzzyMatchResult { IsCorrect = false };
         }
 
+        // Handle slash-separated alternatives: "remaining/leftover" matches either word
+        if (expectedAnswer.Contains('/'))
+        {
+            var alternatives = expectedAnswer.Split('/')
+                .Select(a => a.Trim())
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .ToList();
+            foreach (var alt in alternatives)
+            {
+                var altResult = EvaluateSingle(userInput, alt);
+                if (altResult.IsCorrect)
+                {
+                    altResult.CompleteForm = expectedAnswer;
+                    return altResult;
+                }
+            }
+            // None of the alternatives matched — fall through to normal evaluation
+        }
+
+        return EvaluateSingle(userInput, expectedAnswer);
+    }
+
+    private static FuzzyMatchResult EvaluateSingle(string userInput, string expectedAnswer)
+    {
         var normalizedUser = NormalizeText(userInput);
         var normalizedExpected = NormalizeText(expectedAnswer);
         
