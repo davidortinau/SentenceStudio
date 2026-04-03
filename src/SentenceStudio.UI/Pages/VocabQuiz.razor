@@ -1,6 +1,7 @@
 @page "/vocab-quiz"
 @attribute [Authorize]
 @using Plugin.Maui.Audio
+@using SentenceStudio.Shared.Services
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -183,7 +184,7 @@ else
 @if (currentItem != null && !showSessionSummary)
 {
     <div class="activity-footer d-flex justify-content-between align-items-center">
-        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @TurnsPerRound</span>
+        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @roundWordOrder.Count</span>
         <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
     </div>
 }
@@ -254,6 +255,7 @@ else
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
+    private VocabularyAttempt? pendingAttempt;
 
 
     protected override async Task OnInitializedAsync()
@@ -439,7 +441,19 @@ else
         string answer = userMode == "MultipleChoice" ? userGuess : userInput;
         if (string.IsNullOrWhiteSpace(answer)) return;
 
-        isCorrect = string.Equals(answer.Trim(), correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+        // Use fuzzy matching for text mode; exact match for multiple choice (options are pre-set)
+        string? fuzzyCompleteForm = null;
+        if (userMode == "Text")
+        {
+            var matchResult = FuzzyMatcher.Evaluate(answer, correctAnswer);
+            isCorrect = matchResult.IsCorrect;
+            fuzzyCompleteForm = matchResult.CompleteForm;
+            // TODO: Log near-misses (IsCorrect == false but low Levenshtein distance) for future training data (#150)
+        }
+        else
+        {
+            isCorrect = string.Equals(answer.Trim(), correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
         showAnswer = true;
 
         // Update streaks
@@ -454,43 +468,27 @@ else
             else currentItem.QuizProductionStreak = 0;
         }
 
-        feedbackMessage = isCorrect ? "Correct!" : $"The answer is: {correctAnswer}";
+        if (isCorrect && fuzzyCompleteForm != null)
+            feedbackMessage = $"Correct! Full form: {fuzzyCompleteForm}";
+        else if (isCorrect)
+            feedbackMessage = "Correct!";
+        else
+            feedbackMessage = $"The answer is: {correctAnswer}";
 
-        // Record attempt
-        try
+        // Defer recording — allows user to override before persisting
+        pendingAttempt = new VocabularyAttempt
         {
-            var activeUserId = Preferences.Get("active_profile_id", "");
-            var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
-            {
-                VocabularyWordId = currentItem.Word.Id,
-                UserId = activeUserId,
-                Activity = "VocabularyQuiz",
-                InputMode = userMode,
-                WasCorrect = isCorrect,
-                DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
-                ContextType = "Isolated",
-                UserInput = answer,
-                ExpectedAnswer = correctAnswer,
-                ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
-            });
-
-            // Handle verification probe for Familiar words
-            if (updatedProgress.IsFamiliar)
-            {
-                await ProgressService.HandleVerificationProbeResultAsync(
-                    currentItem.Word.Id, activeUserId, isCorrect);
-                if (isCorrect)
-                    Toast.ShowSuccess("Confirmed! This one is solid.");
-                else
-                    Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
-            }
-
-            CacheService.InvalidateVocabSummary();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to record attempt");
-        }
+            VocabularyWordId = currentItem.Word.Id,
+            UserId = Preferences.Get("active_profile_id", ""),
+            Activity = "VocabularyQuiz",
+            InputMode = userMode,
+            WasCorrect = isCorrect,
+            DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
+            ContextType = "Isolated",
+            UserInput = answer,
+            ExpectedAnswer = correctAnswer,
+            ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
+        };
 
         totalTurns++;
         if (isCorrect) correctCount++;
@@ -526,10 +524,43 @@ else
     private async Task NextItem()
     {
         autoAdvanceCts?.Cancel();
+        await RecordPendingAttemptAsync();
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
         await LoadCurrentItem();
+    }
+
+    /// <summary>
+    /// Persists the deferred quiz attempt. Called once per question — either
+    /// as-is (incorrect) when advancing, or after the user overrides to correct.
+    /// </summary>
+    private async Task RecordPendingAttemptAsync()
+    {
+        if (pendingAttempt == null) return;
+        var attempt = pendingAttempt;
+        pendingAttempt = null;
+
+        try
+        {
+            var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
+
+            if (updatedProgress.IsFamiliar)
+            {
+                await ProgressService.HandleVerificationProbeResultAsync(
+                    attempt.VocabularyWordId, attempt.UserId, attempt.WasCorrect);
+                if (attempt.WasCorrect)
+                    Toast.ShowSuccess("Confirmed! This one is solid.");
+                else
+                    Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
+            }
+
+            CacheService.InvalidateVocabSummary();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to record attempt");
+        }
     }
 
     private async Task OverrideAsCorrect()
@@ -545,29 +576,12 @@ else
         else
             currentItem.QuizProductionStreak++;
 
-        // Re-record as correct
-        try
+        // Update the deferred attempt to correct and persist it
+        if (pendingAttempt != null)
         {
-            var activeUserId = Preferences.Get("active_profile_id", "");
-            await ProgressService.RecordAttemptAsync(new VocabularyAttempt
-            {
-                VocabularyWordId = currentItem.Word.Id,
-                UserId = activeUserId,
-                Activity = "VocabularyQuiz",
-                InputMode = userMode,
-                WasCorrect = true,
-                DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
-                ContextType = "Isolated",
-                UserInput = userMode == "MultipleChoice" ? userGuess : userInput,
-                ExpectedAnswer = correctAnswer,
-                ResponseTimeMs = 0
-            });
-            CacheService.InvalidateVocabSummary();
+            pendingAttempt.WasCorrect = true;
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to record override attempt");
-        }
+        await RecordPendingAttemptAsync();
 
         correctCount++;
         StateHasChanged();
@@ -684,14 +698,14 @@ else
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        await RecordPendingAttemptAsync();
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         autoAdvanceCts?.Cancel();
         autoAdvanceCts?.Dispose();
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
-        return ValueTask.CompletedTask;
     }
 }
