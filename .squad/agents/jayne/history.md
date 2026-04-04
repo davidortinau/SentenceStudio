@@ -159,3 +159,32 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 - #149: Turn counter accuracy with contractions, hyphenation, punctuation
 
 **Status:** Verifying all three fixes in running app end-to-end.
+
+### 2026-04-03 — Fix #152 Verification + Deployment
+
+**Status:** COMPLETE (code review + build) / PARTIAL (deployment)
+
+**Fix #152 — Daily Plan Completion Tracking: ✅ PASS**
+- `UpdatePlanItemProgressAsync` (ProgressService.cs:588-680) now checks `minutesSpent >= estimatedMinutes`
+- DB path: sets `IsCompleted = true`, `CompletedAt = DateTime.UtcNow` when threshold met
+- Cache path: mirrors logic with `item.IsCompleted || minutesSpent >= item.EstimatedMinutes`
+- `CompletedCount` recalculated from `plan.Items.Count(i => i.IsCompleted)` — avoids drift
+- Edge cases verified: exact threshold (✅ via `>=`), overshoot (✅ via `!existing.IsCompleted` guard), 0 items (✅ via `totalEstimatedMinutes > 0` divide-by-zero guard), missing DB record (✅ logs warning, skips), missing cache (✅ logs info, skips)
+- Note: `minutesSpent` in `UpdatePlanItemProgressAsync` is absolute (not delta) — matches ActivityTimerService caller
+- `MarkPlanItemCompleteAsync` exists but has no callers; `UpdatePlanItemProgressAsync` is the live code path via ActivityTimerService
+- Build: 0 errors (webapp + iOS), 219 unit tests passing
+
+**Deployment:**
+- Committed: `ed1ead8` on main — fixes #149, #150, #151, #152
+- Pushed to remote: ✅
+- Azure `azd deploy`: API ✅, cache ✅, db ❌ (volume env var `SERVICE_DB_VOLUME_...` missing — likely azd version mismatch or infra config drift, needs `azd up` or infra update)
+- iOS device install: ❌ device locked (UDID 00008130-001944C224E1401C) — .app built successfully at `src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`, needs unlock + retry
+- CI workflow triggers on push to main — should be running
+
+## Learnings
+
+- `UpdatePlanItemProgressAsync` uses absolute minutes (from ActivityTimerService), `MarkPlanItemCompleteAsync` accumulates delta — different semantics, both in same file
+- `azd deploy` can partially succeed — API + cache deployed while db failed due to volume config
+- iOS device install requires unlocked device; error is `kAMDMobileImageMounterDeviceLocked`
+- CI workflow at `.github/workflows/ci.yml` triggers on push to main
+- Azure deploy uses `azure.yaml` pointing at the Aspire AppHost project
