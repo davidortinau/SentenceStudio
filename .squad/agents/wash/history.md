@@ -9,6 +9,10 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- When a model property is added, you MUST generate BOTH PostgreSQL and SQLite migrations — PatchMissingColumnsAsync in SyncService only covers SQLite mobile, not the Azure PostgreSQL database
+- Both API (Program.cs:213) and WebApp (Program.cs:151) call `MigrateAsync()` on startup — deploying new migration code auto-applies it on next container restart
+- NarrativeJson was added to DailyPlanCompletion model for plan narrative storage but the PG migration was missed — fixed in commit aa8dd3c
+
 - appsettings.json is gitignored and local-only; appsettings.Production.json + appsettings.Development.json are tracked
 - Default service URLs in appsettings.json MUST be localhost-only; production Azure URLs live ONLY in appsettings.Production.json
 - EnvironmentBadge shows RED pulsing "⚠ PRODUCTION" when azurecontainerapps.io URLs detected; GREEN "LOCAL" for localhost; ORANGE for dev tunnels
