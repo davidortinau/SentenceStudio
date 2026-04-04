@@ -612,9 +612,20 @@ public class ProgressService : IProgressService
         {
             existing.MinutesSpent = minutesSpent;
             existing.UpdatedAt = DateTime.UtcNow;
+
+            // Check for completion: mark complete when time spent meets or exceeds the estimate
+            if (!existing.IsCompleted && minutesSpent >= existing.EstimatedMinutes)
+            {
+                existing.IsCompleted = true;
+                existing.CompletedAt = DateTime.UtcNow;
+                _logger.LogInformation("🎉 Plan item '{PlanItemId}' completed! {MinutesSpent}/{EstimatedMinutes} min",
+                    planItemId, minutesSpent, existing.EstimatedMinutes);
+            }
+
             await db.SaveChangesAsync(ct);
             if (_syncService != null) await _syncService.TriggerSyncAsync();
-            _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes and synced", minutesSpent);
+            _logger.LogDebug("💾 Updated database record to {MinutesSpent} minutes (completed={IsCompleted}) and synced",
+                minutesSpent, existing.IsCompleted);
         }
         else
         {
@@ -631,23 +642,35 @@ public class ProgressService : IProgressService
             var item = plan.Items.FirstOrDefault(i => i.Id == planItemId);
             if (item != null)
             {
-                var updatedItem = item with { MinutesSpent = minutesSpent };
+                // Check completion in cache too
+                var isNowComplete = item.IsCompleted || minutesSpent >= item.EstimatedMinutes;
+                var updatedItem = item with
+                {
+                    MinutesSpent = minutesSpent,
+                    IsCompleted = isNowComplete,
+                    CompletedAt = isNowComplete ? (item.CompletedAt ?? DateTime.UtcNow) : null
+                };
                 var itemIndex = plan.Items.IndexOf(item);
                 if (itemIndex >= 0)
                 {
                     plan.Items[itemIndex] = updatedItem;
                 }
 
-                // Recalculate completion percentage
+                // Recalculate completion percentage and completed count
                 var totalMinutesSpent = plan.Items.Sum(i => i.MinutesSpent);
                 var totalEstimatedMinutes = plan.Items.Sum(i => i.EstimatedMinutes);
                 var completionPercentage = totalEstimatedMinutes > 0
                     ? Math.Min(100, (totalMinutesSpent / (double)totalEstimatedMinutes) * 100)
                     : 0;
 
-                var updatedPlan = plan with { CompletionPercentage = completionPercentage };
+                var updatedPlan = plan with
+                {
+                    CompletionPercentage = completionPercentage,
+                    CompletedCount = plan.Items.Count(i => i.IsCompleted)
+                };
                 _cache.UpdateTodaysPlan(updatedPlan);
-                _logger.LogDebug("✅ Cache updated - {Percentage:F0}% complete", completionPercentage);
+                _logger.LogDebug("✅ Cache updated - {Completed}/{Total} complete, {Percentage:F0}%",
+                    updatedPlan.CompletedCount, updatedPlan.TotalCount, completionPercentage);
             }
         }
         else

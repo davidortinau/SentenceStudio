@@ -117,20 +117,24 @@ public class VocabularyProgressTests
 
     #region Legacy Status Tests
     [Theory]
-    [InlineData(0f, LearningStatus.Unknown)]
-    [InlineData(0.3f, LearningStatus.Learning)]
-    [InlineData(0.7f, LearningStatus.Learning)]
-    [InlineData(0.8f, LearningStatus.Known)]
-    [InlineData(0.95f, LearningStatus.Known)]
-    [InlineData(1.0f, LearningStatus.Known)]
+    [InlineData(0f, 0, LearningStatus.Unknown)]
+    [InlineData(0.3f, 0, LearningStatus.Learning)]
+    [InlineData(0.7f, 0, LearningStatus.Learning)]
+    [InlineData(0.8f, 2, LearningStatus.Learning)]    // Below 0.85 threshold even with production
+    [InlineData(0.85f, 2, LearningStatus.Known)]      // At threshold with production
+    [InlineData(0.95f, 2, LearningStatus.Known)]
+    [InlineData(1.0f, 2, LearningStatus.Known)]
+    [InlineData(0.95f, 0, LearningStatus.Learning)]   // High mastery but no production → not known
     public void Status_ShouldReturnCorrectLearningStatus_BasedOnMasteryScore(
         float masteryScore,
+        int productionInStreak,
         LearningStatus expectedStatus)
     {
         // Arrange
         var progress = new VocabularyProgress
         {
-            MasteryScore = masteryScore
+            MasteryScore = masteryScore,
+            ProductionInStreak = productionInStreak
         };
 
         // Act
@@ -138,7 +142,7 @@ public class VocabularyProgressTests
 
         // Assert
         actualStatus.Should().Be(expectedStatus,
-            $"mastery score {masteryScore:F2} should map to {expectedStatus}");
+            $"mastery score {masteryScore:F2} with production {productionInStreak} should map to {expectedStatus}");
     }
 
     [Theory]
@@ -297,7 +301,7 @@ public class VocabularyProgressTests
         progress.CurrentPhase.Should().Be(LearningPhase.Recognition);
         progress.ReviewInterval.Should().Be(1);
         progress.EaseFactor.Should().Be(2.5f);
-        progress.UserId.Should().Be(1);
+        progress.UserId.Should().BeEmpty();
         progress.Status.Should().Be(LearningStatus.Unknown);
         progress.Accuracy.Should().Be(0f);
 

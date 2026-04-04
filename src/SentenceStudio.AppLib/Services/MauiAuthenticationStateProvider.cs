@@ -34,9 +34,59 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
+        Console.WriteLine($"[AUTH-DIAG] GetAuthenticationStateAsync called. IsSignedIn={_authService.IsSignedIn}");
+
+#if DEBUG
+        // Persistence sanity check
+        var bootCount = Microsoft.Maui.Storage.Preferences.Default.Get("_auth_diag_boot_count", 0);
+        bootCount++;
+        Microsoft.Maui.Storage.Preferences.Default.Set("_auth_diag_boot_count", bootCount);
+        Console.WriteLine($"[AUTH-DIAG] Boot count (Preferences persistence test): {bootCount}");
+        
+        // Also test if DevFlow-set prefs are visible
+        var testEmail = Microsoft.Maui.Storage.Preferences.Default.Get("test_auto_login_email", "");
+        var testPassword = Microsoft.Maui.Storage.Preferences.Default.Get("test_auto_login_password", "");
+        // If DevFlow prefs aren't visible, use hardcoded test creds (one-shot via flag)
+        var didAutoLogin = Microsoft.Maui.Storage.Preferences.Default.Get("_auth_diag_did_autologin", false);
+        if (string.IsNullOrEmpty(testEmail) && !didAutoLogin)
+        {
+            testEmail = "testsailor@test.local";
+            testPassword = "TestPass123!";
+            Console.WriteLine("[AUTH-DIAG] Using hardcoded test credentials (one-shot)");
+        }
+        Console.WriteLine($"[AUTH-DIAG] Test prefs: email='{testEmail}' pw_len={testPassword?.Length ?? 0}");
+        if (!string.IsNullOrEmpty(testEmail) && !string.IsNullOrEmpty(testPassword) && !_authService.IsSignedIn)
+        {
+            Console.WriteLine($"[AUTH-DIAG] Auto-login with test credentials: {testEmail}");
+            Microsoft.Maui.Storage.Preferences.Default.Remove("test_auto_login_email");
+            Microsoft.Maui.Storage.Preferences.Default.Remove("test_auto_login_password");
+            Microsoft.Maui.Storage.Preferences.Default.Set("_auth_diag_did_autologin", true);
+            try
+            {
+                var autoResult = await _authService.SignInAsync(testEmail, testPassword);
+                if (autoResult is not null)
+                {
+                    Console.WriteLine("[AUTH-DIAG] Auto-login succeeded!");
+                    _currentUser = CreateClaimsPrincipalFromToken(autoResult.AccessToken);
+                    _lastKnownUserName = _authService.UserName;
+                    return new AuthenticationState(_currentUser);
+                }
+                else
+                {
+                    Console.WriteLine("[AUTH-DIAG] Auto-login returned null");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AUTH-DIAG] Auto-login failed: {ex.Message}");
+            }
+        }
+#endif
+
         // Fast path: already signed in with a valid cached token
         if (_authService.IsSignedIn)
         {
+            Console.WriteLine("[AUTH-DIAG] Fast path: already signed in");
             _currentUser = CreateClaimsPrincipalFromToken(
                 await _authService.GetAccessTokenAsync(Array.Empty<string>())
             );
@@ -48,29 +98,29 @@ public class MauiAuthenticationStateProvider : AuthenticationStateProvider
         var hasSession = false;
         try
         {
+            Console.WriteLine("[AUTH-DIAG] Checking HasStoredSessionAsync...");
             hasSession = await _authService.HasStoredSessionAsync();
+            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync returned {hasSession}");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to check for stored session");
+            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync THREW: {ex.GetType().Name}: {ex.Message}");
         }
 
         if (!hasSession)
         {
-            // No stored session at all — user must log in
-            _logger.LogInformation("No stored session found, user must log in");
+            Console.WriteLine("[AUTH-DIAG] No stored session, returning unauthenticated");
             _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
             _lastKnownUserName = null;
             return new AuthenticationState(_currentUser);
         }
 
-        // We have a refresh token — return an optimistic authenticated state
-        // immediately so the user isn't bounced to login, then refresh in background
-        _logger.LogInformation("Stored session found, returning optimistic auth state while refreshing");
+        Console.WriteLine("[AUTH-DIAG] Session found! Creating optimistic principal");
 
         // Create a minimal authenticated principal so AuthorizeRouteView doesn't redirect
         var optimisticPrincipal = CreateOptimisticPrincipal();
         _currentUser = optimisticPrincipal;
+        Console.WriteLine($"[AUTH-DIAG] Optimistic principal IsAuthenticated={optimisticPrincipal.Identity?.IsAuthenticated}");
 
         // Kick off the actual refresh in the background
         _ = RefreshInBackgroundAsync();

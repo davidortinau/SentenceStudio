@@ -63,7 +63,7 @@ After every substantial work session:
    - Write the commit message to a temp file, then commit with `-F`:
      ```
      $msg = @"
-     docs(squad): {brief summary}
+     docs(ai-team): {brief summary}
 
      Session: {timestamp}-{topic}
      Requested by: {user name}

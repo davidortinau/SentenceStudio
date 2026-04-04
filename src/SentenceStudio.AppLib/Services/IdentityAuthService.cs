@@ -48,10 +48,20 @@ public sealed class IdentityAuthService : IAuthService
     /// <inheritdoc/>
     public async Task<bool> HasStoredSessionAsync()
     {
+        Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync: IsSignedIn={IsSignedIn}");
         if (IsSignedIn)
             return true;
-        var refreshToken = await _secureStorage.GetAsync(RefreshKey);
-        return !string.IsNullOrEmpty(refreshToken);
+        try
+        {
+            var refreshToken = await _secureStorage.GetAsync(RefreshKey);
+            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync: refreshToken={(refreshToken is null ? "NULL" : refreshToken.Length > 0 ? $"exists({refreshToken.Length} chars)" : "EMPTY")}");
+            return !string.IsNullOrEmpty(refreshToken);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync EXCEPTION: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     /// <summary>

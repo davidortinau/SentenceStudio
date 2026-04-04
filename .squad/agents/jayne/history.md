@@ -109,6 +109,44 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 2. **Two sims already booted**: iPhone 17 Pro and iPhone 11 both on iOS 26.2. Used iPhone 17 Pro to avoid conflicts with Comet apps on the other sim.
 3. **Existing agents on broker**: Two Comet apps (v0.18.0) were already registered. SentenceStudio correctly registered alongside them at v0.24.0-dev.
 
+### 2026-04-03 — Verification of Fixes #149, #150, #151
+
+**Status:** CODE REVIEW COMPLETE (Aspire live E2E blocked by macOS Keychain cert prompt)
+
+**Fix #151 — Scoring override revert (commit 58a8364): ✅ PASS**
+- VocabQuiz.razor refactored to defer attempt persistence via `pendingAttempt` field
+- `CheckAnswer()` builds attempt in memory but does NOT persist
+- `OverrideAsCorrect()` flips `pendingAttempt.WasCorrect = true` before calling `RecordPendingAttemptAsync()`
+- `NextItem()` flushes pending attempt (no-op if already flushed by override)
+- `DisposeAsync()` flushes any unflushed attempt (navigation safety net)
+- Result: exactly ONE VocabularyLearningContext record per question. No double-counting possible.
+- Streak logic: reset to 0 on wrong → incremented to 1 on override. Correct behavior.
+- Webapp build: 0 errors ✅
+
+**Fix #150 — Validation too strict (commit 81eaf2f): ✅ PASS**
+- FuzzyMatcher.Evaluate() gains slash-alternative handler before EvaluateSingle dispatch
+- "remaining/leftover" → split by `/` → try each alt via EvaluateSingle → first match wins
+- Parenthetical stripping ("to take (a photo)" → "to take") + verb prefix ("to be high" → "be high") already handled by NormalizeText
+- Word boundary check: "high" matches "to be high" via allUserWordsPresent
+- Unit tests cover all three Captain-reported scenarios + theory tests for slash alternatives
+- Tests couldn't execute due to pre-existing compilation errors in SearchQueryParserTests (namespace mismatch) — NOT caused by this fix
+
+**Fix #149 — Turn count wrong (in commit 58a8364): ✅ PASS**
+- Footer changed from `@TurnsPerRound` (constant 10) to `@roundWordOrder.Count` (actual pool size)
+- roundWordOrder built from `batchPool.Take(ActiveWordCount)` — if fewer than 10 words remain, count reflects reality
+- Round termination guard `currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound` still enforces both bounds
+- When pool is small (e.g., 4 words), counter shows "1 / 4" not "1 / 10" ✅
+
+**Pre-existing issues noted (not blockers):**
+- Unit test project fails to compile due to SearchQueryParserTests namespace mismatch (`SentenceStudio.Shared.Services` vs `SentenceStudio.Services`) and VocabularyProgressTests type error
+- Aspire `aspire run` hangs on "Checking certificates..." — likely macOS Keychain prompt
+- Scriban NuGet has known critical/high/moderate vulnerabilities (6.5.2)
+
+**Learnings:**
+- `pendingAttempt` pattern for deferred persistence is a clean approach for override flows — reusable for other activities
+- FuzzyMatcher slash handling falls through to EvaluateSingle on full string if no alternative matches — slash becomes punctuation removal, concatenating words. Acceptable edge case.
+- `@using SentenceStudio.Shared.Services` must be added to any Razor page using FuzzyMatcher — it's NOT in _Imports.razor
+
 ---
 
 ## 2026-04-03: Vocabulary Quiz Fixes Verification (In Progress)

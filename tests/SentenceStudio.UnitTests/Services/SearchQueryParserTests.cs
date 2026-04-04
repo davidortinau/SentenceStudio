@@ -1,6 +1,6 @@
 using Xunit;
 using FluentAssertions;
-using SentenceStudio.Shared.Services;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.UnitTests.Services;

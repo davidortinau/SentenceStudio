@@ -65,6 +65,9 @@
 - **SaveResourceAsync cascade insertion bug** — When `db.LearningResources.Add(resource)` is called with pre-saved VocabularyWords in `resource.Vocabulary`, EF Core cascade-inserts them in the new DbContext scope → PG 23505. Fix: clear Vocabulary before Add, re-associate after SaveChanges.
 - **Starter resource creation needs duplicate guard** — `StarterResourceExistsAsync(targetLanguage)` checks by "starter" tag + language + user. Both Index.razor and Resources.razor call it before creating.
 - **LearningResource and VocabularyWord auto-generate GUIDs** in property initializers (`= Guid.NewGuid().ToString()`) — IDs are NOT hardcoded, but cascade insertion re-uses objects across DbContext scopes
+- **UpdatePlanItemProgressAsync is the ONLY method called by the timer** — `MarkPlanItemCompleteAsync` exists but is never invoked by any activity page or the timer; all completion logic must live in `UpdatePlanItemProgressAsync`
+- **ActivityTimerService.SaveProgressAsync → UpdatePlanItemProgressAsync** is the sole path for persisting activity time; it fires every minute tick and on Pause()
+- **Activity pages GoBack() pattern**: `Pause()` → `StopSession()` → `NavigateTo("/")` — no explicit completion signal is sent; completion must be detected from accumulated time vs estimate
 
 ## Core Context (Current)
 
