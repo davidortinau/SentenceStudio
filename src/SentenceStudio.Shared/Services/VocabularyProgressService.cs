@@ -145,7 +145,10 @@ public class VocabularyProgressService : IVocabularyProgressService
             !progress.MasteredAt.HasValue)
         {
             progress.MasteredAt = DateTime.Now;
-            _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}",
+            // Override SRS schedule: Known words should not re-appear for a long time
+            progress.ReviewInterval = 60;
+            progress.NextReviewDate = DateTime.Now.AddDays(60);
+            _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in 60 days.",
                 progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak);
         }
 
