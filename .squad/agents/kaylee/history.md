@@ -492,3 +492,27 @@ Completed full-stack UI implementation of Plan Narrative feature and coordinated
 - **Jayne:** Currently end-to-end verification of all three fixes in running app.
 
 **Team Sync:** All three bug fixes are interlinked. Interdependencies verified; no conflicts. FuzzyMatcher now core validation component.
+
+### Issue #152: Daily plan progress stays at 0/2 (2026-07-14)
+
+**Root Cause Analysis:**
+Three defense-in-depth failures combined to cause plan progress never updating:
+1. `UpdatePlanItemProgressAsync` silently dropped saves when DB record was missing (just logged, no record creation)
+2. `EnrichPlanWithCompletionDataAsync` and `ReconstructPlanFromDatabase` relied solely on `IsCompleted` flag from DB without checking time-based completion
+3. `GenerateFallbackPlanAsync` didn't call `InitializePlanCompletionRecordsAsync`, leaving fallback plans without DB records
+4. Fire-and-forget save pattern in `Pause()` can race with dashboard reload, enrichment overwrites cache with stale DB data
+
+**Fix Applied (4 changes in ProgressService.cs):**
+1. `UpdatePlanItemProgressAsync` else branch: now creates a new DailyPlanCompletion record from cached plan data (with duplicate protection)
+2. `EnrichPlanWithCompletionDataAsync`: uses self-healing logic — `effectiveCompleted = IsCompleted || (MinutesSpent >= EstimatedMinutes)` — so even if the DB flag is stale, time-based completion is detected
+3. `ReconstructPlanFromDatabase`: same self-healing for plan reconstruction path
+4. `GenerateFallbackPlanAsync`: now calls `InitializePlanCompletionRecordsAsync` to create DB records
+
+**Key Architecture Insights:**
+- `ActivityTimerService.Pause()` fires `SaveProgressAsync()` as fire-and-forget — dashboard can load before save commits
+- Cache TTL resets on every `UpdateTodaysPlan` but `EnrichPlanWithCompletionDataAsync` overwrites cache with DB data
+- `MarkPlanItemCompleteAsync` is never called by any activity — all completion detection is via `UpdatePlanItemProgressAsync`
+- `DailyPlanCompletion` records must exist before timer saves can persist — `InitializePlanCompletionRecordsAsync` is critical
+
+**Key File:**
+- `src/SentenceStudio.Shared/Services/Progress/ProgressService.cs` — all 4 fixes in this file
