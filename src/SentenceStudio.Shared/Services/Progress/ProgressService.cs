@@ -350,6 +350,7 @@ public class ProgressService : IProgressService
         );
 
         plan = await EnrichPlanWithCompletionDataAsync(plan, ct);
+        await InitializePlanCompletionRecordsAsync(plan, ct);
         await CachePlanAsync(plan, ct);
         return plan;
     }
@@ -629,8 +630,52 @@ public class ProgressService : IProgressService
         }
         else
         {
-            _logger.LogDebug("⚠️ No DailyPlanCompletion record found for planItemId='{PlanItemId}' on {Today:yyyy-MM-dd}", planItemId, today);
-            _logger.LogDebug("💡 This means the plan wasn't initialized properly");
+            _logger.LogDebug("⚠️ No DailyPlanCompletion record found for planItemId='{PlanItemId}' on {Today:yyyy-MM-dd} — creating one", planItemId, today);
+
+            // Create a new record from cached plan data to prevent data loss
+            var cachedPlan = _cache.GetTodaysPlan();
+            var planItem = cachedPlan?.Items.FirstOrDefault(i => i.Id == planItemId);
+            if (planItem != null)
+            {
+                var isNowComplete = minutesSpent >= planItem.EstimatedMinutes;
+                var completion = new DailyPlanCompletion
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    UserProfileId = userProfile.Id,
+                    Date = today,
+                    PlanItemId = planItemId,
+                    ActivityType = planItem.ActivityType.ToString(),
+                    ResourceId = planItem.ResourceId,
+                    SkillId = planItem.SkillId,
+                    IsCompleted = isNowComplete,
+                    CompletedAt = isNowComplete ? DateTime.UtcNow : null,
+                    MinutesSpent = minutesSpent,
+                    EstimatedMinutes = planItem.EstimatedMinutes,
+                    Priority = planItem.Priority,
+                    TitleKey = planItem.TitleKey,
+                    DescriptionKey = planItem.DescriptionKey,
+                    Rationale = "",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                try
+                {
+                    await db.DailyPlanCompletions.AddAsync(completion, ct);
+                    await db.SaveChangesAsync(ct);
+                    if (_syncService != null) await _syncService.TriggerSyncAsync();
+                    _logger.LogInformation("✅ Created missing DailyPlanCompletion for '{PlanItemId}' ({MinutesSpent} min, completed={IsCompleted})",
+                        planItemId, minutesSpent, isNowComplete);
+                }
+                catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _logger.LogDebug("⏭️ Duplicate record detected for '{PlanItemId}' — likely concurrent save, safe to ignore", planItemId);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("❌ Cannot create completion record — plan item '{PlanItemId}' not found in cache", planItemId);
+            }
         }
 
         // Also update cache if it exists (optional, for UI responsiveness)
@@ -714,11 +759,16 @@ public class ProgressService : IProgressService
         {
             if (completionDict.TryGetValue(item.Id, out var completion))
             {
-                _logger.LogDebug("  ✅ {TitleKey}: {MinutesSpent} min, completed={IsCompleted}", item.TitleKey, completion.MinutesSpent, completion.IsCompleted);
+                // Self-healing: if time spent meets/exceeds estimate, treat as complete
+                // even if IsCompleted flag wasn't set (e.g., due to save race condition)
+                var effectiveCompleted = completion.IsCompleted
+                    || (completion.EstimatedMinutes > 0 && completion.MinutesSpent >= completion.EstimatedMinutes);
+                _logger.LogDebug("  ✅ {TitleKey}: {MinutesSpent} min, dbCompleted={DbCompleted}, effectiveCompleted={EffectiveCompleted}",
+                    item.TitleKey, completion.MinutesSpent, completion.IsCompleted, effectiveCompleted);
                 return item with
                 {
-                    IsCompleted = completion.IsCompleted,
-                    CompletedAt = completion.CompletedAt,
+                    IsCompleted = effectiveCompleted,
+                    CompletedAt = completion.CompletedAt ?? (effectiveCompleted ? DateTime.UtcNow : null),
                     MinutesSpent = completion.MinutesSpent
                 };
             }
@@ -1039,6 +1089,10 @@ public class ProgressService : IProgressService
             var route = PlanConverter.GetRouteForActivity(activityType);
             var routeParams = PlanConverter.BuildRouteParameters(activityType, completion.ResourceId, completion.SkillId);
 
+            // Self-healing: if time spent meets/exceeds estimate, treat as complete
+            var effectiveCompleted = completion.IsCompleted
+                || (completion.EstimatedMinutes > 0 && completion.MinutesSpent >= completion.EstimatedMinutes);
+
             var planItem = new DailyPlanItem(
                 Id: completion.PlanItemId,
                 TitleKey: completion.TitleKey,
@@ -1046,8 +1100,8 @@ public class ProgressService : IProgressService
                 ActivityType: activityType,
                 EstimatedMinutes: completion.EstimatedMinutes,
                 Priority: completion.Priority,
-                IsCompleted: completion.IsCompleted,
-                CompletedAt: completion.CompletedAt,
+                IsCompleted: effectiveCompleted,
+                CompletedAt: completion.CompletedAt ?? (effectiveCompleted ? DateTime.UtcNow : null),
                 Route: route,
                 RouteParameters: routeParams,
                 ResourceId: completion.ResourceId,
