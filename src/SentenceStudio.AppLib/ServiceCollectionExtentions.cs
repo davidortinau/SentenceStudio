@@ -82,6 +82,8 @@ public static class ServiceCollectionExtentions
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        services.AddHttpClient<IFeedbackApiClient, FeedbackApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddSingleton<IAiGatewayClient, AiGatewayClient>();
         services.AddSingleton<ISpeechGatewayClient, SpeechGatewayClient>();
     }

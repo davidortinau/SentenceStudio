@@ -1,0 +1,332 @@
+@page "/feedback"
+@attribute [Authorize]
+@using System.Reflection
+@using SentenceStudio.Contracts.Feedback
+@using SentenceStudio.Services.Api
+@inject NavigationManager Nav
+@inject ToastService Toast
+@inject ILogger<Feedback> Logger
+
+<PageHeader Title="Feedback" />
+
+<p class="ss-body2 text-secondary-ss mb-3">Help us improve SentenceStudio</p>
+
+@if (currentState == PageState.Form)
+{
+    <div class="card card-ss p-4 mb-3">
+        <h5 class="ss-title3 mb-3">What kind of feedback?</h5>
+
+        <div class="btn-group w-100 mb-4" role="group">
+            <input type="radio" class="btn-check" name="feedbackType" id="typeAutoDetect"
+                   checked="@(selectedType == "auto-detect")"
+                   @onchange="@(() => selectedType = "auto-detect")" />
+            <label class="btn btn-outline-secondary" for="typeAutoDetect">Auto-detect</label>
+
+            <input type="radio" class="btn-check" name="feedbackType" id="typeBug"
+                   checked="@(selectedType == "bug")"
+                   @onchange="@(() => selectedType = "bug")" />
+            <label class="btn btn-outline-secondary" for="typeBug">
+                <i class="bi bi-bug me-1"></i> Bug Report
+            </label>
+
+            <input type="radio" class="btn-check" name="feedbackType" id="typeFeature"
+                   checked="@(selectedType == "enhancement")"
+                   @onchange="@(() => selectedType = "enhancement")" />
+            <label class="btn btn-outline-secondary" for="typeFeature">
+                <i class="bi bi-lightbulb me-1"></i> Feature Request
+            </label>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss" for="feedbackDescription">
+                Description
+            </label>
+            <textarea class="form-control form-control-ss" id="feedbackDescription"
+                      rows="6" @bind="description"
+                      placeholder="Describe the issue or feature you'd like..."></textarea>
+        </div>
+
+        <p class="ss-caption1 text-secondary-ss mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Your feedback will be posted as a public GitHub issue on the SentenceStudio repository.
+        </p>
+
+        <button class="btn btn-ss-primary" type="button"
+                @onclick="PreviewFeedback"
+                disabled="@(!CanPreview)">
+            @if (isPreviewing)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <span>Generating preview...</span>
+            }
+            else
+            {
+                <i class="bi bi-eye me-1"></i>
+                <span>Preview</span>
+            }
+        </button>
+    </div>
+}
+else if (currentState == PageState.Preview)
+{
+    <div class="card card-ss p-4 mb-3">
+        <div class="d-flex align-items-start justify-content-between mb-3">
+            <div>
+                <h5 class="ss-title3 mb-1">@previewTitle</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    @foreach (var label in previewLabels)
+                    {
+                        <span class="badge bg-secondary">@label</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (aiEnrichmentFailed)
+        {
+            <div class="alert alert-warning ss-body2 mb-3">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                AI enrichment unavailable — your feedback will be submitted as-is.
+            </div>
+        }
+
+        <div class="border rounded p-3 mb-3 bg-body-tertiary">
+            @((MarkupString)previewBodyHtml)
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-ss-secondary" type="button" @onclick="BackToForm"
+                    disabled="@isSubmitting">
+                <i class="bi bi-pencil me-1"></i> Edit
+            </button>
+            <button class="btn btn-ss-primary" type="button" @onclick="SubmitFeedback"
+                    disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    <span>Submitting...</span>
+                }
+                else
+                {
+                    <i class="bi bi-send me-1"></i>
+                    <span>Submit</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+else if (currentState == PageState.Success)
+{
+    <div class="card card-ss p-4 mb-3 text-center">
+        <div class="mb-3">
+            <i class="bi bi-check-circle fs-1 text-success"></i>
+        </div>
+        <h5 class="ss-title3 mb-2">Feedback submitted successfully!</h5>
+        <p class="ss-body2 text-secondary-ss mb-1">@submittedTitle</p>
+        @if (!string.IsNullOrEmpty(submittedIssueUrl))
+        {
+            <p class="ss-body2 mb-3">
+                <a href="@submittedIssueUrl" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> View on GitHub
+                </a>
+            </p>
+        }
+        <button class="btn btn-ss-primary" type="button" @onclick="ResetForm">
+            <i class="bi bi-plus-lg me-1"></i> Submit Another
+        </button>
+    </div>
+}
+
+@code {
+    [Inject] private IFeedbackApiClient FeedbackApi { get; set; } = default!;
+
+    private enum PageState { Form, Preview, Success }
+
+    private PageState currentState = PageState.Form;
+    private string selectedType = "auto-detect";
+    private string description = "";
+    private bool isPreviewing;
+    private bool isSubmitting;
+
+    // Preview state
+    private string previewTitle = "";
+    private string previewBodyHtml = "";
+    private string[] previewLabels = [];
+    private string previewToken = "";
+    private bool aiEnrichmentFailed;
+
+    // Success state
+    private string submittedTitle = "";
+    private string submittedIssueUrl = "";
+
+    private bool CanPreview => !isPreviewing && !string.IsNullOrWhiteSpace(description);
+
+    private async Task PreviewFeedback()
+    {
+        if (!CanPreview) return;
+
+        isPreviewing = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new FeedbackRequest
+            {
+                Description = description.Trim(),
+                FeedbackType = selectedType == "auto-detect" ? null : selectedType,
+                ClientMetadata = BuildClientMetadata()
+            };
+
+            var preview = await FeedbackApi.PreviewAsync(request);
+
+            previewTitle = !string.IsNullOrWhiteSpace(preview.Title) ? preview.Title : "Feedback";
+            previewLabels = preview.Labels ?? [];
+            previewToken = preview.PreviewToken ?? "";
+            aiEnrichmentFailed = string.IsNullOrWhiteSpace(preview.PreviewToken);
+
+            var body = !string.IsNullOrWhiteSpace(preview.FormattedBody)
+                ? preview.FormattedBody
+                : description;
+            previewBodyHtml = ConvertMarkdownToHtml(body);
+
+            currentState = PageState.Preview;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to preview feedback");
+            Toast.ShowError("Failed to generate preview. Please try again.");
+        }
+        finally
+        {
+            isPreviewing = false;
+        }
+    }
+
+    private async Task SubmitFeedback()
+    {
+        if (isSubmitting || string.IsNullOrEmpty(previewToken)) return;
+
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new FeedbackSubmitRequest { PreviewToken = previewToken };
+            var result = await FeedbackApi.SubmitAsync(request);
+
+            submittedTitle = result.Title;
+            submittedIssueUrl = result.IssueUrl;
+            currentState = PageState.Success;
+            Toast.ShowSuccess("Feedback submitted successfully!");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to submit feedback");
+            Toast.ShowError("Failed to submit feedback. Please try again.");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void BackToForm()
+    {
+        currentState = PageState.Form;
+    }
+
+    private void ResetForm()
+    {
+        description = "";
+        selectedType = "auto-detect";
+        previewTitle = "";
+        previewBodyHtml = "";
+        previewLabels = [];
+        previewToken = "";
+        aiEnrichmentFailed = false;
+        submittedTitle = "";
+        submittedIssueUrl = "";
+        currentState = PageState.Form;
+    }
+
+    private ClientMetadata BuildClientMetadata()
+    {
+        var asm = typeof(Feedback).Assembly;
+        var version = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? asm.GetName().Version?.ToString() ?? "unknown";
+
+        var baseUri = Nav.BaseUri;
+        var platform = baseUri.StartsWith("app://") || baseUri.Contains("0.0.0.0")
+            ? "native"
+            : "web";
+
+        var currentRoute = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+
+        return new ClientMetadata
+        {
+            AppVersion = version,
+            Platform = platform,
+            CurrentRoute = currentRoute,
+            Timestamp = DateTime.UtcNow
+        };
+    }
+
+    private static string ConvertMarkdownToHtml(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+
+        var html = markdown
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;");
+
+        // Headers
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"^### (.+)$", "<h6 class=\"ss-title3 mt-3 mb-2\">$1</h6>",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"^## (.+)$", "<h5 class=\"ss-title3 mt-3 mb-2\">$1</h5>",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // Bold and italic
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
+
+        // Lists
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"^- (.+)$", "<li class=\"ss-body2\">$1</li>",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"^(\d+)\. (.+)$", "<li class=\"ss-body2\">$2</li>",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // Wrap consecutive <li> in <ul>
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"(<li[^>]*>.*?</li>\s*)+",
+            m => $"<ul class=\"mb-2\">{m.Value}</ul>",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Paragraphs — plain text lines become <p>
+        var lines = html.Split('\n');
+        var result = new System.Text.StringBuilder();
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed)
+                && !trimmed.StartsWith("<h")
+                && !trimmed.StartsWith("<li")
+                && !trimmed.StartsWith("<ul")
+                && !trimmed.StartsWith("</ul"))
+            {
+                result.AppendLine($"<p class=\"ss-body2 mb-2\">{trimmed}</p>");
+            }
+            else
+            {
+                result.AppendLine(line);
+            }
+        }
+
+        return result.ToString();
+    }
+}

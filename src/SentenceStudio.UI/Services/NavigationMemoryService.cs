@@ -27,6 +27,7 @@ public class NavigationMemoryService : IDisposable
         ("import", "/import", ["/import"]),
         ("profile", "/profile", ["/profile"]),
         ("settings", "/settings", ["/settings"]),
+        ("feedback", "/feedback", ["/feedback"]),
     ];
 
     public NavigationMemoryService(NavigationManager nav)

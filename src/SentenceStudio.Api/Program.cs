@@ -198,6 +198,15 @@ if (!string.IsNullOrWhiteSpace(openAiApiKey))
         new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient());
 }
 
+// GitHub API client for feedback issue creation
+builder.Services.AddHttpClient("GitHub", client =>
+{
+    client.BaseAddress = new Uri("https://api.github.com");
+    client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+    client.DefaultRequestHeaders.Add("User-Agent", "SentenceStudio");
+    client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+});
+
 var elevenLabsKey = builder.Configuration["ElevenLabsKey"];
 if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 {
@@ -247,6 +256,9 @@ app.MapAuthEndpoints();
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
 app.MapImportEndpoints();
+
+// Feedback endpoints (GitHub issue creation)
+app.MapFeedbackEndpoints();
 
 // Version and release notes endpoints (public)
 app.MapVersionEndpoints();

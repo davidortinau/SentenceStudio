@@ -5,6 +5,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 var openaikey = builder.AddParameter("openaikey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
+var githubpat = builder.AddParameter("githubpat", secret: true);
 
 var postgres = builder.AddPostgres("db")
     .WithLifetime(ContainerLifetime.Persistent)
@@ -21,6 +22,7 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
+    .WithEnvironment("GitHub__Pat", githubpat)
     .WithReference(postgres)
     .WaitFor(postgres)
     .WithExternalHttpEndpoints();
