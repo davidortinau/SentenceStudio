@@ -42,6 +42,11 @@ public sealed class JwtTokenService
             new("tenant_id", "default")
         };
 
+        if (!string.IsNullOrEmpty(user.UserProfileId))
+        {
+            claims.Add(new("user_profile_id", user.UserProfileId));
+        }
+
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,

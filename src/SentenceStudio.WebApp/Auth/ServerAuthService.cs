@@ -184,28 +184,40 @@ public class ServerAuthService : IAuthService
         return result.Succeeded;
     }
 
-    public Task<string?> GetAccessTokenAsync(string[] scopes)
+    public async Task<string?> GetAccessTokenAsync(string[] scopes)
     {
         var signingKey = _configuration["Jwt:SigningKey"];
         if (string.IsNullOrWhiteSpace(signingKey))
         {
             _logger.LogDebug("No JWT signing key configured; skipping token generation");
-            return Task.FromResult<string?>(null);
+            return null;
         }
 
         var user = _httpContextAccessor.HttpContext?.User;
         if (user?.Identity?.IsAuthenticated != true)
         {
-            return Task.FromResult<string?>(null);
+            return null;
         }
+
+        var identityUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown"),
+            new(ClaimTypes.NameIdentifier, identityUserId),
             new(ClaimTypes.Name, user.Identity.Name ?? ""),
             new(ClaimTypes.Email, user.FindFirst(ClaimTypes.Email)?.Value ?? ""),
-            new("user_id", user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown"),
+            new("user_id", identityUserId),
         };
+
+        // Look up UserProfileId from the database so API endpoints that
+        // require this claim (Feedback, Channel, Import) work correctly.
+        using var scope = _scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var appUser = await userManager.FindByIdAsync(identityUserId);
+        if (!string.IsNullOrEmpty(appUser?.UserProfileId))
+        {
+            claims.Add(new("user_profile_id", appUser.UserProfileId));
+        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -220,7 +232,7 @@ public class ServerAuthService : IAuthService
             signingCredentials: creds);
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-        return Task.FromResult<string?>(jwt);
+        return jwt;
     }
 
     public Task<bool> HasStoredSessionAsync() =>

@@ -24,6 +24,7 @@ public sealed class DevAuthHandler : AuthenticationHandler<AuthenticationSchemeO
             new Claim(ClaimTypes.NameIdentifier, "dev-user"),
             new Claim("tenant_id", "dev-tenant"),
             new Claim("user_id", "dev-user"),
+            new Claim("user_profile_id", "dev-user-profile"),
             new Claim(ClaimTypes.Name, "Dev User"),
             new Claim(ClaimTypes.Email, "dev@sentencestudio.local")
         };
