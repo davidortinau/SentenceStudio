@@ -728,7 +728,13 @@ else
                     grade?.GrammarNotes?.Explanation ?? string.Empty));
             }
 
-            foreach (var result in gradedResults)
+            var creditedResults = gradedResults
+                .Where(result => result.UsageCorrect)
+                .ToList();
+
+            sentenceShortcutSuccessCount = creditedResults.Count;
+
+            foreach (var result in creditedResults)
             {
                 updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                 {
@@ -745,21 +751,12 @@ else
                 });
 
                 currentItem.Progress = updatedProgress;
-
-                if (result.UsageCorrect)
-                {
-                    sentenceShortcutSuccessCount++;
-                    productionStreak++;
-                }
-                else
-                {
-                    productionStreak = 0;
-                }
+                productionStreak++;
 
                 if (updatedProgress.IsFamiliar)
                 {
                     await ProgressService.HandleVerificationProbeResultAsync(
-                        currentItem.Word.Id, activeUserId, result.UsageCorrect);
+                        currentItem.Word.Id, activeUserId, true);
                 }
             }
 
