@@ -141,15 +141,18 @@ public class VocabularyProgressService : IVocabularyProgressService
 
         // Mark as mastered if threshold reached with production evidence
         if (progress.MasteryScore >= MASTERY_THRESHOLD &&
-            progress.ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN &&
-            !progress.MasteredAt.HasValue)
+            progress.ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN)
         {
-            progress.MasteredAt = DateTime.Now;
-            // Override SRS schedule: Known words should not re-appear for a long time
+            if (!progress.MasteredAt.HasValue)
+            {
+                progress.MasteredAt = DateTime.Now;
+                _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in 60 days.",
+                    progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak);
+            }
+            // Known words always get a long review interval — SM-2 would
+            // set a short one since it doesn't know about mastery status
             progress.ReviewInterval = 60;
             progress.NextReviewDate = DateTime.Now.AddDays(60);
-            _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in 60 days.",
-                progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak);
         }
 
         // Save progress
