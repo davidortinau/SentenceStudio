@@ -59,24 +59,25 @@ else if (isBusy)
 }
 else if (currentItem != null)
 {
-    @* Term display — show the target language word *@
     <div class="text-center my-4">
-        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@questionText</h1>
+        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
 
-        @* Audio & Image hint buttons *@
         <div class="d-flex justify-content-center gap-3 mb-2">
-            <button class="btn btn-outline-secondary btn-sm rounded-circle"
-                    style="width: 44px; height: 44px;"
-                    title="Play audio"
-                    disabled="@isPlayingAudio"
-                    @onclick="PlayWordAudio">
-                <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
-            </button>
-            @if (!string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+            @if (showAudioPromptControl)
             {
                 <button class="btn btn-outline-secondary btn-sm rounded-circle"
                         style="width: 44px; height: 44px;"
-                        title="@(showMnemonicImage ? "Hide image" : "Show image hint")"
+                        title="Play audio"
+                        disabled="@isPlayingAudio"
+                        @onclick="PlayWordAudio">
+                    <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                </button>
+            }
+            @if (showPhotoPromptControl)
+            {
+                <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                        style="width: 44px; height: 44px;"
+                        title="@(showMnemonicImage ? "Hide image" : "Show image")"
                         @onclick="ToggleMnemonicImage">
                     <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
                 </button>
@@ -88,6 +89,13 @@ else if (currentItem != null)
             <div class="mb-3">
                 <img src="@currentItem.Word.MnemonicImageUri" alt="Mnemonic hint"
                      class="rounded shadow-sm" style="max-height: 160px; object-fit: contain;" />
+            </div>
+        }
+
+        @if (showMnemonicTextHint && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicText))
+        {
+            <div class="alert alert-info py-2 px-3 mb-3 mx-auto" style="max-width: 560px;">
+                <strong>Mnemonic:</strong> @currentItem.Word.MnemonicText
             </div>
         }
 
@@ -111,37 +119,65 @@ else if (currentItem != null)
         @* @key on wrapper forces Blazor to destroy+recreate the entire container on turn change,
            preventing iOS WebView from carrying touch-highlight state to new buttons *@
         <div @key="@($"mc-turn-{currentTurnInRound}")" class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
-            @foreach (var option in choiceOptions)
+            @for (var optionIndex = 0; optionIndex < choiceOptions.Length; optionIndex++)
             {
-                var optCopy = option;
+                var optCopy = choiceOptions[optionIndex];
+                var optionText = optCopy.Text;
+                var optionLabel = $"Option {(char)('A' + optionIndex)}";
                 var bgClass = "";
                 var borderStyle = "";
 
                 if (showAnswer)
                 {
-                    if (optCopy == correctAnswer)
+                    if (string.Equals(optionText, correctAnswer, StringComparison.OrdinalIgnoreCase))
                     {
                         bgClass = "bg-success text-white";
                         borderStyle = "border-color: var(--bs-success) !important;";
                     }
-                    else if (optCopy == userGuess && optCopy != correctAnswer)
+                    else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
                     {
                         bgClass = "bg-danger text-white";
                         borderStyle = "border-color: var(--bs-danger) !important;";
                     }
                 }
-                else if (optCopy == userGuess)
+                else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
                 {
                     borderStyle = "border-color: var(--bs-primary) !important;";
                     bgClass = "bg-opacity-10";
                 }
 
-                <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
-                        style="@borderStyle"
-                        disabled="@showAnswer"
-                        @onclick="() => SelectMultipleChoice(optCopy)">
-                    @optCopy
-                </button>
+                @if (ShowAudioChoiceControls)
+                {
+                    <div class="d-flex align-items-stretch gap-2">
+                        <button type="button"
+                                class="btn btn-outline-secondary px-3"
+                                title="Play answer audio"
+                                aria-label="@($"Play {optionLabel.ToLowerInvariant()}")"
+                                disabled="@isPlayingAudio"
+                                @onclick:stopPropagation="true"
+                                @onclick="() => PlayChoiceAudio(optCopy)">
+                            <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                        </button>
+
+                        <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 flex-grow-1 @bgClass"
+                                style="@borderStyle"
+                                title="Select this answer"
+                                aria-label="@($"Choose {optionLabel.ToLowerInvariant()}")"
+                                disabled="@showAnswer"
+                                @onclick="() => SelectMultipleChoice(optionText)">
+                            @optionLabel
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
+                            style="@borderStyle"
+                            disabled="@showAnswer"
+                            @onclick="() => SelectMultipleChoice(optionText)">
+                        @optionText
+                    </button>
+                }
             }
         </div>
     }
@@ -218,6 +254,7 @@ else
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
+    [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
 
     private const int BatchSize = 20;
     private const int ActiveWordCount = 10;
@@ -231,15 +268,23 @@ else
     private bool requireCorrectTyping;
     private bool isPlayingAudio;
     private bool showMnemonicImage;
+    private bool promptUsesNativeLanguage;
+    private bool showTextPrompt = true;
+    private bool showAudioPromptControl = true;
+    private bool showPhotoPromptControl;
+    private bool showMnemonicTextHint;
+    private bool audioPromptAvailable = true;
+    private bool audioAnswerModeAvailable = true;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
     private string userInput = "";
     private string userGuess = "";
     private string userMode = "MultipleChoice";
+    private string promptTitle = "";
     private string questionText = "";
     private string correctAnswer = "";
     private string feedbackMessage = "";
-    private string[] choiceOptions = Array.Empty<string>();
+    private QuizChoiceOption[] choiceOptions = Array.Empty<QuizChoiceOption>();
 
     private List<VocabularyQuizItem> batchPool = new();
     private List<VocabularyQuizItem> vocabItems = new();
@@ -252,10 +297,19 @@ else
     private int wordsMastered;
     private int totalTurns;
     private int correctCount;
+    private string nativeLanguage = "English";
+    private string targetLanguage = "Korean";
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
     private VocabularyAttempt? pendingAttempt;
+
+    private sealed record QuizChoiceOption(string Text, string AudioText, string AudioLanguage);
+
+    private bool ShowAudioChoiceControls => userMode == "MultipleChoice"
+        && promptUsesNativeLanguage
+        && QuizPrefs.UseAudioPrompt
+        && audioAnswerModeAvailable;
 
 
     protected override async Task OnInitializedAsync()
@@ -263,6 +317,10 @@ else
         Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("VocabularyReview", PlanItemId);
+
+        var userProfile = await UserProfileRepo.GetAsync();
+        nativeLanguage = userProfile?.NativeLanguage ?? "English";
+        targetLanguage = userProfile?.TargetLanguage ?? "Korean";
         await LoadVocabulary();
     }
 
@@ -383,8 +441,9 @@ else
         }
 
         currentItem = roundWordOrder[currentTurnInRound];
-        questionText = currentItem.Word.TargetLanguageTerm ?? "";
-        correctAnswer = currentItem.Word.NativeLanguageTerm ?? "";
+        promptUsesNativeLanguage = ShouldUseNativePrompt();
+        questionText = GetPromptText(currentItem.Word);
+        correctAnswer = GetAnswerText(currentItem.Word);
         userInput = "";
         userGuess = "";
         showAnswer = false;
@@ -399,23 +458,52 @@ else
         if (userMode == "MultipleChoice")
         {
             choiceOptions = GenerateChoiceOptions(currentItem);
+            audioAnswerModeAvailable = await CanUseAudioAnswerModeAsync(choiceOptions);
+        }
+        else
+        {
+            choiceOptions = Array.Empty<QuizChoiceOption>();
+            audioAnswerModeAvailable = false;
         }
 
+        audioPromptAvailable = await CanPlayAudioAsync(GetTargetAudioText(currentItem.Word), GetTargetAudioLanguage(currentItem.Word));
+        ApplyPromptPreferences();
+
         responseTimer.Restart();
+
+        if (QuizPrefs.AutoPlayVocabAudio && audioPromptAvailable)
+        {
+            _ = InvokeAsync(PlayWordAudio);
+        }
     }
 
-    private string[] GenerateChoiceOptions(VocabularyQuizItem item)
+    private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
     {
+        var correctOption = CreateChoiceOption(item);
+
         var options = vocabItems
             .Where(i => i != item)
-            .Select(i => i.Word.NativeLanguageTerm ?? "")
-            .Where(t => !string.IsNullOrEmpty(t))
+            .Select(CreateChoiceOption)
+            .Where(option => !string.IsNullOrWhiteSpace(option.Text))
+            .Where(option => !string.Equals(option.Text, correctOption.Text, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(option => option.Text, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .OrderBy(_ => Guid.NewGuid())
             .Take(3)
             .ToList();
 
-        options.Add(correctAnswer);
+        options.Add(correctOption);
         return options.OrderBy(_ => Guid.NewGuid()).ToArray();
+    }
+
+    private QuizChoiceOption CreateChoiceOption(VocabularyQuizItem item)
+    {
+        var answerText = GetAnswerText(item.Word);
+        var answerLanguage = promptUsesNativeLanguage
+            ? item.Word.Language ?? targetLanguage
+            : nativeLanguage;
+
+        return new QuizChoiceOption(answerText, answerText, answerLanguage);
     }
 
     private async Task SelectMultipleChoice(string option)
@@ -474,6 +562,15 @@ else
             feedbackMessage = "Correct!";
         else
             feedbackMessage = $"The answer is: {correctAnswer}";
+
+        showMnemonicTextHint = showAnswer && isCorrect && QuizPrefs.ShowMnemonicImage
+            && !string.IsNullOrWhiteSpace(currentItem.Word.MnemonicText);
+
+        if (HasPromptImage && QuizPrefs.ShowMnemonicImage)
+        {
+            showPhotoPromptControl = true;
+            showMnemonicImage = QuizPrefs.UsePhotoPrompt || isCorrect;
+        }
 
         // Defer recording — allows user to override before persisting
         pendingAttempt = new VocabularyAttempt
@@ -632,15 +729,21 @@ else
 
     private async Task PlayWordAudio()
     {
-        if (currentItem?.Word == null || isPlayingAudio) return;
+        if (currentItem?.Word == null) return;
+
+        await PlayAudioTextAsync(GetTargetAudioText(currentItem.Word), GetTargetAudioLanguage(currentItem.Word));
+    }
+
+    private Task PlayChoiceAudio(QuizChoiceOption option) => PlayAudioTextAsync(option.AudioText, option.AudioLanguage);
+
+    private async Task PlayAudioTextAsync(string text, string language)
+    {
+        if (isPlayingAudio || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
 
         try
         {
-            var text = currentItem.Word.TargetLanguageTerm;
-            if (string.IsNullOrWhiteSpace(text)) return;
-
-            var voiceId = VoicePrefs.VoiceId;
+            var voiceId = VoicePrefs.GetVoiceForLanguage(language);
             var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
             Stream audioStream;
 
@@ -667,6 +770,7 @@ else
             }
             else
             {
+                await EnableTextFallbackAsync();
                 Toast.ShowWarning("Audio unavailable offline.");
                 return;
             }
@@ -690,7 +794,8 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to play word audio");
+            await EnableTextFallbackAsync();
+            Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
         }
         finally
         {
@@ -708,4 +813,85 @@ else
         audioPlayer?.Dispose();
         audioPlayer = null;
     }
+
+    private void ApplyPromptPreferences()
+    {
+        showTextPrompt = QuizPrefs.UseTextPrompt || (QuizPrefs.UseAudioPrompt && !audioPromptAvailable);
+        showAudioPromptControl = QuizPrefs.UseAudioPrompt && audioPromptAvailable;
+        showPhotoPromptControl = HasPromptImage && QuizPrefs.UsePhotoPrompt;
+        showMnemonicTextHint = false;
+
+        if (!showTextPrompt && !showAudioPromptControl && !showPhotoPromptControl)
+        {
+            showTextPrompt = true;
+        }
+
+        showMnemonicImage = HasPromptImage && QuizPrefs.UsePhotoPrompt;
+        promptTitle = showTextPrompt
+            ? questionText
+            : showPhotoPromptControl && showAudioPromptControl
+                ? "Listen and look, then answer"
+                : showPhotoPromptControl
+                    ? "Look and answer"
+                    : "Listen and answer";
+    }
+
+    private bool HasPromptImage => !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri);
+
+    private string GetTargetAudioText(VocabularyWord word) => word.TargetLanguageTerm ?? "";
+
+    private string GetTargetAudioLanguage(VocabularyWord word) => word.Language ?? targetLanguage;
+
+    private async Task<bool> CanUseAudioAnswerModeAsync(IEnumerable<QuizChoiceOption> options)
+    {
+        if (!promptUsesNativeLanguage || !QuizPrefs.UseAudioPrompt)
+            return false;
+
+        foreach (var option in options)
+        {
+            if (!await CanPlayAudioAsync(option.AudioText, option.AudioLanguage))
+                return false;
+        }
+
+        return true;
+    }
+
+    private async Task<bool> CanPlayAudioAsync(string text, string language)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        if (Connectivity.IsInternetAvailable)
+            return true;
+
+        var voiceId = VoicePrefs.GetVoiceForLanguage(language);
+        var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
+
+        return cached != null
+            && !string.IsNullOrWhiteSpace(cached.AudioFilePath)
+            && File.Exists(cached.AudioFilePath);
+    }
+
+    private async Task EnableTextFallbackAsync()
+    {
+        audioPromptAvailable = false;
+        audioAnswerModeAvailable = false;
+        ApplyPromptPreferences();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool ShouldUseNativePrompt() => QuizPrefs.DisplayDirection switch
+    {
+        "NativeToTarget" => true,
+        "Mixed" => random.Next(2) == 0,
+        _ => false
+    };
+
+    private string GetPromptText(VocabularyWord word) => promptUsesNativeLanguage
+        ? word.NativeLanguageTerm ?? ""
+        : word.TargetLanguageTerm ?? "";
+
+    private string GetAnswerText(VocabularyWord word) => promptUsesNativeLanguage
+        ? word.TargetLanguageTerm ?? ""
+        : word.NativeLanguageTerm ?? "";
 }

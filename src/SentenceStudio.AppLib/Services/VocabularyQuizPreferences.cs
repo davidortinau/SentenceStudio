@@ -18,6 +18,9 @@ public class VocabularyQuizPreferences
     private const string KEY_AUTO_PLAY_SAMPLE_AUDIO = "vocab_quiz_autoplay_sample";
     private const string KEY_SHOW_MNEMONIC_IMAGE = "vocab_quiz_show_mnemonic";
     private const string KEY_AUTO_ADVANCE_DURATION = "vocab_quiz_auto_advance_duration";
+    private const string KEY_USE_TEXT_PROMPT = "vocab_quiz_use_text_prompt";
+    private const string KEY_USE_AUDIO_PROMPT = "vocab_quiz_use_audio_prompt";
+    private const string KEY_USE_PHOTO_PROMPT = "vocab_quiz_use_photo_prompt";
 
     // Default values
     private const string DEFAULT_DISPLAY_DIRECTION = "TargetToNative";
@@ -25,6 +28,9 @@ public class VocabularyQuizPreferences
     private const bool DEFAULT_AUTO_PLAY_SAMPLE_AUDIO = false;
     private const bool DEFAULT_SHOW_MNEMONIC_IMAGE = true;
     private const int DEFAULT_AUTO_ADVANCE_DURATION = 2000; // 2 seconds
+    private const bool DEFAULT_USE_TEXT_PROMPT = true;
+    private const bool DEFAULT_USE_AUDIO_PROMPT = true;
+    private const bool DEFAULT_USE_PHOTO_PROMPT = false;
 
     private readonly SpeechVoicePreferences _speechVoicePreferences;
 
@@ -42,19 +48,22 @@ public class VocabularyQuizPreferences
     /// Gets or sets the display direction for vocabulary quiz questions.
     /// "TargetToNative" = show Korean word, answer in English
     /// "NativeToTarget" = show English word, answer in Korean
+    /// "Mixed" = vary the prompt direction per question
     /// </summary>
     public string DisplayDirection
     {
-        get => _preferences.Get(KEY_DISPLAY_DIRECTION, DEFAULT_DISPLAY_DIRECTION);
+        get => NormalizeDisplayDirection(_preferences.Get(KEY_DISPLAY_DIRECTION, DEFAULT_DISPLAY_DIRECTION));
         set
         {
-            if (value != "TargetToNative" && value != "NativeToTarget")
+            var normalized = NormalizeDisplayDirection(value);
+
+            if (!string.Equals(value, normalized, StringComparison.Ordinal))
             {
-                _logger.LogWarning("⚠️ Invalid DisplayDirection: {Direction}. Defaulting to TargetToNative.", value);
-                value = "TargetToNative";
+                _logger.LogWarning("⚠️ Invalid DisplayDirection: {Direction}. Defaulting to {DirectionValue}.", value, normalized);
             }
-            _preferences.Set(KEY_DISPLAY_DIRECTION, value);
-            _logger.LogInformation("📋 Vocab quiz display direction set to: {Direction}", value);
+
+            _preferences.Set(KEY_DISPLAY_DIRECTION, normalized);
+            _logger.LogInformation("📋 Vocab quiz display direction set to: {Direction}", normalized);
         }
     }
 
@@ -126,6 +135,45 @@ public class VocabularyQuizPreferences
     }
 
     /// <summary>
+    /// Gets or sets whether the written prompt text is shown during the quiz.
+    /// </summary>
+    public bool UseTextPrompt
+    {
+        get => _preferences.Get(KEY_USE_TEXT_PROMPT, DEFAULT_USE_TEXT_PROMPT);
+        set
+        {
+            _preferences.Set(KEY_USE_TEXT_PROMPT, value);
+            _logger.LogInformation("📋 Vocab quiz text prompt enabled: {Value}", value);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets whether audio is available as part of the quiz prompt.
+    /// </summary>
+    public bool UseAudioPrompt
+    {
+        get => _preferences.Get(KEY_USE_AUDIO_PROMPT, DEFAULT_USE_AUDIO_PROMPT);
+        set
+        {
+            _preferences.Set(KEY_USE_AUDIO_PROMPT, value);
+            _logger.LogInformation("📋 Vocab quiz audio prompt enabled: {Value}", value);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets whether photos are shown as part of the quiz prompt when available.
+    /// </summary>
+    public bool UsePhotoPrompt
+    {
+        get => _preferences.Get(KEY_USE_PHOTO_PROMPT, DEFAULT_USE_PHOTO_PROMPT);
+        set
+        {
+            _preferences.Set(KEY_USE_PHOTO_PROMPT, value);
+            _logger.LogInformation("📋 Vocab quiz photo prompt enabled: {Value}", value);
+        }
+    }
+
+    /// <summary>
     /// Determines if sample audio should play based on both preferences.
     /// Sample audio only plays if vocabulary audio is also enabled.
     /// </summary>
@@ -142,6 +190,17 @@ public class VocabularyQuizPreferences
         AutoPlaySampleAudio = DEFAULT_AUTO_PLAY_SAMPLE_AUDIO;
         ShowMnemonicImage = DEFAULT_SHOW_MNEMONIC_IMAGE;
         AutoAdvanceDuration = DEFAULT_AUTO_ADVANCE_DURATION;
+        UseTextPrompt = DEFAULT_USE_TEXT_PROMPT;
+        UseAudioPrompt = DEFAULT_USE_AUDIO_PROMPT;
+        UsePhotoPrompt = DEFAULT_USE_PHOTO_PROMPT;
         _logger.LogInformation("🔄 Vocab quiz preferences reset to defaults");
     }
+
+    private static string NormalizeDisplayDirection(string? value) => value switch
+    {
+        "Forward" or "TargetToNative" => "TargetToNative",
+        "Reverse" or "NativeToTarget" => "NativeToTarget",
+        "Mixed" => "Mixed",
+        _ => DEFAULT_DISPLAY_DIRECTION
+    };
 }

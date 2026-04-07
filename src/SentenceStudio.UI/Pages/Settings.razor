@@ -98,15 +98,16 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Quiz Direction</label>
+        <label class="form-label ss-body2 text-secondary-ss">Prompt Language</label>
         <div class="btn-group w-100" role="group">
-            <input type="radio" class="btn-check" name="quizDir" id="dirForward" value="Forward" @onchange="@(() => quizDirection = "Forward")" checked="@(quizDirection == "Forward")" />
-            <label class="btn btn-outline-secondary" for="dirForward">Forward</label>
-            <input type="radio" class="btn-check" name="quizDir" id="dirReverse" value="Reverse" @onchange="@(() => quizDirection = "Reverse")" checked="@(quizDirection == "Reverse")" />
-            <label class="btn btn-outline-secondary" for="dirReverse">Reverse</label>
-            <input type="radio" class="btn-check" name="quizDir" id="dirMixed" value="Mixed" @onchange="@(() => quizDirection = "Mixed")" checked="@(quizDirection == "Mixed")" />
+            <input type="radio" class="btn-check" name="quizDir" id="dirForward" value="TargetToNative" @onchange="@(() => SetQuizDirection("TargetToNative"))" checked="@(quizDirection == "TargetToNative")" />
+            <label class="btn btn-outline-secondary" for="dirForward">Target language</label>
+            <input type="radio" class="btn-check" name="quizDir" id="dirReverse" value="NativeToTarget" @onchange="@(() => SetQuizDirection("NativeToTarget"))" checked="@(quizDirection == "NativeToTarget")" />
+            <label class="btn btn-outline-secondary" for="dirReverse">Native language</label>
+            <input type="radio" class="btn-check" name="quizDir" id="dirMixed" value="Mixed" @onchange="@(() => SetQuizDirection("Mixed"))" checked="@(quizDirection == "Mixed")" />
             <label class="btn btn-outline-secondary" for="dirMixed">Mixed</label>
         </div>
+        <div class="ss-caption1 text-secondary-ss mt-2">Choose which side of the vocab card is shown as the prompt.</div>
     </div>
 
     <div class="form-check form-switch mb-2">
@@ -117,6 +118,23 @@
     <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="showMnemonic" @bind="quizShowMnemonic" />
         <label class="form-check-label ss-body2" for="showMnemonic">Show Mnemonics</label>
+    </div>
+
+    <div class="mb-3 mt-3">
+        <label class="form-label ss-body2 text-secondary-ss">Prompt Modalities</label>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="useTextPrompt" @bind="quizUseTextPrompt" />
+            <label class="form-check-label ss-body2" for="useTextPrompt">Text</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="useAudioPrompt" @bind="quizUseAudioPrompt" />
+            <label class="form-check-label ss-body2" for="useAudioPrompt">Audio</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="usePhotoPrompt" @bind="quizUsePhotoPrompt" />
+            <label class="form-check-label ss-body2" for="usePhotoPrompt">Photo</label>
+        </div>
+        <div class="ss-caption1 text-secondary-ss">Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.</div>
     </div>
 
     <div class="mb-3">
@@ -201,9 +219,12 @@
     private string selectedVoiceId = "";
     private List<VoiceInfo> availableVoices = new();
     private bool isLoadingVoices;
-    private string quizDirection = "Forward";
+    private string quizDirection = "TargetToNative";
     private bool quizAutoplay;
     private bool quizShowMnemonic;
+    private bool quizUseTextPrompt = true;
+    private bool quizUseAudioPrompt = true;
+    private bool quizUsePhotoPrompt;
     private double quizAutoAdvanceDuration = 3.0;
     private double fontScale = 1.0;
     private bool isExporting;
@@ -216,12 +237,10 @@
     private string whatsNewTitle = "What's New";
     private string whatsNewVersion = "";
     private string whatsNewContent = "";
-
     private record VoiceInfo(string Id, string Name);
 
     protected override async Task OnInitializedAsync()
     {
-        jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
         fontScale = ThemeService.FontScale;
         var asm = typeof(Settings).Assembly;
         var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -231,6 +250,16 @@
 #endif
         LoadPreferences();
         await LoadVoicesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+        await jsModule.InvokeVoidAsync("setFontScale", fontScale);
+        await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
     }
 
     private async Task OnThemeSelected(string theme)
@@ -272,6 +301,9 @@
         quizDirection = QuizPrefs.DisplayDirection;
         quizAutoplay = QuizPrefs.AutoPlayVocabAudio;
         quizShowMnemonic = QuizPrefs.ShowMnemonicImage;
+        quizUseTextPrompt = QuizPrefs.UseTextPrompt;
+        quizUseAudioPrompt = QuizPrefs.UseAudioPrompt;
+        quizUsePhotoPrompt = QuizPrefs.UsePhotoPrompt;
         quizAutoAdvanceDuration = QuizPrefs.AutoAdvanceDuration / 1000.0;
         selectedLanguage = "Korean";
         selectedVoiceId = VoicePrefs.GetVoiceForLanguage(selectedLanguage) ?? "";
@@ -301,12 +333,26 @@
 
     private void SavePreferences()
     {
+        if (!quizUseTextPrompt && !quizUseAudioPrompt && !quizUsePhotoPrompt)
+        {
+            quizUseTextPrompt = true;
+            Toast.ShowInfo("At least one question modality is required. Falling back to text.");
+        }
+
         QuizPrefs.DisplayDirection = quizDirection;
         QuizPrefs.AutoPlayVocabAudio = quizAutoplay;
         QuizPrefs.ShowMnemonicImage = quizShowMnemonic;
+        QuizPrefs.UseTextPrompt = quizUseTextPrompt;
+        QuizPrefs.UseAudioPrompt = quizUseAudioPrompt;
+        QuizPrefs.UsePhotoPrompt = quizUsePhotoPrompt;
         QuizPrefs.AutoAdvanceDuration = (int)(quizAutoAdvanceDuration * 1000);
         VoicePrefs.SetVoiceForLanguage(selectedLanguage, selectedVoiceId);
         Toast.ShowSuccess("Preferences saved");
+    }
+
+    private void SetQuizDirection(string direction)
+    {
+        quizDirection = direction;
     }
 
     private async Task ExportData()
