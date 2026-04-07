@@ -205,6 +205,10 @@ public class SyncService : ISyncService
             _logger.LogInformation("EF Core database migrated");
 #endif
 
+            // One-time data fix: Known words with near-term review dates
+            // PR #155 fixed the code path, this retroactively fixes existing records
+            await FixKnownWordSchedulesAsync(dbContext);
+
             // Then: Apply CoreSync provisioning to create sync tracking tables
             _logger.LogDebug("Applying CoreSync provisioning...");
             await _localSyncProvider.ApplyProvisionAsync();
@@ -288,6 +292,57 @@ public class SyncService : ISyncService
         if (item.Values.TryGetValue("Id", out var id))
             return id?.ToString() ?? "?";
         return "?";
+    }
+
+    /// <summary>
+    /// One-time data fix: Known words (MasteryScore >= 0.85 AND ProductionInStreak >= 2)
+    /// that were mastered before PR #155 may have near-term NextReviewDate values because
+    /// SM-2 set a short interval before the mastery check. This retroactively pushes them
+    /// to a 60-day interval. Idempotent — safe to run on every startup.
+    /// </summary>
+    private async Task FixKnownWordSchedulesAsync(ApplicationDbContext dbContext)
+    {
+        try
+        {
+            var isPostgres = dbContext.Database.ProviderName?.Contains("Npgsql") == true;
+
+            string sql;
+            if (isPostgres)
+            {
+                sql = @"
+                    UPDATE ""VocabularyProgress""
+                    SET ""ReviewInterval"" = 60,
+                        ""NextReviewDate"" = NOW() + INTERVAL '60 days',
+                        ""UpdatedAt"" = NOW()
+                    WHERE ""MasteryScore"" >= 0.85
+                      AND ""ProductionInStreak"" >= 2
+                      AND (""ReviewInterval"" < 60 OR ""ReviewInterval"" IS NULL)";
+            }
+            else
+            {
+                sql = @"
+                    UPDATE VocabularyProgress
+                    SET ReviewInterval = 60,
+                        NextReviewDate = datetime('now', '+60 days'),
+                        UpdatedAt = datetime('now')
+                    WHERE MasteryScore >= 0.85
+                      AND ProductionInStreak >= 2
+                      AND (ReviewInterval < 60 OR ReviewInterval IS NULL)";
+            }
+
+            var affected = await dbContext.Database.ExecuteSqlRawAsync(sql);
+            if (affected > 0)
+            {
+                _logger.LogInformation(
+                    "Fixed {Count} Known words with near-term review schedules (set to 60-day interval)",
+                    affected);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal — the GetDueVocabularyAsync predicate already excludes Known words
+            _logger.LogWarning(ex, "Failed to fix Known word schedules — non-fatal, predicate filter is in place");
+        }
     }
 
 #if IOS || ANDROID || MACCATALYST
