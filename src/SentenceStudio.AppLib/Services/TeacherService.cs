@@ -197,7 +197,26 @@ namespace SentenceStudio.Services
             }
         }
 
-        public async Task<GradeResponse> GradeSentence(string userInput, string userMeaning, string? targetLanguage = null, string? nativeLanguage = null)
+        public Task<GradeResponse> GradeTargetWordSentence(string userInput, VocabularyWord word, string? targetLanguage = null, string? nativeLanguage = null)
+        {
+            ArgumentNullException.ThrowIfNull(word);
+
+            var targetWord = word.TargetLanguageTerm ?? string.Empty;
+            var targetMeaning = word.NativeLanguageTerm ?? string.Empty;
+            var intendedMeaning = string.IsNullOrWhiteSpace(targetMeaning)
+                ? $"Use the target word \"{targetWord}\" naturally in context."
+                : $"Use the target word \"{targetWord}\" to mean \"{targetMeaning}\".";
+
+            return GradeSentence(userInput, intendedMeaning, targetLanguage, nativeLanguage, targetWord, targetMeaning);
+        }
+
+        public async Task<GradeResponse> GradeSentence(
+            string userInput,
+            string userMeaning,
+            string? targetLanguage = null,
+            string? nativeLanguage = null,
+            string? targetWord = null,
+            string? targetWordMeaning = null)
         {
             try
             {
@@ -219,20 +238,21 @@ namespace SentenceStudio.Services
                         user_input = userInput, 
                         user_meaning = userMeaning,
                         native_language = nativeLanguage,
-                        target_language = targetLanguage
+                        target_language = targetLanguage,
+                        target_word = targetWord,
+                        target_word_meaning = targetWordMeaning
                     });
 
                     // //Debug.WriteLine(prompt);
                 }
 
                 var response = await _aiService.SendPrompt<GradeResponse>(prompt);
-                return response;
+                return response ?? throw new InvalidOperationException("AI grading returned no response.");
             }
             catch (Exception ex)
             {
-                // Handle any exceptions that occur during the process
                 _logger.LogError(ex, "Error occurred in GradeSentence");
-                return new GradeResponse();
+                throw;
             }
         }
 

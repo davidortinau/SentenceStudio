@@ -1,10 +1,47 @@
-I am a student that speaks {{ native_language }}, and I'm learning {{ target_language }}. I've written this sentence: \"{{user_input}}\"{{if user_meaning && user_meaning != ''}} which I mean to express \"{{user_meaning}}\"{{end}}. 
+I am a student that speaks {{ native_language }}, and I'm learning {{ target_language }}. I've written this sentence: "{{ user_input }}"{{ if user_meaning && user_meaning != '' }} which I mean to express "{{ user_meaning }}"{{ end }}.
 
-Please grade it for accuracy (does it mean approximately what it should and would I be understood by a native {{ target_language }} speaker, and uses the vocabulary expected in the recommended translation) and fluency (is this how a native speaker would express this). Also include a recommended version of the sentence based on what you best understood I was trying to say.
+Please grade it for:
+- accuracy (does it communicate the intended meaning clearly enough to be understood by a native {{ target_language }} speaker)
+- fluency (is this how a native speaker would naturally express this)
 
-Use a scale of 0 to 100 where higher is better. If the vocabulary and grammar are accurate, then score 100. Any improvements for vocabulary, grammar, or fluency should not deduct from the score but only be included in the explanations. Any improvements to formality should also not deduct from the score unless the formality used is completely wrong.
+Also include a recommended version of the sentence based on what you best understood I was trying to say.
+
+Use a scale of 0 to 100 where higher is better. If the vocabulary and grammar are accurate enough to be understood, then score 100. Any improvements for vocabulary, grammar, or fluency should not deduct from the score unless they make the meaning clearly wrong or confusing. Formality tweaks alone should stay in the explanations.
 
 Keep in mind these guidelines:
+- Use polite/standard register appropriate for {{ target_language }}
+- Use spoken/conversational form, not formal written style
 
-* Use polite/standard register appropriate for {{ target_language }}
-* Use spoken/conversational form, not formal written style
+IMPORTANT: Also analyze the vocabulary words used in my sentence. For each important {{ target_language }} word or phrase I used, identify its dictionary form (base form) and indicate whether it was used correctly in context. This helps track my vocabulary progress.
+
+{{ if target_word && target_word != '' }}
+IMPORTANT FOR THIS RESPONSE:
+- The target word to evaluate is "{{ target_word }}"{{ if target_word_meaning && target_word_meaning != '' }} meaning "{{ target_word_meaning }}"{{ end }}.
+- Ensure vocabulary_analysis includes an entry for this target word, even if I used an inflected or conjugated form.
+- For the target word, usage_correct must depend ONLY on whether the word is used correctly and meaningfully in context.
+- Do NOT require extra sentence complexity; a short, simple, natural sentence is acceptable.
+- Mistakes elsewhere in the sentence should still be explained, but they should not make usage_correct false unless they make the target word usage unclear, unnatural in meaning, or wrong.
+- In the accuracy explanation, explicitly mention whether the target word usage counts as a successful demonstration.
+{{ end }}
+
+Format your response as json with properties like this:
+{
+  "accuracy_score": 100,
+  "accuracy_explanation": "",
+  "fluency_score": 100,
+  "fluency_explanation": "",
+  "grammar_notes": {
+    "original_sentence": "",
+    "recommended_translation": "",
+    "explanation": ""
+  },
+  "vocabulary_analysis": [
+    {
+      "used_form": "surface form used in the sentence",
+      "dictionary_form": "base dictionary form",
+      "meaning": "{{ native_language }} meaning",
+      "usage_correct": true,
+      "usage_explanation": "Brief explanation of whether the word was used correctly in context"
+    }
+  ]
+}

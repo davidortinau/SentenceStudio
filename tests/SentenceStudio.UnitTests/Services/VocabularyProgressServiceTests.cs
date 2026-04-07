@@ -34,10 +34,12 @@ public class VocabularyProgressServiceTests
     public async Task RecordAttemptAsync_WithCorrectAnswer_ShouldIncreaseMasteryScore()
     {
         // Arrange
-        var wordId = 1;
+        var wordId = "word-1";
+        var userId = "user-1";
         var existingProgress = new VocabularyProgress
         {
             VocabularyWordId = wordId,
+            UserId = userId,
             MasteryScore = 0.5f,
             TotalAttempts = 5,
             CorrectAttempts = 2,
@@ -45,7 +47,7 @@ public class VocabularyProgressServiceTests
         };
 
         _mockProgressRepo
-            .Setup(r => r.GetProgressAsync(wordId, It.IsAny<int>()))
+            .Setup(r => r.GetByWordIdAndUserIdAsync(wordId, userId))
             .ReturnsAsync(existingProgress);
 
         _mockProgressRepo
@@ -59,7 +61,7 @@ public class VocabularyProgressServiceTests
         var attempt = new VocabularyAttempt
         {
             VocabularyWordId = wordId,
-            UserId = 1,
+            UserId = userId,
             WasCorrect = true,
             DifficultyWeight = 1.0f,
             InputMode = InputMode.MultipleChoice.ToString(),
@@ -84,10 +86,12 @@ public class VocabularyProgressServiceTests
     public async Task RecordAttemptAsync_WithIncorrectAnswer_ShouldDecreaseMasteryScore()
     {
         // Arrange
-        var wordId = 2;
+        var wordId = "word-2";
+        var userId = "user-1";
         var existingProgress = new VocabularyProgress
         {
             VocabularyWordId = wordId,
+            UserId = userId,
             MasteryScore = 0.7f,
             TotalAttempts = 10,
             CorrectAttempts = 7,
@@ -95,7 +99,7 @@ public class VocabularyProgressServiceTests
         };
 
         _mockProgressRepo
-            .Setup(r => r.GetProgressAsync(wordId, It.IsAny<int>()))
+            .Setup(r => r.GetByWordIdAndUserIdAsync(wordId, userId))
             .ReturnsAsync(existingProgress);
 
         _mockProgressRepo
@@ -109,7 +113,7 @@ public class VocabularyProgressServiceTests
         var attempt = new VocabularyAttempt
         {
             VocabularyWordId = wordId,
-            UserId = 1,
+            UserId = userId,
             WasCorrect = false,
             DifficultyWeight = 1.0f,
             InputMode = InputMode.Text.ToString()
@@ -128,20 +132,22 @@ public class VocabularyProgressServiceTests
     public async Task GetProgressAsync_WithExistingProgress_ShouldReturnProgress()
     {
         // Arrange
-        var wordId = 3;
+        var wordId = "word-3";
+        var userId = "user-1";
         var expectedProgress = new VocabularyProgress
         {
             VocabularyWordId = wordId,
+            UserId = userId,
             MasteryScore = 0.75f,
             CurrentPhase = LearningPhase.Production
         };
 
         _mockProgressRepo
-            .Setup(r => r.GetProgressAsync(wordId, It.IsAny<int>()))
+            .Setup(r => r.GetByWordIdAndUserIdAsync(wordId, userId))
             .ReturnsAsync(expectedProgress);
 
         // Act
-        var result = await _sut.GetProgressAsync(wordId);
+        var result = await _sut.GetProgressAsync(wordId, userId);
 
         // Assert
         result.Should().NotBeNull();
@@ -154,12 +160,12 @@ public class VocabularyProgressServiceTests
     public async Task GetAllProgressAsync_ShouldReturnAllUserProgress()
     {
         // Arrange
-        var userId = 1;
+        var userId = "user-1";
         var allProgress = new List<VocabularyProgress>
         {
-            new() { VocabularyWordId = 1, UserId = userId, MasteryScore = 0.5f },
-            new() { VocabularyWordId = 2, UserId = userId, MasteryScore = 0.7f },
-            new() { VocabularyWordId = 3, UserId = 2, MasteryScore = 0.9f } // Different user
+            new() { VocabularyWordId = "word-a", UserId = userId, MasteryScore = 0.5f },
+            new() { VocabularyWordId = "word-b", UserId = userId, MasteryScore = 0.7f },
+            new() { VocabularyWordId = "word-c", UserId = "user-2", MasteryScore = 0.9f } // Different user
         };
 
         _mockProgressRepo
@@ -178,12 +184,12 @@ public class VocabularyProgressServiceTests
     public async Task GetReviewCandidatesAsync_ShouldReturnDueWords()
     {
         // Arrange
-        var userId = 1;
+        var userId = "user-1";
         var allProgress = new List<VocabularyProgress>
         {
             new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(-1), MasteryScore = 0.5f }, // Due
             new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(1), MasteryScore = 0.6f },  // Not due
-            new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(-2), MasteryScore = 0.9f }, // Known (excluded)
+            new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(-2), MasteryScore = 0.9f, ProductionInStreak = 2 }, // Known (excluded)
         };
 
         _mockProgressRepo
@@ -196,5 +202,56 @@ public class VocabularyProgressServiceTests
         // Assert
         result.Should().HaveCount(1, "should only return words that are due and not yet known");
         result[0].NextReviewDate.Should().BeBefore(DateTime.Now);
+    }
+
+    [Fact]
+    public async Task RecordAttemptAsync_WithSentenceContext_ShouldCountEachCorrectSentenceAsProductionEvidence()
+    {
+        // Arrange
+        var wordId = "word-sentence";
+        var userId = "user-1";
+        var existingProgress = new VocabularyProgress
+        {
+            VocabularyWordId = wordId,
+            UserId = userId,
+            MasteryScore = 0.0f,
+            TotalAttempts = 0,
+            CorrectAttempts = 0,
+            CurrentStreak = 0,
+            ProductionInStreak = 0
+        };
+
+        _mockProgressRepo
+            .Setup(r => r.GetByWordIdAndUserIdAsync(wordId, userId))
+            .ReturnsAsync(existingProgress);
+
+        _mockProgressRepo
+            .Setup(r => r.SaveAsync(It.IsAny<VocabularyProgress>()))
+            .ReturnsAsync((VocabularyProgress p) => p);
+
+        _mockContextRepo
+            .Setup(r => r.SaveAsync(It.IsAny<VocabularyLearningContext>()))
+            .ReturnsAsync((VocabularyLearningContext c) => c);
+
+        var attempt = new VocabularyAttempt
+        {
+            VocabularyWordId = wordId,
+            UserId = userId,
+            WasCorrect = true,
+            DifficultyWeight = 1.5f,
+            InputMode = InputMode.Text.ToString(),
+            Activity = "VocabularyQuiz",
+            ContextType = "Sentence"
+        };
+
+        // Act
+        await _sut.RecordAttemptAsync(attempt);
+        var result = await _sut.RecordAttemptAsync(attempt);
+
+        // Assert
+        result.TotalAttempts.Should().Be(2, "each sentence should be stored as its own attempt");
+        result.CorrectAttempts.Should().Be(2, "each correctly graded sentence should add production evidence");
+        result.CurrentStreak.Should().Be(2, "consecutive correct sentence attempts should grow the streak");
+        result.ProductionInStreak.Should().Be(2, "sentence context should count as production");
     }
 }

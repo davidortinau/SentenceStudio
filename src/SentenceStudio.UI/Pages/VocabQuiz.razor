@@ -59,153 +59,285 @@ else if (isBusy)
 }
 else if (currentItem != null)
 {
-    <div class="text-center my-4">
-        <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
-
-        <div class="d-flex justify-content-center gap-3 mb-2">
-            @if (showAudioPromptControl)
-            {
-                <button class="btn btn-outline-secondary btn-sm rounded-circle"
-                        style="width: 44px; height: 44px;"
-                        title="Play audio"
-                        disabled="@isPlayingAudio"
-                        @onclick="PlayWordAudio">
-                    <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
-                </button>
-            }
-            @if (showPhotoPromptControl)
-            {
-                <button class="btn btn-outline-secondary btn-sm rounded-circle"
-                        style="width: 44px; height: 44px;"
-                        title="@(showMnemonicImage ? "Hide image" : "Show image")"
-                        @onclick="ToggleMnemonicImage">
-                    <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
-                </button>
-            }
-        </div>
-
-        @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
-        {
-            <div class="mb-3">
-                <img src="@currentItem.Word.MnemonicImageUri" alt="Mnemonic hint"
-                     class="rounded shadow-sm" style="max-height: 160px; object-fit: contain;" />
-            </div>
-        }
-
-        @if (showMnemonicTextHint && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicText))
-        {
-            <div class="alert alert-info py-2 px-3 mb-3 mx-auto" style="max-width: 560px;">
-                <strong>Mnemonic:</strong> @currentItem.Word.MnemonicText
-            </div>
-        }
-
-        @if (showAnswer)
-        {
-            <p class="ss-title2">@correctAnswer</p>
-        }
-    </div>
-
-    @* Feedback *@
-    @if (!string.IsNullOrEmpty(feedbackMessage))
+    @if (isSentenceShortcutMode)
     {
-        <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mb-3">
-            @feedbackMessage
-        </div>
-    }
-
-    @* Input section *@
-    @if (userMode == "MultipleChoice")
-    {
-        @* @key on wrapper forces Blazor to destroy+recreate the entire container on turn change,
-           preventing iOS WebView from carrying touch-highlight state to new buttons *@
-        <div @key="@($"mc-turn-{currentTurnInRound}")" class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
-            @for (var optionIndex = 0; optionIndex < choiceOptions.Length; optionIndex++)
-            {
-                var optCopy = choiceOptions[optionIndex];
-                var optionText = optCopy.Text;
-                var optionLabel = $"Option {(char)('A' + optionIndex)}";
-                var bgClass = "";
-                var borderStyle = "";
-
-                if (showAnswer)
-                {
-                    if (string.Equals(optionText, correctAnswer, StringComparison.OrdinalIgnoreCase))
+        <div class="mx-auto" style="max-width: 720px;">
+            <div class="card card-ss p-4 mb-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
+                    <div>
+                        <span class="badge bg-primary-subtle text-primary-emphasis mb-2">Sentence shortcut</span>
+                        <h2 class="ss-title2 mb-1" style="color: var(--bs-primary);">@currentItem.Word.TargetLanguageTerm</h2>
+                        <p class="ss-body2 text-secondary-ss mb-0">@currentItem.Word.NativeLanguageTerm</p>
+                    </div>
+                    @if (sentenceShortcutResults.Any())
                     {
-                        bgClass = "bg-success text-white";
-                        borderStyle = "border-color: var(--bs-success) !important;";
-                    }
-                    else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
-                    {
-                        bgClass = "bg-danger text-white";
-                        borderStyle = "border-color: var(--bs-danger) !important;";
-                    }
-                }
-                else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
-                {
-                    borderStyle = "border-color: var(--bs-primary) !important;";
-                    bgClass = "bg-opacity-10";
-                }
-
-                @if (ShowAudioChoiceControls)
-                {
-                    <div class="d-flex align-items-stretch gap-2">
                         <button type="button"
-                                class="btn btn-outline-secondary px-3"
-                                title="Play answer audio"
-                                aria-label="@($"Play {optionLabel.ToLowerInvariant()}")"
-                                disabled="@isPlayingAudio"
-                                @onclick:stopPropagation="true"
-                                @onclick="() => PlayChoiceAudio(optCopy)">
-                            <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                                class="btn btn-sm btn-ss-secondary align-self-start"
+                                disabled="@isSentenceShortcutSubmitting"
+                                @onclick="ContinueAfterSentenceShortcut">
+                            <i class="bi bi-arrow-right me-1"></i>Continue quiz
                         </button>
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-ss-secondary align-self-start"
+                                disabled="@isSentenceShortcutSubmitting"
+                                @onclick="CancelSentenceShortcut">
+                            <i class="bi bi-x-lg me-1"></i>Cancel
+                        </button>
+                    }
+                </div>
 
-                        <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 flex-grow-1 @bgClass"
-                                style="@borderStyle"
-                                title="Select this answer"
-                                aria-label="@($"Choose {optionLabel.ToLowerInvariant()}")"
-                                disabled="@showAnswer"
-                                @onclick="() => SelectMultipleChoice(optionText)">
-                            @optionLabel
+                <p class="ss-body1 mb-2">
+                    Write one or more sentences using <strong>@currentItem.Word.TargetLanguageTerm</strong>.
+                </p>
+                <p class="ss-body2 text-secondary-ss mb-3">
+                    Only meaningful usage of the target word counts toward mastery. Broader grammar feedback is still shown, but it won't penalize you by itself.
+                </p>
+
+                <form @onsubmit="SubmitSentenceShortcut" @onsubmit:preventDefault>
+                    <textarea class="form-control form-control-ss mb-2"
+                              rows="5"
+                              @bind="sentenceShortcutInput"
+                              @bind:event="oninput"
+                              disabled="@isSentenceShortcutSubmitting"
+                              placeholder="@GetSentenceShortcutPlaceholder()"></textarea>
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <span class="ss-caption1 text-secondary-ss">Separate multiple sentences with a new line or punctuation.</span>
+                        <button type="submit"
+                                class="btn btn-ss-primary"
+                                disabled="@(isSentenceShortcutSubmitting || string.IsNullOrWhiteSpace(sentenceShortcutInput))">
+                            @if (isSentenceShortcutSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <span><i class="bi bi-send me-1"></i>Grade sentences</span>
+                            }
                         </button>
                     </div>
-                }
-                else
+                </form>
+            </div>
+
+            @if (sentenceShortcutResults.Any())
+            {
+                <div class="alert @(sentenceShortcutSuccessCount > 0 ? "alert-success" : "alert-warning") py-2">
+                    <strong>@sentenceShortcutSuccessCount of @sentenceShortcutResults.Count</strong> sentence(s) counted toward mastery for
+                    <strong>@currentItem.Word.TargetLanguageTerm</strong>.
+                </div>
+
+                @foreach (var result in sentenceShortcutResults)
                 {
-                    <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
-                            style="@borderStyle"
-                            disabled="@showAnswer"
-                            @onclick="() => SelectMultipleChoice(optionText)">
-                        @optionText
-                    </button>
+                    <div class="card card-ss p-3 mb-2">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                    <span class="badge @(result.UsageCorrect ? "bg-success" : "bg-warning text-dark")">
+                                        @(result.UsageCorrect ? "Counts toward mastery" : "Needs another try")
+                                    </span>
+                                    <span class="ss-caption1 text-secondary-ss">@((int)result.Accuracy)% accuracy • @((int)result.Fluency)% fluency</span>
+                                </div>
+                                <p class="ss-body1 mb-1">@result.Sentence</p>
+                                <small class="d-block text-secondary-ss"><strong>Target-word feedback:</strong> @result.UsageExplanation</small>
+
+                                @if (!string.IsNullOrWhiteSpace(result.RecommendedSentence))
+                                {
+                                    <small class="d-block text-secondary-ss mt-1"><strong>Suggested:</strong> @result.RecommendedSentence</small>
+                                }
+                            </div>
+
+                            <i class="bi @(result.UsageCorrect ? "bi-check-circle-fill text-success" : "bi-exclamation-circle-fill text-warning") fs-4"></i>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(result.AccuracyExplanation)
+                            || !string.IsNullOrWhiteSpace(result.FluencyExplanation)
+                            || !string.IsNullOrWhiteSpace(result.GrammarNotes))
+                        {
+                            <details class="mt-2">
+                                <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show details</summary>
+                                <div class="mt-1">
+                                    @if (!string.IsNullOrWhiteSpace(result.AccuracyExplanation))
+                                    {
+                                        <small class="d-block text-secondary-ss"><strong>Accuracy:</strong> @result.AccuracyExplanation</small>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(result.FluencyExplanation))
+                                    {
+                                        <small class="d-block text-secondary-ss"><strong>Fluency:</strong> @result.FluencyExplanation</small>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(result.GrammarNotes))
+                                    {
+                                        <small class="d-block text-secondary-ss"><strong>Notes:</strong> @result.GrammarNotes</small>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </div>
                 }
             }
         </div>
     }
     else
     {
-        <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
-            <label class="form-label text-secondary-ss">Type the translation</label>
-            <input type="text" class="form-control form-control-ss form-control-lg"
-                   @bind="userInput"
-                   disabled="@(showAnswer && !requireCorrectTyping)"
-                   placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
-        </form>
-    }
+        <div class="text-center my-4">
+            <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
 
-    @* Next / Override buttons *@
-    @if (showAnswer && !requireCorrectTyping)
-    {
-        <div class="text-center mt-4">
-            <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+            <div class="d-flex justify-content-center gap-3 mb-2">
+                @if (showAudioPromptControl)
+                {
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                            style="width: 44px; height: 44px;"
+                            title="Play audio"
+                            disabled="@isPlayingAudio"
+                            @onclick="PlayWordAudio">
+                        <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                    </button>
+                }
+                @if (showPhotoPromptControl)
+                {
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                            style="width: 44px; height: 44px;"
+                            title="@(showMnemonicImage ? "Hide image" : "Show image")"
+                            @onclick="ToggleMnemonicImage">
+                        <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
+                    </button>
+                }
+            </div>
+
+            @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+            {
+                <div class="mb-3">
+                    <img src="@currentItem.Word.MnemonicImageUri" alt="Mnemonic hint"
+                         class="rounded shadow-sm" style="max-height: 160px; object-fit: contain;" />
+                </div>
+            }
+
+            @if (showMnemonicTextHint && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicText))
+            {
+                <div class="alert alert-info py-2 px-3 mb-3 mx-auto" style="max-width: 560px;">
+                    <strong>Mnemonic:</strong> @currentItem.Word.MnemonicText
+                </div>
+            }
+
+            @if (showAnswer)
+            {
+                <p class="ss-title2">@correctAnswer</p>
+            }
         </div>
-    }
-    else if (showAnswer && requireCorrectTyping)
-    {
-        <div class="text-center mt-3">
-            <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
-                <i class="bi bi-check2 me-1"></i>I was correct
-            </button>
-        </div>
+
+        @* Feedback *@
+        @if (!string.IsNullOrEmpty(feedbackMessage))
+        {
+            <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mb-3">
+                @feedbackMessage
+            </div>
+        }
+
+        @if (!showAnswer && !requireCorrectTyping)
+        {
+            <div class="text-center mb-3">
+                <button type="button" class="btn btn-sm btn-ss-secondary" @onclick="OpenSentenceShortcut">
+                    <i class="bi bi-pencil-square me-1"></i>Use in a sentence
+                </button>
+            </div>
+        }
+
+        @* Input section *@
+        @if (userMode == "MultipleChoice")
+        {
+            @* @key on wrapper forces Blazor to destroy+recreate the entire container on turn change,
+               preventing iOS WebView from carrying touch-highlight state to new buttons *@
+            <div @key="@($"mc-turn-{currentTurnInRound}")" class="d-flex flex-column gap-2 mx-auto" style="max-width: 500px;">
+                @for (var optionIndex = 0; optionIndex < choiceOptions.Length; optionIndex++)
+                {
+                    var optCopy = choiceOptions[optionIndex];
+                    var optionText = optCopy.Text;
+                    var optionLabel = $"Option {(char)('A' + optionIndex)}";
+                    var bgClass = "";
+                    var borderStyle = "";
+
+                    if (showAnswer)
+                    {
+                        if (string.Equals(optionText, correctAnswer, StringComparison.OrdinalIgnoreCase))
+                        {
+                            bgClass = "bg-success text-white";
+                            borderStyle = "border-color: var(--bs-success) !important;";
+                        }
+                        else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
+                        {
+                            bgClass = "bg-danger text-white";
+                            borderStyle = "border-color: var(--bs-danger) !important;";
+                        }
+                    }
+                    else if (string.Equals(optionText, userGuess, StringComparison.OrdinalIgnoreCase))
+                    {
+                        borderStyle = "border-color: var(--bs-primary) !important;";
+                        bgClass = "bg-opacity-10";
+                    }
+
+                    @if (ShowAudioChoiceControls)
+                    {
+                        <div class="d-flex align-items-stretch gap-2">
+                            <button type="button"
+                                    class="btn btn-outline-secondary px-3"
+                                    title="Play answer audio"
+                                    aria-label="@($"Play {optionLabel.ToLowerInvariant()}")"
+                                    disabled="@isPlayingAudio"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => PlayChoiceAudio(optCopy)">
+                                <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
+                            </button>
+
+                            <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 flex-grow-1 @bgClass"
+                                    style="@borderStyle"
+                                    title="Select this answer"
+                                    aria-label="@($"Choose {optionLabel.ToLowerInvariant()}")"
+                                    disabled="@showAnswer"
+                                    @onclick="() => SelectMultipleChoice(optionText)">
+                                @optionLabel
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
+                                style="@borderStyle"
+                                disabled="@showAnswer"
+                                @onclick="() => SelectMultipleChoice(optionText)">
+                            @optionText
+                        </button>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
+                <label class="form-label text-secondary-ss">Type the translation</label>
+                <input type="text" class="form-control form-control-ss form-control-lg"
+                       @bind="userInput"
+                       disabled="@(showAnswer && !requireCorrectTyping)"
+                       placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
+            </form>
+        }
+
+        @* Next / Override buttons *@
+        @if (showAnswer && !requireCorrectTyping)
+        {
+            <div class="text-center mt-4">
+                <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+            </div>
+        }
+        else if (showAnswer && requireCorrectTyping)
+        {
+            <div class="text-center mt-3">
+                <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
+                    <i class="bi bi-check2 me-1"></i>I was correct
+                </button>
+            </div>
+        }
     }
 }
 else
@@ -217,7 +349,7 @@ else
 }
 </div> @* end activity-content *@
 
-@if (currentItem != null && !showSessionSummary)
+@if (currentItem != null && !showSessionSummary && !isSentenceShortcutMode)
 {
     <div class="activity-footer d-flex justify-content-between align-items-center">
         <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @roundWordOrder.Count</span>
@@ -239,6 +371,7 @@ else
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
@@ -299,12 +432,27 @@ else
     private int correctCount;
     private string nativeLanguage = "English";
     private string targetLanguage = "Korean";
+    private bool isSentenceShortcutMode;
+    private bool isSentenceShortcutSubmitting;
+    private string sentenceShortcutInput = "";
+    private int sentenceShortcutSuccessCount;
+    private List<SentenceShortcutResult> sentenceShortcutResults = new();
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
     private VocabularyAttempt? pendingAttempt;
 
     private sealed record QuizChoiceOption(string Text, string AudioText, string AudioLanguage);
+    private sealed record SentenceShortcutResult(
+        string Sentence,
+        bool UsageCorrect,
+        string UsageExplanation,
+        double Accuracy,
+        double Fluency,
+        string AccuracyExplanation,
+        string FluencyExplanation,
+        string RecommendedSentence,
+        string GrammarNotes);
 
     private bool ShowAudioChoiceControls => userMode == "MultipleChoice"
         && promptUsesNativeLanguage
@@ -441,6 +589,7 @@ else
         }
 
         currentItem = roundWordOrder[currentTurnInRound];
+        ResetSentenceShortcutState();
         promptUsesNativeLanguage = ShouldUseNativePrompt();
         questionText = GetPromptText(currentItem.Word);
         correctAnswer = GetAnswerText(currentItem.Word);
@@ -475,6 +624,235 @@ else
         {
             _ = InvokeAsync(PlayWordAudio);
         }
+    }
+
+    private void ResetSentenceShortcutState()
+    {
+        isSentenceShortcutMode = false;
+        isSentenceShortcutSubmitting = false;
+        sentenceShortcutInput = "";
+        sentenceShortcutSuccessCount = 0;
+        sentenceShortcutResults.Clear();
+    }
+
+    private void OpenSentenceShortcut()
+    {
+        if (currentItem?.Word == null)
+            return;
+
+        autoAdvanceCts?.Cancel();
+        pendingAttempt = null;
+        isSentenceShortcutMode = true;
+        isSentenceShortcutSubmitting = false;
+        sentenceShortcutInput = "";
+        sentenceShortcutSuccessCount = 0;
+        sentenceShortcutResults.Clear();
+    }
+
+    private void CancelSentenceShortcut()
+    {
+        if (isSentenceShortcutSubmitting)
+            return;
+
+        isSentenceShortcutMode = false;
+        sentenceShortcutInput = "";
+        sentenceShortcutSuccessCount = 0;
+        sentenceShortcutResults.Clear();
+    }
+
+    private async Task ContinueAfterSentenceShortcut()
+    {
+        if (isSentenceShortcutSubmitting)
+            return;
+
+        ResetSentenceShortcutState();
+        await NextItem();
+    }
+
+    private string GetSentenceShortcutPlaceholder()
+    {
+        var targetWord = currentItem?.Word?.TargetLanguageTerm ?? "the word";
+        return $"Write one or more sentences using \"{targetWord}\".\nFor example: {targetWord} ...";
+    }
+
+    private async Task SubmitSentenceShortcut()
+    {
+        if (currentItem?.Word == null)
+            return;
+
+        var sentenceEntries = SplitSentenceEntries(sentenceShortcutInput);
+        if (sentenceEntries.Count == 0)
+        {
+            Toast.ShowWarning("Write at least one sentence first.");
+            return;
+        }
+
+        isSentenceShortcutSubmitting = true;
+        sentenceShortcutResults.Clear();
+        sentenceShortcutSuccessCount = 0;
+        StateHasChanged();
+
+        try
+        {
+            var activeUserId = Preferences.Get("active_profile_id", "");
+            var updatedProgress = currentItem.Progress;
+            var productionStreak = currentItem.QuizProductionStreak;
+            var responseTimeMs = responseTimer.IsRunning ? (int)responseTimer.ElapsedMilliseconds : 0;
+            var gradedResults = new List<SentenceShortcutResult>(sentenceEntries.Count);
+
+            foreach (var sentenceText in sentenceEntries)
+            {
+                var grade = await TeacherSvc.GradeTargetWordSentence(sentenceText, currentItem.Word, targetLanguage, nativeLanguage);
+                var targetAnalysis = GetTargetWordAnalysis(grade, currentItem.Word);
+                if (targetAnalysis == null)
+                {
+                    throw new InvalidOperationException($"Target-word grading was unavailable for \"{currentItem.Word.TargetLanguageTerm}\".");
+                }
+
+                var usageCorrect = targetAnalysis.UsageCorrect;
+                var usageExplanation = string.IsNullOrWhiteSpace(targetAnalysis.UsageExplanation)
+                    ? usageCorrect
+                        ? $"\"{currentItem.Word.TargetLanguageTerm}\" is used meaningfully here."
+                        : $"This doesn't yet show a clear, correct use of \"{currentItem.Word.TargetLanguageTerm}\"."
+                    : targetAnalysis.UsageExplanation;
+
+                gradedResults.Add(new SentenceShortcutResult(
+                    sentenceText,
+                    usageCorrect,
+                    usageExplanation,
+                    grade?.Accuracy ?? 0,
+                    grade?.Fluency ?? 0,
+                    grade?.AccuracyExplanation ?? string.Empty,
+                    grade?.FluencyExplanation ?? string.Empty,
+                    grade?.GrammarNotes?.RecommendedTranslation ?? string.Empty,
+                    grade?.GrammarNotes?.Explanation ?? string.Empty));
+            }
+
+            foreach (var result in gradedResults)
+            {
+                updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+                {
+                    VocabularyWordId = currentItem.Word.Id,
+                    UserId = activeUserId,
+                    Activity = "VocabularyQuiz",
+                    InputMode = InputMode.Text.ToString(),
+                    WasCorrect = result.UsageCorrect,
+                    DifficultyWeight = 1.5f,
+                    ContextType = "Sentence",
+                    UserInput = result.Sentence,
+                    ExpectedAnswer = currentItem.Word.TargetLanguageTerm,
+                    ResponseTimeMs = responseTimeMs
+                });
+
+                currentItem.Progress = updatedProgress;
+
+                if (result.UsageCorrect)
+                {
+                    sentenceShortcutSuccessCount++;
+                    productionStreak++;
+                }
+                else
+                {
+                    productionStreak = 0;
+                }
+
+                if (updatedProgress.IsFamiliar)
+                {
+                    await ProgressService.HandleVerificationProbeResultAsync(
+                        currentItem.Word.Id, activeUserId, result.UsageCorrect);
+                }
+            }
+
+            sentenceShortcutResults.Clear();
+            sentenceShortcutResults.AddRange(gradedResults);
+            currentItem.QuizProductionStreak = Math.Min(productionStreak, VocabularyQuizItem.RequiredCorrectAnswers);
+            totalTurns += sentenceEntries.Count;
+            correctCount += sentenceShortcutSuccessCount;
+            CacheService.InvalidateVocabSummary();
+            sentenceShortcutInput = string.Empty;
+
+            if (sentenceShortcutSuccessCount == sentenceShortcutResults.Count)
+            {
+                Toast.ShowSuccess($"Nice! {sentenceShortcutSuccessCount} sentence(s) counted toward mastery.");
+            }
+            else if (sentenceShortcutSuccessCount > 0)
+            {
+                Toast.ShowInfo($"{sentenceShortcutSuccessCount} of {sentenceShortcutResults.Count} sentence(s) counted toward mastery.");
+            }
+            else
+            {
+                Toast.ShowWarning($"Not yet—try another sentence using {currentItem.Word.TargetLanguageTerm}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to grade sentence shortcut for word {Word}", currentItem.Word.TargetLanguageTerm);
+            Toast.ShowError("We couldn't grade that sentence right now. No progress was changed. Please try again.");
+        }
+        finally
+        {
+            isSentenceShortcutSubmitting = false;
+        }
+    }
+
+    private static List<string> SplitSentenceEntries(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return new List<string>();
+
+        return System.Text.RegularExpressions.Regex
+            .Split(input.Trim(), @"(?:\r?\n)+|(?<=[.!?。！？])")
+            .Select(part => part.Trim())
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static VocabularyAnalysis? GetTargetWordAnalysis(GradeResponse? grade, VocabularyWord word)
+    {
+        var targetTerm = NormalizeTargetWordValue(word.TargetLanguageTerm);
+        if (grade?.VocabularyAnalysis?.Any() != true || string.IsNullOrWhiteSpace(targetTerm))
+            return null;
+
+        foreach (var item in grade.VocabularyAnalysis)
+        {
+            if (NormalizeTargetWordValue(item.DictionaryForm) == targetTerm
+                || NormalizeTargetWordValue(item.UsedForm) == targetTerm)
+            {
+                return item;
+            }
+
+            var usedFormTokens = System.Text.RegularExpressions.Regex
+                .Split(item.UsedForm ?? string.Empty, @"[\s\p{P}\p{S}]+")
+                .Select(NormalizeTargetWordValue)
+                .Where(token => !string.IsNullOrWhiteSpace(token));
+
+            if (usedFormTokens.Any(token => token == targetTerm))
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeTargetWordValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var normalized = value.Trim().Normalize(System.Text.NormalizationForm.FormKC);
+        var builder = new System.Text.StringBuilder(normalized.Length);
+
+        foreach (var ch in normalized)
+        {
+            if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+        }
+
+        return builder.ToString().Trim();
     }
 
     private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
