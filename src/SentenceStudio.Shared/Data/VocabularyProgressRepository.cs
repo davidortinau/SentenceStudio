@@ -295,7 +295,8 @@ public class VocabularyProgressRepository
     }
 
     /// <summary>
-    /// Get count of vocabulary words due for review based on SRS schedule
+    /// Get count of vocabulary words due for review based on SRS schedule.
+    /// Excludes words that are already Known (MasteryScore >= 0.85 AND ProductionInStreak >= 2).
     /// </summary>
     public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, string userId = "")
     {
@@ -304,14 +305,18 @@ public class VocabularyProgressRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var dueCount = await db.VocabularyProgresses
-            .Where(vp => vp.UserId == userId && vp.NextReviewDate <= asOfDate)
+            .Where(vp => vp.UserId == userId
+                && vp.NextReviewDate <= asOfDate
+                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2))
             .CountAsync();
 
         return dueCount;
     }
 
     /// <summary>
-    /// Get vocabulary words due for review with word and resource details for planning
+    /// Get vocabulary words due for review with word and resource details for planning.
+    /// Excludes words that are already Known (MasteryScore >= 0.85 AND ProductionInStreak >= 2)
+    /// so that the Today Plan focuses on words that still need active learning.
     /// </summary>
     public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, string userId = "")
     {
@@ -323,7 +328,9 @@ public class VocabularyProgressRepository
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
-            .Where(vp => vp.UserId == userId && vp.NextReviewDate <= asOfDate)
+            .Where(vp => vp.UserId == userId
+                && vp.NextReviewDate <= asOfDate
+                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2))
             .ToListAsync();
 
         return dueWords;
