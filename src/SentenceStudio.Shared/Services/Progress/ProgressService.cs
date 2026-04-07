@@ -232,8 +232,33 @@ public class ProgressService : IProgressService
             var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
             var skills = await _skillRepo.ListAsync();
 
-            var resourceTitles = resources.ToDictionary(r => r.Id, r => r.Title ?? "Untitled");
-            var skillNames = skills.ToDictionary(s => s.Id, s => s.Title ?? "Untitled");
+            var duplicateResourceCount = resources
+                .GroupBy(r => r.Id)
+                .Count(g => g.Count() > 1);
+            if (duplicateResourceCount > 0)
+            {
+                _logger.LogWarning("Found {Count} duplicate resources while generating today's plan. Using the first title for each resource ID.", duplicateResourceCount);
+            }
+
+            var duplicateSkillCount = skills
+                .GroupBy(s => s.Id)
+                .Count(g => g.Count() > 1);
+            if (duplicateSkillCount > 0)
+            {
+                _logger.LogWarning("Found {Count} duplicate skills while generating today's plan. Using the first title for each skill ID.", duplicateSkillCount);
+            }
+
+            var resourceTitles = resources
+                .GroupBy(r => r.Id)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(r => r.Title).FirstOrDefault(title => !string.IsNullOrWhiteSpace(title)) ?? "Untitled");
+
+            var skillNames = skills
+                .GroupBy(s => s.Id)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(s => s.Title).FirstOrDefault(title => !string.IsNullOrWhiteSpace(title)) ?? "Untitled");
 
             // Convert LLM response to TodaysPlan
             var plan = PlanConverter.ConvertToTodaysPlan(
@@ -752,7 +777,25 @@ public class ProgressService : IProgressService
         _logger.LogDebug("📊 Found {Count} completion records", completions.Count);
 
         // Create dictionary for O(1) lookup
-        var completionDict = completions.ToDictionary(c => c.PlanItemId);
+        var duplicateCompletionCount = completions
+            .GroupBy(c => c.PlanItemId)
+            .Count(g => g.Count() > 1);
+        if (duplicateCompletionCount > 0)
+        {
+            _logger.LogWarning(
+                "Found {Count} duplicate DailyPlanCompletion records for {Date:yyyy-MM-dd}. Using the most recently updated record for each plan item.",
+                duplicateCompletionCount,
+                plan.GeneratedForDate);
+        }
+
+        var completionDict = completions
+            .GroupBy(c => c.PlanItemId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(c => c.UpdatedAt)
+                    .ThenByDescending(c => c.CompletedAt ?? DateTime.MinValue)
+                    .ThenByDescending(c => c.CreatedAt)
+                    .First());
 
         // Update each plan item with completion data
         var enrichedItems = plan.Items.Select(item =>
@@ -810,7 +853,9 @@ public class ProgressService : IProgressService
             return plan;
 
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
-        var resourceLookup = resources.ToDictionary(r => r.Id);
+        var resourceLookup = resources
+            .GroupBy(r => r.Id)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var validItems = plan.Items.Where(item =>
         {
