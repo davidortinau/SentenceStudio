@@ -108,7 +108,7 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Mnemonic Story</label>
-            <textarea class="form-control form-control-ss" @bind="mnemonicText" rows="3"
+            <textarea class="form-control form-control-ss" @bind="mnemonicText" @bind:event="oninput" rows="3"
                       placeholder="A silly story or memory hook to help recall this word..."></textarea>
         </div>
 
@@ -443,7 +443,12 @@ else
             word.MnemonicImageUri = mnemonicImageUri.Trim();
             word.UpdatedAt = DateTime.UtcNow;
 
-            await ResourceRepo.SaveWordAsync(word);
+            var saveResult = await ResourceRepo.SaveWordAsync(word);
+            if (saveResult < 0)
+            {
+                errorMessage = "Failed to save the vocabulary word. Please try again.";
+                return;
+            }
 
             // Handle resource associations
             if (!string.IsNullOrEmpty(word.Id))

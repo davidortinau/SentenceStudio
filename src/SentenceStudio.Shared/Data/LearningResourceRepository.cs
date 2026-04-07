@@ -150,7 +150,7 @@ public class LearningResourceRepository
         }
         catch (Exception ex)
         {
-            // UXDivers popup removed - error already logged above
+            _logger.LogError(ex, "Error saving vocabulary word {WordId}", word?.Id);
             return -1;
         }
     }
