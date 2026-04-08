@@ -184,7 +184,7 @@ else if (currentItem != null)
         <div class="text-center my-4">
             <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
 
-            <div class="d-flex justify-content-center gap-3 mb-2">
+            <div class="d-flex justify-content-center gap-2 flex-wrap mb-2">
                 @if (showAudioPromptControl)
                 {
                     <button class="btn btn-outline-secondary btn-sm rounded-circle"
@@ -202,6 +202,16 @@ else if (currentItem != null)
                             title="@(showMnemonicImage ? "Hide image" : "Show image")"
                             @onclick="ToggleMnemonicImage">
                         <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
+                    </button>
+                }
+                @if (!showAnswer && !requireCorrectTyping)
+                {
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
+                            title="Advanced: demonstrate mastery by using the word in a sentence"
+                            @onclick="OpenSentenceShortcut">
+                        <i class="bi bi-pencil-square"></i>
+                        <span class="d-none d-sm-inline">Use in a sentence</span>
                     </button>
                 }
             </div>
@@ -232,15 +242,6 @@ else if (currentItem != null)
         {
             <div class="alert @(isCorrect ? "alert-success" : "alert-danger") text-center py-2 mb-3">
                 @feedbackMessage
-            </div>
-        }
-
-        @if (!showAnswer && !requireCorrectTyping)
-        {
-            <div class="text-center mb-3">
-                <button type="button" class="btn btn-sm btn-ss-secondary" @onclick="OpenSentenceShortcut">
-                    <i class="bi bi-pencil-square me-1"></i>Use in a sentence
-                </button>
             </div>
         }
 
