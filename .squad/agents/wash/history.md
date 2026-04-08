@@ -72,6 +72,11 @@
 - **UpdatePlanItemProgressAsync is the ONLY method called by the timer** — `MarkPlanItemCompleteAsync` exists but is never invoked by any activity page or the timer; all completion logic must live in `UpdatePlanItemProgressAsync`
 - **ActivityTimerService.SaveProgressAsync → UpdatePlanItemProgressAsync** is the sole path for persisting activity time; it fires every minute tick and on Pause()
 - **Activity pages GoBack() pattern**: `Pause()` → `StopSession()` → `NavigateTo("/")` — no explicit completion signal is sent; completion must be detected from accumulated time vs estimate
+- **Feedback endpoints** use HMAC-signed preview tokens (Base64Url payload + HMACSHA256 signature) with 10-min expiry — token carries full issue content so submit is a single token POST
+- **GitHub HttpClient** registered as named client `"GitHub"` with base address `https://api.github.com`, default headers (Accept, User-Agent, X-GitHub-Api-Version) — PAT set per-request from config `GitHub:Pat`
+- **IChatClient nullable pattern** — always inject as `IChatClient?` in endpoints; if null (no API key), fall back gracefully instead of 500
+- **AI label allowlist** — server-side filter to `["bug", "enhancement"]` only; never trust AI-generated labels directly for GitHub issue creation
+- **AppHost secret params** follow pattern: `builder.AddParameter("name", secret: true)` then `.WithEnvironment("Section__Key", param)` — added `githubpat` for feedback
 
 ## Core Context (Current)
 
@@ -431,3 +436,12 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 - **Jayne:** Currently end-to-end verification of all three fixes in running app.
 
 **Team Sync:** All three bug fixes are interlinked — vocabulary scoring, activity validation, and turn timing. Interdependencies verified; no conflicts.
+
+### 2026-04-08 — Cross-Agent Update: GitHub Backlog Triage Complete
+
+**Team Status:** Backlog triage completed. Infrastructure audit recommended keeping most deployment/hardening issues open.
+
+**Key Decision:** Feedback auth fix (user_profile_id JWT claim) merged to team decisions log. Multiple endpoints (Feedback, Channel, Import) required this claim addition across three token paths: JwtTokenService, ServerAuthService, DevAuthHandler.
+
+**Impact for Wash:** Operational priorities identified (#57, #59, #58). No stale duplicates in backlog. Ready for DevOps roadmap integration.
+

@@ -516,3 +516,34 @@ Three defense-in-depth failures combined to cause plan progress never updating:
 
 **Key File:**
 - `src/SentenceStudio.Shared/Services/Progress/ProgressService.cs` — all 4 fixes in this file
+
+### Feedback Feature UI (#139) — Implementation (2025-07-22)
+
+Built the complete Feedback page with three-state flow (Form, Preview, Success) per Zoe's architecture plan.
+
+**Files Created:**
+- `src/SentenceStudio.UI/Pages/Feedback.razor` — three-state Blazor page
+- `src/SentenceStudio.AppLib/Services/Api/IFeedbackApiClient.cs` — typed client interface
+- `src/SentenceStudio.AppLib/Services/Api/FeedbackApiClient.cs` — typed client calling /api/v1/feedback/* endpoints
+
+**Files Modified:**
+- `src/SentenceStudio.UI/Layout/NavMenu.razor` — added "Feedback" nav item with bi-chat-dots icon
+- `src/SentenceStudio.UI/Services/NavigationMemoryService.cs` — added feedback section entry
+- `src/SentenceStudio.AppLib/ServiceCollectionExtentions.cs` — registered FeedbackApiClient in AddApiClients()
+
+**Key Decisions:**
+- Used typed HttpClient pattern (matching AiApiClient, SpeechApiClient) to ensure consistent auth handler across MAUI and WebApp hosts
+- DTOs from Contracts/Feedback/ (created by Wash) — FeedbackRequest, FeedbackPreviewResponse, FeedbackSubmitRequest, FeedbackSubmitResponse
+- Markdown-to-HTML conversion uses same regex approach as Settings.razor ConvertMarkdownToHtml
+- Client metadata (version, platform, route) auto-captured before preview call
+- Double-submit protection via disabled buttons during async operations
+- PageHeader doesn't support Subtitle — used inline `<p>` below header instead
+
+### 2026-04-08 — Cross-Agent Update: GitHub Backlog Triage Complete
+
+**Team Status:** Backlog triage completed. Mobile UX issues identified (#100-#120 cluster), infrastructure priorities (#57-#59), and decision logs merged.
+
+**Decision:** Feedback auth fix merged to team log (user_profile_id JWT claim required by multiple endpoints).
+
+**Impact for Kaylee:** Valid mobile UX issues ready for sprint planning; testing priorities updated in team log.
+

@@ -188,3 +188,13 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 - iOS device install requires unlocked device; error is `kAMDMobileImageMounterDeviceLocked`
 - CI workflow at `.github/workflows/ci.yml` triggers on push to main
 - Azure deploy uses `azure.yaml` pointing at the Aspire AppHost project
+
+### 2026-04-08 — Cross-Agent Update: GitHub Backlog Triage Complete
+
+**Team Status:** Backlog triage completed across three focus areas:
+- Mobile UX validation: 7 issues remain valid (#100, #102, #104, #109, #110, #119, #120); #114 and #116 confirmed addressed
+- Infrastructure audit: #57, #59, #58 identified as highest operational priority
+- Decisions: Feedback auth fix merged to team decisions log
+
+**Impact for Jayne:** Valid mobile UX issues ready for sprint planning and E2E test prioritization.
+

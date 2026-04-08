@@ -72,6 +72,33 @@
 
 **Next:** Phase 3 infrastructure work (Postgres setup, CoreSync migration) and Phase 4 CI/deploy pipeline
 
+### 2025-07-22 — Feedback Feature Architecture (#139)
+
+**Status:** Architecture complete, ready for implementation  
+**Output:** `.squad/decisions/inbox/zoe-feedback-architecture.md`
+
+**What:**
+Designed the full architecture for user feedback submission as GitHub issues. Two-endpoint flow (preview + submit) with AI enrichment via IChatClient and server-side GitHub issue creation via REST API.
+
+**Key Architecture Decisions:**
+- **Server-side GitHub PAT** — kept secure in Aspire secrets, never exposed to clients
+- **Two endpoints with preview token** — POST `/api/v1/feedback/preview` returns AI-enriched draft + HMAC token; POST `/api/v1/feedback/submit` accepts token only. Prevents tampering between preview and creation.
+- **Structured AI output + deterministic markdown** — AI returns typed `FeedbackDraft` object, server renders GitHub markdown and whitelists labels. Prevents hallucinated structure.
+- **AI fallback** — 15s timeout, raw submission allowed if AI fails. Never blocks the user.
+- **Auth required** — matches existing endpoint patterns, prevents spam
+- **Raw HttpClient over Octokit** — single POST call doesn't justify a library dependency
+- **Client metadata** — version, platform, route, timestamp captured automatically in collapsible details section
+
+**Work Breakdown:**
+- Wash: Backend (AppHost secret, Contracts DTOs, FeedbackEndpoints.cs, GitHub API integration, HMAC token)
+- Kaylee: UI (NavMenu + NavigationMemoryService update, Feedback.razor page)
+- River: AI prompt design for feedback enrichment
+
+**Learnings:**
+- NavigationMemoryService.Sections array must be updated when adding any new nav item — otherwise active-state detection breaks
+- Preview token pattern (HMAC-signed, short-lived) is a good fit for any two-step confirm flow — reusable for future features
+- GitHub REST API v3 for issue creation is trivial (single POST with title + body + labels) — no need for Octokit for simple operations
+
 ### 2026-03-18 — Getting Started Dashboard Experience
 
 **Status:** Complete (feature branch `feature/getting-started-dashboard`)  
