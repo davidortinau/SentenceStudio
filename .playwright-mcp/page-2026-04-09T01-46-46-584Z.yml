@@ -1,0 +1,78 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "" [ref=e8] [cursor=pointer]:
+          - generic [ref=e9]: 
+        - text: 
+        - heading "Edit Vocabulary Word" [level=1] [ref=e10]
+      - generic [ref=e12]:
+        - button "" [ref=e13] [cursor=pointer]:
+          - generic [ref=e14]: 
+        - text:   
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - heading "Vocabulary Terms" [level=5] [ref=e17]
+        - button " Find Duplicates" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: 
+          - text: Find Duplicates
+      - generic [ref=e20]:
+        - generic [ref=e21]: Target Language Term
+        - generic [ref=e22]:
+          - textbox "Enter target language term" [ref=e23]: 자동차
+          - button "" [ref=e24] [cursor=pointer]:
+            - generic [ref=e25]: 
+      - generic [ref=e26]:
+        - generic [ref=e27]: Native Language Term
+        - textbox "Enter native language term" [ref=e28]: car
+    - generic [ref=e29]:
+      - heading "Encoding & Memory Aids" [level=5] [ref=e30]
+      - paragraph [ref=e31]: "Encoding Strength: Basic"
+      - generic [ref=e32]:
+        - generic [ref=e33]: Lemma (Dictionary Form)
+        - textbox "e.g., 가다 for 갔다, 가요, etc." [ref=e34]
+      - generic [ref=e35]:
+        - generic [ref=e36]: Language
+        - combobox [ref=e37]:
+          - option "— Not set —"
+          - option "English"
+          - option "Korean" [selected]
+          - option "Spanish"
+          - option "Japanese"
+          - option "Chinese"
+          - option "French"
+          - option "German"
+          - option "Italian"
+          - option "Portuguese"
+          - option "Russian"
+      - generic [ref=e38]:
+        - generic [ref=e39]: Tags (comma-separated)
+        - textbox "e.g., nature, season, visual" [ref=e40]
+      - generic [ref=e41]:
+        - generic [ref=e42]: Mnemonic Story
+        - textbox "A silly story or memory hook to help recall this word..." [ref=e43]
+      - generic [ref=e44]:
+        - generic [ref=e45]: Mnemonic Image URL
+        - textbox "https://example.com/image.jpg" [ref=e46]
+    - generic [ref=e47]:
+      - heading "Learning Progress" [level=5] [ref=e48]
+      - generic [ref=e49]:
+        - strong [ref=e51]: Status
+        - combobox [ref=e54]:
+          - option "Unknown" [selected]
+          - option "Learning"
+          - option "Familiar"
+        - strong [ref=e56]: Details
+        - generic [ref=e57]: Start practicing to track progress.
+        - strong [ref=e59]: Next Review
+        - generic [ref=e60]: Not scheduled
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - heading "Resource Associations" [level=5] [ref=e63]
+        - generic [ref=e64]: 1 selected
+      - paragraph [ref=e65]: Select resources to associate with this word.
+      - generic [ref=e67] [cursor=pointer]:
+        - checkbox "Sentence Studio Starter Vocabulary" [checked] [ref=e68]
+        - strong [ref=e70]: Sentence Studio Starter Vocabulary

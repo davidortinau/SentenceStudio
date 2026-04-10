@@ -1,0 +1,393 @@
+- generic [ref=e29]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - text:           
+  - main [ref=e31]:
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - button "" [ref=e62] [cursor=pointer]:
+          - generic [ref=e63]: 
+        - text: 
+        - heading "Sentence Studio Starter Vocabulary" [level=1] [ref=e64]
+      - generic [ref=e66]:
+        - button "" [ref=e67] [cursor=pointer]:
+          - generic [ref=e68]: 
+        - text:  
+    - generic [ref=e69]:
+      - heading "Basic Information" [level=5] [ref=e70]
+      - generic [ref=e71]:
+        - generic [ref=e72]: Title
+        - textbox [ref=e73]: Sentence Studio Starter Vocabulary
+      - generic [ref=e74]:
+        - generic [ref=e75]: Description
+        - textbox [ref=e76]: Starter vocabulary for learning Korean
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - generic [ref=e79]: Media Type
+          - combobox [ref=e80]:
+            - option "Video"
+            - option "Podcast"
+            - option "Image"
+            - option "Vocabulary List" [selected]
+            - option "Article"
+            - option "Other"
+        - generic [ref=e81]:
+          - generic [ref=e82]: Language
+          - combobox [ref=e83]:
+            - option "English"
+            - option "Korean" [selected]
+            - option "Spanish"
+            - option "Japanese"
+            - option "Chinese"
+            - option "French"
+            - option "German"
+            - option "Italian"
+            - option "Portuguese"
+            - option "Russian"
+      - generic [ref=e84]:
+        - generic [ref=e85]: Media URL
+        - textbox [ref=e86]
+      - generic [ref=e87]:
+        - generic [ref=e88]: Tags (comma separated)
+        - textbox [ref=e89]: starter,vocabulary
+      - generic [ref=e90]:
+        - strong [ref=e92]: Created
+        - generic [ref=e93]: 3/31/2026 10:16 AM
+        - strong [ref=e95]: Updated
+        - generic [ref=e96]: 3/31/2026 10:16 AM
+    - generic [ref=e97]:
+      - heading "Transcript" [level=5] [ref=e98]
+      - textbox [ref=e99]
+    - generic [ref=e100]:
+      - heading "Translation" [level=5] [ref=e101]
+      - textbox [ref=e102]
+    - generic [ref=e103]:
+      - heading "Vocabulary (104 words)" [level=5] [ref=e105]
+      - generic [ref=e106]:
+        - generic [ref=e107]: Import vocabulary (one pair per line)
+        - textbox "target, native" [ref=e108]
+      - generic [ref=e109]:
+        - generic [ref=e110]:
+          - radio "Comma" [checked] [ref=e111]
+          - generic [ref=e112]: Comma
+        - generic [ref=e113]:
+          - radio "Tab" [ref=e114]
+          - generic [ref=e115]: Tab
+        - button "Import" [disabled]
+      - generic [ref=e116]:
+        - generic [ref=e117]: Or import from a file (.txt, .csv)
+        - button " Choose File" [ref=e119] [cursor=pointer]:
+          - generic [ref=e120]: 
+          - text: Choose File
+      - generic [ref=e121]:
+        - generic [ref=e123]:
+          - strong [ref=e124]: 사과
+          - text: apple
+        - generic [ref=e126]:
+          - strong [ref=e127]: 나빠요
+          - text: bad
+        - generic [ref=e129]:
+          - strong [ref=e130]: 일
+          - text: work
+        - generic [ref=e132]:
+          - strong [ref=e133]: 해
+          - text: sun
+        - generic [ref=e135]:
+          - strong [ref=e136]: 사전
+          - text: dictionary
+        - generic [ref=e138]:
+          - strong [ref=e139]: 자동차
+          - text: car
+        - generic [ref=e141]:
+          - strong [ref=e142]: 금요일
+          - text: Friday
+        - generic [ref=e144]:
+          - strong [ref=e145]: 월요일
+          - text: Monday
+        - generic [ref=e147]:
+          - strong [ref=e148]: 문법
+          - text: grammar
+        - generic [ref=e150]:
+          - strong [ref=e151]: 학교
+          - text: school
+        - generic [ref=e153]:
+          - strong [ref=e154]: 물건
+          - text: thing
+        - generic [ref=e156]:
+          - strong [ref=e157]: 복습
+          - text: review
+        - generic [ref=e159]:
+          - strong [ref=e160]: 안녕히 계세요
+          - text: goodbye (to someone staying)
+        - generic [ref=e162]:
+          - strong [ref=e163]: 오빠
+          - text: older brother (female speaker)
+        - generic [ref=e165]:
+          - strong [ref=e166]: 목요일
+          - text: Thursday
+        - generic [ref=e168]:
+          - strong [ref=e169]: 개
+          - text: dog
+        - generic [ref=e171]:
+          - strong [ref=e172]: 큰
+          - text: big
+        - generic [ref=e174]:
+          - strong [ref=e175]: 언니
+          - text: older sister (female speaker)
+        - generic [ref=e177]:
+          - strong [ref=e178]: 자동차
+          - text: car
+        - generic [ref=e180]:
+          - strong [ref=e181]: 저녁
+          - text: dinner
+        - generic [ref=e183]:
+          - strong [ref=e184]: 사람
+          - text: person
+        - generic [ref=e186]:
+          - strong [ref=e187]: 채소
+          - text: vegetable
+        - generic [ref=e189]:
+          - strong [ref=e190]: 차
+          - text: tea
+        - generic [ref=e192]:
+          - strong [ref=e193]: 영화
+          - text: movie
+        - generic [ref=e195]:
+          - strong [ref=e196]: 책가방
+          - text: backpack
+        - generic [ref=e198]:
+          - strong [ref=e199]: 신문
+          - text: newspaper
+        - generic [ref=e201]:
+          - strong [ref=e202]: 안녕
+          - text: hello
+        - generic [ref=e204]:
+          - strong [ref=e205]: 정보
+          - text: information
+        - generic [ref=e207]:
+          - strong [ref=e208]: 화요일
+          - text: Tuesday
+        - generic [ref=e210]:
+          - strong [ref=e211]: 종이
+          - text: paper
+        - generic [ref=e213]:
+          - strong [ref=e214]: 물고기
+          - text: fish
+        - generic [ref=e216]:
+          - strong [ref=e217]: 약
+          - text: medicine
+        - generic [ref=e219]:
+          - strong [ref=e220]: 버스
+          - text: bus
+        - generic [ref=e222]:
+          - strong [ref=e223]: 좋다
+          - text: to be good
+        - generic [ref=e225]:
+          - strong [ref=e226]: 수요일
+          - text: Wednesday
+        - generic [ref=e228]:
+          - strong [ref=e229]: 텔레비전
+          - text: television
+        - generic [ref=e231]:
+          - strong [ref=e232]: 음식
+          - text: food
+        - generic [ref=e234]:
+          - strong [ref=e235]: 연필
+          - text: pencil
+        - generic [ref=e237]:
+          - strong [ref=e238]: 고양이
+          - text: cat
+        - generic [ref=e240]:
+          - strong [ref=e241]: 좋아요
+          - text: good
+        - generic [ref=e243]:
+          - strong [ref=e244]: 게임
+          - text: game
+        - generic [ref=e246]:
+          - strong [ref=e247]: 토요일
+          - text: Saturday
+        - generic [ref=e249]:
+          - strong [ref=e250]: 달
+          - text: moon
+        - generic [ref=e252]:
+          - strong [ref=e253]: 과일
+          - text: fruit
+        - generic [ref=e255]:
+          - strong [ref=e256]: 운동
+          - text: exercise
+        - generic [ref=e258]:
+          - strong [ref=e259]: 꽃
+          - text: flower
+        - generic [ref=e261]:
+          - strong [ref=e262]: 병원
+          - text: hospital
+        - generic [ref=e264]:
+          - strong [ref=e265]: 의자
+          - text: chair
+        - generic [ref=e267]:
+          - strong [ref=e268]: 이름
+          - text: name
+        - generic [ref=e270]:
+          - strong [ref=e271]: 조금
+          - text: a little
+        - generic [ref=e273]:
+          - strong [ref=e274]: 물
+          - text: water
+        - generic [ref=e276]:
+          - strong [ref=e277]: 수업
+          - text: class
+        - generic [ref=e279]:
+          - strong [ref=e280]: 사진
+          - text: photo
+        - generic [ref=e282]:
+          - strong [ref=e283]: 많이
+          - text: a lot
+        - generic [ref=e285]:
+          - strong [ref=e286]: 전화
+          - text: phone
+        - generic [ref=e288]:
+          - strong [ref=e289]: 미안합니다
+          - text: I'm sorry
+        - generic [ref=e291]:
+          - strong [ref=e292]: 가족
+          - text: family
+        - generic [ref=e294]:
+          - strong [ref=e295]: 이야기
+          - text: story
+        - generic [ref=e297]:
+          - strong [ref=e298]: 나쁘다
+          - text: to be bad
+        - generic [ref=e300]:
+          - strong [ref=e301]: 책
+          - text: book
+        - generic [ref=e303]:
+          - strong [ref=e304]: 봄
+          - text: spring
+        - generic [ref=e306]:
+          - strong [ref=e307]: 색깔
+          - text: color
+        - generic [ref=e309]:
+          - strong [ref=e310]: 비행기
+          - text: airplane
+        - generic [ref=e312]:
+          - strong [ref=e313]: 돈
+          - text: money
+        - generic [ref=e315]:
+          - strong [ref=e316]: 작은
+          - text: small
+        - generic [ref=e318]:
+          - strong [ref=e319]: 소리
+          - text: sound
+        - generic [ref=e321]:
+          - strong [ref=e322]: 커피
+          - text: coffee
+        - generic [ref=e324]:
+          - strong [ref=e325]: 사랑
+          - text: love
+        - generic [ref=e327]:
+          - strong [ref=e328]: 감사합니다
+          - text: thank you
+        - generic [ref=e330]:
+          - strong [ref=e331]: 안녕히 가세요
+          - text: goodbye (to someone leaving)
+        - generic [ref=e333]:
+          - strong [ref=e334]: 교실
+          - text: classroom
+        - generic [ref=e336]:
+          - strong [ref=e337]: 단어
+          - text: word
+        - generic [ref=e339]:
+          - strong [ref=e340]: 아침
+          - text: morning
+        - generic [ref=e342]:
+          - strong [ref=e343]: 창문
+          - text: window
+        - generic [ref=e345]:
+          - strong [ref=e346]: 음악
+          - text: music
+        - generic [ref=e348]:
+          - strong [ref=e349]: 슬픔
+          - text: sadness
+        - generic [ref=e351]:
+          - strong [ref=e352]: 아이
+          - text: child
+        - generic [ref=e354]:
+          - strong [ref=e355]: 도로
+          - text: road
+        - generic [ref=e357]:
+          - strong [ref=e358]: 형
+          - text: older brother (male speaker)
+        - generic [ref=e360]:
+          - strong [ref=e361]: 휴대폰
+          - text: mobile phone
+        - generic [ref=e363]:
+          - strong [ref=e364]: 선생님
+          - text: teacher
+        - generic [ref=e366]:
+          - strong [ref=e367]: 학생
+          - text: student
+        - generic [ref=e369]:
+          - strong [ref=e370]: 누나
+          - text: older sister (male speaker)
+        - generic [ref=e372]:
+          - strong [ref=e373]: 지우개
+          - text: eraser
+        - generic [ref=e375]:
+          - strong [ref=e376]: 행복
+          - text: happiness
+        - generic [ref=e378]:
+          - strong [ref=e379]: 새
+          - text: bird
+        - generic [ref=e381]:
+          - strong [ref=e382]: 일요일
+          - text: Sunday
+        - generic [ref=e384]:
+          - strong [ref=e385]: 하늘
+          - text: sky
+        - generic [ref=e387]:
+          - strong [ref=e388]: 땅
+          - text: earth
+        - generic [ref=e390]:
+          - strong [ref=e391]: 겨울
+          - text: winter
+        - generic [ref=e393]:
+          - strong [ref=e394]: 친구
+          - text: friend
+        - generic [ref=e396]:
+          - strong [ref=e397]: 기차
+          - text: train
+        - generic [ref=e399]:
+          - strong [ref=e400]: 하자
+          - text: let's do it
+        - generic [ref=e402]:
+          - strong [ref=e403]: 책상
+          - text: desk
+        - generic [ref=e405]:
+          - strong [ref=e406]: 집
+          - text: house
+        - generic [ref=e408]:
+          - strong [ref=e409]: 친절
+          - text: kindness
+        - generic [ref=e411]:
+          - strong [ref=e412]: 여름
+          - text: summer
+        - generic [ref=e414]:
+          - strong [ref=e415]: 문
+          - text: door
+        - generic [ref=e417]:
+          - strong [ref=e418]: 시간
+          - text: time
+        - generic [ref=e420]:
+          - strong [ref=e421]: 점심
+          - text: lunch
+        - generic [ref=e423]:
+          - strong [ref=e424]: 기분
+          - text: mood
+        - generic [ref=e426]:
+          - strong [ref=e427]: 별
+          - text: star
+        - generic [ref=e429]:
+          - strong [ref=e430]: 노래
+          - text: song
+        - generic [ref=e432]:
+          - strong [ref=e433]: 가을
+          - text: autumn

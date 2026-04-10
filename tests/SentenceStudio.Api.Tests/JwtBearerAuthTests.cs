@@ -13,6 +13,7 @@ namespace SentenceStudio.Api.Tests;
 /// </summary>
 public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
 {
+    private const string CoreSyncStoreIdPath = "/api/sync-agent/store-id";
     private readonly HttpClient _client;
 
     public JwtBearerAuthTests(JwtBearerApiFactory factory)
@@ -77,6 +78,28 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
             "a malformed token should be rejected");
+    }
+
+    [Fact]
+    public async Task CoreSync_RejectsUnauthenticatedGetRequest()
+    {
+        var response = await _client.GetAsync(CoreSyncStoreIdPath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "CoreSync should validate the same JWT auth as the rest of the API");
+    }
+
+    [Fact]
+    public async Task CoreSync_AcceptsValidJwtToken()
+    {
+        var token = TestJwtGenerator.GenerateToken();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.GetAsync(CoreSyncStoreIdPath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "CoreSync should accept the same JWTs the API accepts");
     }
 
     [Fact]

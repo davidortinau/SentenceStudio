@@ -19,6 +19,10 @@
 - Must call `CacheService.InvalidateVocabSummary()` after recording attempts or dashboard is stale
 - Playwright must use `pressSequentially` not `fill()` for Blazor server-side binding
 - Test users: David (Korean, f452438c-...), Jose (Spanish, 8d5f7b4a-...), Gunther (German, c3bb57f7-...)
+- Vocabulary cleanup actions can feel "dead" if the `main.main-content` scroll container stays deep in the list — verify the panel is actually brought back into view, not just rendered somewhere above the fold
+- The new duplicate-management path is Vocabulary Details → overflow menu → Find Duplicates, which deep-links back to `/vocabulary` with the current term and focus word preloaded
+- After Azure production deploys, smoke-test the ACA default webapp URL directly (`webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io`) — if the sign-in UI loads there, the publish is live even if the custom domain has not cut over yet
+
 
 ## Work Sessions
 
@@ -197,4 +201,3 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 - Decisions: Feedback auth fix merged to team decisions log
 
 **Impact for Jayne:** Valid mobile UX issues ready for sprint planning and E2E test prioritization.
-

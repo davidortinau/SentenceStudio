@@ -1,0 +1,96 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e3]:
+    - navigation [ref=e5]:
+      - link " Dashboard" [ref=e6] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e7]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e8] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e9]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e10] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e11]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e12] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e13]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e14] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e15]: 
+        - generic: Skills
+      - link " Import" [ref=e16] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e17]: 
+        - generic: Import
+      - separator [ref=e18]
+      - link " Profile" [ref=e19] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e20]: 
+        - generic: Profile
+      - link " Settings" [ref=e21] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e22]: 
+        - generic: Settings
+      - link " Feedback" [ref=e23] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e24]: 
+        - generic: Feedback
+      - link " Logout" [ref=e25] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e26]: 
+        - generic: Logout
+    - button "" [ref=e28] [cursor=pointer]:
+      - generic [ref=e29]: 
+  - main [ref=e31]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - text: 
+        - heading "Vocabulary" [level=1] [ref=e35]
+      - generic [ref=e36]:
+        - text: 
+        - button " Add Word" [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]: 
+          - text: Add Word
+        - generic [ref=e40]:
+          - button "" [ref=e41] [cursor=pointer]:
+            - generic [ref=e42]: 
+          - text:      
+    - generic [ref=e43]:
+      - generic [ref=e44]:
+        - generic [ref=e45]: 104 of 104
+        - generic [ref=e46]: "Unknown: 83"
+        - generic [ref=e47]: "Learning: 21"
+        - generic [ref=e48]: "Familiar: 0"
+        - generic [ref=e49]: "Known: 0"
+        - group [ref=e50]:
+          - button "" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]: 
+          - button "" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]: 
+      - textbox "Search... (try tag:clothing status:learning resource:'Starter')" [ref=e57]
+      - generic [ref=e58]:
+        - combobox [ref=e59]:
+          - option "All Words" [selected]
+          - option "Associated"
+          - option "Orphaned"
+        - combobox [ref=e60]:
+          - option "All Status" [selected]
+          - option "Known"
+          - option "Familiar"
+          - option "Learning"
+          - option "Unknown"
+        - combobox [ref=e61]:
+          - option "All Resources" [selected]
+          - option "Sentence Studio Starter Vocabu…"
+        - combobox [ref=e62]:
+          - option "All Languages" [selected]
+          - option "Korean"
+        - combobox [ref=e63]:
+          - option "All Encoding" [selected]
+          - option "Strong"
+          - option "Good"
+          - option "Basic"

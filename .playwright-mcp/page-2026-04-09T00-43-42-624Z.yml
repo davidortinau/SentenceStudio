@@ -1,0 +1,77 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "" [ref=e8] [cursor=pointer]:
+          - generic [ref=e9]: 
+        - heading "Dashboard" [level=1] [ref=e10]
+      - button "" [ref=e12] [cursor=pointer]:
+        - generic [ref=e13]: 
+    - group "Dashboard mode" [ref=e14]:
+      - button " Today's Plan" [ref=e15] [cursor=pointer]:
+        - generic [ref=e16]: 
+        - text: Today's Plan
+      - button " Choose My Own" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]: 
+        - text: Choose My Own
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: Learning Resources
+        - listbox [ref=e22]
+      - generic [ref=e23]:
+        - generic [ref=e24]: Skill Profile
+        - combobox [ref=e25]
+    - generic [ref=e26]:
+      - heading "Activities" [level=2] [ref=e27]
+      - button "See All " [ref=e28] [cursor=pointer]:
+        - generic [ref=e29]:
+          - text: See All
+          - generic [ref=e30]: 
+    - generic [ref=e31]:
+      - button " Conversation" [ref=e33] [cursor=pointer]:
+        - generic [ref=e35]: 
+        - generic [ref=e36]: Conversation
+      - button " Describe a Scene" [ref=e38] [cursor=pointer]:
+        - generic [ref=e40]: 
+        - generic [ref=e41]: Describe a Scene
+      - button " Translate" [ref=e43] [cursor=pointer]:
+        - generic [ref=e45]: 
+        - generic [ref=e46]: Translate
+      - button " Cloze" [ref=e48] [cursor=pointer]:
+        - generic [ref=e50]: 
+        - generic [ref=e51]: Cloze
+      - button " Writing" [ref=e53] [cursor=pointer]:
+        - generic [ref=e55]: 
+        - generic [ref=e56]: Writing
+      - button " Reading" [ref=e58] [cursor=pointer]:
+        - generic [ref=e60]: 
+        - generic [ref=e61]: Reading
+      - text:      
+    - heading "Vocabulary" [level=2] [ref=e62]
+    - generic [ref=e63]:
+      - generic [ref=e65]:
+        - generic [ref=e66]: "76"
+        - generic [ref=e67]: New
+      - generic [ref=e69]:
+        - generic [ref=e70]: "27"
+        - generic [ref=e71]: Learning
+      - generic [ref=e73]:
+        - generic [ref=e74]: "0"
+        - generic [ref=e75]:
+          - generic [ref=e76]: 
+          - text: Familiar
+      - generic [ref=e78]:
+        - generic [ref=e79]: "1"
+        - generic [ref=e80]: Review
+      - generic [ref=e82]:
+        - generic [ref=e83]: "0"
+        - generic [ref=e84]: Known
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - text: "Total words:"
+        - strong [ref=e88]: "104"
+      - generic [ref=e89]:
+        - text: "7-day accuracy:"
+        - strong [ref=e90]: 94%

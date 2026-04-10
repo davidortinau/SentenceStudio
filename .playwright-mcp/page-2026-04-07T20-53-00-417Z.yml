@@ -1,0 +1,115 @@
+- generic [ref=e57]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e58]:
+    - navigation [ref=e60]:
+      - link " Dashboard" [ref=e61] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e62]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e63] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e64]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e65] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e66]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e67] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e68]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e69] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e70]: 
+        - generic: Skills
+      - link " Import" [ref=e71] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e72]: 
+        - generic: Import
+      - separator [ref=e73]
+      - link " Profile" [ref=e74] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e75]: 
+        - generic: Profile
+      - link " Settings" [ref=e76] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e77]: 
+        - generic: Settings
+      - link " Feedback" [ref=e78] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e79]: 
+        - generic: Feedback
+      - link " Logout" [ref=e80] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e81]: 
+        - generic: Logout
+    - button "" [ref=e83] [cursor=pointer]:
+      - generic [ref=e84]: 
+  - main [ref=e86]:
+    - generic [ref=e87]:
+      - generic [ref=e90]:
+        - text: 
+        - button "" [ref=e91] [cursor=pointer]:
+          - generic [ref=e92]: 
+        - heading "Vocabulary Quiz" [level=1] [ref=e93]
+      - generic [ref=e169]:
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - generic [ref=e172]:
+              - generic [ref=e173]: Sentence shortcut
+              - heading "인내심" [level=2] [ref=e174]
+              - paragraph [ref=e175]: patience
+            - button " Back to quiz" [ref=e188] [cursor=pointer]:
+              - generic [ref=e177]: 
+              - text: Back to quiz
+          - paragraph [ref=e178]:
+            - text: Write one or more sentences using
+            - strong [ref=e179]: 인내심
+            - text: .
+          - paragraph [ref=e180]: Only meaningful usage of the target word counts toward mastery. Broader grammar feedback is still shown, but it won't penalize you by itself.
+          - generic [ref=e181]:
+            - 'textbox "Write one or more sentences using \"인내심\". For example: 인내심 ..." [ref=e182]':
+              - /placeholder: "Write one or more sentences using \"인내심\".\nFor example: 인내심 ..."
+            - generic [ref=e183]:
+              - generic [ref=e184]: Separate multiple sentences with a new line or punctuation.
+              - button " Grade sentences" [disabled]:
+                - generic:
+                  - generic: 
+                  - text: Grade sentences
+        - generic [ref=e189]:
+          - strong [ref=e190]: 2 of 2
+          - text: sentence(s) counted toward mastery for
+          - strong [ref=e191]: 인내심
+          - text: .
+        - generic [ref=e192]:
+          - generic [ref=e193]:
+            - generic [ref=e194]:
+              - generic [ref=e195]:
+                - generic [ref=e196]: Counts toward mastery
+                - generic [ref=e197]: 100% accuracy • 90% fluency
+              - paragraph [ref=e198]: 인내심이 필요해요.
+              - generic [ref=e199]:
+                - strong [ref=e200]: "Target-word feedback:"
+                - text: The word '인내심' is correctly used to convey 'patience' in this context.
+              - generic [ref=e201]:
+                - strong [ref=e202]: "Suggested:"
+                - text: 인내심이 필요해요.
+            - generic [ref=e203]: 
+          - group [ref=e204]:
+            - generic "Show details" [ref=e205] [cursor=pointer]
+        - generic [ref=e206]:
+          - generic [ref=e207]:
+            - generic [ref=e208]:
+              - generic [ref=e209]:
+                - generic [ref=e210]: Counts toward mastery
+                - generic [ref=e211]: 90% accuracy • 85% fluency
+              - paragraph [ref=e212]: 저는 인내심을 배우고 있어요.
+              - generic [ref=e213]:
+                - strong [ref=e214]: "Target-word feedback:"
+                - text: The word '인내심' is used correctly to mean 'patience' in this context, fulfilling the requirement of demonstrating the target vocabulary.
+              - generic [ref=e215]:
+                - strong [ref=e216]: "Suggested:"
+                - text: 저는 인내심을 기르고 있어요.
+            - generic [ref=e217]: 
+          - group [ref=e218]:
+            - generic "Show details" [ref=e219] [cursor=pointer]

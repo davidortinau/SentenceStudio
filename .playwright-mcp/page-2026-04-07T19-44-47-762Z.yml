@@ -1,0 +1,179 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e3]:
+    - navigation [ref=e5]:
+      - link " Dashboard" [ref=e6] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e7]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e8] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e9]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e10] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e11]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e12] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e13]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e14] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e15]: 
+        - generic: Skills
+      - link " Import" [ref=e16] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e17]: 
+        - generic: Import
+      - separator [ref=e18]
+      - link " Profile" [ref=e19] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e20]: 
+        - generic: Profile
+      - link " Settings" [ref=e21] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e22]: 
+        - generic: Settings
+      - link " Feedback" [ref=e23] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e24]: 
+        - generic: Feedback
+      - link " Logout" [ref=e25] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e26]: 
+        - generic: Logout
+    - button "" [ref=e28] [cursor=pointer]:
+      - generic [ref=e29]: 
+  - main [ref=e31]:
+    - generic [ref=e34]:
+      - text: 
+      - heading "Settings" [active] [level=1] [ref=e35]
+    - generic [ref=e36]:
+      - heading "Appearance" [level=5] [ref=e37]
+      - generic [ref=e38]:
+        - generic [ref=e39]: Theme
+        - generic [ref=e40]:
+          - button "Seoul Pop" [ref=e41] [cursor=pointer]:
+            - generic [ref=e45]: Seoul Pop
+          - button "Ocean" [ref=e46] [cursor=pointer]:
+            - generic [ref=e50]: Ocean
+          - button "Forest" [ref=e51] [cursor=pointer]:
+            - generic [ref=e55]: Forest
+          - button "Sunset" [ref=e56] [cursor=pointer]:
+            - generic [ref=e60]: Sunset
+          - button "Monochrome" [ref=e61] [cursor=pointer]:
+            - generic [ref=e65]: Monochrome
+          - button "Flatly" [ref=e66] [cursor=pointer]:
+            - generic [ref=e70]: Flatly
+          - button "Sketchy" [ref=e71] [cursor=pointer]:
+            - generic [ref=e75]: Sketchy
+          - button "Slate" [ref=e76] [cursor=pointer]:
+            - generic [ref=e80]: Slate
+          - button "Vapor" [ref=e81] [cursor=pointer]:
+            - generic [ref=e85]: Vapor
+          - button "Brite" [ref=e86] [cursor=pointer]:
+            - generic [ref=e90]: Brite
+      - generic [ref=e91]:
+        - generic [ref=e92]: Mode
+        - group [ref=e93]:
+          - radio " Light"
+          - generic [ref=e94] [cursor=pointer]:
+            - generic [ref=e95]: 
+            - text: Light
+          - radio " Dark" [checked]
+          - generic [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: 
+            - text: Dark
+      - generic [ref=e98]:
+        - generic [ref=e99]: "Text Size: 100%"
+        - slider [ref=e100]: "1"
+        - generic [ref=e101]:
+          - generic [ref=e102]: 85%
+          - generic [ref=e103]: 150%
+    - generic [ref=e104]:
+      - heading "Voice & Quiz" [level=5] [ref=e105]
+      - generic [ref=e106]:
+        - generic [ref=e107]: Language
+        - combobox [ref=e108]:
+          - option "Korean" [selected]
+          - option "English"
+          - option "French"
+          - option "German"
+          - option "Spanish"
+      - generic [ref=e109]:
+        - generic [ref=e110]: Voice
+        - combobox [ref=e111]:
+          - option "Adam - Dominant, Firm"
+          - option "Alice - Clear, Engaging Educator"
+          - option "Bella - Professional, Bright, Warm"
+          - option "Bill - Wise, Mature, Balanced"
+          - option "Brian - Deep, Resonant and Comforting"
+          - option "Callum - Husky Trickster"
+          - option "Charlie - Deep, Confident, Energetic"
+          - option "Chris - Charming, Down-to-Earth"
+          - option "Daniel - Steady Broadcaster"
+          - option "Do Hyeon"
+          - option "Eric - Smooth, Trustworthy"
+          - option "George - Warm, Captivating Storyteller"
+          - option "Harry - Fierce Warrior"
+          - option "Hyun Bin"
+          - option "Janet"
+          - option "Jennie"
+          - option "Jessica - Playful, Bright, Warm"
+          - option "Jina"
+          - option "JiYoung" [selected]
+          - option "Laura - Enthusiast, Quirky Attitude"
+          - option "Liam - Energetic, Social Media Creator"
+          - option "Lily - Velvety Actress"
+          - option "Matilda - Knowledgable, Professional"
+          - option "River - Relaxed, Neutral, Informative"
+          - option "Roger - Laid-Back, Casual, Resonant"
+          - option "Sarah - Mature, Reassuring, Confident"
+          - option "Will - Relaxed Optimist"
+          - option "Yohan Koo - Confident authority, crafted for impact"
+          - option "Yuna"
+      - generic [ref=e112]:
+        - generic [ref=e113]: Prompt Language
+        - group [ref=e114]:
+          - radio "Target language"
+          - generic [ref=e115] [cursor=pointer]: Target language
+          - radio "Native language"
+          - generic [ref=e116] [cursor=pointer]: Native language
+          - radio "Mixed" [checked]
+          - generic [ref=e117] [cursor=pointer]: Mixed
+        - generic [ref=e118]: Choose which side of the vocab card is shown as the prompt.
+      - generic [ref=e119]:
+        - checkbox "Autoplay Audio" [ref=e120] [cursor=pointer]
+        - generic [ref=e121]: Autoplay Audio
+      - generic [ref=e122]:
+        - checkbox "Show Mnemonics" [checked] [ref=e123] [cursor=pointer]
+        - generic [ref=e124]: Show Mnemonics
+      - generic [ref=e125]:
+        - generic [ref=e126]: Prompt Modalities
+        - generic [ref=e127]:
+          - checkbox "Text" [checked] [ref=e128] [cursor=pointer]
+          - generic [ref=e129]: Text
+        - generic [ref=e130]:
+          - checkbox "Audio" [checked] [ref=e131] [cursor=pointer]
+          - generic [ref=e132]: Audio
+        - generic [ref=e133]:
+          - checkbox "Photo" [ref=e134] [cursor=pointer]
+          - generic [ref=e135]: Photo
+        - generic [ref=e136]: Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.
+      - generic [ref=e137]:
+        - generic [ref=e138]: "Auto-Advance Duration: 2 s"
+        - slider [ref=e139]: "2"
+      - button "Save Preferences" [ref=e140] [cursor=pointer]
+    - generic [ref=e141]:
+      - heading "Data Management" [level=5] [ref=e142]
+      - button "Export Data" [ref=e143] [cursor=pointer]
+    - generic [ref=e144]:
+      - heading "Database Migrations" [level=5] [ref=e145]
+      - button "Run Streak Migration" [ref=e146] [cursor=pointer]
+    - generic [ref=e147]:
+      - heading "About" [level=5] [ref=e148]
+      - paragraph [ref=e149]: SentenceStudio v1.1.0+build.20260407.194311.3106605cd7691498379556ac94f0d96326bf6b76
+      - button " What's New" [ref=e150] [cursor=pointer]:
+        - generic [ref=e151]: 
+        - text: What's New

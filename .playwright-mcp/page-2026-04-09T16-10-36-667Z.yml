@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - heading "Bad Request - Invalid Hostname" [level=2] [ref=e2]
+  - separator [ref=e3]
+  - paragraph [ref=e4]: HTTP Error 400. The request hostname is invalid.

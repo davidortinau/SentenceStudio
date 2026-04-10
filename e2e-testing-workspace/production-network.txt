@@ -1,0 +1,2 @@
+[GET] https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/_blazor/initializers => [200] 
+[POST] https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/_blazor/negotiate?negotiateVersion=1 => [200] 

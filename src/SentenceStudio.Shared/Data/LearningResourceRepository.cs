@@ -1048,7 +1048,10 @@ public class LearningResourceRepository
         }
 
         if (deleted > 0)
+        {
             await db.SaveChangesAsync();
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+        }
 
         return deleted;
     }

@@ -1,0 +1,36 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "" [ref=e8] [cursor=pointer]:
+          - generic [ref=e9]: 
+        - heading "Vocabulary" [level=1] [ref=e10]
+      - generic [ref=e11]:
+        - button "" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+        - text: 
+        - generic [ref=e14]:
+          - button "" [ref=e15] [cursor=pointer]:
+            - generic [ref=e16]: 
+          - text:      
+    - generic [ref=e17]:
+      - text:  
+      - textbox "Search... (try tag:clothing status:learning resource:'Starter')" [ref=e20]
+      - option "All Words" [selected]
+      - option "Associated"
+      - option "Orphaned"
+      - option "All Status" [selected]
+      - option "Known"
+      - option "Familiar"
+      - option "Learning"
+      - option "Unknown"
+      - option "All Resources" [selected]
+      - option "Sentence Studio Starter Vocabulary"
+      - option "All Languages" [selected]
+      - option "Korean"
+      - option "All Encoding" [selected]
+      - option "Strong"
+      - option "Good"
+      - option "Basic"

@@ -1,0 +1,77 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e3]:
+    - navigation [ref=e5]:
+      - link " Dashboard" [ref=e6] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e7]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e8] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e9]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e10] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e11]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e12] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e13]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e14] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e15]: 
+        - generic: Skills
+      - link " Import" [ref=e16] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e17]: 
+        - generic: Import
+      - separator [ref=e18]
+      - link " Profile" [ref=e19] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e20]: 
+        - generic: Profile
+      - link " Settings" [ref=e21] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e22]: 
+        - generic: Settings
+      - link " Feedback" [ref=e23] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e24]: 
+        - generic: Feedback
+      - link " Logout" [ref=e25] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e26]: 
+        - generic: Logout
+    - button "" [ref=e28] [cursor=pointer]:
+      - generic [ref=e29]: 
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e35]:
+        - text: 
+        - button "" [ref=e36] [cursor=pointer]:
+          - generic [ref=e37]: 
+        - heading "Vocabulary Quiz" [level=1] [ref=e38]
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - generic [ref=e76]: Sentence shortcut
+            - heading "배고프다" [level=2] [ref=e77]
+            - paragraph [ref=e78]: to be hungry
+          - button " Cancel" [ref=e79] [cursor=pointer]:
+            - generic [ref=e80]: 
+            - text: Cancel
+        - paragraph [ref=e81]:
+          - text: Write one or more sentences using
+          - strong [ref=e82]: 배고프다
+          - text: .
+        - paragraph [ref=e83]: Only meaningful usage of the target word counts toward mastery. Broader grammar feedback is still shown, but it won't penalize you by itself.
+        - generic [ref=e84]:
+          - 'textbox "Write one or more sentences using \"배고프다\". For example: 배고프다 ..." [ref=e85]':
+            - /placeholder: "Write one or more sentences using \"배고프다\".\nFor example: 배고프다 ..."
+          - generic [ref=e86]:
+            - generic [ref=e87]: Separate multiple sentences with a new line or punctuation.
+            - button " Grade sentences" [disabled]:
+              - generic:
+                - generic: 
+                - text: Grade sentences

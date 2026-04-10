@@ -1,0 +1,82 @@
+- generic [active] [ref=e1]:
+  - heading "An unhandled exception occurred while processing the request." [level=1] [ref=e2]
+  - generic [ref=e3]: "InvalidOperationException: JavaScript interop calls cannot be issued at this time. This is because the component is being statically rendered. When prerendering is enabled, JavaScript interop calls can only be performed during the OnAfterRenderAsync lifecycle method."
+  - paragraph [ref=e4]: Microsoft.AspNetCore.Components.Server.Circuits.RemoteJSRuntime.BeginInvokeJS(ref JSInvocationInfo invocationInfo)
+  - list [ref=e5]:
+    - listitem [ref=e6] [cursor=pointer]: Stack
+    - listitem [ref=e7] [cursor=pointer]: Query
+    - listitem [ref=e8] [cursor=pointer]: Cookies
+    - listitem [ref=e9] [cursor=pointer]: Headers
+    - listitem [ref=e10] [cursor=pointer]: Routing
+  - list [ref=e12]:
+    - listitem [ref=e13]:
+      - 'heading "InvalidOperationException: JavaScript interop calls cannot be issued at this time. This is because the component is being statically rendered. When prerendering is enabled, JavaScript interop calls can only be performed during the OnAfterRenderAsync lifecycle method." [level=2] [ref=e14]'
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - heading "Microsoft.AspNetCore.Components.Server.Circuits.RemoteJSRuntime.BeginInvokeJS(ref JSInvocationInfo invocationInfo)" [level=3] [ref=e17]
+        - listitem [ref=e18]:
+          - heading "Microsoft.JSInterop.JSRuntime.InvokeAsync<TValue>(long targetInstanceId, string identifier, JSCallType callType, CancellationToken cancellationToken, object[] args)" [level=3] [ref=e19]
+        - listitem [ref=e20]:
+          - heading "Microsoft.JSInterop.JSRuntime.InvokeAsync<TValue>(long targetInstanceId, string identifier, JSCallType callType, object[] args)" [level=3] [ref=e21]
+        - listitem [ref=e22]:
+          - heading "System.Runtime.CompilerServices.ValueTaskAwaiter<TResult>.GetResult()" [level=3] [ref=e23]
+        - listitem [ref=e24]:
+          - heading "Microsoft.JSInterop.JSRuntimeExtensions.InvokeVoidAsync(IJSRuntime jsRuntime, string identifier, object[] args)" [level=3] [ref=e25]
+        - listitem [ref=e26]:
+          - heading "SentenceStudio.WebUI.Pages.Vocabulary.ScrollCleanupPanelIntoViewAsync() in Vocabulary.razor" [level=3] [ref=e27]:
+            - text: SentenceStudio.WebUI.Pages.Vocabulary.ScrollCleanupPanelIntoViewAsync() in
+            - code [ref=e28]: Vocabulary.razor
+          - button "+" [ref=e29] [cursor=pointer]
+          - list [ref=e31]:
+            - listitem [ref=e32]: await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+        - listitem [ref=e33]:
+          - heading "SentenceStudio.WebUI.Pages.Vocabulary.OpenDuplicateManagerAsync(string focusTerm, string focusWordId) in Vocabulary.razor" [level=3] [ref=e34]:
+            - text: SentenceStudio.WebUI.Pages.Vocabulary.OpenDuplicateManagerAsync(string focusTerm, string focusWordId) in
+            - code [ref=e35]: Vocabulary.razor
+          - button "+" [ref=e36] [cursor=pointer]
+          - list [ref=e38]:
+            - listitem [ref=e39]: await ScrollCleanupPanelIntoViewAsync();
+        - listitem [ref=e40]:
+          - heading "SentenceStudio.WebUI.Pages.Vocabulary.OnInitializedAsync() in Vocabulary.razor" [level=3] [ref=e41]:
+            - text: SentenceStudio.WebUI.Pages.Vocabulary.OnInitializedAsync() in
+            - code [ref=e42]: Vocabulary.razor
+          - button "+" [ref=e43] [cursor=pointer]
+          - list [ref=e45]:
+            - listitem [ref=e46]: await OpenDuplicateManagerAsync(DuplicateTermFromUrl, FocusWordIdFromUrl);
+        - listitem [ref=e47]:
+          - heading "Microsoft.AspNetCore.Components.ComponentBase.RunInitAndSetParametersAsync()" [level=3] [ref=e48]
+        - listitem [ref=e49]:
+          - heading "Microsoft.AspNetCore.Components.RenderTree.Renderer.GetErrorHandledTask(Task taskToHandle, ComponentState owningComponentState)" [level=3] [ref=e50]
+        - listitem [ref=e51]:
+          - heading "Microsoft.AspNetCore.Components.RenderTree.Renderer.GetErrorHandledTask(Task taskToHandle, ComponentState owningComponentState)" [level=3] [ref=e52]
+        - listitem [ref=e53]:
+          - heading "Microsoft.AspNetCore.Components.Endpoints.EndpointHtmlRenderer.<WaitForNonStreamingPendingTasks>g__Execute|58_0()" [level=3] [ref=e54]
+        - listitem [ref=e55]:
+          - heading "Microsoft.AspNetCore.Components.Endpoints.EndpointHtmlRenderer.WaitForResultReady(bool waitForQuiescence, PrerenderedComponentHtmlContent result)" [level=3] [ref=e56]
+        - listitem [ref=e57]:
+          - heading "Microsoft.AspNetCore.Components.Endpoints.EndpointHtmlRenderer.RenderEndpointComponent(HttpContext httpContext, Type rootComponentType, ParameterView parameters, bool waitForQuiescence)" [level=3] [ref=e58]
+        - listitem [ref=e59]:
+          - heading "System.Runtime.CompilerServices.ValueTaskAwaiter<TResult>.GetResult()" [level=3] [ref=e60]
+        - listitem [ref=e61]:
+          - heading "Microsoft.AspNetCore.Components.Endpoints.RazorComponentEndpointInvoker.RenderComponentCore(HttpContext context)" [level=3] [ref=e62]
+        - listitem [ref=e63]:
+          - heading "Microsoft.AspNetCore.Components.Endpoints.RazorComponentEndpointInvoker.RenderComponentCore(HttpContext context)" [level=3] [ref=e64]
+        - listitem [ref=e65]:
+          - heading "Microsoft.AspNetCore.Components.Rendering.RendererSynchronizationContext+<>c+<<InvokeAsync>b__10_0>d.MoveNext()" [level=3] [ref=e66]
+        - listitem [ref=e67]:
+          - heading "Microsoft.AspNetCore.Builder.ServerRazorComponentsEndpointConventionBuilderExtensions+<>c__DisplayClass1_1+<<AddInteractiveServerRenderMode>b__1>d.MoveNext()" [level=3] [ref=e68]
+        - listitem [ref=e69]:
+          - heading "Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)" [level=3] [ref=e70]
+        - listitem [ref=e71]:
+          - heading "Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)" [level=3] [ref=e72]
+        - listitem [ref=e73]:
+          - heading "SentenceStudio.Infrastructure.SecurityHeadersExtensions+<>c+<<UseSecurityHeaders>b__0_0>d.MoveNext() in SecurityHeadersExtensions.cs" [level=3] [ref=e74]:
+            - text: SentenceStudio.Infrastructure.SecurityHeadersExtensions+<>c+<<UseSecurityHeaders>b__0_0>d.MoveNext() in
+            - code [ref=e75]: SecurityHeadersExtensions.cs
+          - button "+" [ref=e76] [cursor=pointer]
+          - list [ref=e78]:
+            - listitem [ref=e79]: await next();
+        - listitem [ref=e80]:
+          - heading "Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)" [level=3] [ref=e81]
+    - listitem [ref=e82]:
+      - button "Show raw exception details" [ref=e84] [cursor=pointer]

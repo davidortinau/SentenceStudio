@@ -55,26 +55,58 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+const string JwtOrDevAuthScheme = "JwtOrDev";
+
 // JWT Bearer authentication for Identity-issued tokens
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
+var enableDevAuthFallback = builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue("Auth:EnableDevAuthFallback", true);
 if (!string.IsNullOrWhiteSpace(jwtSigningKey))
 {
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+    var defaultScheme = enableDevAuthFallback
+        ? JwtOrDevAuthScheme
+        : JwtBearerDefaults.AuthenticationScheme;
+
+    var authBuilder = builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = defaultScheme;
+        options.DefaultAuthenticateScheme = defaultScheme;
+        options.DefaultChallengeScheme = defaultScheme;
+    });
+
+    if (enableDevAuthFallback)
+    {
+        authBuilder.AddPolicyScheme(JwtOrDevAuthScheme, "JWT or development auth", options =>
         {
-            options.TokenValidationParameters = new TokenValidationParameters
+            options.ForwardDefaultSelector = context =>
             {
-                ValidateIssuer = true,
-                ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "SentenceStudio",
-                ValidateAudience = true,
-                ValidAudience = builder.Configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(jwtSigningKey)),
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromMinutes(1)
+                var authorizationHeader = context.Request.Headers.Authorization.ToString();
+                return authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                    ? JwtBearerDefaults.AuthenticationScheme
+                    : DevAuthHandler.SchemeName;
             };
         });
+
+        authBuilder.AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(
+            DevAuthHandler.SchemeName,
+            _ => { });
+    }
+
+    authBuilder.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "SentenceStudio",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "SentenceStudio.Api",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtSigningKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
 }
 else if (builder.Environment.IsDevelopment())
 {
@@ -214,17 +246,21 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 }
 
 var app = builder.Build();
+var skipDatabaseInitialization = builder.Configuration.GetValue("Database:SkipMigrateOnStartup", false);
 
-// Apply EF Core migrations (creates tables if missing)
-using (var scope = app.Services.CreateScope())
+if (!skipDatabaseInitialization)
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
-}
+    // Apply EF Core migrations (creates tables if missing)
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+    }
 
-// Apply CoreSync provisioning (creates change-tracking tables if missing)
-var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
-await syncProvider.ApplyProvisionAsync();
+    // Apply CoreSync provisioning (creates change-tracking tables if missing)
+    var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
+    await syncProvider.ApplyProvisionAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -247,8 +283,12 @@ app.UseSecurityHeaders();
 app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCoreSyncHttpServer();
 app.UseMiddleware<TenantContextMiddleware>();
+app.UseCoreSyncHttpServer(optionsConfigure: options =>
+{
+    // CoreSync syncs per-user data, so its endpoints must enforce the same auth pipeline as the rest of the API.
+    options.AllEndpoints = endpoint => endpoint.RequireAuthorization();
+});
 
 // Auth endpoints (anonymous — they handle login/register)
 app.MapAuthEndpoints();

@@ -42,6 +42,8 @@
 - VocabQuiz uses `FuzzyMatcher.Evaluate()` for text input mode; multiple-choice keeps exact match (options are pre-set)
 - VocabQuiz turn counter displays `roundWordOrder.Count` (actual words in round), NOT the constant `TurnsPerRound`
 - `SearchQueryParserTests.cs` has pre-existing build errors (wrong namespace + missing model properties) — blocks running full unit test suite
+- On long `.list-page` views, a toolbar action that opens an inline management panel needs explicit status feedback plus a post-render scroll back into the `main.main-content` viewport or users think nothing happened
+- Vocabulary detail pages can use the secondary toolbar overflow for focused maintenance actions; deep-linking back to `/vocabulary` with the current term/word preserves context without building a separate screen
 
 ## Core Context (Current)
 
@@ -449,6 +451,11 @@ Built the UI for displaying `PlanNarrative` data on the dashboard (Index.razor):
 - When displaying coach-style narratives, keep them compact — the plan items list is the primary UI element
 - Resource selection reasons help users understand *why* their plan was built this way
 
+## Learnings (continued)
+
+- In Blazor Server, `StateHasChanged()` alone does not paint a loading UI before synchronous work; add `await Task.Yield()` first when a spinner must appear immediately.
+- For list-page cleanup flows, scroll the actual panel element (`#vocabulary-cleanup-panel`) into view instead of forcing the window to top.
+
 ### Plan Narrative Feature — Full UI Implementation (2026-03-30)
 
 Completed full-stack UI implementation of Plan Narrative feature and coordinated with Wash on backend data model.
@@ -513,9 +520,15 @@ Three defense-in-depth failures combined to cause plan progress never updating:
 - Cache TTL resets on every `UpdateTodaysPlan` but `EnrichPlanWithCompletionDataAsync` overwrites cache with DB data
 - `MarkPlanItemCompleteAsync` is never called by any activity — all completion detection is via `UpdatePlanItemProgressAsync`
 - `DailyPlanCompletion` records must exist before timer saves can persist — `InitializePlanCompletionRecordsAsync` is critical
-
+ 
 **Key File:**
 - `src/SentenceStudio.Shared/Services/Progress/ProgressService.cs` — all 4 fixes in this file
+
+### Vocabulary Duplicate Manager UX Fix (2026-04-09)
+
+- The old Vocabulary → Find Duplicates action technically loaded results, but the cleanup panel was easy to miss on long web pages because it rendered above the list with very little feedback.
+- For cleanup tools on management pages, surface immediate status text/toasts and scroll the results panel into view so the action feels responsive.
+- The best detail-page entry point is a deep link back into the list page’s existing manager using focused query state (`duplicateTerm`, `focusWordId`) rather than building a second merge UI.
 
 ### Feedback Feature UI (#139) — Implementation (2025-07-22)
 
@@ -546,4 +559,3 @@ Built the complete Feedback page with three-state flow (Form, Preview, Success) 
 **Decision:** Feedback auth fix merged to team log (user_profile_id JWT claim required by multiple endpoints).
 
 **Impact for Kaylee:** Valid mobile UX issues ready for sprint planning; testing priorities updated in team log.
-

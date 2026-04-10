@@ -1,0 +1,31 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "" [ref=e8] [cursor=pointer]:
+          - generic [ref=e9]: 
+        - heading "Dashboard" [active] [level=1] [ref=e10]
+      - generic [ref=e11]:
+        - button "" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]: 
+        - generic [ref=e14]:
+          - button "" [ref=e15] [cursor=pointer]:
+            - generic [ref=e16]: 
+          - text: 
+    - group "Dashboard mode" [ref=e17]:
+      - button " Today's Plan" [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]: 
+        - text: Today's Plan
+      - button " Choose My Own" [ref=e20] [cursor=pointer]:
+        - generic [ref=e21]: 
+        - text: Choose My Own
+    - generic [ref=e22]:
+      - generic [ref=e23]: 
+      - paragraph [ref=e24]: No plan for today yet.
+      - button " Generate Plan" [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: 
+        - text: Generate Plan
+    - heading "Vocabulary" [level=2] [ref=e27]
+    - paragraph [ref=e29]: No vocabulary data yet. Start practicing!

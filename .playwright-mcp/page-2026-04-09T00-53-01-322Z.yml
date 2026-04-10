@@ -1,0 +1,39 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - 'generic "API: https://localhost:63121"': LOCAL
+    - generic [ref=e6]:
+      - heading " SentenceStudio" [active] [level=1] [ref=e8]:
+        - generic [ref=e9]: 
+        - text: SentenceStudio
+      - generic [ref=e11]:
+        - heading "Create Account" [level=2] [ref=e12]
+        - generic [ref=e13]:
+          - generic [ref=e14]: Display Name
+          - textbox "Display Name" [ref=e15]:
+            - /placeholder: Your name
+        - generic [ref=e16]:
+          - generic [ref=e17]: Email
+          - textbox "Email" [ref=e18]:
+            - /placeholder: you@example.com
+        - generic [ref=e19]:
+          - generic [ref=e20]: Password
+          - generic [ref=e21]:
+            - textbox "Password" [ref=e22]
+            - button "" [ref=e23] [cursor=pointer]:
+              - generic [ref=e24]: 
+        - generic [ref=e25]:
+          - generic [ref=e26]: Confirm Password
+          - generic [ref=e27]:
+            - textbox "Confirm Password" [ref=e28]:
+              - /placeholder: Confirm password
+            - button "" [ref=e29] [cursor=pointer]:
+              - generic [ref=e30]: 
+        - generic [ref=e31]:
+          - button "Create Account" [disabled]
+        - separator [ref=e32]
+        - paragraph [ref=e34]:
+          - text: Already have an account?
+          - link "Sign In" [ref=e35] [cursor=pointer]:
+            - /url: /auth/login

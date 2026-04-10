@@ -1,0 +1,78 @@
+- generic [ref=e58]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - navigation [ref=e59]:
+    - navigation [ref=e61]:
+      - link " Dashboard" [ref=e62] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e63]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e64] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e65]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e66] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e67]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e68] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e69]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e70] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e71]: 
+        - generic: Skills
+      - link " Import" [ref=e72] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e73]: 
+        - generic: Import
+      - separator [ref=e74]
+      - link " Profile" [ref=e75] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e76]: 
+        - generic: Profile
+      - link " Settings" [ref=e77] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e78]: 
+        - generic: Settings
+      - link " Feedback" [ref=e79] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e80]: 
+        - generic: Feedback
+      - link " Logout" [ref=e81] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e82]: 
+        - generic: Logout
+    - button "" [ref=e84] [cursor=pointer]:
+      - generic [ref=e85]: 
+  - main [ref=e87]:
+    - generic [ref=e88]:
+      - generic [ref=e90]:
+        - generic [ref=e91]:
+          - text: 
+          - button "" [ref=e92] [cursor=pointer]:
+            - generic [ref=e93]: 
+          - heading "Vocabulary Quiz" [level=1] [ref=e94]
+        - generic [ref=e96]:
+          - button "" [expanded] [active] [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 
+          - list [ref=e114]:
+            - listitem [ref=e115]:
+              - button " Use in a sentence" [ref=e116] [cursor=pointer]:
+                - generic [ref=e117]: 
+                - text: Use in a sentence
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - heading "미안합니다" [level=1] [ref=e101]
+          - button "" [ref=e103] [cursor=pointer]:
+            - generic [ref=e104]: 
+        - generic [ref=e105]:
+          - button "story" [ref=e106] [cursor=pointer]
+          - button "I'm sorry" [ref=e107] [cursor=pointer]
+          - button "word" [ref=e108] [cursor=pointer]
+          - button "car" [ref=e109] [cursor=pointer]
+      - generic [ref=e110]:
+        - generic [ref=e111]: 1 / 10
+        - generic [ref=e112]:
+          - generic [ref=e113]: 
+          - text: 0 correct

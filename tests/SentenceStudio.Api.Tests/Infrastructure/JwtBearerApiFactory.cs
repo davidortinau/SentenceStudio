@@ -2,11 +2,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using SentenceStudio.Data;
-
 namespace SentenceStudio.Api.Tests.Infrastructure;
 
 /// <summary>
@@ -22,34 +19,31 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-
+        builder.UseSetting("ConnectionStrings:sentencestudio",
+            TestApiHostConfigurator.DummyPostgresConnectionString);
+        builder.UseSetting("Database:SkipMigrateOnStartup", "true");
+        builder.UseSetting("Auth:EnableDevAuthFallback", "false");
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
 
         builder.ConfigureServices(services =>
         {
-            // Replace the production DbContext with a test-specific SQLite file
-            var descriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-            if (descriptor != null)
-                services.Remove(descriptor);
-
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlite($"Data Source={_dbPath}"));
+            TestApiHostConfigurator.ConfigureSqliteDatabaseAndSync(services, _dbPath);
 
             services.Configure<AuthenticationOptions>(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             });
-
-            // Ensure the database schema is created
-            var sp = services.BuildServiceProvider();
-            using var scope = sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.Database.EnsureCreated();
         });
+    }
+
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+        TestApiHostConfigurator.InitializeSqliteDatabaseAndSync(host.Services);
+        return host;
     }
 
     protected override void Dispose(bool disposing)

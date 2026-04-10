@@ -14,3 +14,4 @@ Agent Scribe initialized and ready for work.
 ## Learnings
 
 Initial setup complete.
+- For Azure publish logs, capture environment + region, successful resource list, public webapp URL, Aspire dashboard URL, and note custom-domain follow-up separately from deploy status.

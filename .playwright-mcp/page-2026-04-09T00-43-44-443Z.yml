@@ -1,0 +1,80 @@
+- generic [ref=e91]:
+  - 'generic "API: https://localhost:63121"': LOCAL
+  - text:           
+  - main [ref=e93]:
+    - generic [ref=e95]:
+      - generic [ref=e96]:
+        - button "" [ref=e97] [cursor=pointer]:
+          - generic [ref=e98]: 
+        - heading "Dashboard" [active] [level=1] [ref=e99]
+      - button "" [ref=e101] [cursor=pointer]:
+        - generic [ref=e102]: 
+    - group "Dashboard mode" [ref=e103]:
+      - button " Today's Plan" [ref=e104] [cursor=pointer]:
+        - generic [ref=e105]: 
+        - text: Today's Plan
+      - button " Choose My Own" [ref=e106] [cursor=pointer]:
+        - generic [ref=e107]: 
+        - text: Choose My Own
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - generic [ref=e110]: Learning Resources
+        - listbox [ref=e111]
+        - combobox [ref=e114]
+      - generic [ref=e115]:
+        - generic [ref=e116]: Skill Profile
+        - combobox [ref=e117]:
+          - option [selected]
+        - combobox [ref=e120] [cursor=pointer]
+    - generic [ref=e121]:
+      - heading "Activities" [level=2] [ref=e122]
+      - button "See All " [ref=e123] [cursor=pointer]:
+        - generic [ref=e124]:
+          - text: See All
+          - generic [ref=e125]: 
+    - generic [ref=e126]:
+      - button " Conversation" [ref=e128] [cursor=pointer]:
+        - generic [ref=e130]: 
+        - generic [ref=e131]: Conversation
+      - button " Describe a Scene" [ref=e133] [cursor=pointer]:
+        - generic [ref=e135]: 
+        - generic [ref=e136]: Describe a Scene
+      - button " Translate" [ref=e138] [cursor=pointer]:
+        - generic [ref=e140]: 
+        - generic [ref=e141]: Translate
+      - button " Cloze" [ref=e143] [cursor=pointer]:
+        - generic [ref=e145]: 
+        - generic [ref=e146]: Cloze
+      - button " Writing" [ref=e148] [cursor=pointer]:
+        - generic [ref=e150]: 
+        - generic [ref=e151]: Writing
+      - button " Reading" [ref=e153] [cursor=pointer]:
+        - generic [ref=e155]: 
+        - generic [ref=e156]: Reading
+      - text:      
+    - heading "Vocabulary" [level=2] [ref=e157]
+    - generic [ref=e158]:
+      - generic [ref=e160]:
+        - generic [ref=e161]: "76"
+        - generic [ref=e162]: New
+      - generic [ref=e164]:
+        - generic [ref=e165]: "27"
+        - generic [ref=e166]: Learning
+      - generic [ref=e168]:
+        - generic [ref=e169]: "0"
+        - generic [ref=e170]:
+          - generic [ref=e171]: 
+          - text: Familiar
+      - generic [ref=e173]:
+        - generic [ref=e174]: "1"
+        - generic [ref=e175]: Review
+      - generic [ref=e177]:
+        - generic [ref=e178]: "0"
+        - generic [ref=e179]: Known
+    - generic [ref=e181]:
+      - generic [ref=e182]:
+        - text: "Total words:"
+        - strong [ref=e183]: "104"
+      - generic [ref=e184]:
+        - text: "7-day accuracy:"
+        - strong [ref=e185]: 94%

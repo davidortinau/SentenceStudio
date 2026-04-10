@@ -381,10 +381,10 @@ else
                             No duplicate records matched this scan.
                         </div>
                     }
-                    else
+                    else if (!isCleanupRunning)
                     {
-                        <div class="list-group" style="max-height: 400px; overflow-y: auto;">
-                            @foreach (var group in duplicateGroups)
+                        <div class="list-group" style="max-height: 60vh; overflow-y: auto;">
+                            @foreach (var group in duplicateGroups.Take(duplicateVisibleCount))
                             {
                                 <div class="list-group-item @(IsFocusedDuplicateGroup(group) ? "border border-primary-subtle bg-primary-subtle" : "")">
                                     <div class="d-flex justify-content-between align-items-start gap-2">
@@ -427,6 +427,14 @@ else
                                 </div>
                             }
                         </div>
+                        @if (duplicateVisibleCount < duplicateGroups.Count)
+                        {
+                            <div class="text-center mt-2">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ShowMoreDuplicates">
+                                    Show more (@(duplicateGroups.Count - duplicateVisibleCount) remaining)
+                                </button>
+                            </div>
+                        }
                     }
                 }
 
@@ -598,6 +606,8 @@ else
     private string? duplicateFocusLabel;
     private string? duplicateFocusNormalizedTerm;
     private string? focusedDuplicateWordId;
+    private int duplicatePageSize = 20;
+    private int duplicateVisibleCount = 20;
     private bool pendingCleanupScroll;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
@@ -1095,11 +1105,17 @@ else
     // ===== FIND DUPLICATES =====
     private Task FindDuplicates() => OpenDuplicateManagerAsync();
 
+    private void ShowMoreDuplicates()
+    {
+        duplicateVisibleCount += duplicatePageSize;
+    }
+
     private async Task OpenDuplicateManagerAsync(string? focusTerm = null, string? focusWordId = null)
     {
         showCleanupPanel = true;
         showDuplicatePanel = true;
         isCleanupRunning = true;
+        duplicateVisibleCount = duplicatePageSize;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
         duplicateFocusNormalizedTerm = NormalizeDuplicateTerm(focusTerm);
         focusedDuplicateWordId = string.IsNullOrWhiteSpace(focusWordId) ? null : focusWordId;

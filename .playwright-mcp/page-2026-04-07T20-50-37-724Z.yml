@@ -1,0 +1,84 @@
+- generic [ref=e57]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e58]:
+    - navigation [ref=e60]:
+      - link " Dashboard" [ref=e61] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e62]: 
+        - generic: Dashboard
+      - link " Learning Resources" [ref=e63] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e64]: 
+        - generic: Learning Resources
+      - link " Vocabulary" [ref=e65] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e66]: 
+        - generic: Vocabulary
+      - link " Minimal Pairs" [ref=e67] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e68]: 
+        - generic: Minimal Pairs
+      - link " Skills" [ref=e69] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e70]: 
+        - generic: Skills
+      - link " Import" [ref=e71] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e72]: 
+        - generic: Import
+      - separator [ref=e73]
+      - link " Profile" [ref=e74] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e75]: 
+        - generic: Profile
+      - link " Settings" [ref=e76] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e77]: 
+        - generic: Settings
+      - link " Feedback" [ref=e78] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e79]: 
+        - generic: Feedback
+      - link " Logout" [ref=e80] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e81]: 
+        - generic: Logout
+    - button "" [ref=e83] [cursor=pointer]:
+      - generic [ref=e84]: 
+  - main [ref=e86]:
+    - generic [ref=e87]:
+      - generic [ref=e90]:
+        - text: 
+        - button "" [ref=e91] [cursor=pointer]:
+          - generic [ref=e92]: 
+        - heading "Vocabulary Quiz" [active] [level=1] [ref=e93]
+      - generic [ref=e94]:
+        - generic [ref=e95]:
+          - heading "patience" [level=1] [ref=e96]
+          - button "" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: 
+        - button " Use in a sentence" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: 
+          - text: Use in a sentence
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - button "Play option a" [ref=e105] [cursor=pointer]:
+              - generic [ref=e106]: 
+            - button "Choose option a" [ref=e107] [cursor=pointer]: Option A
+          - generic [ref=e108]:
+            - button "Play option b" [ref=e109] [cursor=pointer]:
+              - generic [ref=e110]: 
+            - button "Choose option b" [ref=e111] [cursor=pointer]: Option B
+          - generic [ref=e112]:
+            - button "Play option c" [ref=e113] [cursor=pointer]:
+              - generic [ref=e114]: 
+            - button "Choose option c" [ref=e115] [cursor=pointer]: Option C
+          - generic [ref=e116]:
+            - button "Play option d" [ref=e117] [cursor=pointer]:
+              - generic [ref=e118]: 
+            - button "Choose option d" [ref=e119] [cursor=pointer]: Option D
+      - generic [ref=e120]:
+        - generic [ref=e121]: 1 / 10
+        - generic [ref=e122]:
+          - generic [ref=e123]: 
+          - text: 0 correct

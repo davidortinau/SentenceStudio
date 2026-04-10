@@ -77,6 +77,8 @@
 - **IChatClient nullable pattern** — always inject as `IChatClient?` in endpoints; if null (no API key), fall back gracefully instead of 500
 - **AI label allowlist** — server-side filter to `["bug", "enhancement"]` only; never trust AI-generated labels directly for GitHub issue creation
 - **AppHost secret params** follow pattern: `builder.AddParameter("name", secret: true)` then `.WithEnvironment("Section__Key", param)` — added `githubpat` for feedback
+- `azd deploy -e sstudio-prod --no-prompt` successfully published `api`, `cache`, `db`, `marketing`, `webapp`, and `workers` in Central US; validate against the ACA default hostname first and treat custom-domain DNS as separate follow-up
+- Production smoke-check pattern: `webapp.livelyforest-*.azurecontainerapps.io` should return `200` and redirect to `/auth/login`, `api.../api/channels` should return `401` when anonymous, and `marketing` must be validated via `https://www.sentencestudio.com` because `SentenceStudio.Marketing/appsettings.Production.json` restricts `AllowedHosts`
 
 ## Core Context (Current)
 
@@ -444,4 +446,3 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 **Key Decision:** Feedback auth fix (user_profile_id JWT claim) merged to team decisions log. Multiple endpoints (Feedback, Channel, Import) required this claim addition across three token paths: JwtTokenService, ServerAuthService, DevAuthHandler.
 
 **Impact for Wash:** Operational priorities identified (#57, #59, #58). No stale duplicates in backlog. Ready for DevOps roadmap integration.
-

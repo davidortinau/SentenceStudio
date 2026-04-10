@@ -1,0 +1,31 @@
+- main [ref=e4]:
+  - generic [ref=e6]:
+    - heading " SentenceStudio" [level=1] [ref=e8]:
+      - generic [ref=e9]: 
+      - text: SentenceStudio
+    - generic [ref=e11]:
+      - heading "Sign In" [level=2] [ref=e12]
+      - generic [ref=e13]:
+        - generic [ref=e14]: Email
+        - textbox "Email" [ref=e15]:
+          - /placeholder: you@example.com
+      - generic [ref=e16]:
+        - generic [ref=e17]: Password
+        - generic [ref=e18]:
+          - textbox "Password" [ref=e19]
+          - button "" [ref=e20] [cursor=pointer]:
+            - generic [ref=e21]: 
+      - generic [ref=e22]:
+        - checkbox "Remember me" [ref=e23]
+        - generic [ref=e24]: Remember me
+      - generic [ref=e25]:
+        - button "Sign In" [disabled]
+      - separator [ref=e26]
+      - generic [ref=e27]:
+        - paragraph [ref=e28]:
+          - link "Forgot your password?" [ref=e29] [cursor=pointer]:
+            - /url: /auth/forgot-password
+        - paragraph [ref=e30]:
+          - text: Don't have an account?
+          - link "Create one" [ref=e31] [cursor=pointer]:
+            - /url: /auth/register

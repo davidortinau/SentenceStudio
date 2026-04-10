@@ -12,6 +12,7 @@ namespace SentenceStudio.Api.Tests;
 /// </summary>
 public class DevAuthHandlerTests : IClassFixture<DevAuthApiFactory>
 {
+    private const string CoreSyncStoreIdPath = "/api/sync-agent/store-id";
     private readonly HttpClient _client;
 
     public DevAuthHandlerTests(DevAuthApiFactory factory)
@@ -53,6 +54,15 @@ public class DevAuthHandlerTests : IClassFixture<DevAuthApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "DevAuthHandler should allow access to all protected endpoints");
+    }
+
+    [Fact]
+    public async Task DevAuthHandler_CoreSyncEndpointsAccessible()
+    {
+        var response = await _client.GetAsync(CoreSyncStoreIdPath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "DevAuthHandler should keep CoreSync usable during local development");
     }
 
     [Fact]

@@ -1,0 +1,1181 @@
+- generic [ref=e71]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - text:           
+  - main [ref=e73]:
+    - generic [ref=e141]:
+      - generic [ref=e142]:
+        - button "" [ref=e143] [cursor=pointer]:
+          - generic [ref=e144]: 
+        - heading "Vocabulary" [level=1] [ref=e145]
+      - generic [ref=e146]:
+        - button "" [ref=e147] [cursor=pointer]:
+          - generic [ref=e148]: 
+        - text: 
+        - generic [ref=e149]:
+          - button "" [ref=e150] [cursor=pointer]:
+            - generic [ref=e151]: 
+          - text:      
+    - generic [ref=e152]:
+      - text:  
+      - textbox "Search... (try tag:clothing status:learning resource:'Starter')" [ref=e155]
+      - option "All Words" [selected]
+      - option "Associated"
+      - option "Orphaned"
+      - option "All Status" [selected]
+      - option "Known"
+      - option "Familiar"
+      - option "Learning"
+      - option "Unknown"
+      - option "All Resources" [selected]
+      - option "Sentence Studio Starter Vocabulary"
+      - option "All Languages" [selected]
+      - option "Korean"
+      - option "All Encoding" [selected]
+      - option "Strong"
+      - option "Good"
+      - option "Basic"
+      - generic [ref=e192]:
+        - button "사진 photo Basic Unknown  1 resource(s)" [ref=e194] [cursor=pointer]:
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - heading "사진" [level=6] [ref=e197]
+              - text: photo
+            - generic [ref=e198]:
+              - generic [ref=e199]: Basic
+              - generic "Not yet studied" [ref=e200]: Unknown
+          - generic [ref=e202]:
+            - generic [ref=e203]: 
+            - text: 1 resource(s)
+        - button "버스 bus Basic Unknown  1 resource(s)" [ref=e205] [cursor=pointer]:
+          - generic [ref=e206]:
+            - generic [ref=e207]:
+              - heading "버스" [level=6] [ref=e208]
+              - text: bus
+            - generic [ref=e209]:
+              - generic [ref=e210]: Basic
+              - generic "Not yet studied" [ref=e211]: Unknown
+          - generic [ref=e213]:
+            - generic [ref=e214]: 
+            - text: 1 resource(s)
+        - button "종이 paper Basic Unknown  1 resource(s)" [ref=e216] [cursor=pointer]:
+          - generic [ref=e217]:
+            - generic [ref=e218]:
+              - heading "종이" [level=6] [ref=e219]
+              - text: paper
+            - generic [ref=e220]:
+              - generic [ref=e221]: Basic
+              - generic "Not yet studied" [ref=e222]: Unknown
+          - generic [ref=e224]:
+            - generic [ref=e225]: 
+            - text: 1 resource(s)
+        - button "달 moon Basic Learning  1 resource(s)" [ref=e227] [cursor=pointer]:
+          - generic [ref=e228]:
+            - generic [ref=e229]:
+              - heading "달" [level=6] [ref=e230]
+              - text: moon
+            - generic [ref=e231]:
+              - generic [ref=e232]: Basic
+              - generic "Currently studying" [ref=e233]: Learning
+          - generic [ref=e235]:
+            - generic [ref=e236]: 
+            - text: 1 resource(s)
+        - button "나쁘다 to be bad Basic Learning  1 resource(s)" [ref=e238] [cursor=pointer]:
+          - generic [ref=e239]:
+            - generic [ref=e240]:
+              - heading "나쁘다" [level=6] [ref=e241]
+              - text: to be bad
+            - generic [ref=e242]:
+              - generic [ref=e243]: Basic
+              - generic "Currently studying" [ref=e244]: Learning
+          - generic [ref=e246]:
+            - generic [ref=e247]: 
+            - text: 1 resource(s)
+        - button "책 book Basic Unknown  1 resource(s)" [ref=e249] [cursor=pointer]:
+          - generic [ref=e250]:
+            - generic [ref=e251]:
+              - heading "책" [level=6] [ref=e252]
+              - text: book
+            - generic [ref=e253]:
+              - generic [ref=e254]: Basic
+              - generic "Not yet studied" [ref=e255]: Unknown
+          - generic [ref=e257]:
+            - generic [ref=e258]: 
+            - text: 1 resource(s)
+        - button "조금 a little Basic Learning  1 resource(s)" [ref=e260] [cursor=pointer]:
+          - generic [ref=e261]:
+            - generic [ref=e262]:
+              - heading "조금" [level=6] [ref=e263]
+              - text: a little
+            - generic [ref=e264]:
+              - generic [ref=e265]: Basic
+              - generic "Currently studying" [ref=e266]: Learning
+          - generic [ref=e268]:
+            - generic [ref=e269]: 
+            - text: 1 resource(s)
+        - button "자동차 car Basic Unknown  1 resource(s)" [ref=e271] [cursor=pointer]:
+          - generic [ref=e272]:
+            - generic [ref=e273]:
+              - heading "자동차" [level=6] [ref=e274]
+              - text: car
+            - generic [ref=e275]:
+              - generic [ref=e276]: Basic
+              - generic "Not yet studied" [ref=e277]: Unknown
+          - generic [ref=e279]:
+            - generic [ref=e280]: 
+            - text: 1 resource(s)
+        - button "문 door Basic Unknown  1 resource(s)" [ref=e282] [cursor=pointer]:
+          - generic [ref=e283]:
+            - generic [ref=e284]:
+              - heading "문" [level=6] [ref=e285]
+              - text: door
+            - generic [ref=e286]:
+              - generic [ref=e287]: Basic
+              - generic "Not yet studied" [ref=e288]: Unknown
+          - generic [ref=e290]:
+            - generic [ref=e291]: 
+            - text: 1 resource(s)
+        - button "음악 music Basic Unknown  1 resource(s)" [ref=e293] [cursor=pointer]:
+          - generic [ref=e294]:
+            - generic [ref=e295]:
+              - heading "음악" [level=6] [ref=e296]
+              - text: music
+            - generic [ref=e297]:
+              - generic [ref=e298]: Basic
+              - generic "Not yet studied" [ref=e299]: Unknown
+          - generic [ref=e301]:
+            - generic [ref=e302]: 
+            - text: 1 resource(s)
+        - button "안녕히 계세요 goodbye (to someone staying) Basic Unknown  1 resource(s)" [ref=e304] [cursor=pointer]:
+          - generic [ref=e305]:
+            - generic [ref=e306]:
+              - heading "안녕히 계세요" [level=6] [ref=e307]
+              - text: goodbye (to someone staying)
+            - generic [ref=e308]:
+              - generic [ref=e309]: Basic
+              - generic "Not yet studied" [ref=e310]: Unknown
+          - generic [ref=e312]:
+            - generic [ref=e313]: 
+            - text: 1 resource(s)
+        - button "책가방 backpack Basic Unknown  1 resource(s)" [ref=e315] [cursor=pointer]:
+          - generic [ref=e316]:
+            - generic [ref=e317]:
+              - heading "책가방" [level=6] [ref=e318]
+              - text: backpack
+            - generic [ref=e319]:
+              - generic [ref=e320]: Basic
+              - generic "Not yet studied" [ref=e321]: Unknown
+          - generic [ref=e323]:
+            - generic [ref=e324]: 
+            - text: 1 resource(s)
+        - button "과일 fruit Basic Unknown  1 resource(s)" [ref=e326] [cursor=pointer]:
+          - generic [ref=e327]:
+            - generic [ref=e328]:
+              - heading "과일" [level=6] [ref=e329]
+              - text: fruit
+            - generic [ref=e330]:
+              - generic [ref=e331]: Basic
+              - generic "Not yet studied" [ref=e332]: Unknown
+          - generic [ref=e334]:
+            - generic [ref=e335]: 
+            - text: 1 resource(s)
+        - button "음식 food Basic Learning  1 resource(s)" [ref=e337] [cursor=pointer]:
+          - generic [ref=e338]:
+            - generic [ref=e339]:
+              - heading "음식" [level=6] [ref=e340]
+              - text: food
+            - generic [ref=e341]:
+              - generic [ref=e342]: Basic
+              - generic "Currently studying" [ref=e343]: Learning
+          - generic [ref=e345]:
+            - generic [ref=e346]: 
+            - text: 1 resource(s)
+        - button "친절 kindness Basic Unknown  1 resource(s)" [ref=e348] [cursor=pointer]:
+          - generic [ref=e349]:
+            - generic [ref=e350]:
+              - heading "친절" [level=6] [ref=e351]
+              - text: kindness
+            - generic [ref=e352]:
+              - generic [ref=e353]: Basic
+              - generic "Not yet studied" [ref=e354]: Unknown
+          - generic [ref=e356]:
+            - generic [ref=e357]: 
+            - text: 1 resource(s)
+        - button "가을 autumn Basic Unknown  1 resource(s)" [ref=e359] [cursor=pointer]:
+          - generic [ref=e360]:
+            - generic [ref=e361]:
+              - heading "가을" [level=6] [ref=e362]
+              - text: autumn
+            - generic [ref=e363]:
+              - generic [ref=e364]: Basic
+              - generic "Not yet studied" [ref=e365]: Unknown
+          - generic [ref=e367]:
+            - generic [ref=e368]: 
+            - text: 1 resource(s)
+        - button "차 tea Basic Unknown  1 resource(s)" [ref=e370] [cursor=pointer]:
+          - generic [ref=e371]:
+            - generic [ref=e372]:
+              - heading "차" [level=6] [ref=e373]
+              - text: tea
+            - generic [ref=e374]:
+              - generic [ref=e375]: Basic
+              - generic "Not yet studied" [ref=e376]: Unknown
+          - generic [ref=e378]:
+            - generic [ref=e379]: 
+            - text: 1 resource(s)
+        - button "수요일 Wednesday Basic Unknown  1 resource(s)" [ref=e381] [cursor=pointer]:
+          - generic [ref=e382]:
+            - generic [ref=e383]:
+              - heading "수요일" [level=6] [ref=e384]
+              - text: Wednesday
+            - generic [ref=e385]:
+              - generic [ref=e386]: Basic
+              - generic "Not yet studied" [ref=e387]: Unknown
+          - generic [ref=e389]:
+            - generic [ref=e390]: 
+            - text: 1 resource(s)
+        - button "화요일 Tuesday Basic Unknown  1 resource(s)" [ref=e392] [cursor=pointer]:
+          - generic [ref=e393]:
+            - generic [ref=e394]:
+              - heading "화요일" [level=6] [ref=e395]
+              - text: Tuesday
+            - generic [ref=e396]:
+              - generic [ref=e397]: Basic
+              - generic "Not yet studied" [ref=e398]: Unknown
+          - generic [ref=e400]:
+            - generic [ref=e401]: 
+            - text: 1 resource(s)
+        - button "작은 small Basic Unknown  1 resource(s)" [ref=e403] [cursor=pointer]:
+          - generic [ref=e404]:
+            - generic [ref=e405]:
+              - heading "작은" [level=6] [ref=e406]
+              - text: small
+            - generic [ref=e407]:
+              - generic [ref=e408]: Basic
+              - generic "Not yet studied" [ref=e409]: Unknown
+          - generic [ref=e411]:
+            - generic [ref=e412]: 
+            - text: 1 resource(s)
+        - button "이야기 story Basic Unknown  1 resource(s)" [ref=e414] [cursor=pointer]:
+          - generic [ref=e415]:
+            - generic [ref=e416]:
+              - heading "이야기" [level=6] [ref=e417]
+              - text: story
+            - generic [ref=e418]:
+              - generic [ref=e419]: Basic
+              - generic "Not yet studied" [ref=e420]: Unknown
+          - generic [ref=e422]:
+            - generic [ref=e423]: 
+            - text: 1 resource(s)
+        - button "소리 sound Basic Unknown  1 resource(s)" [ref=e425] [cursor=pointer]:
+          - generic [ref=e426]:
+            - generic [ref=e427]:
+              - heading "소리" [level=6] [ref=e428]
+              - text: sound
+            - generic [ref=e429]:
+              - generic [ref=e430]: Basic
+              - generic "Not yet studied" [ref=e431]: Unknown
+          - generic [ref=e433]:
+            - generic [ref=e434]: 
+            - text: 1 resource(s)
+        - button "물 water Basic Unknown  1 resource(s)" [ref=e436] [cursor=pointer]:
+          - generic [ref=e437]:
+            - generic [ref=e438]:
+              - heading "물" [level=6] [ref=e439]
+              - text: water
+            - generic [ref=e440]:
+              - generic [ref=e441]: Basic
+              - generic "Not yet studied" [ref=e442]: Unknown
+          - generic [ref=e444]:
+            - generic [ref=e445]: 
+            - text: 1 resource(s)
+        - button "미안합니다 I'm sorry Basic Unknown  1 resource(s)" [ref=e447] [cursor=pointer]:
+          - generic [ref=e448]:
+            - generic [ref=e449]:
+              - heading "미안합니다" [level=6] [ref=e450]
+              - text: I'm sorry
+            - generic [ref=e451]:
+              - generic [ref=e452]: Basic
+              - generic "Not yet studied" [ref=e453]: Unknown
+          - generic [ref=e455]:
+            - generic [ref=e456]: 
+            - text: 1 resource(s)
+        - button "정보 information Basic Unknown  1 resource(s)" [ref=e458] [cursor=pointer]:
+          - generic [ref=e459]:
+            - generic [ref=e460]:
+              - heading "정보" [level=6] [ref=e461]
+              - text: information
+            - generic [ref=e462]:
+              - generic [ref=e463]: Basic
+              - generic "Not yet studied" [ref=e464]: Unknown
+          - generic [ref=e466]:
+            - generic [ref=e467]: 
+            - text: 1 resource(s)
+        - button "텔레비전 television Basic Unknown  1 resource(s)" [ref=e469] [cursor=pointer]:
+          - generic [ref=e470]:
+            - generic [ref=e471]:
+              - heading "텔레비전" [level=6] [ref=e472]
+              - text: television
+            - generic [ref=e473]:
+              - generic [ref=e474]: Basic
+              - generic "Not yet studied" [ref=e475]: Unknown
+          - generic [ref=e477]:
+            - generic [ref=e478]: 
+            - text: 1 resource(s)
+        - button "도로 road Basic Unknown  1 resource(s)" [ref=e480] [cursor=pointer]:
+          - generic [ref=e481]:
+            - generic [ref=e482]:
+              - heading "도로" [level=6] [ref=e483]
+              - text: road
+            - generic [ref=e484]:
+              - generic [ref=e485]: Basic
+              - generic "Not yet studied" [ref=e486]: Unknown
+          - generic [ref=e488]:
+            - generic [ref=e489]: 
+            - text: 1 resource(s)
+        - button "신문 newspaper Basic Learning  1 resource(s)" [ref=e491] [cursor=pointer]:
+          - generic [ref=e492]:
+            - generic [ref=e493]:
+              - heading "신문" [level=6] [ref=e494]
+              - text: newspaper
+            - generic [ref=e495]:
+              - generic [ref=e496]: Basic
+              - generic "Currently studying" [ref=e497]: Learning
+          - generic [ref=e499]:
+            - generic [ref=e500]: 
+            - text: 1 resource(s)
+        - button "병원 hospital Basic Unknown  1 resource(s)" [ref=e502] [cursor=pointer]:
+          - generic [ref=e503]:
+            - generic [ref=e504]:
+              - heading "병원" [level=6] [ref=e505]
+              - text: hospital
+            - generic [ref=e506]:
+              - generic [ref=e507]: Basic
+              - generic "Not yet studied" [ref=e508]: Unknown
+          - generic [ref=e510]:
+            - generic [ref=e511]: 
+            - text: 1 resource(s)
+        - button "점심 lunch Basic Unknown  1 resource(s)" [ref=e513] [cursor=pointer]:
+          - generic [ref=e514]:
+            - generic [ref=e515]:
+              - heading "점심" [level=6] [ref=e516]
+              - text: lunch
+            - generic [ref=e517]:
+              - generic [ref=e518]: Basic
+              - generic "Not yet studied" [ref=e519]: Unknown
+          - generic [ref=e521]:
+            - generic [ref=e522]: 
+            - text: 1 resource(s)
+        - button "집 house Basic Unknown  1 resource(s)" [ref=e524] [cursor=pointer]:
+          - generic [ref=e525]:
+            - generic [ref=e526]:
+              - heading "집" [level=6] [ref=e527]
+              - text: house
+            - generic [ref=e528]:
+              - generic [ref=e529]: Basic
+              - generic "Not yet studied" [ref=e530]: Unknown
+          - generic [ref=e532]:
+            - generic [ref=e533]: 
+            - text: 1 resource(s)
+        - button "금요일 Friday Basic Unknown  1 resource(s)" [ref=e535] [cursor=pointer]:
+          - generic [ref=e536]:
+            - generic [ref=e537]:
+              - heading "금요일" [level=6] [ref=e538]
+              - text: Friday
+            - generic [ref=e539]:
+              - generic [ref=e540]: Basic
+              - generic "Not yet studied" [ref=e541]: Unknown
+          - generic [ref=e543]:
+            - generic [ref=e544]: 
+            - text: 1 resource(s)
+        - button "기분 mood Basic Unknown  1 resource(s)" [ref=e546] [cursor=pointer]:
+          - generic [ref=e547]:
+            - generic [ref=e548]:
+              - heading "기분" [level=6] [ref=e549]
+              - text: mood
+            - generic [ref=e550]:
+              - generic [ref=e551]: Basic
+              - generic "Not yet studied" [ref=e552]: Unknown
+          - generic [ref=e554]:
+            - generic [ref=e555]: 
+            - text: 1 resource(s)
+        - button "책상 desk Basic Unknown  1 resource(s)" [ref=e557] [cursor=pointer]:
+          - generic [ref=e558]:
+            - generic [ref=e559]:
+              - heading "책상" [level=6] [ref=e560]
+              - text: desk
+            - generic [ref=e561]:
+              - generic [ref=e562]: Basic
+              - generic "Not yet studied" [ref=e563]: Unknown
+          - generic [ref=e565]:
+            - generic [ref=e566]: 
+            - text: 1 resource(s)
+        - button "감사합니다 thank you Basic Unknown  1 resource(s)" [ref=e568] [cursor=pointer]:
+          - generic [ref=e569]:
+            - generic [ref=e570]:
+              - heading "감사합니다" [level=6] [ref=e571]
+              - text: thank you
+            - generic [ref=e572]:
+              - generic [ref=e573]: Basic
+              - generic "Not yet studied" [ref=e574]: Unknown
+          - generic [ref=e576]:
+            - generic [ref=e577]: 
+            - text: 1 resource(s)
+        - button "친구 friend Basic Learning  1 resource(s)" [ref=e579] [cursor=pointer]:
+          - generic [ref=e580]:
+            - generic [ref=e581]:
+              - heading "친구" [level=6] [ref=e582]
+              - text: friend
+            - generic [ref=e583]:
+              - generic [ref=e584]: Basic
+              - generic "Currently studying" [ref=e585]: Learning
+          - generic [ref=e587]:
+            - generic [ref=e588]: 
+            - text: 1 resource(s)
+        - button "복습 review Basic Unknown  1 resource(s)" [ref=e590] [cursor=pointer]:
+          - generic [ref=e591]:
+            - generic [ref=e592]:
+              - heading "복습" [level=6] [ref=e593]
+              - text: review
+            - generic [ref=e594]:
+              - generic [ref=e595]: Basic
+              - generic "Not yet studied" [ref=e596]: Unknown
+          - generic [ref=e598]:
+            - generic [ref=e599]: 
+            - text: 1 resource(s)
+        - button "커피 coffee Basic Learning  1 resource(s)" [ref=e601] [cursor=pointer]:
+          - generic [ref=e602]:
+            - generic [ref=e603]:
+              - heading "커피" [level=6] [ref=e604]
+              - text: coffee
+            - generic [ref=e605]:
+              - generic [ref=e606]: Basic
+              - generic "Currently studying" [ref=e607]: Learning
+          - generic [ref=e609]:
+            - generic [ref=e610]: 
+            - text: 1 resource(s)
+        - button "자동차 car Basic Unknown  1 resource(s)" [ref=e612] [cursor=pointer]:
+          - generic [ref=e613]:
+            - generic [ref=e614]:
+              - heading "자동차" [level=6] [ref=e615]
+              - text: car
+            - generic [ref=e616]:
+              - generic [ref=e617]: Basic
+              - generic "Not yet studied" [ref=e618]: Unknown
+          - generic [ref=e620]:
+            - generic [ref=e621]: 
+            - text: 1 resource(s)
+        - button "아이 child Basic Learning  1 resource(s)" [ref=e623] [cursor=pointer]:
+          - generic [ref=e624]:
+            - generic [ref=e625]:
+              - heading "아이" [level=6] [ref=e626]
+              - text: child
+            - generic [ref=e627]:
+              - generic [ref=e628]: Basic
+              - generic "Currently studying" [ref=e629]: Learning
+          - generic [ref=e631]:
+            - generic [ref=e632]: 
+            - text: 1 resource(s)
+        - button "사과 apple Basic Unknown  1 resource(s)" [ref=e634] [cursor=pointer]:
+          - generic [ref=e635]:
+            - generic [ref=e636]:
+              - heading "사과" [level=6] [ref=e637]
+              - text: apple
+            - generic [ref=e638]:
+              - generic [ref=e639]: Basic
+              - generic "Not yet studied" [ref=e640]: Unknown
+          - generic [ref=e642]:
+            - generic [ref=e643]: 
+            - text: 1 resource(s)
+        - button "이름 name Basic Unknown  1 resource(s)" [ref=e645] [cursor=pointer]:
+          - generic [ref=e646]:
+            - generic [ref=e647]:
+              - heading "이름" [level=6] [ref=e648]
+              - text: name
+            - generic [ref=e649]:
+              - generic [ref=e650]: Basic
+              - generic "Not yet studied" [ref=e651]: Unknown
+          - generic [ref=e653]:
+            - generic [ref=e654]: 
+            - text: 1 resource(s)
+        - button "안녕히 가세요 goodbye (to someone leaving) Basic Unknown  1 resource(s)" [ref=e656] [cursor=pointer]:
+          - generic [ref=e657]:
+            - generic [ref=e658]:
+              - heading "안녕히 가세요" [level=6] [ref=e659]
+              - text: goodbye (to someone leaving)
+            - generic [ref=e660]:
+              - generic [ref=e661]: Basic
+              - generic "Not yet studied" [ref=e662]: Unknown
+          - generic [ref=e664]:
+            - generic [ref=e665]: 
+            - text: 1 resource(s)
+        - button "사전 dictionary Basic Unknown  1 resource(s)" [ref=e667] [cursor=pointer]:
+          - generic [ref=e668]:
+            - generic [ref=e669]:
+              - heading "사전" [level=6] [ref=e670]
+              - text: dictionary
+            - generic [ref=e671]:
+              - generic [ref=e672]: Basic
+              - generic "Not yet studied" [ref=e673]: Unknown
+          - generic [ref=e675]:
+            - generic [ref=e676]: 
+            - text: 1 resource(s)
+        - button "연필 pencil Basic Unknown  1 resource(s)" [ref=e678] [cursor=pointer]:
+          - generic [ref=e679]:
+            - generic [ref=e680]:
+              - heading "연필" [level=6] [ref=e681]
+              - text: pencil
+            - generic [ref=e682]:
+              - generic [ref=e683]: Basic
+              - generic "Not yet studied" [ref=e684]: Unknown
+          - generic [ref=e686]:
+            - generic [ref=e687]: 
+            - text: 1 resource(s)
+        - button "가족 family Basic Learning  1 resource(s)" [ref=e689] [cursor=pointer]:
+          - generic [ref=e690]:
+            - generic [ref=e691]:
+              - heading "가족" [level=6] [ref=e692]
+              - text: family
+            - generic [ref=e693]:
+              - generic [ref=e694]: Basic
+              - generic "Currently studying" [ref=e695]: Learning
+          - generic [ref=e697]:
+            - generic [ref=e698]: 
+            - text: 1 resource(s)
+        - button "전화 phone Basic Unknown  1 resource(s)" [ref=e700] [cursor=pointer]:
+          - generic [ref=e701]:
+            - generic [ref=e702]:
+              - heading "전화" [level=6] [ref=e703]
+              - text: phone
+            - generic [ref=e704]:
+              - generic [ref=e705]: Basic
+              - generic "Not yet studied" [ref=e706]: Unknown
+          - generic [ref=e708]:
+            - generic [ref=e709]: 
+            - text: 1 resource(s)
+        - button "노래 song Basic Unknown  1 resource(s)" [ref=e711] [cursor=pointer]:
+          - generic [ref=e712]:
+            - generic [ref=e713]:
+              - heading "노래" [level=6] [ref=e714]
+              - text: song
+            - generic [ref=e715]:
+              - generic [ref=e716]: Basic
+              - generic "Not yet studied" [ref=e717]: Unknown
+          - generic [ref=e719]:
+            - generic [ref=e720]: 
+            - text: 1 resource(s)
+        - button "돈 money Basic Learning  1 resource(s)" [ref=e722] [cursor=pointer]:
+          - generic [ref=e723]:
+            - generic [ref=e724]:
+              - heading "돈" [level=6] [ref=e725]
+              - text: money
+            - generic [ref=e726]:
+              - generic [ref=e727]: Basic
+              - generic "Currently studying" [ref=e728]: Learning
+          - generic [ref=e730]:
+            - generic [ref=e731]: 
+            - text: 1 resource(s)
+        - button "언니 older sister (female speaker) Basic Unknown  1 resource(s)" [ref=e733] [cursor=pointer]:
+          - generic [ref=e734]:
+            - generic [ref=e735]:
+              - heading "언니" [level=6] [ref=e736]
+              - text: older sister (female speaker)
+            - generic [ref=e737]:
+              - generic [ref=e738]: Basic
+              - generic "Not yet studied" [ref=e739]: Unknown
+          - generic [ref=e741]:
+            - generic [ref=e742]: 
+            - text: 1 resource(s)
+        - button "창문 window Basic Unknown  1 resource(s)" [ref=e744] [cursor=pointer]:
+          - generic [ref=e745]:
+            - generic [ref=e746]:
+              - heading "창문" [level=6] [ref=e747]
+              - text: window
+            - generic [ref=e748]:
+              - generic [ref=e749]: Basic
+              - generic "Not yet studied" [ref=e750]: Unknown
+          - generic [ref=e752]:
+            - generic [ref=e753]: 
+            - text: 1 resource(s)
+        - button "행복 happiness Basic Unknown  1 resource(s)" [ref=e755] [cursor=pointer]:
+          - generic [ref=e756]:
+            - generic [ref=e757]:
+              - heading "행복" [level=6] [ref=e758]
+              - text: happiness
+            - generic [ref=e759]:
+              - generic [ref=e760]: Basic
+              - generic "Not yet studied" [ref=e761]: Unknown
+          - generic [ref=e763]:
+            - generic [ref=e764]: 
+            - text: 1 resource(s)
+        - button "별 star Basic Unknown  1 resource(s)" [ref=e766] [cursor=pointer]:
+          - generic [ref=e767]:
+            - generic [ref=e768]:
+              - heading "별" [level=6] [ref=e769]
+              - text: star
+            - generic [ref=e770]:
+              - generic [ref=e771]: Basic
+              - generic "Not yet studied" [ref=e772]: Unknown
+          - generic [ref=e774]:
+            - generic [ref=e775]: 
+            - text: 1 resource(s)
+        - button "게임 game Basic Unknown  1 resource(s)" [ref=e777] [cursor=pointer]:
+          - generic [ref=e778]:
+            - generic [ref=e779]:
+              - heading "게임" [level=6] [ref=e780]
+              - text: game
+            - generic [ref=e781]:
+              - generic [ref=e782]: Basic
+              - generic "Not yet studied" [ref=e783]: Unknown
+          - generic [ref=e785]:
+            - generic [ref=e786]: 
+            - text: 1 resource(s)
+        - button "고양이 cat Basic Unknown  1 resource(s)" [ref=e788] [cursor=pointer]:
+          - generic [ref=e789]:
+            - generic [ref=e790]:
+              - heading "고양이" [level=6] [ref=e791]
+              - text: cat
+            - generic [ref=e792]:
+              - generic [ref=e793]: Basic
+              - generic "Not yet studied" [ref=e794]: Unknown
+          - generic [ref=e796]:
+            - generic [ref=e797]: 
+            - text: 1 resource(s)
+        - button "저녁 dinner Basic Learning  1 resource(s)" [ref=e799] [cursor=pointer]:
+          - generic [ref=e800]:
+            - generic [ref=e801]:
+              - heading "저녁" [level=6] [ref=e802]
+              - text: dinner
+            - generic [ref=e803]:
+              - generic [ref=e804]: Basic
+              - generic "Currently studying" [ref=e805]: Learning
+          - generic [ref=e807]:
+            - generic [ref=e808]: 
+            - text: 1 resource(s)
+        - button "시간 time Basic Unknown  1 resource(s)" [ref=e810] [cursor=pointer]:
+          - generic [ref=e811]:
+            - generic [ref=e812]:
+              - heading "시간" [level=6] [ref=e813]
+              - text: time
+            - generic [ref=e814]:
+              - generic [ref=e815]: Basic
+              - generic "Not yet studied" [ref=e816]: Unknown
+          - generic [ref=e818]:
+            - generic [ref=e819]: 
+            - text: 1 resource(s)
+        - button "수업 class Basic Unknown  1 resource(s)" [ref=e821] [cursor=pointer]:
+          - generic [ref=e822]:
+            - generic [ref=e823]:
+              - heading "수업" [level=6] [ref=e824]
+              - text: class
+            - generic [ref=e825]:
+              - generic [ref=e826]: Basic
+              - generic "Not yet studied" [ref=e827]: Unknown
+          - generic [ref=e829]:
+            - generic [ref=e830]: 
+            - text: 1 resource(s)
+        - button "안녕 hello Basic Learning  1 resource(s)" [ref=e832] [cursor=pointer]:
+          - generic [ref=e833]:
+            - generic [ref=e834]:
+              - heading "안녕" [level=6] [ref=e835]
+              - text: hello
+            - generic [ref=e836]:
+              - generic [ref=e837]: Basic
+              - generic "Currently studying" [ref=e838]: Learning
+          - generic [ref=e840]:
+            - generic [ref=e841]: 
+            - text: 1 resource(s)
+        - button "형 older brother (male speaker) Basic Unknown  1 resource(s)" [ref=e843] [cursor=pointer]:
+          - generic [ref=e844]:
+            - generic [ref=e845]:
+              - heading "형" [level=6] [ref=e846]
+              - text: older brother (male speaker)
+            - generic [ref=e847]:
+              - generic [ref=e848]: Basic
+              - generic "Not yet studied" [ref=e849]: Unknown
+          - generic [ref=e851]:
+            - generic [ref=e852]: 
+            - text: 1 resource(s)
+        - button "토요일 Saturday Basic Unknown  1 resource(s)" [ref=e854] [cursor=pointer]:
+          - generic [ref=e855]:
+            - generic [ref=e856]:
+              - heading "토요일" [level=6] [ref=e857]
+              - text: Saturday
+            - generic [ref=e858]:
+              - generic [ref=e859]: Basic
+              - generic "Not yet studied" [ref=e860]: Unknown
+          - generic [ref=e862]:
+            - generic [ref=e863]: 
+            - text: 1 resource(s)
+        - button "단어 word Basic Unknown  1 resource(s)" [ref=e865] [cursor=pointer]:
+          - generic [ref=e866]:
+            - generic [ref=e867]:
+              - heading "단어" [level=6] [ref=e868]
+              - text: word
+            - generic [ref=e869]:
+              - generic [ref=e870]: Basic
+              - generic "Not yet studied" [ref=e871]: Unknown
+          - generic [ref=e873]:
+            - generic [ref=e874]: 
+            - text: 1 resource(s)
+        - button "오빠 older brother (female speaker) Basic Unknown  1 resource(s)" [ref=e876] [cursor=pointer]:
+          - generic [ref=e877]:
+            - generic [ref=e878]:
+              - heading "오빠" [level=6] [ref=e879]
+              - text: older brother (female speaker)
+            - generic [ref=e880]:
+              - generic [ref=e881]: Basic
+              - generic "Not yet studied" [ref=e882]: Unknown
+          - generic [ref=e884]:
+            - generic [ref=e885]: 
+            - text: 1 resource(s)
+        - button "겨울 winter Basic Unknown  1 resource(s)" [ref=e887] [cursor=pointer]:
+          - generic [ref=e888]:
+            - generic [ref=e889]:
+              - heading "겨울" [level=6] [ref=e890]
+              - text: winter
+            - generic [ref=e891]:
+              - generic [ref=e892]: Basic
+              - generic "Not yet studied" [ref=e893]: Unknown
+          - generic [ref=e895]:
+            - generic [ref=e896]: 
+            - text: 1 resource(s)
+        - button "많이 a lot Basic Unknown  1 resource(s)" [ref=e898] [cursor=pointer]:
+          - generic [ref=e899]:
+            - generic [ref=e900]:
+              - heading "많이" [level=6] [ref=e901]
+              - text: a lot
+            - generic [ref=e902]:
+              - generic [ref=e903]: Basic
+              - generic "Not yet studied" [ref=e904]: Unknown
+          - generic [ref=e906]:
+            - generic [ref=e907]: 
+            - text: 1 resource(s)
+        - button "운동 exercise Basic Unknown  1 resource(s)" [ref=e909] [cursor=pointer]:
+          - generic [ref=e910]:
+            - generic [ref=e911]:
+              - heading "운동" [level=6] [ref=e912]
+              - text: exercise
+            - generic [ref=e913]:
+              - generic [ref=e914]: Basic
+              - generic "Not yet studied" [ref=e915]: Unknown
+          - generic [ref=e917]:
+            - generic [ref=e918]: 
+            - text: 1 resource(s)
+        - button "물건 thing Basic Unknown  1 resource(s)" [ref=e920] [cursor=pointer]:
+          - generic [ref=e921]:
+            - generic [ref=e922]:
+              - heading "물건" [level=6] [ref=e923]
+              - text: thing
+            - generic [ref=e924]:
+              - generic [ref=e925]: Basic
+              - generic "Not yet studied" [ref=e926]: Unknown
+          - generic [ref=e928]:
+            - generic [ref=e929]: 
+            - text: 1 resource(s)
+        - button "사람 person Basic Unknown  1 resource(s)" [ref=e931] [cursor=pointer]:
+          - generic [ref=e932]:
+            - generic [ref=e933]:
+              - heading "사람" [level=6] [ref=e934]
+              - text: person
+            - generic [ref=e935]:
+              - generic [ref=e936]: Basic
+              - generic "Not yet studied" [ref=e937]: Unknown
+          - generic [ref=e939]:
+            - generic [ref=e940]: 
+            - text: 1 resource(s)
+        - button "하자 let's do it Basic Unknown  1 resource(s)" [ref=e942] [cursor=pointer]:
+          - generic [ref=e943]:
+            - generic [ref=e944]:
+              - heading "하자" [level=6] [ref=e945]
+              - text: let's do it
+            - generic [ref=e946]:
+              - generic [ref=e947]: Basic
+              - generic "Not yet studied" [ref=e948]: Unknown
+          - generic [ref=e950]:
+            - generic [ref=e951]: 
+            - text: 1 resource(s)
+        - button "교실 classroom Basic Unknown  1 resource(s)" [ref=e953] [cursor=pointer]:
+          - generic [ref=e954]:
+            - generic [ref=e955]:
+              - heading "교실" [level=6] [ref=e956]
+              - text: classroom
+            - generic [ref=e957]:
+              - generic [ref=e958]: Basic
+              - generic "Not yet studied" [ref=e959]: Unknown
+          - generic [ref=e961]:
+            - generic [ref=e962]: 
+            - text: 1 resource(s)
+        - button "일요일 Sunday Basic Unknown  1 resource(s)" [ref=e964] [cursor=pointer]:
+          - generic [ref=e965]:
+            - generic [ref=e966]:
+              - heading "일요일" [level=6] [ref=e967]
+              - text: Sunday
+            - generic [ref=e968]:
+              - generic [ref=e969]: Basic
+              - generic "Not yet studied" [ref=e970]: Unknown
+          - generic [ref=e972]:
+            - generic [ref=e973]: 
+            - text: 1 resource(s)
+        - button "선생님 teacher Basic Unknown  1 resource(s)" [ref=e975] [cursor=pointer]:
+          - generic [ref=e976]:
+            - generic [ref=e977]:
+              - heading "선생님" [level=6] [ref=e978]
+              - text: teacher
+            - generic [ref=e979]:
+              - generic [ref=e980]: Basic
+              - generic "Not yet studied" [ref=e981]: Unknown
+          - generic [ref=e983]:
+            - generic [ref=e984]: 
+            - text: 1 resource(s)
+        - button "큰 big Basic Learning  1 resource(s)" [ref=e986] [cursor=pointer]:
+          - generic [ref=e987]:
+            - generic [ref=e988]:
+              - heading "큰" [level=6] [ref=e989]
+              - text: big
+            - generic [ref=e990]:
+              - generic [ref=e991]: Basic
+              - generic "Currently studying" [ref=e992]: Learning
+          - generic [ref=e994]:
+            - generic [ref=e995]: 
+            - text: 1 resource(s)
+        - button "문법 grammar Basic Unknown  1 resource(s)" [ref=e997] [cursor=pointer]:
+          - generic [ref=e998]:
+            - generic [ref=e999]:
+              - heading "문법" [level=6] [ref=e1000]
+              - text: grammar
+            - generic [ref=e1001]:
+              - generic [ref=e1002]: Basic
+              - generic "Not yet studied" [ref=e1003]: Unknown
+          - generic [ref=e1005]:
+            - generic [ref=e1006]: 
+            - text: 1 resource(s)
+        - button "봄 spring Basic Unknown  1 resource(s)" [ref=e1008] [cursor=pointer]:
+          - generic [ref=e1009]:
+            - generic [ref=e1010]:
+              - heading "봄" [level=6] [ref=e1011]
+              - text: spring
+            - generic [ref=e1012]:
+              - generic [ref=e1013]: Basic
+              - generic "Not yet studied" [ref=e1014]: Unknown
+          - generic [ref=e1016]:
+            - generic [ref=e1017]: 
+            - text: 1 resource(s)
+        - button "사랑 love Basic Unknown  1 resource(s)" [ref=e1019] [cursor=pointer]:
+          - generic [ref=e1020]:
+            - generic [ref=e1021]:
+              - heading "사랑" [level=6] [ref=e1022]
+              - text: love
+            - generic [ref=e1023]:
+              - generic [ref=e1024]: Basic
+              - generic "Not yet studied" [ref=e1025]: Unknown
+          - generic [ref=e1027]:
+            - generic [ref=e1028]: 
+            - text: 1 resource(s)
+        - button "아침 morning Basic Unknown  1 resource(s)" [ref=e1030] [cursor=pointer]:
+          - generic [ref=e1031]:
+            - generic [ref=e1032]:
+              - heading "아침" [level=6] [ref=e1033]
+              - text: morning
+            - generic [ref=e1034]:
+              - generic [ref=e1035]: Basic
+              - generic "Not yet studied" [ref=e1036]: Unknown
+          - generic [ref=e1038]:
+            - generic [ref=e1039]: 
+            - text: 1 resource(s)
+        - button "나빠요 bad Basic Unknown  1 resource(s)" [ref=e1041] [cursor=pointer]:
+          - generic [ref=e1042]:
+            - generic [ref=e1043]:
+              - heading "나빠요" [level=6] [ref=e1044]
+              - text: bad
+            - generic [ref=e1045]:
+              - generic [ref=e1046]: Basic
+              - generic "Not yet studied" [ref=e1047]: Unknown
+          - generic [ref=e1049]:
+            - generic [ref=e1050]: 
+            - text: 1 resource(s)
+        - button "새 bird Basic Unknown  1 resource(s)" [ref=e1052] [cursor=pointer]:
+          - generic [ref=e1053]:
+            - generic [ref=e1054]:
+              - heading "새" [level=6] [ref=e1055]
+              - text: bird
+            - generic [ref=e1056]:
+              - generic [ref=e1057]: Basic
+              - generic "Not yet studied" [ref=e1058]: Unknown
+          - generic [ref=e1060]:
+            - generic [ref=e1061]: 
+            - text: 1 resource(s)
+        - button "목요일 Thursday Basic Unknown  1 resource(s)" [ref=e1063] [cursor=pointer]:
+          - generic [ref=e1064]:
+            - generic [ref=e1065]:
+              - heading "목요일" [level=6] [ref=e1066]
+              - text: Thursday
+            - generic [ref=e1067]:
+              - generic [ref=e1068]: Basic
+              - generic "Not yet studied" [ref=e1069]: Unknown
+          - generic [ref=e1071]:
+            - generic [ref=e1072]: 
+            - text: 1 resource(s)
+        - button "색깔 color Basic Unknown  1 resource(s)" [ref=e1074] [cursor=pointer]:
+          - generic [ref=e1075]:
+            - generic [ref=e1076]:
+              - heading "색깔" [level=6] [ref=e1077]
+              - text: color
+            - generic [ref=e1078]:
+              - generic [ref=e1079]: Basic
+              - generic "Not yet studied" [ref=e1080]: Unknown
+          - generic [ref=e1082]:
+            - generic [ref=e1083]: 
+            - text: 1 resource(s)
+        - button "땅 earth Basic Unknown  1 resource(s)" [ref=e1085] [cursor=pointer]:
+          - generic [ref=e1086]:
+            - generic [ref=e1087]:
+              - heading "땅" [level=6] [ref=e1088]
+              - text: earth
+            - generic [ref=e1089]:
+              - generic [ref=e1090]: Basic
+              - generic "Not yet studied" [ref=e1091]: Unknown
+          - generic [ref=e1093]:
+            - generic [ref=e1094]: 
+            - text: 1 resource(s)
+        - button "꽃 flower Basic Learning  1 resource(s)" [ref=e1096] [cursor=pointer]:
+          - generic [ref=e1097]:
+            - generic [ref=e1098]:
+              - heading "꽃" [level=6] [ref=e1099]
+              - text: flower
+            - generic [ref=e1100]:
+              - generic [ref=e1101]: Basic
+              - generic "Currently studying" [ref=e1102]: Learning
+          - generic [ref=e1104]:
+            - generic [ref=e1105]: 
+            - text: 1 resource(s)
+        - button "학교 school Basic Unknown  1 resource(s)" [ref=e1107] [cursor=pointer]:
+          - generic [ref=e1108]:
+            - generic [ref=e1109]:
+              - heading "학교" [level=6] [ref=e1110]
+              - text: school
+            - generic [ref=e1111]:
+              - generic [ref=e1112]: Basic
+              - generic "Not yet studied" [ref=e1113]: Unknown
+          - generic [ref=e1115]:
+            - generic [ref=e1116]: 
+            - text: 1 resource(s)
+        - button "개 dog Basic Learning  1 resource(s)" [ref=e1118] [cursor=pointer]:
+          - generic [ref=e1119]:
+            - generic [ref=e1120]:
+              - heading "개" [level=6] [ref=e1121]
+              - text: dog
+            - generic [ref=e1122]:
+              - generic [ref=e1123]: Basic
+              - generic "Currently studying" [ref=e1124]: Learning
+          - generic [ref=e1126]:
+            - generic [ref=e1127]: 
+            - text: 1 resource(s)
+        - button "일 work Basic Unknown  1 resource(s)" [ref=e1129] [cursor=pointer]:
+          - generic [ref=e1130]:
+            - generic [ref=e1131]:
+              - heading "일" [level=6] [ref=e1132]
+              - text: work
+            - generic [ref=e1133]:
+              - generic [ref=e1134]: Basic
+              - generic "Not yet studied" [ref=e1135]: Unknown
+          - generic [ref=e1137]:
+            - generic [ref=e1138]: 
+            - text: 1 resource(s)
+        - button "비행기 airplane Basic Unknown  1 resource(s)" [ref=e1140] [cursor=pointer]:
+          - generic [ref=e1141]:
+            - generic [ref=e1142]:
+              - heading "비행기" [level=6] [ref=e1143]
+              - text: airplane
+            - generic [ref=e1144]:
+              - generic [ref=e1145]: Basic
+              - generic "Not yet studied" [ref=e1146]: Unknown
+          - generic [ref=e1148]:
+            - generic [ref=e1149]: 
+            - text: 1 resource(s)
+        - button "여름 summer Basic Unknown  1 resource(s)" [ref=e1151] [cursor=pointer]:
+          - generic [ref=e1152]:
+            - generic [ref=e1153]:
+              - heading "여름" [level=6] [ref=e1154]
+              - text: summer
+            - generic [ref=e1155]:
+              - generic [ref=e1156]: Basic
+              - generic "Not yet studied" [ref=e1157]: Unknown
+          - generic [ref=e1159]:
+            - generic [ref=e1160]: 
+            - text: 1 resource(s)
+        - button "물고기 fish Basic Unknown  1 resource(s)" [ref=e1162] [cursor=pointer]:
+          - generic [ref=e1163]:
+            - generic [ref=e1164]:
+              - heading "물고기" [level=6] [ref=e1165]
+              - text: fish
+            - generic [ref=e1166]:
+              - generic [ref=e1167]: Basic
+              - generic "Not yet studied" [ref=e1168]: Unknown
+          - generic [ref=e1170]:
+            - generic [ref=e1171]: 
+            - text: 1 resource(s)
+        - button "월요일 Monday Basic Learning  1 resource(s)" [ref=e1173] [cursor=pointer]:
+          - generic [ref=e1174]:
+            - generic [ref=e1175]:
+              - heading "월요일" [level=6] [ref=e1176]
+              - text: Monday
+            - generic [ref=e1177]:
+              - generic [ref=e1178]: Basic
+              - generic "Currently studying" [ref=e1179]: Learning
+          - generic [ref=e1181]:
+            - generic [ref=e1182]: 
+            - text: 1 resource(s)
+        - button "슬픔 sadness Basic Learning  1 resource(s)" [ref=e1184] [cursor=pointer]:
+          - generic [ref=e1185]:
+            - generic [ref=e1186]:
+              - heading "슬픔" [level=6] [ref=e1187]
+              - text: sadness
+            - generic [ref=e1188]:
+              - generic [ref=e1189]: Basic
+              - generic "Currently studying" [ref=e1190]: Learning
+          - generic [ref=e1192]:
+            - generic [ref=e1193]: 
+            - text: 1 resource(s)
+        - button "하늘 sky Basic Unknown  1 resource(s)" [ref=e1195] [cursor=pointer]:
+          - generic [ref=e1196]:
+            - generic [ref=e1197]:
+              - heading "하늘" [level=6] [ref=e1198]
+              - text: sky
+            - generic [ref=e1199]:
+              - generic [ref=e1200]: Basic
+              - generic "Not yet studied" [ref=e1201]: Unknown
+          - generic [ref=e1203]:
+            - generic [ref=e1204]: 
+            - text: 1 resource(s)
+        - button "해 sun Basic Unknown  1 resource(s)" [ref=e1206] [cursor=pointer]:
+          - generic [ref=e1207]:
+            - generic [ref=e1208]:
+              - heading "해" [level=6] [ref=e1209]
+              - text: sun
+            - generic [ref=e1210]:
+              - generic [ref=e1211]: Basic
+              - generic "Not yet studied" [ref=e1212]: Unknown
+          - generic [ref=e1214]:
+            - generic [ref=e1215]: 
+            - text: 1 resource(s)
+        - button "기차 train Basic Unknown  1 resource(s)" [ref=e1217] [cursor=pointer]:
+          - generic [ref=e1218]:
+            - generic [ref=e1219]:
+              - heading "기차" [level=6] [ref=e1220]
+              - text: train
+            - generic [ref=e1221]:
+              - generic [ref=e1222]: Basic
+              - generic "Not yet studied" [ref=e1223]: Unknown
+          - generic [ref=e1225]:
+            - generic [ref=e1226]: 
+            - text: 1 resource(s)
+        - button "좋아요 good Basic Learning  1 resource(s)" [ref=e1228] [cursor=pointer]:
+          - generic [ref=e1229]:
+            - generic [ref=e1230]:
+              - heading "좋아요" [level=6] [ref=e1231]
+              - text: good
+            - generic [ref=e1232]:
+              - generic [ref=e1233]: Basic
+              - generic "Currently studying" [ref=e1234]: Learning
+          - generic [ref=e1236]:
+            - generic [ref=e1237]: 
+            - text: 1 resource(s)
+        - button "지우개 eraser Basic Unknown  1 resource(s)" [ref=e1239] [cursor=pointer]:
+          - generic [ref=e1240]:
+            - generic [ref=e1241]:
+              - heading "지우개" [level=6] [ref=e1242]
+              - text: eraser
+            - generic [ref=e1243]:
+              - generic [ref=e1244]: Basic
+              - generic "Not yet studied" [ref=e1245]: Unknown
+          - generic [ref=e1247]:
+            - generic [ref=e1248]: 
+            - text: 1 resource(s)
+        - button "누나 older sister (male speaker) Basic Learning  1 resource(s)" [ref=e1250] [cursor=pointer]:
+          - generic [ref=e1251]:
+            - generic [ref=e1252]:
+              - heading "누나" [level=6] [ref=e1253]
+              - text: older sister (male speaker)
+            - generic [ref=e1254]:
+              - generic [ref=e1255]: Basic
+              - generic "Currently studying" [ref=e1256]: Learning
+          - generic [ref=e1258]:
+            - generic [ref=e1259]: 
+            - text: 1 resource(s)
+        - button "영화 movie Basic Unknown  1 resource(s)" [ref=e1261] [cursor=pointer]:
+          - generic [ref=e1262]:
+            - generic [ref=e1263]:
+              - heading "영화" [level=6] [ref=e1264]
+              - text: movie
+            - generic [ref=e1265]:
+              - generic [ref=e1266]: Basic
+              - generic "Not yet studied" [ref=e1267]: Unknown
+          - generic [ref=e1269]:
+            - generic [ref=e1270]: 
+            - text: 1 resource(s)
+        - button "좋다 to be good Basic Learning  1 resource(s)" [ref=e1272] [cursor=pointer]:
+          - generic [ref=e1273]:
+            - generic [ref=e1274]:
+              - heading "좋다" [level=6] [ref=e1275]
+              - text: to be good
+            - generic [ref=e1276]:
+              - generic [ref=e1277]: Basic
+              - generic "Currently studying" [ref=e1278]: Learning
+          - generic [ref=e1280]:
+            - generic [ref=e1281]: 
+            - text: 1 resource(s)
+        - button "약 medicine Basic Unknown  1 resource(s)" [ref=e1283] [cursor=pointer]:
+          - generic [ref=e1284]:
+            - generic [ref=e1285]:
+              - heading "약" [level=6] [ref=e1286]
+              - text: medicine
+            - generic [ref=e1287]:
+              - generic [ref=e1288]: Basic
+              - generic "Not yet studied" [ref=e1289]: Unknown
+          - generic [ref=e1291]:
+            - generic [ref=e1292]: 
+            - text: 1 resource(s)
+        - button "학생 student Basic Unknown  1 resource(s)" [ref=e1294] [cursor=pointer]:
+          - generic [ref=e1295]:
+            - generic [ref=e1296]:
+              - heading "학생" [level=6] [ref=e1297]
+              - text: student
+            - generic [ref=e1298]:
+              - generic [ref=e1299]: Basic
+              - generic "Not yet studied" [ref=e1300]: Unknown
+          - generic [ref=e1302]:
+            - generic [ref=e1303]: 
+            - text: 1 resource(s)
+        - button "의자 chair Basic Unknown  1 resource(s)" [ref=e1305] [cursor=pointer]:
+          - generic [ref=e1306]:
+            - generic [ref=e1307]:
+              - heading "의자" [level=6] [ref=e1308]
+              - text: chair
+            - generic [ref=e1309]:
+              - generic [ref=e1310]: Basic
+              - generic "Not yet studied" [ref=e1311]: Unknown
+          - generic [ref=e1313]:
+            - generic [ref=e1314]: 
+            - text: 1 resource(s)
+        - button "채소 vegetable Basic Unknown  1 resource(s)" [ref=e1316] [cursor=pointer]:
+          - generic [ref=e1317]:
+            - generic [ref=e1318]:
+              - heading "채소" [level=6] [ref=e1319]
+              - text: vegetable
+            - generic [ref=e1320]:
+              - generic [ref=e1321]: Basic
+              - generic "Not yet studied" [ref=e1322]: Unknown
+          - generic [ref=e1324]:
+            - generic [ref=e1325]: 
+            - text: 1 resource(s)
+        - button "휴대폰 mobile phone Basic Learning  1 resource(s)" [ref=e1327] [cursor=pointer]:
+          - generic [ref=e1328]:
+            - generic [ref=e1329]:
+              - heading "휴대폰" [level=6] [ref=e1330]
+              - text: mobile phone
+            - generic [ref=e1331]:
+              - generic [ref=e1332]: Basic
+              - generic "Currently studying" [ref=e1333]: Learning
+          - generic [ref=e1335]:
+            - generic [ref=e1336]: 
+            - text: 1 resource(s)

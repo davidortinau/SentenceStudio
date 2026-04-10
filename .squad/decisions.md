@@ -1,6 +1,106 @@
 ## Active Decisions
 ## Active Decisions
 
+### 10. Production Web Validation Uses ACA Default Host Until Custom-Domain Cutover (2026-04-09)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-09  
+**Author:** Scribe (from Wash / Coordinator / Jayne deployment run)
+
+**Context**
+
+The production Azure publish for `sstudio-prod` in Central US completed successfully via `azd deploy -e sstudio-prod --no-prompt`. The deploy output reported live Azure Container Apps endpoints for both the public webapp and the Aspire dashboard, while the custom domain still appeared to be separate/off and likely needs its own DNS/domain follow-up.
+
+**Decision**
+
+1. Use the ACA default webapp hostname as the immediate production validation URL: `https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/`
+2. Use the ACA Aspire dashboard hostname for operational inspection: `https://aspire-dashboard.ext.livelyforest-b32e7d63.centralus.azurecontainerapps.io`
+3. Track custom-domain cutover as a separate follow-up item; do not treat it as a blocker for confirming deployment success.
+4. Treat the repo root as the operator deploy entrypoint and use `azd deploy --environment sstudio-prod --no-prompt` for production publishes; a git push is not required for this path.
+5. Post-deploy validation should expect the default webapp host to return HTTP `200` with a redirect to `/auth/login`, protected API routes to return HTTP `401`, and the marketing site to be validated through `https://www.sentencestudio.com` rather than the raw ACA hostname.
+
+**Impact**
+
+- QA can verify the live production experience immediately on the default hostname.
+- Deployment completion is decoupled from DNS/custom-domain timing.
+- A separate domain follow-up remains required before custom-domain rollout is considered complete.
+- The team has one repeatable production publish command and clearer verification expectations.
+
+---
+
+### 11. Duplicate Cleanup Uses Focused Re-entry and Post-Render Feedback (2026-04-10)
+
+**Status:** VERIFIED  
+**Date:** 2026-04-10  
+**Author:** Scribe (from Kaylee / Jayne / Coordinator)
+
+**Context**
+
+The duplicate scan itself was working, but the webapp flow felt broken on long vocabulary pages because the loading state could fail to paint before the synchronous scan began and the cleanup panel could render outside the current viewport. The edit/details flow also needed a focused way to jump directly into duplicate management for the current word.
+
+**Decision**
+
+1. Keep `/vocabulary` as the single duplicate cleanup workflow and deep-link into it from the word detail/edit flow using `duplicateTerm` and `focusWordId`.
+2. For the full duplicate scan, allow a brief delay after `StateHasChanged()` so the spinner/status can paint before the blocking work starts.
+3. Scroll the specific cleanup panel into view only after results have rendered, using `scrollIntoView(...)` with a short post-render delay instead of a generic `window.scrollTo({ top: 0 })`.
+4. Treat future regressions here as a visibility/flow issue first when results are present but not obvious onscreen.
+
+**Impact**
+
+- Users get immediate feedback that the full scan is running.
+- Results land in view reliably from both list and focused-detail flows.
+- QA has a clearer expectation for verifying duplicate cleanup on the live webapp.
+
+---
+
+### 12. CoreSync Auth Shares the API JWT Pipeline and Deterministic Test Harness (#85) (2026-04-09)
+
+**Status:** ADOPTED  
+**Date:** 2026-04-09  
+**Author:** Scribe (from Wash)
+**Issue:** #85
+
+**Context**
+
+CoreSync needed to validate the same JWTs as the API without carrying a separate auth stack, and the auth integration tests needed a stable local/CI harness that did not depend on startup migrations or live Aspire PostgreSQL wiring.
+
+**Decision**
+
+1. Route CoreSync auth through the API policy scheme: forward Bearer requests to `JwtBearer` and fall back to `DevAuthHandler` only when no Bearer token is present.
+2. Explicitly require authorization on the CoreSync endpoints themselves.
+3. In auth integration tests, skip startup migrations and swap the Aspire PostgreSQL registration for SQLite plus CoreSync provisioning so the suite runs deterministically in CI and local environments.
+
+**Impact**
+
+- Web/CoreSync auth behavior stays aligned with the API.
+- Dev auth remains available for local workflows without weakening Bearer validation.
+- CI/local auth tests are more stable and reproducible.
+
+---
+
+### 13. Mobile Auth Must Preserve Weeks-Long Sign-In on Phones (2026-04-08)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-08  
+**Author:** Scribe (from David / Wash)
+
+**Context**
+
+Captain explicitly directed that mobile auth should keep people signed in for weeks on their phones; having to log in multiple times per day is unacceptable. Follow-up investigation confirmed the frequent logout symptom was caused by refresh tokens being cleared on transient failures, and that this problem is separate from CoreSync JWT validation issue `#85`.
+
+**Decision**
+
+1. Treat “multiple logins per day” as a regression against the expected mobile auth experience.
+2. Only clear stored refresh tokens when the server explicitly rejects them (`401`/`403`); preserve them across transient network, timeout, and `5xx` failures and retry on resume.
+3. Track CoreSync JWT validation (`#85`) separately from user-facing session persistence so the two concerns are not conflated.
+
+**Impact**
+
+- Mobile users should remain signed in through normal transient network failures instead of being forced back to login.
+- Debugging future auth complaints starts with refresh/token handling rather than misrouting everything into `#85`.
+
+---
+
 ### 6. Scoring Override Window Expiration (#151) (2026-04-03)
 
 **Status:** IMPLEMENTED  
@@ -3704,4 +3804,3 @@ Contract DTOs in `SentenceStudio.Contracts/Feedback/` (4 files).
 - Separate signing key for feedback tokens (currently shares JWT signing key)
 - Replay protection via nonce + server-side used-token cache
 - Configurable repo target (`GitHub:Owner`, `GitHub:Repo`)
-

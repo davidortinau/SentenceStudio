@@ -1,0 +1,106 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - text:           
+  - main [ref=e4]:
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - button "" [ref=e83] [cursor=pointer]:
+          - generic [ref=e84]: 
+        - heading "Vocabulary" [active] [level=1] [ref=e85]
+      - generic [ref=e86]:
+        - button "" [ref=e87] [cursor=pointer]:
+          - generic [ref=e88]: 
+        - text: 
+        - generic [ref=e89]:
+          - button "" [ref=e90] [cursor=pointer]:
+            - generic [ref=e91]: 
+          - text:      
+    - generic [ref=e92]:
+      - text:  
+      - generic [ref=e93]:
+        - textbox "Search... (try tag:clothing status:learning resource:'Starter')" [ref=e95]: 자동차
+        - button "" [ref=e96] [cursor=pointer]:
+          - generic [ref=e97]: 
+      - option "All Words" [selected]
+      - option "Associated"
+      - option "Orphaned"
+      - option "All Status" [selected]
+      - option "Known"
+      - option "Familiar"
+      - option "Learning"
+      - option "Unknown"
+      - option "All Resources" [selected]
+      - option "Sentence Studio Starter Vocabulary"
+      - option "All Languages" [selected]
+      - option "Korean"
+      - option "All Encoding" [selected]
+      - option "Strong"
+      - option "Good"
+      - option "Basic"
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - heading "Find Duplicates for “자동차”" [level=6] [ref=e100]
+          - button "" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: 
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - paragraph [ref=e105]: Found 1 group(s) of duplicate words with 1 extra record(s).
+            - generic [ref=e106]:
+              - text: Focused on
+              - strong [ref=e107]: 자동차
+              - text: so you can manage this word's copies faster.
+            - button "Auto-merge All" [ref=e108] [cursor=pointer]
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - strong [ref=e113]: 자동차
+                - generic [ref=e114]: 2 copies
+              - generic [ref=e115]: Focused
+            - generic [ref=e116]:
+              - generic [ref=e117]:
+                - generic [ref=e118]: car
+                - generic [ref=e119]: 1 resources
+                - generic [ref=e120]: Basic
+                - generic [ref=e121]: Recommended keeper
+                - generic [ref=e122]: Current word
+                - generic [ref=e123]: "ID: 17b7e8a8..."
+                - button " Edit" [ref=e124] [cursor=pointer]:
+                  - generic [ref=e125]: 
+                  - text: Edit
+              - generic [ref=e126]:
+                - generic [ref=e127]: car
+                - generic [ref=e128]: 1 resources
+                - generic [ref=e129]: Basic
+                - generic [ref=e130]: "ID: 66449028..."
+                - button " Edit" [ref=e131] [cursor=pointer]:
+                  - generic [ref=e132]: 
+                  - text: Edit
+            - button "Merge (keep best)" [ref=e133] [cursor=pointer]
+      - generic [ref=e134]:
+        - button "자동차 car Basic Unknown  1 resource(s)" [ref=e136] [cursor=pointer]:
+          - generic [ref=e137]:
+            - generic [ref=e138]:
+              - heading "자동차" [level=6] [ref=e139]
+              - text: car
+            - generic [ref=e140]:
+              - generic [ref=e141]: Basic
+              - generic "Not yet studied" [ref=e142]: Unknown
+          - generic [ref=e144]:
+            - generic [ref=e145]: 
+            - text: 1 resource(s)
+        - button "자동차 car Basic Unknown  1 resource(s)" [ref=e147] [cursor=pointer]:
+          - generic [ref=e148]:
+            - generic [ref=e149]:
+              - heading "자동차" [level=6] [ref=e150]
+              - text: car
+            - generic [ref=e151]:
+              - generic [ref=e152]: Basic
+              - generic "Not yet studied" [ref=e153]: Unknown
+          - generic [ref=e155]:
+            - generic [ref=e156]: 
+            - text: 1 resource(s)
+  - alert [ref=e158]:
+    - generic [ref=e159]:
+      - generic [ref=e160]: 
+      - generic [ref=e161]: Found 1 group(s) of duplicate words with 1 extra record(s).
+      - button [ref=e162] [cursor=pointer]
