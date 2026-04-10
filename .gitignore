@@ -437,3 +437,6 @@ src/.claude/settings.local.json
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
 .azure
+
+# Playwright MCP snapshots
+.playwright-mcp/
