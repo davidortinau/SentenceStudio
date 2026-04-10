@@ -20,8 +20,8 @@
     <SecondaryActions>
         <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>Add Word</button></li>
         <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item" @onclick='() => SetViewMode(viewMode == "grid" ? "list" : "grid")'>
-            <i class="bi @(viewMode == "grid" ? "bi-list-ul" : "bi-grid-3x3-gap") me-2"></i>@(viewMode == "grid" ? "List View" : "Grid View")</button></li>
+        <li><button class="dropdown-item" @onclick="ToggleViewMode">
+            <i class="bi @ViewToggleIcon me-2"></i>@ViewToggleLabel</button></li>
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item" @onclick="FindDuplicates"><i class="bi bi-files me-2"></i>Find Duplicates</button></li>
         <li><button class="dropdown-item" @onclick="PopulateLemmas"><i class="bi bi-book me-2"></i>Populate Lemmas</button></li>
@@ -1007,6 +1007,11 @@ else
             isBulkSaving = false;
         }
     }
+
+    private string ViewToggleIcon => viewMode == "grid" ? "bi-list-ul" : "bi-grid-3x3-gap";
+    private string ViewToggleLabel => viewMode == "grid" ? "List View" : "Grid View";
+
+    private Task ToggleViewMode() => SetViewMode(viewMode == "grid" ? "list" : "grid");
 
     private async Task SetViewMode(string mode)
     {
