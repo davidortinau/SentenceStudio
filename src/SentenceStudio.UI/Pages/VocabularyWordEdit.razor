@@ -22,6 +22,7 @@ else
             </PrimaryActions>
             <SecondaryActions>
                 <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+                <li><button class="dropdown-item" @onclick="OpenDuplicateManager" disabled="@isSaving"><i class="bi bi-files me-2"></i>Find Duplicates</button></li>
                 <li><hr class="dropdown-divider" /></li>
                 <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
             </SecondaryActions>
@@ -49,7 +50,16 @@ else
 
     @* Vocabulary Terms *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Vocabulary Terms</h5>
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+            <h5 class="ss-title3 mb-0">Vocabulary Terms</h5>
+            @if (IsExistingWord)
+            {
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                        @onclick="OpenDuplicateManager" disabled="@isSaving">
+                    <i class="bi bi-files me-1"></i>Find Duplicates
+                </button>
+            }
+        </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">Target Language Term</label>
@@ -232,6 +242,12 @@ else
     [SupplyParameterFromQuery(Name = "returnQuery")]
     public string? ReturnQuery { get; set; }
 
+    [SupplyParameterFromQuery(Name = "returnDuplicateTerm")]
+    public string? ReturnDuplicateTerm { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnFocusWordId")]
+    public string? ReturnFocusWordId { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -280,6 +296,7 @@ else
     private string encodingStrengthLabel = "Basic";
     private SentenceStudio.Shared.Models.LearningStatus currentLearningStatus = SentenceStudio.Shared.Models.LearningStatus.Unknown;
     private bool isSettingStatus;
+    private bool IsExistingWord => !string.IsNullOrEmpty(Id) && Id != "0";
 
     private bool IsFormValid =>
         !string.IsNullOrWhiteSpace(targetLanguageTerm) &&
@@ -513,10 +530,39 @@ else
 
     private void GoBack()
     {
-        var url = string.IsNullOrWhiteSpace(ReturnQuery)
+        var queryParts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(ReturnQuery))
+            queryParts.Add($"q={Uri.EscapeDataString(ReturnQuery)}");
+
+        if (!string.IsNullOrWhiteSpace(ReturnDuplicateTerm))
+            queryParts.Add($"duplicateTerm={Uri.EscapeDataString(ReturnDuplicateTerm)}");
+
+        if (!string.IsNullOrWhiteSpace(ReturnFocusWordId))
+            queryParts.Add($"focusWordId={Uri.EscapeDataString(ReturnFocusWordId)}");
+
+        var url = queryParts.Count == 0
             ? "/vocabulary"
-            : $"/vocabulary?q={Uri.EscapeDataString(ReturnQuery)}";
+            : $"/vocabulary?{string.Join("&", queryParts)}";
         NavManager.NavigateTo(url);
+    }
+
+    private void OpenDuplicateManager()
+    {
+        if (!IsExistingWord || string.IsNullOrWhiteSpace(targetLanguageTerm))
+            return;
+
+        var queryParts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(ReturnQuery))
+            queryParts.Add($"q={Uri.EscapeDataString(ReturnQuery)}");
+
+        queryParts.Add($"duplicateTerm={Uri.EscapeDataString(targetLanguageTerm.Trim())}");
+
+        if (!string.IsNullOrWhiteSpace(word.Id))
+            queryParts.Add($"focusWordId={Uri.EscapeDataString(word.Id)}");
+
+        NavManager.NavigateTo($"/vocabulary?{string.Join("&", queryParts)}");
     }
 
     private async Task SetStatus(SentenceStudio.Shared.Models.LearningStatus status)
