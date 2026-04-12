@@ -101,7 +101,8 @@ var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
 // Active user provider: resolves profile ID from authenticated claims, NOT shared preferences
-builder.Services.AddSingleton<SentenceStudio.Abstractions.IActiveUserProvider, ClaimsActiveUserProvider>();
+// Must be Scoped (not Singleton) — each Blazor circuit has its own auth state
+builder.Services.AddScoped<SentenceStudio.Abstractions.IActiveUserProvider, ClaimsActiveUserProvider>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();
