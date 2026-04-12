@@ -4,7 +4,6 @@ using Moq;
 using Xunit;
 using FluentAssertions;
 using SentenceStudio.Abstractions;
-using SentenceStudio.Services;
 using SentenceStudio.Services.Progress;
 
 namespace SentenceStudio.UnitTests.Integration;
@@ -16,7 +15,7 @@ namespace SentenceStudio.UnitTests.Integration;
 public class ProgressCacheServiceTests
 {
     private readonly ProgressCacheService _cache;
-    private readonly Mock<IActiveUserProvider> _mockActiveUser;
+    private readonly Mock<IPreferencesService> _mockPreferences;
 
     private const string TestUserId = "test-user-cache";
     private const string OtherUserId = "other-user-cache";
@@ -24,17 +23,13 @@ public class ProgressCacheServiceTests
     public ProgressCacheServiceTests()
     {
         var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Debug));
-        _mockActiveUser = new Mock<IActiveUserProvider>();
-        _mockActiveUser.Setup(p => p.GetActiveProfileId()).Returns(TestUserId);
-        _mockActiveUser.Setup(p => p.ShouldFallbackToFirstProfile).Returns(true);
-
-        var services = new ServiceCollection();
-        services.AddSingleton(_mockActiveUser.Object);
-        var sp = services.BuildServiceProvider();
+        _mockPreferences = new Mock<IPreferencesService>();
+        _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(TestUserId);
 
         _cache = new ProgressCacheService(
             loggerFactory.CreateLogger<ProgressCacheService>(),
-            sp);
+            _mockPreferences.Object);
     }
 
     #region TodaysPlan Basic Operations
@@ -106,7 +101,8 @@ public class ProgressCacheServiceTests
         _cache.SetTodaysPlan(CreateTestPlan(completedCount: 1));
 
         // Act: switch to different user
-        _mockActiveUser.Setup(p => p.GetActiveProfileId()).Returns(OtherUserId);
+        _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(OtherUserId);
 
         var otherPlan = _cache.GetTodaysPlan();
 
@@ -121,11 +117,13 @@ public class ProgressCacheServiceTests
         _cache.SetTodaysPlan(CreateTestPlan(completedCount: 1));
 
         // Switch to other user, set different plan
-        _mockActiveUser.Setup(p => p.GetActiveProfileId()).Returns(OtherUserId);
+        _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(OtherUserId);
         _cache.SetTodaysPlan(CreateTestPlan(completedCount: 5));
 
         // Switch back to first user
-        _mockActiveUser.Setup(p => p.GetActiveProfileId()).Returns(TestUserId);
+        _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(TestUserId);
         var firstUserPlan = _cache.GetTodaysPlan();
 
         // Assert: first user's plan is unaffected

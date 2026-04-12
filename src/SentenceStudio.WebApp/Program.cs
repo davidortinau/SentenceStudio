@@ -100,9 +100,6 @@ builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
-// Active user provider: resolves profile ID from claims (HTTP) or preferences (Blazor SignalR)
-// Must be Singleton to match Singleton repositories that consume it
-builder.Services.AddSingleton<SentenceStudio.Abstractions.IActiveUserProvider, ClaimsActiveUserProvider>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 builder.Services.AddConversationAgentServices();

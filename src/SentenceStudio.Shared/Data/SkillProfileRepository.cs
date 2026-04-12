@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
@@ -9,16 +8,17 @@ public class SkillProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly ILogger<SkillProfileRepository> _logger;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public SkillProfileRepository(IServiceProvider serviceProvider, ILogger<SkillProfileRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = syncService;
+        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
-    private string ActiveUserId => _serviceProvider.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<SkillProfile>> ListAsync()
     {

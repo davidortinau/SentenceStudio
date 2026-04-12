@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SentenceStudio.Abstractions;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
@@ -10,15 +9,17 @@ public class VocabularyProgressRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly ILogger<VocabularyProgressRepository> _logger;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
+
     public VocabularyProgressRepository(IServiceProvider serviceProvider, ILogger<VocabularyProgressRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = syncService;
+        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
-    private string ActiveUserId => _serviceProvider.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<VocabularyProgress>> ListAsync()
     {

@@ -12,6 +12,7 @@ public class LearningResourceRepository
     private ISyncService _syncService;
     private AiService _aiService;
     private readonly IFileSystemService _fileSystem;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public LearningResourceRepository(
         IServiceProvider serviceProvider,
@@ -25,11 +26,11 @@ public class LearningResourceRepository
         {
             _syncService = serviceProvider.GetService<ISyncService>();
             _aiService = serviceProvider.GetService<AiService>();
+            _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
         }
     }
 
-    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
-    private string ActiveUserId => _serviceProvider?.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)

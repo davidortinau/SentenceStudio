@@ -42,9 +42,6 @@ public class PlanGenerationTestFixture : IDisposable
         mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>())).Returns(TestUserId);
         services.AddSingleton(mockPreferences.Object);
 
-        // IActiveUserProvider — repos resolve user ID through this abstraction
-        services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(mockPreferences.Object));
-
         // ISyncService — no-op for tests
         services.AddSingleton<ISyncService>(new NoOpSyncService());
 

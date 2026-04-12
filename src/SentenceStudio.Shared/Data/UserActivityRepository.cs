@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
@@ -10,6 +9,7 @@ public class UserActivityRepository
     private readonly ISyncService? _syncService;
     private readonly SentenceStudio.Services.Progress.ProgressCacheService? _cacheService;
     private readonly ILogger<UserActivityRepository> _logger;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public UserActivityRepository(IServiceProvider serviceProvider, ILogger<UserActivityRepository> logger, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
     {
@@ -17,10 +17,10 @@ public class UserActivityRepository
         _logger = logger;
         _syncService = syncService;
         _cacheService = cacheService;
+        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
 
-    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
-    private string ActiveUserId => _serviceProvider.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public async Task<List<UserActivity>> ListAsync()
     {
