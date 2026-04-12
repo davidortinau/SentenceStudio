@@ -936,6 +936,19 @@ else
             query.Add($"skillId={item.SkillId}");
         query.Add($"planItemId={item.Id}");
 
+        // Pass ALL route parameters from the plan (DueOnly, Mode, etc.)
+        if (item.RouteParameters != null)
+        {
+            foreach (var kvp in item.RouteParameters)
+            {
+                var key = kvp.Key;
+                // Skip params already added above
+                if (key is "ResourceId" or "resourceId" or "resourceIds" or "SkillId" or "skillId")
+                    continue;
+                query.Add($"{key}={Uri.EscapeDataString(kvp.Value?.ToString() ?? "")}");
+            }
+        }
+
         var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
         NavManager.NavigateTo(url);
     }
