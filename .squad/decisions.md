@@ -3842,3 +3842,22 @@ The `VocabularyReviewBlock` has no per-word mode tracking. Words with MasterySco
 - Future changes to DeterministicPlanBuilder must keep these tests green (except the 3 known failures)
 - The validator can be promoted to runtime use once fixes land
 
+# Decision: DeterministicPlanBuilder Bug Fixes
+
+**Author:** Wash (Backend Dev)
+**Date:** 2025-07-14
+**Status:** Applied
+
+## Changes Made
+
+Three bugs fixed in `DeterministicPlanBuilder.cs`, all confirmed by test suite (43/43 passing, 262/262 full suite):
+
+1. **Deterministic tiebreaker** — Replaced `Guid.NewGuid()` with `Id.GetHashCode() ^ today.GetHashCode()` in resource selection. Same inputs now always produce same output; variety still achieved across different days.
+
+2. **WordCount/DueWords consistency** — `DueWords` list is now truncated to `reviewCount` via `.Take(reviewCount).ToList()` before being set on the returned `VocabularyReviewBlock`. Invariant enforced: `WordCount == DueWords.Count`.
+
+3. **30-day lookback window** — Resource usage query expanded from 14 to 30 days. Resources used 15-30 days ago are now properly tracked with their actual `DaysSinceLastUse` instead of defaulting to 999 ("never used").
+
+## Rationale
+
+These are correctness fixes — the plan builder is called "Deterministic" and must behave deterministically. The WordCount mismatch could cause downstream bugs in quiz generation. The lookback window fix prevents the scheduler from over-rotating through resources.
