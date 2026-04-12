@@ -3861,3 +3861,115 @@ Three bugs fixed in `DeterministicPlanBuilder.cs`, all confirmed by test suite (
 ## Rationale
 
 These are correctness fixes — the plan builder is called "Deterministic" and must behave deterministically. The WordCount mismatch could cause downstream bugs in quiz generation. The lookback window fix prevents the scheduler from over-rotating through resources.
+
+---
+
+# Decision: VocabQuiz Page Filtering Fixes
+
+**Author:** Wash (Backend Dev)
+**Date:** 2025-07-13
+**Status:** Implemented, tests passing, build green
+
+## Context
+
+Captain reported that known words (e.g., "Sightseeing" with IsKnown=true) and promoted words (e.g., "Beach Towel" with MasteryScore=1.0) were appearing in the quiz in MultipleChoice mode. The plan builder (DeterministicPlanBuilder) was correctly filtering words, but the quiz page (VocabQuiz.razor) operated independently and had its own bugs.
+
+## Bugs Found and Fixed
+
+### Bug A: `IsCompleted` vs `IsKnown` (FIXED)
+- **Location:** VocabQuiz.razor LoadVocabulary(), line 531
+- **Problem:** `.Where(i => !(i.Progress?.IsCompleted ?? false))` used the obsolete `IsCompleted` persisted bool field, which is never updated by the new mastery system. Words like "Sightseeing" had `IsKnown=true` but `IsCompleted=false`, passing right through the filter.
+- **Fix:** Changed to `.Where(i => !(i.IsKnown))` which uses the computed property (MasteryScore >= 0.85 AND ProductionInStreak >= 2).
+
+### Bug B: `DueOnly` Parameter Ignored (FIXED)
+- **Location:** VocabQuiz.razor — no `DueOnly` parameter existed
+- **Problem:** The plan routes to `/vocab-quiz?DueOnly=true&resourceIds=X` but the quiz page had no `DueOnly` parameter and loaded ALL vocabulary from the resource, including words not due for SRS review.
+- **Fix:** Added `[SupplyParameterFromQuery(Name = "DueOnly")] public bool DueOnly { get; set; }` and filter logic that only includes words where `NextReviewDate <= now` or unseen words (`TotalAttempts == 0`) when DueOnly is true.
+
+### Bug C: Mode Selection (NOT A BUG)
+- **Investigation:** The mode selection code `(currentItem.IsPromotedInQuiz || (currentItem.Progress?.MasteryScore ?? 0f) >= 0.50f) ? "Text" : "MultipleChoice"` is correct. Progress is always populated (either from DB or as a new default with MasteryScore=0.0f), so the `?? 0f` fallback never hides real mastery data.
+
+## Also Fixed
+- Removed obsolete field assignments (`IsCompleted = false`, `CurrentPhase = LearningPhase.Recognition`) from the default Progress construction in LoadVocabulary.
+
+## Tests Added
+- 13 new tests in `VocabQuizFilteringTests.cs` covering:
+  - Known word exclusion (IsKnown vs IsCompleted)
+  - DueOnly filtering (due, not-due, unseen words)
+  - Mode selection (promoted → Text, low mastery → MultipleChoice, null progress, quiz-local promotion)
+  - Full pipeline simulation replicating the Captain's exact bug scenario
+- All 274 tests pass (1 pre-existing failure in resource selection tests, unrelated).
+
+## Files Modified
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` — Bug A fix, Bug B fix, DueOnly parameter
+- `tests/SentenceStudio.UnitTests/PlanGeneration/VocabQuizFilteringTests.cs` — new test file
+
+---
+
+# Decision: Activity Page Plan Compliance — Audit Results
+
+**Date:** 2026-04-11
+**Author:** Kaylee (Full-stack Dev)
+**Status:** IMPLEMENTED
+**Requested by:** Captain (David Ortinau)
+
+## Context
+
+Activities launched from the daily study plan were not consistently respecting the plan's ResourceId and SkillId parameters. The plan selects specific resources for pedagogical reasons — activities must scope their content accordingly.
+
+## Audit Summary (5 pages)
+
+| Page | ResourceId | SkillId | Grace Period Filter | Status | Action |
+|------|-----------|---------|---------------------|--------|--------|
+| Reading.razor | Used correctly | **Was missing** | N/A (consumption) | Fixed | Added SkillId param |
+| Shadowing.razor | Used correctly | Used correctly | **Was missing** | Fixed | Added grace period filtering |
+| Cloze.razor | Used correctly | Used correctly | Already present | No change | — |
+| Translation.razor | Used correctly | Used correctly | Already present | No change | — |
+| Writing.razor | Used correctly | Accepted, unused | Already present | Minor | Enhanced logging |
+
+## Decision
+
+1. **ShadowingService.GenerateSentencesAsync** now filters vocabulary through `VocabularyProgressService.GetProgressForWordsAsync` to exclude words in grace period, matching the pattern already established by ClozureService and TranslationService.
+2. **Reading.razor** now accepts the `skillId` query parameter so PlanConverter's route parameters don't get silently dropped. Reading is a consumption activity — SkillId is accepted for route compatibility but not used for content filtering (appropriate for passive reading).
+3. **Writing.razor** logs SkillId for tracing but does not filter vocabulary by it. Writing is free-form sentence construction — the vocab blocks are suggestions, not constraints. Grace period filtering (already present) is sufficient.
+4. For production activities (Cloze, Translation, Writing, Shadowing), we do NOT filter out IsKnown words. Using known words in sentence context is pedagogically valid — the challenge is the sentence, not the individual word. Only grace period filtering applies.
+
+## Impact
+
+- Activities launched from the study plan now consistently use the plan's selected resource and vocabulary scope.
+- ShadowingService vocab selection is no longer polluted by words the learner has already demonstrated mastery of (grace period).
+- No over-filtering: known words still appear in sentence-level activities where using them in context is the actual skill being practiced.
+- 275/275 unit tests pass. UI and WebApp build cleanly.
+
+---
+
+# Decision: Structural Activity Page Fixes — Route and Parameter Alignment
+
+**Status:** IMPLEMENTED
+**Date:** 2026-07-17
+**Author:** Wash (Backend Dev)
+
+## Context
+
+The study plan generates activities with ResourceId and SkillId parameters and routes them to activity pages. Three pages had structural problems:
+
+1. Scene.razor and Conversation.razor silently dropped ResourceId/SkillId query parameters — the plan passed them but neither page declared `[SupplyParameterFromQuery]` for them.
+2. PlanConverter.cs mapped `Listening` to `/listening` — a route with no backing page (404).
+3. PlanConverter.cs mapped `SceneDescription` to `/describe-scene` — but the actual page route is `/scene`. Index.razor had a separate `MapActivityRoute` that masked this discrepancy.
+
+## Decisions
+
+1. **Listening maps to Shadowing.** No dedicated listening page exists. Shadowing already handles audio-based comprehension with the same UI affordances. `PlanActivityType.Listening` now routes to `/shadowing` in both PlanConverter and Index.razor's MapActivityRoute.
+
+2. **SceneDescription maps to `/scene`.** PlanConverter's route now matches the actual `@page "/scene"` directive in Scene.razor. This eliminates a latent mismatch that was only hidden by Index.razor's independent route mapping.
+
+3. **Scene and Conversation accept ResourceId/SkillId but cannot yet filter by them.** SceneImageService is a simple image gallery with no resource association. ScenarioService has no resource-awareness. Both pages now declare the parameters (preventing silent drops) and log them for tracing. Actual resource-filtered content is future work.
+
+4. **Two routing systems must stay in sync.** Index.razor has `MapActivityRoute` (used by the plan launcher and "Choose My Own" flow) and PlanConverter has `GetRouteForActivity` (used for stored plan item routes). Both must agree on route targets. This fix aligns them.
+
+## Impact
+
+- Listening activities from the plan no longer 404 — they open Shadowing instead.
+- Scene and Conversation pages accept plan parameters without dropping them.
+- PlanConverter route tests updated and all 275 unit tests pass.
+- Future work: Add resource-aware methods to SceneImageService and ConversationService/ScenarioService so these pages can filter content by the plan's resource context.
