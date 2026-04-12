@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using SentenceStudio.Abstractions;
@@ -10,51 +9,51 @@ namespace SentenceStudio.WebApp.Auth;
 /// <summary>
 /// WebApp implementation: resolves the active user's profile ID from
 /// the authenticated user, NOT from a shared preferences file.
-/// Prevents cross-user data leaks on the multi-user server.
 ///
-/// Uses TWO strategies because Blazor Server has different auth contexts:
-/// 1. IHttpContextAccessor — works during initial HTTP request + API endpoints
-/// 2. AuthenticationStateProvider — works during Blazor SignalR circuit (where HttpContext is null)
+/// Strategy: HttpContext.User for the current request (works during
+/// prerender AND API endpoints). Falls back to IPreferencesService
+/// for Blazor SignalR calls where HttpContext is null — the login
+/// endpoint writes active_profile_id to preferences after sign-in.
+///
+/// Registered as SINGLETON to avoid Scoped resolution issues with
+/// Singleton repositories.
 /// </summary>
 public class ClaimsActiveUserProvider : IActiveUserProvider
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly AuthenticationStateProvider? _authStateProvider;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IPreferencesService? _preferences;
 
     public ClaimsActiveUserProvider(
         IHttpContextAccessor httpContextAccessor,
         IServiceProvider serviceProvider,
-        AuthenticationStateProvider? authStateProvider = null)
+        IPreferencesService? preferences = null)
     {
         _httpContextAccessor = httpContextAccessor;
         _serviceProvider = serviceProvider;
-        _authStateProvider = authStateProvider;
+        _preferences = preferences;
     }
 
     public string? GetActiveProfileId()
     {
-        // Strategy 1: HttpContext (works during initial HTTP request + API endpoints)
+        // Strategy 1: HttpContext (works during HTTP requests, prerender, API endpoints)
         var user = _httpContextAccessor.HttpContext?.User;
-
-        // Strategy 2: AuthenticationStateProvider (works during Blazor SignalR circuit)
-        if (user?.Identity?.IsAuthenticated != true && _authStateProvider != null)
+        if (user?.Identity?.IsAuthenticated == true)
         {
-            try
-            {
-                var authState = _authStateProvider.GetAuthenticationStateAsync().GetAwaiter().GetResult();
-                user = authState?.User;
-            }
-            catch
-            {
-                // AuthenticationStateProvider may not be ready during startup
-            }
+            var profileId = ResolveFromClaims(user);
+            if (!string.IsNullOrEmpty(profileId))
+                return profileId;
         }
 
-        if (user?.Identity?.IsAuthenticated != true)
-            return null;
+        // Strategy 2: Preferences fallback (Blazor SignalR — HttpContext is null)
+        // The login endpoint writes active_profile_id to preferences after sign-in,
+        // so this value is current for the logged-in user.
+        return _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+    }
 
-        // Check for user_profile_id claim first (present in cookie/JWT-authenticated scenarios)
+    private string? ResolveFromClaims(ClaimsPrincipal user)
+    {
+        // Check for user_profile_id claim (present in cookie auth)
         var profileClaim = user.FindFirst("user_profile_id")?.Value;
         if (!string.IsNullOrEmpty(profileClaim))
             return profileClaim;
@@ -70,6 +69,7 @@ public class ClaimsActiveUserProvider : IActiveUserProvider
         return appUser?.UserProfileId;
     }
 
-    // Server is multi-user; NEVER fall back to another user's profile
+    // Server: don't fall back to random first profile. But preferences fallback is OK
+    // because login explicitly sets it.
     public bool ShouldFallbackToFirstProfile => false;
 }
