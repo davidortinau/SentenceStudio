@@ -3804,3 +3804,41 @@ Contract DTOs in `SentenceStudio.Contracts/Feedback/` (4 files).
 - Separate signing key for feedback tokens (currently shares JWT signing key)
 - Replay protection via nonce + server-side used-token cache
 - Configurable repo target (`GitHub:Owner`, `GitHub:Repo`)
+# Decision: Plan Generation Test Suite Documents 3 Confirmed Bugs
+
+**Date:** 2025-07-23  
+**Author:** Wash (Backend Dev)  
+**Status:** Proposed  
+
+## Context
+
+Captain requested a comprehensive test suite against the current DeterministicPlanBuilder, PlanConverter, and a new GeneratedPlanValidator. The goal: write tests that FAIL to document bugs, then fix later.
+
+## Test Results
+
+**43 tests total, 40 passed, 3 failed.**
+
+### Confirmed Bugs (test failures)
+
+| Bug | Test | Root Cause | Severity |
+|-----|------|-----------|----------|
+| Non-deterministic resource selection | `SelectionIsDeterministic_WithSameInputs` | `.ThenBy(c => Guid.NewGuid())` tiebreaker | Medium — causes inconsistent plans |
+| WordCount/DueWords mismatch | `VocabCount_MatchesReality` | `WordCount = Min(20, N)` but `DueWords` has all N items | High — UI shows wrong count |
+| 14-day recency window blindspot | `ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed` | Only looks back 14 days; older usage treated as "never used" | Medium — stale resources resurface early |
+
+### Design Gap (validator-detected)
+
+The `VocabularyReviewBlock` has no per-word mode tracking. Words with MasteryScore >= 0.50 should use Text (production) mode, but the block only has a flat `DueWords` list with no mode annotations.
+
+## Decision
+
+1. All 3 bugs should be fixed in a follow-up task (not this one — test-only charter)
+2. The GeneratedPlanValidator should be integrated into ProgressService to log warnings at runtime
+3. Test filter: `dotnet test --filter "PlanGeneration|PlanValidation|PlanConverter"`
+
+## Consequences
+
+- Tests are now the source of truth for plan generation invariants
+- Future changes to DeterministicPlanBuilder must keep these tests green (except the 3 known failures)
+- The validator can be promoted to runtime use once fixes land
+

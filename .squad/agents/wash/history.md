@@ -446,3 +446,38 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 **Key Decision:** Feedback auth fix (user_profile_id JWT claim) merged to team decisions log. Multiple endpoints (Feedback, Channel, Import) required this claim addition across three token paths: JwtTokenService, ServerAuthService, DevAuthHandler.
 
 **Impact for Wash:** Operational priorities identified (#57, #59, #58). No stale duplicates in backlog. Ready for DevOps roadmap integration.
+
+## Plan Generation Test Suite — Bug Documentation
+
+**Date:** 2025-07-23
+**Task:** Write comprehensive test suite against DeterministicPlanBuilder, PlanConverter, and new GeneratedPlanValidator.
+
+### Files Created
+- `src/SentenceStudio.Shared/Services/PlanGeneration/GeneratedPlanValidator.cs` — runtime invariant checker (NEW production code)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/PlanGenerationTestFixture.cs` — in-memory SQLite + full DI integration fixture
+- `tests/SentenceStudio.UnitTests/PlanGeneration/DeterministicPlanBuilderVocabularyReviewTests.cs` (7 tests)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/DeterministicPlanBuilderResourceSelectionTests.cs` (7 tests)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/DeterministicPlanBuilderActivitySequenceTests.cs` (7 tests)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/PlanValidationTests.cs` (8 tests)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/StudyPlanIntegrationTests.cs` (6 tests)
+- `tests/SentenceStudio.UnitTests/PlanGeneration/PlanConverterTests.cs` (8 tests)
+
+### Test Results: 43 total, 40 passed, 3 failed
+
+**FAILED (confirmed bugs):**
+
+1. **`SelectionIsDeterministic_WithSameInputs`** — `.ThenBy(c => Guid.NewGuid())` tiebreaker makes resource selection non-deterministic when scores are equal. Fix: use deterministic tiebreaker (e.g., resource ID hash).
+
+2. **`VocabCount_MatchesReality`** — `WordCount = Math.Min(20, dueWords.Count)` caps the count at 20, but `DueWords = dueWords` passes ALL due words (e.g., 25). WordCount says 20 but DueWords.Count is 25. Fix: either cap the DueWords list or set WordCount = DueWords.Count.
+
+3. **`ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed`** — 14-day recency window (`today.AddDays(-14)`) means a resource used 15 days ago has no usage record visible, giving it DaysSinceLastUse=999 (same as never-used). Fix: extend window or use all-time history.
+
+**PASSED (validator-detected design gaps):**
+- `HighMasteryLowProduction_IncludedButShouldBeProductionMode` — validator correctly flags that VocabularyReviewBlock has no per-word mode tracking for promoted words (MasteryScore >= 0.50)
+- `ValidatorPassesOnGeneratedPlan` — validator finds violations on real generated plans, confirming the production mode gap
+
+### Learnings
+- ApplicationDbContext inherits IdentityDbContext on net10.0 — test project needs `<FrameworkReference Include="Microsoft.AspNetCore.App" />`
+- In-memory SQLite with shared connection works well for integration testing DeterministicPlanBuilder's scoped DI pattern
+- Repositories use `GetService<>` (not `GetRequiredService<>`) for optional deps like ISyncService and AiService — null-safe in test context
+- Test filter `--filter "PlanGeneration|PlanValidation|PlanConverter"` targets all plan test classes
