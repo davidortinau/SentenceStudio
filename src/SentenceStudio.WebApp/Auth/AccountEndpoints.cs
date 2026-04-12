@@ -113,6 +113,7 @@ public static class AccountEndpoints
             await signInManager.SignInAsync(user, isPersistent: true);
 
             // Set the active profile so Profile page and other features find it
+            var isOnboarded = false;
             if (!string.IsNullOrEmpty(user.UserProfileId))
             {
                 preferences.Set("active_profile_id", user.UserProfileId);
@@ -126,10 +127,19 @@ public static class AccountEndpoints
                     && !string.IsNullOrEmpty(profile.NativeLanguage))
                 {
                     preferences.Set("is_onboarded", true);
+                    isOnboarded = true;
                 }
             }
 
-            return Results.LocalRedirect(returnUrl ?? "/");
+            // Override returnUrl if user is onboarded but was sent to onboarding
+            // (happens when preferences file was wiped by container deploy)
+            var destination = returnUrl ?? "/";
+            if (isOnboarded && destination.Contains("onboarding", StringComparison.OrdinalIgnoreCase))
+            {
+                destination = "/";
+            }
+
+            return Results.LocalRedirect(destination);
         });
 
         group.MapGet("/ConfirmEmail", async (
