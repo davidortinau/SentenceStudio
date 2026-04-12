@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
@@ -9,7 +10,7 @@ public class UserActivityRepository
     private readonly ISyncService? _syncService;
     private readonly SentenceStudio.Services.Progress.ProgressCacheService? _cacheService;
     private readonly ILogger<UserActivityRepository> _logger;
-    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
+    private readonly IActiveUserProvider? _activeUserProvider;
 
     public UserActivityRepository(IServiceProvider serviceProvider, ILogger<UserActivityRepository> logger, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
     {
@@ -17,10 +18,10 @@ public class UserActivityRepository
         _logger = logger;
         _syncService = syncService;
         _cacheService = cacheService;
-        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
+        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
-    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
 
     public async Task<List<UserActivity>> ListAsync()
     {

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
@@ -8,17 +9,17 @@ public class SkillProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly ILogger<SkillProfileRepository> _logger;
-    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
+    private readonly IActiveUserProvider? _activeUserProvider;
 
     public SkillProfileRepository(IServiceProvider serviceProvider, ILogger<SkillProfileRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = syncService;
-        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
+        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
-    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
 
     public async Task<List<SkillProfile>> ListAsync()
     {

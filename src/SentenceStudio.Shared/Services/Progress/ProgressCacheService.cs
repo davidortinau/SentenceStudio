@@ -10,13 +10,13 @@ namespace SentenceStudio.Services.Progress;
 public class ProgressCacheService
 {
     private readonly ILogger<ProgressCacheService> _logger;
-    private readonly IPreferencesService _preferences;
+    private readonly IActiveUserProvider? _activeUserProvider;
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
 
-    public ProgressCacheService(ILogger<ProgressCacheService> logger, IPreferencesService preferences)
+    public ProgressCacheService(ILogger<ProgressCacheService> logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
-        _preferences = preferences;
+        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
     // Cache entries keyed by userId
@@ -26,7 +26,7 @@ public class ProgressCacheService
     private readonly Dictionary<string, CacheEntry<SkillProgress>> _skillProgressCache = new();
     private readonly Dictionary<string, CacheEntry<TodaysPlan>> _todaysPlanCache = new();
 
-    private string UserId => _preferences.Get("active_profile_id", string.Empty);
+    private string UserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
 
     public VocabProgressSummary? GetVocabSummary()
     {

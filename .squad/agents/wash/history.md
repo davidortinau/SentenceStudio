@@ -511,3 +511,53 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 **Verification:** 0 build errors across UI and WebApp projects. All 275 unit tests pass.
 
 **Limitation noted:** Scene and Conversation accept ResourceId/SkillId but cannot yet filter content by resource. Their services need resource-aware methods (future work). The parameters are wired and logged so the plan connection is established.
+
+---
+
+## 2025-07-18 — SECURITY FIX: Cross-user data leak via shared preferences singleton
+
+**Bug:** After every Azure deploy, all users got logged in as "Jose" (or whichever user last signed in). The `WebPreferencesService` was a server-side singleton backed by a single JSON file that stored `active_profile_id` — shared across ALL HTTP requests. This is a cross-user data leak.
+
+**Root Cause:** The preference system was designed for MAUI (single-user per device). On the server, a singleton JSON file is shared by all users. When User A logs in, their profile ID overwrites User B's in the shared file.
+
+**Fix — `IActiveUserProvider` abstraction:**
+- Created `IActiveUserProvider` interface with `GetActiveProfileId()` + `ShouldFallbackToFirstProfile`
+- **MAUI implementation** (`PreferencesActiveUserProvider`): reads from device preferences (existing behavior, safe for single-user)
+- **WebApp implementation** (`ClaimsActiveUserProvider`): reads from authenticated Identity user's `UserProfileId` via `IHttpContextAccessor` and `UserManager<ApplicationUser>` lookup. Falls back to `user_profile_id` JWT claim if present.
+- Server implementation returns `ShouldFallbackToFirstProfile = false` so repositories return null instead of leaking another user's profile via `FirstOrDefaultAsync()`
+
+**Files Created:**
+- `src/SentenceStudio.Shared/Abstractions/IActiveUserProvider.cs`
+- `src/SentenceStudio.Shared/Services/PreferencesActiveUserProvider.cs`
+- `src/SentenceStudio.WebApp/Auth/ClaimsActiveUserProvider.cs`
+
+**Files Modified (removed direct `_preferences.Get("active_profile_id")` reads):**
+- `UserProfileRepository.cs` — uses `IActiveUserProvider`, respects `ShouldFallbackToFirstProfile`
+- `SkillProfileRepository.cs` — uses `IActiveUserProvider`
+- `UserActivityRepository.cs` — uses `IActiveUserProvider`
+- `VocabularyProgressRepository.cs` — uses `IActiveUserProvider`
+- `LearningResourceRepository.cs` — uses `IActiveUserProvider`
+- `ProgressCacheService.cs` — uses `IActiveUserProvider`
+- `WebApp/Program.cs` — registers `ClaimsActiveUserProvider`
+- `CoreServiceExtensions.cs` — registers `PreferencesActiveUserProvider` via `TryAddSingleton`
+
+**DI Registration Strategy:**
+- WebApp registers `ClaimsActiveUserProvider` as `IActiveUserProvider` BEFORE calling `AddSentenceStudioCoreServices()`
+- `CoreServiceExtensions` uses `TryAddSingleton` so the WebApp's registration wins; MAUI hosts get the preferences-based default
+
+**Verification:** WebApp (net10.0), UI project, and all unit tests build and pass with 0 errors.
+
+**Remaining work (lower priority):** Many Blazor `.razor` pages also read `active_profile_id` directly from `IPreferencesService`. These should eventually migrate to `IActiveUserProvider` too, but the critical data-layer leak is now plugged.
+
+### Test Fixture Fix (same session)
+
+After the security fix, test fixtures needed `IActiveUserProvider` registration since repos no longer read directly from `IPreferencesService`.
+
+**`PlanGenerationTestFixture.cs`** — added `IActiveUserProvider` registration backed by the existing mock preferences:
+```csharp
+services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(mockPreferences.Object));
+```
+
+**`ProgressCacheServiceTests.cs`** — `ProgressCacheService` constructor changed from `(ILogger, IPreferencesService)` to `(ILogger, IServiceProvider)`. Replaced `Mock<IPreferencesService>` user-switching with `Mock<IActiveUserProvider>` backed by a minimal `ServiceProvider`.
+
+**Result:** 363 passed, 1 pre-existing failure (`ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed` — fails on clean main too).

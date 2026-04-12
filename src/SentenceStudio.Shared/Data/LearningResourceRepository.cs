@@ -12,7 +12,7 @@ public class LearningResourceRepository
     private ISyncService _syncService;
     private AiService _aiService;
     private readonly IFileSystemService _fileSystem;
-    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
+    private readonly IActiveUserProvider? _activeUserProvider;
 
     public LearningResourceRepository(
         IServiceProvider serviceProvider,
@@ -26,11 +26,11 @@ public class LearningResourceRepository
         {
             _syncService = serviceProvider.GetService<ISyncService>();
             _aiService = serviceProvider.GetService<AiService>();
-            _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
+            _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
         }
     }
 
-    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)

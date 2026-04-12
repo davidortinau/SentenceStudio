@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Repositories;
 using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Services.PlanGeneration;
@@ -16,6 +18,10 @@ public static class CoreServiceExtensions
 {
     public static IServiceCollection AddSentenceStudioCoreServices(this IServiceCollection services)
     {
+        // Active user provider — MAUI default reads from device preferences.
+        // WebApp overrides this with ClaimsActiveUserProvider before calling this method.
+        services.TryAddSingleton<IActiveUserProvider, PreferencesActiveUserProvider>();
+
         // Theme
         services.AddSingleton<ThemeService>();
 

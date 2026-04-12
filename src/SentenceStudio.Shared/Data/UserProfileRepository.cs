@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
@@ -9,7 +10,7 @@ public class UserProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;
     private readonly ILogger<UserProfileRepository> _logger;
-    private readonly SentenceStudio.Abstractions.IPreferencesService _preferences;
+    private readonly IActiveUserProvider? _activeUserProvider;
 
     /// <summary>Preference key storing the active profile's ID (set during login).</summary>
     public const string ActiveProfileIdKey = "active_profile_id";
@@ -19,7 +20,7 @@ public class UserProfileRepository
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = serviceProvider.GetService<ISyncService>();
-        _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
+        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
     public async Task<List<UserProfile>> ListAsync()
@@ -58,16 +59,22 @@ public class UserProfileRepository
         // Backfill UserProfileId for existing data (idempotent, runs once per session)
         await EnsureMultiUserBackfillAsync();
 
-        // Load the active profile if one was selected during login
+        // Load the active profile using the host-appropriate provider
+        // (MAUI: device preferences, WebApp: authenticated claims)
         UserProfile profile = null;
-        var activeId = _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+        var activeId = _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
         if (!string.IsNullOrEmpty(activeId))
         {
             profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == activeId);
         }
 
-        // Fall back to first profile if active profile not found
-        profile ??= await db.UserProfiles.FirstOrDefaultAsync();
+        // Fall back to first profile ONLY on single-user hosts (MAUI).
+        // On the server, returning null forces re-authentication instead of
+        // leaking another user's data.
+        if (profile is null && (_activeUserProvider?.ShouldFallbackToFirstProfile ?? true))
+        {
+            profile = await db.UserProfiles.FirstOrDefaultAsync();
+        }
 
         // Ensure DisplayLanguage is never null or empty for existing profiles
         if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))
