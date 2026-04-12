@@ -9,17 +9,16 @@ public class SkillProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
     private readonly ILogger<SkillProfileRepository> _logger;
-    private readonly IActiveUserProvider? _activeUserProvider;
 
     public SkillProfileRepository(IServiceProvider serviceProvider, ILogger<SkillProfileRepository> logger, ISyncService? syncService = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = syncService;
-        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
-    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
+    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
+    private string ActiveUserId => _serviceProvider.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
 
     public async Task<List<SkillProfile>> ListAsync()
     {

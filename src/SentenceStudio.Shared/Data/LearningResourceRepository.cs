@@ -12,7 +12,6 @@ public class LearningResourceRepository
     private ISyncService _syncService;
     private AiService _aiService;
     private readonly IFileSystemService _fileSystem;
-    private readonly IActiveUserProvider? _activeUserProvider;
 
     public LearningResourceRepository(
         IServiceProvider serviceProvider,
@@ -26,11 +25,11 @@ public class LearningResourceRepository
         {
             _syncService = serviceProvider.GetService<ISyncService>();
             _aiService = serviceProvider.GetService<AiService>();
-            _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
         }
     }
 
-    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
+    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
+    private string ActiveUserId => _serviceProvider?.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
 
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)

@@ -10,7 +10,6 @@ public class UserProfileRepository
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;
     private readonly ILogger<UserProfileRepository> _logger;
-    private readonly IActiveUserProvider? _activeUserProvider;
 
     /// <summary>Preference key storing the active profile's ID (set during login).</summary>
     public const string ActiveProfileIdKey = "active_profile_id";
@@ -20,7 +19,6 @@ public class UserProfileRepository
         _serviceProvider = serviceProvider;
         _logger = logger;
         _syncService = serviceProvider.GetService<ISyncService>();
-        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
     public async Task<List<UserProfile>> ListAsync()
@@ -61,8 +59,10 @@ public class UserProfileRepository
 
         // Load the active profile using the host-appropriate provider
         // (MAUI: device preferences, WebApp: authenticated claims)
+        // Resolve per-call: provider may be Scoped (webapp) while this repo is Singleton
         UserProfile profile = null;
-        var activeId = _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
+        var activeUserProvider = _serviceProvider.GetService<IActiveUserProvider>();
+        var activeId = activeUserProvider?.GetActiveProfileId() ?? string.Empty;
         if (!string.IsNullOrEmpty(activeId))
         {
             profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == activeId);
@@ -71,7 +71,7 @@ public class UserProfileRepository
         // Fall back to first profile ONLY on single-user hosts (MAUI).
         // On the server, returning null forces re-authentication instead of
         // leaking another user's data.
-        if (profile is null && (_activeUserProvider?.ShouldFallbackToFirstProfile ?? true))
+        if (profile is null && (activeUserProvider?.ShouldFallbackToFirstProfile ?? true))
         {
             profile = await db.UserProfiles.FirstOrDefaultAsync();
         }

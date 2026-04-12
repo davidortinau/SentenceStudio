@@ -10,7 +10,6 @@ public class UserActivityRepository
     private readonly ISyncService? _syncService;
     private readonly SentenceStudio.Services.Progress.ProgressCacheService? _cacheService;
     private readonly ILogger<UserActivityRepository> _logger;
-    private readonly IActiveUserProvider? _activeUserProvider;
 
     public UserActivityRepository(IServiceProvider serviceProvider, ILogger<UserActivityRepository> logger, ISyncService? syncService = null, SentenceStudio.Services.Progress.ProgressCacheService? cacheService = null)
     {
@@ -18,10 +17,10 @@ public class UserActivityRepository
         _logger = logger;
         _syncService = syncService;
         _cacheService = cacheService;
-        _activeUserProvider = serviceProvider.GetService<IActiveUserProvider>();
     }
 
-    private string ActiveUserId => _activeUserProvider?.GetActiveProfileId() ?? string.Empty;
+    // Resolve per-call: IActiveUserProvider may be Scoped (webapp) while this repo is Singleton
+    private string ActiveUserId => _serviceProvider.GetService<IActiveUserProvider>()?.GetActiveProfileId() ?? string.Empty;
 
     public async Task<List<UserActivity>> ListAsync()
     {
