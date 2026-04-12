@@ -18,6 +18,7 @@ public class ShadowingService
     private readonly TranscriptSentenceExtractor _sentenceExtractor;
     private readonly IFileSystemService _fileSystem;
     private readonly ILogger<ShadowingService> _logger;
+    private readonly VocabularyProgressService _progressService;
     private List<VocabularyWord> _words = new();
 
     /// <summary>
@@ -39,6 +40,7 @@ public class ShadowingService
         _sentenceExtractor = service.GetRequiredService<TranscriptSentenceExtractor>();
         _fileSystem = service.GetRequiredService<IFileSystemService>();
         _logger = service.GetRequiredService<ILogger<ShadowingService>>();
+        _progressService = service.GetRequiredService<VocabularyProgressService>();
     }
 
     /// <summary>
@@ -66,8 +68,18 @@ public class ShadowingService
 
         var random = new Random();
         
+        // Exclude Familiar words in grace period (consistent with Cloze/Translation services)
+        var allVocab = resource.Vocabulary.ToList();
+        var wordIds = allVocab.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var eligibleWords = allVocab
+            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+            .ToList();
+        _logger.LogDebug("Shadowing: {EligibleCount} eligible words ({Excluded} excluded for grace period)",
+            eligibleWords.Count, allVocab.Count - eligibleWords.Count);
+
         // Take a random selection of vocabulary words
-        _words = resource.Vocabulary.OrderBy(t => random.Next()).Take(10).ToList();
+        _words = eligibleWords.OrderBy(t => random.Next()).Take(10).ToList();
         
         // Get the user's native language and use resource's language as target
         var userProfile = await _userProfileRepository.GetAsync();

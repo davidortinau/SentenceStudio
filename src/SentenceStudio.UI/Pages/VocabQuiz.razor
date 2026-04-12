@@ -375,6 +375,9 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "DueOnly")]
+    public bool DueOnly { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
@@ -518,18 +521,29 @@ else
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
 
-            batchPool = allWords.Select(word =>
+            var quizCandidates = allWords.Select(word =>
             {
                 var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
                     : new SentenceStudio.Shared.Models.VocabularyProgress
                     {
-                        VocabularyWordId = word.Id, IsCompleted = false, MasteryScore = 0.0f,
-                        CurrentPhase = LearningPhase.Recognition, TotalAttempts = 0, CorrectAttempts = 0
+                        VocabularyWordId = word.Id, MasteryScore = 0.0f,
+                        TotalAttempts = 0, CorrectAttempts = 0
                     };
                 return new VocabularyQuizItem { Word = word, Progress = progress };
             })
-            .Where(i => !(i.Progress?.IsCompleted ?? false))
-            .Where(i => !(i.Progress?.IsInGracePeriod ?? false))
+            .Where(i => !(i.IsKnown))  // Bug A fix: use IsKnown (computed) not IsCompleted (stale persisted bool)
+            .Where(i => !(i.Progress?.IsInGracePeriod ?? false));
+
+            // Bug B fix: when SRS plan sends DueOnly=true, only include words actually due for review
+            if (DueOnly)
+            {
+                var now = DateTime.Now;
+                quizCandidates = quizCandidates.Where(i =>
+                    i.Progress?.NextReviewDate != null && i.Progress.NextReviewDate <= now
+                    || (i.Progress?.TotalAttempts ?? 0) == 0); // include unseen words too
+            }
+
+            batchPool = quizCandidates
             .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
             .ThenBy(_ => Guid.NewGuid())
             .Take(BatchSize)

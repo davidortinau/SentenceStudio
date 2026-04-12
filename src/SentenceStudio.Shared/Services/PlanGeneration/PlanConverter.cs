@@ -99,13 +99,15 @@ public static class PlanConverter
         {
             PlanActivityType.VocabularyReview => "/vocabulary-quiz",
             PlanActivityType.Reading => "/reading",
-            PlanActivityType.Listening => "/listening",
+            // Listening routes to Shadowing — no dedicated listening page exists.
+            // Both activities use audio-based comprehension with the same UI.
+            PlanActivityType.Listening => "/shadowing",
             PlanActivityType.VideoWatching => "/video-watching",
             PlanActivityType.Shadowing => "/shadowing",
             PlanActivityType.Cloze => "/cloze",
             PlanActivityType.Translation => "/translation",
             PlanActivityType.Writing => "/writing",
-            PlanActivityType.SceneDescription => "/describe-scene",
+            PlanActivityType.SceneDescription => "/scene",
             PlanActivityType.Conversation => "/conversation",
             PlanActivityType.VocabularyGame => "/vocabulary-matching",
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")

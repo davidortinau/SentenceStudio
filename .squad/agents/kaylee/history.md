@@ -559,3 +559,23 @@ Built the complete Feedback page with three-state flow (Form, Preview, Success) 
 **Decision:** Feedback auth fix merged to team log (user_profile_id JWT claim required by multiple endpoints).
 
 **Impact for Kaylee:** Valid mobile UX issues ready for sprint planning; testing priorities updated in team log.
+
+### 2026-04-11 — Activity Page Plan Compliance Audit (5 pages)
+
+**Task:** Captain reported that activity pages launched from the study plan ignore the plan's ResourceId/SkillId parameters, causing known/mastered vocabulary to leak into practice sessions.
+
+**Audit Findings:**
+- **Cloze.razor** — Already fully compliant. Service scopes to ResourceId + SkillId + filters grace period words. No changes needed.
+- **Translation.razor** — Already fully compliant. Same pattern as Cloze. No changes needed.
+- **Reading.razor** — Missing `SkillId` parameter acceptance. PlanConverter sends it but page dropped it. Fixed: added `[SupplyParameterFromQuery(Name = "skillId")]` and enhanced init logging.
+- **Shadowing.razor** — Page properly passes ResourceId + SkillId to service. But `ShadowingService.GenerateSentencesAsync` was taking random vocab from the resource WITHOUT excluding grace period words (unlike Cloze/Translation). Fixed: added `VocabularyProgressService` DI and grace period filtering, matching the pattern in ClozureService and TranslationService.
+- **Writing.razor** — ResourceId used correctly, grace period filtering already present. SkillId accepted but not wired to any service call (Writing is free-form). Enhanced init logging to trace SkillId.
+
+**Changes Made:**
+1. `Reading.razor` — Added SkillId parameter + enhanced logging
+2. `ShadowingService.cs` — Added `VocabularyProgressService` dependency + grace period filtering in `GenerateSentencesAsync`
+3. `Writing.razor` — Enhanced logging with ResourceId + SkillId tracing
+
+**Build/Test:** UI (0 errors), WebApp (0 errors), 275/275 tests pass.
+
+**Key Insight:** Cloze and Translation services were already well-built with grace period filtering. Shadowing was the only service with a real vocabulary scoping bug. Reading and Writing needed minor parameter/logging fixes only.

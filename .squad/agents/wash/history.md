@@ -481,3 +481,33 @@ Completed full-stack backend implementation of Plan Narrative feature and coordi
 - In-memory SQLite with shared connection works well for integration testing DeterministicPlanBuilder's scoped DI pattern
 - Repositories use `GetService<>` (not `GetRequiredService<>`) for optional deps like ISyncService and AiService — null-safe in test context
 - Test filter `--filter "PlanGeneration|PlanValidation|PlanConverter"` targets all plan test classes
+- DeterministicPlanBuilder: tiebreakers must use deterministic hashing (e.g., `Id.GetHashCode() ^ today.GetHashCode()`), NEVER `Guid.NewGuid()` — same inputs must yield same outputs
+- DeterministicPlanBuilder: `VocabularyReviewBlock.DueWords` must be truncated to match `WordCount` — invariant: `WordCount == DueWords.Count`
+- DeterministicPlanBuilder: resource usage lookback window is 30 days (not 14) — resources used 15-30 days ago must not appear as "never used"
+
+- VocabQuiz.razor was filtering words with obsolete IsCompleted (persisted bool, never updated) instead of IsKnown (computed: MasteryScore >= 0.85 AND ProductionInStreak >= 2) — caused known words to leak into quizzes
+- VocabQuiz.razor ignored DueOnly query parameter entirely — when SRS plan routes to quiz with DueOnly=true, the quiz must filter to words where NextReviewDate <= now (or unseen words with TotalAttempts == 0)
+- VocabQuiz.razor mode selection logic (MasteryScore >= 0.50 to Text) was correct all along; Bug C was a non-issue since Progress is always constructed for each word (never null at mode-check time)
+- Quiz page query params: resourceIds, skillId, planItemId, and now DueOnly — all via [SupplyParameterFromQuery]
+- When creating default VocabularyProgress for words not in progressDict, do NOT set obsolete fields (IsCompleted, CurrentPhase) — rely on computed properties
+
+### Structural Activity Page Fixes — Scene, Conversation, Listening (2026-07-17)
+
+**Context:** Captain ordered a full audit of activity pages launched from the study plan. Three pages had structural problems — they ignored the plan's ResourceId/SkillId parameters or routed to nonexistent pages.
+
+**What was wrong:**
+1. **Scene.razor** (`/scene`) — Accepted no ResourceId/SkillId query params. Plan passed them but they were silently dropped.
+2. **Conversation.razor** (`/conversation`) — Same problem. Only accepted scenarioId, ignoring ResourceId/SkillId.
+3. **Listening route** — PlanConverter mapped Listening to "/listening" but no Listening.razor exists. Would 404.
+4. **Bonus find:** PlanConverter also mapped SceneDescription to "/describe-scene" but the actual page is at `/scene`. Index.razor had its own MapActivityRoute that papered over this, but PlanConverter's stored routes were wrong.
+
+**What I fixed:**
+- **Scene.razor:** Added `[SupplyParameterFromQuery]` for `resourceId` and `skillId`. Enhanced logging. SceneImageService has no resource-aware filtering (simple image gallery), so scenes remain random — params accepted for future use.
+- **Conversation.razor:** Added `[SupplyParameterFromQuery]` for `resourceId` and `skillId`. Enhanced logging. ScenarioService has no resource-awareness, so behavior falls back to default scenario — params accepted for future matching.
+- **PlanConverter.cs:** Changed Listening to "/shadowing" (no dedicated listening page; shadowing handles audio comprehension). Changed SceneDescription to "/scene" (matching actual page route).
+- **Index.razor:** Synced MapActivityRoute — changed Listening to "shadowing" (was incorrectly mapped to "reading").
+- **PlanConverterTests.cs:** Updated expected routes for Listening (/shadowing) and SceneDescription (/scene).
+
+**Verification:** 0 build errors across UI and WebApp projects. All 275 unit tests pass.
+
+**Limitation noted:** Scene and Conversation accept ResourceId/SkillId but cannot yet filter content by resource. Their services need resource-aware methods (future work). The parameters are wired and logged so the plan connection is established.

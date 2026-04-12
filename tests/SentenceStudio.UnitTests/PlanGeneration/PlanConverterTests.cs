@@ -136,13 +136,13 @@ public class PlanConverterTests
         {
             ["VocabularyReview"] = "/vocabulary-quiz",
             ["Reading"] = "/reading",
-            ["Listening"] = "/listening",
+            ["Listening"] = "/shadowing",
             ["VideoWatching"] = "/video-watching",
             ["Shadowing"] = "/shadowing",
             ["Cloze"] = "/cloze",
             ["Translation"] = "/translation",
             ["Writing"] = "/writing",
-            ["SceneDescription"] = "/describe-scene",
+            ["SceneDescription"] = "/scene",
             ["Conversation"] = "/conversation",
             ["VocabularyGame"] = "/vocabulary-matching"
         };

@@ -218,6 +218,12 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public string? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public string? SkillIdParam { get; set; }
+
     [Inject] private SceneImageService SceneSvc { get; set; } = default!;
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
@@ -251,7 +257,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        Logger.LogInformation("🎯 Scene initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("🎯 Scene initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
+            PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("SceneDescription", PlanItemId);
         fromPlan = FromPlanParam;

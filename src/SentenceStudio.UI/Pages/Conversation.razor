@@ -179,6 +179,12 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "resourceId")]
+    public string? ResourceIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "skillId")]
+    public string? SkillIdParam { get; set; }
+
     [Inject] private ConversationService ConversationSvc { get; set; } = default!;
     [Inject] private IScenarioService ScenarioSvc { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
@@ -231,7 +237,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
+            PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("Conversation", PlanItemId);
         fromPlan = FromPlanParam;
@@ -248,6 +255,8 @@ else
             if (ScenarioIdParam is not null and > 0)
                 activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam.Value);
 
+            // When launched from plan with ResourceId but no scenarioId, use default scenario.
+            // ResourceId/SkillId are accepted for future resource-aware scenario matching.
             activeScenario ??= scenarios.FirstOrDefault();
 
             await StartConversation();
