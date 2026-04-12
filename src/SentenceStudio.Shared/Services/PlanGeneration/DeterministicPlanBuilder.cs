@@ -193,6 +193,8 @@ public class DeterministicPlanBuilder
         // Estimate time: ~3-4 words per minute with MC→text entry progression
         var estimatedMinutes = (int)Math.Ceiling(reviewCount / 3.5);
 
+        var selectedDueWords = dueWords.Take(reviewCount).ToList();
+
         return new VocabularyReviewBlock
         {
             WordCount = reviewCount,
@@ -201,7 +203,7 @@ public class DeterministicPlanBuilder
             SkillId = skillId,
             EstimatedMinutes = estimatedMinutes,
             IsContextual = !string.IsNullOrEmpty(resourceId),
-            DueWords = dueWords
+            DueWords = selectedDueWords
         };
     }
 
@@ -222,7 +224,7 @@ public class DeterministicPlanBuilder
 
         // Get recent activity to analyze resource usage patterns
         var recentActivity = await db.DailyPlanCompletions
-            .Where(c => c.Date >= today.AddDays(-14) && !string.IsNullOrEmpty(c.ResourceId))
+            .Where(c => c.Date >= today.AddDays(-30) && !string.IsNullOrEmpty(c.ResourceId))
             .OrderByDescending(c => c.Date)
             .ToListAsync(ct);
 
@@ -306,7 +308,7 @@ public class DeterministicPlanBuilder
         var selected = candidates
             .Where(c => c.Score > -500) // Filter out disqualified (yesterday's resource)
             .OrderByDescending(c => c.Score)
-            .ThenBy(c => Guid.NewGuid()) // Random tiebreaker
+            .ThenBy(c => c.Resource.Id.GetHashCode() ^ today.GetHashCode()) // Deterministic tiebreaker
             .FirstOrDefault();
 
         if (selected == null)

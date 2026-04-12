@@ -28,6 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ASP.NET Core Identity types needed because ApplicationDbContext inherits IdentityDbContext on net10.0 -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Note: SentenceStudio project is excluded because it doesn't build for net10.0 -->
     <!-- Tests that depend on SentenceStudio classes are also excluded -->
     <!-- <ProjectReference Include="..\..\src\SentenceStudio\SentenceStudio.csproj" /> -->
